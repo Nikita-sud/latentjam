@@ -48,14 +48,14 @@ sealed class TabNode {
     data class Home(val type: MusicType) : TabNode() {
         override val id = "$ID/${type.intCode}"
         override val microId: String =
-            "t{${
+            "t${
             when (type) {
                 MusicType.SONGS -> 's'
                 MusicType.ALBUMS -> 'a'
                 MusicType.ARTISTS -> 'r'
                 MusicType.GENRES -> 'g'
                 MusicType.PLAYLISTS -> 'p'
-            }}}"
+            }}"
         override val bitmapRes: Int
             get() =
                 when (type) {
