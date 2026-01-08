@@ -524,6 +524,7 @@ class ExoPlaybackStateHolder(
         // If there's any issue, just go to the next song.
         L.e("Player error occurred")
         L.e(error.stackTraceToString())
+        player.prepare()
         playbackManager.next()
     }
 
