@@ -446,7 +446,14 @@ private class PlaybackNotification(
      */
     fun updateMetadata(metadata: MediaMetadataCompat) {
         L.d("Updating shown metadata")
-        setLargeIcon(metadata.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART))
+        val albumArt = metadata.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART)
+        if (albumArt != null) {
+            setLargeIcon(albumArt)
+        } else {
+            // setLargeIcon(null) doesn't reliably clear the icon on all devices.
+            // Use a transparent 1x1 bitmap instead.
+            setLargeIcon(EMPTY_BITMAP)
+        }
         setContentTitle(metadata.getString(MediaMetadataCompat.METADATA_KEY_TITLE))
         setContentText(metadata.getText(MediaMetadataCompat.METADATA_KEY_ARTIST))
         setSubText(metadata.getText(MediaMetadataCompat.METADATA_KEY_DISPLAY_DESCRIPTION))
@@ -534,5 +541,8 @@ private class PlaybackNotification(
                 id = BuildConfig.APPLICATION_ID + ".channel.PLAYBACK",
                 nameRes = R.string.lbl_playback,
             )
+
+        /** Cached 1x1 transparent bitmap. */
+        private val EMPTY_BITMAP: Bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
     }
 }
