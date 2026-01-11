@@ -150,11 +150,9 @@ class ArtistDetailFragment : DetailFragment<Artist, Music>() {
             // Information about the artist's genre(s) map to the sub-head text
             // Hide the subhead if all genres are unknown (no genre tags in music files)
             val hasKnownGenres = artist.genres.any { it.name is Name.Known }
-            binding.detailSubhead.apply {
-                isVisible = hasKnownGenres
-                if (hasKnownGenres) {
-                    text = artist.genres.resolveNames(context)
-                }
+            binding.detailSubhead.isVisible = hasKnownGenres
+            if (hasKnownGenres) {
+                binding.detailSubhead.text = artist.genres.resolveNames(context)
             }
 
             // In the case that this header used to he configured to have no songs,
