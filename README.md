@@ -1,6 +1,6 @@
 <p align="center"><img src="fastlane/metadata/android/en-US/images/icon.png" width="150"></p>
 <h1 align="center"><b>Auxio</b></h1>
-<h4 align="center">A simple, rational music player for android.</h4>
+<h4 align="center">A simple, rational music player for Android.</h4>
 <p align="center">
     <a href="https://github.com/oxygencobalt/Auxio/releases/tag/v4.0.10">
         <img alt="Latest Version" src="https://img.shields.io/static/v1?label=tag&message=v4.0.10&color=64B5F6&style=flat">
@@ -26,7 +26,7 @@
 
 ## About
 
-Auxio is a local music player with a fast, reliable UI/UX without the many useless features present in other music players. Built off of modern media playback libraries, Auxio has superior library support and listening quality compared to other apps that use outdated android functionality. In short, **It plays music.**
+Auxio is a local music player with a fast, reliable UI/UX without the many useless features present in other music players. Built off of modern media playback libraries, Auxio has superior library support and listening quality compared to other apps that use outdated Android functionality. In short, **It plays music.**
 
 **The default branch is the development version of the repository. For a stable version, see the master branch.**
 
@@ -54,7 +54,7 @@ precise/original dates, sort tags, and more
 - SD Card-aware folder management
 - Reliable playlisting functionality
 - Playback state persistence
-- Android auto support
+- Android Auto support
 - Automatic gapless playback
 - Full ReplayGain support (On MP3, FLAC, OGG, OPUS, and MP4 files)
 - External equalizer support (ex. Wavelet)

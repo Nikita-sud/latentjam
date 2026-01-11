@@ -193,13 +193,13 @@ persist long-term
 
 #### What's Improved
 - Home and detail UIs in Android Auto now reflect app sort settings
-- Album view now shows discs in android auto
+- Album view now shows discs in Android Auto
 
 #### What's Fixed
 - Fixed playback briefly pausing when adding songs to playlist
 - Fixed media lists in Android Auto being truncated in some cases
 - Possibly fixed duplicated song items depending on album/all children
-- Possibly fixed truncated tab lists in android auto
+- Possibly fixed truncated tab lists in Android Auto
 
 #### Dev/Meta
 - Moved to raw media session apis rather than media3 session
@@ -262,7 +262,7 @@ rewind before skipping was turned off
 - Added support for M3U paths starting with /storage/
 - Fixed artist duplication when inconsistent MusicBrainz ID tag naming was used
 - Made album cover keying more efficient at the cost of resillience
-- Fixed android auto queue not respecting shuffle
+- Fixed Android Auto queue not respecting shuffle
 
 ## 3.4.3
 
@@ -1028,7 +1028,7 @@ to when using gesture navigation
 - Fix crash that would occur when rotating the dialog
 - Fixed issue where cover art could not be loaded at all on some devices [#51]
 - Fixed issue where widgets would have unusable UIs on certain device configurations
-- Fixed issue where older launchers will not show a widget preview on android 12
+- Fixed issue where older launchers will not show a widget preview on Android 12
 - Fixed duplicate songs appearing on some devices
 
 #### What's Changed:
