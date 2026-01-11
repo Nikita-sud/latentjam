@@ -281,6 +281,16 @@ class TagFieldsTest {
         // R128 is converted to match ReplayGain scale (-2560/256 + 5 = -5.0)
         assertEquals(-5.0f, metadata.replayGainTrackAdjustment())
 
+        // Test R128 with zero value (should return +5.0 dB, not null)
+        metadata = createTestMetadata(xiphTags = mapOf("R128_TRACK_GAIN" to listOf("0")))
+        // R128 is converted to match ReplayGain scale (0/256 + 5 = 5.0)
+        assertEquals(5.0f, metadata.replayGainTrackAdjustment())
+
+        // Test R128 album gain with zero value
+        metadata = createTestMetadata(xiphTags = mapOf("R128_ALBUM_GAIN" to listOf("0")))
+        // R128 is converted to match ReplayGain scale (0/256 + 5 = 5.0)
+        assertEquals(5.0f, metadata.replayGainAlbumAdjustment())
+
         // Test zero value
         metadata = createTestMetadata(xiphTags = mapOf("REPLAYGAIN_TRACK_GAIN" to listOf("0.0 dB")))
         assertNull(metadata.replayGainTrackAdjustment())

@@ -267,7 +267,7 @@ internal fun Metadata.replayGainAlbumAdjustment() =
         ?: id3v2["TXXX:REPLAYGAIN_ALBUM_GAIN"]?.parseReplayGainAdjustment())
 
 private fun List<String>.parseR128Adjustment() =
-    first().replace(REPLAYGAIN_ADJUSTMENT_FILTER_REGEX, "").toFloatOrNull()?.nonZeroOrNull()?.run {
+    first().replace(REPLAYGAIN_ADJUSTMENT_FILTER_REGEX, "").toFloatOrNull()?.run {
         // Convert to fixed-point and adjust to LUFS 18 to match the ReplayGain scale
         this / 256f + 5
     }
