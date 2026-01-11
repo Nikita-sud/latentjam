@@ -142,8 +142,8 @@
     <string name="lbl_size">Size</string>
     <string name="lbl_bitrate">Bit rate</string>
     <string name="lbl_sample_rate">Sample rate</string>
-    <string name="lbl_replaygain_track">ReplayGain Track Adjustment</string>
-    <string name="lbl_replaygain_album">ReplayGain Album Adjustment</string>
+    <string name="lbl_replaygain_track">ReplayGain track adjustment</string>
+    <string name="lbl_replaygain_album">ReplayGain album adjustment</string>
 
     <!-- Limit to 10 characters -->
     <string name="lbl_shuffle_shortcut_short">Shuffle</string>
@@ -227,7 +227,7 @@
 
     <string name="set_root_title">Settings</string>
 
-    <string name="set_ui">Look and Feel</string>
+    <string name="set_ui">Look and feel</string>
     <string name="set_ui_desc">Change the theme and colors of the app</string>
     <string name="set_theme">Theme</string>
     <string name="set_theme_auto">Automatic</string>
@@ -318,15 +318,15 @@
     <string name="set_library">Library</string>
     <string name="set_locations">Music sources</string>
     <string name="set_locations_desc">Manage where music should be loaded from</string>
-    <string name="set_load_from">Load From</string>
+    <string name="set_load_from">Load from</string>
     <string name="set_file_picker">File picker</string>
     <string name="set_system_database">System</string>
     <string name="set_grant_storage_anyway">Storage access recommended</string>
     <string name="set_grant_storage">Storage access required</string>
-    <string name="set_folders_to_load">Folders to Load</string>
-    <string name="set_folders_to_ignore">Folders to Ignore</string>
-    <string name="set_filtered_folders">Filtered Folders</string>
-    <string name="set_filter_mode">Filter Mode</string>
+    <string name="set_folders_to_load">Folders to load</string>
+    <string name="set_folders_to_ignore">Folders to ignore</string>
+    <string name="set_filtered_folders">Filtered folders</string>
+    <string name="set_filter_mode">Filter mode</string>
     <string name="set_include">Include</string>
     <string name="set_exclude">Exclude</string>
     <string name="set_extra_settings">More settings</string>
@@ -347,7 +347,7 @@
     <string name="err_no_app">No app found that can handle this task</string>
     <!-- No folders in the "Music Folders" setting -->
     <string name="err_bad_location">This folder is not supported</string>
-    <string name="lbl_no_folders">No Folders</string>
+    <string name="lbl_no_folders">No folders</string>
 
     <!-- Description Namespace | Accessibility Strings -->
 
@@ -365,7 +365,7 @@
     <string name="desc_queue_bar">Open the queue</string>
     <string name="desc_tab_handle">Move this tab</string>
     <string name="desc_clear_search">Clear search query</string>
-    <string name="desc_add_folder">Add Folder</string>
+    <string name="desc_add_folder">Add folder</string>
     <string name="desc_music_location_delete">Remove folder</string>
 
     <string name="desc_auxio_icon">Auxio icon</string>
@@ -443,7 +443,7 @@
     <string name="fmt_list">%1$s, %2$s</string>
 
     <!-- As in an amount of items that are selected -->
-    <string name="fmt_selected">%d Selected</string>
+    <string name="fmt_selected">%d selected</string>
     <!-- Currently editing a playlist -->
     <string name="fmt_editing">Editing %s</string>
 
