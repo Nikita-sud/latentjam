@@ -235,7 +235,7 @@
     <string name="set_theme_night">Dark</string>
     <string name="set_accent">Color scheme</string>
     <string name="set_black_mode">Black theme</string>
-    <string name="set_black_mode_desc">Use a pure-black dark theme</string>
+    <string name="set_black_mode_desc">Use a pure black dark theme</string>
     <string name="set_round_mode">Round mode</string>
     <string name="set_round_mode_desc">Enable rounded corners on additional UI elements (requires album covers to be rounded)</string>
 
