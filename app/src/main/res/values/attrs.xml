@@ -21,6 +21,10 @@
         <attr name="shapeAppearance" />
     </declare-styleable>
 
+    <declare-styleable name="PlayerSwipeIndicatorOverlay">
+        <attr name="shapeAppearance" />
+    </declare-styleable>
+
     <declare-styleable name="IntListPreference">
         <attr name="entries" format="reference" />
         <attr name="entryValues" format="reference" />

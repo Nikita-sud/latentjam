@@ -60,6 +60,7 @@ private data object TagParserImpl : TagParser {
                     ?: listOf("Various Artists").takeIf { compilation }
                     ?: listOf(),
             albumArtistSortNames = metadata.albumArtistSortNames() ?: listOf(),
-            genreNames = metadata.genreNames() ?: listOf())
+            genreNames = metadata.genreNames() ?: listOf(),
+        )
     }
 }

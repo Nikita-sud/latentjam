@@ -45,7 +45,9 @@ class TagParserTest {
                         "TYER" to listOf("2020"),
                         "TRCK" to listOf("1/10"),
                         "TPOS" to listOf("1/2"),
-                        "TCON" to listOf("Rock", "Electronic")))
+                        "TCON" to listOf("Rock", "Electronic"),
+                    )
+            )
 
         val tags = tagParser.parse(metadata)
 
@@ -66,7 +68,8 @@ class TagParserTest {
             createTestMetadata(
                 id3v2Tags = mapOf("TIT2" to listOf("ID3 Song"), "TALB" to listOf("ID3 Album")),
                 xiphTags = mapOf("TITLE" to listOf("Xiph Song"), "ALBUM" to listOf("Xiph Album")),
-                mp4Tags = mapOf("©nam" to listOf("MP4 Song"), "©alb" to listOf("MP4 Album")))
+                mp4Tags = mapOf("©nam" to listOf("MP4 Song"), "©alb" to listOf("MP4 Album")),
+            )
 
         val tags = tagParser.parse(metadata)
 
@@ -91,8 +94,8 @@ class TagParserTest {
         // Test compilation album with explicit release type
         val metadata =
             createTestMetadata(
-                id3v2Tags =
-                    mapOf("TCMP" to listOf("1"), "TXXX:RELEASETYPE" to listOf("soundtrack")))
+                id3v2Tags = mapOf("TCMP" to listOf("1"), "TXXX:RELEASETYPE" to listOf("soundtrack"))
+            )
 
         val tags = tagParser.parse(metadata)
 
@@ -120,7 +123,9 @@ class TagParserTest {
                         "TXXX:MUSICBRAINZ RELEASE TRACK ID" to listOf("track-id-123"),
                         "TXXX:MUSICBRAINZ ALBUM ID" to listOf("album-id-456"),
                         "TXXX:MUSICBRAINZ ARTIST ID" to listOf("artist-id-789"),
-                        "TXXX:MUSICBRAINZ ALBUM ARTIST ID" to listOf("album-artist-id-012")))
+                        "TXXX:MUSICBRAINZ ALBUM ARTIST ID" to listOf("album-artist-id-012"),
+                    )
+            )
 
         val tags = tagParser.parse(metadata)
 
@@ -137,7 +142,9 @@ class TagParserTest {
                 xiphTags =
                     mapOf(
                         "REPLAYGAIN_TRACK_GAIN" to listOf("-3.5 dB"),
-                        "REPLAYGAIN_ALBUM_GAIN" to listOf("-2.1 dB")))
+                        "REPLAYGAIN_ALBUM_GAIN" to listOf("-2.1 dB"),
+                    )
+            )
 
         val tags = tagParser.parse(metadata)
 
@@ -153,7 +160,7 @@ class TagParserTest {
         durationMs: Long = 1000,
         bitrateKbps: Int = 320,
         sampleRateHz: Int = 44100,
-        mimeType: String = "audio/mpeg"
+        mimeType: String = "audio/mpeg",
     ): Metadata {
         val properties = Properties(mimeType, durationMs, bitrateKbps, sampleRateHz)
         return Metadata(id3v2Tags, xiphTags, mp4Tags, cover, properties)

@@ -66,7 +66,7 @@ class ExportPlaylistDialog : ViewBindingMaterialDialogFragment<DialogPlaylistExp
 
     override fun onBindingCreated(
         binding: DialogPlaylistExportBinding,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ) {
         // --- UI SETUP ---
         createDocumentLauncher =
@@ -93,7 +93,8 @@ class ExportPlaylistDialog : ViewBindingMaterialDialogFragment<DialogPlaylistExp
             if (!isChecked) return@addOnButtonCheckedListener
             val current = pickerModel.currentExportConfig.value
             pickerModel.setExportConfig(
-                current.copy(absolute = checkedId == R.id.export_absolute_paths))
+                current.copy(absolute = checkedId == R.id.export_absolute_paths)
+            )
         }
 
         binding.exportWindowsPaths.setOnClickListener { _ ->
@@ -142,7 +143,8 @@ class ExportPlaylistDialog : ViewBindingMaterialDialogFragment<DialogPlaylistExp
                 R.id.export_absolute_paths
             } else {
                 R.id.export_relative_paths
-            })
+            }
+        )
         if (config.absolute) {
             binding.exportRelativePaths.icon = null
             binding.exportAbsolutePaths.setIconResource(R.drawable.ic_check_24)

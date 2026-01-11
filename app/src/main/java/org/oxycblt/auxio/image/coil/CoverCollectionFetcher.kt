@@ -80,7 +80,8 @@ private constructor(
         return SourceFetchResult(
             source = ImageSource(first.source().buffer(), FileSystem.SYSTEM, null),
             mimeType = null,
-            dataSource = DataSource.DISK)
+            dataSource = DataSource.DISK,
+        )
     }
 
     /** Derived from phonograph: https://github.com/kabouzeid/Phonograph */
@@ -107,7 +108,9 @@ private constructor(
             // TODO: Work around this
             val bitmap =
                 SquareCropTransformation.INSTANCE.transform(
-                    BitmapFactory.decodeStream(stream), mosaicFrameSize)
+                    BitmapFactory.decodeStream(stream),
+                    mosaicFrameSize,
+                )
             canvas.drawBitmap(bitmap, x.toFloat(), y.toFloat(), null)
 
             x += bitmap.width
@@ -123,7 +126,8 @@ private constructor(
         return ImageFetchResult(
             image = mosaicBitmap.toDrawable(context.resources).asImage(),
             isSampled = true,
-            dataSource = DataSource.DISK)
+            dataSource = DataSource.DISK,
+        )
     }
 
     private fun Dimension.mosaicSize(): Int {

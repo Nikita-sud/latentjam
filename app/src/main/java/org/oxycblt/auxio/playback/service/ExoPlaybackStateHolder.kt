@@ -74,7 +74,7 @@ class ExoPlaybackStateHolder(
     private val commandFactory: PlaybackCommand.Factory,
     private val replayGainProcessor: ReplayGainAudioProcessor,
     private val musicRepository: MusicRepository,
-    private val imageSettings: ImageSettings
+    private val imageSettings: ImageSettings,
 ) :
     PlaybackStateHolder,
     Player.Listener,
@@ -180,7 +180,8 @@ class ExoPlaybackStateHolder(
                 playbackManager.play(
                     requireNotNull(commandFactory.all(ShuffleMode.ON)) {
                         "Invalid playback parameters"
-                    })
+                    }
+                )
             }
             // Open -> Try to find the Song for the given file and then play it from all songs
             is DeferredPlayback.Open -> {
@@ -191,7 +192,8 @@ class ExoPlaybackStateHolder(
                         arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
                         null,
                         null,
-                        null)
+                        null,
+                    )
                     ?.use { cursor ->
                         val displayNameIndex =
                             cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)
@@ -206,9 +208,10 @@ class ExoPlaybackStateHolder(
                             if (song != null) {
                                 val command =
                                     requireNotNull(
-                                        commandFactory.songFromAll(song, ShuffleMode.IMPLICIT)) {
-                                            "Invalid playback command"
-                                        }
+                                        commandFactory.songFromAll(song, ShuffleMode.IMPLICIT)
+                                    ) {
+                                        "Invalid playback command"
+                                    }
                                 playbackManager.play(command)
                             }
                         }
@@ -265,7 +268,8 @@ class ExoPlaybackStateHolder(
         if (player.shuffleModeEnabled) {
             // Have to manually refresh the shuffle seed and anchor it to the new current songs
             player.setShuffleOrder(
-                BetterShuffleOrder(player.mediaItemCount, player.currentMediaItemIndex))
+                BetterShuffleOrder(player.mediaItemCount, player.currentMediaItemIndex)
+            )
         }
         playbackManager.ack(this, StateAck.QueueReordered)
         deferSave()
@@ -282,7 +286,9 @@ class ExoPlaybackStateHolder(
             }
         } else {
             player.seekTo(
-                player.currentTimeline.getFirstWindowIndex(player.shuffleModeEnabled), C.TIME_UNSET)
+                player.currentTimeline.getFirstWindowIndex(player.shuffleModeEnabled),
+                C.TIME_UNSET,
+            )
             // TODO: Dislike the UX implications of this, I feel should I bite the bullet
             //  and switch to dynamic skip enable/disable?
             if (!playbackSettings.rememberPause) {
@@ -330,7 +336,10 @@ class ExoPlaybackStateHolder(
                 C.INDEX_UNSET
             } else {
                 currTimeline.getNextWindowIndex(
-                    player.currentMediaItemIndex, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled)
+                    player.currentMediaItemIndex,
+                    Player.REPEAT_MODE_OFF,
+                    player.shuffleModeEnabled,
+                )
             }
 
         if (nextIndex == C.INDEX_UNSET) {
@@ -393,7 +402,7 @@ class ExoPlaybackStateHolder(
         rawQueue: RawQueue,
         positionMs: Long,
         repeatMode: RepeatMode,
-        ack: StateAck.NewPlayback?
+        ack: StateAck.NewPlayback?,
     ) {
         var sendNewPlaybackEvent = false
         var shouldSeek = false
@@ -498,10 +507,13 @@ class ExoPlaybackStateHolder(
 
         // So many actions trigger progression changes that it becomes easier just to handle it
         // in an ExoPlayer callback anyway. This doesn't really cause issues anywhere.
-        if (events.containsAny(
-            Player.EVENT_PLAY_WHEN_READY_CHANGED,
-            Player.EVENT_IS_PLAYING_CHANGED,
-            Player.EVENT_POSITION_DISCONTINUITY)) {
+        if (
+            events.containsAny(
+                Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                Player.EVENT_IS_PLAYING_CHANGED,
+                Player.EVENT_POSITION_DISCONTINUITY,
+            )
+        ) {
             L.d("Player state changed, must synchronize state")
             playbackManager.ack(this, StateAck.ProgressionChanged)
         }
@@ -521,7 +533,8 @@ class ExoPlaybackStateHolder(
             Intent(event)
                 .putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
                 .putExtra(AudioEffect.EXTRA_AUDIO_SESSION, audioSessionId)
-                .putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC))
+                .putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
+        )
     }
 
     // --- MUSICREPOSITORY METHODS ---
@@ -601,7 +614,10 @@ class ExoPlaybackStateHolder(
             if (lastMediaItemIndex != C.INDEX_UNSET) {
                 lastMediaItemIndex =
                     timeline.getNextWindowIndex(
-                        lastMediaItemIndex, Player.REPEAT_MODE_OFF, shuffleModeEnabled)
+                        lastMediaItemIndex,
+                        Player.REPEAT_MODE_OFF,
+                        shuffleModeEnabled,
+                    )
                 if (lastMediaItemIndex != C.INDEX_UNSET) {
                     queue.add(lastMediaItemIndex)
                 }
@@ -609,7 +625,10 @@ class ExoPlaybackStateHolder(
             if (firstMediaItemIndex != C.INDEX_UNSET) {
                 firstMediaItemIndex =
                     timeline.getPreviousWindowIndex(
-                        firstMediaItemIndex, Player.REPEAT_MODE_OFF, shuffleModeEnabled)
+                        firstMediaItemIndex,
+                        Player.REPEAT_MODE_OFF,
+                        shuffleModeEnabled,
+                    )
                 if (firstMediaItemIndex != C.INDEX_UNSET) {
                     queue.add(0, firstMediaItemIndex)
                 }
@@ -645,7 +664,9 @@ class ExoPlaybackStateHolder(
                         audioListener,
                         DefaultAudioSink.Builder(context)
                             .setAudioProcessors(arrayOf(replayGainProcessor))
-                            .build()))
+                            .build(),
+                    ),
+                )
             }
 
             val exoPlayer =
@@ -659,7 +680,8 @@ class ExoPlaybackStateHolder(
                             .setUsage(C.USAGE_MEDIA)
                             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                             .build(),
-                        true)
+                        true,
+                    )
                     .build()
 
             return ExoPlaybackStateHolder(
@@ -671,7 +693,8 @@ class ExoPlaybackStateHolder(
                 commandFactory,
                 replayGainProcessor,
                 musicRepository,
-                imageSettings)
+                imageSettings,
+            )
         }
     }
 

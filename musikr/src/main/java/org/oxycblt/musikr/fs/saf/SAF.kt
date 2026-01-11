@@ -52,7 +52,7 @@ class SAF
 private constructor(
     private val context: Context,
     private val contentResolver: ContentResolver,
-    private val query: Query
+    private val query: Query,
 ) : FS {
     override suspend fun explore(files: Channel<File>): Deferred<Result<Unit>> = coroutineScope {
         tryAsyncWith(files, Dispatchers.Main) {
@@ -64,7 +64,8 @@ private constructor(
                         location.path,
                         null,
                         query.exclude.mapTo(mutableSetOf()) { it.path },
-                        files)
+                        files,
+                    )
                 }
                 .tryAwaitAll()
         }
@@ -90,7 +91,7 @@ private constructor(
         relativePath: Path,
         parent: Deferred<Directory>?,
         exclude: Set<Path>,
-        files: Channel<File>
+        files: Channel<File>,
     ): Deferred<Result<Unit>> =
         tryAsync(Dispatchers.IO) {
             // Make a kotlin future
@@ -132,7 +133,14 @@ private constructor(
                     if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
                         recursive.add(
                             exploreDirectoryImpl(
-                                rootUri, childId, newPath, directoryDeferred, exclude, files))
+                                rootUri,
+                                childId,
+                                newPath,
+                                directoryDeferred,
+                                exclude,
+                                files,
+                            )
+                        )
                     } else {
                         val size = cursor.getLong(sizeIndex)
                         val file =
@@ -148,7 +156,8 @@ private constructor(
                                         JoinAddedMs(context, childUri)
                                     } else {
                                         NullAddedMs
-                                    })
+                                    },
+                            )
                         children.add(file)
                         files.send(file)
                     }
@@ -161,7 +170,7 @@ private constructor(
     data class Query(
         val source: List<Location.Opened>,
         val exclude: List<Location.Unopened>,
-        val withHidden: Boolean
+        val withHidden: Boolean,
     )
 
     @RequiresApi(Build.VERSION_CODES.Q)
@@ -174,15 +183,17 @@ private constructor(
                     return null
                 }
             return context.contentResolverSafe.useQuery(
-                mediaUri, arrayOf(AOSPMediaStore.Files.FileColumns.DATE_ADDED)) {
-                    if (it.moveToFirst()) {
-                        val dateAddedIndex =
-                            it.getColumnIndexOrThrow(AOSPMediaStore.Files.FileColumns.DATE_ADDED)
-                        it.getLong(dateAddedIndex) * 1000
-                    } else {
-                        null
-                    }
+                mediaUri,
+                arrayOf(AOSPMediaStore.Files.FileColumns.DATE_ADDED),
+            ) {
+                if (it.moveToFirst()) {
+                    val dateAddedIndex =
+                        it.getColumnIndexOrThrow(AOSPMediaStore.Files.FileColumns.DATE_ADDED)
+                    it.getLong(dateAddedIndex) * 1000
+                } else {
+                    null
                 }
+            }
         }
     }
 
@@ -199,6 +210,7 @@ private constructor(
                 DocumentsContract.Document.COLUMN_DISPLAY_NAME,
                 DocumentsContract.Document.COLUMN_MIME_TYPE,
                 DocumentsContract.Document.COLUMN_SIZE,
-                DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+                DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+            )
     }
 }

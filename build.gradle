@@ -38,7 +38,7 @@ plugins {
 spotless {
     kotlin {
         target "*/src/**/*.kt"
-        ktfmt().dropboxStyle()
+        ktfmt().kotlinlangStyle()
         licenseHeaderFile("NOTICE")
     }
 

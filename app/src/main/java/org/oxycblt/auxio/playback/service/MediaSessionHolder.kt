@@ -68,7 +68,7 @@ private constructor(
     private val playbackSettings: PlaybackSettings,
     private val bitmapProvider: BitmapProvider,
     private val imageSettings: ImageSettings,
-    private val mediaSessionInterface: MediaSessionInterface
+    private val mediaSessionInterface: MediaSessionInterface,
 ) : PlaybackStateManager.Listener, ImageSettings.Listener, PlaybackSettings.Listener {
 
     class Factory
@@ -78,7 +78,7 @@ private constructor(
         private val playbackSettings: PlaybackSettings,
         private val bitmapProvider: BitmapProvider,
         private val imageSettings: ImageSettings,
-        private val mediaSessionInterface: MediaSessionInterface
+        private val mediaSessionInterface: MediaSessionInterface,
     ) {
         fun create(context: Context, foregroundListener: ForegroundListener) =
             MediaSessionHolder(
@@ -88,7 +88,8 @@ private constructor(
                 playbackSettings,
                 bitmapProvider,
                 imageSettings,
-                mediaSessionInterface)
+                mediaSessionInterface,
+            )
     }
 
     private val mediaSession = MediaSessionCompat(context, context.packageName)
@@ -156,7 +157,8 @@ private constructor(
                 PlaybackStateCompat.SHUFFLE_MODE_ALL
             } else {
                 PlaybackStateCompat.SHUFFLE_MODE_NONE
-            })
+            }
+        )
         invalidateSecondaryAction()
     }
 
@@ -164,7 +166,7 @@ private constructor(
         parent: MusicParent?,
         queue: List<Song>,
         index: Int,
-        isShuffled: Boolean
+        isShuffled: Boolean,
     ) {
         updateMediaMetadata(playbackManager.currentSong, parent)
         updateQueue(queue)
@@ -185,7 +187,8 @@ private constructor(
                 RepeatMode.NONE -> PlaybackStateCompat.REPEAT_MODE_NONE
                 RepeatMode.TRACK -> PlaybackStateCompat.REPEAT_MODE_ONE
                 RepeatMode.ALL -> PlaybackStateCompat.REPEAT_MODE_ALL
-            })
+            }
+        )
 
         invalidateSecondaryAction()
     }
@@ -238,7 +241,8 @@ private constructor(
                 .putText(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
                 .putText(
                     MediaMetadataCompat.METADATA_KEY_ALBUM_ARTIST,
-                    song.album.artists.resolveNames(context))
+                    song.album.artists.resolveNames(context),
+                )
                 .putText(MediaMetadataCompat.METADATA_KEY_AUTHOR, artist)
                 .putText(MediaMetadataCompat.METADATA_KEY_COMPOSER, artist)
                 .putText(MediaMetadataCompat.METADATA_KEY_WRITER, artist)
@@ -249,13 +253,16 @@ private constructor(
                 .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, song.durationMs)
                 .putText(
                     PlaybackNotification.KEY_PARENT,
-                    parent?.name?.resolve(context) ?: context.getString(R.string.lbl_all_songs))
+                    parent?.name?.resolve(context) ?: context.getString(R.string.lbl_all_songs),
+                )
                 .putText(
                     MetadataExtras.KEY_SUBTITLE_LINK_MEDIA_ID,
-                    MediaSessionUID.SingleItem(song.artists[0].uid).toString())
+                    MediaSessionUID.SingleItem(song.artists[0].uid).toString(),
+                )
                 .putText(
                     MetadataExtras.KEY_DESCRIPTION_LINK_MEDIA_ID,
-                    MediaSessionUID.SingleItem(song.album.uid).toString())
+                    MediaSessionUID.SingleItem(song.album.uid).toString(),
+                )
         // These fields are nullable and so we must check first before adding them to the fields.
         song.track?.let {
             L.d("Adding track information")
@@ -288,7 +295,8 @@ private constructor(
                     _notification.updateMetadata(metadata)
                     foregroundListener.updateForeground(ForegroundListener.Change.MEDIA_SESSION)
                 }
-            })
+            },
+        )
     }
 
     /**
@@ -301,7 +309,9 @@ private constructor(
             queue.mapIndexed { i, song ->
                 val description =
                     song.toMediaDescription(
-                        context, { putInt(MediaSessionInterface.KEY_QUEUE_POS, i) })
+                        context,
+                        { putInt(MediaSessionInterface.KEY_QUEUE_POS, i) },
+                    )
                 // Store the item index so we can then use the analogous index in the
                 // playback state.
                 MediaSessionCompat.QueueItem(description, i.toLong())
@@ -336,14 +346,16 @@ private constructor(
                             R.drawable.ic_shuffle_on_24
                         } else {
                             R.drawable.ic_shuffle_off_24
-                        })
+                        },
+                    )
                 }
                 else -> {
                     L.d("Using repeat mode MediaSession action")
                     PlaybackStateCompat.CustomAction.Builder(
                         PlaybackActions.ACTION_INC_REPEAT_MODE,
                         context.getString(R.string.desc_change_repeat),
-                        playbackManager.repeatMode.icon)
+                        playbackManager.repeatMode.icon,
+                    )
                 }
             }
         state.addCustomAction(secondaryAction.build())
@@ -353,7 +365,8 @@ private constructor(
             PlaybackStateCompat.CustomAction.Builder(
                     PlaybackActions.ACTION_EXIT,
                     context.getString(R.string.desc_exit),
-                    R.drawable.ic_close_24)
+                    R.drawable.ic_close_24,
+                )
                 .build()
         state.addCustomAction(exitAction)
 
@@ -396,7 +409,7 @@ private constructor(
 @SuppressLint("RestrictedApi")
 private class PlaybackNotification(
     private val context: Context,
-    sessionToken: MediaSessionCompat.Token
+    sessionToken: MediaSessionCompat.Token,
 ) : ForegroundServiceNotification(context, CHANNEL_INFO) {
     init {
         setSmallIcon(R.drawable.ic_auxio_24)
@@ -408,14 +421,17 @@ private class PlaybackNotification(
 
         addAction(buildRepeatAction(context, RepeatMode.NONE))
         addAction(
-            buildAction(context, PlaybackActions.ACTION_SKIP_PREV, R.drawable.ic_skip_prev_24))
+            buildAction(context, PlaybackActions.ACTION_SKIP_PREV, R.drawable.ic_skip_prev_24)
+        )
         addAction(buildPlayPauseAction(context, true))
         addAction(
-            buildAction(context, PlaybackActions.ACTION_SKIP_NEXT, R.drawable.ic_skip_next_24))
+            buildAction(context, PlaybackActions.ACTION_SKIP_NEXT, R.drawable.ic_skip_next_24)
+        )
         addAction(buildAction(context, PlaybackActions.ACTION_EXIT, R.drawable.ic_close_24))
 
         setStyle(
-            MediaStyle(this).setMediaSession(sessionToken).setShowActionsInCompactView(1, 2, 3))
+            MediaStyle(this).setMediaSession(sessionToken).setShowActionsInCompactView(1, 2, 3)
+        )
     }
 
     override val code: Int
@@ -470,7 +486,7 @@ private class PlaybackNotification(
 
     private fun buildPlayPauseAction(
         context: Context,
-        isPlaying: Boolean
+        isPlaying: Boolean,
     ): NotificationCompat.Action {
         val drawableRes =
             if (isPlaying) {
@@ -483,14 +499,14 @@ private class PlaybackNotification(
 
     private fun buildRepeatAction(
         context: Context,
-        repeatMode: RepeatMode
+        repeatMode: RepeatMode,
     ): NotificationCompat.Action {
         return buildAction(context, PlaybackActions.ACTION_INC_REPEAT_MODE, repeatMode.icon)
     }
 
     private fun buildShuffleAction(
         context: Context,
-        isShuffled: Boolean
+        isShuffled: Boolean,
     ): NotificationCompat.Action {
         val drawableRes =
             if (isShuffled) {
@@ -503,7 +519,10 @@ private class PlaybackNotification(
 
     private fun buildAction(context: Context, actionName: String, @DrawableRes iconRes: Int) =
         NotificationCompat.Action.Builder(
-                iconRes, actionName, context.newBroadcastPendingIntent(actionName))
+                iconRes,
+                actionName,
+                context.newBroadcastPendingIntent(actionName),
+            )
             .build()
 
     companion object {
@@ -513,6 +532,7 @@ private class PlaybackNotification(
         private val CHANNEL_INFO =
             ChannelInfo(
                 id = BuildConfig.APPLICATION_ID + ".channel.PLAYBACK",
-                nameRes = R.string.lbl_playback)
+                nameRes = R.string.lbl_playback,
+            )
     }
 }

@@ -75,7 +75,7 @@ class PlaybackPanelFragment :
 
     override fun onBindingCreated(
         binding: FragmentPlaybackPanelBinding,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ) {
         super.onBindingCreated(binding, savedInstanceState)
 

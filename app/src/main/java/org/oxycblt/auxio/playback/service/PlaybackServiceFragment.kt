@@ -59,7 +59,8 @@ private constructor(
                 exoHolderFactory,
                 sessionHolderFactory,
                 widgetComponentFactory,
-                systemReceiverFactory)
+                systemReceiverFactory,
+            )
     }
 
     private val waitJob = Job()
@@ -94,12 +95,16 @@ private constructor(
                 IntegerTable.START_ID_ACTIVITY -> null
                 IntegerTable.START_ID_TASKER ->
                     DeferredPlayback.RestoreState(
-                        play = true, fallback = DeferredPlayback.ShuffleAll)
+                        play = true,
+                        fallback = DeferredPlayback.ShuffleAll,
+                    )
                 IntegerTable.START_ID_MEDIA_BUTTON -> {
                     if (!sessionHolder.tryMediaButtonIntent(intent)) {
                         // Malformed intent, need to restore state immediately
                         DeferredPlayback.RestoreState(
-                            play = true, fallback = DeferredPlayback.ShuffleAll)
+                            play = true,
+                            fallback = DeferredPlayback.ShuffleAll,
+                        )
                     } else {
                         null
                     }

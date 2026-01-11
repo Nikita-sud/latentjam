@@ -57,7 +57,10 @@ interface ExternalPlaylistManager {
     companion object {
         fun from(context: Context): ExternalPlaylistManager =
             ExternalPlaylistManagerImpl(
-                context, DocumentPathFactory.from(context), M3U.from(context))
+                context,
+                DocumentPathFactory.from(context),
+                M3U.from(context),
+            )
     }
 }
 
@@ -87,7 +90,7 @@ typealias PossiblePaths = List<Path>
 private class ExternalPlaylistManagerImpl(
     private val context: Context,
     private val documentPathFactory: DocumentPathFactory,
-    private val m3u: M3U
+    private val m3u: M3U,
 ) : ExternalPlaylistManager {
     override suspend fun import(uri: Uri): ImportedPlaylist? {
         val filePath = documentPathFactory.unpackDocumentUri(uri) ?: return null

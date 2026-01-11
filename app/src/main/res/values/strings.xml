@@ -470,6 +470,7 @@
     <string name="fmt_lib_genre_count">Genres loaded: %d</string>
     <!-- As in the total duration of all songs in the music library -->
     <string name="fmt_lib_total_duration">Total duration: %s</string>
+    <string name="fmt_lib_total_size">Total size: %s</string>
 
     <plurals name="fmt_song_count">
         <item quantity="one">%d song</item>

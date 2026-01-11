@@ -244,7 +244,7 @@ constructor(
     private val cache: MutableCache,
     private val storedPlaylists: StoredPlaylists,
     private val settingCovers: SettingCovers,
-    private val musicSettings: MusicSettings
+    private val musicSettings: MusicSettings,
 ) : MusicRepository {
     private val updateListeners = mutableListOf<MusicRepository.UpdateListener>()
     private val indexingListeners = mutableListOf<MusicRepository.IndexingListener>()

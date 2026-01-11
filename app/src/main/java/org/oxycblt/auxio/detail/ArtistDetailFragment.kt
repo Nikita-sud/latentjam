@@ -75,7 +75,11 @@ class ArtistDetailFragment : DetailFragment<Artist, Music>() {
         collect(musicModel.playlistDecision.flow, ::handlePlaylistDecision)
         collect(musicModel.playlistMessage.flow, ::handlePlaylistMessage)
         collectImmediately(
-            playbackModel.song, playbackModel.parent, playbackModel.isPlaying, ::updatePlayback)
+            playbackModel.song,
+            playbackModel.parent,
+            playbackModel.isPlaying,
+            ::updatePlayback,
+        )
         collect(playbackModel.playbackDecision.flow, ::handlePlaybackDecision)
     }
 
@@ -138,7 +142,8 @@ class ArtistDetailFragment : DetailFragment<Artist, Music>() {
                     context.getPlural(R.plurals.fmt_song_count, artist.songs.size)
                 } else {
                     context.getString(R.string.def_song_count)
-                })
+                },
+            )
 
         if (artist.songs.isNotEmpty()) {
             // Information about the artist's genre(s) map to the sub-head text
@@ -178,7 +183,10 @@ class ArtistDetailFragment : DetailFragment<Artist, Music>() {
             playbackModel.shuffle(unlikelyToBeNull(detailModel.currentArtist.value))
         }
         updatePlayback(
-            playbackModel.song.value, playbackModel.parent.value, playbackModel.isPlaying.value)
+            playbackModel.song.value,
+            playbackModel.parent.value,
+            playbackModel.isPlaying.value,
+        )
     }
 
     private fun updateList(list: List<Item>) {
@@ -274,7 +282,8 @@ class ArtistDetailFragment : DetailFragment<Artist, Music>() {
                 is PlaylistDecision.Add -> {
                     L.d("Adding ${decision.songs.size} songs to a playlist")
                     ArtistDetailFragmentDirections.addToPlaylist(
-                        decision.songs.map { it.uid }.toTypedArray())
+                        decision.songs.map { it.uid }.toTypedArray()
+                    )
                 }
                 is PlaylistDecision.New,
                 is PlaylistDecision.Import,

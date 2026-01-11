@@ -39,7 +39,7 @@ class CoilModule {
         coverKeyer: CoverKeyer,
         coverFactory: CoverFetcher.Factory,
         coverCollectionKeyer: CoverCollectionKeyer,
-        coverCollectionFactory: CoverCollectionFetcher.Factory
+        coverCollectionFactory: CoverCollectionFetcher.Factory,
     ) =
         ImageLoader.Builder(context)
             .components {

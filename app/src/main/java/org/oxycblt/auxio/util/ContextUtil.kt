@@ -183,7 +183,8 @@ fun Context.newMainPendingIntent(): PendingIntent =
         this,
         IntegerTable.REQUEST_CODE,
         Intent(this, MainActivity::class.java).setAction(Intent.ACTION_MAIN),
-        PendingIntent.FLAG_IMMUTABLE)
+        PendingIntent.FLAG_IMMUTABLE,
+    )
 
 /**
  * Create a [PendingIntent] that will broadcast the specified command when launched.
@@ -195,4 +196,5 @@ fun Context.newBroadcastPendingIntent(action: String): PendingIntent =
         this,
         IntegerTable.REQUEST_CODE,
         Intent(action).setFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY),
-        PendingIntent.FLAG_IMMUTABLE)
+        PendingIntent.FLAG_IMMUTABLE,
+    )

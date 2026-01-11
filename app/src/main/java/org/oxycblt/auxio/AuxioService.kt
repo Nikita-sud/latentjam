@@ -94,7 +94,7 @@ class AuxioService :
     override fun onGetRoot(
         clientPackageName: String,
         clientUid: Int,
-        rootHints: Bundle?
+        rootHints: Bundle?,
     ): BrowserRoot {
         return musicFragment.getRoot()
     }
@@ -111,7 +111,7 @@ class AuxioService :
     override fun onLoadChildren(
         parentId: String,
         result: Result<MutableList<MediaItem>>,
-        options: Bundle
+        options: Bundle,
     ) {
         val maximumRootChildLimit = getRootChildrenLimit()
         musicFragment.getChildren(parentId, maximumRootChildLimit, result, options.getPage())
@@ -123,7 +123,9 @@ class AuxioService :
 
     private fun getRootChildrenLimit(): Int {
         return browserRootHints?.getInt(
-            MediaConstants.BROWSER_ROOT_HINTS_KEY_ROOT_CHILDREN_LIMIT, 4) ?: 4
+            MediaConstants.BROWSER_ROOT_HINTS_KEY_ROOT_CHILDREN_LIMIT,
+            4,
+        ) ?: 4
     }
 
     private fun Bundle.getPage(): MusicServiceFragment.Page? {
@@ -175,7 +177,7 @@ interface ForegroundListener {
 
     enum class Change {
         MEDIA_SESSION,
-        INDEXER
+        INDEXER,
     }
 }
 

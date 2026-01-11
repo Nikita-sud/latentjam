@@ -88,7 +88,7 @@ abstract class BasePreferenceFragment(@XmlRes private val screen: Int) :
     override fun onCreateRecyclerView(
         inflater: LayoutInflater,
         parent: ViewGroup,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ) =
         super.onCreateRecyclerView(inflater, parent, savedInstanceState).apply {
             clipToPadding = false

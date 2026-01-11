@@ -27,10 +27,7 @@ import java.io.File
  * @param volume The volume that the path is on.
  * @param components The components of the path of the file, relative to the root of the volume.
  */
-data class Path(
-    val volume: Volume,
-    val components: Components,
-) {
+data class Path(val volume: Volume, val components: Components) {
     /** The name of the file/directory. */
     val name: String?
         get() = components.name

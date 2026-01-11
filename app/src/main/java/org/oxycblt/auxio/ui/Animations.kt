@@ -37,7 +37,7 @@ class AnimConfig(
     context: Context,
     @AttrRes interpolatorRes: Int,
     @AttrRes durationRes: Int,
-    defaultDuration: Int
+    defaultDuration: Int,
 ) {
     val interpolator: TimeInterpolator =
         MotionUtils.resolveThemeInterpolator(context, interpolatorRes, FastOutSlowInInterpolator())
@@ -56,6 +56,7 @@ class AnimConfig(
         val MEDIUM1 = MR.attr.motionDurationMedium1 to 250
         val MEDIUM2 = MR.attr.motionDurationMedium2 to 300
         val MEDIUM3 = MR.attr.motionDurationMedium3 to 350
+
         //        val MEDIUM4 = MR.attr.motionDurationMedium4 to 400
         //        val LONG1 = MR.attr.motionDurationLong1 to 450
         //        val LONG2 = MR.attr.motionDurationLong2 to 500
@@ -74,7 +75,7 @@ class AnimConfig(
         from: Float,
         to: Float,
         delayMs: Long = 0,
-        crossinline update: (Float) -> Unit
+        crossinline update: (Float) -> Unit,
     ): ValueAnimator =
         ValueAnimator.ofFloat(from, to).apply {
             startDelay = delayMs
@@ -106,7 +107,7 @@ private constructor(
     scaleOutDuration: Pair<Int, Int>,
     inInterpolator: Int,
     alphaInDuration: Pair<Int, Int>,
-    scaleInDuration: Pair<Int, Int>
+    scaleInDuration: Pair<Int, Int>,
 ) {
     private val alphaOutConfig = AnimConfig.of(context, outInterpolator, alphaOutDuration)
     private val scaleOutConfig = AnimConfig.of(context, outInterpolator, scaleOutDuration)
@@ -172,7 +173,8 @@ private constructor(
                 AnimConfig.SHORT3,
                 AnimConfig.EMPHASIZED_DECELERATE,
                 AnimConfig.SHORT1,
-                AnimConfig.MEDIUM3)
+                AnimConfig.MEDIUM3,
+            )
 
         fun symmetric(context: Context) =
             MaterialFader(
@@ -183,7 +185,8 @@ private constructor(
                 AnimConfig.MEDIUM1,
                 AnimConfig.EMPHASIZED_DECELERATE,
                 AnimConfig.SHORT3,
-                AnimConfig.MEDIUM1)
+                AnimConfig.MEDIUM1,
+            )
     }
 }
 
@@ -206,7 +209,7 @@ private constructor(
     context: Context,
     private val x: Int?,
     inDuration: Pair<Int, Int>,
-    outDuration: Pair<Int, Int>
+    outDuration: Pair<Int, Int>,
 ) {
     private val outConfig = AnimConfig.of(context, AnimConfig.EMPHASIZED_ACCELERATE, outDuration)
     private val inConfig = AnimConfig.of(context, AnimConfig.EMPHASIZED_DECELERATE, inDuration)

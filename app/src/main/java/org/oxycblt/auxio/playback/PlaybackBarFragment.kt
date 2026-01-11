@@ -51,7 +51,7 @@ class PlaybackBarFragment : ViewBindingFragment<FragmentPlaybackBarBinding>() {
 
     override fun onBindingCreated(
         binding: FragmentPlaybackBarBinding,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ) {
         super.onBindingCreated(binding, savedInstanceState)
         val context = requireContext()
@@ -84,7 +84,8 @@ class PlaybackBarFragment : ViewBindingFragment<FragmentPlaybackBarBinding>() {
             playbackModel.currentBarAction,
             playbackModel.repeatMode,
             playbackModel.isShuffled,
-            ::updateBarAction)
+            ::updateBarAction,
+        )
     }
 
     override fun onDestroyBinding(binding: FragmentPlaybackBarBinding) {
@@ -119,7 +120,7 @@ class PlaybackBarFragment : ViewBindingFragment<FragmentPlaybackBarBinding>() {
     private fun updateBarAction(
         actionMode: ActionMode,
         repeatMode: RepeatMode,
-        isShuffled: Boolean
+        isShuffled: Boolean,
     ) {
         val binding = requireBinding()
         when (actionMode) {

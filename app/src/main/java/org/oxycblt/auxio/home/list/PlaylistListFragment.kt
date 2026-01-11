@@ -85,10 +85,15 @@ class PlaylistListFragment :
             homeModel.empty,
             homeModel.playlistList,
             musicModel.indexingState,
-            ::updateNoMusicIndicator)
+            ::updateNoMusicIndicator,
+        )
         collectImmediately(listModel.selected, ::updateSelection)
         collectImmediately(
-            playbackModel.song, playbackModel.parent, playbackModel.isPlaying, ::updatePlayback)
+            playbackModel.song,
+            playbackModel.parent,
+            playbackModel.isPlaying,
+            ::updatePlayback,
+        )
     }
 
     override fun onDestroyBinding(binding: FragmentHomeListBinding) {
@@ -137,7 +142,7 @@ class PlaylistListFragment :
     private fun updateNoMusicIndicator(
         empty: Boolean,
         playlists: List<Playlist>,
-        indexingState: IndexingState?
+        indexingState: IndexingState?,
     ) {
         val binding = requireBinding()
         binding.homeRecycler.isInvisible = empty

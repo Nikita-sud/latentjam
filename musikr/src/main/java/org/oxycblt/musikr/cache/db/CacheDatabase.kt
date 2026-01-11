@@ -45,7 +45,10 @@ internal abstract class CacheDatabase : RoomDatabase() {
     companion object {
         fun from(context: Context) =
             Room.databaseBuilder(
-                    context.applicationContext, CacheDatabase::class.java, "music_cache.db")
+                    context.applicationContext,
+                    CacheDatabase::class.java,
+                    "music_cache.db",
+                )
                 .fallbackToDestructiveMigration()
                 .build()
     }

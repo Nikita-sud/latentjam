@@ -52,7 +52,11 @@ class DBCache private constructor(private val readDao: CacheReadDao) : Cache {
             CachedSong(
                 file,
                 Properties(
-                    dbSong.mimeType, dbSong.durationMs, dbSong.bitrateKbps, dbSong.sampleRateHz),
+                    dbSong.mimeType,
+                    dbSong.durationMs,
+                    dbSong.bitrateKbps,
+                    dbSong.sampleRateHz,
+                ),
                 ParsedTags(
                     musicBrainzId = dbSong.musicBrainzId,
                     name = dbSong.name,
@@ -74,9 +78,11 @@ class DBCache private constructor(private val readDao: CacheReadDao) : Cache {
                     albumArtistSortNames = dbSong.albumArtistSortNames,
                     genreNames = dbSong.genreNames,
                     replayGainTrackAdjustment = dbSong.replayGainTrackAdjustment,
-                    replayGainAlbumAdjustment = dbSong.replayGainAlbumAdjustment),
+                    replayGainAlbumAdjustment = dbSong.replayGainAlbumAdjustment,
+                ),
                 coverId = dbSong.coverId,
-                addedMs = dbSong.addedMs)
+                addedMs = dbSong.addedMs,
+            )
         return CacheResult.Hit(song)
     }
 
@@ -136,7 +142,8 @@ private constructor(private val inner: DBCache, private val writeDao: CacheWrite
                 genreNames = cachedSong.tags.genreNames,
                 replayGainTrackAdjustment = cachedSong.tags.replayGainTrackAdjustment,
                 replayGainAlbumAdjustment = cachedSong.tags.replayGainAlbumAdjustment,
-                coverId = cachedSong.coverId)
+                coverId = cachedSong.coverId,
+            )
         writeDao.updateSong(dbSong)
     }
 

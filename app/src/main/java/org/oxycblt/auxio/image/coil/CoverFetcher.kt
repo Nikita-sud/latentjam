@@ -37,7 +37,8 @@ class CoverFetcher private constructor(private val cover: Cover) : Fetcher {
         return SourceFetchResult(
             source = ImageSource(stream.source().buffer(), FileSystem.SYSTEM, null),
             mimeType = null,
-            dataSource = DataSource.DISK)
+            dataSource = DataSource.DISK,
+        )
     }
 
     class Factory @Inject constructor() : Fetcher.Factory<Cover> {

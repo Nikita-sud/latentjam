@@ -56,7 +56,7 @@ class BottomSheetContentBehavior<V : View>(context: Context, attributeSet: Attri
     override fun onDependentViewChanged(
         parent: CoordinatorLayout,
         child: V,
-        dependency: View
+        dependency: View,
     ): Boolean {
         val behavior = dependency.coordinatorLayoutBehavior as BackportBottomSheetBehavior
         val consumed = behavior.calculateConsumedByBar()
@@ -83,7 +83,7 @@ class BottomSheetContentBehavior<V : View>(context: Context, attributeSet: Attri
         parentWidthMeasureSpec: Int,
         widthUsed: Int,
         parentHeightMeasureSpec: Int,
-        heightUsed: Int
+        heightUsed: Int,
     ): Boolean {
         measureContent(parent, child)
         return true
@@ -106,7 +106,11 @@ class BottomSheetContentBehavior<V : View>(context: Context, attributeSet: Attri
                 val bars = insets.systemBarInsetsCompat
 
                 insets.replaceSystemBarInsetsCompat(
-                    bars.left, bars.top, bars.right, consumed.coerceAtLeast(bars.bottom))
+                    bars.left,
+                    bars.top,
+                    bars.right,
+                    consumed.coerceAtLeast(bars.bottom),
+                )
             }
 
             setup = true

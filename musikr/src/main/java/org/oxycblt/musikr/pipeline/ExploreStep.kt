@@ -48,7 +48,7 @@ internal interface ExploreStep {
 private class ExploreStepImpl(private val fs: FS, private val storage: Storage) : ExploreStep {
     override suspend fun explore(
         scope: CoroutineScope,
-        explored: Channel<Explored>
+        explored: Channel<Explored>,
     ): Deferred<Result<Unit>> {
         val files = Channel<File>(Channel.UNLIMITED)
         val filesTask = fs.explore(files)
@@ -73,8 +73,10 @@ private class ExploreStepImpl(private val fs: FS, private val storage: Storage) 
                 when (item) {
                     is Finalized -> item
                     is NeedsCover -> {
-                        when (val coverResult =
-                            item.cachedSong.coverId?.let { id -> storage.covers.obtain(id) }) {
+                        when (
+                            val coverResult =
+                                item.cachedSong.coverId?.let { id -> storage.covers.obtain(id) }
+                        ) {
                             is CoverResult.Hit ->
                                 Finalized(item.cachedSong.toRawSong(coverResult.cover))
                             null -> Finalized(item.cachedSong.toRawSong(null))

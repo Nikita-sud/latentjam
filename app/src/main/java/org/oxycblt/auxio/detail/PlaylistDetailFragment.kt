@@ -106,7 +106,10 @@ class PlaylistDetailFragment :
         // DetailViewModel handles most initialization from the navigation argument.
         detailModel.setPlaylist(args.playlistUid)
         collectImmediately(
-            detailModel.currentPlaylist, detailModel.editedPlaylist, ::updatePlaylist)
+            detailModel.currentPlaylist,
+            detailModel.editedPlaylist,
+            ::updatePlaylist,
+        )
         collectImmediately(detailModel.playlistSongList, ::updateList)
         collectImmediately(detailModel.editedPlaylist, ::updateEditedList)
         collect(detailModel.toShow.flow, ::handleShow)
@@ -115,7 +118,11 @@ class PlaylistDetailFragment :
         collect(musicModel.playlistDecision.flow, ::handlePlaylistDecision)
         collect(musicModel.playlistMessage.flow, ::handlePlaylistMessage)
         collectImmediately(
-            playbackModel.song, playbackModel.parent, playbackModel.isPlaying, ::updatePlayback)
+            playbackModel.song,
+            playbackModel.parent,
+            playbackModel.isPlaying,
+            ::updatePlayback,
+        )
         collect(playbackModel.playbackDecision.flow, ::handlePlaybackDecision)
     }
 
@@ -171,7 +178,9 @@ class PlaylistDetailFragment :
 
     override fun onOpenParentMenu() {
         listModel.openMenu(
-            R.menu.detail_playlist, unlikelyToBeNull(detailModel.currentPlaylist.value))
+            R.menu.detail_playlist,
+            unlikelyToBeNull(detailModel.currentPlaylist.value),
+        )
     }
 
     override fun onOpenMenu(item: Song) {
@@ -198,7 +207,8 @@ class PlaylistDetailFragment :
             binding.detailCover.bind(
                 editedPlaylist,
                 binding.context.getString(R.string.desc_playlist_image, playlist.name),
-                R.drawable.ic_playlist_24)
+                R.drawable.ic_playlist_24,
+            )
         } else {
             binding.detailCover.bind(playlist)
         }
@@ -216,7 +226,8 @@ class PlaylistDetailFragment :
                 binding.context.getString(
                     R.string.fmt_two,
                     binding.context.getPlural(R.plurals.fmt_song_count, songs.size),
-                    durationMs.formatDurationMs(true))
+                    durationMs.formatDurationMs(true),
+                )
             } else {
                 binding.context.getString(R.string.def_song_count)
             }
@@ -251,7 +262,10 @@ class PlaylistDetailFragment :
             }
         }
         updatePlayback(
-            playbackModel.song.value, playbackModel.parent.value, playbackModel.isPlaying.value)
+            playbackModel.song.value,
+            playbackModel.parent.value,
+            playbackModel.isPlaying.value,
+        )
     }
 
     private fun updateList(list: List<Item>) {
@@ -303,7 +317,8 @@ class PlaylistDetailFragment :
                 L.d("Navigating to artist choices for ${show.album}")
                 findNavController()
                     .navigateSafe(
-                        PlaylistDetailFragmentDirections.showArtistChoices(show.album.uid))
+                        PlaylistDetailFragmentDirections.showArtistChoices(show.album.uid)
+                    )
             }
             is Show.PlaylistDetails -> {
                 L.d("Navigated to this playlist")
@@ -362,7 +377,8 @@ class PlaylistDetailFragment :
                         decision.playlist.uid,
                         decision.template,
                         decision.applySongs.map { it.uid }.toTypedArray(),
-                        decision.reason)
+                        decision.reason,
+                    )
                 }
                 is PlaylistDecision.Export -> {
                     L.d("Exporting ${decision.playlist}")
@@ -375,7 +391,8 @@ class PlaylistDetailFragment :
                 is PlaylistDecision.Add -> {
                     L.d("Adding ${decision.songs.size} songs to a playlist")
                     PlaylistDetailFragmentDirections.addToPlaylist(
-                        decision.songs.map { it.uid }.toTypedArray())
+                        decision.songs.map { it.uid }.toTypedArray()
+                    )
                 }
                 is PlaylistDecision.New -> error("Unexpected playlist decision $decision")
             }
@@ -391,7 +408,9 @@ class PlaylistDetailFragment :
     private fun updatePlayback(song: Song?, parent: MusicParent?, isPlaying: Boolean) {
         // Prefer songs that are playing from this playlist.
         playlistListAdapter.setPlaying(
-            song.takeIf { parent == detailModel.currentPlaylist.value }, isPlaying)
+            song.takeIf { parent == detailModel.currentPlaylist.value },
+            isPlaying,
+        )
     }
 
     private fun handlePlaybackDecision(decision: PlaybackDecision?) {

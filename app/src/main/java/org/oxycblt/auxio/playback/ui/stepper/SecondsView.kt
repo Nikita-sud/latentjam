@@ -54,7 +54,10 @@ class SecondsView(context: Context, attrs: AttributeSet?) : LinearLayout(context
     // Done as a field so that we don't have to compute on each tab if animations are enabled
     private val animationsEnabled =
         Settings.System.getFloat(
-            context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1F) != 0F
+            context.contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            1F,
+        ) != 0F
 
     val binding = PlayerFastSeekSecondsViewBinding.inflate(LayoutInflater.from(context), this)
 
@@ -108,7 +111,8 @@ class SecondsView(context: Context, attrs: AttributeSet?) : LinearLayout(context
                 binding.icon3.alpha = 0f
             },
             { binding.icon1.alpha = it },
-            { secondAnimator.start() })
+            { secondAnimator.start() },
+        )
 
     private val secondAnimator: ValueAnimator =
         CustomValueAnimator(
@@ -118,7 +122,8 @@ class SecondsView(context: Context, attrs: AttributeSet?) : LinearLayout(context
                 binding.icon3.alpha = 0f
             },
             { binding.icon2.alpha = it },
-            { thirdAnimator.start() })
+            { thirdAnimator.start() },
+        )
 
     private val thirdAnimator: ValueAnimator =
         CustomValueAnimator(
@@ -131,7 +136,8 @@ class SecondsView(context: Context, attrs: AttributeSet?) : LinearLayout(context
                 binding.icon1.alpha = 1f - binding.icon3.alpha
                 binding.icon3.alpha = it
             },
-            { fourthAnimator.start() })
+            { fourthAnimator.start() },
+        )
 
     private val fourthAnimator: ValueAnimator =
         CustomValueAnimator(
@@ -141,7 +147,8 @@ class SecondsView(context: Context, attrs: AttributeSet?) : LinearLayout(context
                 binding.icon3.alpha = 1f
             },
             { binding.icon2.alpha = 1f - it },
-            { fifthAnimator.start() })
+            { fifthAnimator.start() },
+        )
 
     private val fifthAnimator: ValueAnimator =
         CustomValueAnimator(
@@ -151,12 +158,13 @@ class SecondsView(context: Context, attrs: AttributeSet?) : LinearLayout(context
                 binding.icon3.alpha = 1f
             },
             { binding.icon3.alpha = 1f - it },
-            { firstAnimator.start() })
+            { firstAnimator.start() },
+        )
 
     private inner class CustomValueAnimator(
         start: () -> Unit,
         update: (value: Float) -> Unit,
-        end: () -> Unit
+        end: () -> Unit,
     ) : ValueAnimator() {
 
         init {

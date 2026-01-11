@@ -92,7 +92,7 @@ data class CachedSong(
      * The time the song was added to the cache. Used for date added values. Should not be used for
      * cleanup since it is unlikely to be monotonic.
      */
-    val addedMs: Long
+    val addedMs: Long,
 )
 
 /** A result of a cache lookup. */

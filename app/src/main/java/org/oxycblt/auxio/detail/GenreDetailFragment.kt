@@ -74,7 +74,11 @@ class GenreDetailFragment : DetailFragment<Genre, Music>() {
         collect(musicModel.playlistDecision.flow, ::handlePlaylistDecision)
         collect(musicModel.playlistMessage.flow, ::handlePlaylistMessage)
         collectImmediately(
-            playbackModel.song, playbackModel.parent, playbackModel.isPlaying, ::updatePlayback)
+            playbackModel.song,
+            playbackModel.parent,
+            playbackModel.isPlaying,
+            ::updatePlayback,
+        )
         collect(playbackModel.playbackDecision.flow, ::handlePlaybackDecision)
     }
 
@@ -129,7 +133,8 @@ class GenreDetailFragment : DetailFragment<Genre, Music>() {
             context.getString(
                 R.string.fmt_two,
                 context.getPlural(R.plurals.fmt_artist_count, genre.artists.size),
-                context.getPlural(R.plurals.fmt_song_count, genre.songs.size))
+                context.getPlural(R.plurals.fmt_song_count, genre.songs.size),
+            )
         binding.detailPlayButton?.setOnClickListener {
             playbackModel.play(unlikelyToBeNull(detailModel.currentGenre.value))
         }
@@ -143,7 +148,10 @@ class GenreDetailFragment : DetailFragment<Genre, Music>() {
             playbackModel.shuffle(unlikelyToBeNull(detailModel.currentGenre.value))
         }
         updatePlayback(
-            playbackModel.song.value, playbackModel.parent.value, playbackModel.isPlaying.value)
+            playbackModel.song.value,
+            playbackModel.parent.value,
+            playbackModel.isPlaying.value,
+        )
     }
 
     private fun updateList(list: List<Item>) {
@@ -234,7 +242,8 @@ class GenreDetailFragment : DetailFragment<Genre, Music>() {
                 is PlaylistDecision.Add -> {
                     L.d("Adding ${decision.songs.size} songs to a playlist")
                     GenreDetailFragmentDirections.addToPlaylist(
-                        decision.songs.map { it.uid }.toTypedArray())
+                        decision.songs.map { it.uid }.toTypedArray()
+                    )
                 }
                 is PlaylistDecision.New,
                 is PlaylistDecision.Import,

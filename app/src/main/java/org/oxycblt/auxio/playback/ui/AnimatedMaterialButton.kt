@@ -40,7 +40,7 @@ class AnimatedMaterialButton : RippleFixMaterialButton {
     constructor(
         context: Context,
         attrs: AttributeSet,
-        defStyleAttr: Int
+        defStyleAttr: Int,
     ) : super(context, attrs, defStyleAttr)
 
     private var animator: Animator? = null

@@ -100,7 +100,7 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
 
     override fun onBindingCreated(
         binding: DialogMusicLocationsBinding,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ) {
         openDocumentTreeLauncher =
             registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -257,7 +257,8 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
             isIncludeMode = query.mode == MediaStore.FilterMode.INCLUDE
             binding.locationsExcludeModeGroup.check(
                 if (isIncludeMode) R.id.locations_exclude_mode_exclude
-                else R.id.locations_exclude_mode_include)
+                else R.id.locations_exclude_mode_include
+            )
         }
     }
 
@@ -397,9 +398,11 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
                 // File Picker mode - use secondary colors
                 setCardBackgroundColor(context.getAttrColorCompat(MR.attr.colorSecondaryContainer))
                 binding.locationsPermsDesc.setTextColor(
-                    context.getAttrColorCompat(MR.attr.colorOnSecondaryContainer))
+                    context.getAttrColorCompat(MR.attr.colorOnSecondaryContainer)
+                )
                 binding.locationsPermsSubtitle.setTextColor(
-                    context.getAttrColorCompat(MR.attr.colorSecondary))
+                    context.getAttrColorCompat(MR.attr.colorSecondary)
+                )
                 binding.locationsPermsOpen.imageTintList =
                     context.getAttrColorCompat(MR.attr.colorOnSecondaryContainer)
             } else {
@@ -408,19 +411,24 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
                 if (hasStoragePermission) {
                     // Has permission - use secondary colors
                     setCardBackgroundColor(
-                        context.getAttrColorCompat(MR.attr.colorSecondaryContainer))
+                        context.getAttrColorCompat(MR.attr.colorSecondaryContainer)
+                    )
                     binding.locationsPermsDesc.setTextColor(
-                        context.getAttrColorCompat(MR.attr.colorOnSecondaryContainer))
+                        context.getAttrColorCompat(MR.attr.colorOnSecondaryContainer)
+                    )
                     binding.locationsPermsSubtitle.setTextColor(
-                        context.getAttrColorCompat(MR.attr.colorSecondary))
+                        context.getAttrColorCompat(MR.attr.colorSecondary)
+                    )
                     binding.locationsPermsOpen.imageTintList =
                         context.getAttrColorCompat(MR.attr.colorOnSecondaryContainer)
                 } else {
                     setCardBackgroundColor(context.getAttrColorCompat(MR.attr.colorErrorContainer))
                     binding.locationsPermsDesc.setTextColor(
-                        context.getAttrColorCompat(MR.attr.colorOnErrorContainer))
+                        context.getAttrColorCompat(MR.attr.colorOnErrorContainer)
+                    )
                     binding.locationsPermsSubtitle.setTextColor(
-                        context.getAttrColorCompat(androidx.appcompat.R.attr.colorError))
+                        context.getAttrColorCompat(androidx.appcompat.R.attr.colorError)
+                    )
                     binding.locationsPermsOpen.imageTintList =
                         context.getAttrColorCompat(MR.attr.colorOnErrorContainer)
                 }
@@ -525,7 +533,8 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
                 SAF.Query(
                     source = includeLocationAdapter.locations,
                     exclude = excludeLocationAdapter.locations,
-                    withHidden = binding.locationsWithHiddenSwitch.isChecked)
+                    withHidden = binding.locationsWithHiddenSwitch.isChecked,
+                )
 
             if (!modeChanged && currentMode == LocationMode.SAF) {
                 configChanged = currentSafQuery != newSafQuery
@@ -546,7 +555,8 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
                 MediaStore.Query(
                     mode = filterMode,
                     filtered = filterLocationAdapter.locations,
-                    excludeNonMusic = binding.locationsExcludeNonMusicSwitch.isChecked)
+                    excludeNonMusic = binding.locationsExcludeNonMusicSwitch.isChecked,
+                )
 
             if (!modeChanged && currentMode == LocationMode.MEDIA_STORE) {
                 configChanged = currentMediaStoreQuery != newMediaStoreQuery

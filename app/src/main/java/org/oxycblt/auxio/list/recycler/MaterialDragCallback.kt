@@ -48,12 +48,13 @@ abstract class MaterialDragCallback : ItemTouchHelper.Callback() {
 
     final override fun getMovementFlags(
         recyclerView: RecyclerView,
-        viewHolder: RecyclerView.ViewHolder
+        viewHolder: RecyclerView.ViewHolder,
     ) =
         if (viewHolder is ViewHolder && viewHolder.enabled) {
             makeFlag(
-                ItemTouchHelper.ACTION_STATE_DRAG, ItemTouchHelper.UP or ItemTouchHelper.DOWN) or
-                makeFlag(ItemTouchHelper.ACTION_STATE_SWIPE, ItemTouchHelper.START)
+                ItemTouchHelper.ACTION_STATE_DRAG,
+                ItemTouchHelper.UP or ItemTouchHelper.DOWN,
+            ) or makeFlag(ItemTouchHelper.ACTION_STATE_SWIPE, ItemTouchHelper.START)
         } else {
             0
         }
@@ -63,18 +64,24 @@ abstract class MaterialDragCallback : ItemTouchHelper.Callback() {
         viewSize: Int,
         viewSizeOutOfBounds: Int,
         totalSize: Int,
-        msSinceStartScroll: Long
+        msSinceStartScroll: Long,
     ): Int {
         // Clamp the scroll speed to prevent the lists from freaking out
         // Adapted from NewPipe: https://github.com/TeamNewPipe/NewPipe
         val standardSpeed =
             super.interpolateOutOfBoundsScroll(
-                recyclerView, viewSize, viewSizeOutOfBounds, totalSize, msSinceStartScroll)
+                recyclerView,
+                viewSize,
+                viewSizeOutOfBounds,
+                totalSize,
+                msSinceStartScroll,
+            )
 
         val clampedAbsVelocity =
             max(
                 MINIMUM_INITIAL_DRAG_VELOCITY,
-                min(abs(standardSpeed), MAXIMUM_INITIAL_DRAG_VELOCITY))
+                min(abs(standardSpeed), MAXIMUM_INITIAL_DRAG_VELOCITY),
+            )
 
         return clampedAbsVelocity * sign(viewSizeOutOfBounds.toDouble()).toInt()
     }
@@ -86,7 +93,7 @@ abstract class MaterialDragCallback : ItemTouchHelper.Callback() {
         dX: Float,
         dY: Float,
         actionState: Int,
-        isCurrentlyActive: Boolean
+        isCurrentlyActive: Boolean,
     ) {
         val holder = viewHolder as ViewHolder
 
@@ -101,7 +108,8 @@ abstract class MaterialDragCallback : ItemTouchHelper.Callback() {
                 .animate()
                 .translationZ(elevation)
                 .setDuration(
-                    recyclerView.context.getInteger(R.integer.anim_fade_exit_duration).toLong())
+                    recyclerView.context.getInteger(R.integer.anim_fade_exit_duration).toLong()
+                )
                 .setUpdateListener {
                     bg.alpha = ((holder.root.translationZ / elevation) * 255).toInt()
                 }
@@ -143,7 +151,8 @@ abstract class MaterialDragCallback : ItemTouchHelper.Callback() {
                 .animate()
                 .translationZ(0f)
                 .setDuration(
-                    recyclerView.context.getInteger(R.integer.anim_fade_exit_duration).toLong())
+                    recyclerView.context.getInteger(R.integer.anim_fade_exit_duration).toLong()
+                )
                 .setUpdateListener {
                     bg.alpha = ((holder.root.translationZ / elevation) * 255).toInt()
                 }

@@ -53,5 +53,5 @@ internal data class RawSong(
     val properties: Properties,
     val tags: ParsedTags,
     val cover: Cover?,
-    val addedMs: Long
+    val addedMs: Long,
 ) : Explored.Known, Extracted.Valid

@@ -75,7 +75,7 @@ class ThemedSpeedDialView : SpeedDialView {
     constructor(
         context: Context,
         attrs: AttributeSet?,
-        @AttrRes defStyleAttr: Int
+        @AttrRes defStyleAttr: Int,
     ) : super(context, attrs, defStyleAttr)
 
     private val stationaryConfig = AnimConfig.of(context, AnimConfig.STANDARD, AnimConfig.MEDIUM2)
@@ -121,10 +121,12 @@ class ThemedSpeedDialView : SpeedDialView {
                     mainFab.backgroundTintList =
                         ColorStateList.valueOf(
                             if (isOpen) mainFabClosedBackgroundColor
-                            else mainFabOpenedBackgroundColor)
+                            else mainFabOpenedBackgroundColor
+                        )
                     mainFab.imageTintList =
                         ColorStateList.valueOf(
-                            if (isOpen) mainFabClosedIconColor else mainFabOpenedIconColor)
+                            if (isOpen) mainFabClosedIconColor else mainFabOpenedIconColor
+                        )
                     mainFabAnimator?.cancel()
                     mainFabAnimator =
                         createMainFabAnimator(isOpen).apply {
@@ -133,12 +135,14 @@ class ThemedSpeedDialView : SpeedDialView {
                                     override fun onAnimationEnd(animation: Animator) {
                                         mainFabAnimator = null
                                     }
-                                })
+                                }
+                            )
                             start()
                         }
                     innerChangeListener?.invoke(isOpen)
                 }
-            })
+            }
+        )
     }
 
     private fun createMainFabAnimator(isOpen: Boolean): Animator {
@@ -150,7 +154,8 @@ class ThemedSpeedDialView : SpeedDialView {
             ObjectAnimator.ofArgb(
                     mainFab,
                     VIEW_PROPERTY_BACKGROUND_TINT,
-                    if (isOpen) mainFabOpenedBackgroundColor else mainFabClosedBackgroundColor)
+                    if (isOpen) mainFabOpenedBackgroundColor else mainFabClosedBackgroundColor,
+                )
                 .apply {
                     startDelay = delay
                     duration = partialDuration
@@ -160,7 +165,8 @@ class ThemedSpeedDialView : SpeedDialView {
             ObjectAnimator.ofArgb(
                     mainFab,
                     IMAGE_VIEW_PROPERTY_IMAGE_TINT,
-                    if (isOpen) mainFabOpenedIconColor else mainFabClosedIconColor)
+                    if (isOpen) mainFabOpenedIconColor else mainFabClosedIconColor,
+                )
                 .apply {
                     startDelay = delay
                     duration = partialDuration
@@ -168,7 +174,10 @@ class ThemedSpeedDialView : SpeedDialView {
 
         val levelAnimator =
             ObjectAnimator.ofInt(
-                    mainFab.drawable, DRAWABLE_PROPERTY_LEVEL, if (isOpen) 10000 else 0)
+                    mainFab.drawable,
+                    DRAWABLE_PROPERTY_LEVEL,
+                    if (isOpen) 10000 else 0,
+                )
                 .apply { duration = totalDuration }
 
         val animatorSet =
@@ -204,7 +213,7 @@ class ThemedSpeedDialView : SpeedDialView {
     override fun addActionItem(
         actionItem: SpeedDialActionItem,
         position: Int,
-        animate: Boolean
+        animate: Boolean,
     ): FabWithLabelView? {
         val context = context
         val fabImageTintColor = context.getAttrColorCompat(androidx.appcompat.R.attr.colorPrimary)
@@ -220,7 +229,8 @@ class ThemedSpeedDialView : SpeedDialView {
             SpeedDialActionItem.Builder(
                     actionItem.id,
                     // Should not be a resource, pass null to fail fast.
-                    actionItem.getFabImageDrawable(null))
+                    actionItem.getFabImageDrawable(null),
+                )
                 .setLabel(actionItem.getLabel(context))
                 .setFabImageTintColor(fabImageTintColor.defaultColor)
                 .setFabBackgroundColor(fabBackgroundColor.defaultColor)
@@ -269,7 +279,10 @@ class ThemedSpeedDialView : SpeedDialView {
     override fun onSaveInstanceState(): Parcelable {
         val superState =
             BundleCompat.getParcelable(
-                super.onSaveInstanceState() as Bundle, "superState", Parcelable::class.java)
+                super.onSaveInstanceState() as Bundle,
+                "superState",
+                Parcelable::class.java,
+            )
         return State(superState, isOpen)
     }
 

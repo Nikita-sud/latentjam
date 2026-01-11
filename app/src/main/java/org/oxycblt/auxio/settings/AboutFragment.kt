@@ -21,6 +21,7 @@ package org.oxycblt.auxio.settings
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.format.Formatter
 import android.view.LayoutInflater
 import androidx.core.net.toUri
 import androidx.core.view.updatePadding
@@ -97,7 +98,14 @@ class AboutFragment : ViewBindingFragment<FragmentAboutBinding>() {
         binding.aboutTotalDuration.text =
             getString(
                 R.string.fmt_lib_total_duration,
-                (statistics?.durationMs ?: 0).formatDurationMs(false))
+                (statistics?.durationMs ?: 0).formatDurationMs(false),
+            )
+
+        binding.aboutTotalSize.text =
+            getString(
+                R.string.fmt_lib_total_size,
+                Formatter.formatFileSize(context, statistics?.totalSizeBytes ?: 0L),
+            )
     }
 
     private fun Context.sendEmail(recipient: String) {

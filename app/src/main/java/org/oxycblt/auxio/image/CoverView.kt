@@ -90,7 +90,7 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
     private data class PlaybackIndicator(
         val view: ImageView,
         val playingDrawable: AnimationDrawable,
-        val pausedDrawable: Drawable
+        val pausedDrawable: Drawable,
     )
 
     private val playbackIndicator: PlaybackIndicator?
@@ -120,7 +120,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
                             context,
                             com.google.android.material.R.style
                                 .ShapeAppearance_Material3_Corner_Medium,
-                            -1)
+                            -1,
+                        )
                         .build()
                 }
             } else {
@@ -147,11 +148,14 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
                     ImageView(context).apply {
                         scaleType = ImageView.ScaleType.MATRIX
                         ImageViewCompat.setImageTintList(
-                            this, context.getColorCompat(R.color.sel_on_cover_bg))
+                            this,
+                            context.getColorCompat(R.color.sel_on_cover_bg),
+                        )
                     },
                     context.getDrawableCompat(R.drawable.ic_playing_indicator_24)
                         as AnimationDrawable,
-                    context.getDrawableCompat(R.drawable.ic_paused_indicator_24))
+                    context.getDrawableCompat(R.drawable.ic_paused_indicator_24),
+                )
             } else {
                 null
             }
@@ -193,7 +197,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
                     gravity = Gravity.BOTTOM or Gravity.END
                     val spacing = context.getDimenPixels(R.dimen.spacing_tiny)
                     updateMarginsRelative(bottom = spacing, end = spacing)
-                })
+                },
+            )
         }
     }
 
@@ -214,14 +219,20 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
                             0f,
                             0f,
                             drawable.intrinsicWidth.toFloat(),
-                            drawable.intrinsicHeight.toFloat())
+                            drawable.intrinsicHeight.toFloat(),
+                        )
                         indicatorMatrixDst.set(0f, 0f, iconSize.toFloat(), iconSize.toFloat())
                         indicatorMatrix.setRectToRect(
-                            indicatorMatrixSrc, indicatorMatrixDst, Matrix.ScaleToFit.CENTER)
+                            indicatorMatrixSrc,
+                            indicatorMatrixDst,
+                            Matrix.ScaleToFit.CENTER,
+                        )
 
                         // Then actually center it into the icon.
                         indicatorMatrix.postTranslate(
-                            (measuredWidth - iconSize) / 2f, (measuredHeight - iconSize) / 2f)
+                            (measuredWidth - iconSize) / 2f,
+                            (measuredHeight - iconSize) / 2f,
+                        )
                     }
                 }
         }
@@ -319,7 +330,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         bindImpl(
             song.cover,
             context.getString(R.string.desc_album_cover, song.album.name),
-            R.drawable.ic_album_24)
+            R.drawable.ic_album_24,
+        )
 
     /**
      * Bind an [Album]'s image to this view.
@@ -341,7 +353,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         bindImpl(
             mostProminentCover,
             context.getString(R.string.desc_album_cover, album.name),
-            R.drawable.ic_album_24)
+            R.drawable.ic_album_24,
+        )
     }
 
     /**
@@ -353,7 +366,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         bindImpl(
             artist.covers,
             context.getString(R.string.desc_artist_image, artist.name),
-            R.drawable.ic_artist_24)
+            R.drawable.ic_artist_24,
+        )
 
     /**
      * Bind a [Genre]'s image to this view.
@@ -364,7 +378,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         bindImpl(
             genre.covers,
             context.getString(R.string.desc_genre_image, genre.name),
-            R.drawable.ic_genre_24)
+            R.drawable.ic_genre_24,
+        )
 
     /**
      * Bind a [Playlist]'s image to this view.
@@ -375,7 +390,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         bindImpl(
             playlist.covers,
             context.getString(R.string.desc_playlist_image, playlist.name),
-            R.drawable.ic_playlist_24)
+            R.drawable.ic_playlist_24,
+        )
 
     /**
      * Bind the covers of a generic list of [Song]s.
@@ -392,14 +408,16 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
             ImageRequest.Builder(context)
                 .data(cover)
                 .error(
-                    StyledDrawable(context, context.getDrawableCompat(errorRes), iconSize)
-                        .asImage())
+                    StyledDrawable(context, context.getDrawableCompat(errorRes), iconSize).asImage()
+                )
                 .target(image)
 
         val cornersTransformation =
             RoundedRectTransformation(
                 shapeAppearance.topLeftCornerSize.getCornerSize(
-                    RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat())))
+                    RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat())
+                )
+            )
         if (imageSettings.forceSquareCovers) {
             request.transformations(SquareCropTransformation.INSTANCE, cornersTransformation)
         } else {
@@ -419,7 +437,7 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
     private class StyledDrawable(
         context: Context,
         private val inner: Drawable,
-        @Px val iconSize: Int?
+        @Px val iconSize: Int?,
     ) : Drawable() {
         init {
             // Re-tint the drawable to use the analogous "on surface" color for

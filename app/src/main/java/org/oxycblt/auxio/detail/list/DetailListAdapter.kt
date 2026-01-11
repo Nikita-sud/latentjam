@@ -49,7 +49,7 @@ import org.oxycblt.musikr.Music
  */
 abstract class DetailListAdapter(
     private val listener: Listener<*>,
-    private val diffCallback: DiffUtil.ItemCallback<Item>
+    private val diffCallback: DiffUtil.ItemCallback<Item>,
 ) : SelectionIndicatorAdapter<Item, RecyclerView.ViewHolder>(diffCallback) {
 
     override fun getItemViewType(position: Int) =

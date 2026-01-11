@@ -45,7 +45,7 @@ private constructor(
     private val musicRepository: MusicRepository,
     private val searchEngine: SearchEngine,
     homeGeneratorFactory: HomeGenerator.Factory,
-    detailGeneratorFactory: DetailGenerator.Factory
+    detailGeneratorFactory: DetailGenerator.Factory,
 ) : HomeGenerator.Invalidator, DetailGenerator.Invalidator {
 
     class Factory
@@ -54,7 +54,7 @@ private constructor(
         private val musicRepository: MusicRepository,
         private val searchEngine: SearchEngine,
         private val homeGeneratorFactory: HomeGenerator.Factory,
-        private val detailGeneratorFactory: DetailGenerator.Factory
+        private val detailGeneratorFactory: DetailGenerator.Factory,
     ) {
         fun create(context: Context, invalidator: Invalidator): MusicBrowser =
             MusicBrowser(
@@ -63,7 +63,8 @@ private constructor(
                 musicRepository,
                 searchEngine,
                 homeGeneratorFactory,
-                detailGeneratorFactory)
+                detailGeneratorFactory,
+            )
     }
 
     interface Invalidator {
@@ -143,7 +144,12 @@ private constructor(
         val library = musicRepository.library ?: return mutableListOf()
         val items =
             SearchEngine.Items(
-                library.songs, library.albums, library.artists, library.genres, library.playlists)
+                library.songs,
+                library.albums,
+                library.artists,
+                library.genres,
+                library.playlists,
+            )
         return searchEngine.search(items, query).toMediaItems()
     }
 

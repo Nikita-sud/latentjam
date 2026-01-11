@@ -77,7 +77,7 @@ class PlaylistDetailListAdapter(private val listener: Listener) :
     override fun onBindViewHolder(
         holder: RecyclerView.ViewHolder,
         position: Int,
-        payloads: List<Any>
+        payloads: List<Any>,
     ) {
         super.onBindViewHolder(holder, position, payloads)
 
@@ -131,7 +131,9 @@ class PlaylistDetailListAdapter(private val listener: Listener) :
                     when {
                         oldItem is Song && newItem is Song ->
                             PlaylistSongViewHolder.DIFF_CALLBACK.areContentsTheSame(
-                                oldItem, newItem)
+                                oldItem,
+                                newItem,
+                            )
                         oldItem is EditHeader && newItem is EditHeader ->
                             EditHeaderViewHolder.DIFF_CALLBACK.areContentsTheSame(oldItem, newItem)
                         else -> DetailListAdapter.DIFF_CALLBACK.areContentsTheSame(oldItem, newItem)
@@ -242,7 +244,9 @@ private constructor(private val binding: ItemEditableSongBinding) :
                     MaterialShapeDrawable.createWithElevationOverlay(binding.context).apply {
                         fillColor = binding.context.getAttrColorCompat(MR.attr.colorSurface)
                     },
-                    background))
+                    background,
+                )
+            )
     }
 
     /**

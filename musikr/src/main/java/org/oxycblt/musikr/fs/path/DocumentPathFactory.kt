@@ -79,7 +79,7 @@ internal interface DocumentPathFactory {
 private class DocumentPathFactoryImpl(
     private val context: Context,
     private val volumeManager: VolumeManager,
-    private val mediaStorePathInterpreterFactory: MediaStorePathInterpreter.Factory
+    private val mediaStorePathInterpreterFactory: MediaStorePathInterpreter.Factory,
 ) : DocumentPathFactory {
     override fun unpackDocumentUri(uri: Uri): Path? {
         val id = DocumentsContract.getDocumentId(uri)
@@ -92,10 +92,12 @@ private class DocumentPathFactoryImpl(
 
                 val path =
                     context.contentResolverSafe.useQuery(
-                        contentUri, mediaStorePathInterpreterFactory.projection) {
-                            it.moveToFirst()
-                            mediaStorePathInterpreterFactory.wrap(it).extract()
-                        }
+                        contentUri,
+                        mediaStorePathInterpreterFactory.projection,
+                    ) {
+                        it.moveToFirst()
+                        mediaStorePathInterpreterFactory.wrap(it).extract()
+                    }
 
                 if (path != null) {
                     return path
@@ -113,7 +115,9 @@ private class DocumentPathFactoryImpl(
         // parsed into a Directory instance.
         val docUri =
             DocumentsContract.buildDocumentUriUsingTree(
-                uri, DocumentsContract.getTreeDocumentId(uri))
+                uri,
+                DocumentsContract.getTreeDocumentId(uri),
+            )
         val treeUri = DocumentsContract.getTreeDocumentId(docUri)
         return fromDocumentId(treeUri)
     }
@@ -151,6 +155,7 @@ private class DocumentPathFactoryImpl(
         private val POSSIBLE_CONTENT_URI_PREFIXES =
             arrayOf(
                 Uri.parse("content://downloads/public_downloads"),
-                Uri.parse("content://downloads/my_downloads"))
+                Uri.parse("content://downloads/my_downloads"),
+            )
     }
 }

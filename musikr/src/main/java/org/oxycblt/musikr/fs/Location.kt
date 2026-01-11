@@ -39,7 +39,8 @@ sealed class Location(val uri: Uri, val path: Path) {
                     context.contentResolverSafe.takePersistableUriPermission(
                         uri,
                         Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                    )
                 } catch (e: Exception) {
                     // Not fully sure what happens if I'm disallowed to take the permission,
                     // check for both circumstances (error or no-op)

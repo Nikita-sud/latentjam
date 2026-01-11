@@ -143,7 +143,8 @@ class HomeFragment :
                     override fun onPageSelected(position: Int) {
                         homeModel.synchronizeTabPosition(position)
                     }
-                })
+                }
+            )
 
             // ViewPager2 will nominally consume window insets, which will then break the window
             // insets applied to the indexing view before API 30. Fix this by overriding the
@@ -198,7 +199,8 @@ class HomeFragment :
         // when the AppBarLayout is only at half-collapsed.
         binding.homeToolbar.alpha = 1f - (abs(verticalOffset.toFloat()) / (range.toFloat() / 2))
         binding.homeContent.updatePadding(
-            bottom = binding.homeAppbar.totalScrollRange + verticalOffset)
+            bottom = binding.homeAppbar.totalScrollRange + verticalOffset
+        )
     }
 
     override fun onMenuItemClick(item: MenuItem): Boolean {
@@ -266,7 +268,10 @@ class HomeFragment :
 
         // Set up the mapping between the ViewPager and TabLayout.
         TabLayoutMediator(
-                binding.homeTabs, binding.homePager, NamedTabStrategy(homeModel.currentTabTypes))
+                binding.homeTabs,
+                binding.homePager,
+                NamedTabStrategy(homeModel.currentTabTypes),
+            )
             .attach()
     }
 
@@ -353,7 +358,8 @@ class HomeFragment :
                     HomeFragmentDirections.newPlaylist(
                         decision.songs.map { it.uid }.toTypedArray(),
                         decision.template,
-                        decision.reason)
+                        decision.reason,
+                    )
                 }
                 is PlaylistDecision.Import -> {
                     L.d("Importing playlist")
@@ -371,7 +377,8 @@ class HomeFragment :
                         decision.playlist.uid,
                         decision.template,
                         decision.applySongs.map { it.uid }.toTypedArray(),
-                        decision.reason)
+                        decision.reason,
+                    )
                 }
                 is PlaylistDecision.Export -> {
                     L.d("Exporting ${decision.playlist}")
@@ -384,7 +391,8 @@ class HomeFragment :
                 is PlaylistDecision.Add -> {
                     L.d("Adding ${decision.songs.size} to a playlist")
                     HomeFragmentDirections.addToPlaylist(
-                        decision.songs.map { it.uid }.toTypedArray())
+                        decision.songs.map { it.uid }.toTypedArray()
+                    )
                 }
             }
         findNavController().navigateSafe(directions)
@@ -491,7 +499,7 @@ class HomeFragment :
     private class HomePagerAdapter(
         private val tabs: List<MusicType>,
         fragmentManager: FragmentManager,
-        lifecycleOwner: LifecycleOwner
+        lifecycleOwner: LifecycleOwner,
     ) : FragmentStateAdapter(fragmentManager, lifecycleOwner.lifecycle) {
         override fun getItemCount() = tabs.size
 

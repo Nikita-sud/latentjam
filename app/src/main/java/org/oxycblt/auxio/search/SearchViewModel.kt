@@ -121,7 +121,8 @@ constructor(
                     library.albums,
                     library.artists,
                     library.genres,
-                    library.playlists)
+                    library.playlists,
+                )
             } else {
                 L.d("Filter specified, reducing library")
                 SearchEngine.Items(
@@ -129,7 +130,8 @@ constructor(
                     albums = if (filter == MusicType.ALBUMS) library.albums else null,
                     artists = if (filter == MusicType.ARTISTS) library.artists else null,
                     genres = if (filter == MusicType.GENRES) library.genres else null,
-                    playlists = if (filter == MusicType.PLAYLISTS) library.playlists else null)
+                    playlists = if (filter == MusicType.PLAYLISTS) library.playlists else null,
+                )
             }
 
         val results = searchEngine.search(items, query)

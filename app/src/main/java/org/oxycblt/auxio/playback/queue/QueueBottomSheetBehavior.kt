@@ -68,7 +68,7 @@ class QueueBottomSheetBehavior<V : View>(context: Context, attributeSet: Attribu
     override fun onDependentViewChanged(
         parent: CoordinatorLayout,
         child: V,
-        dependency: View
+        dependency: View,
     ): Boolean {
         val oldHeight = barHeight
         barHeight = dependency.height
@@ -92,7 +92,8 @@ class QueueBottomSheetBehavior<V : View>(context: Context, attributeSet: Attribu
                     ShapeAppearanceModel.builder(
                             context,
                             R.style.ShapeAppearance_Auxio_BottomSheet,
-                            MR.style.ShapeAppearanceOverlay_Material3_Corner_Top)
+                            MR.style.ShapeAppearanceOverlay_Material3_Corner_Top,
+                        )
                         .build()
             }
         }
@@ -106,6 +107,10 @@ class QueueBottomSheetBehavior<V : View>(context: Context, attributeSet: Attribu
         val effectiveBarHeight = if (barHeight > 0) barHeight else getIdealBarHeight(child.context)
         expandedOffset = effectiveBarHeight + barSpacing
         return insets.replaceSystemBarInsetsCompat(
-            bars.left, bars.top, bars.right, expandedOffset + bars.bottom)
+            bars.left,
+            bars.top,
+            bars.right,
+            expandedOffset + bars.bottom,
+        )
     }
 }

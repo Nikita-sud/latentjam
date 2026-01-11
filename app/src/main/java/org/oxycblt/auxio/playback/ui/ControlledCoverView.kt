@@ -65,21 +65,23 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         e1: MotionEvent?,
         e2: MotionEvent,
         velocityX: Float,
-        velocityY: Float
+        velocityY: Float,
     ): Boolean = false
 
     override fun onFling(
         e1: MotionEvent?,
         e2: MotionEvent,
         velocityX: Float,
-        velocityY: Float
+        velocityY: Float,
     ): Boolean {
         e1 ?: return false
         val diffY = e2.y - e1.y
         val diffX = e2.x - e1.x
-        if (abs(diffX) > abs(diffY) &&
-            abs(diffX) > viewConfig.scaledTouchSlop &&
-            abs(velocityX) > viewConfig.scaledMinimumFlingVelocity) {
+        if (
+            abs(diffX) > abs(diffY) &&
+                abs(diffX) > viewConfig.scaledTouchSlop &&
+                abs(velocityX) > viewConfig.scaledMinimumFlingVelocity
+        ) {
             if (diffX > 0) {
                 onSwipeRight()
             } else {

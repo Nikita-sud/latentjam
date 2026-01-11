@@ -76,7 +76,11 @@ class AlbumDetailFragment : DetailFragment<Album, Song>() {
         collect(musicModel.playlistDecision.flow, ::handlePlaylistDecision)
         collect(musicModel.playlistMessage.flow, ::handlePlaylistMessage)
         collectImmediately(
-            playbackModel.song, playbackModel.parent, playbackModel.isPlaying, ::updatePlayback)
+            playbackModel.song,
+            playbackModel.parent,
+            playbackModel.isPlaying,
+            ::updatePlayback,
+        )
         collect(playbackModel.playbackDecision.flow, ::handlePlaybackDecision)
     }
 
@@ -152,7 +156,10 @@ class AlbumDetailFragment : DetailFragment<Album, Song>() {
             playbackModel.shuffle(unlikelyToBeNull(detailModel.currentAlbum.value))
         }
         updatePlayback(
-            playbackModel.song.value, playbackModel.parent.value, playbackModel.isPlaying.value)
+            playbackModel.song.value,
+            playbackModel.parent.value,
+            playbackModel.isPlaying.value,
+        )
     }
 
     private fun updateList(list: List<Item>) {
@@ -251,7 +258,8 @@ class AlbumDetailFragment : DetailFragment<Album, Song>() {
                 is PlaylistDecision.Add -> {
                     L.d("Adding ${decision.songs.size} songs to a playlist")
                     AlbumDetailFragmentDirections.addToPlaylist(
-                        decision.songs.map { it.uid }.toTypedArray())
+                        decision.songs.map { it.uid }.toTypedArray()
+                    )
                 }
                 is PlaylistDecision.New,
                 is PlaylistDecision.Import,
@@ -270,7 +278,9 @@ class AlbumDetailFragment : DetailFragment<Album, Song>() {
 
     private fun updatePlayback(song: Song?, parent: MusicParent?, isPlaying: Boolean) {
         albumListAdapter.setPlaying(
-            song.takeIf { parent == detailModel.currentAlbum.value }, isPlaying)
+            song.takeIf { parent == detailModel.currentAlbum.value },
+            isPlaying,
+        )
     }
 
     private fun handlePlaybackDecision(decision: PlaybackDecision?) {
@@ -318,7 +328,7 @@ class AlbumDetailFragment : DetailFragment<Album, Song>() {
                             viewEnd: Int,
                             boxStart: Int,
                             boxEnd: Int,
-                            snapPreference: Int
+                            snapPreference: Int,
                         ) =
                             (boxStart + (boxEnd - boxStart) / 2) -
                                 (viewStart + (viewEnd - viewStart) / 2)

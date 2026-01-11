@@ -42,11 +42,16 @@ class SearchSettingsImpl @Inject constructor(@ApplicationContext context: Contex
         get() =
             MusicType.fromIntCode(
                 sharedPreferences.getInt(
-                    getString(R.string.set_key_search_filter_to), Int.MIN_VALUE))
+                    getString(R.string.set_key_search_filter_to),
+                    Int.MIN_VALUE,
+                )
+            )
         set(value) {
             sharedPreferences.edit {
                 putInt(
-                    getString(R.string.set_key_search_filter_to), value?.intCode ?: Int.MIN_VALUE)
+                    getString(R.string.set_key_search_filter_to),
+                    value?.intCode ?: Int.MIN_VALUE,
+                )
                 apply()
             }
         }

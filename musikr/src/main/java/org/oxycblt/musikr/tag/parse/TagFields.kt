@@ -48,15 +48,15 @@ internal fun Metadata.sortName() = (xiph["TITLESORT"] ?: mp4["sonm"] ?: id3v2["T
 internal fun Metadata.track() =
     (parseXiphPositionField(
         xiph["TRACKNUMBER"]?.first(),
-        (xiph["TOTALTRACKS"] ?: xiph["TRACKTOTAL"] ?: xiph["TRACKC"])?.first())
-        ?: (mp4["trkn"] ?: id3v2["TRCK"])?.run { first().parseSlashPositionField() })
+        (xiph["TOTALTRACKS"] ?: xiph["TRACKTOTAL"] ?: xiph["TRACKC"])?.first(),
+    ) ?: (mp4["trkn"] ?: id3v2["TRCK"])?.run { first().parseSlashPositionField() })
 
 // Disc and it's subtitle name.
 internal fun Metadata.disc() =
     (parseXiphPositionField(
         xiph["DISCNUMBER"]?.first(),
-        (xiph["TOTALDISCS"] ?: xiph["DISCTOTAL"] ?: xiph["DISCC"])?.run { first() })
-        ?: (mp4["disk"] ?: id3v2["TPOS"])?.run { first().parseSlashPositionField() })
+        (xiph["TOTALDISCS"] ?: xiph["DISCTOTAL"] ?: xiph["DISCC"])?.run { first() },
+    ) ?: (mp4["disk"] ?: id3v2["TPOS"])?.run { first().parseSlashPositionField() })
 
 internal fun Metadata.subtitle() = (xiph["DISCSUBTITLE"] ?: id3v2["TSST"])?.first()
 

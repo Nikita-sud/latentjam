@@ -83,7 +83,8 @@ class CircleClipTapView(context: Context?, attrs: AttributeSet) : View(context, 
             f * (halfWidth + arcSize) + w,
             heightPx.toFloat() / 2,
             f * (halfWidth - arcSize) + w,
-            heightPx.toFloat())
+            heightPx.toFloat(),
+        )
         shapePath.lineTo(w, heightPx.toFloat())
 
         shapePath.close()

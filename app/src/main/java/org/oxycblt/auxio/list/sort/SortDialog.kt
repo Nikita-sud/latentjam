@@ -89,7 +89,7 @@ abstract class SortDialog :
     override fun onButtonChecked(
         group: MaterialButtonToggleGroup?,
         checkedId: Int,
-        isChecked: Boolean
+        isChecked: Boolean,
     ) {
         updateButtons()
     }

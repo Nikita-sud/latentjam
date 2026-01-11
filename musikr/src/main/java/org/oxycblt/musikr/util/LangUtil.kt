@@ -33,7 +33,7 @@ import org.oxycblt.musikr.tag.Date
 
 fun CoroutineScope.tryAsync(
     context: CoroutineContext,
-    block: suspend () -> Unit
+    block: suspend () -> Unit,
 ): Deferred<Result<Unit>> = async {
     try {
         block()

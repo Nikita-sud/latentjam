@@ -63,7 +63,7 @@ class QueueAdapter(private val listener: EditClickListListener<Song>) :
     override fun onBindViewHolder(
         viewHolder: QueueSongViewHolder,
         position: Int,
-        payload: List<Any>
+        payload: List<Any>,
     ) {
         if (payload.isEmpty()) {
             viewHolder.bind(getItem(position), listener)
@@ -143,7 +143,9 @@ class QueueSongViewHolder private constructor(private val binding: ItemEditableS
                         fillColor =
                             binding.context.getAttrColorCompat(MR.attr.colorSurfaceContainerHigh)
                     },
-                    background))
+                    background,
+                )
+            )
     }
 
     /**

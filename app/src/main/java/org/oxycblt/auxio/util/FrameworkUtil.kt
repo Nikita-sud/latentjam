@@ -76,7 +76,7 @@ private fun isUnderImpl(
     viewStart: Int,
     viewEnd: Int,
     parentEnd: Int,
-    minTouchTargetSize: Int
+    minTouchTargetSize: Int,
 ): Boolean {
     val viewSize = viewEnd - viewStart
     if (viewSize >= minTouchTargetSize) {
@@ -212,7 +212,8 @@ val WindowInsets.systemGestureInsetsCompat: Insets
                 // API 30+, use window inset map.
                 Insets.max(
                     getCompatInsets(WindowInsets.Type.systemGestures()),
-                    getCompatInsets(WindowInsets.Type.systemBars()))
+                    getCompatInsets(WindowInsets.Type.systemBars()),
+                )
             }
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
                 // API 29, use window inset fields.
@@ -245,7 +246,8 @@ private fun WindowInsets.getSystemWindowCompatInsets() =
         systemWindowInsetLeft,
         systemWindowInsetTop,
         systemWindowInsetRight,
-        systemWindowInsetBottom)
+        systemWindowInsetBottom,
+    )
 
 /**
  * Returns "System Bar" [Insets] based on the API 29 [WindowInsets] convention.
@@ -270,7 +272,7 @@ fun WindowInsets.replaceSystemBarInsetsCompat(
     left: Int,
     top: Int,
     right: Int,
-    bottom: Int
+    bottom: Int,
 ): WindowInsets {
     return when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
@@ -278,7 +280,8 @@ fun WindowInsets.replaceSystemBarInsetsCompat(
             WindowInsets.Builder(this)
                 .setInsets(
                     WindowInsets.Type.systemBars(),
-                    Insets.of(left, top, right, bottom).toPlatformInsets())
+                    Insets.of(left, top, right, bottom).toPlatformInsets(),
+                )
                 .build()
         }
         else -> {

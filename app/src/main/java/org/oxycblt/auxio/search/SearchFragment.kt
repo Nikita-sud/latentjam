@@ -164,7 +164,11 @@ class SearchFragment : ListFragment<Music, FragmentSearchBinding>() {
         collect(musicModel.playlistDecision.flow, ::handlePlaylistDecision)
         collect(musicModel.playlistMessage.flow, ::handlePlaylistMessage)
         collectImmediately(
-            playbackModel.song, playbackModel.parent, playbackModel.isPlaying, ::updatePlayback)
+            playbackModel.song,
+            playbackModel.parent,
+            playbackModel.isPlaying,
+            ::updatePlayback,
+        )
         collect(playbackModel.playbackDecision.flow, ::handlePlaybackDecision)
         collect(detailModel.toShow.flow, ::handleShow)
     }
@@ -324,7 +328,8 @@ class SearchFragment : ListFragment<Music, FragmentSearchBinding>() {
                         decision.playlist.uid,
                         decision.template,
                         decision.applySongs.map { it.uid }.toTypedArray(),
-                        decision.reason)
+                        decision.reason,
+                    )
                 }
                 is PlaylistDecision.Delete -> {
                     L.d("Deleting ${decision.playlist}")
@@ -337,7 +342,8 @@ class SearchFragment : ListFragment<Music, FragmentSearchBinding>() {
                 is PlaylistDecision.Add -> {
                     L.d("Adding ${decision.songs.size} to a playlist")
                     SearchFragmentDirections.addToPlaylist(
-                        decision.songs.map { it.uid }.toTypedArray())
+                        decision.songs.map { it.uid }.toTypedArray()
+                    )
                 }
                 is PlaylistDecision.New -> {
                     error("Unexpected decision $decision")

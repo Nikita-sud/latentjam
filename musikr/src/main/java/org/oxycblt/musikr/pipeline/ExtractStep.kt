@@ -40,7 +40,7 @@ internal interface ExtractStep {
     suspend fun extract(
         scope: CoroutineScope,
         explored: Channel<Explored>,
-        extracted: Channel<Extracted>
+        extracted: Channel<Extracted>,
     ): Deferred<Result<Unit>>
 
     companion object {
@@ -49,7 +49,8 @@ internal interface ExtractStep {
                 MetadataExtractor.from(context),
                 TagParser.new(),
                 config.storage.cache,
-                config.storage.covers)
+                config.storage.covers,
+            )
     }
 }
 
@@ -57,12 +58,12 @@ private class ExtractStepImpl(
     private val metadataExtractor: MetadataExtractor,
     private val tagParser: TagParser,
     private val cache: MutableCache,
-    private val covers: MutableCovers<out Cover>
+    private val covers: MutableCovers<out Cover>,
 ) : ExtractStep {
     override suspend fun extract(
         scope: CoroutineScope,
         explored: Channel<Explored>,
-        extracted: Channel<Extracted>
+        extracted: Channel<Extracted>,
     ): Deferred<Result<Unit>> {
         val addingMs = System.currentTimeMillis()
         val extract = Channel<ParsedExtractItem>(PARALLELISM)
@@ -104,7 +105,9 @@ private class ExtractStepImpl(
                                 // added query is basically free, it's only saf that has
                                 // it's slow hacky workaround that we must accommodate
                                 // here.)
-                                item.newSong.file.addedMs.resolve() ?: addingMs))
+                                item.newSong.file.addedMs.resolve() ?: addingMs,
+                            )
+                        )
                     }
                 }
             }

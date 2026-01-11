@@ -150,7 +150,7 @@ constructor(
         parent: MusicParent?,
         queue: List<Song>,
         index: Int,
-        isShuffled: Boolean
+        isShuffled: Boolean,
     ) {
         L.d("New playback started, updating playback information")
         _song.value = playbackManager.currentSong
@@ -242,7 +242,8 @@ constructor(
         playbackManager.play(
             requireNotNull(commandFactory.song(song, shuffle)) {
                 "Invalid playback parameters [$song $shuffle]"
-            })
+            }
+        )
     }
 
     private fun playFromAllImpl(song: Song?, shuffle: ShuffleMode) {
@@ -268,7 +269,8 @@ constructor(
             return
         }
         L.d(
-            "Cannot use given artist parameter for $song [$artist from ${song.artists}], showing choice dialog")
+            "Cannot use given artist parameter for $song [$artist from ${song.artists}], showing choice dialog"
+        )
         startPlaybackDecision(PlaybackDecision.PlayFromArtist(song))
     }
 
@@ -279,7 +281,8 @@ constructor(
             return
         }
         L.d(
-            "Cannot use given genre parameter for $song [$genre from ${song.genres}], showing choice dialog")
+            "Cannot use given genre parameter for $song [$genre from ${song.genres}], showing choice dialog"
+        )
         startPlaybackDecision(PlaybackDecision.PlayFromArtist(song))
     }
 
@@ -639,7 +642,7 @@ enum class OpenPanel {
      * Open the queue panel, assuming that it exists in the current layout, is collapsed, and with
      * the playback panel already being expanded. Do nothing if these conditions are not met.
      */
-    QUEUE
+    QUEUE,
 }
 
 /**
@@ -650,8 +653,10 @@ enum class OpenPanel {
 sealed interface PlaybackDecision {
     /** The [Song] currently attempting to be played from. */
     val song: Song
+
     /** Navigate to a dialog to determine which [Artist] a [Song] should be played from. */
     class PlayFromArtist(override val song: Song) : PlaybackDecision
+
     /** Navigate to a dialog to determine which [Genre] a [Song] should be played from. */
     class PlayFromGenre(override val song: Song) : PlaybackDecision
 }

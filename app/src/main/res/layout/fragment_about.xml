@@ -364,6 +364,17 @@
                         app:layout_constraintTop_toBottomOf="@+id/about_licenses"
                         tools:text="Total duration: 16:16:16" />
 
+                    <TextView
+                        android:id="@+id/about_total_size"
+                        style="@style/Widget.Auxio.TextView.Icon"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:drawableStartCompat="@drawable/ic_file_24"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@+id/about_licenses"
+                        tools:text="Total size: 1.2 GB" />
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>

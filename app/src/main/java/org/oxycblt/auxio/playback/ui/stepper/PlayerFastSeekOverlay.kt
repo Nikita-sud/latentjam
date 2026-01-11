@@ -38,7 +38,7 @@ enum class DisplayPortion {
     MIDDLE,
     RIGHT,
     LEFT_HALF,
-    RIGHT_HALF
+    RIGHT_HALF,
 }
 
 interface DoubleTapListener {
@@ -81,7 +81,8 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
                             context,
                             com.google.android.material.R.style
                                 .ShapeAppearance_Material3_Corner_Medium,
-                            -1)
+                            -1,
+                        )
                         .build()
                 }
             } else {
@@ -122,7 +123,8 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
                 context,
                 object : GestureDetector.SimpleOnGestureListener() {
                     override fun onDown(e: MotionEvent) = true
-                })
+                },
+            )
         gestureDetector.setOnDoubleTapListener(this)
 
         addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
@@ -333,6 +335,7 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
         fun onDoubleTap()
 
         fun onDoubleTapEnd()
+
         /** Determines if the playback should forward/rewind or do nothing. */
         fun getFastSeekDirection(portion: DisplayPortion): FastSeekDirection
 
@@ -341,7 +344,7 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
         enum class FastSeekDirection(val directionAsBoolean: Boolean?) {
             NONE(null),
             FORWARD(true),
-            BACKWARD(false)
+            BACKWARD(false),
         }
     }
 

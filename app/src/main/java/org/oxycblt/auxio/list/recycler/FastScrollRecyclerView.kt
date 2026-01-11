@@ -114,7 +114,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
 
             TextViewCompat.setTextAppearance(this, R.style.TextAppearance_Auxio_HeadlineMedium)
             setTextColor(
-                context.getAttrColorCompat(com.google.android.material.R.attr.colorOnSecondary))
+                context.getAttrColorCompat(com.google.android.material.R.attr.colorOnSecondary)
+            )
             ellipsize = TextUtils.TruncateAt.MIDDLE
             gravity = Gravity.CENTER
             includeFontPadding = false
@@ -129,7 +130,9 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
             updatePaddingRelative(start = paddingStart, end = paddingEnd)
             layoutParams =
                 FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    )
                     .apply {
                         marginEnd = context.getDimenPixels(R.dimen.size_touchable_small)
                         gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
@@ -208,7 +211,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
                 override fun onDraw(canvas: Canvas, parent: RecyclerView, state: State) {
                     onPreDraw()
                 }
-            })
+            }
+        )
 
         // We use a listener instead of overriding onTouchEvent so that we don't conflict with
         // RecyclerView touch events.
@@ -220,11 +224,12 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
 
                 override fun onInterceptTouchEvent(
                     recyclerView: RecyclerView,
-                    event: MotionEvent
+                    event: MotionEvent,
                 ): Boolean {
                     return onItemTouch(event)
                 }
-            })
+            }
+        )
     }
 
     // --- RECYCLERVIEW EVENT MANAGEMENT ---
@@ -235,7 +240,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         thumbView.layoutDirection = layoutDirection
         thumbView.measure(
             MeasureSpec.makeMeasureSpec(thumbWidth, MeasureSpec.EXACTLY),
-            MeasureSpec.makeMeasureSpec(thumbHeight, MeasureSpec.EXACTLY))
+            MeasureSpec.makeMeasureSpec(thumbHeight, MeasureSpec.EXACTLY),
+        )
         val thumbTop = thumbPadding.top + thumbOffset
         val thumbLeft =
             if (isRtl) {
@@ -278,7 +284,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
                         thumbWidth +
                         popupLayoutParams.leftMargin +
                         popupLayoutParams.rightMargin,
-                    popupLayoutParams.width)
+                    popupLayoutParams.width,
+                )
 
             val heightMeasureSpec =
                 ViewGroup.getChildMeasureSpec(
@@ -287,7 +294,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
                         thumbPadding.bottom +
                         popupLayoutParams.topMargin +
                         popupLayoutParams.bottomMargin,
-                    popupLayoutParams.height)
+                    popupLayoutParams.height,
+                )
 
             popupView.measure(widthMeasureSpec, heightMeasureSpec)
             if (showingPopup) {
@@ -311,7 +319,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
             (thumbTop + thumbAnchorY - popupAnchorY)
                 .coerceAtLeast(thumbPadding.top + popupLayoutParams.topMargin)
                 .coerceAtMost(
-                    height - thumbPadding.bottom - popupLayoutParams.bottomMargin - popupHeight)
+                    height - thumbPadding.bottom - popupLayoutParams.bottomMargin - popupHeight
+                )
 
         popupView.layout(popupLeft, popupTop, popupLeft + popupWidth, popupTop + popupHeight)
     }
@@ -383,9 +392,11 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
                 }
             }
             MotionEvent.ACTION_MOVE -> {
-                if (!dragging &&
-                    thumbView.isUnder(downX, thumbView.top.toFloat(), minTouchTargetSize) &&
-                    abs(eventY - downY) > touchSlop) {
+                if (
+                    !dragging &&
+                        thumbView.isUnder(downX, thumbView.top.toFloat(), minTouchTargetSize) &&
+                        abs(eventY - downY) > touchSlop
+                ) {
                     if (thumbView.isUnder(downX, downY, minTouchTargetSize)) {
                         dragStartY = lastY
                         dragStartThumbOffset = thumbOffset
@@ -487,7 +498,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
                 HapticFeedbackConstants.TEXT_HANDLE_MOVE
             } else {
                 HapticFeedbackConstants.KEYBOARD_TAP
-            })
+            }
+        )
     }
 
     // --- LAYOUT STATE ---

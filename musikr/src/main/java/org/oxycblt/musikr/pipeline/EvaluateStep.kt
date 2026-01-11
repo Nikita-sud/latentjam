@@ -41,7 +41,8 @@ internal interface EvaluateStep {
                 TagInterpreter.new(interpretation),
                 PlaylistInterpreter.new(interpretation),
                 config.storage.storedPlaylists,
-                LibraryFactory.new())
+                LibraryFactory.new(),
+            )
     }
 }
 
@@ -50,7 +51,7 @@ private class EvaluateStepImpl(
     private val tagInterpreter: TagInterpreter,
     private val playlistInterpreter: PlaylistInterpreter,
     private val storedPlaylists: StoredPlaylists,
-    private val libraryFactory: LibraryFactory
+    private val libraryFactory: LibraryFactory,
 ) : EvaluateStep {
     override suspend fun evaluate(extractedMusic: Channel<Extracted>): MutableLibrary {
         val builder = MusicGraph.builder()

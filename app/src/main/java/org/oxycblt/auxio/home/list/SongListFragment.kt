@@ -92,7 +92,11 @@ class SongListFragment :
         collectImmediately(homeModel.empty, musicModel.indexingState, ::updateNoMusicIndicator)
         collectImmediately(listModel.selected, ::updateSelection)
         collectImmediately(
-            playbackModel.song, playbackModel.parent, playbackModel.isPlaying, ::updatePlayback)
+            playbackModel.song,
+            playbackModel.parent,
+            playbackModel.isPlaying,
+            ::updatePlayback,
+        )
     }
 
     override fun onDestroyBinding(binding: FragmentHomeListBinding) {
@@ -134,7 +138,8 @@ class SongListFragment :
                         formatter,
                         dateAddedMillis,
                         dateAddedMillis,
-                        DateUtils.FORMAT_ABBREV_ALL)
+                        DateUtils.FORMAT_ABBREV_ALL,
+                    )
                     .toString()
             }
 
