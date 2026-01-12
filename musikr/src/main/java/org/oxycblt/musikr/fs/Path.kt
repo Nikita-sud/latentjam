@@ -53,7 +53,7 @@ data class Path(val volume: Volume?, val components: Components) {
      * @param context [Context] required to obtain human-readable strings.
      */
     fun resolve(context: Context) =
-        volume?.let { "${volume.resolveName(context)}/$components" } ?: components.toString()
+        volume?.let { "${volume.resolveName(context)}/$components" } ?: "./$components"
 }
 
 sealed interface Volume {
