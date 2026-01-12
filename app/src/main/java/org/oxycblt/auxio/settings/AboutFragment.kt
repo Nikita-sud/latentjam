@@ -78,6 +78,11 @@ class AboutFragment : ViewBindingFragment<FragmentAboutBinding>() {
         binding.aboutFeedbackEmail.setOnClickListener {
             requireContext().sendEmail("feedback@auxio.app")
         }
+
+        binding.aboutSupportersBkkellyh.setOnClickListener {
+            requireContext().openInBrowser(LINK_BKKELLYH)
+        }
+
         binding.aboutSupportersPromo.setOnClickListener {
             requireContext().openInBrowser(LINK_DONATE)
         }
@@ -119,6 +124,7 @@ class AboutFragment : ViewBindingFragment<FragmentAboutBinding>() {
         const val LINK_LICENSES = "$LINK_WIKI/Licenses"
         const val LINK_NEW_ISSUE = "$LINK_SOURCE/issues/new"
         const val LINK_PROFILE = "https://github.com/OxygenCobalt"
+        const val LINK_BKKELLYH = "https://github.com/bkkellyh"
         const val LINK_DONATE = "https://github.com/sponsors/OxygenCobalt"
     }
 }
