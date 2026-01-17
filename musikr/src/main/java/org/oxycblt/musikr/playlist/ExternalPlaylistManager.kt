@@ -23,6 +23,7 @@ import android.net.Uri
 import org.oxycblt.musikr.Playlist
 import org.oxycblt.musikr.fs.Components
 import org.oxycblt.musikr.fs.Path
+import org.oxycblt.musikr.fs.Volume
 import org.oxycblt.musikr.fs.path.DocumentPathFactory
 import org.oxycblt.musikr.fs.saf.contentResolverSafe
 import org.oxycblt.musikr.playlist.m3u.M3U
@@ -93,7 +94,7 @@ private class ExternalPlaylistManagerImpl(
     private val m3u: M3U,
 ) : ExternalPlaylistManager {
     override suspend fun import(uri: Uri): ImportedPlaylist? {
-        val filePath = documentPathFactory.unpackDocumentUri(uri) ?: return null
+        val filePath = documentPathFactory.unpackDocumentUri(uri) ?: Path(Volume.ThirdParty(uri), Components.root())
 
         return try {
             context.contentResolverSafe.openInputStream(uri)?.use {
@@ -118,7 +119,7 @@ private class ExternalPlaylistManagerImpl(
     }
 
     override suspend fun export(playlist: Playlist, uri: Uri, config: ExportConfig): Boolean {
-        val filePath = documentPathFactory.unpackDocumentUri(uri) ?: return false
+        val filePath = documentPathFactory.unpackDocumentUri(uri) ?: Path(Volume.ThirdParty(uri), Components.root())
         val workingDirectory =
             if (config.absolute) {
                 Path(filePath.volume, Components.parseUnix("/"))

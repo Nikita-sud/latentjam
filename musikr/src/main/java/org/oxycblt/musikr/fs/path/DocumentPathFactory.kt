@@ -36,7 +36,7 @@ import org.oxycblt.musikr.fs.saf.useQuery
  */
 internal interface DocumentPathFactory {
     /**
-     * Unpacks a document URI into a [Path] instance, using [fromDocumentId].
+     * Unpacks a document URI into a [Path] instance.
      *
      * @param uri The document URI to unpack.
      * @return The [Path] instance, or null if the URI could not be unpacked.
@@ -44,28 +44,12 @@ internal interface DocumentPathFactory {
     fun unpackDocumentUri(uri: Uri): Path?
 
     /**
-     * Unpacks a document tree URI into a [Path] instance, using [fromDocumentId].
+     * Unpacks a document tree URI into a [Path] instance.
      *
      * @param uri The document tree URI to unpack.
      * @return The [Path] instance, or null if the URI could not be unpacked.
      */
     fun unpackDocumentTreeUri(uri: Uri): Path?
-
-    /**
-     * Serializes a [Path] instance into a document tree URI format path.
-     *
-     * @param path The [Path] instance to serialize.
-     * @return The serialized path.
-     */
-    fun toDocumentId(path: Path): String
-
-    /**
-     * Deserializes a document tree URI format path into a [Path] instance.
-     *
-     * @param path The path to deserialize.
-     * @return The [Path] instance, or null if the path could not be deserialized.
-     */
-    fun fromDocumentId(path: String): Path?
 
     companion object {
         fun from(context: Context): DocumentPathFactory {
@@ -122,16 +106,7 @@ private class DocumentPathFactoryImpl(
         return fromDocumentId(treeUri)
     }
 
-    override fun toDocumentId(path: Path): String =
-        when (val volume = path.volume) {
-            // The primary storage has a volume prefix of "primary", regardless
-            // of if it's internal or not.
-            is Volume.Internal -> "$DOCUMENT_URI_PRIMARY_NAME:${path.components}"
-            // Document tree URIs consist of a prefixed volume name followed by a relative path.
-            is Volume.External -> "${volume.id}:${path.components}"
-        }
-
-    override fun fromDocumentId(path: String): Path? {
+    private fun fromDocumentId(path: String): Path? {
         // Document tree URIs consist of a prefixed volume name followed by a relative path,
         // delimited with a colon.
         val split = path.split(File.pathSeparator, limit = 2)

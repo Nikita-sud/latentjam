@@ -19,6 +19,7 @@
 package org.oxycblt.musikr.fs
 
 import android.content.Context
+import android.net.Uri
 import java.io.File
 
 /**
@@ -74,6 +75,12 @@ sealed interface Volume {
     interface External : Volume {
         /** The UUID of the volume. */
         val id: String?
+    }
+
+    data class ThirdParty(val uri: Uri) : Volume {
+        override val mediaStoreName: String? = null
+        override val components: Components? = null
+        override fun resolveName(context: Context) = uri.toString()
     }
 }
 
@@ -169,6 +176,8 @@ value class Components private constructor(val components: List<String>) {
          */
         fun parseWindows(path: String) =
             Components(path.trimSlashes().split('\\').filter { it.isNotEmpty() })
+
+        fun root() = Components(emptyList())
 
         private fun String.trimSlashes() = trimStart(File.separatorChar).trimEnd(File.separatorChar)
     }
