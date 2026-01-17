@@ -40,6 +40,7 @@ import org.oxycblt.auxio.ui.ViewBindingMaterialDialogFragment
 import org.oxycblt.auxio.util.getAttrColorCompat
 import org.oxycblt.auxio.util.showToast
 import org.oxycblt.musikr.fs.Location
+import org.oxycblt.musikr.fs.Volume
 import org.oxycblt.musikr.fs.mediastore.MediaStore
 import org.oxycblt.musikr.fs.saf.SAF
 import timber.log.Timber as L
@@ -78,6 +79,7 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
     private val filterLocationAdapter: LocationAdapter<Location.Unopened> =
         LocationAdapter(filterLocationListener)
     private var openDocumentTreeLauncher: ActivityResultLauncher<Uri?>? = null
+    private var localOnlyOpenDocumentTreeLauncher: ActivityResultLauncher<Uri?>? = null
     private var storagePermissionLauncher: ActivityResultLauncher<String>? = null
     @Inject lateinit var musicSettings: MusicSettings
 
@@ -104,7 +106,13 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
     ) {
         openDocumentTreeLauncher =
             registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-                addDocumentTreeUriToDirs(uri)
+                addDocumentTreeUriToDirs(uri, false)
+            }
+
+        // TODO: Add failure mode for introduction of third-party filters in system loader
+        localOnlyOpenDocumentTreeLauncher =
+            registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+                addDocumentTreeUriToDirs(uri, true)
             }
 
         storagePermissionLauncher =
@@ -198,21 +206,21 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
                     updateSaveButtonState()
                 }
             }
-            onNewLocation()
+            onNewLocation(openDocumentTreeLauncher)
         }
         binding.locationsExcludeAdd.setOnClickListener {
             pendingLocationCallback = { location ->
                 excludeLocationAdapter.add(location)
                 updateSaveButtonState()
             }
-            onNewLocation()
+            onNewLocation(openDocumentTreeLauncher)
         }
         binding.locationsFilterAdd.setOnClickListener {
             pendingLocationCallback = { location ->
                 filterLocationAdapter.add(location)
                 updateSaveButtonState()
             }
-            onNewLocation()
+            onNewLocation(localOnlyOpenDocumentTreeLauncher)
         }
 
         // Set up grant permission card click
@@ -282,10 +290,10 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
         binding.locationsFilterRecycler.adapter = null
     }
 
-    private fun onNewLocation() {
+    private fun onNewLocation(launcher: ActivityResultLauncher<Uri?>?) {
         L.d("Opening launcher")
         val launcher =
-            requireNotNull(openDocumentTreeLauncher) { "Document tree launcher was not available" }
+            requireNotNull(launcher) { "Document tree launcher was not available" }
 
         try {
             launcher.launch(null)
@@ -294,7 +302,7 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
         }
     }
 
-    private fun addDocumentTreeUriToDirs(uri: Uri?) {
+    private fun addDocumentTreeUriToDirs(uri: Uri?, disableThirdParty: Boolean) {
         if (uri == null) {
             L.d("No URI given (user closed the dialog)")
             pendingLocationCallback = null
@@ -303,11 +311,12 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
         val context = requireContext()
         val location = Location.Unopened.from(context, uri)
 
-        if (location != null) {
-            pendingLocationCallback?.invoke(location)
-        } else {
+        if (location.path.volume is Volume.ThirdParty && disableThirdParty) {
             requireContext().showToast(R.string.err_bad_location)
+            pendingLocationCallback = null
+            return
         }
+        pendingLocationCallback?.invoke(location)
         pendingLocationCallback = null
     }
 
