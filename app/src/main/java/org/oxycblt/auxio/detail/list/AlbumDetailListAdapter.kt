@@ -35,7 +35,9 @@ import org.oxycblt.auxio.list.Item
 import org.oxycblt.auxio.list.SelectableListListener
 import org.oxycblt.auxio.list.adapter.SelectionIndicatorAdapter
 import org.oxycblt.auxio.list.adapter.SimpleDiffCallback
+import org.oxycblt.auxio.music.areNamesTheSame
 import org.oxycblt.auxio.music.resolve
+import org.oxycblt.auxio.music.resolveNames
 import org.oxycblt.auxio.playback.formatDurationMs
 import org.oxycblt.auxio.util.context
 import org.oxycblt.auxio.util.getAttrColorCompat
@@ -223,8 +225,23 @@ private class AlbumSongViewHolder private constructor(private val binding: ItemA
         }
 
         binding.songName.text = song.name.resolve(binding.context)
-        // Use duration instead of album or artist for each song to be more contextually relevant.
-        binding.songDuration.text = song.durationMs.formatDurationMs(false)
+        // Show duration, and include featured artists when they differ from the album artists.
+        val duration = song.durationMs.formatDurationMs(false)
+        val albumArtists = song.album.artists
+        val featuredArtists =
+            song.artists.filterNot { songArtist ->
+                albumArtists.any { albumArtist -> albumArtist.uid == songArtist.uid }
+            }
+        binding.songDuration.text =
+            if (featuredArtists.isNotEmpty()) {
+                binding.context.getString(
+                    R.string.fmt_two,
+                    duration,
+                    featuredArtists.resolveNames(binding.context),
+                )
+            } else {
+                duration
+            }
     }
 
     override fun updatePlayingIndicator(isActive: Boolean, isPlaying: Boolean) {
@@ -253,7 +270,10 @@ private class AlbumSongViewHolder private constructor(private val binding: ItemA
         val DIFF_CALLBACK =
             object : SimpleDiffCallback<Song>() {
                 override fun areContentsTheSame(oldItem: Song, newItem: Song) =
-                    oldItem.name == newItem.name && oldItem.durationMs == newItem.durationMs
+                    oldItem.name == newItem.name &&
+                        oldItem.durationMs == newItem.durationMs &&
+                        oldItem.artists.areNamesTheSame(newItem.artists) &&
+                        oldItem.album.artists.areNamesTheSame(newItem.album.artists)
             }
     }
 }
