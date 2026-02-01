@@ -123,7 +123,6 @@
     <string name="lbl_feedback">傳送意見</string>
     <string name="lng_observing">正在檢查媒體變更…</string>
     <string name="set_bar_action">自訂播放工具列動作</string>
-    <string name="set_notif_action">自訂通知動作</string>
     <string name="set_behavior">動作</string>
     <string name="set_content_desc">設定載入音樂和影像方式</string>
     <string name="set_images">影像</string>
@@ -340,4 +339,6 @@
         <item quantity="other">%d 秒</item>
     </plurals>
     <string name="fmt_lib_total_size">大小總計：%s</string>
+    <string name="set_task_exit_desc">無論播放狀態，從「最近」移除時停止執行</string>
+    <string name="set_task_exit">離開時一律關閉</string>
 </resources>

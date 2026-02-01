@@ -49,7 +49,6 @@
     <string name="set_lib_tabs_desc">Изменить видимость и порядок вкладок</string>
     <string name="set_round_mode">Скруглённые обложки</string>
     <string name="set_round_mode_desc">Скруглить края на некоторых элементах интерфейса</string>
-    <string name="set_notif_action">Кнопка в уведомлении</string>
     <string name="set_audio">Звук</string>
     <string name="set_headset_autoplay">Воспроизводить при подключении</string>
     <string name="set_headset_autoplay_desc">Всегда начинать воспроизведение при подключении наушников (может работать не на всех устройствах)</string>
@@ -352,4 +351,6 @@
         <item quantity="other">%d секунд</item>
     </plurals>
     <string name="fmt_lib_total_size">Общий размер: %s</string>
+    <string name="set_task_exit">Всегда выходить при закрытии</string>
+    <string name="set_task_exit_desc">Останавливать воспроизведение при удалении из списка недавних, даже если оно активно</string>
 </resources>
