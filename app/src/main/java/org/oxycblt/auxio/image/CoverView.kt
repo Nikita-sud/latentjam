@@ -548,9 +548,14 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
      */
     private class StyledDrawable(
         context: Context,
-        private val inner: Drawable,
+        inner: Drawable,
         @Px val iconSize: Int?,
     ) : Drawable() {
+        // Never tint a shared drawable instance. These icons are also used elsewhere (e.g. the
+        // About screen), and tinting without mutation can leak the modified tint state across
+        // views in inconsistent ways depending on drawable caching/inflation order.
+        private val inner: Drawable = (inner.constantState?.newDrawable() ?: inner).mutate()
+
         init {
             // Re-tint the drawable to use the analogous "on surface" color for
             // StyledImageView.
