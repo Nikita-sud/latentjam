@@ -536,7 +536,10 @@ constructor(
 
         if (drawWavyPath) {
             ensureCachedWavePath(trackLength, configuredWavelengthPx)
-            if (wavePathCache.adjustedWavelength <= EPSILON || wavePathCache.pathMeasure.length <= EPSILON) {
+            if (
+                wavePathCache.adjustedWavelength <= EPSILON ||
+                    wavePathCache.pathMeasure.length <= EPSILON
+            ) {
                 drawWavyPath = false
             }
         }
