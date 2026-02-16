@@ -18,9 +18,6 @@
  
 package com.google.android.material.progressindicator
 
-import android.animation.Animator
-import android.animation.AnimatorListenerAdapter
-import android.animation.ValueAnimator
 import android.content.Context
 import android.content.res.TypedArray
 import android.graphics.Canvas
@@ -36,7 +33,11 @@ import android.view.View
 import androidx.annotation.Px
 import androidx.core.graphics.ColorUtils
 import androidx.core.math.MathUtils
+import androidx.dynamicanimation.animation.FloatValueHolder
+import androidx.dynamicanimation.animation.SpringAnimation
+import androidx.dynamicanimation.animation.SpringForce
 import com.google.android.material.R as MR
+import com.google.android.material.motion.MotionUtils
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.max
@@ -99,7 +100,7 @@ constructor(
     private var configuredSpeedPx = 0
 
     private var waveEnabled = false
-    private var waveTransitionAnimator: ValueAnimator? = null
+    private var waveTransitionAnimation: SpringAnimation? = null
     private var currentAmplitudeFraction = 0f
 
     private var phaseFraction = 0f
@@ -110,7 +111,7 @@ constructor(
         object : Runnable {
             override fun run() {
                 phaseTickerScheduled = false
-                if (!shouldTickPhase() && waveTransitionAnimator == null) {
+                if (!shouldTickPhase() && waveTransitionAnimation == null) {
                     return
                 }
 
@@ -261,8 +262,8 @@ constructor(
             configuredSpeedPx = speedPx
         }
 
-        waveTransitionAnimator?.cancel()
-        waveTransitionAnimator = null
+        waveTransitionAnimation?.cancel()
+        waveTransitionAnimation = null
 
         val shouldEnable = enabled && canAnimateWave()
         waveEnabled = shouldEnable
@@ -284,8 +285,8 @@ constructor(
     }
 
     override fun onDetachedFromWindow() {
-        waveTransitionAnimator?.cancel()
-        waveTransitionAnimator = null
+        waveTransitionAnimation?.cancel()
+        waveTransitionAnimation = null
         removeCallbacks(phaseTicker)
         phaseTickerScheduled = false
         clearPhaseClock()
@@ -364,7 +365,7 @@ constructor(
             val activeLength = progressFraction * trackLength
             val shouldDrawWave =
                 canDrawWave(trackLength, activeLength) &&
-                    (waveEnabled || waveTransitionAnimator != null)
+                    (waveEnabled || waveTransitionAnimation != null)
             val ramp =
                 applyRampEasing(
                     calculateStartRampFraction(
@@ -902,39 +903,36 @@ constructor(
             return
         }
 
-        val animator =
-            ValueAnimator.ofFloat(currentAmplitudeFraction, clampedTarget).apply {
-                duration =
-                    if (clampedTarget > currentAmplitudeFraction) {
-                        WAVE_ON_DURATION_MS
-                    } else {
-                        WAVE_OFF_DURATION_MS
-                    }
-                addUpdateListener { animation ->
-                    currentAmplitudeFraction = animation.animatedValue as Float
+        waveTransitionAnimation?.cancel()
+        waveTransitionAnimation = null
+
+        val springAnimation =
+            SpringAnimation(FloatValueHolder(currentAmplitudeFraction)).apply {
+                spring = resolveWaveTransitionSpring(clampedTarget)
+                setStartValue(currentAmplitudeFraction)
+                setMinimumVisibleChange(MIN_SPRING_VISIBLE_CHANGE)
+                addUpdateListener { _, value, _ ->
+                    currentAmplitudeFraction = value.coerceIn(0f, 1f)
                     ensurePhaseTickerState()
                     invalidate()
                 }
-                addListener(
-                    object : AnimatorListenerAdapter() {
-                        override fun onAnimationCancel(animation: Animator) {
-                            waveTransitionAnimator = null
-                        }
-
-                        override fun onAnimationEnd(animation: Animator) {
-                            waveTransitionAnimator = null
-                            currentAmplitudeFraction = clampedTarget
-                            ensurePhaseTickerState()
-                            invalidate()
-                            onFinished?.invoke()
-                        }
+                addEndListener { _, canceled, value, _ ->
+                    if (waveTransitionAnimation === this) {
+                        waveTransitionAnimation = null
                     }
-                )
+                    currentAmplitudeFraction =
+                        if (canceled) value.coerceIn(0f, 1f) else clampedTarget
+                    ensurePhaseTickerState()
+                    invalidate()
+                    if (!canceled) {
+                        onFinished?.invoke()
+                    }
+                }
             }
 
-        waveTransitionAnimator = animator
+        waveTransitionAnimation = springAnimation
         ensurePhaseTickerState()
-        animator.start()
+        springAnimation.animateToFinalPosition(clampedTarget)
     }
 
     private fun shouldTickPhase(): Boolean {
@@ -990,7 +988,7 @@ constructor(
     }
 
     private fun ensurePhaseTickerState() {
-        if (shouldTickPhase() || waveTransitionAnimator != null) {
+        if (shouldTickPhase() || waveTransitionAnimation != null) {
             schedulePhaseTicker()
         } else {
             removeCallbacks(phaseTicker)
@@ -1015,6 +1013,23 @@ constructor(
     private fun clearPhaseClock() {
         phaseFraction = 0f
         lastPhaseFrameNanos = 0L
+    }
+
+    private fun resolveWaveTransitionSpring(target: Float): SpringForce {
+        val animateOn = target > currentAmplitudeFraction
+        val attr =
+            if (animateOn) {
+                MR.attr.motionSpringFastEffects
+            } else {
+                MR.attr.motionSpringDefaultEffects
+            }
+        val defaultStyle =
+            if (animateOn) {
+                MR.style.Motion_Material3_Spring_Standard_Fast_Effects
+            } else {
+                MR.style.Motion_Material3_Spring_Standard_Default_Effects
+            }
+        return MotionUtils.resolveThemeSpringForce(context, attr, defaultStyle)
     }
 
     private fun resolveInnerCornerRadius(linearAttrs: TypedArray): Float {
@@ -1083,8 +1098,7 @@ constructor(
 
     private companion object {
         const val WAVE_SMOOTHNESS = 0.48f
-        const val WAVE_ON_DURATION_MS = 220L
-        const val WAVE_OFF_DURATION_MS = 160L
+        const val MIN_SPRING_VISIBLE_CHANGE = 0.001f
         const val MIN_PHASE_FRACTION = 0.0001f
         const val EPSILON = 0.0001f
         const val GAP_TRANSITION_FRACTION = 0.01f
