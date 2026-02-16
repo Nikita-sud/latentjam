@@ -33,7 +33,7 @@
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="@dimen/spacing_medium"
         android:layout_marginBottom="@dimen/spacing_tiny"
-        android:textAppearance="@style/TextAppearance.Auxio.BodySmall"
+        android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?android:attr/textColorSecondary"
         tools:text="16:16" />
 
