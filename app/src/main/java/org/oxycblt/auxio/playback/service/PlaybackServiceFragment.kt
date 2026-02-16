@@ -125,7 +125,7 @@ private constructor(
     }
 
     fun handleTaskRemoved() {
-        if (playbackSettings.exitOnTaskRemoval) {
+        if (!playbackManager.progression.isPlaying || playbackSettings.exitOnTaskRemoval) {
             playbackManager.endSession()
         }
     }
