@@ -51,7 +51,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/spacing_medium"
-                    android:textAppearance="@style/TextAppearance.Auxio.LabelMedium.Emphasized"
+                    android:textAppearance="?attr/textAppearanceLabelMediumEmphasized"
                     android:textColor="?attr/colorSecondary"
                     app:layout_constraintBottom_toTopOf="@+id/detail_name"
                     app:layout_constraintTop_toBottomOf="@+id/detail_cover"
@@ -155,7 +155,7 @@
                             android:singleLine="true"
                             android:layout_gravity="center_vertical"
                             android:ellipsize="end"
-                            android:textAppearance="@style/TextAppearance.Auxio.TitleLarge.Emphasized"
+                            android:textAppearance="?attr/textAppearanceTitleLargeEmphasized"
                             android:textColor="?attr/colorOnSurface"
                             tools:text="Name" />
 

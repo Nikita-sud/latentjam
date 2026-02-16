@@ -48,6 +48,7 @@ import org.oxycblt.auxio.R
 import org.oxycblt.auxio.ui.MaterialFadingSlider
 import org.oxycblt.auxio.ui.MaterialSlider
 import org.oxycblt.auxio.util.getAttrColorCompat
+import org.oxycblt.auxio.util.getAttrResourceId
 import org.oxycblt.auxio.util.getDimenPixels
 import org.oxycblt.auxio.util.getDrawableCompat
 import org.oxycblt.auxio.util.inflater
@@ -114,7 +115,9 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
 
             TextViewCompat.setTextAppearance(
                 this,
-                R.style.TextAppearance_Auxio_HeadlineMedium_Emphasized,
+                context.getAttrResourceId(
+                    com.google.android.material.R.attr.textAppearanceHeadlineMediumEmphasized
+                ),
             )
             setTextColor(
                 context.getAttrColorCompat(com.google.android.material.R.attr.colorOnSecondary)

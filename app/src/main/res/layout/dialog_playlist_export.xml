@@ -72,7 +72,7 @@
             android:paddingStart="@dimen/spacing_medium"
             android:text="@string/lbl_windows_paths"
             android:textAlignment="viewStart"
-            android:textAppearance="@style/TextAppearance.Auxio.BodyLarge"
+            android:textAppearance="?attr/textAppearanceBodyLarge"
             tools:ignore="RtlSymmetry,contentDescription" />
     </FrameLayout>
 

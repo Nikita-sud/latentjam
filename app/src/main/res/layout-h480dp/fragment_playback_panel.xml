@@ -14,10 +14,10 @@
         app:menu="@menu/toolbar_playback"
         app:navigationIcon="@drawable/ic_down_24"
         app:subtitleCentered="true"
-        app:subtitleTextAppearance="@style/TextAppearance.Auxio.BodySmall"
+        app:subtitleTextAppearance="?attr/textAppearanceBodySmall"
         app:title="@string/lbl_playback"
         app:titleCentered="true"
-        app:titleTextAppearance="@style/TextAppearance.Auxio.LabelLarge.Emphasized"
+        app:titleTextAppearance="?attr/textAppearanceLabelLargeEmphasized"
         tools:subtitle="@string/lbl_all_songs" />
 
     <org.oxycblt.auxio.playback.ui.ControlledCoverView

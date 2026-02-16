@@ -48,6 +48,7 @@ import kotlinx.parcelize.Parcelize
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.ui.AnimConfig
 import org.oxycblt.auxio.util.getAttrColorCompat
+import org.oxycblt.auxio.util.getAttrResourceId
 import org.oxycblt.auxio.util.getDimen
 import org.oxycblt.auxio.util.getDimenPixels
 
@@ -272,7 +273,9 @@ class ThemedSpeedDialView : SpeedDialView {
                 (getChildAt(0) as TextView).apply {
                     TextViewCompat.setTextAppearance(
                         this,
-                        R.style.TextAppearance_Auxio_LabelLarge_Emphasized,
+                        context.getAttrResourceId(
+                            com.google.android.material.R.attr.textAppearanceLabelLargeEmphasized
+                        ),
                     )
                 }
             }

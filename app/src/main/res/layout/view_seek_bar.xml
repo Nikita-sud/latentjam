@@ -19,7 +19,7 @@
         android:layout_gravity="bottom|start"
         android:layout_marginStart="@dimen/spacing_medium"
         android:layout_marginBottom="@dimen/spacing_tiny"
-        android:textAppearance="@style/TextAppearance.Auxio.BodySmall"
+        android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="@color/sel_activatable_text_secondary"
         tools:text="11:38" />
 

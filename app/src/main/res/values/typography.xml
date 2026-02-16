@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-    Typography is derived from Inter and it's size-dependent spacing calculation. Auxio does not
-    completely adhere to the typography system, sometimes having two variants of a given style in
-    order to bypass the restrictive nature of the default typography.
+    Typography is derived from Inter and it's size-dependent spacing calculation.
     -->
 
     <!--
