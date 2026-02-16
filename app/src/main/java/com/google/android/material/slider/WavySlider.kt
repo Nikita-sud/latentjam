@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-
+ 
 package com.google.android.material.slider
 
 import android.animation.Animator
@@ -33,8 +33,8 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
 import androidx.annotation.Px
-import com.google.android.material.progressindicator.PatchedLinearProgressIndicator
 import com.google.android.material.R as MR
+import com.google.android.material.progressindicator.PatchedLinearProgressIndicator
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.max
@@ -214,8 +214,8 @@ constructor(
     }
 
     /**
-     * Mirrors [PatchedLinearProgressIndicator.setWaveEnabled]:
-     * keeps geometry stable and animates internal amplitude fraction.
+     * Mirrors [PatchedLinearProgressIndicator.setWaveEnabled]: keeps geometry stable and animates
+     * internal amplitude fraction.
      */
     fun setWaveEnabled(
         enabled: Boolean,
@@ -616,10 +616,14 @@ constructor(
         if (clipCenter != null) {
             localClipHeight = min(localClipHeight, displayedTrackThickness)
             localClipCornerSize =
-                min(localClipWidth / 2f, localClipCornerSize * localClipHeight / displayedTrackThickness)
+                min(
+                    localClipWidth / 2f,
+                    localClipCornerSize * localClipHeight / displayedTrackThickness,
+                )
             if (clipRight) {
                 val leftEdgeDiff =
-                    (clipCenter.posVec[0] - localClipCornerSize) - (drawCenter.posVec[0] - drawCornerSize)
+                    (clipCenter.posVec[0] - localClipCornerSize) -
+                        (drawCenter.posVec[0] - drawCornerSize)
                 if (leftEdgeDiff > 0f) {
                     clipCenter.translate(-leftEdgeDiff / 2f, 0f)
                     localClipWidth += leftEdgeDiff
@@ -627,7 +631,8 @@ constructor(
                 patchRect.set(0f, -localDrawHeight / 2f, drawWidth / 2f, localDrawHeight / 2f)
             } else {
                 val rightEdgeDiff =
-                    (clipCenter.posVec[0] + localClipCornerSize) - (drawCenter.posVec[0] + drawCornerSize)
+                    (clipCenter.posVec[0] + localClipCornerSize) -
+                        (drawCenter.posVec[0] + drawCornerSize)
                 if (rightEdgeDiff < 0f) {
                     clipCenter.translate(-rightEdgeDiff / 2f, 0f)
                     localClipWidth -= rightEdgeDiff
@@ -644,7 +649,12 @@ constructor(
             canvas.translate(clipCenter.posVec[0], clipCenter.posVec[1])
             canvas.rotate(vectorToCanvasRotation(clipCenter.tanVec))
             roundedRectPath.reset()
-            roundedRectPath.addRoundRect(clipRect, localClipCornerSize, localClipCornerSize, Path.Direction.CCW)
+            roundedRectPath.addRoundRect(
+                clipRect,
+                localClipCornerSize,
+                localClipCornerSize,
+                Path.Direction.CCW,
+            )
             canvas.clipPath(roundedRectPath)
 
             canvas.rotate(-vectorToCanvasRotation(clipCenter.tanVec))
@@ -715,8 +725,10 @@ constructor(
             return progressRamp
         }
         val edgeRamp =
-            ((progressFraction - thresholdFraction) / (fullFraction - thresholdFraction))
-                .coerceIn(0f, 1f)
+            ((progressFraction - thresholdFraction) / (fullFraction - thresholdFraction)).coerceIn(
+                0f,
+                1f,
+            )
         return min(edgeRamp, progressRamp)
     }
 
@@ -757,7 +769,9 @@ constructor(
 
         val animator =
             ValueAnimator.ofFloat(currentAmplitudeFraction, clampedTarget).apply {
-                duration = if (clampedTarget > currentAmplitudeFraction) WAVE_ON_DURATION_MS else WAVE_OFF_DURATION_MS
+                duration =
+                    if (clampedTarget > currentAmplitudeFraction) WAVE_ON_DURATION_MS
+                    else WAVE_OFF_DURATION_MS
                 addUpdateListener { animation ->
                     currentAmplitudeFraction = animation.animatedValue as Float
                     ensurePhaseTickerState()
@@ -826,7 +840,8 @@ constructor(
             return
         }
         val progressFraction = ((value - valueFrom) / range).coerceIn(0f, 1f)
-        val phaseSpeedScale = applyRampEasing(calculateStartRampFraction(progressFraction, trackLength))
+        val phaseSpeedScale =
+            applyRampEasing(calculateStartRampFraction(progressFraction, trackLength))
         val effectiveSpeed = speed.toFloat() * phaseSpeedScale
         if (effectiveSpeed == 0f) {
             return

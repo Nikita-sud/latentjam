@@ -45,8 +45,6 @@ import org.oxycblt.auxio.playback.ui.stepper.DisplayPortion
 import org.oxycblt.auxio.playback.ui.stepper.PlayerFastSeekOverlay
 import org.oxycblt.auxio.ui.ViewBindingFragment
 import org.oxycblt.auxio.util.collectImmediately
-import org.oxycblt.auxio.util.getDimen
-import org.oxycblt.auxio.util.getDimenPixels
 import org.oxycblt.auxio.util.showToast
 import org.oxycblt.auxio.util.systemBarInsetsCompat
 import org.oxycblt.musikr.MusicParent
@@ -127,22 +125,20 @@ class PlaybackPanelFragment :
 
         // Set up actions
         // TODO: Add better playback button accessibility
-        binding.playbackRepeat.setOnClickListener {
-            playbackModel.toggleRepeatMode()
-        }
+        binding.playbackRepeat.setOnClickListener { playbackModel.toggleRepeatMode() }
         binding.playbackSkipPrev.setOnClickListener { playbackModel.prev() }
         binding.playbackPlayPause.apply {
             @SuppressLint("RestrictedApi")
-            setCornerSpringForce(SpringForce().apply {
-                stiffness = 700f
-                dampingRatio = 0.9f
-            })
+            setCornerSpringForce(
+                SpringForce().apply {
+                    stiffness = 700f
+                    dampingRatio = 0.9f
+                }
+            )
             setOnClickListener { playbackModel.togglePlaying() }
         }
         binding.playbackSkipNext.setOnClickListener { playbackModel.next() }
-        binding.playbackShuffle.setOnClickListener {
-            playbackModel.toggleShuffled()
-        }
+        binding.playbackShuffle.setOnClickListener { playbackModel.toggleShuffled() }
         binding.playbackMore?.setOnClickListener {
             playbackModel.song.value?.let {
                 listModel.openMenu(R.menu.playback_song, it, PlaySong.ByItself)

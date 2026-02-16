@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-
+ 
 package com.google.android.material.progressindicator
 
 import android.animation.Animator
@@ -46,9 +46,9 @@ import kotlin.math.roundToInt
 /**
  * Custom playback progress renderer with deterministic wave behavior.
  *
- * The base line/segment geometry is a direct port of MDC's linear determinate draw delegate,
- * while wave amplitude/phase control remains local so playback can toggle waves without touching
- * MDC internals.
+ * The base line/segment geometry is a direct port of MDC's linear determinate draw delegate, while
+ * wave amplitude/phase control remains local so playback can toggle waves without touching MDC
+ * internals.
  */
 class PatchedLinearProgressIndicator
 @JvmOverloads
@@ -57,14 +57,8 @@ constructor(
     attrs: AttributeSet? = null,
     defStyleAttr: Int = MR.attr.linearProgressIndicatorStyle,
 ) : View(context, attrs, defStyleAttr) {
-    private val trackPaint =
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-        }
-    private val activePaint =
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-        }
+    private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
     private val cachedWavePath = Path()
     private val displayedWavePath = Path()
@@ -172,12 +166,7 @@ constructor(
             )
 
         val fallbackWavelength =
-            abs(
-                styledAttrs.getDimensionPixelSize(
-                    MR.styleable.BaseProgressIndicator_wavelength,
-                    0,
-                )
-            )
+            abs(styledAttrs.getDimensionPixelSize(MR.styleable.BaseProgressIndicator_wavelength, 0))
         configuredWavelengthPx =
             abs(
                 styledAttrs.getDimensionPixelSize(
@@ -345,9 +334,7 @@ constructor(
         val preferredHeight = getPreferredHeight()
         val centerX = contentLeft + availableWidth / 2f
         val centerY =
-            contentTop +
-                availableHeight / 2f +
-                max(0f, (availableHeight - preferredHeight) / 2f)
+            contentTop + availableHeight / 2f + max(0f, (availableHeight - preferredHeight) / 2f)
 
         canvas.save()
         canvas.translate(centerX, centerY)
@@ -376,7 +363,8 @@ constructor(
         if (progressFraction > 0f) {
             val activeLength = progressFraction * trackLength
             val shouldDrawWave =
-                canDrawWave(trackLength, activeLength) && (waveEnabled || waveTransitionAnimator != null)
+                canDrawWave(trackLength, activeLength) &&
+                    (waveEnabled || waveTransitionAnimator != null)
             val ramp =
                 applyRampEasing(
                     calculateStartRampFraction(
@@ -454,16 +442,11 @@ constructor(
         clampedEnd = lerp(1f - totalTrackLengthFraction, 1f, clampedEnd)
 
         val adjustedStartGapSize =
-            (startGapSize * clamp(clampedStart, 0f, GAP_TRANSITION_FRACTION) / GAP_TRANSITION_FRACTION)
+            (startGapSize * clamp(clampedStart, 0f, GAP_TRANSITION_FRACTION) /
+                    GAP_TRANSITION_FRACTION)
                 .roundToInt()
         val adjustedEndGapSize =
-            (endGapSize *
-                    (1f -
-                        clamp(
-                            clampedEnd,
-                            1f - GAP_TRANSITION_FRACTION,
-                            1f,
-                        )) /
+            (endGapSize * (1f - clamp(clampedEnd, 1f - GAP_TRANSITION_FRACTION, 1f)) /
                     GAP_TRANSITION_FRACTION)
                 .roundToInt()
 
@@ -473,8 +456,12 @@ constructor(
         var startCornerRadius = displayedCornerRadius
         var endCornerRadius = displayedCornerRadius
 
-        if (abs(displayedCornerRadius - displayedInnerCornerRadius) > EPSILON && trackLength > EPSILON) {
-            val maxCornerScale = max(displayedCornerRadius, displayedInnerCornerRadius) / trackLength
+        if (
+            abs(displayedCornerRadius - displayedInnerCornerRadius) > EPSILON &&
+                trackLength > EPSILON
+        ) {
+            val maxCornerScale =
+                max(displayedCornerRadius, displayedInnerCornerRadius) / trackLength
             if (maxCornerScale > EPSILON) {
                 startCornerRadius =
                     lerp(
@@ -742,15 +729,18 @@ constructor(
                     if (fullFraction - thresholdFraction <= EPSILON) {
                         1f
                     } else {
-                        ((progressFraction - thresholdFraction) / (fullFraction - thresholdFraction))
+                        ((progressFraction - thresholdFraction) /
+                                (fullFraction - thresholdFraction))
                             .coerceIn(0f, 1f)
                     }
                 }
             }
 
         val lengthRamp =
-            ((activeLength - calculateWaveStartLengthPx()) / calculateWaveRampLengthPx())
-                .coerceIn(0f, 1f)
+            ((activeLength - calculateWaveStartLengthPx()) / calculateWaveRampLengthPx()).coerceIn(
+                0f,
+                1f,
+            )
 
         return min(progressRamp, min(edgeRamp, lengthRamp))
     }
@@ -777,7 +767,8 @@ constructor(
 
     private fun calculateWaveRampLengthPx(): Float {
         val wavelengthRamp = configuredWavelengthPx * WAVELENGTH_RAMP_MULTIPLIER
-        return max(displayedCornerRadius * 2f + indicatorTrackGapPx, wavelengthRamp).coerceAtLeast(1f)
+        return max(displayedCornerRadius * 2f + indicatorTrackGapPx, wavelengthRamp)
+            .coerceAtLeast(1f)
     }
 
     private fun useStrokeCap(): Boolean {
@@ -979,8 +970,7 @@ constructor(
 
         val phaseScale = MIN_PHASE_SPEED_SCALE + (1f - MIN_PHASE_SPEED_SCALE) * rampScale
         val amplitudeScale =
-            MIN_PHASE_AMPLITUDE_SCALE +
-                (1f - MIN_PHASE_AMPLITUDE_SCALE) * currentAmplitudeFraction
+            MIN_PHASE_AMPLITUDE_SCALE + (1f - MIN_PHASE_AMPLITUDE_SCALE) * currentAmplitudeFraction
         val effectiveSpeed = configuredSpeedPx.toFloat() * phaseScale * amplitudeScale
         if (effectiveSpeed == 0f) {
             return

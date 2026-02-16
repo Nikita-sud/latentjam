@@ -21,7 +21,6 @@ package org.oxycblt.auxio.playback
 import android.os.Bundle
 import android.view.LayoutInflater
 import androidx.fragment.app.activityViewModels
-import com.google.android.material.R as MR
 import dagger.hilt.android.AndroidEntryPoint
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.databinding.FragmentPlaybackBarBinding
@@ -31,8 +30,6 @@ import org.oxycblt.auxio.music.resolveNames
 import org.oxycblt.auxio.playback.state.RepeatMode
 import org.oxycblt.auxio.ui.ViewBindingFragment
 import org.oxycblt.auxio.util.collectImmediately
-import org.oxycblt.auxio.util.getAttrColorCompat
-import org.oxycblt.auxio.util.getColorCompat
 import org.oxycblt.auxio.util.getDimenPixels
 import org.oxycblt.musikr.Song
 import timber.log.Timber as L
