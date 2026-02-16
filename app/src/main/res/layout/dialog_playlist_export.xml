@@ -32,7 +32,7 @@
 
         <org.oxycblt.auxio.ui.RippleFixMaterialButton
             android:id="@+id/export_relative_paths"
-            style="@style/Widget.Material3Expressive.Button"
+            style="?attr/materialButtonStyle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -42,7 +42,7 @@
 
         <org.oxycblt.auxio.ui.RippleFixMaterialButton
             android:id="@+id/export_absolute_paths"
-            style="@style/Widget.Material3Expressive.Button"
+            style="?attr/materialButtonStyle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"

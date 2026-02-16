@@ -65,7 +65,6 @@
 
             <org.oxycblt.auxio.ui.RippleFixMaterialButton
                 android:id="@+id/sort_direction_asc"
-                style="@style/Widget.Material3Expressive.Button"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -75,7 +74,6 @@
 
             <org.oxycblt.auxio.ui.RippleFixMaterialButton
                 android:id="@+id/sort_direction_dsc"
-                style="@style/Widget.Material3Expressive.Button"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -86,18 +84,19 @@
 
         <org.oxycblt.auxio.ui.RippleFixMaterialButton
             android:id="@+id/sort_cancel"
-            style="@style/Widget.Material3Expressive.Button.TextButton.Dialog"
+            style="@style/Widget.Auxio.Button.TextButton.Dialog"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="@dimen/spacing_small"
             android:text="@string/lbl_cancel"
+            app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.Small"
             app:layout_constraintBottom_toBottomOf="@+id/sort_save"
             app:layout_constraintEnd_toStartOf="@+id/sort_save"
             app:layout_constraintTop_toTopOf="@+id/sort_save" />
 
         <org.oxycblt.auxio.ui.RippleFixMaterialButton
             android:id="@+id/sort_save"
-            style="@style/Widget.Material3Expressive.Button.TextButton.Dialog"
+            style="@style/Widget.Auxio.Button.TextButton.Dialog"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_mid_medium"

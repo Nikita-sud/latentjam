@@ -19,7 +19,39 @@
 
         <!-- Material configuration -->
 <!--        <item name="colorOutline">@color/overlay_stroke</item>-->
+        <item name="appBarLayoutStyle">@style/Widget.Auxio.AppBarLayout</item>
         <item name="toolbarStyle">@style/Widget.Auxio.Toolbar</item>
+        <item name="tabStyle">@style/Widget.Auxio.TabLayout</item>
+        <item name="tabSecondaryStyle">@style/Widget.Auxio.TabLayout.Secondary</item>
+        <item name="materialButtonStyle">@style/Widget.Auxio.Button</item>
+        <item name="materialButtonTonalStyle">@style/Widget.Auxio.Button.TonalButton</item>
+        <item name="materialButtonOutlinedStyle">@style/Widget.Auxio.Button.OutlinedButton</item>
+        <item name="materialButtonElevatedStyle">@style/Widget.Auxio.Button.ElevatedButton</item>
+        <item name="borderlessButtonStyle">@style/Widget.Auxio.Button.TextButton</item>
+        <item name="snackbarButtonStyle">@style/Widget.Auxio.Button.TextButton.Snackbar</item>
+        <item name="materialIconButtonStyle">@style/Widget.Auxio.Button.Icon.Base</item>
+        <item name="materialIconButtonOutlinedStyle">
+            @style/Widget.Material3Expressive.Button.IconButton.Outlined
+        </item>
+        <item name="materialIconButtonFilledStyle">
+            @style/Widget.Material3Expressive.Button.IconButton.Filled
+        </item>
+        <item name="materialIconButtonFilledTonalStyle">
+            @style/Widget.Material3Expressive.Button.IconButton.Tonal
+        </item>
+        <item name="materialSplitButtonStyle">@style/Widget.Auxio.SplitButton</item>
+        <item name="materialSplitButtonLeadingFilledStyle">
+            @style/Widget.Auxio.SplitButton.LeadingButton.Filled
+        </item>
+        <item name="materialSplitButtonLeadingFilledTonalStyle">
+            @style/Widget.Auxio.SplitButton.LeadingButton.Filled.Tonal
+        </item>
+        <item name="materialSplitButtonIconFilledStyle">
+            @style/Widget.Auxio.SplitButton.IconButton.Filled
+        </item>
+        <item name="materialSplitButtonIconFilledTonalStyle">
+            @style/Widget.Auxio.SplitButton.IconButton.Filled.Tonal
+        </item>
         <item name="materialAlertDialogTheme">@style/Theme.Auxio.Dialog</item>
         <item name="sliderStyle">@style/Widget.Auxio.Slider</item>
         <item name="linearProgressIndicatorStyle">@style/Widget.Auxio.LinearProgressIndicator</item>
