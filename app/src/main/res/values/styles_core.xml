@@ -117,6 +117,7 @@
         </item>
         <item name="toolbarNavigationButtonStyle">@style/Widget.Auxio.Toolbar.Navigation</item>
         <item name="actionOverflowButtonStyle">@style/Widget.Auxio.Button.Overflow</item>
+        <item name="materialButtonGroupStyle">@style/Widget.Auxio.MaterialButtonGroup</item>
     </style>
 
     <!-- Make sure blue is the default style instead of material purple -->

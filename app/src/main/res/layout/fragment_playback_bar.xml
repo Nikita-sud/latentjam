@@ -54,10 +54,14 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <LinearLayout
+        <com.google.android.material.button.MaterialButtonGroup
             android:id="@+id/playback_controls_container"
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:spacing="0dp"
+            app:buttonSizeChange="@xml/safe_button_group_size_change">
 
             <org.oxycblt.auxio.ui.RippleFixMaterialButton
                 android:id="@+id/playback_play_pause"
@@ -69,7 +73,7 @@
                 app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Small"
                 app:icon="@drawable/sel_playing_state_24" />
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <org.oxycblt.auxio.ui.WidthFixMaterialButton
                 android:id="@+id/playback_secondary_action"
                 style="@style/Widget.Material3Expressive.Button.IconButton.Outlined"
                 app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Small"
@@ -81,7 +85,7 @@
                 app:iconTint="@color/sel_checkable_icon"
                 app:strokeColor="@color/sel_checkable_outline"
                 tools:icon="@drawable/ic_skip_next_24" />
-        </LinearLayout>
+        </com.google.android.material.button.MaterialButtonGroup>
 
     </org.oxycblt.auxio.playback.ui.ForcedLTRFrameLayout>
 

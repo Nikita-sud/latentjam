@@ -30,6 +30,7 @@ import org.oxycblt.musikr.cache.CachedFile
 import org.oxycblt.musikr.covers.CoverResult
 import org.oxycblt.musikr.fs.FS
 import org.oxycblt.musikr.fs.File
+import org.oxycblt.musikr.playlist.m3u.M3U
 import org.oxycblt.musikr.util.mapParallel
 import org.oxycblt.musikr.util.merge
 import org.oxycblt.musikr.util.tryAsyncWith
@@ -54,6 +55,13 @@ private class ExploreStepImpl(private val fs: FS, private val storage: Storage) 
         val classified = Channel<Classified>(Channel.UNLIMITED)
         val classifiedTask =
             scope.mapParallel(PARALLELISM, files, classified, Dispatchers.IO) { file ->
+                if (file.mimeType == M3U.MIME_TYPE ||
+                    (!file.mimeType.startsWith("audio/") &&
+                        file.mimeType != "application/ogg" &&
+                        file.mimeType != "application/x-ogg" &&
+                        file.mimeType != "application/octet-stream")) {
+                    return@mapParallel Finalized(NotAudio)
+                }
                 when (val cacheResult = storage.cache.read(file)) {
                     is CacheResult.Hit -> NeedsHydration(cacheResult.file)
                     is CacheResult.Stale -> Finalized(NewSong(cacheResult.file))

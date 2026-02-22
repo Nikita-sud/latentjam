@@ -84,6 +84,7 @@ class PlaybackBarFragment : ViewBindingFragment<FragmentPlaybackBarBinding>() {
 
     override fun onDestroyBinding(binding: FragmentPlaybackBarBinding) {
         super.onDestroyBinding(binding)
+        binding.playbackSecondaryAction.clearPendingIcon()
         // Marquee elements leak if they are not disabled when the views are destroyed.
         binding.playbackSong.isSelected = false
         binding.playbackInfo.isSelected = false

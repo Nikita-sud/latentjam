@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2024 Auxio Project
- * ListUtil.kt is part of Auxio.
+ * Copyright (c) 2026 Auxio Project
+ * SoftBurstShapeDrawable.kt is part of Auxio.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
-package org.oxycblt.auxio.home.list
+
+package org.oxycblt.auxio.list.recycler
 
 import android.content.Context
 import android.graphics.Canvas
@@ -29,38 +29,27 @@ import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
-import androidx.core.text.isDigitsOnly
-import com.google.android.material.R
 import org.oxycblt.auxio.ui.ExpressiveShapes
-import org.oxycblt.auxio.util.getAttrColorCompat
-import org.oxycblt.musikr.tag.Name
+import com.google.android.material.R as MR
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-
-fun Name.thumb() =
-    when (this) {
-        is Name.Known ->
-            tokens.firstOrNull()?.let {
-                if (it.value.isDigitsOnly()) "#" else it.value.first().uppercase()
-            }
-        is Name.Unknown -> "?"
-    }
+import org.oxycblt.auxio.util.getAttrColorCompat
 
 /**
- * A drawable that fills its bounds with the expressive 6-sided cookie shape.
+ * A drawable that fills its bounds with the expressive soft-burst shape.
  *
  * The shape is always rendered as a centered square and uniformly scaled from its geometric center
  * to avoid distortion in non-square bounds.
  */
-class CookieShapeDrawable(context: Context) : Drawable() {
+class SoftBurstShapeDrawable(context: Context) : Drawable() {
     private val pathPosition = FloatArray(2)
     private val pathMatrix = Matrix()
     private val pathBounds = RectF()
     private val paint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = context.getAttrColorCompat(R.attr.colorSurfaceVariant).defaultColor
+            color = context.getAttrColorCompat(MR.attr.colorSecondaryContainer).defaultColor
             style = Paint.Style.FILL
         }
 
@@ -83,7 +72,7 @@ class CookieShapeDrawable(context: Context) : Drawable() {
         val top = drawableBounds.exactCenterY() - size / 2f
         pathBounds.set(left, top, left + size, top + size)
 
-        fittedPath = ExpressiveShapes.getCookie6Sided(pathBounds)
+        fittedPath = ExpressiveShapes.getSoftBurst(pathBounds)
         val maxRadius = computeMaxRadius(fittedPath, pathBounds.centerX(), pathBounds.centerY())
         if (maxRadius > 0f) {
             val targetRadius = size / 2f

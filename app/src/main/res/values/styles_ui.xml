@@ -107,6 +107,12 @@
         <item name="android:paddingBottom">0dp</item>
     </style>
 
+    <style name="Widget.Auxio.MaterialButtonGroup" parent="Widget.Material3.MaterialButtonGroup">
+        <item name="buttonSizeChange">@xml/safe_button_group_size_change</item>
+        <item name="android:gravity">center</item>
+        <item name="android:orientation">horizontal</item>
+    </style>
+
     <style name="Widget.Auxio.Image.Small" parent="">
         <item name="android:layout_width">@dimen/size_touchable_small</item>
         <item name="android:layout_height">@dimen/size_touchable_small</item>
@@ -436,6 +442,7 @@
 
     <style name="Widget.Auxio.Button.Playback.Toggle" parent="Widget.Material3Expressive.Button.IconButton.Outlined">
         <item name="android:checkable">true</item>
+        <item name="toggleCheckedStateOnClick">false</item>
         <item name="iconTint">@color/sel_checkable_icon</item>
         <item name="strokeColor">@color/sel_checkable_outline</item>
         <item name="backgroundTint">?attr/colorSurfaceContainerLow</item>

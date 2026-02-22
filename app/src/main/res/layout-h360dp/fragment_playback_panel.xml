@@ -103,17 +103,17 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
-        <androidx.constraintlayout.widget.ConstraintLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
+    <com.google.android.material.button.MaterialButtonGroup
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:spacing="@dimen/spacing_small">
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <org.oxycblt.auxio.ui.WidthFixMaterialButton
                 android:id="@+id/playback_repeat"
                 style="@style/Widget.Auxio.Button.Playback.Toggle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_change_repeat"
-                android:layout_marginHorizontal="@dimen/spacing_small"
                 app:icon="@drawable/ic_repeat_off_24"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toStartOf="@+id/playback_skip_prev"
@@ -141,7 +141,6 @@
                 android:id="@+id/playback_play_pause"
                 style="@style/Widget.Auxio.Button.Playback.PlayPause"
                 android:layout_width="wrap_content"
-                android:layout_marginHorizontal="@dimen/spacing_mid_medium"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_play_pause"
                 app:icon="@drawable/sel_playing_state_24"
@@ -173,7 +172,6 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_shuffle"
-                android:layout_marginHorizontal="@dimen/spacing_small"
                 app:icon="@drawable/sel_shuffle_state_24"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
@@ -183,7 +181,7 @@
                 app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Small"
                 app:tint="@color/sel_activatable_icon" />
 
-        </androidx.constraintlayout.widget.ConstraintLayout>
+        </com.google.android.material.button.MaterialButtonGroup>
 
     </org.oxycblt.auxio.playback.ui.ForcedLTRFrameLayout>
 

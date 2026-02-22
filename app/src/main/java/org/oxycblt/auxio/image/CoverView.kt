@@ -458,7 +458,18 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
      * @param errorRes The resource of the error drawable to use if the cover cannot be loaded.
      */
     fun bind(songs: List<Song>, desc: String, @DrawableRes errorRes: Int) =
-        bindImpl({ CoverCollection.from(songs.mapNotNull { it.cover }) }, desc, errorRes)
+        bindImpl(
+            {
+                StackCoverCollection(
+                    CoverCollection.from(songs.mapNotNull { it.cover }),
+                    coverCollectionCornerRatio(),
+                    coverCollectionZOrder(songs.hashCode()),
+                    coverCollectionBackgroundColor(),
+                )
+            },
+            desc,
+            errorRes,
+        )
 
     private fun bindImpl(
         cover: () -> Any?,

@@ -13,6 +13,7 @@
     <dimen name="size_touchable_medium">56dp</dimen>
     <dimen name="size_touchable_large">64dp</dimen>
     <dimen name="size_touchable_huge">80dp</dimen>
+    <dimen name="size_fast_scroll_popup">96dp</dimen>
 
     <dimen name="size_hero_small">128dp</dimen>
     <dimen name="size_hero_medium">192dp</dimen>
@@ -31,6 +32,11 @@
     <dimen name="text_size_track_number_min">14sp</dimen>
     <dimen name="text_size_track_number_max">22sp</dimen>
     <dimen name="text_size_track_number_step">2sp</dimen>
+    <dimen name="text_size_fast_scroll_popup_min">1sp</dimen>
+    <dimen name="text_size_fast_scroll_popup_max">32sp</dimen>
+    <dimen name="text_size_fast_scroll_popup_step">1px</dimen>
+    <dimen name="padding_fast_scroll_popup_horizontal">24dp</dimen>
+    <dimen name="padding_fast_scroll_popup_vertical">20dp</dimen>
 
     <dimen name="slider_track_height">4dp</dimen>
     <dimen name="slider_thumb_height">24dp</dimen>

@@ -117,11 +117,12 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintWidth_max="400dp">
 
-        <androidx.constraintlayout.widget.ConstraintLayout
+        <com.google.android.material.button.MaterialButtonGroup
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="match_parent"
+            android:spacing="@dimen/spacing_small">
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <org.oxycblt.auxio.ui.WidthFixMaterialButton
                 android:id="@+id/playback_repeat"
                 style="@style/Widget.Auxio.Button.Playback.Toggle"
                 android:layout_width="wrap_content"
@@ -141,7 +142,6 @@
                 style="@style/Widget.Auxio.Button.Playback.Skip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginHorizontal="@dimen/spacing_small"
                 android:contentDescription="@string/desc_skip_prev"
                 app:icon="@drawable/ic_skip_prev_24"
                 app:layout_constraintEnd_toStartOf="@+id/playback_play_pause"
@@ -169,7 +169,6 @@
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_skip_next"
                 app:icon="@drawable/ic_skip_next_24"
-                android:layout_marginHorizontal="@dimen/spacing_small"
                 app:layout_constraintEnd_toStartOf="@+id/playback_shuffle"
                 app:layout_constraintHorizontal_bias="0.5"
                 app:layout_constraintStart_toEndOf="@+id/playback_play_pause"
@@ -190,7 +189,7 @@
                 app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Medium"
                 app:tint="@color/sel_activatable_icon" />
 
-        </androidx.constraintlayout.widget.ConstraintLayout>
+        </com.google.android.material.button.MaterialButtonGroup>
     </org.oxycblt.auxio.playback.ui.ForcedLTRFrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -190,6 +190,7 @@ class PlaybackPanelFragment :
 
     override fun onDestroyBinding(binding: FragmentPlaybackPanelBinding) {
         equalizerLauncher = null
+        binding.playbackRepeat.clearPendingIcon()
         binding.playbackSong.isSelected = false
         binding.playbackArtist.isSelected = false
         binding.playbackAlbum?.isSelected = false
@@ -252,10 +253,9 @@ class PlaybackPanelFragment :
     }
 
     private fun updateRepeat(repeatMode: RepeatMode) {
-        requireBinding().playbackRepeat.apply {
-            setIconResource(repeatMode.icon)
-            isChecked = repeatMode != RepeatMode.NONE
-        }
+        val repeatButton = requireBinding().playbackRepeat
+        repeatButton.isChecked = repeatMode != RepeatMode.NONE
+        repeatButton.setIconResource(repeatMode.icon)
     }
 
     private fun updatePlaying(isPlaying: Boolean) {
