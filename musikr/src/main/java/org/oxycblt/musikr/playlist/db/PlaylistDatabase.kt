@@ -51,7 +51,7 @@ internal abstract class PlaylistDatabase : RoomDatabase() {
                     PlaylistDatabase::class.java,
                     "user_music.db",
                 )
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(true)
                 .build()
     }
 }

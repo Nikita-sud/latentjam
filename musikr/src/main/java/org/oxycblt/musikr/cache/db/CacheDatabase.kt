@@ -49,7 +49,7 @@ internal abstract class CacheDatabase : RoomDatabase() {
                     CacheDatabase::class.java,
                     "music_cache.db",
                 )
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(true)
                 .build()
     }
 }
