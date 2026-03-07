@@ -23,12 +23,12 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.Gravity
 import android.view.Menu
-import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.widget.LinearLayout
 import androidx.annotation.AttrRes
 import androidx.annotation.MenuRes
+import androidx.appcompat.view.SupportMenuInflater
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.appcompat.view.menu.MenuItemImpl
 import androidx.appcompat.widget.PopupMenu
@@ -114,7 +114,7 @@ constructor(
         // Since we don't have (and don't want) a dummy view to inflate this menu, just
         // depend on the AndroidX Toolbar internal API and hope for the best.
         val builder = MenuBuilder(context)
-        MenuInflater(context).inflate(resId, builder)
+        SupportMenuInflater(context).inflate(resId, builder)
         menuBuilder = builder
 
         // Separate action items from overflow items based on showAsAction flags.
@@ -142,6 +142,7 @@ constructor(
                         LayoutParams.WRAP_CONTENT,
                         Gravity.END or Gravity.CENTER_VERTICAL,
                     )
+                spacing = 0
             }
 
         // Create a MaterialButton for each action item.
@@ -170,7 +171,7 @@ constructor(
                             LinearLayout.LayoutParams.WRAP_CONTENT,
                             LinearLayout.LayoutParams.WRAP_CONTENT,
                         )
-                    setIconResource(R.drawable.ic_more_24)
+                    setIconResource(R.drawable.ic_more_vert_24)
                     contentDescription = context.getString(R.string.lbl_more)
                     setOnClickListener { view ->
                         val customListener = overflowClickListener
