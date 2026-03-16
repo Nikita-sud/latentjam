@@ -18,7 +18,6 @@
  
 package org.oxycblt.auxio.image
 
-import android.animation.Animator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
@@ -62,6 +61,7 @@ import org.oxycblt.auxio.image.coil.SmatteringCoverCollection
 import org.oxycblt.auxio.image.coil.SquareCropTransformation
 import org.oxycblt.auxio.image.coil.StackCoverCollection
 import org.oxycblt.auxio.ui.MaterialFader
+import org.oxycblt.auxio.ui.MotionHandle
 import org.oxycblt.auxio.ui.UISettings
 import org.oxycblt.auxio.util.getAttrColorCompat
 import org.oxycblt.auxio.util.getColorCompat
@@ -104,8 +104,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
     private val selectionBadge: ImageView?
     private val iconSize: Int?
 
-    private val fader = MaterialFader.quickLopsided(context)
-    private var fadeAnimator: Animator? = null
+    private val fader = MaterialFader.new(context)
+    private var fadeAnimator: MotionHandle? = null
     private val indicatorMatrix = Matrix()
     private val indicatorMatrixSrc = RectF()
     private val indicatorMatrixDst = RectF()

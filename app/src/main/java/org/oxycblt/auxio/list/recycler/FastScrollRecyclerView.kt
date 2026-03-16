@@ -18,7 +18,6 @@
  
 package org.oxycblt.auxio.list.recycler
 
-import android.animation.Animator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
@@ -63,6 +62,7 @@ import kotlin.math.roundToInt
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.ui.ExpressiveShapes
 import org.oxycblt.auxio.ui.MaterialSlider
+import org.oxycblt.auxio.ui.MotionHandle
 import org.oxycblt.auxio.util.getAttrColorCompat
 import org.oxycblt.auxio.util.getAttrResourceId
 import org.oxycblt.auxio.util.getDimenPixels
@@ -108,7 +108,7 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
     private val thumbWidth = context.getDimenPixels(R.dimen.spacing_mid_medium)
     private val thumbHeight = context.getDimenPixels(R.dimen.size_touchable_medium)
     private val thumbSlider = MaterialSlider.small(context, thumbWidth)
-    private var thumbAnimator: Animator? = null
+    private var thumbAnimator: MotionHandle? = null
 
     @SuppressLint("InflateParams")
     private val thumbView =

@@ -18,7 +18,6 @@
  
 package org.oxycblt.auxio.ui
 
-import android.animation.Animator
 import android.content.Context
 import android.util.AttributeSet
 import android.widget.FrameLayout
@@ -31,7 +30,7 @@ class MultiToolbar
 @JvmOverloads
 constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr: Int = 0) :
     FrameLayout(context, attrs, defStyleAttr) {
-    private var animator: Animator? = null
+    private var animator: MotionHandle? = null
     private var currentlyVisible = 0
     private val flipper = MaterialFlipper(context)
 

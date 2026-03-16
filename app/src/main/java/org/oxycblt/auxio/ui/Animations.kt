@@ -18,19 +18,18 @@
  
 package org.oxycblt.auxio.ui
 
-import android.animation.Animator
-import android.animation.AnimatorSet
 import android.animation.TimeInterpolator
 import android.animation.ValueAnimator
 import android.content.Context
-import android.graphics.Rect
 import android.view.View
 import androidx.annotation.AttrRes
-import androidx.core.graphics.toRectF
+import androidx.annotation.StyleRes
 import androidx.core.view.isInvisible
+import androidx.dynamicanimation.animation.FloatValueHolder
+import androidx.dynamicanimation.animation.SpringAnimation
+import androidx.dynamicanimation.animation.SpringForce
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import com.google.android.material.R as MR
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.motion.MotionUtils
 
 class AnimConfig(
@@ -46,26 +45,7 @@ class AnimConfig(
 
     companion object {
         val STANDARD = MR.attr.motionEasingStandardInterpolator
-        //        val EMPHASIZED = MR.attr.motionEasingEmphasizedInterpolator
-        val EMPHASIZED_ACCELERATE = MR.attr.motionEasingEmphasizedAccelerateInterpolator
-        val EMPHASIZED_DECELERATE = MR.attr.motionEasingEmphasizedDecelerateInterpolator
-        val SHORT1 = MR.attr.motionDurationShort1 to 50
-        //        val SHORT2 = MR.attr.motionDurationShort2 to 100
-        val SHORT3 = MR.attr.motionDurationShort3 to 150
-        //        val SHORT4 = MR.attr.motionDurationShort4 to 200
-        val MEDIUM1 = MR.attr.motionDurationMedium1 to 250
         val MEDIUM2 = MR.attr.motionDurationMedium2 to 300
-        val MEDIUM3 = MR.attr.motionDurationMedium3 to 350
-
-        //        val MEDIUM4 = MR.attr.motionDurationMedium4 to 400
-        //        val LONG1 = MR.attr.motionDurationLong1 to 450
-        //        val LONG2 = MR.attr.motionDurationLong2 to 500
-        //        val LONG3 = MR.attr.motionDurationLong3 to 550
-        //        val LONG4 = MR.attr.motionDurationLong4 to 600
-        //        val EXTRA_LONG1 = MR.attr.motionDurationExtraLong1 to 700
-        //        val EXTRA_LONG2 = MR.attr.motionDurationExtraLong2 to 800
-        //        val EXTRA_LONG3 = MR.attr.motionDurationExtraLong3 to 900
-        //        val EXTRA_LONG4 = MR.attr.motionDurationExtraLong4 to 1000
 
         fun of(context: Context, @AttrRes interpolator: Int, duration: Pair<Int, Int>) =
             AnimConfig(context, interpolator, duration.first, duration.second)
@@ -85,34 +65,162 @@ class AnimConfig(
         }
 }
 
-class MaterialCornerAnim(context: Context) {
-    private val config = AnimConfig.of(context, AnimConfig.STANDARD, AnimConfig.MEDIUM2)
+interface MotionHandle {
+    fun start()
 
-    fun animate(button: MaterialButton, sizeDp: Float): Animator {
-        val shapeModel = button.shapeAppearanceModel
-        val bounds = Rect(0, 0, button.width, button.height)
-        val start = shapeModel.topRightCornerSize.getCornerSize(bounds.toRectF())
-        return config.genericFloat(start, sizeDp) { size ->
-            button.shapeAppearanceModel = shapeModel.withCornerSize { size }
+    fun cancel()
+}
+
+private object NoOpMotionHandle : MotionHandle {
+    override fun start() = Unit
+
+    override fun cancel() = Unit
+}
+
+private class SnapMotionHandle(private val action: () -> Unit) : MotionHandle {
+    private var canceled = false
+
+    override fun start() {
+        if (!canceled) {
+            action()
         }
     }
+
+    override fun cancel() {
+        canceled = true
+    }
+}
+
+private class CompositeMotionHandle(
+    private val handles: List<MotionHandle>,
+    private val onStart: (() -> Unit)? = null,
+) : MotionHandle {
+    override fun start() {
+        onStart?.invoke()
+        for (handle in handles) {
+            handle.start()
+        }
+    }
+
+    override fun cancel() {
+        for (handle in handles) {
+            handle.cancel()
+        }
+    }
+}
+
+private data class SpringToken(@AttrRes val attr: Int, @StyleRes val defaultStyle: Int)
+
+private object MotionSpringTokens {
+    val FAST_EFFECTS =
+        SpringToken(
+            MR.attr.motionSpringFastEffects,
+            MR.style.Motion_Material3_Spring_Standard_Fast_Effects,
+        )
+//    val DEFAULT_EFFECTS =
+//        SpringToken(
+//            MR.attr.motionSpringDefaultEffects,
+//            MR.style.Motion_Material3_Spring_Standard_Default_Effects,
+//        )
+//    val SLOW_EFFECTS =
+//        SpringToken(
+//            MR.attr.motionSpringSlowEffects,
+//            MR.style.Motion_Material3_Spring_Standard_Slow_Effects,
+//        )
+    val FAST_SPATIAL =
+        SpringToken(
+            MR.attr.motionSpringFastSpatial,
+            MR.style.Motion_Material3_Spring_Standard_Fast_Spatial,
+        )
+    val DEFAULT_SPATIAL =
+        SpringToken(
+            MR.attr.motionSpringDefaultSpatial,
+            MR.style.Motion_Material3_Spring_Standard_Default_Spatial,
+        )
+//    val SLOW_SPATIAL =
+//        SpringToken(
+//            MR.attr.motionSpringSlowSpatial,
+//            MR.style.Motion_Material3_Spring_Standard_Slow_Spatial,
+//        )
+}
+
+private class MotionSpring(
+    context: Context,
+    token: SpringToken,
+    private val dampingRatioOverride: Float? = null,
+) {
+    private val springTemplate =
+        MotionUtils.resolveThemeSpringForce(context, token.attr, token.defaultStyle)
+
+    fun create(
+        startValue: Float,
+        finalValue: Float,
+        minimumVisibleChange: Float,
+        update: (Float) -> Unit,
+        onEnd: ((canceled: Boolean) -> Unit)? = null,
+    ): MotionHandle {
+        val animation =
+            SpringAnimation(FloatValueHolder(startValue)).apply {
+                spring =
+                    SpringForce().apply {
+                        dampingRatio = dampingRatioOverride ?: springTemplate.dampingRatio
+                        stiffness = springTemplate.stiffness
+                        finalPosition = finalValue
+                    }
+                setStartValue(startValue)
+                setMinimumVisibleChange(minimumVisibleChange)
+                addUpdateListener { _, value, _ -> update(value) }
+                addEndListener { _, canceled, value, _ ->
+                    update(if (canceled) value else finalValue)
+                    onEnd?.invoke(canceled)
+                }
+            }
+        return object : MotionHandle {
+            override fun start() {
+                animation.animateToFinalPosition(finalValue)
+            }
+
+            override fun cancel() {
+                animation.cancel()
+            }
+        }
+    }
+}
+
+private fun View.resolveSlideTarget(x: Int?): Float {
+    if (x != null) {
+        return x.toFloat()
+    }
+
+    val resolvedWidth = width.takeIf { it > 0 } ?: measuredWidth.takeIf { it > 0 }
+    return (resolvedWidth ?: OFFSCREEN_TRANSLATION_PX.toInt()).toFloat()
 }
 
 class MaterialFader
 private constructor(
     context: Context,
     private val scale: Float,
-    @AttrRes outInterpolator: Int,
-    alphaOutDuration: Pair<Int, Int>,
-    scaleOutDuration: Pair<Int, Int>,
-    inInterpolator: Int,
-    alphaInDuration: Pair<Int, Int>,
-    scaleInDuration: Pair<Int, Int>,
+    alphaOutToken: SpringToken,
+    scaleOutToken: SpringToken,
+    alphaInToken: SpringToken,
+    scaleInToken: SpringToken,
+    scaleOutDampingRatioOverride: Float? = null,
+    scaleInDampingRatioOverride: Float? = null,
 ) {
-    private val alphaOutConfig = AnimConfig.of(context, outInterpolator, alphaOutDuration)
-    private val scaleOutConfig = AnimConfig.of(context, outInterpolator, scaleOutDuration)
-    private val alphaInConfig = AnimConfig.of(context, inInterpolator, alphaInDuration)
-    private val scaleInConfig = AnimConfig.of(context, inInterpolator, scaleInDuration)
+    private val alphaOutSpring = MotionSpring(context, alphaOutToken)
+    private val scaleOutSpring =
+        MotionSpring(
+            context,
+            scaleOutToken,
+            dampingRatioOverride = scaleOutDampingRatioOverride,
+        )
+    private val alphaInSpring = MotionSpring(context, alphaInToken)
+    private val scaleInSpring =
+        MotionSpring(
+            context,
+            scaleInToken,
+            dampingRatioOverride = scaleInDampingRatioOverride,
+        )
 
     fun jumpToFadeOut(view: View) {
         view.apply {
@@ -132,75 +240,132 @@ private constructor(
         }
     }
 
-    fun fadeOut(view: View): Animator {
+    fun fadeOut(view: View, onEnd: (() -> Unit)? = null): MotionHandle {
         if (!view.isLaidOut) {
-            jumpToFadeOut(view)
-            return AnimatorSet()
+            return SnapMotionHandle {
+                jumpToFadeOut(view)
+                onEnd?.invoke()
+            }
         }
 
-        val alphaAnimator =
-            alphaOutConfig.genericFloat(view.alpha, 0f) {
-                view.alpha = it
-                view.isInvisible = view.alpha == 0f
-            }
-        val scaleXAnimator = scaleOutConfig.genericFloat(view.scaleX, scale) { view.scaleX = it }
-        val scaleYAnimator = scaleOutConfig.genericFloat(view.scaleY, scale) { view.scaleY = it }
-        return AnimatorSet().apply { playTogether(alphaAnimator, scaleXAnimator, scaleYAnimator) }
+        val alphaMotion =
+            alphaOutSpring.create(
+                view.alpha,
+                0f,
+                ALPHA_MIN_VISIBLE_CHANGE,
+                update = { view.alpha = it },
+                onEnd = { canceled ->
+                    view.isInvisible = !canceled
+                    if (!canceled) {
+                        onEnd?.invoke()
+                    }
+                },
+            )
+        val scaleXMotion =
+            scaleOutSpring.create(
+                view.scaleX,
+                scale,
+                SCALE_MIN_VISIBLE_CHANGE,
+                update = { view.scaleX = it },
+            )
+        val scaleYMotion =
+            scaleOutSpring.create(
+                view.scaleY,
+                scale,
+                SCALE_MIN_VISIBLE_CHANGE,
+                update = { view.scaleY = it },
+            )
+        return CompositeMotionHandle(
+            listOf(alphaMotion, scaleXMotion, scaleYMotion),
+            onStart = { view.isInvisible = false },
+        )
     }
 
-    fun fadeIn(view: View): Animator {
+    fun fadeIn(view: View, onEnd: (() -> Unit)? = null): MotionHandle {
         if (!view.isLaidOut) {
-            jumpToFadeIn(view)
-            return AnimatorSet()
-        }
-        val alphaAnimator =
-            alphaInConfig.genericFloat(view.alpha, 1f) {
-                view.alpha = it
-                view.isInvisible = view.alpha == 0f
+            return SnapMotionHandle {
+                jumpToFadeIn(view)
+                onEnd?.invoke()
             }
-        val scaleXAnimator = scaleInConfig.genericFloat(view.scaleX, 1.0f) { view.scaleX = it }
-        val scaleYAnimator = scaleInConfig.genericFloat(view.scaleY, 1.0f) { view.scaleY = it }
-        return AnimatorSet().apply { playTogether(alphaAnimator, scaleXAnimator, scaleYAnimator) }
+        }
+        val alphaMotion =
+            alphaInSpring.create(
+                view.alpha,
+                1f,
+                ALPHA_MIN_VISIBLE_CHANGE,
+                update = { view.alpha = it },
+                onEnd = { canceled ->
+                    if (!canceled) {
+                        onEnd?.invoke()
+                    }
+                },
+            )
+        val scaleXMotion =
+            scaleInSpring.create(
+                view.scaleX,
+                1.0f,
+                SCALE_MIN_VISIBLE_CHANGE,
+                update = { view.scaleX = it },
+            )
+        val scaleYMotion =
+            scaleInSpring.create(
+                view.scaleY,
+                1.0f,
+                SCALE_MIN_VISIBLE_CHANGE,
+                update = { view.scaleY = it },
+            )
+        return CompositeMotionHandle(
+            listOf(alphaMotion, scaleXMotion, scaleYMotion),
+            onStart = { view.isInvisible = false },
+        )
     }
 
     companion object {
-        fun quickLopsided(context: Context) =
-            MaterialFader(
-                context,
-                0.6f,
-                AnimConfig.EMPHASIZED_ACCELERATE,
-                AnimConfig.SHORT1,
-                AnimConfig.SHORT3,
-                AnimConfig.EMPHASIZED_DECELERATE,
-                AnimConfig.SHORT1,
-                AnimConfig.MEDIUM3,
-            )
-
-        fun symmetric(context: Context) =
+        fun new(context: Context) =
             MaterialFader(
                 context,
                 0.9f,
-                AnimConfig.EMPHASIZED_ACCELERATE,
-                AnimConfig.SHORT3,
-                AnimConfig.MEDIUM1,
-                AnimConfig.EMPHASIZED_DECELERATE,
-                AnimConfig.SHORT3,
-                AnimConfig.MEDIUM1,
+                MotionSpringTokens.FAST_EFFECTS,
+                MotionSpringTokens.FAST_SPATIAL,
+                MotionSpringTokens.FAST_EFFECTS,
+                MotionSpringTokens.FAST_SPATIAL,
+                // Material's standard spatial springs are only slightly underdamped (0.9),
+                // which is too restrained for the toolbar swap to read as springy.
+                scaleOutDampingRatioOverride = 0.6f,
+                scaleInDampingRatioOverride = 0.6f,
             )
     }
 }
 
 class MaterialFlipper(context: Context) {
-    private val fader = MaterialFader.symmetric(context)
+    private val fader = MaterialFader.new(context)
 
     fun jump(from: View) {
         fader.jumpToFadeOut(from)
     }
 
-    fun flip(from: View, to: View): Animator {
-        val outAnimator = fader.fadeOut(from)
-        val inAnimator = fader.fadeIn(to).apply { startDelay = outAnimator.totalDuration }
-        return AnimatorSet().apply { playTogether(outAnimator, inAnimator) }
+    fun flip(from: View, to: View): MotionHandle {
+        var canceled = false
+        var inMotion: MotionHandle = NoOpMotionHandle
+        val outMotion =
+            fader.fadeOut(from) {
+                if (!canceled) {
+                    inMotion = fader.fadeIn(to)
+                    inMotion.start()
+                }
+            }
+        return object : MotionHandle {
+            override fun start() {
+                canceled = false
+                outMotion.start()
+            }
+
+            override fun cancel() {
+                canceled = true
+                outMotion.cancel()
+                inMotion.cancel()
+            }
+        }
     }
 }
 
@@ -208,65 +373,56 @@ class MaterialSlider
 private constructor(
     context: Context,
     private val x: Int?,
-    inDuration: Pair<Int, Int>,
-    outDuration: Pair<Int, Int>,
+    inSpringToken: SpringToken,
+    outSpringToken: SpringToken,
 ) {
-    private val outConfig = AnimConfig.of(context, AnimConfig.EMPHASIZED_ACCELERATE, outDuration)
-    private val inConfig = AnimConfig.of(context, AnimConfig.EMPHASIZED_DECELERATE, inDuration)
+    private val outSpring = MotionSpring(context, outSpringToken)
+    private val inSpring = MotionSpring(context, inSpringToken)
 
     fun jumpOut(view: View) {
-        if (x == null) {
-            view.translationX = 100000f
-        }
-        view.translationX = (x ?: view.width).toFloat()
+        view.translationX = view.resolveSlideTarget(x)
     }
 
-    fun slideOut(view: View): Animator {
-        val target = (x ?: view.width).toFloat()
+    fun slideOut(view: View): MotionHandle {
+        val target = view.resolveSlideTarget(x)
+        if (!view.isLaidOut) {
+            return SnapMotionHandle { view.translationX = target }
+        }
         if (view.translationX > target) {
             view.translationX = target
         }
-        val animator = outConfig.genericFloat(view.translationX, target) { view.translationX = it }
-        return animator
+        return outSpring.create(
+            view.translationX,
+            target,
+            SPATIAL_MIN_VISIBLE_CHANGE,
+            update = { view.translationX = it },
+        )
     }
 
-    fun slideIn(view: View): Animator {
-        val animator = inConfig.genericFloat(view.translationX, 0f) { view.translationX = it }
-        return animator
+    fun slideIn(view: View): MotionHandle {
+        if (!view.isLaidOut) {
+            return SnapMotionHandle { view.translationX = 0f }
+        }
+        return inSpring.create(
+            view.translationX,
+            0f,
+            SPATIAL_MIN_VISIBLE_CHANGE,
+            update = { view.translationX = it },
+        )
     }
 
     companion object {
         fun small(context: Context, x: Int?) =
-            MaterialSlider(context, x, AnimConfig.SHORT3, AnimConfig.MEDIUM1)
-
-        fun large(context: Context, x: Int?) =
-            MaterialSlider(context, x, AnimConfig.MEDIUM3, AnimConfig.SHORT3)
+            MaterialSlider(
+                context,
+                x,
+                MotionSpringTokens.FAST_SPATIAL,
+                MotionSpringTokens.DEFAULT_SPATIAL,
+            )
     }
 }
 
-class MaterialFadingSlider(private val slider: MaterialSlider) {
-    fun jumpOut(view: View) {
-        slider.jumpOut(view)
-        view.alpha = 0f
-    }
-
-    fun slideOut(view: View): Animator {
-        val slideOut = slider.slideOut(view)
-        val alphaOut =
-            ValueAnimator.ofFloat(1f, 0f).apply {
-                duration = slideOut.duration
-                addUpdateListener { view.alpha = it.animatedValue as Float }
-            }
-        return AnimatorSet().apply { playTogether(slideOut, alphaOut) }
-    }
-
-    fun slideIn(view: View): Animator {
-        val slideIn = slider.slideIn(view)
-        val alphaIn =
-            ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = slideIn.duration
-                addUpdateListener { view.alpha = it.animatedValue as Float }
-            }
-        return AnimatorSet().apply { playTogether(slideIn, alphaIn) }
-    }
-}
+private const val ALPHA_MIN_VISIBLE_CHANGE = 1f / 512f
+private const val SCALE_MIN_VISIBLE_CHANGE = 0.0001f
+private const val SPATIAL_MIN_VISIBLE_CHANGE = 0.01f
+private const val OFFSCREEN_TRANSLATION_PX = 100000f
