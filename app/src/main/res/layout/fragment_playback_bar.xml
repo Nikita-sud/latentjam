@@ -65,7 +65,7 @@
 
             <org.oxycblt.auxio.ui.RippleFixMaterialButton
                 android:id="@+id/playback_play_pause"
-                style="@style/Widget.Material3Expressive.Button.IconButton.Tonal"
+                style="@style/Widget.Auxio.Button.Playback.PlayPause"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checkable="true"

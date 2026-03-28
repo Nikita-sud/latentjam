@@ -460,5 +460,14 @@
 
     <style name="Widget.Auxio.Button.Playback.PlayPause" parent="Widget.Material3Expressive.Button.IconButton.Tonal">
         <item name="android:checkable">true</item>
+        <item name="materialThemeOverlay">@style/ThemeOverlay.Auxio.Button.PrimaryTonal</item>
+    </style>
+    <style name="ThemeOverlay.Auxio.Button.PrimaryTonal" parent="">
+        <item name="colorContainer">?attr/colorPrimaryContainer</item>
+        <item name="colorContainerChecked">?attr/colorPrimary</item>
+        <item name="colorContainerUnchecked">?attr/colorPrimaryContainer</item>
+        <item name="colorOnContainer">?attr/colorOnPrimaryContainer</item>
+        <item name="colorOnContainerChecked">?attr/colorOnPrimary</item>
+        <item name="colorOnContainerUnchecked">?attr/colorOnPrimaryContainer</item>
     </style>
 </resources>
