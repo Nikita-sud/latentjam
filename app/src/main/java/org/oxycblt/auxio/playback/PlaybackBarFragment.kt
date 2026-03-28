@@ -106,12 +106,6 @@ class PlaybackBarFragment : ViewBindingFragment<FragmentPlaybackBarBinding>() {
 
     private fun updatePlaying(isPlaying: Boolean) {
         requireBinding().playbackPlayPause.isChecked = isPlaying
-        requireBinding().playbackProgressBar.apply {
-            val wavelength = context.getDimenPixels(R.dimen.progress_wavelength)
-            val amplitude = context.getDimenPixels(R.dimen.progress_amplitude)
-            val speed = context.getDimenPixels(R.dimen.progress_wave_speed)
-            setWaveEnabled(isPlaying, wavelength, amplitude, speed)
-        }
     }
 
     private fun updatePosition(positionDs: Long) {

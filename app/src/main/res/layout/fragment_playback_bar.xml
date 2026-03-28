@@ -92,20 +92,16 @@
     <org.oxycblt.auxio.playback.ui.ForcedLTRFrameLayout
         android:id="@+id/playback_progress_container"
         android:layout_width="match_parent"
-        android:layout_height="@dimen/progress_stable_height"
+        android:layout_height="wrap_content"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
-        <com.google.android.material.progressindicator.PatchedLinearProgressIndicator
+        <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/playback_progress_bar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
-            android:minHeight="3dp"
-            app:waveAmplitude="3dp"
-            app:waveAmplitudeRampProgressMin="0.0"
-            app:waveAmplitudeRampProgressMax="0.03"
             android:layout_marginStart="@dimen/spacing_small"
             android:layout_marginEnd="@dimen/spacing_small"
             tools:progress="70" />
