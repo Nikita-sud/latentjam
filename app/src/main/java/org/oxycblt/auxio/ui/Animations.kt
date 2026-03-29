@@ -19,13 +19,16 @@
 package org.oxycblt.auxio.ui
 
 import android.content.Context
+import android.graphics.drawable.Drawable
 import android.view.View
 import androidx.annotation.AttrRes
 import androidx.annotation.StyleRes
+import androidx.core.view.isInvisible
 import androidx.dynamicanimation.animation.FloatValueHolder
 import androidx.dynamicanimation.animation.SpringAnimation
 import com.google.android.material.R as MR
 import com.google.android.material.motion.MotionUtils
+import com.google.android.material.shape.MaterialShapeDrawable
 import org.oxycblt.auxio.util.scale
 
 class Spatial private constructor(@AttrRes val attr: Int, val defaultStyle: Int) {
@@ -57,6 +60,51 @@ class Spatial private constructor(@AttrRes val attr: Int, val defaultStyle: Int)
             addUpdateListener { _, value, _ -> view.translationX = value }
             addEndListener { _, canceled, value, _ ->
                 view.translationX = if (!canceled || jumpOnCancellation) to else value
+            }
+            animateToFinalPosition(to)
+        }
+    }
+
+    fun translateZ(view: View, to: Float, jumpOnCancellation: Boolean = false): SpringAnimation {
+        val from = view.translationZ
+        val springForce = resolve(view.context)
+        return SpringAnimation(FloatValueHolder(from)).apply {
+            spring = springForce
+            setStartValue(from)
+            setMinimumVisibleChange(0.0001f)
+            addUpdateListener { _, value, _ -> view.translationZ = value }
+            addEndListener { _, canceled, value, _ ->
+                view.translationZ = if (!canceled || jumpOnCancellation) to else value
+            }
+            animateToFinalPosition(to)
+        }
+    }
+
+    fun elevation(context: Context, drawable: MaterialShapeDrawable, to: Float, jumpOnCancellation: Boolean = false): SpringAnimation {
+        val from = drawable.elevation
+        val springForce = resolve(context)
+        return SpringAnimation(FloatValueHolder(from)).apply {
+            spring = springForce
+            setStartValue(from)
+            setMinimumVisibleChange(0.0001f)
+            addUpdateListener { _, value, _ -> drawable.elevation = value }
+            addEndListener { _, canceled, value, _ ->
+                drawable.elevation = if (!canceled || jumpOnCancellation) to else value
+            }
+            animateToFinalPosition(to)
+        }
+    }
+
+    fun corners(context: Context, drawable: MaterialShapeDrawable, to: Float, jumpOnCancellation: Boolean = false): SpringAnimation {
+        val from = drawable.topRightCornerResolvedSize
+        val springForce = resolve(context)
+        return SpringAnimation(FloatValueHolder(from)).apply {
+            spring = springForce
+            setStartValue(from)
+            setMinimumVisibleChange(0.0001f)
+            addUpdateListener { _, value, _ -> drawable.setCornerSize(value) }
+            addEndListener { _, canceled, value, _ ->
+                drawable.setCornerSize(if (!canceled || jumpOnCancellation) to else value)
             }
             animateToFinalPosition(to)
         }
@@ -96,6 +144,21 @@ class Effect private constructor(@AttrRes val attr: Int, @StyleRes val defaultSt
                 view.scale = if (!canceled || jumpOnCancellation) to else value
             }
             animateToFinalPosition(to)
+        }
+    }
+
+    fun alpha(context: Context, drawable: Drawable, to: Int, jumpOnCancellation: Boolean = false): SpringAnimation {
+        val from = drawable.alpha
+        val springForce = resolve(context)
+        return SpringAnimation(FloatValueHolder(from.toFloat())).apply {
+            spring = springForce
+            setStartValue(from.toFloat())
+            setMinimumVisibleChange(1f / 255f)
+            addUpdateListener { _, value, _ -> drawable.alpha = value.toInt() }
+            addEndListener { _, canceled, value, _ ->
+                drawable.alpha = (if (!canceled || jumpOnCancellation) to else value).toInt()
+            }
+            animateToFinalPosition(to.toFloat())
         }
     }
 
