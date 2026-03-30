@@ -60,8 +60,6 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
     }
 
     private fun animateToolbarsVisibility(from: Int, to: Int): Boolean {
-        // TODO: Animate nicer Material Fade transitions using animators (Normal transitions
-        //  don't work due to translation)
         // Set up the target transitions for both the inner and selection toolbars.
         L.d("Changing toolbar visibility $from -> 0f, $to -> 1f")
         inAnimators?.forEach { it.cancel() }
