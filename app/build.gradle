@@ -14,7 +14,6 @@ plugins {
 android {
     // Auxio implicitly depends on the native modules, explicitly specify it
     // here so the libraries are still stripped.
-    compileSdk target_sdk
     ndkVersion ndk_version
     namespace "org.oxycblt.auxio"
 
@@ -33,6 +32,12 @@ android {
         coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+    }
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
     }
 
     buildTypes {
@@ -89,7 +94,7 @@ dependencies {
     // General
     implementation "androidx.core:core-ktx:$core_version"
     implementation "androidx.appcompat:appcompat:1.7.1"
-    implementation "androidx.activity:activity-ktx:1.12.2"
+    implementation "androidx.activity:activity-ktx:1.13.0"
     // noinspection GradleDependency
     implementation "androidx.fragment:fragment-ktx:1.6.2"
 
@@ -144,12 +149,12 @@ dependencies {
     implementation project(":media-lib-decoder-ffmpeg")
 
     // Image loading
-    implementation 'io.coil-kt.coil3:coil-core:3.3.0'
+    implementation 'io.coil-kt.coil3:coil-core:3.4.0'
 
     // Material
     // TODO: Exactly figure out the conditions that the 1.7.0 ripple bug occurred so you can just
     //  PR a fix.
-    implementation "com.google.android.material:material:1.14.0-alpha09"
+    implementation "com.google.android.material:material:1.14.0-alpha10"
 
     // Dependency Injection
     implementation "com.google.dagger:dagger:$hilt_version"
