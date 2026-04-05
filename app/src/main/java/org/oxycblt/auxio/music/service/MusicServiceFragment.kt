@@ -107,15 +107,11 @@ constructor(
     fun getItem(mediaId: String, result: Result<MediaItem>) =
         result.dispatch { musicBrowser.getItem(mediaId) }
 
-    fun getChildren(
-        mediaId: String,
-        maxTabs: Int,
-        result: Result<MutableList<MediaItem>>,
-        page: Page?,
-    ) = result.dispatch { musicBrowser.getChildren(mediaId, maxTabs)?.expose(page) }
+    fun getChildren(mediaId: String, maxTabs: Int, result: Result<MutableList<MediaItem>>) =
+        result.dispatch { musicBrowser.getChildren(mediaId, maxTabs)?.toMutableList() }
 
-    fun search(query: String, result: Result<MutableList<MediaItem>>, page: Page?) =
-        result.dispatchAsync { musicBrowser.search(query).expose(page) }
+    fun search(query: String, result: Result<MutableList<MediaItem>>) =
+        result.dispatchAsync { musicBrowser.search(query) }
 
     private fun <T> Result<T>.dispatch(body: () -> T?) {
         try {
@@ -143,17 +139,6 @@ constructor(
                 L.d("Error while dispatching: $e")
                 sendResult(null)
             }
-        }
-    }
-
-    private fun <T> List<T>.expose(page: Page?): MutableList<T> {
-        if (page == null) return toMutableList()
-        val start = page.num * page.size
-        val end = start + page.size
-        return if (start >= size) {
-            mutableListOf()
-        } else {
-            subList(start, end.coerceAtMost(size)).toMutableList()
         }
     }
 }

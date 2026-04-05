@@ -131,9 +131,10 @@ private constructor(
     }
 
     fun getChildren(parentId: String, maxTabs: Int): List<MediaItem>? {
-        if (musicRepository.library == null) {
-            return listOf()
-        }
+        // we do not gate by library here since either
+        // - we are loading tabs, which we want to always load in since some head units dont
+        // cope well with sending no tabs then trying to update with tabs
+        // - the downstream code already handles no-library cases
         return getMediaItemList(parentId, maxTabs)
     }
 
@@ -202,6 +203,7 @@ private constructor(
                 homeGenerator.tabs().drop(maxTabs - 1).map { TabNode.Home(it).toMediaItem(context) }
             }
             is TabNode.Home ->
+                // homeGenerator returns emptyLists
                 when (node.type) {
                     MusicType.SONGS -> homeGenerator.songs().map { it.toMediaItem(context) }
                     MusicType.ALBUMS -> homeGenerator.albums().map { it.toMediaItem(context) }
