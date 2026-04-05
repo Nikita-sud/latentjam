@@ -97,7 +97,7 @@ private constructor(
             // Make a kotlin future
             val uri = DocumentsContract.buildChildDocumentsUriUsingTree(rootUri, treeDocumentId)
             val directoryDeferred = CompletableDeferred<Directory>()
-            val recursive = mutableListOf<Deferred<Result<Unit>>>()
+            val recursive = mutableListOf<Deferred<Result<Unit>>>().takeIf { query.multithread }
             val children = mutableListOf<File>()
             contentResolver.useQuery(uri, PROJECTION) { cursor ->
                 val childUriIndex =
@@ -131,7 +131,7 @@ private constructor(
                     }
 
                     if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
-                        recursive.add(
+                        val subtask =
                             exploreDirectoryImpl(
                                 rootUri,
                                 childId,
@@ -140,7 +140,12 @@ private constructor(
                                 exclude,
                                 files,
                             )
-                        )
+                        if (recursive != null) {
+                            recursive.add(subtask)
+                        } else {
+                            // cannot pool, single-thread it
+                            subtask.await()
+                        }
                     } else {
                         val size = cursor.getLong(sizeIndex)
                         val file =
@@ -164,13 +169,14 @@ private constructor(
                 }
                 directoryDeferred.complete(Directory(uri, relativePath, parent, children))
             }
-            recursive.tryAwaitAll()
+            recursive?.tryAwaitAll()
         }
 
     data class Query(
         val source: List<Location.Opened>,
         val exclude: List<Location.Unopened>,
         val withHidden: Boolean,
+        val multithread: Boolean,
     )
 
     @RequiresApi(Build.VERSION_CODES.Q)

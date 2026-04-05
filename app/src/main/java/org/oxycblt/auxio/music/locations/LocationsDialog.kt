@@ -231,6 +231,7 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
             includeLocationAdapter.addAll(query.source)
             excludeLocationAdapter.addAll(query.exclude)
             binding.locationsWithHiddenSwitch.isChecked = query.withHidden
+            binding.locationsMultithreadSwitch.isChecked = query.multithread
         }
         // Load MediaStore data
         musicSettings.mediaStoreQuery.let { query ->
@@ -480,6 +481,10 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
                 locationsExcludeNonMusicTitle.isVisible = false
                 locationsExcludeNonMusicDesc.isVisible = false
                 locationsExcludeNonMusic.isVisible = false
+
+                locationsMultithreadTitle.isVisible = isExtrasExpanded
+                locationsMultithreadDesc.isVisible = isExtrasExpanded
+                locationsMultithread.isVisible = isExtrasExpanded
             } else {
                 // System Database mode - show filter mode when expanded
                 // Hide include section
@@ -512,6 +517,10 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
                 locationsExcludeNonMusicTitle.isVisible = isExtrasExpanded
                 locationsExcludeNonMusicDesc.isVisible = isExtrasExpanded
                 locationsExcludeNonMusic.isVisible = isExtrasExpanded
+
+                locationsMultithreadTitle.isVisible = false
+                locationsMultithreadDesc.isVisible = false
+                locationsMultithread.isVisible = false
             }
         }
     }
@@ -534,6 +543,7 @@ class LocationsDialog : ViewBindingMaterialDialogFragment<DialogMusicLocationsBi
                     source = includeLocationAdapter.locations,
                     exclude = excludeLocationAdapter.locations,
                     withHidden = binding.locationsWithHiddenSwitch.isChecked,
+                    multithread = binding.locationsMultithreadSwitch.isChecked,
                 )
 
             if (!modeChanged && currentMode == LocationMode.SAF) {

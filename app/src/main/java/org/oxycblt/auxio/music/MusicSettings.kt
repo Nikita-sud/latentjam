@@ -146,10 +146,13 @@ class MusicSettingsImpl @Inject constructor(@ApplicationContext private val cont
                     .toUnopenedLocations()
             val withHidden =
                 sharedPreferences.getBoolean(getString(R.string.set_key_with_hidden), false)
+            val multithread =
+                sharedPreferences.getBoolean(getString(R.string.set_key_saf_multithread), true)
             return SAF.Query(
                 source = locations,
                 exclude = excludedLocations,
                 withHidden = withHidden,
+                multithread = multithread,
             )
         }
         set(value) {
@@ -157,6 +160,7 @@ class MusicSettingsImpl @Inject constructor(@ApplicationContext private val cont
                 putString(getString(R.string.set_key_music_locations), value.source.stringify())
                 putString(getString(R.string.set_key_excluded_locations), value.exclude.stringify())
                 putBoolean(getString(R.string.set_key_with_hidden), value.withHidden)
+                putBoolean(context.getString(R.string.set_key_saf_multithread), value.multithread)
                 apply()
             }
         }
@@ -227,6 +231,7 @@ class MusicSettingsImpl @Inject constructor(@ApplicationContext private val cont
             }
             getString(R.string.set_key_excluded_locations),
             getString(R.string.set_key_with_hidden),
+            context.getString(R.string.set_key_saf_multithread),
             getString(R.string.set_key_filter_mode),
             getString(R.string.set_key_filtered_locations),
             getString(R.string.set_key_exclude_non_music),

@@ -267,6 +267,8 @@
     <string name="set_music">Music</string>
     <string name="set_observing">Automatic reloading</string>
     <string name="set_observing_desc">Reload the music library whenever it changes (requires persistent notification)</string>
+    <string name="set_saf_multithread">Multithread File Exploration</string>
+    <string name="set_saf_multithread_desc">Faster, but fails on some devices</string>
     <string name="set_exclude_non_music">Exclude non-music</string>
     <string name="set_exclude_non_music_desc">Ignore audio files that are not music, such as podcasts</string>
     <string name="set_with_hidden">Include hidden files</string>

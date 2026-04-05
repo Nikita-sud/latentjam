@@ -48,8 +48,6 @@ constructor(
     private val dispatchJob = Job()
     private val dispatchScope = CoroutineScope(dispatchJob + Dispatchers.Default)
 
-    data class Page(val num: Int, val size: Int)
-
     class Factory
     @Inject
     constructor(
