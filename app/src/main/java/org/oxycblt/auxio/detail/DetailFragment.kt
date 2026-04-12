@@ -83,7 +83,7 @@ abstract class DetailFragment<P : MusicParent, C : Music> :
         binding.detailNormalToolbar.apply {
             setNavigationOnClickListener { findNavController().navigateUp() }
             setOnMenuItemClickListener(this@DetailFragment)
-            overrideOnOverflowMenuClick { onOpenParentMenu() }
+            setOnOverflowMenuClick { onOpenParentMenu() }
         }
 
         binding.detailRecycler.apply {
@@ -123,7 +123,7 @@ abstract class DetailFragment<P : MusicParent, C : Music> :
         detailHeader.alpha = 1 - outRatio
 
         val inRatio = max(ratio - 0.5f, 0f) * 2
-        animateToolbarView(binding.detailNormalToolbar.getTitleContainer(), inRatio)
+        animateToolbarView(binding.detailNormalToolbar.titleContainer, inRatio)
         animateToolbarActionButton(
             binding.detailNormalToolbar.getMenuButton(R.id.action_play),
             inRatio,

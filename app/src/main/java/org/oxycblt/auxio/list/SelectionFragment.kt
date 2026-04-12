@@ -48,7 +48,7 @@ abstract class SelectionFragment<VB : ViewBinding> :
             // Add cancel and menu item listeners to manage what occurs with the selection.
             setNavigationOnClickListener { listModel.dropSelection() }
             setOnMenuItemClickListener(this@SelectionFragment)
-            overrideOnOverflowMenuClick {
+            setOnOverflowMenuClick {
                 listModel.openMenu(R.menu.selection, listModel.peekSelection())
             }
         }

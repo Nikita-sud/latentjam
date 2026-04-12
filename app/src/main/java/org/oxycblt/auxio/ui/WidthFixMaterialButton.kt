@@ -25,11 +25,12 @@ import androidx.annotation.DrawableRes
 import com.google.android.material.R
 
 /**
- * A [RippleFixMaterialButton] that works around a bug where changing the icon while the button's
- * ripple/press animation is active causes a width change that "sticks". The workaround defers
- * re-applying the icon until the button is no longer pressed.
+ * [RippleFixMaterialButton] that works around another bug where switching the icon during a press
+ * breaks width expansion animations.
  *
  * @author Alexander Capehart (OxygenCobalt)
+ *
+ * TODO: Should animate icon transitions to make this look less bad.
  */
 class WidthFixMaterialButton
 @JvmOverloads
@@ -60,6 +61,7 @@ constructor(
     override fun setIconResource(@DrawableRes iconRes: Int) {
         super.setIconResource(iconRes)
         pendingIconRes = iconRes
+        postOnAnimation(applyPendingIconRunnable)
         removeCallbacks(applyPendingIconRunnable)
         postOnAnimation(applyPendingIconRunnable)
     }

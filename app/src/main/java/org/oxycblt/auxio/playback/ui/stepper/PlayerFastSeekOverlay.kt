@@ -20,7 +20,6 @@ package org.oxycblt.auxio.playback.ui.stepper
 
 import android.content.Context
 import android.util.AttributeSet
-import android.util.Log
 import android.view.GestureDetector
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -29,9 +28,9 @@ import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import org.oxycblt.auxio.BuildConfig
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.ui.UISettings
+import timber.log.Timber as L
 
 enum class DisplayPortion {
     LEFT,
@@ -160,7 +159,7 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
     private var rightFadeOutRunnable: Runnable? = null
 
     override fun onDoubleTapStarted(portion: DisplayPortion) {
-        if (DEBUG) Log.d(TAG, "onDoubleTapStarted called with portion = [$portion]")
+        L.d("onDoubleTapStarted called with portion = [$portion]")
 
         val shouldForward: Boolean =
             performListener?.getFastSeekDirection(portion)?.directionAsBoolean ?: return
@@ -178,8 +177,7 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
         val shouldForward: Boolean =
             performListener?.getFastSeekDirection(portion)?.directionAsBoolean ?: return
 
-        if (DEBUG)
-            Log.d(TAG, "onDoubleTapProgressDown called with " + "shouldForward = [$shouldForward]")
+        L.d("onDoubleTapProgressDown called with shouldForward = [$shouldForward]")
 
         if (shouldForward) {
             handleRightOverlayTap()
@@ -187,7 +185,6 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
             handleLeftOverlayTap()
         }
 
-        performListener?.onDoubleTap()
         performListener?.seek(forward = shouldForward)
     }
 
@@ -270,11 +267,10 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
     }
 
     override fun onDoubleTapFinished() {
-        if (DEBUG) Log.d(TAG, "onDoubleTapFinished called")
+        L.d("onDoubleTapFinished called")
 
         // Handle left overlay fade out
         if (leftInitTap) {
-            performListener?.onDoubleTapEnd()
             leftInitTap = false
             leftSecondsView.stopAnimation()
 
@@ -303,7 +299,6 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
 
         // Handle right overlay fade out
         if (rightInitTap) {
-            performListener?.onDoubleTapEnd()
             rightInitTap = false
             rightSecondsView.stopAnimation()
 
@@ -332,9 +327,6 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
     }
 
     interface PerformListener {
-        fun onDoubleTap()
-
-        fun onDoubleTapEnd()
 
         /** Determines if the playback should forward/rewind or do nothing. */
         fun getFastSeekDirection(portion: DisplayPortion): FastSeekDirection
@@ -348,11 +340,9 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
         }
     }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        return gestureDetector.onTouchEvent(event) || super.onTouchEvent(event)
-    }
+    override fun onTouchEvent(event: MotionEvent): Boolean =
+        gestureDetector.onTouchEvent(event) || super.onTouchEvent(event)
 
-    // GestureDetector.OnDoubleTapListener implementation
     override fun onSingleTapConfirmed(e: MotionEvent) = false
 
     override fun onDoubleTap(e: MotionEvent): Boolean {
@@ -376,9 +366,4 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
     }
 
     override fun onDoubleTapEvent(e: MotionEvent) = false
-
-    companion object {
-        private const val TAG = "PlayerFastSeekOverlay"
-        private val DEBUG = BuildConfig.DEBUG
-    }
 }

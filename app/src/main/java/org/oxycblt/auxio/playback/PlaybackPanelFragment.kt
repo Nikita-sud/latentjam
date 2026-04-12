@@ -279,15 +279,6 @@ class PlaybackPanelFragment :
         playbackModel.song.value?.let { detailModel.showAlbum(it.album) }
     }
 
-    // PlayerFastSeekOverlay.PerformListener implementation
-    override fun onDoubleTap() {
-        // Already handled by onStepForward/onStepBack
-    }
-
-    override fun onDoubleTapEnd() {
-        // Animation cleanup is handled by the overlay
-    }
-
     override fun getFastSeekDirection(
         portion: DisplayPortion
     ): PlayerFastSeekOverlay.PerformListener.FastSeekDirection {
