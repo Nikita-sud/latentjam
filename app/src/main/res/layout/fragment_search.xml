@@ -24,28 +24,17 @@
                 app:menu="@menu/toolbar_search"
                 app:navigationIcon="@drawable/ic_back_24">
 
-                <com.google.android.material.textfield.TextInputLayout
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/search_edit_text"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:endIconContentDescription="@string/desc_clear_search"
-                    app:endIconDrawable="@drawable/ic_close_24"
-                    app:endIconMode="clear_text"
-                    app:endIconTint="?attr/colorControlNormal"
-                    app:errorEnabled="false"
-                    app:hintEnabled="false">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/search_edit_text"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:background="@android:color/transparent"
-                        android:hint="@string/lng_search_library"
-                        android:imeOptions="actionSearch|flagNoExtractUi"
-                        android:inputType="textFilter"
-                        android:paddingStart="@dimen/spacing_tiny"
-                        android:paddingEnd="0dp" />
-
-                </com.google.android.material.textfield.TextInputLayout>
+                    android:layout_height="match_parent"
+                    android:background="@android:color/transparent"
+                    android:hint="@string/lng_search_library"
+                    android:imeOptions="actionSearch|flagNoExtractUi"
+                    android:inputType="textFilter"
+                    android:textAppearance="?attr/textAppearanceBodyLarge"
+                    android:paddingStart="@dimen/spacing_tiny"
+                    android:paddingEnd="0dp" />
 
             </org.oxycblt.auxio.ui.AuxioToolbar>
 
