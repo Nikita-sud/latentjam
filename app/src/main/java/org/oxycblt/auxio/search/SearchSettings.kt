@@ -40,17 +40,15 @@ class SearchSettingsImpl @Inject constructor(@ApplicationContext context: Contex
     Settings.Impl<Nothing>(context), SearchSettings {
     override var filters: Set<MusicType>
         get() =
-                sharedPreferences.getStringSet(
-                    getString(R.string.set_key_search_filters),
-                    null
-                )?.mapNotNull {
-                    it.toIntOrNull()?.let(MusicType::fromIntCode)
-                }?.toSet() ?: setOf()
+            sharedPreferences
+                .getStringSet(getString(R.string.set_key_search_filters), null)
+                ?.mapNotNull { it.toIntOrNull()?.let(MusicType::fromIntCode) }
+                ?.toSet() ?: setOf()
         set(value) {
             sharedPreferences.edit {
                 putStringSet(
                     getString(R.string.set_key_search_filters),
-                    value.map { it.intCode.toString() }.toSet()
+                    value.map { it.intCode.toString() }.toSet(),
                 )
             }
         }

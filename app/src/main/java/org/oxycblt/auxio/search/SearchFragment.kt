@@ -20,7 +20,6 @@ package org.oxycblt.auxio.search
 
 import android.os.Bundle
 import android.view.LayoutInflater
-import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.result.ActivityResultLauncher
@@ -120,10 +119,7 @@ class SearchFragment : ListFragment<Music, FragmentSearchBinding>() {
         // --- UI SETUP ---
 
         binding.searchAppbar.addOnOffsetChangedListener(
-            FadingToolbarOffsetListener(
-                binding.searchToolbar,
-                binding.searchContent
-            )
+            FadingToolbarOffsetListener(binding.searchToolbar, binding.searchContent)
         )
 
         binding.searchNormalToolbar.apply {
@@ -159,16 +155,17 @@ class SearchFragment : ListFragment<Music, FragmentSearchBinding>() {
         binding.searchFilterPlaylists.isChecked = MusicType.PLAYLISTS in filters
         binding.searchFilters.apply {
             setOnCheckedStateChangeListener { group, ids ->
-                val types = ids.mapNotNullTo(mutableSetOf()) {
-                    when (it) {
-                        R.id.search_filter_songs -> MusicType.SONGS
-                        R.id.search_filter_albums -> MusicType.ALBUMS
-                        R.id.search_filter_artists -> MusicType.ARTISTS
-                        R.id.search_filter_genres -> MusicType.GENRES
-                        R.id.search_filter_playlists -> MusicType.PLAYLISTS
-                        else -> null
+                val types =
+                    ids.mapNotNullTo(mutableSetOf()) {
+                        when (it) {
+                            R.id.search_filter_songs -> MusicType.SONGS
+                            R.id.search_filter_albums -> MusicType.ALBUMS
+                            R.id.search_filter_artists -> MusicType.ARTISTS
+                            R.id.search_filter_genres -> MusicType.GENRES
+                            R.id.search_filter_playlists -> MusicType.PLAYLISTS
+                            else -> null
+                        }
                     }
-                }
                 searchModel.filters = types
             }
         }

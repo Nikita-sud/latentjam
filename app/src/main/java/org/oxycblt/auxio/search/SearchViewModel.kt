@@ -18,10 +18,10 @@
  
 package org.oxycblt.auxio.search
 
-import androidx.annotation.IdRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,13 +33,11 @@ import org.oxycblt.auxio.list.Item
 import org.oxycblt.auxio.list.PlainDivider
 import org.oxycblt.auxio.list.sort.Sort
 import org.oxycblt.auxio.music.MusicRepository
-import org.oxycblt.auxio.music.MusicSettings
 import org.oxycblt.auxio.music.MusicType
 import org.oxycblt.auxio.playback.PlaySong
 import org.oxycblt.auxio.playback.PlaybackSettings
 import org.oxycblt.musikr.Library
 import org.oxycblt.musikr.Song
-import javax.inject.Inject
 import timber.log.Timber as L
 
 /**
@@ -113,23 +111,24 @@ constructor(
     private suspend fun searchImpl(library: Library, query: String): List<Item> {
         val filters = searchSettings.filters
 
-        val items = if (!filters.isEmpty()) {
-            SearchEngine.Items(
-                songs = if (MusicType.SONGS in filters) library.songs else null,
-                albums = if (MusicType.ALBUMS in filters) library.albums else null,
-                artists = if (MusicType.ARTISTS in filters) library.artists else null,
-                genres = if (MusicType.GENRES in filters) library.genres else null,
-                playlists = if (MusicType.PLAYLISTS in filters) library.playlists else null,
-            )
-        } else {
-            SearchEngine.Items(
-                songs = library.songs,
-                albums = library.albums,
-                artists = library.artists,
-                genres = library.genres,
-                playlists = library.playlists
-            )
-        }
+        val items =
+            if (!filters.isEmpty()) {
+                SearchEngine.Items(
+                    songs = if (MusicType.SONGS in filters) library.songs else null,
+                    albums = if (MusicType.ALBUMS in filters) library.albums else null,
+                    artists = if (MusicType.ARTISTS in filters) library.artists else null,
+                    genres = if (MusicType.GENRES in filters) library.genres else null,
+                    playlists = if (MusicType.PLAYLISTS in filters) library.playlists else null,
+                )
+            } else {
+                SearchEngine.Items(
+                    songs = library.songs,
+                    albums = library.albums,
+                    artists = library.artists,
+                    genres = library.genres,
+                    playlists = library.playlists,
+                )
+            }
 
         val results = searchEngine.search(items, query)
 

@@ -47,10 +47,14 @@ import coil3.request.ImageRequest
 import coil3.request.target
 import coil3.request.transformations
 import coil3.util.CoilUtils
+import com.google.android.material.R as MR
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.RelativeCornerSize
 import com.google.android.material.shape.ShapeAppearanceModel
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import kotlin.math.min
+import kotlin.random.Random
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.image.coil.GalleryCoverCollection
 import org.oxycblt.auxio.image.coil.RoundedRectTransformation
@@ -70,10 +74,6 @@ import org.oxycblt.musikr.Genre
 import org.oxycblt.musikr.Playlist
 import org.oxycblt.musikr.Song
 import org.oxycblt.musikr.covers.CoverCollection
-import javax.inject.Inject
-import kotlin.math.min
-import kotlin.random.Random
-import com.google.android.material.R as MR
 
 /**
  * Auxio's extension of [ImageView] that enables cover art loading and playing indicator and
@@ -121,18 +121,14 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         @SuppressLint("CustomViewStyleable")
         val styledAttrs = context.obtainStyledAttributes(attrs, R.styleable.CoverView)
 
-        val shapeAppearanceRes = styledAttrs.getResourceId(
-            R.styleable.CoverView_shapeAppearance,
-            MR.style.ShapeAppearance_Material3_Corner_Medium
-        )
+        val shapeAppearanceRes =
+            styledAttrs.getResourceId(
+                R.styleable.CoverView_shapeAppearance,
+                MR.style.ShapeAppearance_Material3_Corner_Medium,
+            )
         squareishShapeAppearance =
             if (uiSettings.roundMode) {
-                    ShapeAppearanceModel.builder(
-                            context,
-                        shapeAppearanceRes,
-                            -1,
-                        )
-                        .build()
+                ShapeAppearanceModel.builder(context, shapeAppearanceRes, -1).build()
             } else {
                 ShapeAppearanceModel.builder().build()
             }
@@ -311,7 +307,6 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         }
     }
 
-
     private fun invalidateRootAlpha() {
         alpha = if (isEnabled || isSelected) 1f else 0.5f
     }
@@ -355,7 +350,7 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
             { song.cover },
             context.getString(R.string.desc_album_cover, song.album.name),
             R.drawable.ic_album_24,
-            squareishShapeAppearance
+            squareishShapeAppearance,
         )
 
     /**
@@ -378,7 +373,7 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
             },
             context.getString(R.string.desc_album_cover, album.name),
             R.drawable.ic_album_24,
-            squareishShapeAppearance
+            squareishShapeAppearance,
         )
     }
 
@@ -405,7 +400,7 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
             },
             context.getString(R.string.desc_artist_image, artist.name),
             R.drawable.ic_artist_24,
-            circularShapeAppearance
+            circularShapeAppearance,
         )
     }
 
@@ -428,7 +423,7 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
             },
             context.getString(R.string.desc_genre_image, genre.name),
             R.drawable.ic_genre_24,
-            squareishShapeAppearance
+            squareishShapeAppearance,
         )
 
     /**
@@ -450,7 +445,7 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
             },
             context.getString(R.string.desc_playlist_image, playlist.name),
             R.drawable.ic_playlist_24,
-            squareishShapeAppearance
+            squareishShapeAppearance,
         )
 
     /**
@@ -478,14 +473,14 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
             },
             desc,
             errorRes,
-            squareishShapeAppearance
+            squareishShapeAppearance,
         )
 
     private fun bindImpl(
         img: (RectF) -> Any?,
         desc: String,
         @DrawableRes errorRes: Int,
-        shapeAppearanceModel: ShapeAppearanceModel
+        shapeAppearanceModel: ShapeAppearanceModel,
     ) {
         // prep proper shape to use if necessary. be safe and do it now
         // idk if doing it at layout time will cause issues
@@ -497,7 +492,7 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         img: (RectF) -> Any?,
         desc: String,
         @DrawableRes errorRes: Int,
-        shapeAppearanceModel: ShapeAppearanceModel
+        shapeAppearanceModel: ShapeAppearanceModel,
     ) {
         // for some reason randomly corner radii started breaking on menus
         // fix this by waiting until we are laid out instead
@@ -505,9 +500,7 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         if (cornerBounds != null) {
             bindWithCorners(img, desc, errorRes, cornerBounds, shapeAppearanceModel)
         } else {
-            doOnLayout {
-                bindImpl(img, desc, errorRes, shapeAppearanceModel)
-            }
+            doOnLayout { bindImpl(img, desc, errorRes, shapeAppearanceModel) }
         }
     }
 
@@ -516,14 +509,13 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         desc: String,
         @DrawableRes errorRes: Int,
         cornerBounds: RectF,
-        shapeAppearanceModel: ShapeAppearanceModel
+        shapeAppearanceModel: ShapeAppearanceModel,
     ) {
         val request =
             ImageRequest.Builder(context)
                 .data(img(cornerBounds))
                 .error(
-                    StyledDrawable(context, context.getDrawableCompat(errorRes), iconSize)
-                        .asImage()
+                    StyledDrawable(context, context.getDrawableCompat(errorRes), iconSize).asImage()
                 )
                 .target(image)
 
@@ -574,8 +566,7 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         return random.nextFloat() * 20f - 10f // -10 to +10 degrees
     }
 
-    private fun backgroundColor(): Int =
-        context.getColorCompat(R.color.sel_cover_bg).defaultColor
+    private fun backgroundColor(): Int = context.getColorCompat(R.color.sel_cover_bg).defaultColor
 
     private fun resolveCurrentBoundsForCorners(): RectF? {
         val widthPx = firstNonZeroOrNull(width, measuredWidth, layoutParams?.width)

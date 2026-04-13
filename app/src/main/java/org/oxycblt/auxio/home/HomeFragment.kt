@@ -27,7 +27,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.MenuCompat
 import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
-import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.activityViewModels
@@ -41,7 +40,6 @@ import com.google.android.material.tabs.TabLayoutMediator
 import com.google.android.material.transition.MaterialSharedAxis
 import dagger.hilt.android.AndroidEntryPoint
 import java.lang.reflect.Field
-import kotlin.math.abs
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.databinding.FragmentHomeBinding
 import org.oxycblt.auxio.detail.DetailViewModel
@@ -82,8 +80,7 @@ import timber.log.Timber as L
  * @author Alexander Capehart (OxygenCobalt)
  */
 @AndroidEntryPoint
-class HomeFragment :
-    SelectionFragment<FragmentHomeBinding>() {
+class HomeFragment : SelectionFragment<FragmentHomeBinding>() {
     override val listModel: ListViewModel by activityViewModels()
     override val musicModel: MusicViewModel by activityViewModels()
     override val playbackModel: PlaybackViewModel by activityViewModels()
@@ -130,10 +127,7 @@ class HomeFragment :
         // --- UI SETUP ---
 
         binding.homeAppbar.addOnOffsetChangedListener(
-            FadingToolbarOffsetListener(
-                binding.homeToolbar,
-                binding.homeContent
-            )
+            FadingToolbarOffsetListener(binding.homeToolbar, binding.homeContent)
         )
         binding.homeNormalToolbar.apply {
             setOnMenuItemClickListener(this@HomeFragment)
