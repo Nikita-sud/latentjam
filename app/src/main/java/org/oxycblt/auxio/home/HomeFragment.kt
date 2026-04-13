@@ -63,6 +63,7 @@ import org.oxycblt.auxio.music.PlaylistDecision
 import org.oxycblt.auxio.music.PlaylistMessage
 import org.oxycblt.auxio.playback.PlaybackDecision
 import org.oxycblt.auxio.playback.PlaybackViewModel
+import org.oxycblt.auxio.ui.FadingToolbarOffsetListener
 import org.oxycblt.auxio.util.collect
 import org.oxycblt.auxio.util.collectImmediately
 import org.oxycblt.auxio.util.lazyReflectedField
@@ -82,7 +83,7 @@ import timber.log.Timber as L
  */
 @AndroidEntryPoint
 class HomeFragment :
-    SelectionFragment<FragmentHomeBinding>(), AppBarLayout.OnOffsetChangedListener {
+    SelectionFragment<FragmentHomeBinding>() {
     override val listModel: ListViewModel by activityViewModels()
     override val musicModel: MusicViewModel by activityViewModels()
     override val playbackModel: PlaybackViewModel by activityViewModels()
@@ -128,7 +129,12 @@ class HomeFragment :
 
         // --- UI SETUP ---
 
-        binding.homeAppbar.addOnOffsetChangedListener(this)
+        binding.homeAppbar.addOnOffsetChangedListener(
+            FadingToolbarOffsetListener(
+                binding.homeToolbar,
+                binding.homeContent
+            )
+        )
         binding.homeNormalToolbar.apply {
             setOnMenuItemClickListener(this@HomeFragment)
             MenuCompat.setGroupDividerEnabled(menu, true)
@@ -187,20 +193,7 @@ class HomeFragment :
     override fun onDestroyBinding(binding: FragmentHomeBinding) {
         super.onDestroyBinding(binding)
         storagePermissionLauncher = null
-        binding.homeAppbar.removeOnOffsetChangedListener(this)
         binding.homeNormalToolbar.setOnMenuItemClickListener(null)
-    }
-
-    override fun onOffsetChanged(appBarLayout: AppBarLayout, verticalOffset: Int) {
-        val binding = requireBinding()
-        val range = appBarLayout.totalScrollRange
-        // Fade out the toolbar as the AppBarLayout collapses. To prevent status bar overlap,
-        // the alpha transition is shifted such that the Toolbar becomes fully transparent
-        // when the AppBarLayout is only at half-collapsed.
-        binding.homeToolbar.alpha = 1f - (abs(verticalOffset.toFloat()) / (range.toFloat() / 2))
-        binding.homeContent.updatePadding(
-            bottom = binding.homeAppbar.totalScrollRange + verticalOffset
-        )
     }
 
     override fun onMenuItemClick(item: MenuItem): Boolean {

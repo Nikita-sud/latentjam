@@ -48,6 +48,7 @@
     <string name="set_key_bar_action" translatable="false">auxio_bar_action</string>
 
     <string name="set_key_search_filter_to" translatable="false">KEY_SEARCH_FILTER</string>
+    <string name="set_key_search_filters" translatable="false">auxio_search_filters_TEMP_DEV_TAG_TODO_REMOVE</string>
 
     <string name="set_key_task_exit" translatable="false">auxio_task_exit</string>
 

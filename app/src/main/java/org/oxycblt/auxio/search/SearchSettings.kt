@@ -32,27 +32,26 @@ import org.oxycblt.auxio.settings.Settings
  * @author Alexander Capehart (OxygenCobalt)
  */
 interface SearchSettings : Settings<Nothing> {
-    /** The type of Music the search view is should filter to. */
-    var filterTo: MusicType?
+    /** The type of Music the search view should filter to. */
+    var filters: Set<MusicType>
 }
 
 class SearchSettingsImpl @Inject constructor(@ApplicationContext context: Context) :
     Settings.Impl<Nothing>(context), SearchSettings {
-    override var filterTo: MusicType?
+    override var filters: Set<MusicType>
         get() =
-            MusicType.fromIntCode(
-                sharedPreferences.getInt(
-                    getString(R.string.set_key_search_filter_to),
-                    Int.MIN_VALUE,
-                )
-            )
+                sharedPreferences.getStringSet(
+                    getString(R.string.set_key_search_filters),
+                    null
+                )?.mapNotNull {
+                    it.toIntOrNull()?.let(MusicType::fromIntCode)
+                }?.toSet() ?: setOf()
         set(value) {
             sharedPreferences.edit {
-                putInt(
-                    getString(R.string.set_key_search_filter_to),
-                    value?.intCode ?: Int.MIN_VALUE,
+                putStringSet(
+                    getString(R.string.set_key_search_filters),
+                    value.map { it.intCode.toString() }.toSet()
                 )
-                apply()
             }
         }
 }

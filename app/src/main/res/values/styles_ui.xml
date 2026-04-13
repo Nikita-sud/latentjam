@@ -120,10 +120,24 @@
         <item name="iconSize">@dimen/size_icon_small</item>
     </style>
 
+    <style name="Widget.Auxio.Image.Small.Circular" parent="">
+        <item name="android:layout_width">@dimen/size_touchable_small</item>
+        <item name="android:layout_height">@dimen/size_touchable_small</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.Full</item>
+        <item name="iconSize">@dimen/size_icon_small</item>
+    </style>
+
     <style name="Widget.Auxio.Image.Medium" parent="">
         <item name="android:layout_width">@dimen/size_touchable_medium</item>
         <item name="android:layout_height">@dimen/size_touchable_medium</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.Medium</item>
+        <item name="iconSize">@dimen/size_icon_medium</item>
+    </style>
+
+    <style name="Widget.Auxio.Image.Medium.Circular" parent="">
+        <item name="android:layout_width">@dimen/size_touchable_medium</item>
+        <item name="android:layout_height">@dimen/size_touchable_medium</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.Full</item>
         <item name="iconSize">@dimen/size_icon_medium</item>
     </style>
 
