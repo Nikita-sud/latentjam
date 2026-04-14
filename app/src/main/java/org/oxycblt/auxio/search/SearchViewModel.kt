@@ -182,14 +182,13 @@ constructor(
         }
     }
 
-    /**
-     * The current filters used for search.
-     */
+    /** The current filters used for search. */
     val filters: Set<MusicType>
         get() = searchSettings.filters
 
     /**
      * Update the filters used by search. Will trigger a research.
+     *
      * @param filters The new filters to use.
      */
     fun updateFilters(filters: Set<MusicType>) {

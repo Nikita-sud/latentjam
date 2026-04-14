@@ -21,10 +21,10 @@ package org.oxycblt.auxio.search
 import android.content.Context
 import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.music.MusicType
 import org.oxycblt.auxio.settings.Settings
-import javax.inject.Inject
 
 /**
  * User configuration specific to the search UI.
@@ -48,32 +48,29 @@ class SearchSettingsImpl @Inject constructor(@ApplicationContext context: Contex
             if (intCode and BIT_PLAYLISTS == BIT_PLAYLISTS) add(MusicType.PLAYLISTS)
         }
         set(value) {
-            var intCode = 0;
+            var intCode = 0
             if (MusicType.SONGS in value) intCode = intCode or BIT_SONGS
             if (MusicType.ALBUMS in value) intCode = intCode or BIT_ALBUMS
             if (MusicType.ARTISTS in value) intCode = intCode or BIT_ARTISTS
             if (MusicType.GENRES in value) intCode = intCode or BIT_GENRES
             if (MusicType.PLAYLISTS in value) intCode = intCode or BIT_PLAYLISTS
-            sharedPreferences.edit {
-                putInt(getString(R.string.set_key_search_filters), intCode)
-            }
+            sharedPreferences.edit { putInt(getString(R.string.set_key_search_filters), intCode) }
         }
 
     override fun migrate() {
         val filter = MusicType.fromIntCode(sharedPreferences.getInt(OLD_KEY_SEARCH_FILTER, 0))
-        val intCode = when (filter) {
-            MusicType.SONGS -> BIT_SONGS
-            MusicType.ALBUMS -> BIT_ALBUMS
-            MusicType.ARTISTS -> BIT_ARTISTS
-            MusicType.GENRES -> BIT_GENRES
-            MusicType.PLAYLISTS -> BIT_PLAYLISTS
-            else -> 0
-        }
-        sharedPreferences.edit {
-            putInt(getString(R.string.set_key_search_filters), intCode)
-        }
-
+        val intCode =
+            when (filter) {
+                MusicType.SONGS -> BIT_SONGS
+                MusicType.ALBUMS -> BIT_ALBUMS
+                MusicType.ARTISTS -> BIT_ARTISTS
+                MusicType.GENRES -> BIT_GENRES
+                MusicType.PLAYLISTS -> BIT_PLAYLISTS
+                else -> 0
+            }
+        sharedPreferences.edit { putInt(getString(R.string.set_key_search_filters), intCode) }
     }
+
     private companion object {
         const val OLD_KEY_SEARCH_FILTER = "KEY_SEARCH_FILTER"
         const val BIT_SONGS = 0b00001
