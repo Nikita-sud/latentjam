@@ -29,7 +29,6 @@ import androidx.annotation.Px
 import androidx.dynamicanimation.animation.FloatValueHolder
 import androidx.dynamicanimation.animation.SpringAnimation
 import com.google.android.material.R as MR
-import com.google.android.material.progressindicator.PatchedLinearProgressIndicator
 import com.google.android.material.wave.PathPoint
 import com.google.android.material.wave.RoundedBlockRenderer
 import com.google.android.material.wave.WaveMotionUtils
@@ -42,7 +41,6 @@ import kotlin.math.min
 /**
  * Slider with active-track wave rendering that ports MDC LinearProgressIndicator's wavy draw
  * behavior and keeps phase/amplitude transition behavior aligned with
- * [PatchedLinearProgressIndicator].
  */
 class WavySlider
 @JvmOverloads
