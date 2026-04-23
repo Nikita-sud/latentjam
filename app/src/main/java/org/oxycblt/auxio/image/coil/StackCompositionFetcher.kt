@@ -77,7 +77,7 @@ private constructor(context: Context, val data: StackCoverComposition, size: Siz
                 sizef * ComposeCoverDefaults.GAP_RATIO,
                 cornerRadius * ComposeCoverDefaults.MIN_GAP_CORNER_RATIO,
             )
-        val zOrder = seededZOrder(data.seed, random)
+        val zOrder = seededZOrder(bitmaps.size, random)
         val result = createBitmap(size, size)
         val canvas = Canvas(result)
         canvas.drawColor(data.backgroundColor)
@@ -89,7 +89,7 @@ private constructor(context: Context, val data: StackCoverComposition, size: Siz
         // this is a hard-coded constant derived when i was deslopping gpt output knowing
         // that we will always have 4 covers. specifically its the simplification of
         // (lastIndex - 1) = (3 - 1) = 2.
-        // without this the covers just zoom around. very wired.
+        // without this i can only fit at most 2ish covers in
         // this is why i dont want raw unreviewed ai slop in the codebase btw. lesson learned
         val maxStep = visibleSize / 2
         // re-adjust our corner radius by the actual width of the gap

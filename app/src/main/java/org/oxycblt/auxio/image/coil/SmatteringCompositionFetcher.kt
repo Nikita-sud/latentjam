@@ -65,7 +65,7 @@ private constructor(context: Context, private val data: SmatteringCoverCompositi
         val innerRadius = (cornerRadius - gapWidth).coerceAtLeast(0f)
         val fanAngle = seededFanAngle(random)
         val tiltAngle = seededTiltAngle(random)
-        val zOrder = seededZOrder(data.seed, random)
+        val zOrder = seededZOrder(bitmaps.size, random)
         val result = createBitmap(size, size)
         val canvas = Canvas(result)
         canvas.drawColor(data.backgroundColor)
@@ -114,17 +114,15 @@ private constructor(context: Context, private val data: SmatteringCoverCompositi
             canvas.withRotation(rotation, centerX, centerY) {
                 drawPath(gapPath, gapPaint)
 
-                if (innerRect.width() > 0 && innerRect.height() > 0) {
-                    val savedLayer = saveLayer(innerRect, null)
-                    val maskPath = rounded(innerRect, innerRadius)
-                    drawPath(maskPath, imagePaint)
+                val savedLayer = saveLayer(innerRect, null)
+                val maskPath = rounded(innerRect, innerRadius)
+                drawPath(maskPath, imagePaint)
 
-                    imagePaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
-                    drawBitmapCover(this, bitmap, innerRect, imagePaint)
-                    imagePaint.xfermode = null
+                imagePaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+                drawBitmapCover(this, bitmap, innerRect, imagePaint)
+                imagePaint.xfermode = null
 
-                    restoreToCount(savedLayer)
-                }
+                restoreToCount(savedLayer)
             }
         }
 

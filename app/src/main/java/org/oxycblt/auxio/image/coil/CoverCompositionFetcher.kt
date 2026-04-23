@@ -24,8 +24,8 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Bitmap
 import androidx.core.graphics.drawable.toDrawable
-import coil3.Bitmap
 import coil3.asImage
 import coil3.decode.DataSource
 import coil3.fetch.FetchResult

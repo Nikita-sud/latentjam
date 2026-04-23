@@ -387,13 +387,12 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
         // For artists we both engage in circle cropping but also arrange them
         // in a "smattering" of random rotation/tilt to give the feeling of a messy
         // stack of vinyl.
-        val uidSeed = artist.uid.toString().hashCode()
         bindImpl(
             { size ->
                 SmatteringCoverComposition(
                     artist.covers,
                     responsiveCornerRatio(size),
-                    uidSeed,
+                    artist.uid.toString().hashCode(),
                     backgroundColor(),
                 )
             },
@@ -415,8 +414,8 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
             { size ->
                 GalleryCoverCollection(
                     genre.covers,
+                    genre.uid.toString().hashCode(),
                     responsiveCornerRatio(size),
-                    seededZOrder(genre.uid.toString().hashCode()),
                     backgroundColor(),
                 )
             },
@@ -551,22 +550,6 @@ constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr
             return 0f
         }
         return cornerRadius / minSize
-    }
-
-    private fun seededZOrder(uidSeed: Int): List<Int> {
-        val order = mutableListOf(0, 1, 2, 3)
-        order.shuffle(Random(uidSeed.toLong()))
-        return order
-    }
-
-    private fun seededFanAngle(uidSeed: Int): Float {
-        val random = Random(uidSeed.toLong())
-        return random.nextFloat() * 10f + 5f // 5-15 degrees
-    }
-
-    private fun seededTiltAngle(uidSeed: Int): Float {
-        val random = Random(uidSeed.toLong())
-        return random.nextFloat() * 20f - 10f // -10 to +10 degrees
     }
 
     private fun backgroundColor(): Int = context.getColorCompat(R.color.sel_cover_bg).defaultColor
