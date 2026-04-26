@@ -22,7 +22,6 @@ import android.content.Context
 import android.util.AttributeSet
 import com.google.android.material.slider.Slider
 import kotlin.math.max
-import org.oxycblt.auxio.R
 import org.oxycblt.auxio.databinding.ViewSeekBarBinding
 import org.oxycblt.auxio.playback.formatDurationDs
 import org.oxycblt.auxio.util.inflater
@@ -49,10 +48,7 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 
     /** Enables/disables wavy active-track rendering to match playback state. */
     fun setWaveEnabled(enabled: Boolean) {
-        val wavelength = context.resources.getDimensionPixelSize(R.dimen.progress_wavelength)
-        val amplitude = context.resources.getDimensionPixelSize(R.dimen.progress_amplitude)
-        val speed = context.resources.getDimensionPixelSize(R.dimen.progress_wave_speed)
-        binding.seekBarSlider.setWaveEnabled(enabled, wavelength, amplitude, speed)
+        binding.seekBarSlider.setWaveEnabled(enabled)
     }
 
     /** The current [Listener] attached to this instance. */
