@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2022 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * StyledSeekBar.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,16 +16,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback.ui
 
 import android.content.Context
 import android.util.AttributeSet
 import com.google.android.material.slider.Slider
-import kotlin.math.max
 import io.github.nikitasud.latentjam.databinding.ViewSeekBarBinding
 import io.github.nikitasud.latentjam.playback.formatDurationDs
 import io.github.nikitasud.latentjam.util.inflater
+import kotlin.math.max
 import timber.log.Timber as L
 
 /**

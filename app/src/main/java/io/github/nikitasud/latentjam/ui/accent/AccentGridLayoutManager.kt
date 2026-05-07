@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * AccentGridLayoutManager.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,16 +16,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.ui.accent
 
 import android.content.Context
 import android.util.AttributeSet
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import kotlin.math.max
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.util.getDimenPixels
+import kotlin.math.max
 
 /**
  * A [GridLayoutManager] that automatically sets the span size in order to use the most possible

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2024 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * SettingCovers.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,15 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.image.covers
 
 import android.content.Context
 import android.graphics.Bitmap
-import java.util.UUID
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.image.CoverMode
 import io.github.nikitasud.latentjam.image.ImageSettings
+import java.util.UUID
+import javax.inject.Inject
 import org.oxycblt.musikr.covers.Cover
 import org.oxycblt.musikr.covers.Covers
 import org.oxycblt.musikr.covers.FDCover

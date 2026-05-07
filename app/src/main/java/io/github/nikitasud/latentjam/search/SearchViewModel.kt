@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * SearchViewModel.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,18 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.search
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.yield
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.list.BasicHeader
 import io.github.nikitasud.latentjam.list.Item
@@ -36,6 +30,12 @@ import io.github.nikitasud.latentjam.music.MusicRepository
 import io.github.nikitasud.latentjam.music.MusicType
 import io.github.nikitasud.latentjam.playback.PlaySong
 import io.github.nikitasud.latentjam.playback.PlaybackSettings
+import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import org.oxycblt.musikr.Library
 import org.oxycblt.musikr.Song
 import timber.log.Timber as L

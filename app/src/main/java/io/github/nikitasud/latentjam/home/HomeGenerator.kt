@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2024 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * HomeGenerator.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,15 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.home
 
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.home.tabs.Tab
 import io.github.nikitasud.latentjam.list.ListSettings
 import io.github.nikitasud.latentjam.list.adapter.UpdateInstructions
 import io.github.nikitasud.latentjam.music.MusicRepository
 import io.github.nikitasud.latentjam.music.MusicType
+import javax.inject.Inject
 import org.oxycblt.musikr.Album
 import org.oxycblt.musikr.Artist
 import org.oxycblt.musikr.Genre

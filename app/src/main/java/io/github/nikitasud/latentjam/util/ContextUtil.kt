@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * ContextUtil.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.util
 
 import android.app.PendingIntent
@@ -36,10 +36,10 @@ import androidx.annotation.PluralsRes
 import androidx.annotation.Px
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
-import kotlin.reflect.KClass
 import io.github.nikitasud.latentjam.IntegerTable
 import io.github.nikitasud.latentjam.MainActivity
 import io.github.nikitasud.latentjam.R
+import kotlin.reflect.KClass
 
 /**
  * Get a [LayoutInflater] instance from this [Context].

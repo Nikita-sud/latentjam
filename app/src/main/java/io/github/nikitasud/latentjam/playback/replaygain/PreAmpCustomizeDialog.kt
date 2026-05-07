@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2022 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * PreAmpCustomizeDialog.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback.replaygain
 
 import android.os.Bundle
@@ -23,11 +23,11 @@ import android.view.LayoutInflater
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.databinding.DialogPreAmpBinding
 import io.github.nikitasud.latentjam.playback.PlaybackSettings
 import io.github.nikitasud.latentjam.ui.ViewBindingMaterialDialogFragment
+import javax.inject.Inject
 import timber.log.Timber as L
 
 /**

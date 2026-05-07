@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2025 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * CoverProvider.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.image
 
 import android.content.ContentProvider
@@ -25,9 +25,9 @@ import android.content.UriMatcher
 import android.database.Cursor
 import android.net.Uri
 import android.os.ParcelFileDescriptor
-import kotlinx.coroutines.runBlocking
 import io.github.nikitasud.latentjam.BuildConfig
 import io.github.nikitasud.latentjam.image.covers.SettingCovers
+import kotlinx.coroutines.runBlocking
 import org.oxycblt.musikr.covers.CoverResult
 
 class CoverProvider : ContentProvider() {

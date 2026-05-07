@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * IntListPreference.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.settings.ui
 
 import android.content.Context
@@ -27,10 +27,10 @@ import androidx.core.content.res.getTextArrayOrThrow
 import androidx.preference.DialogPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
-import java.lang.reflect.Field
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.util.getInteger
 import io.github.nikitasud.latentjam.util.lazyReflectedField
+import java.lang.reflect.Field
 
 /**
  * An implementation of a list-based preference backed with integers.

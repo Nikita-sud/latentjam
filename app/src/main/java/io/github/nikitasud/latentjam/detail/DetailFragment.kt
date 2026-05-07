@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2024 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * DetailFragment.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.detail
 
 import android.os.Bundle
@@ -27,9 +27,6 @@ import androidx.fragment.app.activityViewModels
 import androidx.navigation.findNavController
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.transition.MaterialSharedAxis
-import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 import io.github.nikitasud.latentjam.BuildConfig
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.databinding.FragmentDetailBinding
@@ -40,6 +37,9 @@ import io.github.nikitasud.latentjam.music.MusicViewModel
 import io.github.nikitasud.latentjam.playback.PlaybackViewModel
 import io.github.nikitasud.latentjam.util.getDimenPixels
 import io.github.nikitasud.latentjam.util.systemBarInsetsCompat
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 import org.oxycblt.musikr.Music
 import org.oxycblt.musikr.MusicParent
 

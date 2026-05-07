@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * FastScrollRecyclerView.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.list.recycler
 
 import android.annotation.SuppressLint
@@ -54,11 +54,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.R as MR
 import com.google.android.material.motion.MotionUtils
 import com.google.android.material.textview.MaterialTextView
-import kotlin.math.abs
-import kotlin.math.hypot
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.roundToInt
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.ui.Effect
 import io.github.nikitasud.latentjam.ui.ExpressiveShapes
@@ -71,6 +66,11 @@ import io.github.nikitasud.latentjam.util.isRtl
 import io.github.nikitasud.latentjam.util.isUnder
 import io.github.nikitasud.latentjam.util.scale
 import io.github.nikitasud.latentjam.util.systemBarInsetsCompat
+import kotlin.math.abs
+import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * A [RecyclerView] that enables better fast-scrolling. This is fundamentally a implementation of

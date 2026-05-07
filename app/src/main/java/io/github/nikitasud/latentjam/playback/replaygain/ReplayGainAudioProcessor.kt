@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2022 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * ReplayGainAudioProcessor.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback.replaygain
 
 import androidx.media3.common.C
@@ -23,12 +23,12 @@ import androidx.media3.common.Format
 import androidx.media3.common.Player
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
-import java.nio.ByteBuffer
-import javax.inject.Inject
-import kotlin.math.pow
 import io.github.nikitasud.latentjam.playback.PlaybackSettings
 import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager
 import io.github.nikitasud.latentjam.playback.state.QueueChange
+import java.nio.ByteBuffer
+import javax.inject.Inject
+import kotlin.math.pow
 import org.oxycblt.musikr.Album
 import org.oxycblt.musikr.MusicParent
 import org.oxycblt.musikr.Song

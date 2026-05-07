@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2024 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * ListUtil.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.home.list
 
 import android.content.Context
@@ -31,12 +31,12 @@ import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import androidx.core.text.isDigitsOnly
 import com.google.android.material.R
+import io.github.nikitasud.latentjam.ui.ExpressiveShapes
+import io.github.nikitasud.latentjam.util.getAttrColorCompat
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-import io.github.nikitasud.latentjam.ui.ExpressiveShapes
-import io.github.nikitasud.latentjam.util.getAttrColorCompat
 import org.oxycblt.musikr.tag.Name
 
 fun Name.thumb() =

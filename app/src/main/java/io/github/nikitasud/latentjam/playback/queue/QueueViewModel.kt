@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2022 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * QueueViewModel.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,19 +16,18 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback.queue
 
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import io.github.nikitasud.latentjam.list.adapter.UpdateInstructions
 import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager
 import io.github.nikitasud.latentjam.playback.state.QueueChange
 import io.github.nikitasud.latentjam.util.Event
 import io.github.nikitasud.latentjam.util.MutableEvent
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import org.oxycblt.musikr.MusicParent
 import org.oxycblt.musikr.Song
 import timber.log.Timber as L

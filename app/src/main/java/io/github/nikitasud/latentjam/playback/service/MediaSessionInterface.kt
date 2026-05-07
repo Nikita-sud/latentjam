@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2024 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * MediaSessionInterface.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback.service
 
 import android.content.Context
@@ -26,8 +26,6 @@ import android.support.v4.media.MediaDescriptionCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
-import org.apache.commons.text.similarity.JaroWinklerSimilarity
 import io.github.nikitasud.latentjam.BuildConfig
 import io.github.nikitasud.latentjam.music.MusicRepository
 import io.github.nikitasud.latentjam.music.resolve
@@ -37,6 +35,8 @@ import io.github.nikitasud.latentjam.playback.state.PlaybackCommand
 import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager
 import io.github.nikitasud.latentjam.playback.state.RepeatMode
 import io.github.nikitasud.latentjam.playback.state.ShuffleMode
+import javax.inject.Inject
+import org.apache.commons.text.similarity.JaroWinklerSimilarity
 import org.oxycblt.musikr.Album
 import org.oxycblt.musikr.Artist
 import org.oxycblt.musikr.Genre

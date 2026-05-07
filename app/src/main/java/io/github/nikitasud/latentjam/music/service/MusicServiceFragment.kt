@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2024 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * MusicServiceFragment.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.music.service
 
 import android.content.Context
@@ -23,14 +23,14 @@ import android.os.Bundle
 import android.support.v4.media.MediaBrowserCompat.MediaItem
 import androidx.media.MediaBrowserServiceCompat.BrowserRoot
 import androidx.media.MediaBrowserServiceCompat.Result
+import io.github.nikitasud.latentjam.ForegroundListener
+import io.github.nikitasud.latentjam.ForegroundServiceNotification
+import io.github.nikitasud.latentjam.music.MusicRepository
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import io.github.nikitasud.latentjam.ForegroundListener
-import io.github.nikitasud.latentjam.ForegroundServiceNotification
-import io.github.nikitasud.latentjam.music.MusicRepository
 import timber.log.Timber as L
 
 class MusicServiceFragment

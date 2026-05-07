@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * WidgetComponent.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.widgets
 
 import android.content.Context
@@ -24,7 +24,6 @@ import android.os.Build
 import coil3.request.ImageRequest
 import coil3.request.transformations
 import coil3.size.Size
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.image.BitmapProvider
 import io.github.nikitasud.latentjam.image.ImageSettings
@@ -36,6 +35,7 @@ import io.github.nikitasud.latentjam.playback.state.QueueChange
 import io.github.nikitasud.latentjam.playback.state.RepeatMode
 import io.github.nikitasud.latentjam.ui.UISettings
 import io.github.nikitasud.latentjam.util.getDimenPixels
+import javax.inject.Inject
 import org.oxycblt.musikr.MusicParent
 import org.oxycblt.musikr.Song
 import timber.log.Timber as L

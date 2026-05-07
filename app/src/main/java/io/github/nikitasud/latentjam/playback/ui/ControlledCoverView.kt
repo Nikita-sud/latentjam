@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2023 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * ControlledCoverView.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback.ui
 
 import android.annotation.SuppressLint
@@ -27,9 +27,9 @@ import android.view.GestureDetector.OnGestureListener
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import androidx.annotation.AttrRes
-import kotlin.math.abs
 import io.github.nikitasud.latentjam.image.CoverView
 import io.github.nikitasud.latentjam.util.isRtl
+import kotlin.math.abs
 
 class ControlledCoverView
 @JvmOverloads

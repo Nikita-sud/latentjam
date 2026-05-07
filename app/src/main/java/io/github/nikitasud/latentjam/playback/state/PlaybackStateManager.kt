@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2023 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * PlaybackStateManager.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,13 +16,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback.state
 
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.BuildConfig
 import io.github.nikitasud.latentjam.list.adapter.UpdateInstructions
 import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager.Listener
+import javax.inject.Inject
 import org.oxycblt.musikr.Music
 import org.oxycblt.musikr.MusicParent
 import org.oxycblt.musikr.Song

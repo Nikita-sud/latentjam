@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * AccentCustomizeDialog.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.ui.accent
 
 import android.os.Bundle
@@ -23,7 +23,6 @@ import android.view.LayoutInflater
 import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.RecyclerView
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.BuildConfig
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.databinding.DialogAccentBinding
@@ -31,6 +30,7 @@ import io.github.nikitasud.latentjam.list.ClickableListListener
 import io.github.nikitasud.latentjam.ui.UISettings
 import io.github.nikitasud.latentjam.ui.ViewBindingMaterialDialogFragment
 import io.github.nikitasud.latentjam.util.unlikelyToBeNull
+import javax.inject.Inject
 import timber.log.Timber as L
 
 /**

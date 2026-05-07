@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2023 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * PlaybackModule.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,16 +16,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback
 
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Singleton
 import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager
 import io.github.nikitasud.latentjam.playback.state.PlaybackStateManagerImpl
+import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)

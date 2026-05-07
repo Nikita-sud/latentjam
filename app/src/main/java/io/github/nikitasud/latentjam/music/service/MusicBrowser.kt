@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2024 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * MusicBrowser.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,12 +16,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.music.service
 
 import android.content.Context
 import android.support.v4.media.MediaBrowserCompat.MediaItem
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.BuildConfig
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.detail.DetailGenerator
@@ -31,6 +30,7 @@ import io.github.nikitasud.latentjam.music.MusicRepository
 import io.github.nikitasud.latentjam.music.MusicType
 import io.github.nikitasud.latentjam.music.resolve
 import io.github.nikitasud.latentjam.search.SearchEngine
+import javax.inject.Inject
 import org.oxycblt.musikr.Album
 import org.oxycblt.musikr.Artist
 import org.oxycblt.musikr.Genre

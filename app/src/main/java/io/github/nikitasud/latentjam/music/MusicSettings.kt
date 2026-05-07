@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2023 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * MusicSettings.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,20 +16,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.music
 
 import android.content.Context
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.UUID
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.IntegerTable
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.music.locations.LocationMode
 import io.github.nikitasud.latentjam.settings.Settings
 import io.github.nikitasud.latentjam.util.unlikelyToBeNull
+import java.util.UUID
+import javax.inject.Inject
 import org.oxycblt.musikr.fs.Location
 import org.oxycblt.musikr.fs.mediastore.MediaStore
 import org.oxycblt.musikr.fs.saf.SAF

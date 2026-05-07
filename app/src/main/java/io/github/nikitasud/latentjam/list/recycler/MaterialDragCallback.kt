@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * MaterialDragCallback.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.list.recycler
 
 import android.graphics.Canvas
@@ -27,15 +27,15 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.R as MR
 import com.google.android.material.shape.MaterialShapeDrawable
-import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.sign
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.ui.Effect
 import io.github.nikitasud.latentjam.ui.Spatial
 import io.github.nikitasud.latentjam.util.getDimen
 import io.github.nikitasud.latentjam.util.getDimenPixels
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sign
 import timber.log.Timber as L
 
 /**

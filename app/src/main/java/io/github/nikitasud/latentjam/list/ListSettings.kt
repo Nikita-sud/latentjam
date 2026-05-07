@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2023 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * ListSettings.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,16 +16,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.list
 
 import android.content.Context
 import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.list.sort.Sort
 import io.github.nikitasud.latentjam.settings.Settings
+import javax.inject.Inject
 
 interface ListSettings : Settings<ListSettings.Listener> {
     /** The [Sort] mode used in Song lists. */

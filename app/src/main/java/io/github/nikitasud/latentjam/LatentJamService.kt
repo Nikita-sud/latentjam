@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2024 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * LatentJamService.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam
 
 import android.annotation.SuppressLint
@@ -32,9 +32,9 @@ import androidx.core.app.ServiceCompat
 import androidx.media.MediaBrowserServiceCompat
 import androidx.media.utils.MediaConstants
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.music.service.MusicServiceFragment
 import io.github.nikitasud.latentjam.playback.service.PlaybackServiceFragment
+import javax.inject.Inject
 import timber.log.Timber
 
 @AndroidEntryPoint
@@ -159,7 +159,8 @@ class LatentJamService :
         var isForeground = false
             private set
 
-        // This is only meant for LatentJam to internally ensure that it's state management will work.
+        // This is only meant for LatentJam to internally ensure that it's state management will
+        // work.
         const val INTENT_KEY_START_ID = BuildConfig.APPLICATION_ID + ".service.START_ID"
     }
 }

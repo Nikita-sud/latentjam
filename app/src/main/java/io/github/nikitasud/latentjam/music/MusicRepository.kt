@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2023 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * MusicRepository.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,11 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.music
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.nikitasud.latentjam.image.covers.SettingCovers
+import io.github.nikitasud.latentjam.music.MusicRepository.IndexingWorker
+import io.github.nikitasud.latentjam.music.locations.LocationMode
+import io.github.nikitasud.latentjam.music.shim.WriteOnlyMutableCache
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -27,10 +31,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
-import io.github.nikitasud.latentjam.image.covers.SettingCovers
-import io.github.nikitasud.latentjam.music.MusicRepository.IndexingWorker
-import io.github.nikitasud.latentjam.music.locations.LocationMode
-import io.github.nikitasud.latentjam.music.shim.WriteOnlyMutableCache
 import org.oxycblt.musikr.Config
 import org.oxycblt.musikr.IndexingProgress
 import org.oxycblt.musikr.Interpretation

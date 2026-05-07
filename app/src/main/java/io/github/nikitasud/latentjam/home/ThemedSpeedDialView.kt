@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2018 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * ThemedSpeedDialView.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.home
 
 import android.animation.ArgbEvaluator
@@ -46,13 +46,13 @@ import com.google.android.material.shape.MaterialShapeDrawable
 import com.leinardi.android.speeddial.FabWithLabelView
 import com.leinardi.android.speeddial.SpeedDialActionItem
 import com.leinardi.android.speeddial.SpeedDialView
-import kotlin.math.roundToInt
-import kotlinx.parcelize.Parcelize
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.util.getAttrColorCompat
 import io.github.nikitasud.latentjam.util.getAttrResourceId
 import io.github.nikitasud.latentjam.util.getDimen
 import io.github.nikitasud.latentjam.util.getDimenPixels
+import kotlin.math.roundToInt
+import kotlinx.parcelize.Parcelize
 
 /**
  * Customized Speed Dial view with some bug fixes and Material 3 theming.

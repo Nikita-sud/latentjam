@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * MainActivity.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam
 
 import android.content.Intent
@@ -28,13 +28,13 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.updatePadding
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.databinding.ActivityMainBinding
 import io.github.nikitasud.latentjam.playback.PlaybackViewModel
 import io.github.nikitasud.latentjam.playback.state.DeferredPlayback
 import io.github.nikitasud.latentjam.ui.UISettings
 import io.github.nikitasud.latentjam.util.isNight
 import io.github.nikitasud.latentjam.util.systemBarInsetsCompat
+import javax.inject.Inject
 import timber.log.Timber as L
 
 /**
@@ -62,9 +62,7 @@ class MainActivity : AppCompatActivity() {
 
         // Keep the splash screen on-screen until the animation has time to finish (800ms)
         val startTime = System.currentTimeMillis()
-        splashScreen.setKeepOnScreenCondition {
-            System.currentTimeMillis() - startTime < 800
-        }
+        splashScreen.setKeepOnScreenCondition { System.currentTimeMillis() - startTime < 800 }
 
         setupTheme()
         // Inflate the views after setting up the theme so that the theme attributes are applied.

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * MainFragment.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam
 
 import android.os.Bundle
@@ -39,10 +39,6 @@ import com.google.android.material.transition.MaterialFadeThrough
 import com.leinardi.android.speeddial.SpeedDialActionItem
 import com.leinardi.android.speeddial.SpeedDialView
 import dagger.hilt.android.AndroidEntryPoint
-import java.lang.reflect.Method
-import javax.inject.Inject
-import kotlin.math.max
-import kotlin.math.min
 import io.github.nikitasud.latentjam.databinding.FragmentMainBinding
 import io.github.nikitasud.latentjam.detail.DetailViewModel
 import io.github.nikitasud.latentjam.detail.Show
@@ -68,6 +64,10 @@ import io.github.nikitasud.latentjam.util.getDimen
 import io.github.nikitasud.latentjam.util.lazyReflectedMethod
 import io.github.nikitasud.latentjam.util.navigateSafe
 import io.github.nikitasud.latentjam.util.unlikelyToBeNull
+import java.lang.reflect.Method
+import javax.inject.Inject
+import kotlin.math.max
+import kotlin.math.min
 import org.oxycblt.musikr.Music
 import org.oxycblt.musikr.Song
 import timber.log.Timber as L

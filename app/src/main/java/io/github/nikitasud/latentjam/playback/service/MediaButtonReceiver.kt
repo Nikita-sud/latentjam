@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2022 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * MediaButtonReceiver.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback.service
 
 import android.content.BroadcastReceiver
@@ -24,10 +24,10 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.IntegerTable
 import io.github.nikitasud.latentjam.LatentJamService
 import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager
+import javax.inject.Inject
 import timber.log.Timber as L
 
 /**
@@ -52,7 +52,10 @@ class MediaButtonReceiver : BroadcastReceiver() {
             //  tasker
             L.d("Delivering media button intent $intent")
             intent.component = ComponentName(context, LatentJamService::class.java)
-            intent.putExtra(LatentJamService.INTENT_KEY_START_ID, IntegerTable.START_ID_MEDIA_BUTTON)
+            intent.putExtra(
+                LatentJamService.INTENT_KEY_START_ID,
+                IntegerTable.START_ID_MEDIA_BUTTON,
+            )
             ContextCompat.startForegroundService(context, intent)
         }
     }

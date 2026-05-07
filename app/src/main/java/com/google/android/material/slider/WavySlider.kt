@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * WavySlider.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package com.google.android.material.slider
 
 import android.annotation.SuppressLint
@@ -40,11 +40,11 @@ import androidx.dynamicanimation.animation.FloatValueHolder
 import androidx.dynamicanimation.animation.SpringAnimation
 import com.google.android.material.R as MR
 import com.google.android.material.motion.MotionUtils
+import io.github.nikitasud.latentjam.R
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.max
 import kotlin.math.min
-import io.github.nikitasud.latentjam.R
 
 /**
  * Slider with active-track wave rendering that ports MDC LinearProgressIndicator's wavy draw

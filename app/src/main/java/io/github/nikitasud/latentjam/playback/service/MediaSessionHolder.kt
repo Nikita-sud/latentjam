@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * MediaSessionHolder.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback.service
 
 import android.annotation.SuppressLint
@@ -30,7 +30,6 @@ import androidx.car.app.mediaextensions.MetadataExtras
 import androidx.core.app.NotificationCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media.session.MediaButtonReceiver
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.BuildConfig
 import io.github.nikitasud.latentjam.ForegroundListener
 import io.github.nikitasud.latentjam.ForegroundServiceNotification
@@ -48,6 +47,7 @@ import io.github.nikitasud.latentjam.playback.state.QueueChange
 import io.github.nikitasud.latentjam.playback.state.RepeatMode
 import io.github.nikitasud.latentjam.util.newBroadcastPendingIntent
 import io.github.nikitasud.latentjam.util.newMainPendingIntent
+import javax.inject.Inject
 import org.oxycblt.musikr.MusicParent
 import org.oxycblt.musikr.Song
 import timber.log.Timber as L

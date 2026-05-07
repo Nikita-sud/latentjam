@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * HomeFragment.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.home
 
 import android.annotation.SuppressLint
@@ -39,7 +39,6 @@ import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import com.google.android.material.transition.MaterialSharedAxis
 import dagger.hilt.android.AndroidEntryPoint
-import java.lang.reflect.Field
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.databinding.FragmentHomeBinding
 import io.github.nikitasud.latentjam.detail.DetailViewModel
@@ -67,6 +66,7 @@ import io.github.nikitasud.latentjam.util.collectImmediately
 import io.github.nikitasud.latentjam.util.lazyReflectedField
 import io.github.nikitasud.latentjam.util.navigateSafe
 import io.github.nikitasud.latentjam.util.showToast
+import java.lang.reflect.Field
 import org.oxycblt.musikr.IndexingProgress
 import org.oxycblt.musikr.Music
 import org.oxycblt.musikr.Playlist

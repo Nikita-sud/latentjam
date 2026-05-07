@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2024 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * ReplayGainUtil.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,12 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback.replaygain
 
 import android.content.Context
-import kotlin.math.abs
 import io.github.nikitasud.latentjam.R
+import kotlin.math.abs
 
 /**
  * Format a decibel value in a human-readable format.

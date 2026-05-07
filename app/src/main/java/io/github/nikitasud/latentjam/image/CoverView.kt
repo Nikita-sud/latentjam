@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2023 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * CoverView.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.image
 
 import android.annotation.SuppressLint
@@ -53,8 +53,6 @@ import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.RelativeCornerSize
 import com.google.android.material.shape.ShapeAppearanceModel
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
-import kotlin.math.min
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.image.coil.GalleryCoverCollection
 import io.github.nikitasud.latentjam.image.coil.RoundedRectTransformation
@@ -68,6 +66,8 @@ import io.github.nikitasud.latentjam.util.getAttrColorCompat
 import io.github.nikitasud.latentjam.util.getColorCompat
 import io.github.nikitasud.latentjam.util.getDimenPixels
 import io.github.nikitasud.latentjam.util.getDrawableCompat
+import javax.inject.Inject
+import kotlin.math.min
 import org.oxycblt.musikr.Album
 import org.oxycblt.musikr.Artist
 import org.oxycblt.musikr.Genre

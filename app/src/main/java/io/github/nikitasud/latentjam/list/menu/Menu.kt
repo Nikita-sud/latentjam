@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2023 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * Menu.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,13 +16,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.list.menu
 
 import android.os.Parcelable
 import androidx.annotation.MenuRes
-import kotlinx.parcelize.Parcelize
 import io.github.nikitasud.latentjam.playback.PlaySong
+import kotlinx.parcelize.Parcelize
 import org.oxycblt.musikr.Album
 import org.oxycblt.musikr.Artist
 import org.oxycblt.musikr.Genre

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2021 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * SongListFragment.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.home.list
 
 import android.os.Bundle
@@ -25,7 +25,6 @@ import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import dagger.hilt.android.AndroidEntryPoint
-import java.util.Calendar
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.databinding.FragmentHomeListBinding
 import io.github.nikitasud.latentjam.home.HomeViewModel
@@ -41,6 +40,7 @@ import io.github.nikitasud.latentjam.music.MusicViewModel
 import io.github.nikitasud.latentjam.playback.PlaybackViewModel
 import io.github.nikitasud.latentjam.playback.formatDurationMsPopup
 import io.github.nikitasud.latentjam.util.collectImmediately
+import java.util.Calendar
 import org.oxycblt.musikr.Music
 import org.oxycblt.musikr.MusicParent
 import org.oxycblt.musikr.Song

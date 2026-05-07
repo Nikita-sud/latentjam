@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2024 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * LocationsDialog.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.music.locations
 
 import android.Manifest
@@ -32,13 +32,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import com.google.android.material.R as MR
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.databinding.DialogMusicLocationsBinding
 import io.github.nikitasud.latentjam.music.MusicSettings
 import io.github.nikitasud.latentjam.ui.ViewBindingMaterialDialogFragment
 import io.github.nikitasud.latentjam.util.getAttrColorCompat
 import io.github.nikitasud.latentjam.util.showToast
+import javax.inject.Inject
 import org.oxycblt.musikr.fs.Location
 import org.oxycblt.musikr.fs.Volume
 import org.oxycblt.musikr.fs.mediastore.MediaStore

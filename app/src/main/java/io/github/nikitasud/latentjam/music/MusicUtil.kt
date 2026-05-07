@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2024 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * MusicUtil.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,15 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.music
 
 import android.content.Context
+import io.github.nikitasud.latentjam.R
+import io.github.nikitasud.latentjam.util.concatLocalized
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import kotlin.math.max
-import io.github.nikitasud.latentjam.R
-import io.github.nikitasud.latentjam.util.concatLocalized
 import org.oxycblt.musikr.Music
 import org.oxycblt.musikr.fs.Format
 import org.oxycblt.musikr.tag.Date

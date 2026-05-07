@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2025 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
  * PlayerFastSeekOverlay.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package io.github.nikitasud.latentjam.playback.ui.stepper
 
 import android.content.Context
@@ -27,9 +27,9 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.ui.UISettings
+import javax.inject.Inject
 import timber.log.Timber as L
 
 enum class DisplayPortion {
