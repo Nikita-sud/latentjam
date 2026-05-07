@@ -6,7 +6,8 @@ release/
 
 # Studio
 .idea/
-.DS_Store/
+.DS_Store
+**/.DS_Store
 captures/
 
 # Other
