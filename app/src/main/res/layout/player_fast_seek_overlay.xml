@@ -6,14 +6,14 @@
     android:layout_height="match_parent">
 
     <!-- Left overlay views -->
-    <org.oxycblt.auxio.playback.ui.stepper.CircleClipTapView
+    <io.github.nikitasud.latentjam.playback.ui.stepper.CircleClipTapView
         android:id="@+id/left_circle_clip_tap_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clickable="false"
         android:focusable="false" />
 
-    <org.oxycblt.auxio.playback.ui.stepper.SecondsView
+    <io.github.nikitasud.latentjam.playback.ui.stepper.SecondsView
         android:id="@+id/left_seconds_view"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -26,14 +26,14 @@
         app:layout_constraintWidth_percent="0.5" />
 
     <!-- Right overlay views -->
-    <org.oxycblt.auxio.playback.ui.stepper.CircleClipTapView
+    <io.github.nikitasud.latentjam.playback.ui.stepper.CircleClipTapView
         android:id="@+id/right_circle_clip_tap_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clickable="false"
         android:focusable="false" />
 
-    <org.oxycblt.auxio.playback.ui.stepper.SecondsView
+    <io.github.nikitasud.latentjam.playback.ui.stepper.SecondsView
         android:id="@+id/right_seconds_view"
         android:layout_width="0dp"
         android:layout_height="wrap_content"

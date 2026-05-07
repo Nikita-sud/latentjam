@@ -22,7 +22,7 @@
         android:textAppearance="?attr/textAppearanceBodyLarge"
         tools:text="primary:path/to/music" />
 
-    <org.oxycblt.auxio.ui.RippleFixMaterialButton
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
         android:id="@+id/location_delete"
         style="@style/Widget.LatentJam.Button.Icon.Small"
         android:layout_width="wrap_content"

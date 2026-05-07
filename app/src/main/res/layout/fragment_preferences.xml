@@ -7,21 +7,21 @@
     android:orientation="vertical"
     android:transitionGroup="true">
 
-    <org.oxycblt.auxio.ui.CoordinatorAppBarLayout
+    <io.github.nikitasud.latentjam.ui.CoordinatorAppBarLayout
         android:id="@+id/preferences_appbar"
         style="@style/Widget.LatentJam.AppBarLayout"
         android:clickable="true"
         android:focusable="true"
         app:liftOnScroll="true">
 
-        <org.oxycblt.auxio.ui.LatentJamToolbar
+        <io.github.nikitasud.latentjam.ui.LatentJamToolbar
             android:id="@+id/preferences_toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:navigationIcon="@drawable/ic_back_24"
             app:title="@string/set_root_title" />
 
-    </org.oxycblt.auxio.ui.CoordinatorAppBarLayout>
+    </io.github.nikitasud.latentjam.ui.CoordinatorAppBarLayout>
 
     <FrameLayout
         android:id="@android:id/list_container"

@@ -12,7 +12,7 @@ android {
     // LatentJam implicitly depends on the native modules, explicitly specify it
     // here so the libraries are still stripped.
     ndkVersion ndk_version
-    namespace "org.oxycblt.auxio"
+    namespace "io.github.nikitasud.latentjam"
 
     defaultConfig {
         applicationId "io.github.nikitasud.latentjam"

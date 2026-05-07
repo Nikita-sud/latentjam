@@ -18,7 +18,7 @@
         app:layout_constraintStart_toStartOf="parent"
         tools:text="Songs" />
 
-    <org.oxycblt.auxio.ui.RippleFixMaterialButton
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
         android:id="@+id/header_edit"
         style="@style/Widget.LatentJam.Button.Icon.Small"
         android:layout_width="wrap_content"
@@ -28,7 +28,7 @@
         app:icon="@drawable/ic_edit_24"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <org.oxycblt.auxio.ui.RippleFixMaterialButton
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
         android:id="@+id/header_sort"
         style="@style/Widget.LatentJam.Button.Icon.Small"
         android:layout_width="wrap_content"

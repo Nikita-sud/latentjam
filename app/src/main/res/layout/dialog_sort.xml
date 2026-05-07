@@ -30,7 +30,7 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_chainStyle="packed" />
 
-    <org.oxycblt.auxio.list.recycler.DialogRecyclerView
+    <io.github.nikitasud.latentjam.list.recycler.DialogRecyclerView
         android:id="@+id/sort_mode_recycler"
         style="@style/Widget.LatentJam.RecyclerView.Linear"
         android:layout_width="match_parent"
@@ -63,7 +63,7 @@
             app:singleSelection="true"
             tools:layout_editor_absoluteX="24dp">
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/sort_direction_asc"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -72,7 +72,7 @@
                 android:checkable="true"
                 tools:icon="@drawable/ic_check_24" />
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/sort_direction_dsc"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -82,7 +82,7 @@
 
         </com.google.android.material.button.MaterialButtonGroup>
 
-        <org.oxycblt.auxio.ui.RippleFixMaterialButton
+        <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
             android:id="@+id/sort_cancel"
             style="@style/Widget.LatentJam.Button.TextButton.Dialog"
             android:layout_width="wrap_content"
@@ -94,7 +94,7 @@
             app:layout_constraintEnd_toStartOf="@+id/sort_save"
             app:layout_constraintTop_toTopOf="@+id/sort_save" />
 
-        <org.oxycblt.auxio.ui.RippleFixMaterialButton
+        <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
             android:id="@+id/sort_save"
             style="@style/Widget.LatentJam.Button.TextButton.Dialog"
             android:layout_width="wrap_content"

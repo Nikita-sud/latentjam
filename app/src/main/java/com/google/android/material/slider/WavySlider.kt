@@ -44,7 +44,7 @@ import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.max
 import kotlin.math.min
-import org.oxycblt.auxio.R
+import io.github.nikitasud.latentjam.R
 
 /**
  * Slider with active-track wave rendering that ports MDC LinearProgressIndicator's wavy draw

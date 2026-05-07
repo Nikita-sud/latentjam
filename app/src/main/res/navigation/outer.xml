@@ -7,7 +7,7 @@
 
     <fragment
         android:id="@+id/main_fragment"
-        android:name="org.oxycblt.auxio.MainFragment"
+        android:name="io.github.nikitasud.latentjam.MainFragment"
         android:label="main_fragment"
         tools:layout="@layout/fragment_main">
         <action
@@ -19,7 +19,7 @@
     </fragment>
     <fragment
         android:id="@+id/root_preferences_fragment"
-        android:name="org.oxycblt.auxio.settings.RootPreferenceFragment"
+        android:name="io.github.nikitasud.latentjam.settings.RootPreferenceFragment"
         android:label="settings_fragment">
         <action
             android:id="@+id/ui_preferences"
@@ -40,7 +40,7 @@
 
     <fragment
         android:id="@+id/ui_preferences_fragment"
-        android:name="org.oxycblt.auxio.settings.categories.UIPreferenceFragment"
+        android:name="io.github.nikitasud.latentjam.settings.categories.UIPreferenceFragment"
         android:label="ui_preferences_fragment">
         <action
             android:id="@+id/accent_settings"
@@ -49,7 +49,7 @@
 
     <fragment
         android:id="@+id/personalize_preferences_fragment"
-        android:name="org.oxycblt.auxio.settings.categories.PersonalizePreferenceFragment"
+        android:name="io.github.nikitasud.latentjam.settings.categories.PersonalizePreferenceFragment"
         android:label="personalize_preferences_fragment">
         <action
             android:id="@+id/tab_settings"
@@ -58,7 +58,7 @@
 
     <fragment
         android:id="@+id/music_preferences_fragment"
-        android:name="org.oxycblt.auxio.settings.categories.MusicPreferenceFragment"
+        android:name="io.github.nikitasud.latentjam.settings.categories.MusicPreferenceFragment"
         android:label="personalize_preferences_fragment">
         <action
             android:id="@+id/separators_settings"
@@ -67,7 +67,7 @@
 
     <fragment
         android:id="@+id/audio_preferences_fragment"
-        android:name="org.oxycblt.auxio.settings.categories.AudioPreferenceFragment"
+        android:name="io.github.nikitasud.latentjam.settings.categories.AudioPreferenceFragment"
         android:label="personalize_preferences_fragment">
         <action
             android:id="@+id/pre_amp_settings"
@@ -76,33 +76,33 @@
 
     <dialog
         android:id="@+id/accent_dialog"
-        android:name="org.oxycblt.auxio.ui.accent.AccentCustomizeDialog"
+        android:name="io.github.nikitasud.latentjam.ui.accent.AccentCustomizeDialog"
         android:label="accent_dialog"
         tools:layout="@layout/dialog_accent" />
     <dialog
         android:id="@+id/tab_dialog"
-        android:name="org.oxycblt.auxio.home.tabs.TabCustomizeDialog"
+        android:name="io.github.nikitasud.latentjam.home.tabs.TabCustomizeDialog"
         android:label="tab_dialog"
         tools:layout="@layout/dialog_tabs" />
     <dialog
         android:id="@+id/pre_amp_dialog"
-        android:name="org.oxycblt.auxio.playback.replaygain.PreAmpCustomizeDialog"
+        android:name="io.github.nikitasud.latentjam.playback.replaygain.PreAmpCustomizeDialog"
         android:label="pre_amp_dialog"
         tools:layout="@layout/dialog_pre_amp" />
     <dialog
         android:id="@+id/music_locations_dialog"
-        android:name="org.oxycblt.auxio.music.locations.LocationsDialog"
+        android:name="io.github.nikitasud.latentjam.music.locations.LocationsDialog"
         android:label="music_locations_dialog"
         tools:layout="@layout/dialog_music_locations" />
     <dialog
         android:id="@+id/separators_dialog"
-        android:name="org.oxycblt.auxio.music.interpret.SeparatorsDialog"
+        android:name="io.github.nikitasud.latentjam.music.interpret.SeparatorsDialog"
         android:label="separators_dialog"
         tools:layout="@layout/dialog_separators" />
 
     <fragment
         android:id="@+id/about_fragment"
-        android:name="org.oxycblt.auxio.settings.AboutFragment"
+        android:name="io.github.nikitasud.latentjam.settings.AboutFragment"
         android:label="dialog_about"
         tools:layout="@layout/fragment_about" />
 </navigation>

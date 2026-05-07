@@ -6,7 +6,7 @@
 
     <fragment
         android:id="@+id/home_fragment"
-        android:name="org.oxycblt.auxio.home.HomeFragment"
+        android:name="io.github.nikitasud.latentjam.home.HomeFragment"
         android:label="home_fragment"
         tools:layout="@layout/fragment_home">
         <action
@@ -94,7 +94,7 @@
 
     <dialog
         android:id="@+id/error_details_dialog"
-        android:name="org.oxycblt.auxio.home.ErrorDetailsDialog"
+        android:name="io.github.nikitasud.latentjam.home.ErrorDetailsDialog"
         android:label="error_details_dialog"
         tools:layout="@layout/dialog_error_details">
         <argument
@@ -104,37 +104,37 @@
 
     <dialog
         android:id="@+id/song_sort_dialog"
-        android:name="org.oxycblt.auxio.home.sort.SongSortDialog"
+        android:name="io.github.nikitasud.latentjam.home.sort.SongSortDialog"
         android:label="song_sort_dialog"
         tools:layout="@layout/dialog_sort" />
 
     <dialog
         android:id="@+id/album_sort_dialog"
-        android:name="org.oxycblt.auxio.home.sort.AlbumSortDialog"
+        android:name="io.github.nikitasud.latentjam.home.sort.AlbumSortDialog"
         android:label="album_sort_dialog"
         tools:layout="@layout/dialog_sort" />
 
     <dialog
         android:id="@+id/artist_sort_dialog"
-        android:name="org.oxycblt.auxio.home.sort.ArtistSortDialog"
+        android:name="io.github.nikitasud.latentjam.home.sort.ArtistSortDialog"
         android:label="artist_sort_dialog"
         tools:layout="@layout/dialog_sort" />
 
     <dialog
         android:id="@+id/genre_sort_dialog"
-        android:name="org.oxycblt.auxio.home.sort.GenreSortDialog"
+        android:name="io.github.nikitasud.latentjam.home.sort.GenreSortDialog"
         android:label="genre_sort_dialog"
         tools:layout="@layout/dialog_sort" />
 
     <dialog
         android:id="@+id/playlist_sort_dialog"
-        android:name="org.oxycblt.auxio.home.sort.PlaylistSortDialog"
+        android:name="io.github.nikitasud.latentjam.home.sort.PlaylistSortDialog"
         android:label="playlist_sort_dialog"
         tools:layout="@layout/dialog_sort" />
 
     <dialog
         android:id="@+id/song_detail_dialog"
-        android:name="org.oxycblt.auxio.detail.SongDetailDialog"
+        android:name="io.github.nikitasud.latentjam.detail.SongDetailDialog"
         android:label="song_detail_dialog"
         tools:layout="@layout/dialog_song_detail">
         <argument
@@ -144,7 +144,7 @@
 
     <fragment
         android:id="@+id/search_fragment"
-        android:name="org.oxycblt.auxio.search.SearchFragment"
+        android:name="io.github.nikitasud.latentjam.search.SearchFragment"
         android:label="search_fragment"
         tools:layout="@layout/fragment_search">
         <action
@@ -205,7 +205,7 @@
 
     <fragment
         android:id="@+id/album_detail_fragment"
-        android:name="org.oxycblt.auxio.detail.AlbumDetailFragment"
+        android:name="io.github.nikitasud.latentjam.detail.AlbumDetailFragment"
         android:label="album_detail_fragment"
         tools:layout="@layout/fragment_detail">
         <argument
@@ -248,13 +248,13 @@
 
     <dialog
         android:id="@+id/album_song_sort_dialog"
-        android:name="org.oxycblt.auxio.detail.sort.AlbumSongSortDialog"
+        android:name="io.github.nikitasud.latentjam.detail.sort.AlbumSongSortDialog"
         android:label="album_song_sort_dialog"
         tools:layout="@layout/dialog_sort" />
 
     <fragment
         android:id="@+id/artist_detail_fragment"
-        android:name="org.oxycblt.auxio.detail.ArtistDetailFragment"
+        android:name="io.github.nikitasud.latentjam.detail.ArtistDetailFragment"
         android:label="artist_detail_fragment"
         tools:layout="@layout/fragment_detail">
         <argument
@@ -297,13 +297,13 @@
 
     <dialog
         android:id="@+id/artist_song_sort_dialog"
-        android:name="org.oxycblt.auxio.detail.sort.ArtistSongSortDialog"
+        android:name="io.github.nikitasud.latentjam.detail.sort.ArtistSongSortDialog"
         android:label="artist_song_sort_dialog"
         tools:layout="@layout/dialog_sort" />
 
     <fragment
         android:id="@+id/genre_detail_fragment"
-        android:name="org.oxycblt.auxio.detail.GenreDetailFragment"
+        android:name="io.github.nikitasud.latentjam.detail.GenreDetailFragment"
         android:label="genre_detail_fragment"
         tools:layout="@layout/fragment_detail">
         <argument
@@ -346,13 +346,13 @@
 
     <dialog
         android:id="@+id/genre_song_sort_dialog"
-        android:name="org.oxycblt.auxio.detail.sort.GenreSongSortDialog"
+        android:name="io.github.nikitasud.latentjam.detail.sort.GenreSongSortDialog"
         android:label="genre_song_sort_dialog"
         tools:layout="@layout/dialog_sort" />
 
     <fragment
         android:id="@+id/playlist_detail_fragment"
-        android:name="org.oxycblt.auxio.detail.PlaylistDetailFragment"
+        android:name="io.github.nikitasud.latentjam.detail.PlaylistDetailFragment"
         android:label="playlist_detail_fragment"
         tools:layout="@layout/fragment_detail">
         <argument
@@ -404,13 +404,13 @@
 
     <dialog
         android:id="@+id/playlist_song_sort_dialog"
-        android:name="org.oxycblt.auxio.detail.sort.PlaylistSongSortDialog"
+        android:name="io.github.nikitasud.latentjam.detail.sort.PlaylistSongSortDialog"
         android:label="playlist_song_sort_dialog"
         tools:layout="@layout/dialog_sort" />
 
     <dialog
         android:id="@+id/new_playlist_dialog"
-        android:name="org.oxycblt.auxio.music.decision.NewPlaylistDialog"
+        android:name="io.github.nikitasud.latentjam.music.decision.NewPlaylistDialog"
         android:label="new_playlist_dialog"
         tools:layout="@layout/dialog_playlist_name">
         <argument
@@ -422,12 +422,12 @@
             app:nullable="true" />
         <argument
             android:name="reason"
-            app:argType="org.oxycblt.auxio.music.PlaylistDecision$New$Reason" />
+            app:argType="io.github.nikitasud.latentjam.music.PlaylistDecision$New$Reason" />
     </dialog>
 
     <dialog
         android:id="@+id/rename_playlist_dialog"
-        android:name="org.oxycblt.auxio.music.decision.RenamePlaylistDialog"
+        android:name="io.github.nikitasud.latentjam.music.decision.RenamePlaylistDialog"
         android:label="rename_playlist_dialog"
         tools:layout="@layout/dialog_playlist_name">
         <argument
@@ -442,12 +442,12 @@
             app:argType="org.oxycblt.musikr.Music$UID[]" />
         <argument
             android:name="reason"
-            app:argType="org.oxycblt.auxio.music.PlaylistDecision$Rename$Reason" />
+            app:argType="io.github.nikitasud.latentjam.music.PlaylistDecision$Rename$Reason" />
     </dialog>
 
     <dialog
         android:id="@+id/export_playlist_dialog"
-        android:name="org.oxycblt.auxio.music.decision.ExportPlaylistDialog"
+        android:name="io.github.nikitasud.latentjam.music.decision.ExportPlaylistDialog"
         android:label="rename_playlist_dialog"
         tools:layout="@layout/dialog_playlist_name">
         <argument
@@ -457,7 +457,7 @@
 
     <dialog
         android:id="@+id/delete_playlist_dialog"
-        android:name="org.oxycblt.auxio.music.decision.DeletePlaylistDialog"
+        android:name="io.github.nikitasud.latentjam.music.decision.DeletePlaylistDialog"
         android:label="delete_playlist_dialog"
         tools:layout="@layout/dialog_playlist_name">
         <argument
@@ -467,7 +467,7 @@
 
     <dialog
         android:id="@+id/add_to_playlist_dialog"
-        android:name="org.oxycblt.auxio.music.decision.AddToPlaylistDialog"
+        android:name="io.github.nikitasud.latentjam.music.decision.AddToPlaylistDialog"
         android:label="new_playlist_dialog"
         tools:layout="@layout/dialog_playlist_name">
         <argument
@@ -480,7 +480,7 @@
 
     <dialog
         android:id="@+id/show_artist_choices_dialog"
-        android:name="org.oxycblt.auxio.detail.decision.ShowArtistDialog"
+        android:name="io.github.nikitasud.latentjam.detail.decision.ShowArtistDialog"
         android:label="show_artist_choices_dialog"
         tools:layout="@layout/dialog_music_choices">
         <argument
@@ -490,7 +490,7 @@
 
     <dialog
         android:id="@+id/play_from_artist_dialog"
-        android:name="org.oxycblt.auxio.playback.decision.PlayFromArtistDialog"
+        android:name="io.github.nikitasud.latentjam.playback.decision.PlayFromArtistDialog"
         android:label="play_from_artist_dialog"
         tools:layout="@layout/dialog_music_choices">
         <argument
@@ -500,7 +500,7 @@
 
     <dialog
         android:id="@+id/play_from_genre_dialog"
-        android:name="org.oxycblt.auxio.playback.decision.PlayFromGenreDialog"
+        android:name="io.github.nikitasud.latentjam.playback.decision.PlayFromGenreDialog"
         android:label="play_from_genre_dialog"
         tools:layout="@layout/dialog_music_choices">
         <argument
@@ -510,67 +510,67 @@
 
     <dialog
         android:id="@+id/song_menu_dialog"
-        android:name="org.oxycblt.auxio.list.menu.SongMenuDialogFragment"
+        android:name="io.github.nikitasud.latentjam.list.menu.SongMenuDialogFragment"
         android:label="song_menu_dialog"
         tools:layout="@layout/dialog_menu">
         <argument
             android:name="parcel"
-            app:argType="org.oxycblt.auxio.list.menu.Menu$ForSong$Parcel" />
+            app:argType="io.github.nikitasud.latentjam.list.menu.Menu$ForSong$Parcel" />
     </dialog>
 
     <dialog
         android:id="@+id/album_menu_dialog"
-        android:name="org.oxycblt.auxio.list.menu.AlbumMenuDialogFragment"
+        android:name="io.github.nikitasud.latentjam.list.menu.AlbumMenuDialogFragment"
         android:label="album_menu_dialog"
         tools:layout="@layout/dialog_menu">
         <argument
             android:name="parcel"
-            app:argType="org.oxycblt.auxio.list.menu.Menu$ForAlbum$Parcel" />
+            app:argType="io.github.nikitasud.latentjam.list.menu.Menu$ForAlbum$Parcel" />
     </dialog>
 
     <dialog
         android:id="@+id/artist_menu_dialog"
-        android:name="org.oxycblt.auxio.list.menu.ArtistMenuDialogFragment"
+        android:name="io.github.nikitasud.latentjam.list.menu.ArtistMenuDialogFragment"
         android:label="artist_menu_dialog"
         tools:layout="@layout/dialog_menu">
         <argument
             android:name="parcel"
-            app:argType="org.oxycblt.auxio.list.menu.Menu$ForArtist$Parcel" />
+            app:argType="io.github.nikitasud.latentjam.list.menu.Menu$ForArtist$Parcel" />
     </dialog>
 
     <dialog
         android:id="@+id/genre_menu_dialog"
-        android:name="org.oxycblt.auxio.list.menu.GenreMenuDialogFragment"
+        android:name="io.github.nikitasud.latentjam.list.menu.GenreMenuDialogFragment"
         android:label="genre_menu_dialog"
         tools:layout="@layout/dialog_menu">
         <argument
             android:name="parcel"
-            app:argType="org.oxycblt.auxio.list.menu.Menu$ForGenre$Parcel" />
+            app:argType="io.github.nikitasud.latentjam.list.menu.Menu$ForGenre$Parcel" />
     </dialog>
 
     <dialog
         android:id="@+id/playlist_menu_dialog"
-        android:name="org.oxycblt.auxio.list.menu.PlaylistMenuDialogFragment"
+        android:name="io.github.nikitasud.latentjam.list.menu.PlaylistMenuDialogFragment"
         android:label="playlist_menu_dialog"
         tools:layout="@layout/dialog_menu">
         <argument
             android:name="parcel"
-            app:argType="org.oxycblt.auxio.list.menu.Menu$ForPlaylist$Parcel" />
+            app:argType="io.github.nikitasud.latentjam.list.menu.Menu$ForPlaylist$Parcel" />
     </dialog>
 
     <dialog
         android:id="@+id/selection_menu_dialog"
-        android:name="org.oxycblt.auxio.list.menu.SelectionMenuDialogFragment"
+        android:name="io.github.nikitasud.latentjam.list.menu.SelectionMenuDialogFragment"
         android:label="selection_menu_dialog"
         tools:layout="@layout/dialog_menu">
         <argument
             android:name="parcel"
-            app:argType="org.oxycblt.auxio.list.menu.Menu$ForSelection$Parcel" />
+            app:argType="io.github.nikitasud.latentjam.list.menu.Menu$ForSelection$Parcel" />
     </dialog>
 
     <dialog
         android:id="@+id/music_locations_dialog"
-        android:name="org.oxycblt.auxio.music.locations.LocationsDialog"
+        android:name="io.github.nikitasud.latentjam.music.locations.LocationsDialog"
         android:label="music_locations_dialog"
         tools:layout="@layout/dialog_music_locations" />
 </navigation>

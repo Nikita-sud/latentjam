@@ -10,7 +10,7 @@
     android:paddingEnd="@dimen/spacing_large"
     android:paddingBottom="@dimen/spacing_mid_medium">
 
-    <org.oxycblt.auxio.image.CoverView
+    <io.github.nikitasud.latentjam.image.CoverView
         android:id="@+id/picker_image"
         style="@style/Widget.LatentJam.Image.Small"
         app:layout_constraintBottom_toBottomOf="parent"

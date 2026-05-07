@@ -34,7 +34,7 @@
             android:layout_height="wrap_content"
             android:background="@drawable/ui_selection_bg">
 
-            <org.oxycblt.auxio.image.CoverView
+            <io.github.nikitasud.latentjam.image.CoverView
                 android:id="@+id/song_album_cover"
                 style="@style/Widget.LatentJam.Image.Small"
                 android:layout_marginStart="@dimen/spacing_medium"
@@ -72,7 +72,7 @@
                 app:layout_constraintTop_toBottomOf="@+id/song_name"
                 tools:text="Artist / Album" />
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/song_drag_handle"
                 style="@style/Widget.LatentJam.Button.Icon.Small"
                 android:layout_width="wrap_content"
@@ -84,7 +84,7 @@
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="@+id/song_album_cover" />
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/song_menu"
                 style="@style/Widget.LatentJam.Button.Icon.Small"
                 android:layout_width="wrap_content"

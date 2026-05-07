@@ -18,7 +18,7 @@
         app:layout_constraintStart_toStartOf="parent"
         tools:text="Songs" />
 
-    <org.oxycblt.auxio.ui.RippleFixMaterialButton
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
         android:id="@+id/header_sort"
         style="@style/Widget.LatentJam.Button.Icon.Small"
         android:layout_width="wrap_content"

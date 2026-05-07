@@ -8,10 +8,10 @@
     android:background="?attr/colorSurface"
     android:transitionGroup="true">
 
-    <org.oxycblt.auxio.ui.EatInsetsFrameLayout
+    <io.github.nikitasud.latentjam.ui.EatInsetsFrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:layout_behavior="org.oxycblt.auxio.ui.BottomSheetContentBehavior">
+        app:layout_behavior="io.github.nikitasud.latentjam.ui.BottomSheetContentBehavior">
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/explore_nav_host"
@@ -28,7 +28,7 @@
             android:layout_height="match_parent"
             android:visibility="invisible" />
 
-        <org.oxycblt.auxio.ui.EdgeFrameLayout
+        <io.github.nikitasud.latentjam.ui.EdgeFrameLayout
             android:id="@+id/main_fab_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -37,7 +37,7 @@
             android:clipToPadding="false"
             app:layout_anchor="@id/home_content">
 
-            <org.oxycblt.auxio.home.ThemedSpeedDialView
+            <io.github.nikitasud.latentjam.home.ThemedSpeedDialView
                 android:id="@+id/home_new_playlist_fab"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -60,9 +60,9 @@
                 android:contentDescription="@string/lbl_shuffle"
                 android:src="@drawable/ic_shuffle_off_24" />
 
-        </org.oxycblt.auxio.ui.EdgeFrameLayout>
+        </io.github.nikitasud.latentjam.ui.EdgeFrameLayout>
 
-    </org.oxycblt.auxio.ui.EatInsetsFrameLayout>
+    </io.github.nikitasud.latentjam.ui.EatInsetsFrameLayout>
 
     <View
         android:id="@+id/main_sheet_scrim"
@@ -77,20 +77,20 @@
         android:layout_height="match_parent"
         android:clickable="true"
         android:focusable="true"
-        app:layout_behavior="org.oxycblt.auxio.playback.PlaybackBottomSheetBehavior">
+        app:layout_behavior="io.github.nikitasud.latentjam.playback.PlaybackBottomSheetBehavior">
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/playback_bar_fragment"
-            android:name="org.oxycblt.auxio.playback.PlaybackBarFragment"
+            android:name="io.github.nikitasud.latentjam.playback.PlaybackBarFragment"
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/playback_panel_fragment"
-            android:name="org.oxycblt.auxio.playback.PlaybackPanelFragment"
+            android:name="io.github.nikitasud.latentjam.playback.PlaybackPanelFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:layout_behavior="org.oxycblt.auxio.ui.BottomSheetContentBehavior" />
+            app:layout_behavior="io.github.nikitasud.latentjam.ui.BottomSheetContentBehavior" />
 
         <LinearLayout
             android:id="@+id/queue_sheet"
@@ -100,7 +100,7 @@
             android:elevation="1dp"
             android:focusable="true"
             android:orientation="vertical"
-            app:layout_behavior="org.oxycblt.auxio.playback.queue.QueueBottomSheetBehavior">
+            app:layout_behavior="io.github.nikitasud.latentjam.playback.queue.QueueBottomSheetBehavior">
 
             <androidx.constraintlayout.widget.ConstraintLayout
                 android:id="@+id/queue_handle_wrapper"
@@ -130,7 +130,7 @@
 
             <androidx.fragment.app.FragmentContainerView
                 android:id="@+id/queue_fragment"
-                android:name="org.oxycblt.auxio.playback.queue.QueueFragment"
+                android:name="io.github.nikitasud.latentjam.playback.queue.QueueFragment"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1" />

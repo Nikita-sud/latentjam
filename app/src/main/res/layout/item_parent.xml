@@ -10,7 +10,7 @@
     android:paddingEnd="@dimen/spacing_mid_medium"
     android:paddingBottom="@dimen/spacing_mid_medium">
 
-    <org.oxycblt.auxio.image.CoverView
+    <io.github.nikitasud.latentjam.image.CoverView
         android:id="@+id/parent_image"
         style="@style/Widget.LatentJam.Image.Medium"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -43,7 +43,7 @@
         app:layout_constraintTop_toBottomOf="@+id/parent_name"
         tools:text="Info" />
 
-    <org.oxycblt.auxio.ui.RippleFixMaterialButton
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
         android:id="@+id/parent_menu"
         style="@style/Widget.LatentJam.Button.Icon.Small"
         android:layout_width="wrap_content"

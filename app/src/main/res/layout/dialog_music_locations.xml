@@ -35,7 +35,7 @@
             app:selectionRequired="true"
             app:singleSelection="true">
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/locations_mode_exclude"
                 style="?attr/materialButtonStyle"
                 android:layout_width="0dp"
@@ -45,7 +45,7 @@
                 tools:text="File Picker"
                 tools:icon="@drawable/ic_check_24" />
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/locations_mode_include"
                 style="?attr/materialButtonStyle"
                 android:layout_width="0dp"
@@ -160,7 +160,7 @@
             tools:text="Folders to Load"
             app:layout_constraintTop_toBottomOf="@+id/locations_include_list_header_divider" />
 
-        <org.oxycblt.auxio.ui.RippleFixMaterialButton
+        <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
             android:id="@+id/locations_include_add"
             style="@style/Widget.LatentJam.Button.Icon.Small"
             android:layout_width="wrap_content"
@@ -238,7 +238,7 @@
             app:selectionRequired="true"
             app:singleSelection="true">
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/locations_exclude_mode_exclude"
                 style="?attr/materialButtonStyle"
                 android:layout_width="0dp"
@@ -248,7 +248,7 @@
                 tools:text="Include"
                 tools:icon="@drawable/ic_check_24" />
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/locations_exclude_mode_include"
                 style="?attr/materialButtonStyle"
                 android:layout_width="0dp"
@@ -288,7 +288,7 @@
             android:text="@string/set_filtered_folders"
             app:layout_constraintTop_toBottomOf="@+id/locations_filter_mode_divider" />
 
-        <org.oxycblt.auxio.ui.RippleFixMaterialButton
+        <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
             android:id="@+id/locations_filter_add"
             style="@style/Widget.LatentJam.Button.Icon.Small"
             android:layout_width="wrap_content"
@@ -331,7 +331,7 @@
             tools:visibility="gone"
             app:layout_constraintTop_toBottomOf="@+id/locations_exclude_list_divider" />
 
-        <org.oxycblt.auxio.ui.RippleFixMaterialButton
+        <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
             android:id="@+id/locations_exclude_add"
             style="@style/Widget.LatentJam.Button.Icon.Small"
             android:layout_width="wrap_content"

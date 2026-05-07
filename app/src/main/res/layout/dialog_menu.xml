@@ -22,7 +22,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <org.oxycblt.auxio.image.CoverView
+        <io.github.nikitasud.latentjam.image.CoverView
             android:id="@+id/menu_cover"
             style="@style/Widget.LatentJam.Image.MidFull"
             android:layout_marginStart="@dimen/spacing_medium"
@@ -78,7 +78,7 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <org.oxycblt.auxio.list.recycler.LatentJamRecyclerView
+    <io.github.nikitasud.latentjam.list.recycler.LatentJamRecyclerView
         android:id="@+id/menu_option_recycler"
         style="@style/Widget.LatentJam.RecyclerView.Linear"
         android:layout_width="match_parent"
