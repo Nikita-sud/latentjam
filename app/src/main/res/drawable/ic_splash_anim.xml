@@ -1,166 +1,221 @@
-<animated-vector xmlns:tools="http://schemas.android.com/tools"
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt">
+
     <aapt:attr name="android:drawable">
         <vector
             android:width="432dp"
             android:height="432dp"
             android:viewportWidth="432"
             android:viewportHeight="432">
-            <group
-                android:name="bg"
-                android:pivotX="56"
-                android:pivotY="56">
+
+            <!-- Hidden right-angle path (faded latent lattice) -->
+            <path
+                android:name="hidden_path"
+                android:pathData="M148,140 V292 H200"
+                android:fillColor="@android:color/transparent"
+                android:strokeWidth="8"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                android:strokeAlpha="0.2"
+                android:trimPathEnd="0">
+                <aapt:attr name="android:strokeColor">
+                    <gradient android:type="linear"
+                        android:startX="128" android:startY="128"
+                        android:endX="304" android:endY="304">
+                        <item android:offset="0" android:color="#8E24AA"/>
+                        <item android:offset="1" android:color="#00ACC1"/>
+                    </gradient>
+                </aapt:attr>
+            </path>
+
+            <!-- Bezier 1: node 1 -> node 2 -->
+            <path
+                android:name="bezier_1"
+                android:pathData="M148,140 C216,140 216,208 284,208"
+                android:fillColor="@android:color/transparent"
+                android:strokeWidth="12"
+                android:strokeLineCap="round"
+                android:trimPathEnd="0">
+                <aapt:attr name="android:strokeColor">
+                    <gradient android:type="linear"
+                        android:startX="128" android:startY="128"
+                        android:endX="304" android:endY="304">
+                        <item android:offset="0" android:color="#8E24AA"/>
+                        <item android:offset="1" android:color="#00ACC1"/>
+                    </gradient>
+                </aapt:attr>
+            </path>
+
+            <!-- Bezier 2: node 2 -> node 3 -->
+            <path
+                android:name="bezier_2"
+                android:pathData="M284,208 C284,276 248,292 200,292"
+                android:fillColor="@android:color/transparent"
+                android:strokeWidth="12"
+                android:strokeLineCap="round"
+                android:trimPathEnd="0">
+                <aapt:attr name="android:strokeColor">
+                    <gradient android:type="linear"
+                        android:startX="128" android:startY="128"
+                        android:endX="304" android:endY="304">
+                        <item android:offset="0" android:color="#8E24AA"/>
+                        <item android:offset="1" android:color="#00ACC1"/>
+                    </gradient>
+                </aapt:attr>
+            </path>
+
+            <!-- Node 1 (148, 140) -->
+            <group android:name="group_node_1" android:pivotX="148" android:pivotY="140" android:scaleX="0" android:scaleY="0">
                 <path
-                    android:fillColor="#00000000"
-                    android:strokeColor="#00000000"
-                    android:pathData="M 408,216
-A 192,192 0 0 1 216,408 192,192 0 0 1 24,216 192,192 0 0 1 216,24 192,192 0 0 1 408,216
-Z" />
+                    android:name="node_1"
+                    android:pathData="M128,140 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0 Z">
+                    <aapt:attr name="android:fillColor">
+                        <gradient android:type="linear"
+                            android:startX="128" android:startY="128"
+                            android:endX="304" android:endY="304">
+                            <item android:offset="0" android:color="#8E24AA"/>
+                            <item android:offset="1" android:color="#00ACC1"/>
+                        </gradient>
+                    </aapt:attr>
+                </path>
             </group>
 
-            <group
-                android:scaleX="8.5"
-                android:scaleY="8.5"
-                android:translateX="114"
-                android:translateY="114">
+            <!-- Node 2 (284, 208) -->
+            <group android:name="group_node_2" android:pivotX="284" android:pivotY="208" android:scaleX="0" android:scaleY="0">
                 <path
-                    android:fillColor="@android:color/transparent"
-                    android:pathData="M13 4l4 4m-4-4v13m0 0l-3 3-3-3 3-3"
-                    android:strokeWidth="2"
-                    android:strokeColor="#80808080"
-                    android:strokeLineCap="round"
-                    android:strokeLineJoin="round" />
+                    android:name="node_2"
+                    android:pathData="M264,208 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0 Z">
+                    <aapt:attr name="android:fillColor">
+                        <gradient android:type="linear"
+                            android:startX="128" android:startY="128"
+                            android:endX="304" android:endY="304">
+                            <item android:offset="0" android:color="#8E24AA"/>
+                            <item android:offset="1" android:color="#00ACC1"/>
+                        </gradient>
+                    </aapt:attr>
+                </path>
             </group>
 
-            <group
-                android:scaleX="8.5"
-                android:scaleY="8.5"
-                android:translateX="114"
-                android:translateY="114">
+            <!-- Node 3 (200, 292) -->
+            <group android:name="group_node_3" android:pivotX="200" android:pivotY="292" android:scaleX="0" android:scaleY="0">
                 <path
-                    android:name="base"
-                    android:fillColor="@android:color/transparent"
-                    android:pathData="m 13,17 -3,3 -3,-3 3,-3"
-                    android:strokeWidth="0"
-                    android:strokeColor="#004894"
-                    android:strokeLineCap="round"
-                    android:strokeLineJoin="round" />
-            </group>
-
-            <group
-                android:scaleX="8.5"
-                android:scaleY="8.5"
-                android:translateX="114"
-                android:translateY="114">
-
-                <path
-                    android:name="lower_stem"
-                    android:fillColor="@android:color/transparent"
-                    android:pathData="M 13,10.5 V 17"
-                    android:strokeWidth="0"
-                    android:strokeColor="#1a61ae"
-                    android:strokeLineCap="round"
-                    android:strokeLineJoin="round" />
-            </group>
-
-            <group
-                android:scaleX="8.5"
-                android:scaleY="8.5"
-                android:translateX="114"
-                android:translateY="114">
-
-                <path
-                    android:name="upper_stem"
-                    android:fillColor="@android:color/transparent"
-                    android:pathData="m 13,4v 6.5"
-                    android:strokeWidth="0"
-                    android:strokeColor="#357ac9"
-                    android:strokeLineCap="round"
-                    android:strokeLineJoin="round" />
-            </group>
-
-            <group
-                android:scaleX="8.5"
-                android:scaleY="8.5"
-                android:translateX="114"
-                android:translateY="114">
-
-                <path
-                    android:name="tail"
-                    android:fillColor="@android:color/transparent"
-                    android:pathData="m 13,4 4,4"
-                    android:strokeWidth="0"
-                    android:strokeColor="#5093e4"
-                    android:strokeLineCap="round"
-                    android:strokeLineJoin="round" />
+                    android:name="node_3"
+                    android:pathData="M180,292 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0 Z">
+                    <aapt:attr name="android:fillColor">
+                        <gradient android:type="linear"
+                            android:startX="128" android:startY="128"
+                            android:endX="304" android:endY="304">
+                            <item android:offset="0" android:color="#8E24AA"/>
+                            <item android:offset="1" android:color="#00ACC1"/>
+                        </gradient>
+                    </aapt:attr>
+                </path>
             </group>
         </vector>
     </aapt:attr>
-    <target android:name="bg">
-        <aapt:attr name="android:animation">
-            <set />
-        </aapt:attr>
-    </target>
-    <target android:name="tail">
+
+    <!-- Node 1 Pop in -->
+    <target android:name="group_node_1">
         <aapt:attr name="android:animation">
             <set>
                 <objectAnimator
-                    android:duration="850"
-                    android:interpolator="@interpolator/m3_sys_motion_easing_emphasized_decelerate"
-                    android:propertyName="strokeWidth"
-                    android:startOffset="150"
+                    android:propertyName="scaleX"
                     android:valueFrom="0"
-                    android:valueTo="2"
-                    android:valueType="floatType"
-                    tools:ignore="PrivateResource" />
-            </set>
-        </aapt:attr>
-    </target>
-    <target android:name="upper_stem">
-        <aapt:attr name="android:animation">
-            <set>
+                    android:valueTo="1"
+                    android:duration="300"
+                    android:interpolator="@android:interpolator/overshoot" />
                 <objectAnimator
-                    android:duration="850"
-                    android:interpolator="@interpolator/m3_sys_motion_easing_emphasized_decelerate"
-                    android:propertyName="strokeWidth"
-                    android:startOffset="150"
+                    android:propertyName="scaleY"
                     android:valueFrom="0"
-                    android:valueTo="2"
-                    android:valueType="floatType"
-                    tools:ignore="PrivateResource" />
+                    android:valueTo="1"
+                    android:duration="300"
+                    android:interpolator="@android:interpolator/overshoot" />
             </set>
         </aapt:attr>
     </target>
 
-    <target android:name="lower_stem">
+    <!-- Bezier 1 Draw -->
+    <target android:name="bezier_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:propertyName="trimPathEnd"
+                android:valueFrom="0"
+                android:valueTo="1"
+                android:duration="400"
+                android:startOffset="100"
+                android:interpolator="@android:interpolator/fast_out_slow_in" />
+        </aapt:attr>
+    </target>
+
+    <!-- Node 2 Pop in -->
+    <target android:name="group_node_2">
         <aapt:attr name="android:animation">
             <set>
                 <objectAnimator
-                    android:duration="850"
-                    android:interpolator="@interpolator/m3_sys_motion_easing_emphasized_decelerate"
-                    android:propertyName="strokeWidth"
-                    android:startOffset="150"
+                    android:propertyName="scaleX"
                     android:valueFrom="0"
-                    android:valueTo="2"
-                    android:valueType="floatType"
-                    tools:ignore="PrivateResource" />
+                    android:valueTo="1"
+                    android:duration="300"
+                    android:startOffset="350"
+                    android:interpolator="@android:interpolator/overshoot" />
+                <objectAnimator
+                    android:propertyName="scaleY"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:duration="300"
+                    android:startOffset="350"
+                    android:interpolator="@android:interpolator/overshoot" />
             </set>
         </aapt:attr>
     </target>
-    <target android:name="base">
+
+    <!-- Bezier 2 Draw -->
+    <target android:name="bezier_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:propertyName="trimPathEnd"
+                android:valueFrom="0"
+                android:valueTo="1"
+                android:duration="400"
+                android:startOffset="450"
+                android:interpolator="@android:interpolator/fast_out_slow_in" />
+        </aapt:attr>
+    </target>
+
+    <!-- Node 3 Pop in -->
+    <target android:name="group_node_3">
         <aapt:attr name="android:animation">
             <set>
                 <objectAnimator
-                    android:duration="850"
-                    android:interpolator="@interpolator/m3_sys_motion_easing_emphasized_decelerate"
-                    android:propertyName="strokeWidth"
-                    android:startOffset="150"
+                    android:propertyName="scaleX"
                     android:valueFrom="0"
-                    android:valueTo="2"
-                    android:valueType="floatType"
-                    tools:ignore="PrivateResource" />
+                    android:valueTo="1"
+                    android:duration="300"
+                    android:startOffset="700"
+                    android:interpolator="@android:interpolator/overshoot" />
+                <objectAnimator
+                    android:propertyName="scaleY"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:duration="300"
+                    android:startOffset="700"
+                    android:interpolator="@android:interpolator/overshoot" />
             </set>
         </aapt:attr>
     </target>
+
+    <!-- Hidden Lattice Reveal -->
+    <target android:name="hidden_path">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:propertyName="trimPathEnd"
+                android:valueFrom="0"
+                android:valueTo="1"
+                android:duration="500"
+                android:startOffset="300"
+                android:interpolator="@android:interpolator/fast_out_slow_in" />
+        </aapt:attr>
+    </target>
+
 </animated-vector>

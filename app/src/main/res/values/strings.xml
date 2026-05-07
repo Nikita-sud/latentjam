@@ -3,7 +3,12 @@
     <!-- Info namespace | App labels -->
     <eat-comment />
 
-    <string name="info_app_desc">A simple, rational music player for android.</string>
+    <string name="info_app_desc">Privacy-first music player with local ML recommendations.</string>
+
+    <string name="lbl_privacy_policy">Privacy policy</string>
+    <string name="lbl_ml_recommender">Local ML recommender</string>
+    <string name="info_ml_desc">On-device learning of your listening preferences.</string>
+    <string name="info_privacy_desc">No cloud, no telemetry, no analytics. Ever.</string>
 
     <!-- Label Namespace | Static Labels -->
     <eat-comment />
@@ -373,7 +378,7 @@
     <string name="desc_add_folder">Add folder</string>
     <string name="desc_music_location_delete">Remove folder</string>
 
-    <string name="desc_auxio_icon">Auxio icon</string>
+    <string name="desc_auxio_icon">LatentJam icon</string>
     <string name="desc_no_cover">Album cover</string>
     <string name="desc_album_cover">Album cover for %s</string>
     <string name="desc_artist_image">Artist image for %s</string>

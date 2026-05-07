@@ -1,6 +1,6 @@
 buildscript {
     ext {
-        agp_version = '9.2.0'
+        agp_version = '9.2.1'
         kotlin_version = '2.3.10'
         kotlin_coroutines_version = '1.10.2'
         navigation_version = "2.9.7"

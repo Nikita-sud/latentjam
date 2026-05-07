@@ -103,10 +103,11 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
-    <com.google.android.material.button.MaterialButtonGroup
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:spacing="@dimen/spacing_small">
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal">
 
             <org.oxycblt.auxio.ui.WidthFixMaterialButton
                 android:id="@+id/playback_repeat"
@@ -178,10 +179,9 @@
                 app:layout_constraintHorizontal_bias="0.5"
                 app:layout_constraintStart_toEndOf="@+id/playback_skip_next"
                 app:layout_constraintTop_toTopOf="parent"
-                app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Small"
-                app:tint="@color/sel_activatable_icon" />
+                app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Small" />
 
-        </com.google.android.material.button.MaterialButtonGroup>
+        </LinearLayout>
 
     </org.oxycblt.auxio.playback.ui.ForcedLTRFrameLayout>
 
