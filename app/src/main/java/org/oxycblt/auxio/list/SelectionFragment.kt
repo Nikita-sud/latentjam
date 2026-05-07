@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2022 Auxio Project
- * SelectionFragment.kt is part of Auxio.
+ * Copyright (c) 2022 LatentJam Project
+ * SelectionFragment.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ import androidx.viewbinding.ViewBinding
 import org.oxycblt.auxio.R
 import org.oxycblt.auxio.music.MusicViewModel
 import org.oxycblt.auxio.playback.PlaybackViewModel
-import org.oxycblt.auxio.ui.AuxioToolbar
+import org.oxycblt.auxio.ui.LatentJamToolbar
 import org.oxycblt.auxio.ui.ViewBindingFragment
 import org.oxycblt.auxio.util.showToast
 
@@ -40,7 +40,7 @@ abstract class SelectionFragment<VB : ViewBinding> :
     protected abstract val musicModel: MusicViewModel
     protected abstract val playbackModel: PlaybackViewModel
 
-    open fun getSelectionToolbar(binding: VB): AuxioToolbar? = null
+    open fun getSelectionToolbar(binding: VB): LatentJamToolbar? = null
 
     override fun onBindingCreated(binding: VB, savedInstanceState: Bundle?) {
         super.onBindingCreated(binding, savedInstanceState)

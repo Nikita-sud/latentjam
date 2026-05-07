@@ -9,12 +9,12 @@
 
     <org.oxycblt.auxio.ui.CoordinatorAppBarLayout
         android:id="@+id/preferences_appbar"
-        style="@style/Widget.Auxio.AppBarLayout"
+        style="@style/Widget.LatentJam.AppBarLayout"
         android:clickable="true"
         android:focusable="true"
         app:liftOnScroll="true">
 
-        <org.oxycblt.auxio.ui.AuxioToolbar
+        <org.oxycblt.auxio.ui.LatentJamToolbar
             android:id="@+id/preferences_toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

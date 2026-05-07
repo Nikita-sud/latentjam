@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2023 Auxio Project
- * RawPlaylist.kt is part of Auxio.
+ * Copyright (c) 2023 LatentJam Project
+ * RawPlaylist.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2025 Auxio Project
- * JStringRef.h is part of Auxio.
+ * Copyright (c) 2025 LatentJam Project
+ * JStringRef.h is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
  
-#ifndef AUXIO_JSTRINGREF_H
-#define AUXIO_JSTRINGREF_H
+#ifndef LATENTJAM_JSTRINGREF_H
+#define LATENTJAM_JSTRINGREF_H
 
 #include <jni.h>
 #include <taglib/tstring.h>
@@ -43,4 +43,4 @@ private:
     jstring string;
 };
 
-#endif //AUXIO_JSTRINGREF_H
+#endif //LATENTJAM_JSTRINGREF_H

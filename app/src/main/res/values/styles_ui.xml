@@ -2,7 +2,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- SHARED RE-USABLE UI STYLES -->
 
-    <style name="Widget.Auxio.AppBarLayout" parent="Widget.Material3.AppBarLayout">
+    <style name="Widget.LatentJam.AppBarLayout" parent="Widget.Material3.AppBarLayout">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <!-- Fix flickering lift animation when scrolling quickly -->
@@ -10,7 +10,7 @@
     </style>
 
     <!-- Base toolbar style -->
-    <style name="Widget.Auxio.Toolbar" parent="Widget.Material3.Toolbar">
+    <style name="Widget.LatentJam.Toolbar" parent="Widget.Material3.Toolbar">
         <item name="titleTextAppearance">?attr/textAppearanceTitleLargeEmphasized</item>
         <item name="subtitleTextAppearance">?attr/textAppearanceLabelMediumEmphasized</item>
         <item name="maxButtonHeight">@dimen/size_touchable_small</item>
@@ -20,15 +20,15 @@
         <item name="android:paddingEnd">@dimen/spacing_tiny</item>
     </style>
 
-    <style name="Widget.Auxio.TabLayout" parent="Widget.Material3.TabLayout">
+    <style name="Widget.LatentJam.TabLayout" parent="Widget.Material3.TabLayout">
         <item name="tabTextAppearance">?attr/textAppearanceTitleSmallEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.TabLayout.Secondary" parent="Widget.Material3.TabLayout.Secondary">
+    <style name="Widget.LatentJam.TabLayout.Secondary" parent="Widget.Material3.TabLayout.Secondary">
         <item name="tabTextAppearance">?attr/textAppearanceTitleSmallEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.Slider" parent="Widget.Material3.Slider">
+    <style name="Widget.LatentJam.Slider" parent="Widget.Material3.Slider">
         <item name="labelBehavior">gone</item>
         <item name="tickVisible">false</item>
         <item name="trackStopIndicatorSize">0dp</item>
@@ -36,27 +36,27 @@
         <item name="thumbHeight">@dimen/slider_thumb_height</item>
     </style>
 
-    <style name="Widget.Auxio.LinearProgressIndicator" parent="Widget.Material3.LinearProgressIndicator">
+    <style name="Widget.LatentJam.LinearProgressIndicator" parent="Widget.Material3.LinearProgressIndicator">
 <!--        <item name="trackColor">@color/sel_track</item>-->
         <item name="trackCornerRadius">@dimen/m3_shape_corners_full</item>
         <item name="trackStopIndicatorSize">0dp</item>
     </style>
 
-    <style name="Widget.Auxio.BottomSheet" parent="Widget.Material3.BottomSheet">
+    <style name="Widget.LatentJam.BottomSheet" parent="Widget.Material3.BottomSheet">
         <item name="marginLeftSystemWindowInsets">false</item>
         <item name="marginRightSystemWindowInsets">false</item>
         <item name="paddingBottomSystemWindowInsets">false</item>
         <item name="paddingTopSystemWindowInsets">false</item>
-        <item name="shapeAppearance">@style/ShapeAppearance.Auxio.BottomSheet</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.LatentJam.BottomSheet</item>
         <item name="shouldRemoveExpandedCorners">true</item>
     </style>
 
-    <style name="ShapeAppearance.Auxio.BottomSheet" parent="ShapeAppearance.Material3.Corner.ExtraLarge">
+    <style name="ShapeAppearance.LatentJam.BottomSheet" parent="ShapeAppearance.Material3.Corner.ExtraLarge">
         <!-- This is really badly off-spec, but is needed to nicely harmonize the corner radii in the playback bar -->
         <item name="cornerSize">20dp</item>
     </style>
 
-    <style name="Widget.Auxio.BottomSheet.Modal" parent="Widget.Material3.BottomSheet.Modal">
+    <style name="Widget.LatentJam.BottomSheet.Modal" parent="Widget.Material3.BottomSheet.Modal">
         <item name="marginLeftSystemWindowInsets">false</item>
         <item name="marginRightSystemWindowInsets">false</item>
         <item name="paddingBottomSystemWindowInsets">false</item>
@@ -64,15 +64,15 @@
         <item name="shouldRemoveExpandedCorners">false</item>
     </style>
 
-    <style name="Widget.Auxio.BottomSheet.Dialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
-        <item name="bottomSheetStyle">@style/Widget.Auxio.BottomSheet.Modal</item>
-        <item name="materialButtonStyle">@style/Widget.Auxio.Button</item>
-        <item name="materialButtonTonalStyle">@style/Widget.Auxio.Button.TonalButton</item>
-        <item name="materialButtonOutlinedStyle">@style/Widget.Auxio.Button.OutlinedButton</item>
-        <item name="materialButtonElevatedStyle">@style/Widget.Auxio.Button.ElevatedButton</item>
-        <item name="borderlessButtonStyle">@style/Widget.Auxio.Button.TextButton</item>
-        <item name="snackbarButtonStyle">@style/Widget.Auxio.Button.TextButton.Snackbar</item>
-        <item name="materialIconButtonStyle">@style/Widget.Auxio.Button.Icon.Base</item>
+    <style name="Widget.LatentJam.BottomSheet.Dialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.LatentJam.BottomSheet.Modal</item>
+        <item name="materialButtonStyle">@style/Widget.LatentJam.Button</item>
+        <item name="materialButtonTonalStyle">@style/Widget.LatentJam.Button.TonalButton</item>
+        <item name="materialButtonOutlinedStyle">@style/Widget.LatentJam.Button.OutlinedButton</item>
+        <item name="materialButtonElevatedStyle">@style/Widget.LatentJam.Button.ElevatedButton</item>
+        <item name="borderlessButtonStyle">@style/Widget.LatentJam.Button.TextButton</item>
+        <item name="snackbarButtonStyle">@style/Widget.LatentJam.Button.TextButton.Snackbar</item>
+        <item name="materialIconButtonStyle">@style/Widget.LatentJam.Button.Icon.Base</item>
         <item name="materialIconButtonOutlinedStyle">
             @style/Widget.Material3Expressive.Button.IconButton.Outlined
         </item>
@@ -82,118 +82,118 @@
         <item name="materialIconButtonFilledTonalStyle">
             @style/Widget.Material3Expressive.Button.IconButton.Tonal
         </item>
-        <item name="materialSplitButtonStyle">@style/Widget.Auxio.SplitButton</item>
+        <item name="materialSplitButtonStyle">@style/Widget.LatentJam.SplitButton</item>
         <item name="materialSplitButtonLeadingFilledStyle">
-            @style/Widget.Auxio.SplitButton.LeadingButton.Filled
+            @style/Widget.LatentJam.SplitButton.LeadingButton.Filled
         </item>
         <item name="materialSplitButtonLeadingFilledTonalStyle">
-            @style/Widget.Auxio.SplitButton.LeadingButton.Filled.Tonal
+            @style/Widget.LatentJam.SplitButton.LeadingButton.Filled.Tonal
         </item>
         <item name="materialSplitButtonIconFilledStyle">
-            @style/Widget.Auxio.SplitButton.IconButton.Filled
+            @style/Widget.LatentJam.SplitButton.IconButton.Filled
         </item>
         <item name="materialSplitButtonIconFilledTonalStyle">
-            @style/Widget.Auxio.SplitButton.IconButton.Filled.Tonal
+            @style/Widget.LatentJam.SplitButton.IconButton.Filled.Tonal
         </item>
-        <item name="android:windowAnimationStyle">@style/Animation.Auxio.BottomSheet.Dialog</item>
+        <item name="android:windowAnimationStyle">@style/Animation.LatentJam.BottomSheet.Dialog</item>
     </style>
 
-    <style name="Animation.Auxio.BottomSheet.Dialog" parent="Animation.Material3.BottomSheetDialog">
+    <style name="Animation.LatentJam.BottomSheet.Dialog" parent="Animation.Material3.BottomSheetDialog">
         <item name="android:windowEnterAnimation">@anim/bottom_sheet_slide_in</item>
         <item name="android:windowExitAnimation">@anim/bottom_sheet_slide_out</item>
     </style>
 
-    <style name="Widget.Auxio.BottomSheet.Handle" parent="Widget.Material3.BottomSheet.DragHandle">
+    <style name="Widget.LatentJam.BottomSheet.Handle" parent="Widget.Material3.BottomSheet.DragHandle">
         <item name="android:paddingBottom">0dp</item>
     </style>
 
-    <style name="Widget.Auxio.MaterialButtonGroup" parent="Widget.Material3.MaterialButtonGroup">
+    <style name="Widget.LatentJam.MaterialButtonGroup" parent="Widget.Material3.MaterialButtonGroup">
         <item name="buttonSizeChange">@xml/safe_button_group_size_change</item>
         <item name="android:gravity">center</item>
         <item name="android:orientation">horizontal</item>
     </style>
 
-    <style name="Widget.Auxio.Image.Small" parent="">
+    <style name="Widget.LatentJam.Image.Small" parent="">
         <item name="android:layout_width">@dimen/size_touchable_small</item>
         <item name="android:layout_height">@dimen/size_touchable_small</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.Medium</item>
         <item name="iconSize">@dimen/size_icon_small</item>
     </style>
 
-    <style name="Widget.Auxio.Image.Small.Circular" parent="">
+    <style name="Widget.LatentJam.Image.Small.Circular" parent="">
         <item name="android:layout_width">@dimen/size_touchable_small</item>
         <item name="android:layout_height">@dimen/size_touchable_small</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.Full</item>
         <item name="iconSize">@dimen/size_icon_small</item>
     </style>
 
-    <style name="Widget.Auxio.Image.Medium" parent="">
+    <style name="Widget.LatentJam.Image.Medium" parent="">
         <item name="android:layout_width">@dimen/size_touchable_medium</item>
         <item name="android:layout_height">@dimen/size_touchable_medium</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.Medium</item>
         <item name="iconSize">@dimen/size_icon_medium</item>
     </style>
 
-    <style name="Widget.Auxio.Image.Medium.Circular" parent="">
+    <style name="Widget.LatentJam.Image.Medium.Circular" parent="">
         <item name="android:layout_width">@dimen/size_touchable_medium</item>
         <item name="android:layout_height">@dimen/size_touchable_medium</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.Full</item>
         <item name="iconSize">@dimen/size_icon_medium</item>
     </style>
 
-    <style name="Widget.Auxio.Image.MidLarge" parent="">
+    <style name="Widget.LatentJam.Image.MidLarge" parent="">
         <item name="android:layout_width">@dimen/size_touchable_huge</item>
         <item name="android:layout_height">@dimen/size_touchable_huge</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.ExtraLarge</item>
     </style>
 
-    <style name="Widget.Auxio.Image.Large" parent="">
+    <style name="Widget.LatentJam.Image.Large" parent="">
         <item name="android:layout_width">@dimen/size_hero_small</item>
         <item name="android:layout_height">@dimen/size_hero_small</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.ExtraLarge</item>
     </style>
 
-    <style name="Widget.Auxio.Image.MidHuge" parent="">
+    <style name="Widget.LatentJam.Image.MidHuge" parent="">
         <item name="android:layout_width">@dimen/size_hero_medium</item>
         <item name="android:layout_height">@dimen/size_hero_medium</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.ExtraLarge</item>
     </style>
 
-    <style name="Widget.Auxio.Image.Huge" parent="">
+    <style name="Widget.LatentJam.Image.Huge" parent="">
         <item name="android:layout_width">@dimen/size_hero_large</item>
         <item name="android:layout_height">@dimen/size_hero_large</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.ExtraLarge</item>
     </style>
 
-    <style name="Widget.Auxio.Image.MidFull" parent="">
+    <style name="Widget.LatentJam.Image.MidFull" parent="">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">0dp</item>
         <item name="layout_constraintDimensionRatio">1</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.Large</item>
     </style>
 
-    <style name="Widget.Auxio.Image.Full" parent="">
+    <style name="Widget.LatentJam.Image.Full" parent="">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">0dp</item>
         <item name="layout_constraintDimensionRatio">1</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Material3.Corner.ExtraLarge</item>
     </style>
 
-    <style name="Widget.Auxio.RecyclerView.Linear" parent="">
+    <style name="Widget.LatentJam.RecyclerView.Linear" parent="">
         <item name="layoutManager">androidx.recyclerview.widget.LinearLayoutManager</item>
     </style>
 
-    <style name="Widget.Auxio.RecyclerView.Grid.Base" parent="">
+    <style name="Widget.LatentJam.RecyclerView.Grid.Base" parent="">
         <item name="layoutManager">androidx.recyclerview.widget.GridLayoutManager</item>
     </style>
 
-    <style name="Widget.Auxio.RecyclerView.Grid" parent="Widget.Auxio.RecyclerView.Grid.Base" />
+    <style name="Widget.LatentJam.RecyclerView.Grid" parent="Widget.LatentJam.RecyclerView.Grid.Base" />
 
-    <style name="Widget.Auxio.RecyclerView.Grid.WithAdaptiveFab" parent="Widget.Auxio.RecyclerView.Grid">
+    <style name="Widget.LatentJam.RecyclerView.Grid.WithAdaptiveFab" parent="Widget.LatentJam.RecyclerView.Grid">
         <item name="android:paddingBottom">@dimen/recycler_fab_space_normal</item>
     </style>
 
-    <style name="Widget.Auxio.DisableDropShadows" parent="">
+    <style name="Widget.LatentJam.DisableDropShadows" parent="">
         <!-- API 28+ Only -->
         <item name="android:outlineAmbientShadowColor" tools:ignore="NewApi">
             @android:color/transparent
@@ -209,52 +209,52 @@
 
     <!-- TEXTVIEW STYLES -->
 
-    <style name="Widget.Auxio.TextView.Base" parent="Widget.AppCompat.TextView">
+    <style name="Widget.LatentJam.TextView.Base" parent="Widget.AppCompat.TextView">
         <item name="android:textAlignment">viewStart</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Item.Base" parent="Widget.Auxio.TextView.Base">
+    <style name="Widget.LatentJam.TextView.Item.Base" parent="Widget.LatentJam.TextView.Base">
         <item name="android:ellipsize">end</item>
         <item name="android:maxLines">1</item>
         <item name="android:layout_marginStart">@dimen/spacing_medium</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Item.Primary" parent="Widget.Auxio.TextView.Item.Base">
+    <style name="Widget.LatentJam.TextView.Item.Primary" parent="Widget.LatentJam.TextView.Item.Base">
         <item name="android:textAppearance">?attr/textAppearanceTitleMedium
         </item>
         <item name="android:textColor">?android:attr/textColorPrimary</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Item.Secondary" parent="Widget.Auxio.TextView.Item.Base">
+    <style name="Widget.LatentJam.TextView.Item.Secondary" parent="Widget.LatentJam.TextView.Item.Base">
         <item name="android:textAppearance">?attr/textAppearanceBodyMedium</item>
         <item name="android:textColor">?android:attr/textColorSecondary</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Primary" parent="Widget.Auxio.TextView.Base">
+    <style name="Widget.LatentJam.TextView.Primary" parent="Widget.LatentJam.TextView.Base">
         <item name="android:ellipsize">marquee</item>
         <item name="android:singleLine">true</item>
         <item name="android:marqueeRepeatLimit">marquee_forever</item>
         <item name="android:textAppearance">?attr/textAppearanceTitleLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Secondary.Base" parent="Widget.Auxio.TextView.Base">
+    <style name="Widget.LatentJam.TextView.Secondary.Base" parent="Widget.LatentJam.TextView.Base">
         <item name="android:textColor">?android:attr/textColorSecondary</item>
         <item name="android:textAppearance">?attr/textAppearanceBodyLarge</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Secondary.Ellipsize" parent="Widget.Auxio.TextView.Secondary.Base">
+    <style name="Widget.LatentJam.TextView.Secondary.Ellipsize" parent="Widget.LatentJam.TextView.Secondary.Base">
         <item name="android:maxLines">1</item>
         <item name="android:ellipsize">end</item>
 
     </style>
 
-    <style name="Widget.Auxio.TextView.Secondary.Marquee" parent="Widget.Auxio.TextView.Secondary.Base">
+    <style name="Widget.LatentJam.TextView.Secondary.Marquee" parent="Widget.LatentJam.TextView.Secondary.Base">
         <item name="android:singleLine">true</item>
         <item name="android:ellipsize">marquee</item>
         <item name="android:marqueeRepeatLimit">marquee_forever</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Primary.Compact" parent="Widget.Auxio.TextView.Base">
+    <style name="Widget.LatentJam.TextView.Primary.Compact" parent="Widget.LatentJam.TextView.Base">
         <item name="android:ellipsize">marquee</item>
         <item name="android:singleLine">true</item>
         <item name="android:marqueeRepeatLimit">marquee_forever</item>
@@ -262,14 +262,14 @@
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Secondary.Compact" parent="Widget.Auxio.TextView.Base">
+    <style name="Widget.LatentJam.TextView.Secondary.Compact" parent="Widget.LatentJam.TextView.Base">
         <item name="android:maxLines">1</item>
         <item name="android:ellipsize">end</item>
         <item name="android:textColor">?android:attr/textColorSecondary</item>
         <item name="android:textAppearance">?attr/textAppearanceBodySmall</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Header" parent="Widget.Auxio.TextView.Base">
+    <style name="Widget.LatentJam.TextView.Header" parent="Widget.LatentJam.TextView.Base">
         <item name="android:paddingStart">@dimen/spacing_medium</item>
         <item name="android:paddingTop">@dimen/spacing_small</item>
         <item name="android:paddingBottom">@dimen/spacing_small</item>
@@ -280,12 +280,12 @@
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Detail" parent="Widget.Auxio.TextView.Base">
+    <style name="Widget.LatentJam.TextView.Detail" parent="Widget.LatentJam.TextView.Base">
         <item name="android:textAppearance">?attr/textAppearanceTitleLargeEmphasized</item>
         <item name="android:textAlignment">viewStart</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Icon" parent="Widget.Auxio.TextView.Base">
+    <style name="Widget.LatentJam.TextView.Icon" parent="Widget.LatentJam.TextView.Base">
         <item name="android:drawablePadding">@dimen/spacing_medium</item>
         <item name="android:paddingTop">@dimen/spacing_mid_medium</item>
         <item name="android:paddingStart">@dimen/spacing_medium</item>
@@ -294,7 +294,7 @@
         <item name="android:textAppearance">?attr/textAppearanceBodyLarge</item>
     </style>
 
-    <style name="Widget.Auxio.TextView.Icon.Clickable" parent="Widget.Auxio.TextView.Icon">
+    <style name="Widget.LatentJam.TextView.Icon.Clickable" parent="Widget.LatentJam.TextView.Icon">
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
         <item name="android:background">?attr/selectableItemBackground</item>
@@ -302,82 +302,82 @@
 
     <!-- BUTTON STYLES -->
 
-    <style name="Widget.Auxio.Button" parent="Widget.Material3Expressive.Button">
+    <style name="Widget.LatentJam.Button" parent="Widget.Material3Expressive.Button">
         <item name="labelTextAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.Button.TonalButton" parent="Widget.Material3Expressive.Button.TonalButton">
+    <style name="Widget.LatentJam.Button.TonalButton" parent="Widget.Material3Expressive.Button.TonalButton">
         <item name="labelTextAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.Button.OutlinedButton" parent="Widget.Material3Expressive.Button.OutlinedButton">
+    <style name="Widget.LatentJam.Button.OutlinedButton" parent="Widget.Material3Expressive.Button.OutlinedButton">
         <item name="labelTextAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.Button.ElevatedButton" parent="Widget.Material3Expressive.Button.ElevatedButton">
+    <style name="Widget.LatentJam.Button.ElevatedButton" parent="Widget.Material3Expressive.Button.ElevatedButton">
         <item name="labelTextAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.Button.TextButton" parent="Widget.Material3Expressive.Button.TextButton">
+    <style name="Widget.LatentJam.Button.TextButton" parent="Widget.Material3Expressive.Button.TextButton">
         <item name="labelTextAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.Button.TextButton.Dialog" parent="Widget.Material3Expressive.Button.TextButton.Dialog">
+    <style name="Widget.LatentJam.Button.TextButton.Dialog" parent="Widget.Material3Expressive.Button.TextButton.Dialog">
         <item name="labelTextAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.Button.TextButton.Dialog.Flush" parent="Widget.Material3Expressive.Button.TextButton.Dialog.Flush">
+    <style name="Widget.LatentJam.Button.TextButton.Dialog.Flush" parent="Widget.Material3Expressive.Button.TextButton.Dialog.Flush">
         <item name="labelTextAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.Button.TextButton.Snackbar" parent="Widget.Material3Expressive.Button.TextButton.Snackbar">
+    <style name="Widget.LatentJam.Button.TextButton.Snackbar" parent="Widget.Material3Expressive.Button.TextButton.Snackbar">
         <item name="labelTextAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.SplitButton" parent="Widget.Material3.MaterialSplitButton" />
+    <style name="Widget.LatentJam.SplitButton" parent="Widget.Material3.MaterialSplitButton" />
 
-    <style name="Widget.Auxio.SplitButton.LeadingButton.Filled" parent="Widget.Material3.SplitButton.LeadingButton.Filled">
+    <style name="Widget.LatentJam.SplitButton.LeadingButton.Filled" parent="Widget.Material3.SplitButton.LeadingButton.Filled">
         <item name="labelTextAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.SplitButton.LeadingButton.Filled.Tonal" parent="Widget.Material3.SplitButton.LeadingButton.Filled.Tonal">
+    <style name="Widget.LatentJam.SplitButton.LeadingButton.Filled.Tonal" parent="Widget.Material3.SplitButton.LeadingButton.Filled.Tonal">
         <item name="labelTextAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelLargeEmphasized</item>
     </style>
 
-    <style name="Widget.Auxio.SplitButton.IconButton.Filled" parent="Widget.Material3.SplitButton.IconButton.Filled" />
+    <style name="Widget.LatentJam.SplitButton.IconButton.Filled" parent="Widget.Material3.SplitButton.IconButton.Filled" />
 
-    <style name="Widget.Auxio.SplitButton.IconButton.Filled.Tonal" parent="Widget.Material3.SplitButton.IconButton.Filled.Tonal" />
+    <style name="Widget.LatentJam.SplitButton.IconButton.Filled.Tonal" parent="Widget.Material3.SplitButton.IconButton.Filled.Tonal" />
 
-    <style name="Widget.Auxio.Button.Primary" parent="Widget.Auxio.Button">
+    <style name="Widget.LatentJam.Button.Primary" parent="Widget.LatentJam.Button">
         <item name="iconGravity">textStart</item>
         <item name="iconSize">@dimen/size_icon_small</item>
     </style>
 
-    <style name="Widget.Auxio.Button.Secondary" parent="Widget.Auxio.Button.TonalButton">
+    <style name="Widget.LatentJam.Button.Secondary" parent="Widget.LatentJam.Button.TonalButton">
         <item name="iconGravity">textStart</item>
         <item name="iconSize">@dimen/size_icon_small</item>
     </style>
 
-    <style name="Widget.Auxio.Button.Icon.Base" parent="Widget.Material3Expressive.Button.IconButton">
-        <item name="materialThemeOverlay">@style/ThemeOverlay.Auxio.UncheckableIconButton</item>
+    <style name="Widget.LatentJam.Button.Icon.Base" parent="Widget.Material3Expressive.Button.IconButton">
+        <item name="materialThemeOverlay">@style/ThemeOverlay.LatentJam.UncheckableIconButton</item>
     </style>
 
-    <style name="ThemeOverlay.Auxio.UncheckableIconButton" parent="">
+    <style name="ThemeOverlay.LatentJam.UncheckableIconButton" parent="">
         <item name="colorContainer">@android:color/transparent</item>
         <item name="colorOnContainer">?attr/colorOnSurfaceVariant</item>
     </style>
 
-    <style name="Widget.Auxio.Button.Icon.Small" parent="Widget.Auxio.Button.Icon.Base">
+    <style name="Widget.LatentJam.Button.Icon.Small" parent="Widget.LatentJam.Button.Icon.Base">
         <item name="iconSize">@dimen/size_icon_small</item>
         <item name="android:minWidth">@dimen/size_touchable_small</item>
         <item name="android:minHeight">@dimen/size_touchable_small</item>
@@ -393,7 +393,7 @@
         <item name="iconTint" tools:ignore="PrivateResource">@color/m3_text_button_foreground_color_selector</item>
     </style>
 
-    <style name="Widget.Auxio.Button.Icon.Medium" parent="Widget.Material3Expressive.Button.IconButton.Outlined">
+    <style name="Widget.LatentJam.Button.Icon.Medium" parent="Widget.Material3Expressive.Button.IconButton.Outlined">
         <item name="iconSize">@dimen/size_icon_medium</item>
         <item name="android:minWidth">@dimen/size_touchable_small</item>
         <item name="android:minHeight">@dimen/size_touchable_small</item>
@@ -408,7 +408,7 @@
         <item name="iconTint" tools:ignore="PrivateResource">@color/m3_text_button_foreground_color_selector</item>
     </style>
 
-    <style name="Widget.Auxio.Button.Icon.Small.Primary" parent="Widget.Material3Expressive.Button.IconButton.Filled">
+    <style name="Widget.LatentJam.Button.Icon.Small.Primary" parent="Widget.Material3Expressive.Button.IconButton.Filled">
         <item name="iconSize">@dimen/size_icon_small</item>
         <item name="android:minWidth">@dimen/size_touchable_small</item>
         <item name="android:minHeight">@dimen/size_touchable_small</item>
@@ -422,7 +422,7 @@
         <item name="android:paddingBottom">@dimen/spacing_small</item>
     </style>
 
-    <style name="Widget.Auxio.Button.Icon.Small.Secondary" parent="Widget.Material3Expressive.Button.IconButton.Tonal">
+    <style name="Widget.LatentJam.Button.Icon.Small.Secondary" parent="Widget.Material3Expressive.Button.IconButton.Tonal">
         <item name="iconSize">@dimen/size_icon_small</item>
         <item name="android:minWidth">@dimen/size_touchable_small</item>
         <item name="android:minHeight">@dimen/size_touchable_small</item>
@@ -437,32 +437,32 @@
     </style>
 
 
-    <style name="ThemeOverlay.Auxio.IconButton.Palette.Secondary" parent="">
+    <style name="ThemeOverlay.LatentJam.IconButton.Palette.Secondary" parent="">
         <item name="colorContainer">?attr/colorSecondaryContainer</item>
         <item name="colorOnContainer">?attr/colorOnSecondaryContainer</item>
     </style>
 
-    <style name="ThemeOverlay.Auxio.IconButton.Style.Small.Primary" parent="">
-        <item name="materialIconButtonStyle">@style/Widget.Auxio.Button.Icon.Small.Primary</item>
+    <style name="ThemeOverlay.LatentJam.IconButton.Style.Small.Primary" parent="">
+        <item name="materialIconButtonStyle">@style/Widget.LatentJam.Button.Icon.Small.Primary</item>
     </style>
 
-    <style name="ThemeOverlay.Auxio.IconButton.Style.Small.Secondary" parent="">
-        <item name="materialIconButtonStyle">@style/Widget.Auxio.Button.Icon.Small.Secondary</item>
+    <style name="ThemeOverlay.LatentJam.IconButton.Style.Small.Secondary" parent="">
+        <item name="materialIconButtonStyle">@style/Widget.LatentJam.Button.Icon.Small.Secondary</item>
     </style>
 
-    <style name="Widget.Auxio.Button.PlayPause" parent="Widget.Material3Expressive.Button.IconButton">
+    <style name="Widget.LatentJam.Button.PlayPause" parent="Widget.Material3Expressive.Button.IconButton">
         <item name="android:checkable">true</item>
     </style>
 
-    <style name="Widget.Auxio.Button.PlayPause.Secondary" parent="Widget.Material3Expressive.Button.IconButton">
+    <style name="Widget.LatentJam.Button.PlayPause.Secondary" parent="Widget.Material3Expressive.Button.IconButton">
         <item name="backgroundTint">?attr/colorSecondary</item>
         <item name="iconTint">?attr/colorOnSecondary</item>
         <item name="android:checkable">true</item>
     </style>
 
-    <style name="Widget.Auxio.Button.Playback.More" parent="Widget.Auxio.Button.Icon.Base" />
+    <style name="Widget.LatentJam.Button.Playback.More" parent="Widget.LatentJam.Button.Icon.Base" />
 
-    <style name="Widget.Auxio.Button.Playback.Toggle" parent="Widget.Material3Expressive.Button.IconButton.Outlined">
+    <style name="Widget.LatentJam.Button.Playback.Toggle" parent="Widget.Material3Expressive.Button.IconButton.Outlined">
         <item name="android:checkable">true</item>
         <item name="toggleCheckedStateOnClick">false</item>
         <item name="iconTint">@color/sel_checkable_icon</item>
@@ -470,13 +470,13 @@
         <item name="backgroundTint">?attr/colorSurfaceContainerLow</item>
     </style>
 
-    <style name="Widget.Auxio.Button.Playback.Skip" parent="Widget.Material3Expressive.Button.IconButton.Tonal" />
+    <style name="Widget.LatentJam.Button.Playback.Skip" parent="Widget.Material3Expressive.Button.IconButton.Tonal" />
 
-    <style name="Widget.Auxio.Button.Playback.PlayPause" parent="Widget.Material3Expressive.Button.IconButton.Tonal">
+    <style name="Widget.LatentJam.Button.Playback.PlayPause" parent="Widget.Material3Expressive.Button.IconButton.Tonal">
         <item name="android:checkable">true</item>
-        <item name="materialThemeOverlay">@style/ThemeOverlay.Auxio.Button.PrimaryTonal</item>
+        <item name="materialThemeOverlay">@style/ThemeOverlay.LatentJam.Button.PrimaryTonal</item>
     </style>
-    <style name="ThemeOverlay.Auxio.Button.PrimaryTonal" parent="">
+    <style name="ThemeOverlay.LatentJam.Button.PrimaryTonal" parent="">
         <item name="colorContainer">?attr/colorPrimaryContainer</item>
         <item name="colorContainerChecked">?attr/colorPrimary</item>
         <item name="colorContainerUnchecked">?attr/colorPrimaryContainer</item>

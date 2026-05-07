@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2022 Auxio Project
- * MediaButtonReceiver.kt is part of Auxio.
+ * Copyright (c) 2022 LatentJam Project
+ * MediaButtonReceiver.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,8 +25,8 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import org.oxycblt.auxio.AuxioService
 import org.oxycblt.auxio.IntegerTable
+import org.oxycblt.auxio.LatentJamService
 import org.oxycblt.auxio.playback.state.PlaybackStateManager
 import timber.log.Timber as L
 
@@ -51,8 +51,8 @@ class MediaButtonReceiver : BroadcastReceiver() {
             // TODO: Think I finally have an alternative with the changes I made to accomodate
             //  tasker
             L.d("Delivering media button intent $intent")
-            intent.component = ComponentName(context, AuxioService::class.java)
-            intent.putExtra(AuxioService.INTENT_KEY_START_ID, IntegerTable.START_ID_MEDIA_BUTTON)
+            intent.component = ComponentName(context, LatentJamService::class.java)
+            intent.putExtra(LatentJamService.INTENT_KEY_START_ID, IntegerTable.START_ID_MEDIA_BUTTON)
             ContextCompat.startForegroundService(context, intent)
         }
     }

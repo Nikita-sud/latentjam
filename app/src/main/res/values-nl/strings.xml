@@ -63,7 +63,7 @@
     <string name="desc_change_repeat">Wijzig herhaalmodus</string>
     <string name="desc_clear_search">Wis zoekopdracht</string>
     <string name="desc_music_location_delete">Verwijder map</string>
-    <string name="desc_auxio_icon">Auxio icoon</string>
+    <string name="desc_latentjam_icon">Auxio icoon</string>
     <string name="desc_album_cover">Albumhoes voor %s</string>
     <string name="desc_artist_image">Artiest afbeelding voor %s</string>
     <string name="desc_genre_image">Genre afbeelding voor %s</string>

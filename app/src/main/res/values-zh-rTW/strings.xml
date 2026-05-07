@@ -207,7 +207,7 @@
     <string name="set_rescan_desc">清除所有標籤快取並重新載入媒體（完整但速度較慢）</string>
     <string name="err_no_app">找不到可處理這項操作的應用程式</string>
     <string name="desc_remove_song">刪除歌曲</string>
-    <string name="desc_auxio_icon">Auxio 圖示</string>
+    <string name="desc_latentjam_icon">Auxio 圖示</string>
     <string name="def_track">沒有音軌</string>
     <string name="def_playback">沒有正在播放的音樂</string>
     <string name="clr_pink">粉色</string>

@@ -9,7 +9,7 @@
 
     <org.oxycblt.auxio.ui.CoordinatorAppBarLayout
         android:id="@+id/search_appbar"
-        style="@style/Widget.Auxio.AppBarLayout"
+        style="@style/Widget.LatentJam.AppBarLayout"
         app:liftOnScroll="true"
         app:liftOnScrollTargetViewId="@id/search_recycler">
 
@@ -19,7 +19,7 @@
             app:layout_scrollFlags="scroll|enterAlways"
             android:layout_height="wrap_content">
 
-            <org.oxycblt.auxio.ui.AuxioToolbar
+            <org.oxycblt.auxio.ui.LatentJamToolbar
                 android:id="@+id/search_normal_toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -37,9 +37,9 @@
                     android:paddingStart="@dimen/spacing_tiny"
                     android:paddingEnd="0dp" />
 
-            </org.oxycblt.auxio.ui.AuxioToolbar>
+            </org.oxycblt.auxio.ui.LatentJamToolbar>
 
-            <org.oxycblt.auxio.ui.AuxioToolbar
+            <org.oxycblt.auxio.ui.LatentJamToolbar
                 android:id="@+id/search_selection_toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -122,9 +122,9 @@
         android:clipToPadding="false"
         app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior">
 
-    <org.oxycblt.auxio.list.recycler.AuxioRecyclerView
+    <org.oxycblt.auxio.list.recycler.LatentJamRecyclerView
         android:id="@+id/search_recycler"
-        style="@style/Widget.Auxio.RecyclerView.Grid"
+        style="@style/Widget.LatentJam.RecyclerView.Grid"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior"

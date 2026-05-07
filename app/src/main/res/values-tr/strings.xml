@@ -150,7 +150,7 @@
     <string name="err_no_app">Bu görevi yerine getirebilecek bir uygulama bulunamadı</string>
     <string name="desc_shuffle">Karıştırmayı açın veya kapatın</string>
     <string name="desc_music_location_delete">Klasörü kaldır</string>
-    <string name="desc_auxio_icon">Auxio simgesi</string>
+    <string name="desc_latentjam_icon">Auxio simgesi</string>
     <string name="desc_tab_handle">Bu sekmeyi taşı</string>
     <string name="desc_no_cover">Albüm kapağı</string>
     <string name="desc_clear_search">Arama geçmişini temizle</string>

@@ -84,7 +84,7 @@
     <string name="desc_tab_handle">تحريك التبويت</string>
     <string name="desc_clear_search">إزالة كلمة البحث</string>
     <string name="desc_music_location_delete">إزالة المجلد المستبعد</string>
-    <string name="desc_auxio_icon">ايقونة اوكسيو</string>
+    <string name="desc_latentjam_icon">ايقونة اوكسيو</string>
     <string name="desc_no_cover">غلاف الالبوم</string>
     <string name="desc_album_cover">غلاف الالبوم لـ %s</string>
     <string name="desc_artist_image">صورة الفنان لـ %s</string>

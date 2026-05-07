@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2021 Auxio Project
- * AuxioRecyclerView.kt is part of Auxio.
+ * Copyright (c) 2021 LatentJam Project
+ * LatentJamRecyclerView.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ import org.oxycblt.auxio.util.systemBarInsetsCompat
  *
  * @author Alexander Capehart (OxygenCobalt)
  */
-open class AuxioRecyclerView
+open class LatentJamRecyclerView
 @JvmOverloads
 constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr: Int = 0) :
     RecyclerView(context, attrs, defStyleAttr) {

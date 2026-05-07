@@ -5,9 +5,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <org.oxycblt.auxio.list.recycler.AuxioRecyclerView
+    <org.oxycblt.auxio.list.recycler.LatentJamRecyclerView
         android:id="@+id/queue_recycler"
-        style="@style/Widget.Auxio.RecyclerView.Linear"
+        style="@style/Widget.LatentJam.RecyclerView.Linear"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         tools:listitem="@layout/item_editable_song" />

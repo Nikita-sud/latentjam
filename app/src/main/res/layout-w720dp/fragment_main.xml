@@ -87,7 +87,7 @@
             android:layout_height="wrap_content" />
 
         <androidx.constraintlayout.widget.ConstraintLayout
-            style="@style/Widget.Auxio.DisableDropShadows"
+            style="@style/Widget.LatentJam.DisableDropShadows"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="horizontal">

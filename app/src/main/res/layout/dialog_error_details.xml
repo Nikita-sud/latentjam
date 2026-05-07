@@ -51,7 +51,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/error_copy"
-                style="@style/Widget.Auxio.Button.Icon.Small"
+                style="@style/Widget.LatentJam.Button.Icon.Small"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|end"

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2022 Auxio Project
- * IntegerTable.kt is part of Auxio.
+ * Copyright (c) 2022 LatentJam Project
+ * IntegerTable.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -61,11 +61,11 @@ object IntegerTable {
     const val INDEXER_NOTIFICATION_CODE = 0xA0A1
     /** MainActivity Intent request code */
     const val REQUEST_CODE = 0xA0C0
-    /** Activity AuxioService Start ID */
+    /** Activity LatentJamService Start ID */
     const val START_ID_ACTIVITY = 0xA050
-    /** Tasker AuxioService Start ID */
+    /** Tasker LatentJamService Start ID */
     const val START_ID_TASKER = 0xA051
-    /** MediaButtonReceiver AuxioService Start ID */
+    /** MediaButtonReceiver LatentJamService Start ID */
     const val START_ID_MEDIA_BUTTON = 0xA052
     /** RepeatMode.NONE */
     const val REPEAT_MODE_NONE = 0xA100

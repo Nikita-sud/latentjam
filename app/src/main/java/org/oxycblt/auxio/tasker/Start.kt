@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2024 Auxio Project
- * Start.kt is part of Auxio.
+ * Copyright (c) 2024 LatentJam Project
+ * Start.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,8 +30,8 @@ import com.joaomgcd.taskerpluginlibrary.config.TaskerPluginConfigNoInput
 import com.joaomgcd.taskerpluginlibrary.input.TaskerInput
 import com.joaomgcd.taskerpluginlibrary.runner.TaskerPluginResult
 import com.joaomgcd.taskerpluginlibrary.runner.TaskerPluginResultSucess
-import org.oxycblt.auxio.AuxioService
 import org.oxycblt.auxio.IntegerTable
+import org.oxycblt.auxio.LatentJamService
 import org.oxycblt.auxio.R
 
 class StartActionHelper(config: TaskerPluginConfig<Unit>) :
@@ -60,11 +60,11 @@ class StartActionRunner : TaskerPluginRunnerActionNoOutputOrInput() {
     override fun run(context: Context, input: TaskerInput<Unit>): TaskerPluginResult<Unit> {
         ContextCompat.startForegroundService(
             context,
-            Intent(context, AuxioService::class.java)
-                .setAction(AuxioService.ACTION_START)
-                .putExtra(AuxioService.INTENT_KEY_START_ID, IntegerTable.START_ID_TASKER),
+            Intent(context, LatentJamService::class.java)
+                .setAction(LatentJamService.ACTION_START)
+                .putExtra(LatentJamService.INTENT_KEY_START_ID, IntegerTable.START_ID_TASKER),
         )
-        while (!AuxioService.isForeground) {
+        while (!LatentJamService.isForeground) {
             Thread.sleep(100)
         }
         // Actually need to sleep even longer since for some reason the notification still

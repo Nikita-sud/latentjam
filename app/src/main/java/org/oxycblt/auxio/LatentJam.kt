@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2021 Auxio Project
- * Auxio.kt is part of Auxio.
+ * Copyright (c) 2021 LatentJam Project
+ * LatentJam.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,12 +33,12 @@ import org.oxycblt.auxio.util.CopyleftNoticeTree
 import timber.log.Timber
 
 /**
- * A simple, rational music player for android.
+ * LatentJam: A privacy-first Android music player.
  *
  * @author Alexander Capehart (OxygenCobalt)
  */
 @HiltAndroidApp
-class Auxio : Application() {
+class LatentJam : Application() {
     @Inject lateinit var imageSettings: ImageSettings
     @Inject lateinit var playbackSettings: PlaybackSettings
     @Inject lateinit var uiSettings: UISettings
@@ -48,8 +48,8 @@ class Auxio : Application() {
         super.onCreate()
         @Suppress("KotlinConstantConditions")
         if (
-            BuildConfig.APPLICATION_ID != "org.oxycblt.auxio" &&
-                BuildConfig.APPLICATION_ID != "org.oxycblt.auxio.debug"
+            BuildConfig.APPLICATION_ID != "io.github.nikitasud.latentjam" &&
+                BuildConfig.APPLICATION_ID != "io.github.nikitasud.latentjam.debug"
         ) {
             Timber.plant(CopyleftNoticeTree())
         } else if (BuildConfig.DEBUG) {
@@ -63,7 +63,7 @@ class Auxio : Application() {
         homeSettings.migrate()
         // Adding static shortcuts in a dynamic manner is better than declaring them
         // manually, as it will properly handle the difference between debug and release
-        // Auxio instances.
+        // LatentJam instances.
         // TODO: Switch to static shortcuts
         ShortcutManagerCompat.addDynamicShortcuts(
             this,

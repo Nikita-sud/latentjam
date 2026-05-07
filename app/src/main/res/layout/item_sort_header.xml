@@ -9,7 +9,7 @@
 
     <TextView
         android:id="@+id/header_title"
-        style="@style/Widget.Auxio.TextView.Header"
+        style="@style/Widget.LatentJam.TextView.Header"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"
@@ -20,7 +20,7 @@
 
     <org.oxycblt.auxio.ui.RippleFixMaterialButton
         android:id="@+id/header_sort"
-        style="@style/Widget.Auxio.Button.Icon.Small"
+        style="@style/Widget.LatentJam.Button.Icon.Small"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"

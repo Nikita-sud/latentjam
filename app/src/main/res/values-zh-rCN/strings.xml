@@ -82,7 +82,7 @@
     <string name="desc_tab_handle">移动该标签</string>
     <string name="desc_clear_search">清除搜索队列</string>
     <string name="desc_music_location_delete">移除文件夹</string>
-    <string name="desc_auxio_icon">Auxio 图标</string>
+    <string name="desc_latentjam_icon">Auxio 图标</string>
     <string name="desc_no_cover">专辑封面</string>
     <string name="desc_album_cover">%s 的专辑封面</string>
     <string name="desc_artist_image">%s 的艺术家图像</string>

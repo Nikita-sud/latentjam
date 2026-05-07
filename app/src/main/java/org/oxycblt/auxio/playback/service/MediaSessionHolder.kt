@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2021 Auxio Project
- * MediaSessionHolder.kt is part of Auxio.
+ * Copyright (c) 2021 LatentJam Project
+ * MediaSessionHolder.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -380,7 +380,7 @@ private class PlaybackNotification(
     sessionToken: MediaSessionCompat.Token,
 ) : ForegroundServiceNotification(context, CHANNEL_INFO) {
     init {
-        setSmallIcon(R.drawable.ic_auxio_24)
+        setSmallIcon(R.drawable.ic_latentjam_24)
         setCategory(NotificationCompat.CATEGORY_TRANSPORT)
         setShowWhen(false)
         setSilent(true)

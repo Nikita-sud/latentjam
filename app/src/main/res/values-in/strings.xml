@@ -139,7 +139,7 @@
     <string name="def_artist">Artis tidak dikenal</string>
     <string name="desc_skip_next">Loncat ke lagu berikutnya</string>
     <string name="desc_music_location_delete">Hapus folder</string>
-    <string name="desc_auxio_icon">Ikon Auxio</string>
+    <string name="desc_latentjam_icon">Ikon Auxio</string>
     <string name="desc_no_cover">Sampul album</string>
     <string name="desc_shuffle">Aktifkan atau nonaktifkan acak</string>
     <string name="desc_song_handle">Pindahkan lagu antrian ini</string>

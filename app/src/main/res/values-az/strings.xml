@@ -277,7 +277,7 @@
     <string name="desc_clear_search">Axtarışı təmizlə</string>
     <string name="desc_add_folder">Qovluğu əlavə et</string>
     <string name="desc_music_location_delete">Qovluğu çıxar</string>
-    <string name="desc_auxio_icon">Auxio ikonu</string>
+    <string name="desc_latentjam_icon">LatentJam ikonu</string>
     <string name="desc_no_cover">Albom qapağı</string>
     <string name="desc_album_cover">%s üçün albom qapağı</string>
     <string name="desc_artist_image">%s üçün ifaçı şəkli</string>

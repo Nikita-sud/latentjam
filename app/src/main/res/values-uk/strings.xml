@@ -217,7 +217,7 @@
     <string name="desc_skip_prev">Перейти до попередньої пісні</string>
     <string name="clr_red">Червоний</string>
     <string name="cdc_mp4">Звук MPEG-4</string>
-    <string name="desc_auxio_icon">Іконка Auxio</string>
+    <string name="desc_latentjam_icon">Іконка Auxio</string>
     <string name="clr_pink">Рожевий</string>
     <string name="clr_orange">Помаранчевий</string>
     <string name="clr_brown">Коричневий</string>

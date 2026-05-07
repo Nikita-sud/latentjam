@@ -1,6 +1,6 @@
 /*
- * Copyright (c) $today.year Auxio Project
- * $FILE is part of Auxio.
+ * Copyright (c) $today.year LatentJam Project
+ * $FILE is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,4 +15,3 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 

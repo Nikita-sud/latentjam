@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2024 Auxio Project
- * PlaybackServiceFragment.kt is part of Auxio.
+ * Copyright (c) 2024 LatentJam Project
+ * PlaybackServiceFragment.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.oxycblt.auxio.AuxioService.Companion.INTENT_KEY_START_ID
+import org.oxycblt.auxio.LatentJamService.Companion.INTENT_KEY_START_ID
 import org.oxycblt.auxio.ForegroundListener
 import org.oxycblt.auxio.ForegroundServiceNotification
 import org.oxycblt.auxio.IntegerTable

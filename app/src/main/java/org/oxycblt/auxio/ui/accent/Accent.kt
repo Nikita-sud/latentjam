@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2021 Auxio Project
- * Accent.kt is part of Auxio.
+ * Copyright (c) 2021 LatentJam Project
+ * Accent.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,44 +45,44 @@ private val accentNames =
 
 private val accentThemes =
     intArrayOf(
-        R.style.Theme_Auxio_Red,
-        R.style.Theme_Auxio_Pink,
-        R.style.Theme_Auxio_Purple,
-        R.style.Theme_Auxio_DeepPurple,
-        R.style.Theme_Auxio_Indigo,
-        R.style.Theme_Auxio_Blue,
-        R.style.Theme_Auxio_DeepBlue,
-        R.style.Theme_Auxio_Cyan,
-        R.style.Theme_Auxio_Teal,
-        R.style.Theme_Auxio_Green,
-        R.style.Theme_Auxio_DeepGreen,
-        R.style.Theme_Auxio_Lime,
-        R.style.Theme_Auxio_Yellow,
-        R.style.Theme_Auxio_Orange,
-        R.style.Theme_Auxio_Brown,
-        R.style.Theme_Auxio_Grey,
-        R.style.Theme_Auxio_App, // Dynamic colors are on the base theme
+        R.style.Theme_LatentJam_Red,
+        R.style.Theme_LatentJam_Pink,
+        R.style.Theme_LatentJam_Purple,
+        R.style.Theme_LatentJam_DeepPurple,
+        R.style.Theme_LatentJam_Indigo,
+        R.style.Theme_LatentJam_Blue,
+        R.style.Theme_LatentJam_DeepBlue,
+        R.style.Theme_LatentJam_Cyan,
+        R.style.Theme_LatentJam_Teal,
+        R.style.Theme_LatentJam_Green,
+        R.style.Theme_LatentJam_DeepGreen,
+        R.style.Theme_LatentJam_Lime,
+        R.style.Theme_LatentJam_Yellow,
+        R.style.Theme_LatentJam_Orange,
+        R.style.Theme_LatentJam_Brown,
+        R.style.Theme_LatentJam_Grey,
+        R.style.Theme_LatentJam_App, // Dynamic colors are on the base theme
     )
 
 private val accentBlackThemes =
     intArrayOf(
-        R.style.Theme_Auxio_Red_Black,
-        R.style.Theme_Auxio_Pink_Black,
-        R.style.Theme_Auxio_Purple_Black,
-        R.style.Theme_Auxio_DeepPurple_Black,
-        R.style.Theme_Auxio_Indigo_Black,
-        R.style.Theme_Auxio_Blue_Black,
-        R.style.Theme_Auxio_DeepBlue_Black,
-        R.style.Theme_Auxio_Cyan_Black,
-        R.style.Theme_Auxio_Teal_Black,
-        R.style.Theme_Auxio_Green_Black,
-        R.style.Theme_Auxio_DeepGreen_Black,
-        R.style.Theme_Auxio_Lime_Black,
-        R.style.Theme_Auxio_Yellow_Black,
-        R.style.Theme_Auxio_Orange_Black,
-        R.style.Theme_Auxio_Brown_Black,
-        R.style.Theme_Auxio_Grey_Black,
-        R.style.Theme_Auxio_Black, // Dynamic colors are on the base theme
+        R.style.Theme_LatentJam_Red_Black,
+        R.style.Theme_LatentJam_Pink_Black,
+        R.style.Theme_LatentJam_Purple_Black,
+        R.style.Theme_LatentJam_DeepPurple_Black,
+        R.style.Theme_LatentJam_Indigo_Black,
+        R.style.Theme_LatentJam_Blue_Black,
+        R.style.Theme_LatentJam_DeepBlue_Black,
+        R.style.Theme_LatentJam_Cyan_Black,
+        R.style.Theme_LatentJam_Teal_Black,
+        R.style.Theme_LatentJam_Green_Black,
+        R.style.Theme_LatentJam_DeepGreen_Black,
+        R.style.Theme_LatentJam_Lime_Black,
+        R.style.Theme_LatentJam_Yellow_Black,
+        R.style.Theme_LatentJam_Orange_Black,
+        R.style.Theme_LatentJam_Brown_Black,
+        R.style.Theme_LatentJam_Grey_Black,
+        R.style.Theme_LatentJam_Black, // Dynamic colors are on the base theme
     )
 
 private val accentPrimaryColors =

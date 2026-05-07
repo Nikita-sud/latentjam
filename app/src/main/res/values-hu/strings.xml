@@ -259,7 +259,7 @@
     <string name="lbl_share">Megoszt</string>
     <string name="lbl_confirm_delete_playlist">Lejátszólista törlése?</string>
     <string name="desc_remove_song">Távolítsa el ezt a dalt</string>
-    <string name="desc_auxio_icon">Auxio ikon</string>
+    <string name="desc_latentjam_icon">Auxio ikon</string>
     <string name="def_disc">Nincs lemez</string>
     <string name="fmt_editing">%s szerkesztése</string>
     <string name="set_square_covers">Négyzet alakú albumborítók</string>

@@ -257,7 +257,7 @@
     <string name="desc_tab_handle">இந்த தாவலை நகர்த்தவும்</string>
     <string name="desc_clear_search">தேடல் வினவலை அழிக்கவும்</string>
     <string name="desc_music_location_delete">கோப்புறையை அகற்று</string>
-    <string name="desc_auxio_icon">ஆக்சியோ படவுரு</string>
+    <string name="desc_latentjam_icon">ஆக்சியோ படவுரு</string>
     <string name="desc_no_cover">ஆல்பம் கவர்</string>
     <string name="desc_album_cover">%s ஆல்பம் கவர்</string>
     <string name="desc_artist_image">%s க்கான கலைஞர் படம்</string>

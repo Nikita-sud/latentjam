@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2021 Auxio Project
- * QueueFragment.kt is part of Auxio.
+ * Copyright (c) 2021 LatentJam Project
+ * QueueFragment.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

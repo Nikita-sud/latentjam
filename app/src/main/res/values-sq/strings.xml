@@ -259,7 +259,7 @@
     <string name="desc_queue_bar">Hap radhën</string>
     <string name="desc_clear_search">Pastro kërkimin</string>
     <string name="desc_music_location_delete">Hiq dosjen</string>
-    <string name="desc_auxio_icon">Ikona e Auxio</string>
+    <string name="desc_latentjam_icon">Ikona e Auxio</string>
     <string name="desc_no_cover">Kopertina e albumit</string>
     <string name="desc_album_cover">Kopertina e albumit për %s</string>
     <string name="desc_artist_image">Imazhi i artistit për %s</string>

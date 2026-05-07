@@ -129,7 +129,7 @@
     <string name="set_replay_gain_mode_album">Pageidauti albumą</string>
     <string name="set_replay_gain_mode_dynamic">Pageidauti albumą, jei vienas leidžiamas</string>
     <string name="err_no_app">Programos nerasta, kuri galėtų apdoroti šią užduotį.</string>
-    <string name="desc_auxio_icon">„Auxio“ piktograma</string>
+    <string name="desc_latentjam_icon">„Auxio“ piktograma</string>
     <string name="desc_song_handle">Perkelti šią dainą</string>
     <string name="desc_tab_handle">Perkelti šią kortelę</string>
     <string name="err_index_failed">Muzikos įkėlimas nepavyko.</string>

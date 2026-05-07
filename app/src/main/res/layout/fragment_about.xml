@@ -11,10 +11,10 @@
 
     <org.oxycblt.auxio.ui.CoordinatorAppBarLayout
         android:id="@+id/about_appbar"
-        style="@style/Widget.Auxio.AppBarLayout"
+        style="@style/Widget.LatentJam.AppBarLayout"
         app:liftOnScroll="true">
 
-        <org.oxycblt.auxio.ui.AuxioToolbar
+        <org.oxycblt.auxio.ui.LatentJamToolbar
             android:id="@+id/about_toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -47,7 +47,7 @@
 
                     <ImageView
                         android:id="@+id/about_app_icon"
-                        style="@style/Widget.Auxio.Image.Small"
+                        style="@style/Widget.LatentJam.Image.Small"
                         android:layout_marginTop="@dimen/spacing_medium"
                         android:contentDescription="@string/info_app_name"
                         android:src="@mipmap/ic_launcher"
@@ -118,7 +118,7 @@
 
                     <TextView
                         android:id="@+id/about_code"
-                        style="@style/Widget.Auxio.TextView.Icon.Clickable"
+                        style="@style/Widget.LatentJam.TextView.Icon.Clickable"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/spacing_mid_medium"
@@ -131,7 +131,7 @@
 
                     <TextView
                         android:id="@+id/about_licenses"
-                        style="@style/Widget.Auxio.TextView.Icon.Clickable"
+                        style="@style/Widget.LatentJam.TextView.Icon.Clickable"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/lbl_licenses"
@@ -157,14 +157,14 @@
 
                     <TextView
                         android:id="@+id/about_ml"
-                        style="@style/Widget.Auxio.TextView.Header"
+                        style="@style/Widget.LatentJam.TextView.Header"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/lbl_ml_recommender" />
 
                     <TextView
                         android:id="@+id/about_ml_desc"
-                        style="@style/Widget.Auxio.TextView.Icon"
+                        style="@style/Widget.LatentJam.TextView.Icon"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/info_ml_desc"
@@ -188,14 +188,14 @@
 
                     <TextView
                         android:id="@+id/about_privacy"
-                        style="@style/Widget.Auxio.TextView.Header"
+                        style="@style/Widget.LatentJam.TextView.Header"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/lbl_privacy_policy" />
 
                     <TextView
                         android:id="@+id/about_privacy_desc"
-                        style="@style/Widget.Auxio.TextView.Icon"
+                        style="@style/Widget.LatentJam.TextView.Icon"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/info_privacy_desc"
@@ -204,7 +204,7 @@
 
                     <TextView
                         android:id="@+id/about_feedback_email"
-                        style="@style/Widget.Auxio.TextView.Icon.Clickable"
+                        style="@style/Widget.LatentJam.TextView.Icon.Clickable"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/lbl_email"
@@ -228,14 +228,14 @@
 
                     <TextView
                         android:id="@+id/about_library_counts"
-                        style="@style/Widget.Auxio.TextView.Header"
+                        style="@style/Widget.LatentJam.TextView.Header"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/lbl_library_counts" />
 
                     <TextView
                         android:id="@+id/about_song_count"
-                        style="@style/Widget.Auxio.TextView.Icon"
+                        style="@style/Widget.LatentJam.TextView.Icon"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         app:drawableStartCompat="@drawable/ic_song_24"
@@ -243,7 +243,7 @@
 
                     <TextView
                         android:id="@+id/about_album_count"
-                        style="@style/Widget.Auxio.TextView.Icon"
+                        style="@style/Widget.LatentJam.TextView.Icon"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         app:drawableStartCompat="@drawable/ic_album_24"
@@ -251,7 +251,7 @@
 
                     <TextView
                         android:id="@+id/about_artist_count"
-                        style="@style/Widget.Auxio.TextView.Icon"
+                        style="@style/Widget.LatentJam.TextView.Icon"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         app:drawableStartCompat="@drawable/ic_artist_24"
@@ -259,7 +259,7 @@
 
                     <TextView
                         android:id="@+id/about_genre_count"
-                        style="@style/Widget.Auxio.TextView.Icon"
+                        style="@style/Widget.LatentJam.TextView.Icon"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         app:drawableStartCompat="@drawable/ic_genre_24"
@@ -267,7 +267,7 @@
 
                     <TextView
                         android:id="@+id/about_total_duration"
-                        style="@style/Widget.Auxio.TextView.Icon"
+                        style="@style/Widget.LatentJam.TextView.Icon"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         app:drawableStartCompat="@drawable/ic_time_24"
@@ -275,7 +275,7 @@
 
                     <TextView
                         android:id="@+id/about_total_size"
-                        style="@style/Widget.Auxio.TextView.Icon"
+                        style="@style/Widget.LatentJam.TextView.Icon"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         app:drawableStartCompat="@drawable/ic_file_24"

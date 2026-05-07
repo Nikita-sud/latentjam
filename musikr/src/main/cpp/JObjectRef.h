@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2025 Auxio Project
- * JObjectRef.h is part of Auxio.
+ * Copyright (c) 2025 LatentJam Project
+ * JObjectRef.h is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
  
-#ifndef AUXIO_JOBJECTREF_H
-#define AUXIO_JOBJECTREF_H
+#ifndef LATENTJAM_JOBJECTREF_H
+#define LATENTJAM_JOBJECTREF_H
 
 #include <jni.h>
 #include <memory>
@@ -41,4 +41,4 @@ private:
     jobject object;
 };
 
-#endif //AUXIO_JOBJECTREF_H
+#endif //LATENTJAM_JOBJECTREF_H

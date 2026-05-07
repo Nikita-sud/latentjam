@@ -8,7 +8,7 @@
     android:backgroundTint="?attr/colorSurface"
     android:baselineAligned="false"
     android:orientation="horizontal"
-    android:theme="@style/Theme.Auxio.Widget">
+    android:theme="@style/Theme.LatentJam.Widget">
 
     <!--
     Wrapping the 1:1 ImageView hack in a LinearLayout allows the view to measure greedily
@@ -39,7 +39,7 @@
 
             <android.widget.ImageButton
                 android:id="@+id/widget_skip_prev"
-                style="@style/Widget.Auxio.MaterialButton.AppWidget"
+                style="@style/Widget.LatentJam.MaterialButton.AppWidget"
                 android:layout_width="@dimen/size_touchable_small"
                 android:layout_height="@dimen/size_touchable_small"
                 android:contentDescription="@string/desc_skip_prev"
@@ -54,7 +54,7 @@
 
         <android.widget.ImageButton
             android:id="@+id/widget_play_pause"
-            style="@style/Widget.Auxio.MaterialButton.AppWidget.PlayPause"
+            style="@style/Widget.LatentJam.MaterialButton.AppWidget.PlayPause"
             android:layout_width="@dimen/size_touchable_small"
             android:layout_height="@dimen/size_touchable_small"
             android:contentDescription="@string/desc_play_pause"
@@ -72,7 +72,7 @@
 
             <android.widget.ImageButton
                 android:id="@+id/widget_skip_next"
-                style="@style/Widget.Auxio.MaterialButton.AppWidget"
+                style="@style/Widget.LatentJam.MaterialButton.AppWidget"
                 android:layout_width="@dimen/size_touchable_small"
                 android:layout_height="@dimen/size_touchable_small"
                 android:contentDescription="@string/desc_skip_next"

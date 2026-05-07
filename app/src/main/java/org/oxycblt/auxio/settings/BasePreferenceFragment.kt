@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2023 Auxio Project
- * BasePreferenceFragment.kt is part of Auxio.
+ * Copyright (c) 2023 LatentJam Project
+ * BasePreferenceFragment.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ import org.oxycblt.auxio.settings.ui.IntListPreference
 import org.oxycblt.auxio.settings.ui.IntListPreferenceDialog
 import org.oxycblt.auxio.settings.ui.PreferenceHeaderItemDecoration
 import org.oxycblt.auxio.settings.ui.WrappedDialogPreference
-import org.oxycblt.auxio.ui.AuxioToolbar
+import org.oxycblt.auxio.ui.LatentJamToolbar
 import org.oxycblt.auxio.util.systemBarInsetsCompat
 import timber.log.Timber as L
 
@@ -74,7 +74,7 @@ abstract class BasePreferenceFragment(@XmlRes private val screen: Int) :
 
         view.findViewById<AppBarLayout>(R.id.preferences_appbar).liftOnScrollTargetViewId =
             androidx.preference.R.id.recycler_view
-        view.findViewById<AuxioToolbar>(R.id.preferences_toolbar).apply {
+        view.findViewById<LatentJamToolbar>(R.id.preferences_toolbar).apply {
             title = preferenceScreen.title
             setNavigationOnClickListener { findNavController().navigateUp() }
         }

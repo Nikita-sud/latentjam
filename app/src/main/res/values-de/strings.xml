@@ -67,7 +67,7 @@
     <string name="desc_skip_next">Zum nächsten Lied springen</string>
     <string name="desc_change_repeat">Art der Wiederholung ändern</string>
     <string name="desc_clear_search">Suchanfrage löschen</string>
-    <string name="desc_auxio_icon">Auxio-Icon</string>
+    <string name="desc_latentjam_icon">Auxio-Icon</string>
     <string name="desc_album_cover">Albumcover für %s</string>
     <string name="desc_artist_image">Künstlerbild für %s</string>
     <string name="desc_genre_image">Genrebild für %s</string>

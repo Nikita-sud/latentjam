@@ -124,7 +124,7 @@
     <string name="desc_skip_next">Перайсці да наступнай песні</string>
     <string name="desc_skip_prev">Перайсці да апошняй песні</string>
     <string name="desc_change_repeat">Змяніць рэжым паўтору</string>
-    <string name="desc_auxio_icon">Значок Auxio</string>
+    <string name="desc_latentjam_icon">Значок LatentJam</string>
     <string name="desc_shuffle">Ўключыце або выключыце перамешванне</string>
     <string name="desc_remove_song">Выдаліць гэтую песню з чаргі</string>
     <string name="desc_exit">Спыніць прайграванне</string>

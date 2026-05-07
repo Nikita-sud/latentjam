@@ -114,7 +114,7 @@
     <string name="lbl_album_remix">Album de remix</string>
     <string name="lbl_genre">Genre</string>
     <string name="lbl_equalizer">Égaliseur</string>
-    <string name="desc_auxio_icon">Icône Auxio</string>
+    <string name="desc_latentjam_icon">Icône Auxio</string>
     <string name="desc_no_cover">Pochette de l\'album</string>
     <string name="def_genre">Genre inconnu</string>
     <string name="clr_dynamic">Dynamique</string>

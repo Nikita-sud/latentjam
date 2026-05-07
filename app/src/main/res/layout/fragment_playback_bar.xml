@@ -8,7 +8,7 @@
 
     <org.oxycblt.auxio.image.CoverView
         android:id="@+id/playback_cover"
-        style="@style/Widget.Auxio.Image.Small"
+        style="@style/Widget.LatentJam.Image.Small"
         android:layout_margin="@dimen/spacing_small"
         app:enablePlaybackIndicator="false"
         app:enableSelectionBadge="false"
@@ -18,7 +18,7 @@
 
     <TextView
         android:id="@+id/playback_song"
-        style="@style/Widget.Auxio.TextView.Primary.Compact"
+        style="@style/Widget.LatentJam.TextView.Primary.Compact"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="@dimen/spacing_small"
@@ -32,7 +32,7 @@
 
     <TextView
         android:id="@+id/playback_info"
-        style="@style/Widget.Auxio.TextView.Secondary.Compact"
+        style="@style/Widget.LatentJam.TextView.Secondary.Compact"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="@dimen/spacing_small"
@@ -65,7 +65,7 @@
 
             <org.oxycblt.auxio.ui.RippleFixMaterialButton
                 android:id="@+id/playback_play_pause"
-                style="@style/Widget.Auxio.Button.Playback.PlayPause"
+                style="@style/Widget.LatentJam.Button.Playback.PlayPause"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checkable="true"

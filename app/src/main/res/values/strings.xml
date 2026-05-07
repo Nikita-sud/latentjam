@@ -187,7 +187,7 @@
     <string name="lbl_report">Report</string>
 
     <string name="lbl_author">Author</string>
-    <string name="lbl_author_name">Alexander Capehart</string>
+    <string name="lbl_author_name">LatentJam Project</string>
     <string name="lbl_feedback">Feedback</string>
     <string name="lbl_github">Make an issue on GitHub</string>
     <string name="lbl_email">Send an email</string>
@@ -212,7 +212,7 @@
     <!-- As in music library -->
     <string name="lng_search_library">Search your library…</string>
     <string name="lng_tasker_start">
-        Starts Auxio using the previously saved state. If no saved state is available, all songs will be shuffled. Playback will start immediately.
+        Starts LatentJam using the previously saved state. If no saved state is available, all songs will be shuffled. Playback will start immediately.
         \n\nWARNING: Be careful controlling this service, if you close it and then try to use it again, you will probably crash the app.
     </string>
     <string name="lng_empty_songs">Your songs will show up here.</string>
@@ -378,7 +378,7 @@
     <string name="desc_add_folder">Add folder</string>
     <string name="desc_music_location_delete">Remove folder</string>
 
-    <string name="desc_auxio_icon">LatentJam icon</string>
+    <string name="desc_latentjam_icon">LatentJam icon</string>
     <string name="desc_no_cover">Album cover</string>
     <string name="desc_album_cover">Album cover for %s</string>
     <string name="desc_artist_image">Artist image for %s</string>

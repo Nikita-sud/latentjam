@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2024 Auxio Project
- * util.h is part of Auxio.
+ * Copyright (c) 2024 LatentJam Project
+ * util.h is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
  
-#ifndef AUXIO_UTIL_H
-#define AUXIO_UTIL_H
+#ifndef LATENTJAM_UTIL_H
+#define LATENTJAM_UTIL_H
 
 #include <jni.h>
 #include <android/log.h>
@@ -28,4 +28,4 @@
 #define LOGD(...) \
   ((void)__android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__))
 
-#endif //AUXIO_UTIL_H
+#endif //LATENTJAM_UTIL_H

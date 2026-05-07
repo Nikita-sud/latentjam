@@ -93,7 +93,7 @@
     <string name="desc_exit">Pysäytä toisto</string>
     <string name="desc_queue_bar">Avaa jono</string>
     <string name="desc_music_location_delete">Poista kansio</string>
-    <string name="desc_auxio_icon">Auxion kuvake</string>
+    <string name="desc_latentjam_icon">Auxion kuvake</string>
     <string name="desc_album_cover">Albumin %s kansi</string>
     <string name="desc_genre_image">Tyylilajin %s kuva</string>
     <string name="desc_playlist_image">Soittolistan %s kuva</string>

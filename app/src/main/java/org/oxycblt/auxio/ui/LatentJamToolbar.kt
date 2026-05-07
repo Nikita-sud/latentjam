@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2026 Auxio Project
- * AuxioToolbar.kt is part of Auxio.
+ * Copyright (c) 2026 LatentJam Project
+ * LatentJamToolbar.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ import org.oxycblt.auxio.util.unlikelyToBeNull
  *
  * @author Alexander Capehart (OxygenCobalt)
  */
-class AuxioToolbar
+class LatentJamToolbar
 @JvmOverloads
 constructor(
     context: Context,
@@ -331,8 +331,8 @@ constructor(
     private fun createActionButtonContext(itemId: Int): Context {
         val themeOverlayRes =
             when (itemId) {
-                R.id.action_play -> R.style.ThemeOverlay_Auxio_IconButton_Style_Small_Secondary
-                R.id.action_shuffle -> R.style.ThemeOverlay_Auxio_IconButton_Style_Small_Primary
+                R.id.action_play -> R.style.ThemeOverlay_LatentJam_IconButton_Style_Small_Secondary
+                R.id.action_shuffle -> R.style.ThemeOverlay_LatentJam_IconButton_Style_Small_Primary
                 else -> 0
             }
 

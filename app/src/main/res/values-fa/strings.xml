@@ -282,7 +282,7 @@
     <string name="desc_music_location_delete">حذف پوشه</string>
     <string name="desc_no_cover">جلد آلبوم</string>
     <string name="desc_album_cover">جلد آلبوم برای %s</string>
-    <string name="desc_auxio_icon">آیکون Auxio</string>
+    <string name="desc_latentjam_icon">آیکون Auxio</string>
     <string name="desc_artist_image">تصویر هنرمند برای %s</string>
     <string name="desc_genre_image">تصویر نوع برای %s</string>
     <string name="desc_playlist_image">تصویر فهرست پخش برای %s</string>

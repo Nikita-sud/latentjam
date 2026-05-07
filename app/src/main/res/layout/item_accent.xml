@@ -9,7 +9,7 @@
 
     <org.oxycblt.auxio.ui.RippleFixMaterialButton
         android:id="@+id/accent"
-        style="@style/Widget.Auxio.Button.Icon.Small"
+        style="@style/Widget.LatentJam.Button.Icon.Small"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"

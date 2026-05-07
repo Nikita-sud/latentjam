@@ -97,7 +97,7 @@
     <string name="desc_tab_handle">Pomakni ovu karticu</string>
     <string name="desc_clear_search">Izbriši pretražene pojmove</string>
     <string name="desc_music_location_delete">Ukloni mapu</string>
-    <string name="desc_auxio_icon">Auxio logotip</string>
+    <string name="desc_latentjam_icon">Auxio logotip</string>
     <string name="desc_no_cover">Omot albuma</string>
     <string name="desc_album_cover">Omot albuma za %s</string>
     <string name="desc_artist_image">Slika izvođača za %s</string>

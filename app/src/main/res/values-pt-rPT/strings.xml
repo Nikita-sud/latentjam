@@ -219,7 +219,7 @@
     <string name="set_reindex">Recarregar música</string>
     <string name="fmt_list">%1$s, %2$s</string>
     <string name="set_rescan">Procurar músicas novamente</string>
-    <string name="desc_auxio_icon">Ícone do Auxio</string>
+    <string name="desc_latentjam_icon">Ícone do Auxio</string>
     <string name="lbl_shuffle_shortcut_long">Misturar tudo</string>
     <string name="set_play_in_list_with">Ao tocar da biblioteca</string>
     <string name="lbl_singles">Singles</string>

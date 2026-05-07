@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2021 Auxio Project
- * MainActivity.kt is part of Auxio.
+ * Copyright (c) 2021 LatentJam Project
+ * MainActivity.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ import org.oxycblt.auxio.util.systemBarInsetsCompat
 import timber.log.Timber as L
 
 /**
- * Auxio's single [AppCompatActivity].
+ * LatentJam's single [AppCompatActivity].
  *
  * @author Alexander Capehart (OxygenCobalt)
  *
@@ -78,9 +78,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
 
         startService(
-            Intent(this, AuxioService::class.java)
-                .setAction(AuxioService.ACTION_START)
-                .putExtra(AuxioService.INTENT_KEY_START_ID, IntegerTable.START_ID_ACTIVITY)
+            Intent(this, LatentJamService::class.java)
+                .setAction(LatentJamService.ACTION_START)
+                .putExtra(LatentJamService.INTENT_KEY_START_ID, IntegerTable.START_ID_ACTIVITY)
         )
 
         if (!startIntentAction(intent)) {
@@ -147,7 +147,7 @@ class MainActivity : AppCompatActivity() {
         val action =
             when (intent.action) {
                 Intent.ACTION_VIEW -> DeferredPlayback.Open(intent.data ?: return false)
-                Auxio.INTENT_KEY_SHORTCUT_SHUFFLE -> DeferredPlayback.ShuffleAll
+                LatentJam.INTENT_KEY_SHORTCUT_SHUFFLE -> DeferredPlayback.ShuffleAll
                 else -> {
                     L.w("Unexpected intent ${intent.action}")
                     return false

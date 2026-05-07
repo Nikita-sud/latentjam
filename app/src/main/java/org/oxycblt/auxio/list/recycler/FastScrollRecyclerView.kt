@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2021 Auxio Project
- * FastScrollRecyclerView.kt is part of Auxio.
+ * Copyright (c) 2021 LatentJam Project
+ * FastScrollRecyclerView.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -104,7 +104,7 @@ import org.oxycblt.auxio.util.systemBarInsetsCompat
 class FastScrollRecyclerView
 @JvmOverloads
 constructor(context: Context, attrs: AttributeSet? = null, @AttrRes defStyleAttr: Int = 0) :
-    AuxioRecyclerView(context, attrs, defStyleAttr) {
+    LatentJamRecyclerView(context, attrs, defStyleAttr) {
     // Thumb
     private val thumbWidth = context.getDimenPixels(R.dimen.spacing_mid_medium)
     private val thumbHeight = context.getDimenPixels(R.dimen.size_touchable_medium)

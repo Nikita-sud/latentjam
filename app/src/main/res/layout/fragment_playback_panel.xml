@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <org.oxycblt.auxio.ui.AuxioToolbar
+    <org.oxycblt.auxio.ui.LatentJamToolbar
         android:id="@+id/playback_toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -23,7 +23,7 @@
 
     <org.oxycblt.auxio.playback.ui.ControlledCoverView
         android:id="@+id/playback_cover"
-        style="@style/Widget.Auxio.Image.Full"
+        style="@style/Widget.LatentJam.Image.Full"
         android:layout_marginVertical="@dimen/spacing_small"
         app:enablePlaybackIndicator="false"
         app:enableSelectionBadge="false"
@@ -49,14 +49,14 @@
 
         <TextView
             android:id="@+id/playback_song"
-            style="@style/Widget.Auxio.TextView.Primary.Compact"
+            style="@style/Widget.LatentJam.TextView.Primary.Compact"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             tools:text="Song Name" />
 
         <TextView
             android:id="@+id/playback_artist"
-            style="@style/Widget.Auxio.TextView.Secondary.Compact"
+            style="@style/Widget.LatentJam.TextView.Secondary.Compact"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             tools:text="Artist Name" />
@@ -83,7 +83,7 @@
 
             <org.oxycblt.auxio.ui.WidthFixMaterialButton
                 android:id="@+id/playback_repeat"
-                style="@style/Widget.Auxio.Button.Playback.Toggle"
+                style="@style/Widget.LatentJam.Button.Playback.Toggle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_change_repeat"
@@ -98,7 +98,7 @@
 
             <org.oxycblt.auxio.ui.RippleFixMaterialButton
                 android:id="@+id/playback_skip_prev"
-                style="@style/Widget.Auxio.Button.Playback.Skip"
+                style="@style/Widget.LatentJam.Button.Playback.Skip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_skip_prev"
@@ -112,7 +112,7 @@
 
             <org.oxycblt.auxio.ui.RippleFixMaterialButton
                 android:id="@+id/playback_play_pause"
-                style="@style/Widget.Auxio.Button.Playback.PlayPause"
+                style="@style/Widget.LatentJam.Button.Playback.PlayPause"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_play_pause"
@@ -128,7 +128,7 @@
 
             <org.oxycblt.auxio.ui.RippleFixMaterialButton
                 android:id="@+id/playback_skip_next"
-                style="@style/Widget.Auxio.Button.Playback.Skip"
+                style="@style/Widget.LatentJam.Button.Playback.Skip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_skip_next"
@@ -142,7 +142,7 @@
 
             <org.oxycblt.auxio.ui.RippleFixMaterialButton
                 android:id="@+id/playback_shuffle"
-                style="@style/Widget.Auxio.Button.Playback.Toggle"
+                style="@style/Widget.LatentJam.Button.Playback.Toggle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_shuffle"

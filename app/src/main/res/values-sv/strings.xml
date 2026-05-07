@@ -239,7 +239,7 @@
     <string name="set_pre_amp_with">Justering med etiketter</string>
     <string name="desc_exit">Stoppa uppspelning</string>
     <string name="desc_remove_song">Ta bort låt</string>
-    <string name="desc_auxio_icon">Auxio-ikon</string>
+    <string name="desc_latentjam_icon">Auxio-ikon</string>
     <string name="desc_tab_handle">Flytta flik</string>
     <string name="desc_no_cover">Albumomslag</string>
     <string name="desc_selection_image">Urvalsbild</string>

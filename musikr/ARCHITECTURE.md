@@ -15,7 +15,7 @@ Musikr is a highly opinionated, multi-threaded music loading library for Android
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                       Application Layer                       │
-│                    (Auxio or other apps)                     │
+│                    (LatentJam or other apps)                     │
 └───────────────────────────┬─────────────────────────────────┘
                             │
                             ▼

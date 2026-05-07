@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Auxio.Red" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Red" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/red_primary</item>
         <item name="colorOnPrimary">@color/red_onPrimary</item>
         <item name="colorPrimaryContainer">@color/red_primaryContainer</item>
@@ -49,7 +49,7 @@
         <item name="colorSurfaceContainerHighest">@color/red_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Pink" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Pink" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/pink_primary</item>
         <item name="colorOnPrimary">@color/pink_onPrimary</item>
         <item name="colorPrimaryContainer">@color/pink_primaryContainer</item>
@@ -98,7 +98,7 @@
         <item name="colorSurfaceContainerHighest">@color/pink_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Purple" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Purple" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/purple_primary</item>
         <item name="colorOnPrimary">@color/purple_onPrimary</item>
         <item name="colorPrimaryContainer">@color/purple_primaryContainer</item>
@@ -147,7 +147,7 @@
         <item name="colorSurfaceContainerHighest">@color/purple_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.DeepPurple" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.DeepPurple" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/deep_purple_primary</item>
         <item name="colorOnPrimary">@color/deep_purple_onPrimary</item>
         <item name="colorPrimaryContainer">@color/deep_purple_primaryContainer</item>
@@ -196,7 +196,7 @@
         <item name="colorSurfaceContainerHighest">@color/deep_purple_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Indigo" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Indigo" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/indigo_primary</item>
         <item name="colorOnPrimary">@color/indigo_onPrimary</item>
         <item name="colorPrimaryContainer">@color/indigo_primaryContainer</item>
@@ -245,7 +245,7 @@
         <item name="colorSurfaceContainerHighest">@color/indigo_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Blue" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Blue" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/blue_primary</item>
         <item name="colorOnPrimary">@color/blue_onPrimary</item>
         <item name="colorPrimaryContainer">@color/blue_primaryContainer</item>
@@ -294,7 +294,7 @@
         <item name="colorSurfaceContainerHighest">@color/blue_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.DeepBlue" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.DeepBlue" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/deep_blue_primary</item>
         <item name="colorOnPrimary">@color/deep_blue_onPrimary</item>
         <item name="colorPrimaryContainer">@color/deep_blue_primaryContainer</item>
@@ -343,7 +343,7 @@
         <item name="colorSurfaceContainerHighest">@color/deep_blue_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Cyan" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Cyan" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/cyan_primary</item>
         <item name="colorOnPrimary">@color/cyan_onPrimary</item>
         <item name="colorPrimaryContainer">@color/cyan_primaryContainer</item>
@@ -392,7 +392,7 @@
         <item name="colorSurfaceContainerHighest">@color/cyan_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Teal" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Teal" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/teal_primary</item>
         <item name="colorOnPrimary">@color/teal_onPrimary</item>
         <item name="colorPrimaryContainer">@color/teal_primaryContainer</item>
@@ -441,7 +441,7 @@
         <item name="colorSurfaceContainerHighest">@color/teal_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Green" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Green" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/green_primary</item>
         <item name="colorOnPrimary">@color/green_onPrimary</item>
         <item name="colorPrimaryContainer">@color/green_primaryContainer</item>
@@ -490,7 +490,7 @@
         <item name="colorSurfaceContainerHighest">@color/green_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.DeepGreen" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.DeepGreen" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/deep_green_primary</item>
         <item name="colorOnPrimary">@color/deep_green_onPrimary</item>
         <item name="colorPrimaryContainer">@color/deep_green_primaryContainer</item>
@@ -539,7 +539,7 @@
         <item name="colorSurfaceContainerHighest">@color/deep_green_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Lime" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Lime" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/lime_primary</item>
         <item name="colorOnPrimary">@color/lime_onPrimary</item>
         <item name="colorPrimaryContainer">@color/lime_primaryContainer</item>
@@ -588,7 +588,7 @@
         <item name="colorSurfaceContainerHighest">@color/lime_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Yellow" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Yellow" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/yellow_primary</item>
         <item name="colorOnPrimary">@color/yellow_onPrimary</item>
         <item name="colorPrimaryContainer">@color/yellow_primaryContainer</item>
@@ -637,7 +637,7 @@
         <item name="colorSurfaceContainerHighest">@color/yellow_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Orange" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Orange" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/orange_primary</item>
         <item name="colorOnPrimary">@color/orange_onPrimary</item>
         <item name="colorPrimaryContainer">@color/orange_primaryContainer</item>
@@ -686,7 +686,7 @@
         <item name="colorSurfaceContainerHighest">@color/orange_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Brown" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Brown" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/brown_primary</item>
         <item name="colorOnPrimary">@color/brown_onPrimary</item>
         <item name="colorPrimaryContainer">@color/brown_primaryContainer</item>
@@ -735,7 +735,7 @@
         <item name="colorSurfaceContainerHighest">@color/brown_surfaceContainerHighest</item>
     </style>
 
-    <style name="Theme.Auxio.Grey" parent="Theme.Auxio.Base">
+    <style name="Theme.LatentJam.Grey" parent="Theme.LatentJam.Base">
         <item name="colorPrimary">@color/grey_primary</item>
         <item name="colorOnPrimary">@color/grey_onPrimary</item>
         <item name="colorPrimaryContainer">@color/grey_primaryContainer</item>

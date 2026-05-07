@@ -2,7 +2,7 @@
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    style="@style/Widget.Auxio.Dialog.NestedScrollView"
+    style="@style/Widget.LatentJam.Dialog.NestedScrollView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -13,7 +13,7 @@
 
         <TextView
             android:id="@+id/locations_mode_header"
-            style="@style/Widget.Auxio.TextView.Header"
+            style="@style/Widget.LatentJam.TextView.Header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingStart="@dimen/spacing_large"
@@ -114,7 +114,7 @@
 
                     <TextView
                         android:id="@+id/locations_perms_subtitle"
-                        style="@style/Widget.Auxio.TextView.Secondary.Compact"
+                        style="@style/Widget.LatentJam.TextView.Secondary.Compact"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:maxLines="2"
@@ -151,7 +151,7 @@
 
         <TextView
             android:id="@+id/locations_include_list_header"
-            style="@style/Widget.Auxio.TextView.Header"
+            style="@style/Widget.LatentJam.TextView.Header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingStart="@dimen/spacing_large"
@@ -162,7 +162,7 @@
 
         <org.oxycblt.auxio.ui.RippleFixMaterialButton
             android:id="@+id/locations_include_add"
-            style="@style/Widget.Auxio.Button.Icon.Small"
+            style="@style/Widget.LatentJam.Button.Icon.Small"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="@dimen/spacing_mid_large"
@@ -173,7 +173,7 @@
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/locations_include_recycler"
-            style="@style/Widget.Auxio.RecyclerView.Linear"
+            style="@style/Widget.LatentJam.RecyclerView.Linear"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_gravity="center"
@@ -216,7 +216,7 @@
 
         <TextView
             android:id="@+id/locations_exclude_mode_header"
-            style="@style/Widget.Auxio.TextView.Header"
+            style="@style/Widget.LatentJam.TextView.Header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingStart="@dimen/spacing_large"
@@ -280,7 +280,7 @@
 
         <TextView
             android:id="@+id/locations_filter_list_header"
-            style="@style/Widget.Auxio.TextView.Header"
+            style="@style/Widget.LatentJam.TextView.Header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingStart="@dimen/spacing_large"
@@ -290,7 +290,7 @@
 
         <org.oxycblt.auxio.ui.RippleFixMaterialButton
             android:id="@+id/locations_filter_add"
-            style="@style/Widget.Auxio.Button.Icon.Small"
+            style="@style/Widget.LatentJam.Button.Icon.Small"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="@dimen/spacing_mid_large"
@@ -301,7 +301,7 @@
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/locations_filter_recycler"
-            style="@style/Widget.Auxio.RecyclerView.Linear"
+            style="@style/Widget.LatentJam.RecyclerView.Linear"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_gravity="center"
@@ -322,7 +322,7 @@
 
         <TextView
             android:id="@+id/locations_exclude_list_header"
-            style="@style/Widget.Auxio.TextView.Header"
+            style="@style/Widget.LatentJam.TextView.Header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingStart="@dimen/spacing_large"
@@ -333,7 +333,7 @@
 
         <org.oxycblt.auxio.ui.RippleFixMaterialButton
             android:id="@+id/locations_exclude_add"
-            style="@style/Widget.Auxio.Button.Icon.Small"
+            style="@style/Widget.LatentJam.Button.Icon.Small"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="@dimen/spacing_mid_large"
@@ -345,7 +345,7 @@
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/locations_exclude_recycler"
-            style="@style/Widget.Auxio.RecyclerView.Linear"
+            style="@style/Widget.LatentJam.RecyclerView.Linear"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_gravity="center"
@@ -402,7 +402,7 @@
 
             <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/locations_with_hidden_switch"
-                style="@style/Widget.Auxio.RecyclerView.Linear"
+                style="@style/Widget.LatentJam.RecyclerView.Linear"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
@@ -455,7 +455,7 @@
 
             <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/locations_exclude_non_music_switch"
-                style="@style/Widget.Auxio.RecyclerView.Linear"
+                style="@style/Widget.LatentJam.RecyclerView.Linear"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
@@ -508,7 +508,7 @@
 
             <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/locations_multithread_switch"
-                style="@style/Widget.Auxio.RecyclerView.Linear"
+                style="@style/Widget.LatentJam.RecyclerView.Linear"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"

@@ -80,7 +80,7 @@
     <string name="desc_tab_handle">Mover pestaña</string>
     <string name="desc_clear_search">Borrar búsqueda</string>
     <string name="desc_music_location_delete">Quitar carpeta</string>
-    <string name="desc_auxio_icon">Icono de Auxio</string>
+    <string name="desc_latentjam_icon">Icono de Auxio</string>
     <string name="desc_no_cover">Carátula de álbum</string>
     <string name="desc_album_cover">Carátula de álbum para %s</string>
     <string name="desc_artist_image">Imagen de artista para %s</string>

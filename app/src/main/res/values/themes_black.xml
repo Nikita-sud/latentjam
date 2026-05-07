@@ -3,7 +3,7 @@
     <!--
     Can't meaningfully dim the default black theme colors, have to tweak the palette manually
     -->
-    <style name="Theme.Auxio.Black" parent="Theme.Auxio.Base" tools:ignore="PrivateResource">
+    <style name="Theme.LatentJam.Black" parent="Theme.LatentJam.Base" tools:ignore="PrivateResource">
         <item name="colorSurface">@android:color/black</item>
         <item name="colorSurfaceDim">@color/m3_ref_palette_dynamic_neutral_variant4</item>
         <item name="colorSurfaceBright">@color/m3_ref_palette_dynamic_neutral_variant12</item>
@@ -13,7 +13,7 @@
         <item name="colorSurfaceContainerHigh">@color/m3_ref_palette_dynamic_neutral_variant10</item>
         <item name="colorSurfaceContainerHighest">@color/m3_ref_palette_dynamic_neutral_variant12</item>
     </style>
-    <style name="Theme.Auxio.Red.Black" parent="Theme.Auxio.Red">
+    <style name="Theme.LatentJam.Red.Black" parent="Theme.LatentJam.Red">
         <item name="colorSurface">@color/red_surface_black</item>
         <item name="colorSurfaceDim">@color/red_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/red_surfaceBright_black</item>
@@ -23,7 +23,7 @@
         <item name="colorSurfaceContainerHigh">@color/red_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/red_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Pink.Black" parent="Theme.Auxio.Pink">
+    <style name="Theme.LatentJam.Pink.Black" parent="Theme.LatentJam.Pink">
         <item name="colorSurface">@color/pink_surface_black</item>
         <item name="colorSurfaceDim">@color/pink_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/pink_surfaceBright_black</item>
@@ -33,7 +33,7 @@
         <item name="colorSurfaceContainerHigh">@color/pink_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/pink_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Purple.Black" parent="Theme.Auxio.Purple">
+    <style name="Theme.LatentJam.Purple.Black" parent="Theme.LatentJam.Purple">
         <item name="colorSurface">@color/purple_surface_black</item>
         <item name="colorSurfaceDim">@color/purple_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/purple_surfaceBright_black</item>
@@ -43,7 +43,7 @@
         <item name="colorSurfaceContainerHigh">@color/purple_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/purple_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.DeepPurple.Black" parent="Theme.Auxio.DeepPurple">
+    <style name="Theme.LatentJam.DeepPurple.Black" parent="Theme.LatentJam.DeepPurple">
         <item name="colorSurface">@color/deep_purple_surface_black</item>
         <item name="colorSurfaceDim">@color/deep_purple_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/deep_purple_surfaceBright_black</item>
@@ -53,7 +53,7 @@
         <item name="colorSurfaceContainerHigh">@color/deep_purple_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/deep_purple_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Indigo.Black" parent="Theme.Auxio.Indigo">
+    <style name="Theme.LatentJam.Indigo.Black" parent="Theme.LatentJam.Indigo">
         <item name="colorSurface">@color/indigo_surface_black</item>
         <item name="colorSurfaceDim">@color/indigo_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/indigo_surfaceBright_black</item>
@@ -63,7 +63,7 @@
         <item name="colorSurfaceContainerHigh">@color/indigo_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/indigo_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Blue.Black" parent="Theme.Auxio.Blue">
+    <style name="Theme.LatentJam.Blue.Black" parent="Theme.LatentJam.Blue">
         <item name="colorSurface">@color/blue_surface_black</item>
         <item name="colorSurfaceDim">@color/blue_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/blue_surfaceBright_black</item>
@@ -73,7 +73,7 @@
         <item name="colorSurfaceContainerHigh">@color/blue_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/blue_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.DeepBlue.Black" parent="Theme.Auxio.DeepBlue">
+    <style name="Theme.LatentJam.DeepBlue.Black" parent="Theme.LatentJam.DeepBlue">
         <item name="colorSurface">@color/deep_blue_surface_black</item>
         <item name="colorSurfaceDim">@color/deep_blue_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/deep_blue_surfaceBright_black</item>
@@ -83,7 +83,7 @@
         <item name="colorSurfaceContainerHigh">@color/deep_blue_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/deep_blue_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Cyan.Black" parent="Theme.Auxio.Cyan">
+    <style name="Theme.LatentJam.Cyan.Black" parent="Theme.LatentJam.Cyan">
         <item name="colorSurface">@color/cyan_surface_black</item>
         <item name="colorSurfaceDim">@color/cyan_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/cyan_surfaceBright_black</item>
@@ -93,7 +93,7 @@
         <item name="colorSurfaceContainerHigh">@color/cyan_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/cyan_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Teal.Black" parent="Theme.Auxio.Teal">
+    <style name="Theme.LatentJam.Teal.Black" parent="Theme.LatentJam.Teal">
         <item name="colorSurface">@color/teal_surface_black</item>
         <item name="colorSurfaceDim">@color/teal_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/teal_surfaceBright_black</item>
@@ -103,7 +103,7 @@
         <item name="colorSurfaceContainerHigh">@color/teal_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/teal_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Green.Black" parent="Theme.Auxio.Green">
+    <style name="Theme.LatentJam.Green.Black" parent="Theme.LatentJam.Green">
         <item name="colorSurface">@color/green_surface_black</item>
         <item name="colorSurfaceDim">@color/green_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/green_surfaceBright_black</item>
@@ -113,7 +113,7 @@
         <item name="colorSurfaceContainerHigh">@color/green_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/green_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.DeepGreen.Black" parent="Theme.Auxio.DeepGreen">
+    <style name="Theme.LatentJam.DeepGreen.Black" parent="Theme.LatentJam.DeepGreen">
         <item name="colorSurface">@color/deep_green_surface_black</item>
         <item name="colorSurfaceDim">@color/deep_green_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/deep_green_surfaceBright_black</item>
@@ -123,7 +123,7 @@
         <item name="colorSurfaceContainerHigh">@color/deep_green_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/deep_green_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Lime.Black" parent="Theme.Auxio.Lime">
+    <style name="Theme.LatentJam.Lime.Black" parent="Theme.LatentJam.Lime">
         <item name="colorSurface">@color/lime_surface_black</item>
         <item name="colorSurfaceDim">@color/lime_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/lime_surfaceBright_black</item>
@@ -133,7 +133,7 @@
         <item name="colorSurfaceContainerHigh">@color/lime_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/lime_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Yellow.Black" parent="Theme.Auxio.Yellow">
+    <style name="Theme.LatentJam.Yellow.Black" parent="Theme.LatentJam.Yellow">
         <item name="colorSurface">@color/yellow_surface_black</item>
         <item name="colorSurfaceDim">@color/yellow_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/yellow_surfaceBright_black</item>
@@ -143,7 +143,7 @@
         <item name="colorSurfaceContainerHigh">@color/yellow_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/yellow_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Orange.Black" parent="Theme.Auxio.Orange">
+    <style name="Theme.LatentJam.Orange.Black" parent="Theme.LatentJam.Orange">
         <item name="colorSurface">@color/orange_surface_black</item>
         <item name="colorSurfaceDim">@color/orange_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/orange_surfaceBright_black</item>
@@ -153,7 +153,7 @@
         <item name="colorSurfaceContainerHigh">@color/orange_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/orange_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Brown.Black" parent="Theme.Auxio.Brown">
+    <style name="Theme.LatentJam.Brown.Black" parent="Theme.LatentJam.Brown">
         <item name="colorSurface">@color/brown_surface_black</item>
         <item name="colorSurfaceDim">@color/brown_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/brown_surfaceBright_black</item>
@@ -163,7 +163,7 @@
         <item name="colorSurfaceContainerHigh">@color/brown_surfaceContainerHigh_black</item>
         <item name="colorSurfaceContainerHighest">@color/brown_surfaceContainerHighest_black</item>
     </style>
-    <style name="Theme.Auxio.Grey.Black" parent="Theme.Auxio.Grey">
+    <style name="Theme.LatentJam.Grey.Black" parent="Theme.LatentJam.Grey">
         <item name="colorSurface">@color/grey_surface_black</item>
         <item name="colorSurfaceDim">@color/grey_surfaceDim_black</item>
         <item name="colorSurfaceBright">@color/grey_surfaceBright_black</item>

@@ -9,7 +9,7 @@
 
     <TextView
         android:id="@+id/export_paths_header"
-        style="@style/Widget.Auxio.TextView.Header"
+        style="@style/Widget.LatentJam.TextView.Header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingStart="@dimen/spacing_large"

@@ -227,7 +227,7 @@
     <string name="desc_tab_handle">Symud y tab hwn</string>
     <string name="desc_clear_search">Clirio\'r ymholiad chwilio</string>
     <string name="desc_music_location_delete">Tynnu ffolder</string>
-    <string name="desc_auxio_icon">Eicon Auxio</string>
+    <string name="desc_latentjam_icon">Eicon Auxio</string>
     <string name="desc_album_cover">Clawr albwm %s</string>
     <string name="desc_artist_image">Llun artist %s</string>
     <string name="desc_genre_image">Llun genre %s</string>

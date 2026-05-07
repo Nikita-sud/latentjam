@@ -219,7 +219,7 @@
     <string name="lng_playlist_renamed">שונה שם רשימת ההשמעה</string>
     <string name="lng_playlist_deleted">רשימת השמעה נמחקה</string>
     <string name="lng_playlist_added">נוסף לרשימת השמעה</string>
-    <string name="desc_auxio_icon">סמל Auxio</string>
+    <string name="desc_latentjam_icon">סמל Auxio</string>
     <string name="desc_music_location_delete">הסרת תיקייה</string>
     <string name="desc_playlist_image">תמונת רשימת השמעה עבור %s</string>
     <string name="clr_red">אדום</string>

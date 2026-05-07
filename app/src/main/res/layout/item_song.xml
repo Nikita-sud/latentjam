@@ -12,14 +12,14 @@
 
     <org.oxycblt.auxio.image.CoverView
         android:id="@+id/song_album_cover"
-        style="@style/Widget.Auxio.Image.Small"
+        style="@style/Widget.LatentJam.Image.Small"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
         android:id="@+id/song_name"
-        style="@style/Widget.Auxio.TextView.Item.Primary"
+        style="@style/Widget.LatentJam.TextView.Item.Primary"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"
@@ -33,7 +33,7 @@
 
     <TextView
         android:id="@+id/song_info"
-        style="@style/Widget.Auxio.TextView.Item.Secondary"
+        style="@style/Widget.LatentJam.TextView.Item.Secondary"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"
@@ -45,7 +45,7 @@
 
     <org.oxycblt.auxio.ui.RippleFixMaterialButton
         android:id="@+id/song_menu"
-        style="@style/Widget.Auxio.Button.Icon.Small"
+        style="@style/Widget.LatentJam.Button.Icon.Small"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:icon="@drawable/ic_more_24"

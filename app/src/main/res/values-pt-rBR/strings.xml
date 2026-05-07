@@ -188,7 +188,7 @@
     <string name="lbl_live_group">Ao vivo</string>
     <string name="desc_exit">Parar reprodução</string>
     <string name="fmt_sample_rate">%d Hz</string>
-    <string name="desc_auxio_icon">Ícone do Auxio</string>
+    <string name="desc_latentjam_icon">Ícone do Auxio</string>
     <string name="fmt_db_pos">+%.1f dB</string>
     <string name="fmt_db_neg">-%.1f dB</string>
     <string name="fmt_bitrate">%d kbps</string>

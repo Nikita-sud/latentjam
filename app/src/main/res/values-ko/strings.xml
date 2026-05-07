@@ -102,7 +102,7 @@
     <string name="desc_tab_handle">이 탭 이동</string>
     <string name="desc_clear_search">검색 기록 삭제</string>
     <string name="desc_music_location_delete">폴더 제거</string>
-    <string name="desc_auxio_icon">Auxio 아이콘</string>
+    <string name="desc_latentjam_icon">Auxio 아이콘</string>
     <string name="desc_no_cover">앨범 커버</string>
     <string name="desc_album_cover">%s의 앨범 커버</string>
     <string name="desc_artist_image">%s의 아티스트 이미지</string>

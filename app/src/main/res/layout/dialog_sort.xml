@@ -19,7 +19,7 @@
 
     <TextView
         android:id="@+id/sort_name"
-        style="@style/Widget.Auxio.TextView.Primary"
+        style="@style/Widget.LatentJam.TextView.Primary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="@dimen/spacing_medium"
@@ -32,7 +32,7 @@
 
     <org.oxycblt.auxio.list.recycler.DialogRecyclerView
         android:id="@+id/sort_mode_recycler"
-        style="@style/Widget.Auxio.RecyclerView.Linear"
+        style="@style/Widget.LatentJam.RecyclerView.Linear"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
@@ -44,7 +44,7 @@
 
         <TextView
             android:id="@+id/sort_header"
-            style="@style/Widget.Auxio.TextView.Header"
+            style="@style/Widget.LatentJam.TextView.Header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/lbl_sort_direction"
@@ -84,7 +84,7 @@
 
         <org.oxycblt.auxio.ui.RippleFixMaterialButton
             android:id="@+id/sort_cancel"
-            style="@style/Widget.Auxio.Button.TextButton.Dialog"
+            style="@style/Widget.LatentJam.Button.TextButton.Dialog"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="@dimen/spacing_small"
@@ -96,7 +96,7 @@
 
         <org.oxycblt.auxio.ui.RippleFixMaterialButton
             android:id="@+id/sort_save"
-            style="@style/Widget.Auxio.Button.TextButton.Dialog"
+            style="@style/Widget.LatentJam.Button.TextButton.Dialog"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_mid_medium"

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2022 Auxio Project
- * QueueBottomSheetBehavior.kt is part of Auxio.
+ * Copyright (c) 2022 LatentJam Project
+ * QueueBottomSheetBehavior.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -91,7 +91,7 @@ class QueueBottomSheetBehavior<V : View>(context: Context, attributeSet: Attribu
                 shapeAppearanceModel =
                     ShapeAppearanceModel.builder(
                             context,
-                            R.style.ShapeAppearance_Auxio_BottomSheet,
+                            R.style.ShapeAppearance_LatentJam_BottomSheet,
                             MR.style.ShapeAppearanceOverlay_Material3_Corner_Top,
                         )
                         .build()

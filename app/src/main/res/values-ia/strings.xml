@@ -146,7 +146,7 @@
     <string name="desc_exit">Stoppar le reproduction</string>
     <string name="desc_queue_bar">Aperir le cauda</string>
     <string name="desc_music_location_delete">Remover le dossier</string>
-    <string name="desc_auxio_icon">Icone de Auxio</string>
+    <string name="desc_latentjam_icon">Icone de Auxio</string>
     <string name="desc_album_cover">Copertura de album pro %s</string>
     <string name="def_artist">Artista incognite</string>
     <string name="def_date">Necun data</string>

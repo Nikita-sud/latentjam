@@ -82,7 +82,7 @@
     <string name="desc_tab_handle">Переместить вкладку</string>
     <string name="desc_clear_search">Очистить поисковый запрос</string>
     <string name="desc_music_location_delete">Удалить папку</string>
-    <string name="desc_auxio_icon">Иконка Auxio</string>
+    <string name="desc_latentjam_icon">Иконка Auxio</string>
     <string name="desc_no_cover">Обложка альбома</string>
     <string name="desc_album_cover">Обложка альбома %s</string>
     <string name="desc_artist_image">Фото исполнителя %s</string>

@@ -246,7 +246,7 @@
     <string name="clr_grey">ਸਲੇਟੀ</string>
     <string name="fmt_lib_total_duration">ਕੁੱਲ ਮਿਆਦ: %s</string>
     <string name="desc_music_location_delete">ਫੋਲਡਰ ਹਟਾਓ</string>
-    <string name="desc_auxio_icon">Auxio ਆਈਕਾਨ</string>
+    <string name="desc_latentjam_icon">Auxio ਆਈਕਾਨ</string>
     <string name="lbl_appears_on">ਉੱਤੇ ਵਿਖਾਈ ਦਿੰਦਾ ਹੈ</string>
     <string name="lbl_playlists">ਪਲੇਅ-ਲਿਸਟਾਂ</string>
     <string name="lbl_share">ਸਾਂਝਾ ਕਰੋ</string>

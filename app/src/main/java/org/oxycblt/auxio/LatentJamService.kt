@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2024 Auxio Project
- * AuxioService.kt is part of Auxio.
+ * Copyright (c) 2024 LatentJam Project
+ * LatentJamService.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ import org.oxycblt.auxio.playback.service.PlaybackServiceFragment
 import timber.log.Timber
 
 @AndroidEntryPoint
-class AuxioService :
+class LatentJamService :
     MediaBrowserServiceCompat(), ForegroundListener, MusicServiceFragment.Invalidator {
     @Inject lateinit var playbackFragmentFactory: PlaybackServiceFragment.Factory
     private lateinit var playbackFragment: PlaybackServiceFragment
@@ -159,7 +159,7 @@ class AuxioService :
         var isForeground = false
             private set
 
-        // This is only meant for Auxio to internally ensure that it's state management will work.
+        // This is only meant for LatentJam to internally ensure that it's state management will work.
         const val INTENT_KEY_START_ID = BuildConfig.APPLICATION_ID + ".service.START_ID"
     }
 }

@@ -84,7 +84,7 @@
     <string name="desc_tab_handle">Sposta questa scheda</string>
     <string name="desc_clear_search">Cancella la ricerca</string>
     <string name="desc_music_location_delete">Rimuovi cartella</string>
-    <string name="desc_auxio_icon">Icona Auxio</string>
+    <string name="desc_latentjam_icon">Icona Auxio</string>
     <string name="desc_no_cover">Copertina album</string>
     <string name="desc_album_cover">Copertina album di %s</string>
     <string name="desc_artist_image">Immagine artista per %s</string>

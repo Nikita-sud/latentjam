@@ -226,7 +226,7 @@
     <string name="desc_music_location_delete">Премахни папка</string>
     <string name="err_import_failed">Не може да се внесе плейлист от този файл</string>
     <string name="err_bad_location">Тази папка не се поддържа</string>
-    <string name="desc_auxio_icon">Auxio икона</string>
+    <string name="desc_latentjam_icon">LatentJam икона</string>
     <string name="desc_no_cover">Обложка на албум</string>
     <string name="desc_album_cover">Обложка на албум за %s</string>
     <string name="desc_artist_image">Изображение на изпълнител за %s</string>
