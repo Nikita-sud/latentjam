@@ -19,102 +19,97 @@
 package io.github.nikitasud.latentjam.playback.ui.stepper
 
 import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.withStyledAttributes
+import androidx.dynamicanimation.animation.SpringAnimation
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.nikitasud.latentjam.R
+import io.github.nikitasud.latentjam.ui.Effect
 import io.github.nikitasud.latentjam.ui.UISettings
 import javax.inject.Inject
-import timber.log.Timber as L
 
-enum class DisplayPortion {
-    LEFT,
-    MIDDLE,
-    RIGHT,
-    LEFT_HALF,
-    RIGHT_HALF,
-}
-
-interface DoubleTapListener {
-    fun onDoubleTapStarted(portion: DisplayPortion)
-
-    fun onDoubleTapProgressDown(portion: DisplayPortion)
-
-    fun onDoubleTapFinished()
+enum class Direction {
+    FORWARDS,
+    BACKWARDS,
 }
 
 @AndroidEntryPoint
 class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
-    ConstraintLayout(context, attrs), DoubleTapListener, GestureDetector.OnDoubleTapListener {
+    ConstraintLayout(context, attrs), GestureDetector.OnDoubleTapListener {
+    private sealed interface OverlayState {
+        data object Invisible : OverlayState
+
+        data class Entering(val tap: SpringAnimation, val seconds: SpringAnimation) : OverlayState
+
+        data class Wait(val runnable: Runnable) : OverlayState
+
+        data class Exiting(val tap: SpringAnimation, val seconds: SpringAnimation) : OverlayState
+    }
 
     @Inject lateinit var uiSettings: UISettings
 
     private var leftSecondsView: SecondsView
     private var rightSecondsView: SecondsView
-    private var leftCircleClipTapView: CircleClipTapView
-    private var rightCircleClipTapView: CircleClipTapView
-    private var rootConstraintLayout: ConstraintLayout
-
+    private var leftTapView: TapView
+    private var rightTapView: TapView
     private val gestureDetector: GestureDetector
-    private val shapeAppearance: ShapeAppearanceModel
+
+    var performListener: PerformListener? = null
+
+    private val alphaSpring = Effect.FAST
+
+    private var leftOverlayState: OverlayState = OverlayState.Invisible
+    private var rightOverlayState: OverlayState = OverlayState.Invisible
+
+    interface PerformListener {
+        fun seek(direction: Direction)
+    }
 
     init {
         LayoutInflater.from(context).inflate(R.layout.player_fast_seek_overlay, this, true)
 
         // Set up shape appearance based on UISettings similar to CoverView
-        val styledAttrs = context.obtainStyledAttributes(attrs, R.styleable.PlayerFastSeekOverlay)
-        val shapeAppearanceRes =
-            styledAttrs.getResourceId(R.styleable.PlayerFastSeekOverlay_shapeAppearance, 0)
+        context.withStyledAttributes(attrs, R.styleable.PlayerFastSeekOverlay) {
+            val shapeAppearanceRes =
+                getResourceId(
+                    R.styleable.PlayerFastSeekOverlay_shapeAppearance,
+                    com.google.android.material.R.style.ShapeAppearance_Material3_Corner_Medium,
+                )
 
-        shapeAppearance =
-            if (uiSettings.roundMode) {
-                if (shapeAppearanceRes != 0) {
-                    ShapeAppearanceModel.builder(context, shapeAppearanceRes, -1).build()
-                } else {
-                    ShapeAppearanceModel.builder(
-                            context,
-                            com.google.android.material.R.style
-                                .ShapeAppearance_Material3_Corner_Medium,
-                            -1,
-                        )
-                        .build()
+            background =
+                MaterialShapeDrawable().apply {
+                    shapeAppearanceModel =
+                        if (uiSettings.roundMode) {
+                            ShapeAppearanceModel.builder(context, shapeAppearanceRes, -1).build()
+                        } else {
+                            ShapeAppearanceModel.builder().build()
+                        }
+                    // Set transparent background as we only want the clipping
+                    fillColor = ColorStateList.valueOf(Color.TRANSPARENT)
                 }
-            } else {
-                ShapeAppearanceModel.builder().build()
-            }
-
-        styledAttrs.recycle()
+        }
 
         leftSecondsView = findViewById(R.id.left_seconds_view)
         rightSecondsView = findViewById(R.id.right_seconds_view)
-        leftCircleClipTapView = findViewById(R.id.left_circle_clip_tap_view)
-        rightCircleClipTapView = findViewById(R.id.right_circle_clip_tap_view)
-        rootConstraintLayout = findViewById(R.id.root_constraint_layout)
+        leftTapView = findViewById(R.id.left_circle_clip_tap_view)
+        rightTapView = findViewById(R.id.right_circle_clip_tap_view)
 
         // Apply shape clipping to the overlay
         clipToOutline = true
-        background =
-            MaterialShapeDrawable().apply {
-                shapeAppearanceModel = shapeAppearance
-                // Set transparent background as we only want the clipping
-                fillColor =
-                    android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
-            }
 
         // Hide overlay elements by default
         leftSecondsView.alpha = 0f
         rightSecondsView.alpha = 0f
-        leftCircleClipTapView.alpha = 0f
-        rightCircleClipTapView.alpha = 0f
-        leftSecondsView.visibility = INVISIBLE
-        rightSecondsView.visibility = INVISIBLE
-        leftCircleClipTapView.visibility = INVISIBLE
-        rightCircleClipTapView.visibility = INVISIBLE
+        leftTapView.alpha = 0f
+        rightTapView.alpha = 0f
 
         // Set up gesture detection
         gestureDetector =
@@ -127,217 +122,15 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
         gestureDetector.setOnDoubleTapListener(this)
 
         addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
-            leftCircleClipTapView.updateArcSize(view)
-            rightCircleClipTapView.updateArcSize(view)
+            leftTapView.updateArcSize(view)
+            rightTapView.updateArcSize(view)
         }
 
         // Initialize directions for each side
-        leftSecondsView.setForwarding(false)
-        rightSecondsView.setForwarding(true)
-        leftCircleClipTapView.updatePosition(true) // isLeft = true for left side
-        rightCircleClipTapView.updatePosition(false) // isLeft = false for right side
-    }
-
-    private var performListener: PerformListener? = null
-
-    fun performListener(listener: PerformListener?) = apply { performListener = listener }
-
-    private var seekSecondsSupplier: () -> Int = { 0 }
-
-    fun seekSecondsSupplier(supplier: (() -> Int)?) = apply {
-        seekSecondsSupplier = supplier ?: { 0 }
-    }
-
-    // Track state for left overlay
-    private var leftInitTap: Boolean = false
-    private var leftIsAnimatingIn: Boolean = false
-    private var leftFadeOutRunnable: Runnable? = null
-
-    // Track state for right overlay
-    private var rightInitTap: Boolean = false
-    private var rightIsAnimatingIn: Boolean = false
-    private var rightFadeOutRunnable: Runnable? = null
-
-    override fun onDoubleTapStarted(portion: DisplayPortion) {
-        L.d("onDoubleTapStarted called with portion = [$portion]")
-
-        val shouldForward: Boolean =
-            performListener?.getFastSeekDirection(portion)?.directionAsBoolean ?: return
-
-        if (shouldForward) {
-            rightInitTap = false
-            rightSecondsView.stopAnimation()
-        } else {
-            leftInitTap = false
-            leftSecondsView.stopAnimation()
-        }
-    }
-
-    override fun onDoubleTapProgressDown(portion: DisplayPortion) {
-        val shouldForward: Boolean =
-            performListener?.getFastSeekDirection(portion)?.directionAsBoolean ?: return
-
-        L.d("onDoubleTapProgressDown called with shouldForward = [$shouldForward]")
-
-        if (shouldForward) {
-            handleRightOverlayTap()
-        } else {
-            handleLeftOverlayTap()
-        }
-
-        performListener?.seek(forward = shouldForward)
-    }
-
-    private fun handleLeftOverlayTap() {
-        // Cancel any pending fade out for left overlay
-        leftFadeOutRunnable?.let {
-            removeCallbacks(it)
-            leftFadeOutRunnable = null
-        }
-
-        if (!leftInitTap) {
-            // Reset seconds for new tap series
-            leftSecondsView.seconds = 0
-            leftInitTap = true
-
-            // Only fade in if we're not already visible and animating
-            if (!leftIsAnimatingIn && leftSecondsView.alpha < 1f) {
-                leftIsAnimatingIn = true
-                leftSecondsView.visibility = VISIBLE
-                leftCircleClipTapView.visibility = VISIBLE
-                leftSecondsView.startAnimation()
-                leftSecondsView
-                    .animate()
-                    .alpha(1f)
-                    .setDuration(200)
-                    .withEndAction { leftIsAnimatingIn = false }
-                    .start()
-                leftCircleClipTapView.animate().alpha(1f).setDuration(200).start()
-            }
-        } else {
-            // For rapid taps, ensure we're fully visible without re-animating
-            if (leftSecondsView.alpha < 1f && !leftIsAnimatingIn) {
-                leftSecondsView.alpha = 1f
-                leftCircleClipTapView.alpha = 1f
-                leftSecondsView.visibility = VISIBLE
-                leftCircleClipTapView.visibility = VISIBLE
-            }
-        }
-
-        leftSecondsView.seconds += seekSecondsSupplier.invoke()
-    }
-
-    private fun handleRightOverlayTap() {
-        // Cancel any pending fade out for right overlay
-        rightFadeOutRunnable?.let {
-            removeCallbacks(it)
-            rightFadeOutRunnable = null
-        }
-
-        if (!rightInitTap) {
-            // Reset seconds for new tap series
-            rightSecondsView.seconds = 0
-            rightInitTap = true
-
-            // Only fade in if we're not already visible and animating
-            if (!rightIsAnimatingIn && rightSecondsView.alpha < 1f) {
-                rightIsAnimatingIn = true
-                rightSecondsView.visibility = VISIBLE
-                rightCircleClipTapView.visibility = VISIBLE
-                rightSecondsView.startAnimation()
-                rightSecondsView
-                    .animate()
-                    .alpha(1f)
-                    .setDuration(200)
-                    .withEndAction { rightIsAnimatingIn = false }
-                    .start()
-                rightCircleClipTapView.animate().alpha(1f).setDuration(200).start()
-            }
-        } else {
-            // For rapid taps, ensure we're fully visible without re-animating
-            if (rightSecondsView.alpha < 1f && !rightIsAnimatingIn) {
-                rightSecondsView.alpha = 1f
-                rightCircleClipTapView.alpha = 1f
-                rightSecondsView.visibility = VISIBLE
-                rightCircleClipTapView.visibility = VISIBLE
-            }
-        }
-
-        rightSecondsView.seconds += seekSecondsSupplier.invoke()
-    }
-
-    override fun onDoubleTapFinished() {
-        L.d("onDoubleTapFinished called")
-
-        // Handle left overlay fade out
-        if (leftInitTap) {
-            leftInitTap = false
-            leftSecondsView.stopAnimation()
-
-            // Cancel any existing fade out
-            leftFadeOutRunnable?.let { removeCallbacks(it) }
-
-            // Schedule fade out for left overlay after a delay
-            leftFadeOutRunnable = Runnable {
-                leftIsAnimatingIn = false
-                leftSecondsView
-                    .animate()
-                    .alpha(0f)
-                    .setDuration(200)
-                    .withEndAction { leftSecondsView.visibility = INVISIBLE }
-                    .start()
-                leftCircleClipTapView
-                    .animate()
-                    .alpha(0f)
-                    .setDuration(200)
-                    .withEndAction { leftCircleClipTapView.visibility = INVISIBLE }
-                    .start()
-                leftFadeOutRunnable = null
-            }
-            postDelayed(leftFadeOutRunnable, 400)
-        }
-
-        // Handle right overlay fade out
-        if (rightInitTap) {
-            rightInitTap = false
-            rightSecondsView.stopAnimation()
-
-            // Cancel any existing fade out
-            rightFadeOutRunnable?.let { removeCallbacks(it) }
-
-            // Schedule fade out for right overlay after a delay
-            rightFadeOutRunnable = Runnable {
-                rightIsAnimatingIn = false
-                rightSecondsView
-                    .animate()
-                    .alpha(0f)
-                    .setDuration(200)
-                    .withEndAction { rightSecondsView.visibility = INVISIBLE }
-                    .start()
-                rightCircleClipTapView
-                    .animate()
-                    .alpha(0f)
-                    .setDuration(200)
-                    .withEndAction { rightCircleClipTapView.visibility = INVISIBLE }
-                    .start()
-                rightFadeOutRunnable = null
-            }
-            postDelayed(rightFadeOutRunnable, 400)
-        }
-    }
-
-    interface PerformListener {
-
-        /** Determines if the playback should forward/rewind or do nothing. */
-        fun getFastSeekDirection(portion: DisplayPortion): FastSeekDirection
-
-        fun seek(forward: Boolean)
-
-        enum class FastSeekDirection(val directionAsBoolean: Boolean?) {
-            NONE(null),
-            FORWARD(true),
-            BACKWARD(false),
-        }
+        leftSecondsView.setDirection(Direction.BACKWARDS)
+        rightSecondsView.setDirection(Direction.FORWARDS)
+        leftTapView.setDirection(Direction.BACKWARDS) // isLeft = true for left side
+        rightTapView.setDirection(Direction.FORWARDS) // isLeft = false for right side
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean =
@@ -345,25 +138,158 @@ class PlayerFastSeekOverlay(context: Context, attrs: AttributeSet?) :
 
     override fun onSingleTapConfirmed(e: MotionEvent) = false
 
+    private fun enter(
+        secondsView: SecondsView,
+        tapView: TapView,
+        overlayState: (OverlayState) -> Unit,
+    ) {
+        // start animating the seconds icon
+        secondsView.startAnimation()
+        val secondsIn = alphaSpring.alpha(secondsView, 1.0f)
+        val tapIn = alphaSpring.alpha(tapView, 1.0f)
+        // will execute after a delay
+        val out = Runnable { exit(secondsView, tapView, overlayState) }
+        tapIn.addEndListener { _, cancelled, _, _ ->
+            if (!cancelled) {
+                postDelayed(out, EXIT_DELAY_MS)
+                overlayState(OverlayState.Wait(out))
+            }
+        }
+        overlayState(OverlayState.Entering(secondsIn, tapIn))
+    }
+
+    private fun exit(
+        secondsView: SecondsView,
+        tapView: TapView,
+        overlayState: (OverlayState) -> Unit,
+    ) {
+        val secondsOut = alphaSpring.alpha(secondsView, 0.0f)
+        val tapOut = alphaSpring.alpha(tapView, 0.0f)
+        tapOut.addEndListener { _, cancelled, _, _ ->
+            if (!cancelled) {
+                secondsView.stopAnimation()
+                secondsView.seconds = 0
+                overlayState(OverlayState.Invisible)
+            }
+        }
+        overlayState(OverlayState.Exiting(secondsOut, tapOut))
+    }
+
+    private fun tap(
+        tappedSecondsView: SecondsView,
+        tappedTapView: TapView,
+        tappedOverlayState: OverlayState,
+        setTappedOverlayState: (OverlayState) -> Unit,
+        idleSecondsView: SecondsView,
+        idleTapView: TapView,
+        idleOverlayState: OverlayState,
+        setIdleOverlayState: (OverlayState) -> Unit,
+    ) {
+        // (re)activate the side that was tapped on
+        when (tappedOverlayState) {
+            is OverlayState.Invisible -> {
+                enter(tappedSecondsView, tappedTapView, setTappedOverlayState)
+            }
+
+            is OverlayState.Entering -> {
+                // do nothing
+            }
+
+            is OverlayState.Wait -> {
+                // refresh the exit timeout
+                removeCallbacks(tappedOverlayState.runnable)
+                postDelayed(tappedOverlayState.runnable, EXIT_DELAY_MS)
+            }
+
+            is OverlayState.Exiting -> {
+                // cancel exit and re-enter
+                tappedOverlayState.seconds.cancel()
+                tappedOverlayState.tap.cancel()
+                enter(tappedSecondsView, tappedTapView, setTappedOverlayState)
+            }
+        }
+
+        // clear out the idle side if it's active
+        when (idleOverlayState) {
+            is OverlayState.Invisible -> {
+                // nothing to clear
+            }
+
+            is OverlayState.Entering -> {
+                // cancel enter and exit immediately
+                idleOverlayState.seconds.cancel()
+                idleOverlayState.tap.cancel()
+                exit(idleSecondsView, idleTapView, setIdleOverlayState)
+            }
+
+            is OverlayState.Wait -> {
+                // dont wait for an exit, exit immediately
+                removeCallbacks(idleOverlayState.runnable)
+                exit(idleSecondsView, idleTapView, setIdleOverlayState)
+            }
+
+            is OverlayState.Exiting -> {
+                // nothing to clear
+            }
+        }
+
+        // update seconds from tap - reset when exit anim clears
+        // largely implicit shared understanding that seeking occurs by 10s
+        // todo: probably share this constant
+        tappedSecondsView.seconds += 10
+    }
+
     override fun onDoubleTap(e: MotionEvent): Boolean {
         val width = width
         val tapX = e.x
 
-        val portion =
+        val direction =
             when {
-                tapX < width * 0.33f -> DisplayPortion.LEFT_HALF
-                tapX > width * 0.67f -> DisplayPortion.RIGHT_HALF
-                else -> DisplayPortion.MIDDLE
+                tapX < width * 0.5 -> Direction.BACKWARDS
+                tapX > width * 0.5 -> Direction.FORWARDS
+                // dont care
+                else -> return false
             }
 
-        if (portion != DisplayPortion.MIDDLE) {
-            onDoubleTapStarted(portion)
-            onDoubleTapProgressDown(portion)
-            onDoubleTapFinished()
-            return true
+        // a bit duplicated but already the generic `enter`/`exit` logic
+        // requires a good amount of params and trying to share the helpe
+        when (direction) {
+            Direction.BACKWARDS -> {
+                tap(
+                    leftSecondsView,
+                    leftTapView,
+                    leftOverlayState,
+                    { leftOverlayState = it },
+                    rightSecondsView,
+                    rightTapView,
+                    rightOverlayState,
+                    { rightOverlayState = it },
+                )
+            }
+
+            Direction.FORWARDS -> {
+                // forwards, we tap on the right
+                tap(
+                    rightSecondsView,
+                    rightTapView,
+                    rightOverlayState,
+                    { rightOverlayState = it },
+                    leftSecondsView,
+                    leftTapView,
+                    leftOverlayState,
+                    { leftOverlayState = it },
+                )
+            }
         }
+
+        performListener?.seek(direction)
+
         return false
     }
 
     override fun onDoubleTapEvent(e: MotionEvent) = false
+
+    private companion object {
+        private const val EXIT_DELAY_MS = 500L
+    }
 }

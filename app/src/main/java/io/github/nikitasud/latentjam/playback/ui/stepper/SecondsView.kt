@@ -18,31 +18,18 @@
  */
 package io.github.nikitasud.latentjam.playback.ui.stepper
 
-import android.animation.ValueAnimator
 import android.content.Context
 import android.provider.Settings
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.widget.LinearLayout
-import androidx.core.animation.addListener
+import androidx.dynamicanimation.animation.DynamicAnimation
+import androidx.dynamicanimation.animation.SpringAnimation
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.databinding.PlayerFastSeekSecondsViewBinding
+import io.github.nikitasud.latentjam.ui.Effect
 
 class SecondsView(context: Context, attrs: AttributeSet?) : LinearLayout(context, attrs) {
-
-    companion object {
-        const val ICON_ANIMATION_DURATION = 750L
-    }
-
-    var cycleDuration: Long = ICON_ANIMATION_DURATION
-        set(value) {
-            firstAnimator.duration = value / 5
-            secondAnimator.duration = value / 5
-            thirdAnimator.duration = value / 5
-            fourthAnimator.duration = value / 5
-            fifthAnimator.duration = value / 5
-            field = value
-        }
 
     var seconds: Int = 0
         set(value) {
@@ -59,22 +46,34 @@ class SecondsView(context: Context, attrs: AttributeSet?) : LinearLayout(context
             1F,
         ) != 0F
 
+    private val alphaSpring = Effect.FAST
+    private var animations: List<SpringAnimation> = listOf()
+
     val binding = PlayerFastSeekSecondsViewBinding.inflate(LayoutInflater.from(context), this)
 
     init {
         orientation = VERTICAL
         layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+        reset()
     }
 
-    fun setForwarding(isForward: Boolean) {
-        binding.triangleContainer.rotation = if (isForward) 0f else 180f
+    fun setDirection(direction: Direction) {
+        // easy flip if in the other direction, dont have to change icons or anim order
+        binding.triangleContainer.rotation = if (direction == Direction.FORWARDS) 0f else 180f
     }
 
     fun startAnimation() {
-        stopAnimation()
-
+        if (animations.any { it.isRunning }) {
+            // animations ongoing
+            // we never try to stop ongoing animations when this is
+            // called again, as that will likely result in the indicator always
+            // resetting
+            // TODO: might want to change this
+            return
+        }
+        reset()
         if (animationsEnabled) {
-            firstAnimator.start()
+            cycle()
         } else {
             // If no animations are enable show the arrow(s) without animation
             showWithoutAnimation()
@@ -82,12 +81,7 @@ class SecondsView(context: Context, attrs: AttributeSet?) : LinearLayout(context
     }
 
     fun stopAnimation() {
-        firstAnimator.cancel()
-        secondAnimator.cancel()
-        thirdAnimator.cancel()
-        fourthAnimator.cancel()
-        fifthAnimator.cancel()
-
+        animations.forEach { it.cancel() }
         reset()
     }
 
@@ -103,76 +97,49 @@ class SecondsView(context: Context, attrs: AttributeSet?) : LinearLayout(context
         binding.icon3.alpha = 1f
     }
 
-    private val firstAnimator: ValueAnimator =
-        CustomValueAnimator(
-            {
-                binding.icon1.alpha = 0f
-                binding.icon2.alpha = 0f
-                binding.icon3.alpha = 0f
-            },
-            { binding.icon1.alpha = it },
-            { secondAnimator.start() },
+    // cycle animation for the 3 icons
+    private val cyclicAlpha =
+        floatArrayOf(
+            1.00f,
+            0.25f,
+            0.25f,
+            1.00f,
+            1.00f,
+            0.25f,
+            0.25f,
+            1.00f,
+            1.00f,
+            0.25f,
+            0.25f,
+            1.00f,
+            0.25f,
+            0.25f,
+            0.25f,
         )
 
-    private val secondAnimator: ValueAnimator =
-        CustomValueAnimator(
-            {
-                binding.icon1.alpha = 1f
-                binding.icon2.alpha = 0f
-                binding.icon3.alpha = 0f
-            },
-            { binding.icon2.alpha = it },
-            { thirdAnimator.start() },
-        )
-
-    private val thirdAnimator: ValueAnimator =
-        CustomValueAnimator(
-            {
-                binding.icon1.alpha = 1f
-                binding.icon2.alpha = 1f
-                binding.icon3.alpha = 0f
-            },
-            {
-                binding.icon1.alpha = 1f - binding.icon3.alpha
-                binding.icon3.alpha = it
-            },
-            { fourthAnimator.start() },
-        )
-
-    private val fourthAnimator: ValueAnimator =
-        CustomValueAnimator(
-            {
-                binding.icon1.alpha = 0f
-                binding.icon2.alpha = 1f
-                binding.icon3.alpha = 1f
-            },
-            { binding.icon2.alpha = 1f - it },
-            { fifthAnimator.start() },
-        )
-
-    private val fifthAnimator: ValueAnimator =
-        CustomValueAnimator(
-            {
-                binding.icon1.alpha = 0f
-                binding.icon2.alpha = 0f
-                binding.icon3.alpha = 1f
-            },
-            { binding.icon3.alpha = 1f - it },
-            { firstAnimator.start() },
-        )
-
-    private inner class CustomValueAnimator(
-        start: () -> Unit,
-        update: (value: Float) -> Unit,
-        end: () -> Unit,
-    ) : ValueAnimator() {
-
-        init {
-            duration = cycleDuration / 5
-            setFloatValues(0f, 1f)
-
-            addUpdateListener { update(it.animatedValue as Float) }
-            addListener(onStart = { start() }, onEnd = { end() })
+    private fun cycle(at: Int = 0) {
+        animations.forEach { it.cancel() }
+        val row = at * 3
+        val one = alphaSpring.alpha(binding.icon1, cyclicAlpha[row])
+        val two = alphaSpring.alpha(binding.icon2, cyclicAlpha[row + 1])
+        val three = alphaSpring.alpha(binding.icon3, cyclicAlpha[row + 2])
+        val endListener =
+            DynamicAnimation.OnAnimationEndListener { _, cancelled, _, _ ->
+                if (!cancelled) {
+                    cycle((at + 1) % 5)
+                }
+            }
+        when {
+            cyclicAlpha[row] != binding.icon1.alpha -> {
+                one.addEndListener(endListener)
+            }
+            cyclicAlpha[row + 1] != binding.icon2.alpha -> {
+                two.addEndListener(endListener)
+            }
+            cyclicAlpha[row + 2] != binding.icon3.alpha -> {
+                three.addEndListener(endListener)
+            }
         }
+        animations = listOf(one, two, three)
     }
 }

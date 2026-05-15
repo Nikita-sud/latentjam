@@ -807,18 +807,22 @@ constructor(
         pathMeasure.getSegment(startDistance, endDistance, displayedWavePath, true)
 
         startPoint.reset()
-        pathMeasure.getPosTan(
-            startDistance,
-            floatArrayOf(startPoint.posVec.x, startPoint.posVec.y),
-            floatArrayOf(startPoint.tanVec.x, startPoint.tanVec.y),
-        )
-        endPoint.reset()
-        pathMeasure.getPosTan(
-            startDistance,
-            floatArrayOf(endPoint.posVec.x, endPoint.posVec.y),
-            floatArrayOf(endPoint.tanVec.x, endPoint.tanVec.y),
-        )
+        val startPosArr = floatArrayOf(startPoint.posVec.x, startPoint.posVec.y)
+        val startTanArr = floatArrayOf(startPoint.tanVec.x, startPoint.tanVec.y)
+        pathMeasure.getPosTan(startDistance, startPosArr, startTanArr)
+        startPoint.posVec.x = startPosArr[0]
+        startPoint.posVec.y = startPosArr[1]
+        startPoint.tanVec.x = startTanArr[0]
+        startPoint.tanVec.y = startTanArr[1]
 
+        endPoint.reset()
+        val endPosArr = floatArrayOf(endPoint.posVec.x, endPoint.posVec.y)
+        val endTanArr = floatArrayOf(endPoint.tanVec.x, endPoint.tanVec.y)
+        pathMeasure.getPosTan(endDistance, endPosArr, endTanArr)
+        endPoint.posVec.x = endPosArr[0]
+        endPoint.posVec.y = endPosArr[1]
+        endPoint.tanVec.x = endTanArr[0]
+        endPoint.tanVec.y = endTanArr[1]
         transform.reset()
         transform.setTranslate(resultTranslationX, baseTranslationY)
         startPoint.translate(resultTranslationX, baseTranslationY)
