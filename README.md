@@ -19,7 +19,7 @@
 
 Requirements:
 - JDK 21
-- Android SDK with platform 36 + NDK 28+
+- Android SDK with platform 36 + NDK 28+. If Gradle can't locate the NDK, set `$ANDROID_NDK_HOME` to its install path (e.g. `~/Library/Android/sdk/ndk/28.2.13676358`).
 - `ninja` (for the native audio decoder build): `brew install ninja` / `apt install ninja-build`
 
 ```bash
@@ -36,7 +36,7 @@ The debug APK lands at `app/build/outputs/apk/debug/app-debug.apk`.
 
 The ONNX models are hosted on Hugging Face (not in this repo) because `clap_audio.onnx` is 116 MB, which exceeds GitHub's 100 MB per-file hard cap.
 
-Run `./scripts/download-models.sh` to fetch them into `app/src/main/assets/ml/`. The script pulls from `huggingface.co/Nikita-sud/latentjam-models` by default — override with `LATENTJAM_HF_MODELS=your/repo ./scripts/download-models.sh` if you have your own copy.
+Run `./scripts/download-models.sh` to fetch them into `app/src/main/assets/ml/`. The script pulls from [huggingface.co/AILOVER3000/latentjam-models](https://huggingface.co/AILOVER3000/latentjam-models) by default — override with `LATENTJAM_HF_MODELS=your/repo ./scripts/download-models.sh` if you have your own copy.
 
 Three models ship:
 - `clap_audio.onnx` (116 MB) — audio encoder, derived from CLAP. Produces an embedding per track on first index.

@@ -25,6 +25,8 @@ jobs:
         cache: gradle
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
+    - name: Download ML models from Hugging Face
+      run: ./scripts/download-models.sh
     - name: Build debug APK with Gradle
       run: ./gradlew app:packageDebug
     - name: Upload debug APK artifact
