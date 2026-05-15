@@ -338,7 +338,7 @@
     <string name="clr_cyan">Siyan</string>
     <string name="clr_teal">Tıl</string>
     <string name="clr_lime">Limon yaşılı</string>
-    <string name="lng_tasker_start">Auxio-nu əvvəldən saxlanmış vəziyyətdən istifadə edərək başlatmaq. Saxlanmış vəziyyət mövcud deyilsə, büyün mahnılar qarışdırılacaq. Səsləndirmə dərhal başlayacaq.\n\nXƏBƏRDARLIQ: Bu xidmətdən istifadə edərkən diqqətli olun, onu bağlasanız və sonra yenidən istifadə etməyə cəhd etsəniz, ehtimal ki, proqram çökəcək.</string>
+    <string name="lng_tasker_start">LatentJam-nu əvvəldən saxlanmış vəziyyətdən istifadə edərək başlatmaq. Saxlanmış vəziyyət mövcud deyilsə, büyün mahnılar qarışdırılacaq. Səsləndirmə dərhal başlayacaq.\n\nXƏBƏRDARLIQ: Bu xidmətdən istifadə edərkən diqqətli olun, onu bağlasanız və sonra yenidən istifadə etməyə cəhd etsəniz, ehtimal ki, proqram çökəcək.</string>
     <string name="set_bar_action">Fərdi səsləndirmə barı hərəkəti</string>
     <string name="set_rewind_prev">Geri atlamadan əvvəl geri sar</string>
     <string name="set_rewind_prev_desc">Əvvəlki mahnıya keçmədən əvvəl geri sar</string>

@@ -84,7 +84,7 @@
     <string name="desc_tab_handle">Sposta questa scheda</string>
     <string name="desc_clear_search">Cancella la ricerca</string>
     <string name="desc_music_location_delete">Rimuovi cartella</string>
-    <string name="desc_latentjam_icon">Icona Auxio</string>
+    <string name="desc_latentjam_icon">Icona LatentJam</string>
     <string name="desc_no_cover">Copertina album</string>
     <string name="desc_album_cover">Copertina album di %s</string>
     <string name="desc_artist_image">Immagine artista per %s</string>
@@ -299,7 +299,7 @@
     <string name="set_remember_pause">Ricorda pausa</string>
     <string name="set_remember_pause_desc">Mantiene riproduzione/pausa durante il cambio di brano e la modifica della coda di riproduzione</string>
     <string name="lbl_start_playback">Avvia la riproduzione</string>
-    <string name="lng_tasker_start">Avvia Auxio utilizzando le ultime impostazioni di riproduzione salvate. Se non è disponibile alcuna impostazione di riproduzione, i brani verranno riprodotti in ordine casuale. La riproduzione inizierà immediatamente.\n\nAttenzione: fai attenzione a controllare questa impostazione; se lo chiudi e poi provi a usarlo di nuovo, è probabile che l\'app si blocchi.</string>
+    <string name="lng_tasker_start">Avvia LatentJam utilizzando le ultime impostazioni di riproduzione salvate. Se non è disponibile alcuna impostazione di riproduzione, i brani verranno riprodotti in ordine casuale. La riproduzione inizierà immediatamente.\n\nAttenzione: fai attenzione a controllare questa impostazione; se lo chiudi e poi provi a usarlo di nuovo, è probabile che l\'app si blocchi.</string>
     <string name="lbl_feedback">Feedback</string>
     <string name="lbl_email">Invia un\'e-mail</string>
     <string name="lbl_github">Apri un\'issue su GitHub</string>

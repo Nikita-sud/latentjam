@@ -1,4 +1,4 @@
-Auxio è un lettore musicale locale veloce, con un'interfaccia utente intuitiva e privo delle numerose funzioni superflue che caratterizzano altri lettori musicali. Sviluppato su moderne librerie di riproduzione multimediale, Auxio offre un supporto di libreria e una qualità di ascolto superiori rispetto ad altre applicazioni che utilizzano funzionalità Android obsolete. In breve, <b>riproduce musica</b>.
+LatentJam è un lettore musicale locale veloce, con un'interfaccia utente intuitiva e privo delle numerose funzioni superflue che caratterizzano altri lettori musicali. Sviluppato su moderne librerie di riproduzione multimediale, LatentJam offre un supporto di libreria e una qualità di ascolto superiori rispetto ad altre applicazioni che utilizzano funzionalità Android obsolete. In breve, <b>riproduce musica</b>.
 
 <b>Caratteristiche</b>
 

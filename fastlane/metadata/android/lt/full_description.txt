@@ -1,4 +1,4 @@
-„Auxio“ – tai vietinė muzikos leistuvė su sparčia, patikima NS / NP be daugybės nenaudingų funkcijų, esančių kituose muzikos leistuvėse. Sukurta remiantis iš šiuolaikinių medijos įrašo perklausos bibliotekų, „Auxio“ turi geresnį bibliotekos palaikymą ir klausymo kokybę, palyginti su kitomis programose, kurios naudoja pasenusias „Android“ funkcijas. Trumpai tariant, <b>ji leidžia muziką</b>.
+„LatentJam“ – tai vietinė muzikos leistuvė su sparčia, patikima NS / NP be daugybės nenaudingų funkcijų, esančių kituose muzikos leistuvėse. Sukurta remiantis iš šiuolaikinių medijos įrašo perklausos bibliotekų, „LatentJam“ turi geresnį bibliotekos palaikymą ir klausymo kokybę, palyginti su kitomis programose, kurios naudoja pasenusias „Android“ funkcijas. Trumpai tariant, <b>ji leidžia muziką</b>.
 
 <b>Funkcijos</b>
 

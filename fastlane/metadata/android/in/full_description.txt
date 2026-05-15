@@ -1,4 +1,4 @@
-Auxio adalah pemutar musik lokal dengan antarmuka pengguna (UI/UX) yang cepat dan andal, tanpa fitur-fitur tidak berguna yang ada pada pemutar musik lainnya. Dibangun menggunakan pustaka pemutaran media modern, Auxio memiliki dukungan perpustakaan dan kualitas mendengarkan yang lebih unggul dibandingkan aplikasi lain yang menggunakan fungsionalitas Android yang sudah ketinggalan zaman. Singkatnya, <b>Ini memutar musik.</b>
+LatentJam adalah pemutar musik lokal dengan antarmuka pengguna (UI/UX) yang cepat dan andal, tanpa fitur-fitur tidak berguna yang ada pada pemutar musik lainnya. Dibangun menggunakan pustaka pemutaran media modern, LatentJam memiliki dukungan perpustakaan dan kualitas mendengarkan yang lebih unggul dibandingkan aplikasi lain yang menggunakan fungsionalitas Android yang sudah ketinggalan zaman. Singkatnya, <b>Ini memutar musik.</b>
 
 <b>Fitur</b>
 

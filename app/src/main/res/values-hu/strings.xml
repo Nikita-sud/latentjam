@@ -259,7 +259,7 @@
     <string name="lbl_share">Megoszt</string>
     <string name="lbl_confirm_delete_playlist">Lejátszólista törlése?</string>
     <string name="desc_remove_song">Távolítsa el ezt a dalt</string>
-    <string name="desc_latentjam_icon">Auxio ikon</string>
+    <string name="desc_latentjam_icon">LatentJam ikon</string>
     <string name="def_disc">Nincs lemez</string>
     <string name="fmt_editing">%s szerkesztése</string>
     <string name="set_square_covers">Négyzet alakú albumborítók</string>
@@ -313,7 +313,7 @@
     <string name="set_cover_mode_as_is">Ahogy van</string>
     <string name="cnt_mp4">MPEG-4, amely tartalmazza a %s-t</string>
     <string name="lbl_start_playback">Indítsd el a lejátszást</string>
-    <string name="lng_tasker_start">Elindítja az Auxio-t a korábban mentett állapot használatával. Ha nincs mentett állapot, akkor minden szám véletlenszerűen lejátszásra kerül. A lejátszás azonnal elindul.\n\nFIGYELEM: Légy óvatos a szolgáltatás vezérlésével, mert ha bezárod, majd újra próbálod használni, valószínűleg összeomlik az alkalmazás.</string>
+    <string name="lng_tasker_start">Elindítja az LatentJam-t a korábban mentett állapot használatával. Ha nincs mentett állapot, akkor minden szám véletlenszerűen lejátszásra kerül. A lejátszás azonnal elindul.\n\nFIGYELEM: Légy óvatos a szolgáltatás vezérlésével, mert ha bezárod, majd újra próbálod használni, valószínűleg összeomlik az alkalmazás.</string>
     <string name="lng_empty_playlists">Itt fognak megjelenni a lejátszási listáid.</string>
     <string name="set_cover_mode_save_space">Helytakarékos</string>
     <string name="cdc_alac">Apple veszteségmentes audió kodek (ALAC)</string>

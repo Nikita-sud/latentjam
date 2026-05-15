@@ -214,7 +214,7 @@
     <string name="set_pre_amp_with">Prilagoditev z oznakami</string>
     <string name="set_headset_autoplay">Predvajanje ob priključitvi slušalk</string>
     <string name="set_separators_comma">Vejica (,)</string>
-    <string name="desc_latentjam_icon">Auxio ikona</string>
+    <string name="desc_latentjam_icon">LatentJam ikona</string>
     <string name="desc_track_number">Skladba %d</string>
     <string name="lbl_filter">Filtriraj</string>
     <string name="set_exclude_non_music_desc">Prezri avdio datoteke, ki niso glasba, na primer podkaste</string>
