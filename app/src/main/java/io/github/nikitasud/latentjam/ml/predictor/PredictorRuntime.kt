@@ -23,10 +23,13 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.nikitasud.latentjam.ml.MlSettings
 import io.github.nikitasud.latentjam.ml.OrtAssets
+import java.io.File
 import java.nio.FloatBuffer
 import javax.inject.Inject
 import javax.inject.Singleton
+import timber.log.Timber
 
 /**
  * Owns the two predictor ONNX sessions (state encoder + scorer @ N=100) and exposes a thin batch=1
@@ -41,19 +44,61 @@ import javax.inject.Singleton
  * recommendation actually fires — startup never touches it.
  */
 @Singleton
-class PredictorRuntime @Inject constructor(@ApplicationContext private val context: Context) {
+class PredictorRuntime
+@Inject
+constructor(@ApplicationContext private val context: Context, private val mlSettings: MlSettings) {
     @Volatile private var ortEnvironment: OrtEnvironment? = null
     @Volatile private var stateSession: OrtSession? = null
     @Volatile private var scorerSession: OrtSession? = null
     @Volatile private var sessionFeatDim: Int = 5
     @Volatile private var historyTokenDim: Int = EMBEDDING_DIM
+    @Volatile private var loadedFromUserModel: Boolean = false
+
+    /**
+     * True iff the most recently loaded state-encoder session came from [userStateModelFile] rather
+     * than the bundled asset. Surfaced for diagnostics.
+     */
+    fun isUsingUserModel(): Boolean = loadedFromUserModel
+
+    /**
+     * Drop the cached sessions so the next [ensureLoaded] re-reads from disk. Call this from
+     * RetrainWorker after writing a new user model so playback picks it up without an app restart.
+     */
+    fun reload() {
+        synchronized(this) {
+            stateSession?.close()
+            scorerSession?.close()
+            stateSession = null
+            scorerSession = null
+            loadedFromUserModel = false
+        }
+    }
+
+    /**
+     * Delete any user-trained state-encoder model and revert to the bundled baseline asset on next
+     * [ensureLoaded]. Surfaced via "Reset to baseline" in settings for users whose adaptation went
+     * sideways and want to start over.
+     */
+    fun resetToBaseline() {
+        synchronized(this) {
+            val userFile = userStateModelFile(context)
+            val versionFile = userStateVersionFile(context)
+            if (userFile.exists() && !userFile.delete()) {
+                Timber.w("PredictorRuntime: failed to delete user model %s", userFile)
+            }
+            if (versionFile.exists() && !versionFile.delete()) {
+                Timber.w("PredictorRuntime: failed to delete user model version %s", versionFile)
+            }
+        }
+        reload()
+    }
 
     fun ensureLoaded() {
         if (stateSession != null && scorerSession != null) return
         synchronized(this) {
             val env = ortEnvironment ?: OrtEnvironment.getEnvironment().also { ortEnvironment = it }
             if (stateSession == null) {
-                val bytes = OrtAssets.readAsset(context, STATE_ASSET)
+                val (bytes, fromUser) = readStateModelBytes()
                 val opts = OrtSession.SessionOptions().apply { setIntraOpNumThreads(2) }
                 val s = env.createSession(bytes, opts)
                 sessionFeatDim =
@@ -67,6 +112,13 @@ class PredictorRuntime @Inject constructor(@ApplicationContext private val conte
                         info.shape[2].toInt()
                     } ?: EMBEDDING_DIM
                 stateSession = s
+                loadedFromUserModel = fromUser
+                Timber.i(
+                    "PredictorRuntime state loaded: source=%s sessionFeatDim=%d historyTokenDim=%d",
+                    if (fromUser) "user" else "asset",
+                    sessionFeatDim,
+                    historyTokenDim,
+                )
             }
             if (scorerSession == null) {
                 val bytes = OrtAssets.readAsset(context, SCORER_ASSET)
@@ -74,6 +126,37 @@ class PredictorRuntime @Inject constructor(@ApplicationContext private val conte
                 scorerSession = env.createSession(bytes, opts)
             }
         }
+    }
+
+    /**
+     * Pick the state-encoder bytes to load. Prefers the user-trained file at [userStateModelFile]
+     * when:
+     * 1. The file exists and is non-empty
+     * 2. Its sidecar version matches the currently bundled `mlSettings.predictorVersion` —
+     *    otherwise the user model was trained against an incompatible baseline architecture and
+     *    gets discarded so we don't crash on a tensor-shape mismatch at inference time
+     *
+     * The sidecar mismatch path also deletes the stale user files so we don't repeat the
+     * compatibility check on every cold start.
+     */
+    private fun readStateModelBytes(): Pair<ByteArray, Boolean> {
+        val userFile = userStateModelFile(context)
+        if (userFile.exists() && userFile.length() > 0) {
+            val versionFile = userStateVersionFile(context)
+            val storedVersion = if (versionFile.exists()) versionFile.readText().trim() else null
+            val expectedVersion = mlSettings.predictorVersion
+            if (storedVersion == expectedVersion) {
+                return userFile.readBytes() to true
+            }
+            Timber.w(
+                "PredictorRuntime: user model version (%s) != baseline (%s); discarding",
+                storedVersion ?: "<missing>",
+                expectedVersion,
+            )
+            userFile.delete()
+            if (versionFile.exists()) versionFile.delete()
+        }
+        return OrtAssets.readAsset(context, STATE_ASSET) to false
     }
 
     /** Returns the session-feature dim baked into the loaded state-encoder ONNX. */
@@ -188,6 +271,24 @@ class PredictorRuntime @Inject constructor(@ApplicationContext private val conte
         const val CONTEXT_K = 4
         const val EMBEDDING_DIM = 512
         const val SCORER_N = 100
+
+        // User-trained state-encoder lives in private app storage (filesDir, not cacheDir —
+        // we don't want the OS to silently evict it under storage pressure). The .version
+        // sidecar holds the predictor-version string the model was trained against; on app
+        // start we compare it to mlSettings.predictorVersion and discard if they differ.
+        private const val USER_MODEL_DIR = "ml"
+        private const val USER_STATE_MODEL_FILENAME = "predictor_state_user.onnx"
+        private const val USER_STATE_VERSION_FILENAME = "predictor_state_user.version"
+
+        fun userStateModelFile(context: Context): File =
+            File(File(context.filesDir, USER_MODEL_DIR), USER_STATE_MODEL_FILENAME).also {
+                it.parentFile?.mkdirs()
+            }
+
+        fun userStateVersionFile(context: Context): File =
+            File(File(context.filesDir, USER_MODEL_DIR), USER_STATE_VERSION_FILENAME).also {
+                it.parentFile?.mkdirs()
+            }
     }
 }
 

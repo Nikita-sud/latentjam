@@ -70,7 +70,10 @@ internal object NativeAudioDecoder {
         startUs: Long,
         durationUs: Long,
     ): NativeDecodeResult? {
-        if (!available) return null
+        if (!available) {
+            NativeDecoderStats.recordFallback(NativeDecoderStats.FallbackReason.NO_LIB)
+            return null
+        }
         // Open via ContentResolver — for SAF documents this typically returns an AFD
         // wrapping a real file descriptor with startOffset=0.
         val afd =
@@ -78,6 +81,7 @@ internal object NativeAudioDecoder {
                 context.contentResolver.openAssetFileDescriptor(uri, "r")
             } catch (e: Exception) {
                 Timber.v(e, "NativeAudioDecoder: openAssetFileDescriptor failed for %s", uri)
+                NativeDecoderStats.recordFallback(NativeDecoderStats.FallbackReason.AFD_OPEN_FAILED)
                 null
             } ?: return null
         return afd.use {
@@ -86,25 +90,50 @@ internal object NativeAudioDecoder {
             // AFD covers only a sub-region of the FD (e.g. an asset bundle).
             if (it.startOffset != 0L) {
                 Timber.v("NativeAudioDecoder: skipping nonzero AFD startOffset=%d", it.startOffset)
+                NativeDecoderStats.recordFallback(
+                    NativeDecoderStats.FallbackReason.NONZERO_AFD_OFFSET
+                )
                 return@use null
             }
             val len = if (it.declaredLength > 0) it.declaredLength else it.length
-            if (len <= 0L) return@use null
+            if (len <= 0L) {
+                NativeDecoderStats.recordFallback(NativeDecoderStats.FallbackReason.EMPTY_LENGTH)
+                return@use null
+            }
             val fd =
                 try {
                     it.parcelFileDescriptor.fd
                 } catch (e: Exception) {
                     Timber.v(e, "NativeAudioDecoder: failed to get fd")
+                    NativeDecoderStats.recordFallback(
+                        NativeDecoderStats.FallbackReason.FD_FETCH_FAILED
+                    )
                     return@use null
                 }
             val outSr = IntArray(1)
+            var threw = false
             val samples =
                 try {
                     nativeDecode(fd, len, startUs, durationUs, outSr)
                 } catch (e: Throwable) {
                     Timber.w(e, "NativeAudioDecoder: nativeDecode threw")
+                    NativeDecoderStats.recordFallback(
+                        NativeDecoderStats.FallbackReason.NATIVE_THREW
+                    )
+                    threw = true
                     null
-                } ?: return@use null
+                }
+            if (samples == null) {
+                // Only record the "returned null" bucket when no exception fired — the throw
+                // path already incremented its own counter above.
+                if (!threw) {
+                    NativeDecoderStats.recordFallback(
+                        NativeDecoderStats.FallbackReason.NATIVE_RETURNED_NULL
+                    )
+                }
+                return@use null
+            }
+            NativeDecoderStats.recordSuccess()
             NativeDecodeResult(samples = samples, sourceSampleRate = outSr[0])
         }
     }
