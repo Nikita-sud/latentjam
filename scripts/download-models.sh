@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # Edit if you fork the repo or move the model repo elsewhere.
-HF_REPO="${LATENTJAM_HF_MODELS:-Nikita-sud/latentjam-models}"
+HF_REPO="${LATENTJAM_HF_MODELS:-AILOVER3000/latentjam-models}"
 HF_REVISION="${LATENTJAM_HF_REVISION:-main}"
 
 DEST="app/src/main/assets/ml"
