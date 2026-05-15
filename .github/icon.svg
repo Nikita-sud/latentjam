@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108" role="img" aria-label="LatentJam icon">
+  <!--
+    LatentJam adaptive launcher icon, exported from
+    app/src/main/res/drawable/ic_launcher_foreground.xml +
+    app/src/main/res/drawable/ic_launcher_background.xml
+    so it renders natively on GitHub (Android vector drawables don't).
+    Keep this in sync if you edit the launcher icon.
+  -->
+  <defs>
+    <linearGradient id="lj-grad" x1="32" y1="32" x2="76" y2="76" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8E24AA"/>
+      <stop offset="1" stop-color="#00ACC1"/>
+    </linearGradient>
+    <clipPath id="lj-mask">
+      <rect x="0" y="0" width="108" height="108" rx="24" ry="24"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#lj-mask)">
+    <rect width="108" height="108" fill="#212121"/>
+    <!-- faded right-angle lattice (node 1 -> down -> right) -->
+    <path d="M37,35 V73 H50"
+          fill="none" stroke="url(#lj-grad)" stroke-width="3"
+          stroke-linecap="round" stroke-linejoin="round"
+          stroke-opacity="0.5"/>
+    <!-- bezier: node 1 -> node 2 -->
+    <path d="M37,35 C54,35 54,52 71,52"
+          fill="none" stroke="url(#lj-grad)" stroke-width="3"
+          stroke-linecap="round"/>
+    <!-- bezier: node 2 -> node 3 -->
+    <path d="M71,52 C71,69 62,73 50,73"
+          fill="none" stroke="url(#lj-grad)" stroke-width="3"
+          stroke-linecap="round"/>
+    <!-- node 1 at (37, 35), r=5 -->
+    <circle cx="37" cy="35" r="5" fill="url(#lj-grad)"/>
+    <!-- node 2 at (71, 52), r=5 -->
+    <circle cx="71" cy="52" r="5" fill="url(#lj-grad)"/>
+    <!-- node 3 at (50, 73), r=5 -->
+    <circle cx="50" cy="73" r="5" fill="url(#lj-grad)"/>
+  </g>
+</svg>
