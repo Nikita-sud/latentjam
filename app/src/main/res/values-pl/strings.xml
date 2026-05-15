@@ -364,4 +364,8 @@
     <string name="lbl_metadata_year">Rok</string>
     <string name="lbl_metadata_clear">Resetuj</string>
     <string name="info_metadata_override_hint">Nadpisania pozostają w aplikacji i nie zmieniają pliku audio.</string>
+    <string name="set_saf_multithread">Wielowątkowe przeglądanie plików</string>
+    <string name="set_saf_multithread_desc">Działa szybciej, ale na niektórych urządzeniach nie działa</string>
+    <string name="err_share_too_large">Ten plik jest zbyt duży, aby go udostępnić</string>
+    <string name="err_share_failed">Nie można tego udostępnić</string>
 </resources>

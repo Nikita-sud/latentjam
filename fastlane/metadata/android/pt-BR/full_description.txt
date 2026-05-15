@@ -5,11 +5,11 @@ LatentJam é um reprodutor de música local com uma interface/experiência de us
 - Reprodução baseada no Media3 ExoPlayer
 - Interface de usuário rápida derivada das últimas diretrizes do Material Design
 - Experiência de usuário opinativa que prioriza a facilidade de uso ao invés de priorizar situações incomuns
-- Comportamento customizável
-- Suporte a números de disco, vários artistas, tipos de lançamento, datas precisas/originais, metadados organizados e mais
+- Comportamento personalizável
+- Suporte a numerações de discos, vários artistas, tipos de lançamento, datas precisas/originais, metadados organizados e mais
 - Sistema de artistas avançado que unifica artistas e artistas de álbum.
 - Gerenciamento de pastas com suporte a cartão SD
-- Funcionalidade confiável de criação de playlists
+- Funcionalidade estável de criação de playlists
 - Persistência do estado de reprodução
 - Suporte ao Android Auto
 - Reprodução automática sem interrupções
