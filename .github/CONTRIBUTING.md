@@ -1,46 +1,46 @@
-# Auxio contribution guidelines
+# LatentJam contribution guidelines
+
+LatentJam is a personal fork of [Auxio](https://github.com/OxygenCobalt/Auxio) (GPL-3.0) that adds on-device ML features. Contributions are welcome but kept narrow in scope — see below.
 
 ## Crashes & Bugs
-Log them in the [Issues](https://github.com/OxygenCobalt/Auxio/issues) tab.
+Log them in the [Issues](https://github.com/Nikita-sud/latentjam/issues) tab.
 
-Please keep in mind when reporting an issue:
-- **Has it been reported?** Make sure an issue for the issue is not already there.
-- **Has it been already fixed?** Make sure a fix wasn't already added.
-- **Is it still relevant in the latest version?** Make sure to test it in the latest version.
+When reporting an issue:
+- **Has it been reported?** Search existing issues first.
+- **Has it been already fixed?** Check the latest commit on `main`.
+- **Is it still relevant in the latest version?** Test on the latest build before filing.
 
-If you do make an issue, Make sure to provide:
-- A description of the bug/crash
-- A summary of the steps to create the bug/crash
-- A stack trace/logcat if possible, the longer the better.
+When you file, include:
+- A clear description of the bug/crash
+- Steps to reproduce
+- A logcat trace if possible (the longer the better)
 
-If you have knowledge of Android/Kotlin in general, you could also go about fixing the bug yourself and opening a [Pull Request](https://github.com/OxygenCobalt/Auxio/pulls).
+If you have Android/Kotlin experience, feel free to open a [Pull Request](https://github.com/Nikita-sud/latentjam/pulls) with the fix.
 
 ## Feature Requests
-These should also be logged in the [Issues](https://github.com/OxygenCobalt/Auxio/issues) tab.
+File these in the [Issues](https://github.com/Nikita-sud/latentjam/issues) tab too.
 
-Please keep in mind when requesting a feature:
-- **Has it already been requested?** Make sure request for this feature is not already here.
-- **Has it been already added?** Make sure this feature has not already been added in the most recent release.
-- **Will it be accepted?** Read the [Why Are These Features Missing?](https://github.com/OxygenCobalt/Auxio/wiki/Why-Are-These-Features-Missing%3F) in order to see the likelihood that your request will be implemented.
+Before filing:
+- **Has it already been requested?** Search first.
+- **Has it been added?** Check the changelog.
+- **Will it be accepted?** LatentJam inherits Auxio's [opinionated UX](https://github.com/OxygenCobalt/Auxio/wiki/Why-Are-These-Features-Missing%3F) — many feature requests are intentionally out of scope.
 
-If you do make a request, provide the following:
-- What is it that you want?
-- Is it related to some problem? If so, describe why.
-- Why do you think it will benefit everyone's usage of the app?
+When you file, include:
+- What you want
+- The problem it solves
+- Why it would benefit other users
 
-If you have the knowledge, you can also implement the feature yourself and create a [Pull Request](https://github.com/OxygenCobalt/Auxio/pulls), but its recommended that **you create an issue beforehand to give me a heads up.**
-Its also recommended that you read about [Auxio's Architecture](https://github.com/OxygenCobalt/Auxio/wiki/Architecture) as well to make changes better and more efficient.
-
-## Translations
-Go to Auxio's weblate project [here](https://hosted.weblate.org/engage/auxio/).
+If you want to implement the feature yourself, open an issue first so we can discuss whether it's in scope before you sink time into it.
 
 ## Code Contributions
-If you have knowledge of Android/Kotlin, feel free to to contribute to the project.
-- If you want to help out with an existing bug report, comment on the issue that you want to fix saying that you are going to try your hand at it.
-- If you want to add something, its recommended to open up an issue for what you want to change before you start working on it. That way I can determine if the addition will be merged in the first place, and generally gives a heads-up overall.
-- Do not bring non-free software into the project, such as Binary Blobs.
-- Stick to [F-Droid Inclusion Guidelines](https://f-droid.org/wiki/page/Inclusion_Policy)
-- Make sure you stick to Auxio's styling, which should be auto-formatted on every build.
-- Please ***FULLY TEST*** your changes before creating a PR. Untested code will not be merged.
-- Only **Kotlin** will be accepted, except for the case that a UI component must be vendored in the project.
-- Keep your code up the date with the upstream and continue to maintain it after you create the PR. This makes it less of a hassle to merge.
+- If you're picking up an existing bug, comment on the issue first so we don't duplicate work.
+- New features: open an issue before coding so we can scope it.
+- No non-free software (no binary blobs).
+- Stick to [F-Droid Inclusion Guidelines](https://f-droid.org/wiki/page/Inclusion_Policy).
+- Code must pass `./gradlew spotlessCheck` — formatting is enforced in CI.
+- ***FULLY TEST*** your changes before opening a PR. Untested code will not be merged.
+- Kotlin only, except where a UI component must be vendored from upstream.
+- Keep your branch up to date with `main`. Resolve conflicts yourself before requesting review.
+
+## Upstream Auxio changes
+LatentJam tracks [Auxio](https://github.com/OxygenCobalt/Auxio) as an upstream remote. The `:musikr` module is deliberately kept under its original `org.oxycblt.musikr` namespace to make upstream merges clean — do not rename it. See [ARCHITECTURE_NOTES.md](../ARCHITECTURE_NOTES.md) for the module split.

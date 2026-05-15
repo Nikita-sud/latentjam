@@ -226,7 +226,7 @@
     <string name="desc_music_location_delete">Премахни папка</string>
     <string name="err_import_failed">Не може да се внесе плейлист от този файл</string>
     <string name="err_bad_location">Тази папка не се поддържа</string>
-    <string name="desc_auxio_icon">Auxio икона</string>
+    <string name="desc_latentjam_icon">LatentJam икона</string>
     <string name="desc_no_cover">Обложка на албум</string>
     <string name="desc_album_cover">Обложка на албум за %s</string>
     <string name="desc_artist_image">Изображение на изпълнител за %s</string>
@@ -294,7 +294,7 @@
     <string name="cdc_aac">Advanced Audio Coding (AAC)</string>
     <string name="fmt_sample_rate">%d Hz</string>
     <string name="def_genre">Неизвестен жанр</string>
-    <string name="lng_tasker_start">Стартирай Auxio, използвайки предварително запазеното състояние. Ако няма налично запазено състояние, всички песни ще бъдат разбъркани. Възпроизвеждането ще започне веднага. \n \nПРЕДУПРЕЖДЕНИЕ: Бъдете внимателни, когато контролирате тази услуга, ако я затворите и след това опитате да я използвате отново, вероятно ще сринете приложението.</string>
+    <string name="lng_tasker_start">Стартирай LatentJam, използвайки предварително запазеното състояние. Ако няма налично запазено състояние, всички песни ще бъдат разбъркани. Възпроизвеждането ще започне веднага. \n \nПРЕДУПРЕЖДЕНИЕ: Бъдете внимателни, когато контролирате тази услуга, ако я затворите и след това опитате да я използвате отново, вероятно ще сринете приложението.</string>
     <string name="lbl_start_playback">Стартирай възпроизвеждане</string>
     <string name="lbl_more">Още</string>
     <string name="lbl_feedback">Обратна връзка</string>

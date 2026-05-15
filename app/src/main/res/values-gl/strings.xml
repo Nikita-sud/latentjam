@@ -163,7 +163,7 @@
     <string name="desc_queue_bar">Abrir a cola</string>
     <string name="desc_clear_search">Borrar o historial de busca</string>
     <string name="desc_music_location_delete">Quitar cartafol</string>
-    <string name="desc_auxio_icon">Icona de Auxio</string>
+    <string name="desc_latentjam_icon">Icona de LatentJam</string>
     <string name="desc_no_cover">Portada de álbum</string>
     <string name="desc_album_cover">Portada de álbum para %s</string>
     <string name="desc_artist_image">Imaxe de artista para %s</string>

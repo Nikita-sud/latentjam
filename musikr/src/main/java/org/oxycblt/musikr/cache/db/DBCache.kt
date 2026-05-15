@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2025 Auxio Project
- * DBCache.kt is part of Auxio.
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * DBCache.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package org.oxycblt.musikr.cache.db
 
 import android.content.Context
@@ -67,6 +67,7 @@ class DBCache private constructor(private val readDao: CacheReadDao) : Cache {
                             durationMs = dbSong.durationMs,
                             track = dbSong.track,
                             disc = dbSong.disc,
+                            bpm = dbSong.bpm,
                             subtitle = dbSong.subtitle,
                             date = dbSong.date,
                             albumMusicBrainzId = dbSong.albumMusicBrainzId,
@@ -132,6 +133,7 @@ private constructor(private val inner: DBCache, private val writeDao: CacheWrite
                 sortName = cachedFile.audio?.tags?.sortName,
                 track = cachedFile.audio?.tags?.track,
                 disc = cachedFile.audio?.tags?.disc,
+                bpm = cachedFile.audio?.tags?.bpm,
                 subtitle = cachedFile.audio?.tags?.subtitle,
                 date = cachedFile.audio?.tags?.date,
                 albumMusicBrainzId = cachedFile.audio?.tags?.albumMusicBrainzId,

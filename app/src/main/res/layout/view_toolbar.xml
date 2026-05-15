@@ -10,9 +10,9 @@
     android:minHeight="?attr/actionBarSize"
     android:orientation="horizontal">
 
-    <org.oxycblt.auxio.ui.RippleFixMaterialButton
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
         android:id="@+id/toolbar_navigation_button"
-        style="@style/Widget.Auxio.Button.Icon.Base"
+        style="@style/Widget.LatentJam.Button.Icon.Base"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="-12dp"  />

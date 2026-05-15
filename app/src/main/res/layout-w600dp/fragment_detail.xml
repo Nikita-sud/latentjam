@@ -14,14 +14,14 @@
     android:transitionGroup="true">
 
 
-    <org.oxycblt.auxio.ui.MultiToolbar
+    <io.github.nikitasud.latentjam.ui.MultiToolbar
         android:id="@+id/detail_toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:layout_collapseMode="pin"
         app:layout_constraintTop_toTopOf="parent">
 
-        <org.oxycblt.auxio.ui.AuxioToolbar
+        <io.github.nikitasud.latentjam.ui.LatentJamToolbar
             android:id="@+id/detail_normal_toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -30,7 +30,7 @@
             app:menu="@menu/toolbar_detail_land"
             app:navigationIcon="@drawable/ic_back_24" />
 
-        <org.oxycblt.auxio.ui.AuxioToolbar
+        <io.github.nikitasud.latentjam.ui.LatentJamToolbar
             android:id="@+id/detail_selection_toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -39,7 +39,7 @@
             app:menu="@menu/toolbar_selection"
             app:navigationIcon="@drawable/ic_close_24" />
 
-        <org.oxycblt.auxio.ui.AuxioToolbar
+        <io.github.nikitasud.latentjam.ui.LatentJamToolbar
             android:id="@+id/detail_edit_toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -48,7 +48,7 @@
             app:menu="@menu/toolbar_edit"
             app:navigationIcon="@drawable/ic_close_24" />
 
-    </org.oxycblt.auxio.ui.MultiToolbar>
+    </io.github.nikitasud.latentjam.ui.MultiToolbar>
 
 
     <com.google.android.material.divider.MaterialDivider
@@ -70,9 +70,9 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/detail_toolbar">
 
-        <org.oxycblt.auxio.image.CoverView
+        <io.github.nikitasud.latentjam.image.CoverView
             android:id="@+id/detail_cover"
-            style="@style/Widget.Auxio.Image.Large"
+            style="@style/Widget.LatentJam.Image.Large"
             app:enablePlaybackIndicator="false"
             app:enableSelectionBadge="false"
             app:layout_constraintBottom_toTopOf="@+id/materialButtonGroup"
@@ -97,7 +97,7 @@
 
         <TextView
             android:id="@+id/detail_name"
-            style="@style/Widget.Auxio.TextView.Detail"
+            style="@style/Widget.LatentJam.TextView.Detail"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             app:layout_constraintBottom_toTopOf="@+id/detail_subhead"
@@ -108,7 +108,7 @@
 
         <TextView
             android:id="@+id/detail_subhead"
-            style="@style/Widget.Auxio.TextView.Secondary.Ellipsize"
+            style="@style/Widget.LatentJam.TextView.Secondary.Ellipsize"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:textColor="?android:attr/textColorSecondary"
@@ -120,7 +120,7 @@
 
         <TextView
             android:id="@+id/detail_info"
-            style="@style/Widget.Auxio.TextView.Secondary.Ellipsize"
+            style="@style/Widget.LatentJam.TextView.Secondary.Ellipsize"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:textColor="?android:attr/textColorSecondary"
@@ -144,9 +144,9 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/detail_cover">
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/detail_play_button"
-                style="@style/Widget.Auxio.Button.Secondary"
+                style="@style/Widget.LatentJam.Button.Secondary"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -154,9 +154,9 @@
                 app:icon="@drawable/ic_play_24"
                 tools:ignore="RtlSymmetry" />
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/detail_shuffle_button"
-                style="@style/Widget.Auxio.Button.Primary"
+                style="@style/Widget.LatentJam.Button.Primary"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -167,9 +167,9 @@
     </androidx.constraintlayout.widget.ConstraintLayout>
 
 
-    <org.oxycblt.auxio.list.recycler.FastScrollRecyclerView
+    <io.github.nikitasud.latentjam.list.recycler.FastScrollRecyclerView
         android:id="@+id/detail_recycler"
-        style="@style/Widget.Auxio.RecyclerView.Linear"
+        style="@style/Widget.LatentJam.RecyclerView.Linear"
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"

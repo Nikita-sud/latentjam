@@ -1,0 +1,302 @@
+/*
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * AlbumDetailListAdapter.kt is part of LatentJam.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package io.github.nikitasud.latentjam.detail.list
+
+import android.view.ViewGroup
+import androidx.core.view.isGone
+import androidx.core.view.isInvisible
+import androidx.core.view.isVisible
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.divider.MaterialDivider
+import io.github.nikitasud.latentjam.IntegerTable
+import io.github.nikitasud.latentjam.R
+import io.github.nikitasud.latentjam.databinding.ItemAlbumSongBinding
+import io.github.nikitasud.latentjam.databinding.ItemDiscHeaderBinding
+import io.github.nikitasud.latentjam.detail.list.AlbumSongViewHolder.Companion.from
+import io.github.nikitasud.latentjam.detail.list.DiscDividerViewHolder.Companion.from
+import io.github.nikitasud.latentjam.detail.list.DiscHeaderViewHolder.Companion.from
+import io.github.nikitasud.latentjam.list.Divider
+import io.github.nikitasud.latentjam.list.Header
+import io.github.nikitasud.latentjam.list.Item
+import io.github.nikitasud.latentjam.list.SelectableListListener
+import io.github.nikitasud.latentjam.list.adapter.SelectionIndicatorAdapter
+import io.github.nikitasud.latentjam.list.adapter.SimpleDiffCallback
+import io.github.nikitasud.latentjam.music.areNamesTheSame
+import io.github.nikitasud.latentjam.music.resolve
+import io.github.nikitasud.latentjam.music.resolveNames
+import io.github.nikitasud.latentjam.playback.formatDurationMs
+import io.github.nikitasud.latentjam.util.context
+import io.github.nikitasud.latentjam.util.getAttrColorCompat
+import io.github.nikitasud.latentjam.util.inflater
+import org.oxycblt.musikr.Album
+import org.oxycblt.musikr.Song
+import org.oxycblt.musikr.tag.Disc
+
+/**
+ * An [DetailListAdapter] implementing the header and sub-items for the [Album] detail view.
+ *
+ * @param listener A [DetailListAdapter.Listener] to bind interactions to.
+ * @author Alexander Capehart (OxygenCobalt)
+ */
+class AlbumDetailListAdapter(private val listener: Listener<Song>) :
+    DetailListAdapter(listener, DIFF_CALLBACK) {
+    private var likedUids: Set<org.oxycblt.musikr.Music.UID> = emptySet()
+
+    fun setLikedUids(uids: Set<org.oxycblt.musikr.Music.UID>) {
+        likedUids = uids
+        notifyDataSetChanged()
+    }
+
+    override fun getItemViewType(position: Int) =
+        when (getItem(position)) {
+            // Support sub-headers for each disc, and special album songs.
+            is DiscHeader -> DiscHeaderViewHolder.VIEW_TYPE
+            is DiscDivider -> DiscDividerViewHolder.VIEW_TYPE
+            is Song -> AlbumSongViewHolder.VIEW_TYPE
+            else -> super.getItemViewType(position)
+        }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
+        when (viewType) {
+            DiscHeaderViewHolder.VIEW_TYPE -> DiscHeaderViewHolder.from(parent)
+            DiscDividerViewHolder.VIEW_TYPE -> DiscDividerViewHolder.from(parent)
+            AlbumSongViewHolder.VIEW_TYPE -> AlbumSongViewHolder.from(parent)
+            else -> super.onCreateViewHolder(parent, viewType)
+        }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        super.onBindViewHolder(holder, position)
+        when (val item = getItem(position)) {
+            is DiscHeader -> (holder as DiscHeaderViewHolder).bind(item)
+            is Song ->
+                (holder as AlbumSongViewHolder).bind(item, listener, liked = item.uid in likedUids)
+        }
+    }
+
+    private companion object {
+        /** A comparator that can be used with DiffUtil. */
+        val DIFF_CALLBACK =
+            object : SimpleDiffCallback<Item>() {
+                override fun areContentsTheSame(oldItem: Item, newItem: Item) =
+                    when {
+                        oldItem is Disc && newItem is Disc ->
+                            DiscHeaderViewHolder.DIFF_CALLBACK.areContentsTheSame(oldItem, newItem)
+                        oldItem is DiscDivider && newItem is DiscDivider ->
+                            DiscDividerViewHolder.DIFF_CALLBACK.areContentsTheSame(oldItem, newItem)
+                        oldItem is Song && newItem is Song ->
+                            AlbumSongViewHolder.DIFF_CALLBACK.areContentsTheSame(oldItem, newItem)
+
+                        // Fall back to DetailAdapter's differ to handle other headers.
+                        else -> DetailListAdapter.DIFF_CALLBACK.areContentsTheSame(oldItem, newItem)
+                    }
+            }
+    }
+}
+
+/**
+ * A wrapper around [Disc] signifying that a header should be shown for a disc group.
+ *
+ * @author Alexander Capehart (OxygenCobalt)
+ */
+data class DiscHeader(val inner: Disc?) : Header
+
+data class DiscDivider(override val anchor: DiscHeader?) : Divider<DiscHeader>
+
+/**
+ * A [RecyclerView.ViewHolder] that displays a [DiscHeader] to delimit different disc groups. Use
+ * [from] to create an instance.
+ *
+ * @author Alexander Capehart (OxygenCobalt)
+ */
+private class DiscHeaderViewHolder(private val binding: ItemDiscHeaderBinding) :
+    RecyclerView.ViewHolder(binding.root) {
+    /**
+     * Bind new data to this instance.
+     *
+     * @param discHeader The new [DiscHeader] to bind.
+     */
+    fun bind(discHeader: DiscHeader) {
+        val disc = discHeader.inner
+        binding.discNumber.text = disc.resolve(binding.context)
+        binding.discName.apply {
+            text = disc?.name
+            isGone = disc?.name == null
+        }
+    }
+
+    companion object {
+        /** A unique ID for this [RecyclerView.ViewHolder] type. */
+        const val VIEW_TYPE = IntegerTable.VIEW_TYPE_DISC_HEADER
+
+        /**
+         * Create a new instance.
+         *
+         * @param parent The parent to inflate this instance from.
+         * @return A new instance.
+         */
+        fun from(parent: ViewGroup) =
+            DiscHeaderViewHolder(
+                // TODO: Get all viewholders to inflate anchored to parent
+                ItemDiscHeaderBinding.inflate(parent.context.inflater, parent, false)
+            )
+
+        /** A comparator that can be used with DiffUtil. */
+        val DIFF_CALLBACK =
+            object : SimpleDiffCallback<Disc>() {
+                override fun areContentsTheSame(oldItem: Disc, newItem: Disc) =
+                    oldItem.number == newItem.number && oldItem.name == newItem.name
+            }
+    }
+}
+
+/**
+ * A [RecyclerView.ViewHolder] that displays a [DiscHeader]. Use [from] to create an instance.
+ *
+ * @author Alexander Capehart (OxygenCobalt)
+ */
+class DiscDividerViewHolder private constructor(divider: MaterialDivider) :
+    RecyclerView.ViewHolder(divider) {
+
+    init {
+        divider.dividerColor =
+            divider.context
+                .getAttrColorCompat(com.google.android.material.R.attr.colorOutlineVariant)
+                .defaultColor
+    }
+
+    companion object {
+        /** Unique ID for this ViewHolder type. */
+        const val VIEW_TYPE = IntegerTable.VIEW_TYPE_DISC_DIVIDER
+
+        /**
+         * Create a new instance.
+         *
+         * @param parent The parent to inflate this instance from.
+         * @return A new instance.
+         */
+        fun from(parent: ViewGroup) = DiscDividerViewHolder(MaterialDivider(parent.context))
+
+        /** A comparator that can be used with DiffUtil. */
+        val DIFF_CALLBACK =
+            object : SimpleDiffCallback<DiscDivider>() {
+                override fun areContentsTheSame(oldItem: DiscDivider, newItem: DiscDivider) =
+                    oldItem.anchor == newItem.anchor
+            }
+    }
+}
+
+/**
+ * A [RecyclerView.ViewHolder] that displays a [Song] in the context of an [Album]. Use [from] to
+ * create an instance.
+ *
+ * @author Alexander Capehart (OxygenCobalt)
+ */
+private class AlbumSongViewHolder private constructor(private val binding: ItemAlbumSongBinding) :
+    SelectionIndicatorAdapter.ViewHolder(binding.root) {
+    /**
+     * Bind new data to this instance.
+     *
+     * @param song The new [Song] to bind.
+     * @param listener A [SelectableListListener] to bind interactions to.
+     */
+    fun bind(song: Song, listener: SelectableListListener<Song>, liked: Boolean = false) {
+        listener.bind(song, this, menuButton = binding.songMenu)
+        binding.songLike.setIconResource(
+            if (liked) R.drawable.ic_star_24 else R.drawable.ic_star_outline_24
+        )
+        binding.songLike.contentDescription =
+            binding.context.getString(
+                if (liked) R.string.desc_unlike_song else R.string.desc_like_song
+            )
+        binding.songLike.setOnClickListener { listener.onToggleLike(song) }
+
+        val track = song.track
+        if (track != null) {
+            binding.songTrackCover.contentDescription =
+                binding.context.getString(R.string.desc_track_number, track)
+            binding.songTrackText.apply {
+                isVisible = true
+                text = context.getString(R.string.fmt_number, song.track)
+            }
+            binding.songTrackPlaceholder.isInvisible = true
+        } else {
+            binding.songTrackCover.contentDescription =
+                binding.context.getString(R.string.def_track)
+            binding.songTrackText.apply {
+                isInvisible = true
+                text = null
+            }
+            binding.songTrackPlaceholder.isVisible = true
+        }
+
+        binding.songName.text = song.name.resolve(binding.context)
+        // Show duration, and include featured artists when they differ from the album artists.
+        val duration = song.durationMs.formatDurationMs(false)
+        val albumArtists = song.album.artists
+        val featuredArtists =
+            song.artists.filterNot { songArtist ->
+                albumArtists.any { albumArtist -> albumArtist.uid == songArtist.uid }
+            }
+        binding.songDuration.text =
+            if (featuredArtists.isNotEmpty()) {
+                binding.context.getString(
+                    R.string.fmt_two,
+                    duration,
+                    featuredArtists.resolveNames(binding.context),
+                )
+            } else {
+                duration
+            }
+    }
+
+    override fun updatePlayingIndicator(isActive: Boolean, isPlaying: Boolean) {
+        binding.root.isSelected = isActive
+        binding.songTrackCover.setPlaying(isPlaying)
+    }
+
+    override fun updateSelectionIndicator(isSelected: Boolean) {
+        binding.root.isActivated = isSelected
+    }
+
+    companion object {
+        /** A unique ID for this [RecyclerView.ViewHolder] type. */
+        const val VIEW_TYPE = IntegerTable.VIEW_TYPE_ALBUM_SONG
+
+        /**
+         * Create a new instance.
+         *
+         * @param parent The parent to inflate this instance from.
+         * @return A new instance.
+         */
+        fun from(parent: ViewGroup) =
+            AlbumSongViewHolder(
+                ItemAlbumSongBinding.inflate(parent.context.inflater, parent, false)
+            )
+
+        /** A comparator that can be used with DiffUtil. */
+        val DIFF_CALLBACK =
+            object : SimpleDiffCallback<Song>() {
+                override fun areContentsTheSame(oldItem: Song, newItem: Song) =
+                    oldItem.name == newItem.name &&
+                        oldItem.durationMs == newItem.durationMs &&
+                        oldItem.artists.areNamesTheSame(newItem.artists) &&
+                        oldItem.album.artists.areNamesTheSame(newItem.album.artists)
+            }
+    }
+}

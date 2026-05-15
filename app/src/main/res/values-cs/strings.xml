@@ -96,7 +96,7 @@
     <string name="desc_tab_handle">Přesunout tuto kartu</string>
     <string name="desc_clear_search">Vymazat hledání</string>
     <string name="desc_music_location_delete">Odebrat složku</string>
-    <string name="desc_auxio_icon">Ikona Auxio</string>
+    <string name="desc_latentjam_icon">Ikona LatentJam</string>
     <string name="desc_no_cover">Obal alba</string>
     <string name="desc_album_cover">Obal alba %s</string>
     <string name="desc_artist_image">Obrázek umělce %s</string>
@@ -301,7 +301,7 @@
     <string name="set_remember_pause">Zapamatovat pozastavení</string>
     <string name="set_replay_gain_mode_off">Vypnuto</string>
     <string name="lbl_start_playback">Spustit přehrávání</string>
-    <string name="lng_tasker_start">Spustí Auxio pomocí naposledy uloženého stavu. Pokud není dostupný žádný uložený stav, budou náhodně přehrány všechny skladby. Přehrávání se spustí ihned. \n \nVAROVÁNÍ: při ovládání této služby buďte opatrní, pokud ji zavřete a pak se ji znovu pokusíte použít, aplikace nejspíše spadne.</string>
+    <string name="lng_tasker_start">Spustí LatentJam pomocí naposledy uloženého stavu. Pokud není dostupný žádný uložený stav, budou náhodně přehrány všechny skladby. Přehrávání se spustí ihned. \n \nVAROVÁNÍ: při ovládání této služby buďte opatrní, pokud ji zavřete a pak se ji znovu pokusíte použít, aplikace nejspíše spadne.</string>
     <string name="lbl_more">Více</string>
     <string name="lbl_feedback">Zpětná vazba</string>
     <string name="lbl_github">Vytvořit problém na GitHubu</string>

@@ -10,9 +10,9 @@
     android:paddingEnd="@dimen/spacing_large"
     android:paddingBottom="@dimen/spacing_mid_medium">
 
-    <org.oxycblt.auxio.image.CoverView
+    <io.github.nikitasud.latentjam.image.CoverView
         android:id="@+id/picker_image"
-        style="@style/Widget.Auxio.Image.Small"
+        style="@style/Widget.LatentJam.Image.Small"
         android:contentDescription="@string/lbl_new_playlist"
         app:enablePlaybackIndicator="false"
         app:enableSelectionBadge="false"
@@ -29,11 +29,11 @@
             app:tint="@color/sel_on_cover_bg"
             tools:ignore="ContentDescription" />
 
-    </org.oxycblt.auxio.image.CoverView>
+    </io.github.nikitasud.latentjam.image.CoverView>
 
     <TextView
         android:id="@+id/picker_name"
-        style="@style/Widget.Auxio.TextView.Item.Primary"
+        style="@style/Widget.LatentJam.TextView.Item.Primary"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"

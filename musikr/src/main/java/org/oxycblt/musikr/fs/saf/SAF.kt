@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2025 Auxio Project
- * SAF.kt is part of Auxio.
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * SAF.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package org.oxycblt.musikr.fs.saf
 
 import android.content.ContentResolver
@@ -81,6 +81,19 @@ private constructor(
                 }
             observers.add(observer)
         }
+
+        // Belt-and-suspenders: SAF DocumentsProvider only notifies its
+        // observers for changes that go through the SAF API (system Files app,
+        // SAF-aware file managers). Direct filesystem writes (USB MTP, cloud
+        // sync, adb push) update MediaStore but NOT SAF — so without this
+        // second observer the user sees "I added a song, the app doesn't notice".
+        // MediaStore observer is global (all audio), so 500 ms debounce in
+        // LocationObserver groups spurious bursts.
+        val mediaStoreObserver =
+            LocationObserver(context, AOSPMediaStore.Audio.Media.EXTERNAL_CONTENT_URI) {
+                trySend(FSUpdate.LocationChanged(null))
+            }
+        observers.add(mediaStoreObserver)
 
         awaitClose { observers.forEach { observer -> observer.release() } }
     }

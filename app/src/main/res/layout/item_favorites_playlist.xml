@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/ui_item_bg"
+    android:paddingStart="@dimen/spacing_medium"
+    android:paddingTop="@dimen/spacing_mid_medium"
+    android:paddingEnd="@dimen/spacing_mid_medium"
+    android:paddingBottom="@dimen/spacing_mid_medium">
+
+    <FrameLayout
+        android:id="@+id/favorites_cover"
+        style="@style/Widget.LatentJam.Image.Medium"
+        android:background="?attr/colorSecondaryContainer"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_star_24"
+            app:tint="?attr/colorOnSecondaryContainer" />
+
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/favorites_name"
+        style="@style/Widget.LatentJam.TextView.Item.Primary"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/spacing_mid_medium"
+        android:text="@string/lbl_favorites"
+        android:textColor="?android:attr/textColorPrimary"
+        app:layout_constraintBottom_toTopOf="@+id/favorites_info"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/favorites_cover"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_chainStyle="packed" />
+
+    <TextView
+        android:id="@+id/favorites_info"
+        style="@style/Widget.LatentJam.TextView.Item.Secondary"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/spacing_mid_medium"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/favorites_cover"
+        app:layout_constraintTop_toBottomOf="@+id/favorites_name"
+        tools:text="12 songs" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

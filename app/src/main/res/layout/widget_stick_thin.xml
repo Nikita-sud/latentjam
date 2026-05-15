@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:baselineAligned="false"
     android:orientation="horizontal"
-    android:theme="@style/Theme.Auxio.Widget">
+    android:theme="@style/Theme.LatentJam.Widget">
 
 
     <FrameLayout
@@ -16,7 +16,7 @@
 
         <android.widget.ImageButton
             android:id="@+id/widget_skip_prev"
-            style="@style/Widget.Auxio.MaterialButton.AppWidget"
+            style="@style/Widget.LatentJam.MaterialButton.AppWidget"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:contentDescription="@string/desc_skip_prev"
@@ -26,7 +26,7 @@
 
     <android.widget.ImageButton
         android:id="@+id/widget_play_pause"
-        style="@style/Widget.Auxio.MaterialButton.AppWidget.PlayPause"
+        style="@style/Widget.LatentJam.MaterialButton.AppWidget.PlayPause"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
@@ -41,7 +41,7 @@
 
         <android.widget.ImageButton
             android:id="@+id/widget_skip_next"
-            style="@style/Widget.Auxio.MaterialButton.AppWidget"
+            style="@style/Widget.LatentJam.MaterialButton.AppWidget"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:contentDescription="@string/desc_skip_next"

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Info namespace | App labels -->
-    <string name="info_app_name" translatable="false">Auxio</string>
+    <string name="info_app_name" translatable="false">LatentJam</string>
 
     <!-- Format Namespace | Value formatting/plurals -->
     <string name="fmt_two" translatable="false">%1$s • %2$s</string>
@@ -17,7 +17,7 @@
     <string name="cnt_ogg">Ogg %s</string>
 
     <!-- Pkg Namespace | Dynamic package names -->
-    <string name="pkg_authority_cover">org.oxycblt.auxio.image.CoverProvider</string>
+    <string name="pkg_authority_cover">io.github.nikitasud.latentjam.image.CoverProvider</string>
 
     <!-- Supporter Namespace | Sponsor usernames  -->
     <string name="sup_bkkellyh">bkkellyh - $500!</string>

@@ -80,7 +80,7 @@
     <string name="desc_tab_handle">Mover pestaña</string>
     <string name="desc_clear_search">Borrar búsqueda</string>
     <string name="desc_music_location_delete">Quitar carpeta</string>
-    <string name="desc_auxio_icon">Icono de Auxio</string>
+    <string name="desc_latentjam_icon">Icono de LatentJam</string>
     <string name="desc_no_cover">Carátula de álbum</string>
     <string name="desc_album_cover">Carátula de álbum para %s</string>
     <string name="desc_artist_image">Imagen de artista para %s</string>
@@ -298,7 +298,7 @@
     <string name="set_remember_pause_desc">Permanecer en reproducción/pausa al saltar o editar la cola</string>
     <string name="set_replay_gain_mode_off">Apagar</string>
     <string name="lbl_start_playback">Iniciar reproducción</string>
-    <string name="lng_tasker_start">Inicia Auxio utilizando el estado previamente guardado. Si no hay ningún estado guardado, todas las canciones se reproducirán aleatoriamente. La reproducción comenzará inmediatamente. \n \nADVERTENCIA: Ten cuidado al controlar este servicio, si lo cierras y luego intentas usarlo de nuevo, probablemente se bloqueará la aplicación.</string>
+    <string name="lng_tasker_start">Inicia LatentJam utilizando el estado previamente guardado. Si no hay ningún estado guardado, todas las canciones se reproducirán aleatoriamente. La reproducción comenzará inmediatamente. \n \nADVERTENCIA: Ten cuidado al controlar este servicio, si lo cierras y luego intentas usarlo de nuevo, probablemente se bloqueará la aplicación.</string>
     <string name="lbl_more">Más</string>
     <string name="lbl_github">Crear una incidencia en GitHub</string>
     <string name="lbl_email">Enviar un correo electrónico</string>
@@ -346,4 +346,15 @@
         <item quantity="many">%d segundos</item>
         <item quantity="other">%d segundos</item>
     </plurals>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Recomendaciones</string>
+    <string name="set_event_log">Registrar eventos de reproducción</string>
+    <string name="set_event_log_desc">Se guarda en el dispositivo. Se usa para personalizar las recomendaciones de Mezcla inteligente.</string>
+    <string name="lbl_edit_metadata">Editar metadatos</string>
+    <string name="lbl_metadata_genre">Género</string>
+    <string name="lbl_metadata_artist">Artista (anular)</string>
+    <string name="lbl_metadata_year">Año</string>
+    <string name="lbl_metadata_clear">Restablecer</string>
+    <string name="info_metadata_override_hint">Las anulaciones se quedan en la aplicación y no modifican el archivo de audio.</string>
 </resources>

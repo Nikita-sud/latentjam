@@ -139,7 +139,7 @@
     <string name="def_artist">Artis tidak dikenal</string>
     <string name="desc_skip_next">Loncat ke lagu berikutnya</string>
     <string name="desc_music_location_delete">Hapus folder</string>
-    <string name="desc_auxio_icon">Ikon Auxio</string>
+    <string name="desc_latentjam_icon">Ikon LatentJam</string>
     <string name="desc_no_cover">Sampul album</string>
     <string name="desc_shuffle">Aktifkan atau nonaktifkan acak</string>
     <string name="desc_song_handle">Pindahkan lagu antrian ini</string>
@@ -303,7 +303,7 @@
     <string name="lbl_feedback">Umpan balik</string>
     <string name="lbl_github">Buat masalah di GitHub</string>
     <string name="lbl_email">Kirim email</string>
-    <string name="lng_tasker_start">Memulai Auxio menggunakan status yang disimpan sebelumnya. Jika tidak ada status yang disimpan, semua lagu akan diputar secara acak. Pemutaran akan dimulai segera.\n\nPERINGATAN: Hati-hati saat mengontrol layanan ini, jika Anda menutupnya dan kemudian mencoba menggunakannya lagi, aplikasi kemungkinan besar akan mengalami kegagalan.</string>
+    <string name="lng_tasker_start">Memulai LatentJam menggunakan status yang disimpan sebelumnya. Jika tidak ada status yang disimpan, semua lagu akan diputar secara acak. Pemutaran akan dimulai segera.\n\nPERINGATAN: Hati-hati saat mengontrol layanan ini, jika Anda menutupnya dan kemudian mencoba menggunakannya lagi, aplikasi kemungkinan besar akan mengalami kegagalan.</string>
     <string name="lng_play_next">Lagu akan diputar selanjutnya</string>
     <string name="lng_empty_albums">Album Anda akan ditampilkan di sini.</string>
     <string name="lng_empty_artists">Seniman Anda akan muncul di sini.</string>

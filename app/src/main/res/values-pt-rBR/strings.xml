@@ -188,7 +188,7 @@
     <string name="lbl_live_group">Ao vivo</string>
     <string name="desc_exit">Parar reprodução</string>
     <string name="fmt_sample_rate">%d Hz</string>
-    <string name="desc_auxio_icon">Ícone do Auxio</string>
+    <string name="desc_latentjam_icon">Ícone do LatentJam</string>
     <string name="fmt_db_pos">+%.1f dB</string>
     <string name="fmt_db_neg">-%.1f dB</string>
     <string name="fmt_bitrate">%d kbps</string>
@@ -298,7 +298,7 @@
     <string name="set_play_song_by_itself">Reproduzir música sozinha</string>
     <string name="desc_selection_image">Imagem de seleção</string>
     <string name="lbl_start_playback">Iniciar a reprodução</string>
-    <string name="lng_tasker_start">Inicia o Auxio usando o estado salvo anteriormente. Se nenhum estado salvo estiver disponível, todas as músicas serão reproduzidas aleatoriamente. \n \nAVISO: Tenha cuidado ao controlar este serviço. Se você fechá-lo e então tentar usá-lo novamente, provavelmente ocasionará um crash no aplicativo.</string>
+    <string name="lng_tasker_start">Inicia o LatentJam usando o estado salvo anteriormente. Se nenhum estado salvo estiver disponível, todas as músicas serão reproduzidas aleatoriamente. \n \nAVISO: Tenha cuidado ao controlar este serviço. Se você fechá-lo e então tentar usá-lo novamente, provavelmente ocasionará um crash no aplicativo.</string>
     <string name="lbl_more">Mais</string>
     <string name="lbl_email">Envie um e-mail</string>
     <string name="lbl_github">Crie uma issue no GitHub</string>
@@ -346,4 +346,15 @@
         <item quantity="many">%d segundos</item>
         <item quantity="other">%d segundos</item>
     </plurals>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Recomendações</string>
+    <string name="set_event_log">Registrar eventos de reprodução</string>
+    <string name="set_event_log_desc">Permanece no dispositivo. Usado para personalizar as recomendações do modo Aleatório inteligente.</string>
+    <string name="lbl_edit_metadata">Editar metadados</string>
+    <string name="lbl_metadata_genre">Gênero</string>
+    <string name="lbl_metadata_artist">Artista (substituir)</string>
+    <string name="lbl_metadata_year">Ano</string>
+    <string name="lbl_metadata_clear">Redefinir</string>
+    <string name="info_metadata_override_hint">As substituições ficam no app e não modificam o arquivo de áudio.</string>
 </resources>

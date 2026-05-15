@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2024 Auxio Project
- * ParsedTags.kt is part of Auxio.
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * ParsedTags.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package org.oxycblt.musikr.tag.parse
 
 import org.oxycblt.musikr.tag.Date
@@ -29,6 +29,7 @@ data class ParsedTags(
     val sortName: String? = null,
     val track: Int? = null,
     val disc: Int? = null,
+    val bpm: Int? = null,
     val subtitle: String? = null,
     val date: Date? = null,
     val albumMusicBrainzId: String? = null,

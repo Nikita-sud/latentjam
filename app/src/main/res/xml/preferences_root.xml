@@ -28,7 +28,7 @@
 
     <PreferenceCategory app:title="@string/set_library">
 
-        <org.oxycblt.auxio.settings.ui.WrappedDialogPreference
+        <io.github.nikitasud.latentjam.settings.ui.WrappedDialogPreference
             app:key="@string/set_key_music_dirs"
             app:summary="@string/set_locations_desc"
             app:title="@string/set_locations" />

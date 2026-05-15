@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2024 Auxio Project
- * SongImpl.kt is part of Auxio.
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * SongImpl.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package org.oxycblt.musikr.model
 
 import org.oxycblt.musikr.Album
@@ -51,6 +51,7 @@ internal class SongImpl(private val handle: SongCore) : Song {
     override val name = preSong.name
     override val track = preSong.track
     override val disc = preSong.disc
+    override val bpm = preSong.bpm
     override val date = preSong.date
     override val uri = preSong.uri
     override val path = preSong.path

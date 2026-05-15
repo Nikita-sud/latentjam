@@ -219,7 +219,7 @@
     <string name="set_reindex">Recarregar música</string>
     <string name="fmt_list">%1$s, %2$s</string>
     <string name="set_rescan">Procurar músicas novamente</string>
-    <string name="desc_auxio_icon">Ícone do Auxio</string>
+    <string name="desc_latentjam_icon">Ícone do LatentJam</string>
     <string name="lbl_shuffle_shortcut_long">Misturar tudo</string>
     <string name="set_play_in_list_with">Ao tocar da biblioteca</string>
     <string name="lbl_singles">Singles</string>
@@ -304,7 +304,7 @@
     <string name="lbl_replaygain_album">Ajuste de ReplayGain do álbum</string>
     <string name="lbl_path_style_relative">Relativo</string>
     <string name="lbl_windows_paths">Usar caminhos compatíveis com Windows</string>
-    <string name="lng_tasker_start">Inicia o Auxio usando o estado gravado anteriormente. Se nenhum estado gravado estiver disponível, todas as músicas serão baralhadas. A reprodução começará imediatamente.\n\nAVISO: Tenha cuidado ao controlar este serviço, se fechá-lo e tentar usá-lo novamente, provavelmente irá travar a app.</string>
+    <string name="lng_tasker_start">Inicia o LatentJam usando o estado gravado anteriormente. Se nenhum estado gravado estiver disponível, todas as músicas serão baralhadas. A reprodução começará imediatamente.\n\nAVISO: Tenha cuidado ao controlar este serviço, se fechá-lo e tentar usá-lo novamente, provavelmente irá travar a app.</string>
     <string name="lbl_start_playback">Iniciar reprodução</string>
     <string name="def_album">Álbum desconhecido</string>
     <string name="lbl_feedback">Opinião</string>
@@ -348,4 +348,15 @@
     <string name="lbl_no_folders">Sem pastas</string>
     <string name="desc_add_folder">Adicionar pasta</string>
     <string name="lng_play_next">Música vai ser reproduzida a seguir</string>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Recomendações</string>
+    <string name="set_event_log">Registar eventos de reprodução</string>
+    <string name="set_event_log_desc">Fica no dispositivo. Usado para personalizar as recomendações de Reprodução aleatória inteligente.</string>
+    <string name="lbl_edit_metadata">Editar metadados</string>
+    <string name="lbl_metadata_genre">Género</string>
+    <string name="lbl_metadata_artist">Artista (substituição)</string>
+    <string name="lbl_metadata_year">Ano</string>
+    <string name="lbl_metadata_clear">Repor</string>
+    <string name="info_metadata_override_hint">As substituições ficam na aplicação e não modificam o ficheiro de áudio.</string>
 </resources>

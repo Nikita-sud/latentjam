@@ -125,7 +125,7 @@
     <string name="desc_no_cover">غلاف الألبوم</string>
     <string name="err_export_failed">غير قادر على تصدير قائمة التشغيل إلى هذا الملف</string>
     <string name="desc_music_location_delete">إزالة المجلد</string>
-    <string name="desc_auxio_icon">رمز مساعد</string>
+    <string name="desc_latentjam_icon">رمز مساعد</string>
     <string name="fmt_list">%1$s، %2$s</string>
     <string name="clr_dynamic">متحرك</string>
     <string name="lbl_mixtapes">البومات ما قبل الإطلاق</string>
@@ -309,7 +309,7 @@
     <string name="lbl_error_info">معلومات الخطأ</string>
     <string name="lbl_copied">نُسخت</string>
     <string name="lbl_report">إبلاغ</string>
-    <string name="lng_tasker_start">يبدأ Auxio باستخدام الحالة المحفوظة مسبقًا. إذا لم تتوفر حالة محفوظة، فسيتم خلط جميع الأغاني. سيبدأ التشغيل على الفور. \n\nتحذير: احرص على التحكم في هذه الخدمة، إذا قمت بإغلاقها ثم حاول استخدامها مرة أخرى، فمن المحتمل أن ينهار التطبيق.</string>
+    <string name="lng_tasker_start">يبدأ LatentJam باستخدام الحالة المحفوظة مسبقًا. إذا لم تتوفر حالة محفوظة، فسيتم خلط جميع الأغاني. سيبدأ التشغيل على الفور. \n\nتحذير: احرص على التحكم في هذه الخدمة، إذا قمت بإغلاقها ثم حاول استخدامها مرة أخرى، فمن المحتمل أن ينهار التطبيق.</string>
     <string name="lbl_windows_paths">استخدم مسارات متوافقة مع Windows</string>
     <string name="set_cover_mode_save_space">وفر المساحة</string>
     <plurals name="fmt_album_count">

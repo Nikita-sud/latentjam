@@ -9,7 +9,7 @@
 
     <TextView
         android:id="@+id/header_title"
-        style="@style/Widget.Auxio.TextView.Header"
+        style="@style/Widget.LatentJam.TextView.Header"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"
@@ -18,9 +18,9 @@
         app:layout_constraintStart_toStartOf="parent"
         tools:text="Songs" />
 
-    <org.oxycblt.auxio.ui.RippleFixMaterialButton
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
         android:id="@+id/header_edit"
-        style="@style/Widget.Auxio.Button.Icon.Small"
+        style="@style/Widget.LatentJam.Button.Icon.Small"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"
@@ -28,9 +28,9 @@
         app:icon="@drawable/ic_edit_24"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <org.oxycblt.auxio.ui.RippleFixMaterialButton
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
         android:id="@+id/header_sort"
-        style="@style/Widget.Auxio.Button.Icon.Small"
+        style="@style/Widget.LatentJam.Button.Icon.Small"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"

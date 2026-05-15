@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2023 Auxio Project
- * Music.kt is part of Auxio.
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * Music.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package org.oxycblt.musikr
 
 import android.net.Uri
@@ -273,6 +273,11 @@ interface Song : Music {
     val track: Int?
     /** The [Disc] number. Will be null if no valid disc number was present in the metadata. */
     val disc: Disc?
+    /**
+     * Beats-per-minute as read from the `TBPM` (ID3v2), `BPM` (Xiph) or `tmpo` (MP4) tag. Null when
+     * the tag is missing or the value is outside a sensible range (1..400 BPM).
+     */
+    val bpm: Int?
     /** The release [Date]. Will be null if no valid date was present in the metadata. */
     val date: Date?
     /**

@@ -1,4 +1,4 @@
-Auxio je lokalni plejer za muziku sa brzim i pouzdanim UI/UX-om, bez mnogih beskorisnih funkcija koje se nalaze u drugim plejerima. Izgrađen na modernim bibliotekama za reprodukciju medija, Auxio ima superiornu podršku za biblioteku i kvalitet slušanja u poređenju sa drugim aplikacijama koje koriste zastarelu Android funkcionalnost. Ukratko, <b>Reprodukuje muziku.</b>
+LatentJam je lokalni plejer za muziku sa brzim i pouzdanim UI/UX-om, bez mnogih beskorisnih funkcija koje se nalaze u drugim plejerima. Izgrađen na modernim bibliotekama za reprodukciju medija, LatentJam ima superiornu podršku za biblioteku i kvalitet slušanja u poređenju sa drugim aplikacijama koje koriste zastarelu Android funkcionalnost. Ukratko, <b>Reprodukuje muziku.</b>
 
 <b>Funkcije</b>
 

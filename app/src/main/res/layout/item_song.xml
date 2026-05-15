@@ -10,22 +10,22 @@
     android:paddingEnd="@dimen/spacing_mid_medium"
     android:paddingBottom="@dimen/spacing_mid_medium">
 
-    <org.oxycblt.auxio.image.CoverView
+    <io.github.nikitasud.latentjam.image.CoverView
         android:id="@+id/song_album_cover"
-        style="@style/Widget.Auxio.Image.Small"
+        style="@style/Widget.LatentJam.Image.Small"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
         android:id="@+id/song_name"
-        style="@style/Widget.Auxio.TextView.Item.Primary"
+        style="@style/Widget.LatentJam.TextView.Item.Primary"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"
         android:textColor="@color/sel_selectable_text_primary"
         app:layout_constraintBottom_toTopOf="@+id/song_info"
-        app:layout_constraintEnd_toStartOf="@+id/song_menu"
+        app:layout_constraintEnd_toStartOf="@+id/song_like"
         app:layout_constraintStart_toEndOf="@+id/song_album_cover"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_chainStyle="packed"
@@ -33,19 +33,30 @@
 
     <TextView
         android:id="@+id/song_info"
-        style="@style/Widget.Auxio.TextView.Item.Secondary"
+        style="@style/Widget.LatentJam.TextView.Item.Secondary"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/song_menu"
+        app:layout_constraintEnd_toStartOf="@+id/song_like"
         app:layout_constraintStart_toEndOf="@+id/song_album_cover"
         app:layout_constraintTop_toBottomOf="@+id/song_name"
         tools:text="Info" />
 
-    <org.oxycblt.auxio.ui.RippleFixMaterialButton
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
+        android:id="@+id/song_like"
+        style="@style/Widget.LatentJam.Button.Icon.Small"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/desc_like_song"
+        app:icon="@drawable/ic_star_outline_24"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/song_menu"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
         android:id="@+id/song_menu"
-        style="@style/Widget.Auxio.Button.Icon.Small"
+        style="@style/Widget.LatentJam.Button.Icon.Small"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:icon="@drawable/ic_more_24"

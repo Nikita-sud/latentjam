@@ -1,0 +1,161 @@
+/*
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * ExportPlaylistDialog.kt is part of LatentJam.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package io.github.nikitasud.latentjam.music.decision
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
+import androidx.navigation.fragment.navArgs
+import dagger.hilt.android.AndroidEntryPoint
+import io.github.nikitasud.latentjam.R
+import io.github.nikitasud.latentjam.databinding.DialogPlaylistExportBinding
+import io.github.nikitasud.latentjam.music.MusicViewModel
+import io.github.nikitasud.latentjam.music.resolve
+import io.github.nikitasud.latentjam.ui.ViewBindingMaterialDialogFragment
+import io.github.nikitasud.latentjam.util.collectImmediately
+import io.github.nikitasud.latentjam.util.unlikelyToBeNull
+import org.oxycblt.musikr.Playlist
+import org.oxycblt.musikr.playlist.ExportConfig
+import org.oxycblt.musikr.playlist.m3u.M3U
+import timber.log.Timber as L
+
+/**
+ * A dialog that allows the user to configure how a playlist will be exported to a file.
+ *
+ * @author Alexander Capehart (OxygenCobalt)
+ */
+@AndroidEntryPoint
+class ExportPlaylistDialog : ViewBindingMaterialDialogFragment<DialogPlaylistExportBinding>() {
+    private val musicModel: MusicViewModel by activityViewModels()
+    private val pickerModel: PlaylistPickerViewModel by viewModels()
+    private var createDocumentLauncher: ActivityResultLauncher<String>? = null
+    // Information about what playlist to name for is initially within the navigation arguments
+    // as UIDs, as that is the only safe way to parcel playlist information.
+    private val args: ExportPlaylistDialogArgs by navArgs()
+
+    override fun onConfigDialog(builder: AlertDialog.Builder) {
+        builder
+            .setTitle(R.string.lbl_export_playlist)
+            .setPositiveButton(R.string.lbl_export, null)
+            .setNegativeButton(R.string.lbl_cancel, null)
+    }
+
+    override fun onCreateBinding(inflater: LayoutInflater) =
+        DialogPlaylistExportBinding.inflate(inflater)
+
+    override fun onBindingCreated(
+        binding: DialogPlaylistExportBinding,
+        savedInstanceState: Bundle?,
+    ) {
+        // --- UI SETUP ---
+        createDocumentLauncher =
+            registerForActivityResult(ActivityResultContracts.CreateDocument(M3U.MIME_TYPE)) { uri
+                ->
+                if (uri == null) {
+                    L.w("No URI returned from file picker")
+                    return@registerForActivityResult
+                }
+
+                val playlist = pickerModel.currentPlaylistToExport.value
+                if (playlist == null) {
+                    L.w("No playlist to export")
+                    findNavController().navigateUp()
+                    return@registerForActivityResult
+                }
+
+                L.d("Received playlist URI $uri")
+                musicModel.exportPlaylist(playlist, uri, pickerModel.currentExportConfig.value)
+                findNavController().navigateUp()
+            }
+
+        binding.exportRelativePaths.setOnClickListener { updatePathStyle(absolute = false) }
+        binding.exportAbsolutePaths.setOnClickListener { updatePathStyle(absolute = true) }
+
+        binding.exportWindowsPaths.setOnClickListener { _ ->
+            val current = pickerModel.currentExportConfig.value
+            pickerModel.setExportConfig(current.copy(windowsPaths = !current.windowsPaths))
+        }
+
+        // --- VIEWMODEL SETUP ---
+        musicModel.playlistDecision.consume()
+        pickerModel.setPlaylistToExport(args.playlistUid)
+        collectImmediately(pickerModel.currentPlaylistToExport, ::updatePlaylistToExport)
+        collectImmediately(pickerModel.currentExportConfig, ::updateExportConfig)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        (requireDialog() as AlertDialog)
+            .getButton(AlertDialog.BUTTON_POSITIVE)
+            .setOnClickListener { _ ->
+                val pendingPlaylist = unlikelyToBeNull(pickerModel.currentPlaylistToExport.value)
+
+                val fileName =
+                    pendingPlaylist.name
+                        .resolve(requireContext())
+                        .replace(SAFE_FILE_NAME_REGEX, "_") + ".m3u"
+
+                requireNotNull(createDocumentLauncher) {
+                        "Create document launcher was not available"
+                    }
+                    .launch(fileName)
+            }
+    }
+
+    private fun updatePlaylistToExport(playlist: Playlist?) {
+        if (playlist == null) {
+            L.d("No playlist to export, leaving")
+            findNavController().navigateUp()
+            return
+        }
+    }
+
+    private fun updatePathStyle(absolute: Boolean) {
+        // Keep the UI in a valid state even if the config doesn't change (no emission).
+        val current = pickerModel.currentExportConfig.value
+        val updated = current.copy(absolute = absolute)
+        updateExportConfig(updated)
+        if (updated != current) {
+            pickerModel.setExportConfig(updated)
+        }
+    }
+
+    private fun updateExportConfig(config: ExportConfig) {
+        val binding = requireBinding()
+        binding.exportRelativePaths.isChecked = !config.absolute
+        binding.exportAbsolutePaths.isChecked = config.absolute
+        if (config.absolute) {
+            binding.exportRelativePaths.icon = null
+            binding.exportAbsolutePaths.setIconResource(R.drawable.ic_check_24)
+        } else {
+            binding.exportAbsolutePaths.icon = null
+            binding.exportRelativePaths.setIconResource(R.drawable.ic_check_24)
+        }
+        binding.exportWindowsPaths.isChecked = config.windowsPaths
+    }
+
+    private companion object {
+        val SAFE_FILE_NAME_REGEX = Regex("[^a-zA-Z0-9.-]")
+    }
+}

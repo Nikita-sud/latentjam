@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2023 Auxio Project
- * CacheDatabase.kt is part of Auxio.
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * CacheDatabase.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package org.oxycblt.musikr.cache.db
 
 import android.content.Context
@@ -36,7 +36,10 @@ import org.oxycblt.musikr.tag.Date
 import org.oxycblt.musikr.util.correctWhitespace
 import org.oxycblt.musikr.util.splitEscaped
 
-@Database(entities = [CachedFileData::class], version = 70, exportSchema = false)
+// v71 adds the `bpm` column for the recommender's BPM cooldown filter. Schema
+// changes rely on `fallbackToDestructiveMigration` — Room nukes the cache table
+// on version bump and the library scan re-populates it with the new shape.
+@Database(entities = [CachedFileData::class], version = 71, exportSchema = false)
 internal abstract class CacheDatabase : RoomDatabase() {
     abstract fun readDao(): CacheReadDao
 
@@ -92,6 +95,7 @@ internal data class CachedFileData(
     val sortName: String?,
     val track: Int?,
     val disc: Int?,
+    val bpm: Int?,
     val subtitle: String?,
     val date: Date?,
     val albumMusicBrainzId: String?,

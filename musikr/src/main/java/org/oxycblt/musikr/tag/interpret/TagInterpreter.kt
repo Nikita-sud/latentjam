@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2024 Auxio Project
- * TagInterpreter.kt is part of Auxio.
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * TagInterpreter.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package org.oxycblt.musikr.tag.interpret
 
 import org.oxycblt.musikr.Interpretation
@@ -141,6 +141,7 @@ private class TagInterpreterImpl(private val interpretation: Interpretation) : T
             rawName = songNameOrFileWithoutExtCorrect,
             track = song.tags.track,
             disc = song.tags.disc?.let { Disc(it, song.tags.subtitle) },
+            bpm = song.tags.bpm,
             date = song.tags.date,
             durationMs = song.tags.durationMs,
             bitrateKbps = song.properties.bitrateKbps,

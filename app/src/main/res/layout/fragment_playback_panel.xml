@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <org.oxycblt.auxio.ui.AuxioToolbar
+    <io.github.nikitasud.latentjam.ui.LatentJamToolbar
         android:id="@+id/playback_toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -21,9 +21,9 @@
         tools:subtitle="@string/lbl_all_songs" />
 
 
-    <org.oxycblt.auxio.playback.ui.ControlledCoverView
+    <io.github.nikitasud.latentjam.playback.ui.ControlledCoverView
         android:id="@+id/playback_cover"
-        style="@style/Widget.Auxio.Image.Full"
+        style="@style/Widget.LatentJam.Image.Full"
         android:layout_marginVertical="@dimen/spacing_small"
         app:enablePlaybackIndicator="false"
         app:enableSelectionBadge="false"
@@ -42,27 +42,40 @@
         android:layout_marginBottom="@dimen/spacing_tiny"
         android:orientation="vertical"
         app:layout_constraintBottom_toTopOf="@+id/playback_controls_wrapper"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/playback_favorite"
         app:layout_constraintStart_toEndOf="@+id/playback_cover"
         app:layout_constraintTop_toTopOf="@+id/playback_cover"
         app:layout_constraintVertical_chainStyle="packed">
 
         <TextView
             android:id="@+id/playback_song"
-            style="@style/Widget.Auxio.TextView.Primary.Compact"
+            style="@style/Widget.LatentJam.TextView.Primary.Compact"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             tools:text="Song Name" />
 
         <TextView
             android:id="@+id/playback_artist"
-            style="@style/Widget.Auxio.TextView.Secondary.Compact"
+            style="@style/Widget.LatentJam.TextView.Secondary.Compact"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             tools:text="Artist Name" />
 
     </LinearLayout>
-    <org.oxycblt.auxio.playback.ui.ForcedLTRFrameLayout
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
+        android:id="@+id/playback_favorite"
+        style="@style/Widget.LatentJam.Button.Playback.Toggle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/spacing_medium"
+        android:contentDescription="@string/desc_like_song"
+        app:icon="@drawable/ic_star_outline_24"
+        app:layout_constraintBottom_toBottomOf="@+id/playback_info_container"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/playback_info_container"
+        app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Xsmall" />
+
+    <io.github.nikitasud.latentjam.playback.ui.ForcedLTRFrameLayout
         android:id="@+id/playback_controls_wrapper"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -74,15 +87,16 @@
         app:layout_constraintStart_toEndOf="@+id/playback_cover"
         app:layout_constraintTop_toBottomOf="@+id/playback_info_container">
 
-    <com.google.android.material.button.MaterialButtonGroup
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:spacing="@dimen/spacing_tiny">
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal">
 
 
-            <org.oxycblt.auxio.ui.WidthFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.WidthFixMaterialButton
                 android:id="@+id/playback_repeat"
-                style="@style/Widget.Auxio.Button.Playback.Toggle"
+                style="@style/Widget.LatentJam.Button.Playback.Toggle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_change_repeat"
@@ -95,9 +109,9 @@
                 app:layout_constraintTop_toTopOf="parent"
                 app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Xsmall" />
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/playback_skip_prev"
-                style="@style/Widget.Auxio.Button.Playback.Skip"
+                style="@style/Widget.LatentJam.Button.Playback.Skip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_skip_prev"
@@ -109,9 +123,9 @@
                 app:layout_constraintTop_toTopOf="parent"
                 app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Small.Narrow" />
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/playback_play_pause"
-                style="@style/Widget.Auxio.Button.Playback.PlayPause"
+                style="@style/Widget.LatentJam.Button.Playback.PlayPause"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_play_pause"
@@ -125,9 +139,9 @@
                 app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Small"
                 tools:icon="@drawable/ic_play_24" />
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/playback_skip_next"
-                style="@style/Widget.Auxio.Button.Playback.Skip"
+                style="@style/Widget.LatentJam.Button.Playback.Skip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_skip_next"
@@ -139,9 +153,9 @@
                 app:layout_constraintTop_toTopOf="parent"
                 app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Small.Narrow" />
 
-            <org.oxycblt.auxio.ui.RippleFixMaterialButton
+            <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                 android:id="@+id/playback_shuffle"
-                style="@style/Widget.Auxio.Button.Playback.Toggle"
+                style="@style/Widget.LatentJam.Button.Playback.Toggle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/desc_shuffle"
@@ -151,11 +165,10 @@
                 app:layout_constraintHorizontal_bias="0.5"
                 app:layout_constraintStart_toEndOf="@+id/playback_skip_next"
                 app:layout_constraintTop_toTopOf="parent"
-                app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Xsmall"
-                app:tint="@color/sel_activatable_icon" />
+                app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Xsmall" />
 
-        </com.google.android.material.button.MaterialButtonGroup>
+        </LinearLayout>
 
-    </org.oxycblt.auxio.playback.ui.ForcedLTRFrameLayout>
+    </io.github.nikitasud.latentjam.playback.ui.ForcedLTRFrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

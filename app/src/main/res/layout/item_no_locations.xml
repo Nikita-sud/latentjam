@@ -12,7 +12,7 @@
 
     <TextView
         android:id="@+id/location_path"
-        style="@style/Widget.Auxio.TextView.Secondary.Base"
+        style="@style/Widget.LatentJam.TextView.Secondary.Base"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="@dimen/spacing_large"

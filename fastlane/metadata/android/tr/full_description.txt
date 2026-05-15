@@ -1,4 +1,4 @@
-Auxio, diğer müzik çalarlarda bulunan birçok gereksiz özellik olmadan hızlı, güvenilir bir UI / UX'a sahip yerel bir müzik oynatıcıdır. Modern medya oynatma kütüphaneleri üzerine inşa edilen Auxio, eski android işlevselliğini kullanan diğer uygulamalara kıyasla üstün kütüphane desteği ve dinleme kalitesine sahiptir. Kısacası, <b>Müzik çalar.</b>
+LatentJam, diğer müzik çalarlarda bulunan birçok gereksiz özellik olmadan hızlı, güvenilir bir UI / UX'a sahip yerel bir müzik oynatıcıdır. Modern medya oynatma kütüphaneleri üzerine inşa edilen LatentJam, eski android işlevselliğini kullanan diğer uygulamalara kıyasla üstün kütüphane desteği ve dinleme kalitesine sahiptir. Kısacası, <b>Müzik çalar.</b>
 
 <b>Özellikler</b>
 

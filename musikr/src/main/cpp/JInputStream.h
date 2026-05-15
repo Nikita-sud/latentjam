@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2024 Auxio Project
- * JInputStream.h is part of Auxio.
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * JInputStream.h is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,9 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
-#ifndef AUXIO_JINPUTSTREAM_H
-#define AUXIO_JINPUTSTREAM_H
+#ifndef LATENTJAM_JINPUTSTREAM_H
+#define LATENTJAM_JINPUTSTREAM_H
 
 #include <jni.h>
 #include "JObjectRef.h"
@@ -127,4 +127,4 @@ private:
     jint readBlockImpl(TagLib::ByteVector &buf);
 };
 
-#endif //AUXIO_JINPUTSTREAM_H
+#endif //LATENTJAM_JINPUTSTREAM_H

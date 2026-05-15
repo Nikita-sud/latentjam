@@ -130,7 +130,7 @@
     <string name="lng_playlist_added">به فهرست پخش افزوده شد</string>
     <string name="lng_supporters_promo">به پروژه کمک کنید تا نام خود را به اینجا اضافه کنید!</string>
     <string name="lng_search_library">جست و جو در کتابخانه…</string>
-    <string name="lng_tasker_start">Auxio را با استفاده از وضعیت ذخیره شده قبلی شروع می‌کند. اگر هیچ وضعیت ذخیره شده‌ای در دسترس نباشد، همه آهنگ‌ها به صورت تصادفی پخش می‌شوند. پخش بلافاصله شروع می‌شود.\n\nهشدار: در کنترل این سرویس مراقب باشید، اگر آن را ببندید و دوباره سعی کنید از آن استفاده کنید، احتمالاً برنامه از کار می‌افتد.</string>
+    <string name="lng_tasker_start">LatentJam را با استفاده از وضعیت ذخیره شده قبلی شروع می‌کند. اگر هیچ وضعیت ذخیره شده‌ای در دسترس نباشد، همه آهنگ‌ها به صورت تصادفی پخش می‌شوند. پخش بلافاصله شروع می‌شود.\n\nهشدار: در کنترل این سرویس مراقب باشید، اگر آن را ببندید و دوباره سعی کنید از آن استفاده کنید، احتمالاً برنامه از کار می‌افتد.</string>
     <string name="lng_empty_songs">آهنگ‌های شما اینجا ظاهر می‌شوند.</string>
     <string name="lng_empty_albums">آلبوم‌های شما اینجا ظاهر می‌شوند.</string>
     <string name="lng_empty_artists">هنرمندان شما اینجا ظاهر می‌شوند.</string>
@@ -282,7 +282,7 @@
     <string name="desc_music_location_delete">حذف پوشه</string>
     <string name="desc_no_cover">جلد آلبوم</string>
     <string name="desc_album_cover">جلد آلبوم برای %s</string>
-    <string name="desc_auxio_icon">آیکون Auxio</string>
+    <string name="desc_latentjam_icon">آیکون LatentJam</string>
     <string name="desc_artist_image">تصویر هنرمند برای %s</string>
     <string name="desc_genre_image">تصویر نوع برای %s</string>
     <string name="desc_playlist_image">تصویر فهرست پخش برای %s</string>

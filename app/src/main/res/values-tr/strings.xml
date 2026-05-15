@@ -150,7 +150,7 @@
     <string name="err_no_app">Bu görevi yerine getirebilecek bir uygulama bulunamadı</string>
     <string name="desc_shuffle">Karıştırmayı açın veya kapatın</string>
     <string name="desc_music_location_delete">Klasörü kaldır</string>
-    <string name="desc_auxio_icon">Auxio simgesi</string>
+    <string name="desc_latentjam_icon">LatentJam simgesi</string>
     <string name="desc_tab_handle">Bu sekmeyi taşı</string>
     <string name="desc_no_cover">Albüm kapağı</string>
     <string name="desc_clear_search">Arama geçmişini temizle</string>
@@ -308,7 +308,7 @@
     <string name="lng_empty_songs">Şarkılarınız burada gösterilecek.</string>
     <string name="lbl_start_playback">Çalmayı başlat</string>
     <string name="lbl_windows_paths">Windows uyumlu yollar kullan</string>
-    <string name="lng_tasker_start">Auxio\'yu önceden kaydedilen durumla başlatır. Eğer kayıtlı bir durum yoksa bütün şarkılar hemen karışık olarak çalmaya başlanacak.\n\nUYARI: Bu servisi kullanırken dikkatli olun. Kapatırsanız ve sonra tekrar kullanmaya çalışırsanız muhtemelen uygulamayı çökertirsiniz.</string>
+    <string name="lng_tasker_start">LatentJam\'yu önceden kaydedilen durumla başlatır. Eğer kayıtlı bir durum yoksa bütün şarkılar hemen karışık olarak çalmaya başlanacak.\n\nUYARI: Bu servisi kullanırken dikkatli olun. Kapatırsanız ve sonra tekrar kullanmaya çalışırsanız muhtemelen uygulamayı çökertirsiniz.</string>
     <string name="set_cover_mode_save_space">Az alan kullan</string>
     <string name="cnt_mp4">MPEG-4 %s içeriyor</string>
     <string name="cdc_alac">Apple Kayıpsız Ses Kodeği (ALAC)</string>

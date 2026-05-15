@@ -129,7 +129,7 @@
     <string name="set_replay_gain_mode_album">Pageidauti albumą</string>
     <string name="set_replay_gain_mode_dynamic">Pageidauti albumą, jei vienas leidžiamas</string>
     <string name="err_no_app">Programos nerasta, kuri galėtų apdoroti šią užduotį.</string>
-    <string name="desc_auxio_icon">„Auxio“ piktograma</string>
+    <string name="desc_latentjam_icon">„LatentJam“ piktograma</string>
     <string name="desc_song_handle">Perkelti šią dainą</string>
     <string name="desc_tab_handle">Perkelti šią kortelę</string>
     <string name="err_index_failed">Muzikos įkėlimas nepavyko.</string>
@@ -300,7 +300,7 @@
     <string name="set_remember_pause">Prisiminti pauzę</string>
     <string name="set_remember_pause_desc">Išlaikyti leidžiamą / pristabdymą praleidžiant arba redaguojant eilę.</string>
     <string name="set_replay_gain_mode_off">Išjungta</string>
-    <string name="lng_tasker_start">Paleidžia „Auxio“ naudojant anksčiau išsaugotą būseną. Jei nėra išsaugotos būsenos, visos dainos bus išmaišytos. Įrašo perklausa bus pradėta iš karto. \n \nĮSPĖJIMAS: būkite atsargūs valdydami šią paslaugą, jei ją užversite ir vėl bandysite naudoti, tikriausiai sutriks programa.</string>
+    <string name="lng_tasker_start">Paleidžia „LatentJam“ naudojant anksčiau išsaugotą būseną. Jei nėra išsaugotos būsenos, visos dainos bus išmaišytos. Įrašo perklausa bus pradėta iš karto. \n \nĮSPĖJIMAS: būkite atsargūs valdydami šią paslaugą, jei ją užversite ir vėl bandysite naudoti, tikriausiai sutriks programa.</string>
     <string name="lbl_start_playback">Pradėti įrašo perklausą</string>
     <string name="lbl_more">Daugiau</string>
     <string name="lbl_feedback">Atsiliepimai</string>

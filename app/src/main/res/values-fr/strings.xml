@@ -114,7 +114,7 @@
     <string name="lbl_album_remix">Album de remix</string>
     <string name="lbl_genre">Genre</string>
     <string name="lbl_equalizer">Égaliseur</string>
-    <string name="desc_auxio_icon">Icône Auxio</string>
+    <string name="desc_latentjam_icon">Icône LatentJam</string>
     <string name="desc_no_cover">Pochette de l\'album</string>
     <string name="def_genre">Genre inconnu</string>
     <string name="clr_dynamic">Dynamique</string>
@@ -298,7 +298,7 @@
     <string name="lbl_windows_paths">Utiliser les chemins compatibles Windows</string>
     <string name="set_replay_gain_mode_off">Désactivé</string>
     <string name="lbl_start_playback">Démarrer la lecture</string>
-    <string name="lng_tasker_start">Démarre Auxio en utilisant le dernier état enregistré. S\'il n\'y en a aucun, tous les titres seront remélangés et la lecture commencera immédiatement.\n\nATTENTION : Faites attention en contrôlant ce service, si vous le fermez puis essayez de l\'utiliser à nouveau, vous ferez probablement planter l\'appli.</string>
+    <string name="lng_tasker_start">Démarre LatentJam en utilisant le dernier état enregistré. S\'il n\'y en a aucun, tous les titres seront remélangés et la lecture commencera immédiatement.\n\nATTENTION : Faites attention en contrôlant ce service, si vous le fermez puis essayez de l\'utiliser à nouveau, vous ferez probablement planter l\'appli.</string>
     <string name="lbl_more">Plus</string>
     <string name="lbl_feedback">Avis</string>
     <string name="lbl_github">Faire un ticket sur GitHub</string>
@@ -349,4 +349,15 @@
     <string name="fmt_lib_total_size">Taille totale : %s</string>
     <string name="set_task_exit">Toujours quitter à la fermeture</string>
     <string name="set_task_exit_desc">Interrompre la lecture lorsque le lecteur est supprimé des fichiers récents, même s\'il est en cours de lecture</string>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Recommandations</string>
+    <string name="set_event_log">Enregistrer les événements d\'écoute</string>
+    <string name="set_event_log_desc">Reste sur l\'appareil. Utilisé pour personnaliser les recommandations de Lecture aléatoire intelligente.</string>
+    <string name="lbl_edit_metadata">Modifier les métadonnées</string>
+    <string name="lbl_metadata_genre">Genre</string>
+    <string name="lbl_metadata_artist">Artiste (remplacement)</string>
+    <string name="lbl_metadata_year">Année</string>
+    <string name="lbl_metadata_clear">Réinitialiser</string>
+    <string name="info_metadata_override_hint">Les remplacements restent dans l\'application et ne modifient pas le fichier audio.</string>
 </resources>

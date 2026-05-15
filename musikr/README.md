@@ -1,6 +1,6 @@
 # musikr
 
-Musikr is a highly opinionated multithreaded music loader that enables Auxio's advanced music functionality.
+Musikr is a highly opinionated multithreaded music loader that enables LatentJam's advanced music functionality.
 It completely bypasses Android's MediaStore and uses the [storage access framework (SAF)](https://developer.android.com/guide/topics/providers/document-provider)
 and [taglib](https://taglib.org/) to replicate it's functionality with less bugs and more flexibility, further
 expanding it with an advanced music model that leverages the wide variety of tags available in modern extended

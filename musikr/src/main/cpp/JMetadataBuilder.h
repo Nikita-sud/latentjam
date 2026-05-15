@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2024 Auxio Project
- * JMetadataBuilder.h is part of Auxio.
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * JMetadataBuilder.h is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,9 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
-#ifndef AUXIO_JMETADATABUILDER_H
-#define AUXIO_JMETADATABUILDER_H
+#ifndef LATENTJAM_JMETADATABUILDER_H
+#define LATENTJAM_JMETADATABUILDER_H
 
 #include <jni.h>
 #include <string_view>
@@ -58,4 +58,4 @@ private:
     JTagMap mp4;
 };
 
-#endif //AUXIO_JMETADATABUILDER_H
+#endif //LATENTJAM_JMETADATABUILDER_H

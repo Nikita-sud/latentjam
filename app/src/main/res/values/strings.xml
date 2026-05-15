@@ -3,7 +3,12 @@
     <!-- Info namespace | App labels -->
     <eat-comment />
 
-    <string name="info_app_desc">A simple, rational music player for android.</string>
+    <string name="info_app_desc">Privacy-first music player with local ML recommendations.</string>
+
+    <string name="lbl_privacy_policy">Privacy policy</string>
+    <string name="lbl_ml_recommender">Local ML recommender</string>
+    <string name="info_ml_desc">On-device learning of your listening preferences.</string>
+    <string name="info_privacy_desc">No cloud, no telemetry, no analytics. Ever.</string>
 
     <!-- Label Namespace | Static Labels -->
     <eat-comment />
@@ -83,6 +88,9 @@
 
     <string name="lbl_playlist">Playlist</string>
     <string name="lbl_playlists">Playlists</string>
+    <string name="lbl_favorites">Favorites</string>
+    <string name="lbl_favorite">Favorite</string>
+    <string name="lbl_unfavorite">Unfavorite</string>
     <string name="lbl_new_playlist">New playlist</string>
     <string name="lbl_empty_playlist">Empty playlist</string>
     <string name="lbl_imported_playlist">Imported playlist</string>
@@ -182,7 +190,7 @@
     <string name="lbl_report">Report</string>
 
     <string name="lbl_author">Author</string>
-    <string name="lbl_author_name">Alexander Capehart</string>
+    <string name="lbl_author_name">LatentJam Project</string>
     <string name="lbl_feedback">Feedback</string>
     <string name="lbl_github">Make an issue on GitHub</string>
     <string name="lbl_email">Send an email</string>
@@ -207,7 +215,7 @@
     <!-- As in music library -->
     <string name="lng_search_library">Search your library…</string>
     <string name="lng_tasker_start">
-        Starts Auxio using the previously saved state. If no saved state is available, all songs will be shuffled. Playback will start immediately.
+        Starts LatentJam using the previously saved state. If no saved state is available, all songs will be shuffled. Playback will start immediately.
         \n\nWARNING: Be careful controlling this service, if you close it and then try to use it again, you will probably crash the app.
     </string>
     <string name="lng_empty_songs">Your songs will show up here.</string>
@@ -215,6 +223,8 @@
     <string name="lng_empty_artists">Your artists will show up here.</string>
     <string name="lng_empty_genres">Your genres will show up here.</string>
     <string name="lng_empty_playlists">Your playlists will show up here.</string>
+    <string name="lng_empty_favorites">Tap the star next to any song to add it here.</string>
+    <string name="desc_back">Navigate back</string>
     <string name="lng_file_picker">Load music from the folders that you select. Slower, but more reliable. Requires the vanilla file manager app to be installed.</string>
     <string name="lng_system_database">Load music that the Android OS automatically detects. Faster, but less reliable. No support for filesystem-dependent features like cover.jpg.</string>
     <string name="lng_grant_storage_anyway">Granting external storage permissions can fix issues on some devices.</string>
@@ -366,6 +376,8 @@
     <string name="desc_exit">Stop playback</string>
 
     <string name="desc_remove_song">Remove this song</string>
+    <string name="desc_like_song">Favorite this song</string>
+    <string name="desc_unlike_song">Unfavorite this song</string>
     <string name="desc_song_handle">Move this song</string>
     <string name="desc_queue_bar">Open the queue</string>
     <string name="desc_tab_handle">Move this tab</string>
@@ -373,7 +385,7 @@
     <string name="desc_add_folder">Add folder</string>
     <string name="desc_music_location_delete">Remove folder</string>
 
-    <string name="desc_auxio_icon">Auxio icon</string>
+    <string name="desc_latentjam_icon">LatentJam icon</string>
     <string name="desc_no_cover">Album cover</string>
     <string name="desc_album_cover">Album cover for %s</string>
     <string name="desc_artist_image">Artist image for %s</string>
@@ -496,4 +508,19 @@
         <item quantity="one">%d second</item>
         <item quantity="other">%d seconds</item>
     </plurals>
+
+    <!-- ML / recommendations. The recommendation toggle itself lives on the shuffle button
+         (ShuffleMode.SMART); this preference category covers the privacy-sensitive bits. -->
+    <string name="set_event_log">Record listening events</string>
+    <string name="set_event_log_desc">Stays on-device. Used to personalize Smart shuffle recommendations.</string>
+    <string name="set_key_event_log" translatable="false">ml_enable_event_logging</string>
+    <string name="set_ml_category">Recommendations</string>
+
+    <!-- Edit metadata dialog -->
+    <string name="lbl_edit_metadata">Edit metadata</string>
+    <string name="lbl_metadata_genre">Genre</string>
+    <string name="lbl_metadata_artist">Artist (override)</string>
+    <string name="lbl_metadata_year">Year</string>
+    <string name="lbl_metadata_clear">Clear overrides</string>
+    <string name="info_metadata_override_hint">Overrides stay on-device. They don\'t modify the audio file.</string>
 </resources>

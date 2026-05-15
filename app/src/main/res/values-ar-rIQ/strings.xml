@@ -84,7 +84,7 @@
     <string name="desc_tab_handle">تحريك التبويت</string>
     <string name="desc_clear_search">إزالة كلمة البحث</string>
     <string name="desc_music_location_delete">إزالة المجلد المستبعد</string>
-    <string name="desc_auxio_icon">ايقونة اوكسيو</string>
+    <string name="desc_latentjam_icon">ايقونة اوكسيو</string>
     <string name="desc_no_cover">غلاف الالبوم</string>
     <string name="desc_album_cover">غلاف الالبوم لـ %s</string>
     <string name="desc_artist_image">صورة الفنان لـ %s</string>
@@ -247,7 +247,7 @@
     <string name="lbl_start_playback">بدء التشغيل</string>
     <string name="lbl_path_style_relative">نسبي</string>
     <string name="lbl_windows_paths">إستخدام مسارات متوافقة مع نافذة</string>
-    <string name="lng_tasker_start">تشغيل Auxio بأستخدام الحالة المحفوظه مسبقا. اذا لم تتوفر حالة, كل الاغاني ستشغل بشكل عشوائي.\n\nتحذير:كن حذرا بالتحكم بهذة الخدمة, اذا اغلقتها وفتحتها مجددا,قد يتوقف البرنامج عن العمل.</string>
+    <string name="lng_tasker_start">تشغيل LatentJam بأستخدام الحالة المحفوظه مسبقا. اذا لم تتوفر حالة, كل الاغاني ستشغل بشكل عشوائي.\n\nتحذير:كن حذرا بالتحكم بهذة الخدمة, اذا اغلقتها وفتحتها مجددا,قد يتوقف البرنامج عن العمل.</string>
     <string name="lbl_author">المؤلف</string>
     <string name="set_music">الموسيقى</string>
     <string name="lng_empty_playlists">قوائم التشغيل الخاصة بك ستضهر هنا.</string>

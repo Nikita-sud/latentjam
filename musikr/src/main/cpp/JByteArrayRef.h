@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2025 Auxio Project
- * JByteArrayRef.h is part of Auxio.
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * JByteArrayRef.h is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,9 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
-#ifndef AUXIO_JBYTEARRAYREF_H
-#define AUXIO_JBYTEARRAYREF_H
+#ifndef LATENTJAM_JBYTEARRAYREF_H
+#define LATENTJAM_JBYTEARRAYREF_H
 
 #include <jni.h>
 #include <taglib/tbytevector.h>
@@ -42,4 +42,4 @@ private:
     jbyteArray array;
 };
 
-#endif //AUXIO_JBYTEARRAYREF_H
+#endif //LATENTJAM_JBYTEARRAYREF_H

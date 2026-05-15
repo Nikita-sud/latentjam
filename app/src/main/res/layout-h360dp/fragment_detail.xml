@@ -13,10 +13,10 @@
     android:background="?attr/colorSurface"
     android:transitionGroup="true">
 
-    <org.oxycblt.auxio.ui.CoordinatorAppBarLayout
+    <io.github.nikitasud.latentjam.ui.CoordinatorAppBarLayout
         android:id="@+id/detail_appbar"
-        style="@style/Widget.Auxio.AppBarLayout"
-        app:layout_behavior="org.oxycblt.auxio.detail.ContinuousAppBarLayoutBehavior"
+        style="@style/Widget.LatentJam.AppBarLayout"
+        app:layout_behavior="io.github.nikitasud.latentjam.detail.ContinuousAppBarLayoutBehavior"
         app:liftOnScroll="true"
         app:liftOnScrollTargetViewId="@id/detail_recycler">
 
@@ -41,9 +41,9 @@
                 app:layout_collapseMode="parallax"
                 app:layout_collapseParallaxMultiplier="0.85">
 
-                <org.oxycblt.auxio.image.CoverView
+                <io.github.nikitasud.latentjam.image.CoverView
                     android:id="@+id/detail_cover"
-                    style="@style/Widget.Auxio.Image.Large"
+                    style="@style/Widget.LatentJam.Image.Large"
                     app:enablePlaybackIndicator="false"
                     app:enableSelectionBadge="false"
                     android:layout_marginTop="@dimen/spacing_medium"
@@ -66,7 +66,7 @@
 
                 <TextView
                     android:id="@+id/detail_name"
-                    style="@style/Widget.Auxio.TextView.Detail"
+                    style="@style/Widget.LatentJam.TextView.Detail"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="@dimen/spacing_medium"
@@ -81,7 +81,7 @@
 
                 <TextView
                     android:id="@+id/detail_subhead"
-                    style="@style/Widget.Auxio.TextView.Secondary.Ellipsize"
+                    style="@style/Widget.LatentJam.TextView.Secondary.Ellipsize"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="@dimen/spacing_medium"
@@ -96,7 +96,7 @@
 
                 <TextView
                     android:id="@+id/detail_info"
-                    style="@style/Widget.Auxio.TextView.Secondary.Base"
+                    style="@style/Widget.LatentJam.TextView.Secondary.Base"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="@dimen/spacing_medium"
@@ -118,9 +118,9 @@
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toBottomOf="@+id/detail_cover">
 
-                    <org.oxycblt.auxio.ui.RippleFixMaterialButton
+                    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                         android:id="@+id/detail_play_button"
-                        style="@style/Widget.Auxio.Button.Secondary"
+                        style="@style/Widget.LatentJam.Button.Secondary"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -128,9 +128,9 @@
                         app:icon="@drawable/ic_play_24"
                         tools:ignore="RtlSymmetry"/>
 
-                    <org.oxycblt.auxio.ui.RippleFixMaterialButton
+                    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
                         android:id="@+id/detail_shuffle_button"
-                        style="@style/Widget.Auxio.Button.Primary"
+                        style="@style/Widget.LatentJam.Button.Primary"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -145,13 +145,13 @@
                 android:layout_gravity="bottom"
                 app:layout_collapseMode="pin" />
 
-            <org.oxycblt.auxio.ui.MultiToolbar
+            <io.github.nikitasud.latentjam.ui.MultiToolbar
                 android:id="@+id/detail_toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:layout_collapseMode="pin">
 
-                <org.oxycblt.auxio.ui.AuxioToolbar
+                <io.github.nikitasud.latentjam.ui.LatentJamToolbar
                     android:id="@+id/detail_normal_toolbar"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -160,7 +160,7 @@
                     app:menu="@menu/toolbar_detail"
                     app:navigationIcon="@drawable/ic_back_24" />
 
-                <org.oxycblt.auxio.ui.AuxioToolbar
+                <io.github.nikitasud.latentjam.ui.LatentJamToolbar
                     android:id="@+id/detail_selection_toolbar"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -169,7 +169,7 @@
                     app:menu="@menu/toolbar_selection"
                     app:navigationIcon="@drawable/ic_close_24" />
 
-                <org.oxycblt.auxio.ui.AuxioToolbar
+                <io.github.nikitasud.latentjam.ui.LatentJamToolbar
                     android:id="@+id/detail_edit_toolbar"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -178,15 +178,15 @@
                     app:menu="@menu/toolbar_edit"
                     app:navigationIcon="@drawable/ic_close_24" />
 
-            </org.oxycblt.auxio.ui.MultiToolbar>
+            </io.github.nikitasud.latentjam.ui.MultiToolbar>
 
         </com.google.android.material.appbar.CollapsingToolbarLayout>
 
-    </org.oxycblt.auxio.ui.CoordinatorAppBarLayout>
+    </io.github.nikitasud.latentjam.ui.CoordinatorAppBarLayout>
 
-    <org.oxycblt.auxio.list.recycler.FastScrollRecyclerView
+    <io.github.nikitasud.latentjam.list.recycler.FastScrollRecyclerView
         android:id="@+id/detail_recycler"
-        style="@style/Widget.Auxio.RecyclerView.Grid"
+        style="@style/Widget.LatentJam.RecyclerView.Grid"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior"

@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/ui_widget_bg_sharp"
     android:backgroundTint="?attr/colorSurface"
-    android:theme="@style/Theme.Auxio.Widget">
+    android:theme="@style/Theme.LatentJam.Widget">
 
     <!--
     See widget_small.xml for an explanation for the ImageView setup.
@@ -51,7 +51,7 @@
 
         <android.widget.TextView
             android:id="@+id/widget_song"
-            style="@style/Widget.Auxio.TextView.Primary.AppWidget"
+            style="@style/Widget.LatentJam.TextView.Primary.AppWidget"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="@dimen/spacing_medium"
@@ -60,7 +60,7 @@
 
         <android.widget.TextView
             android:id="@+id/widget_artist"
-            style="@style/Widget.Auxio.TextView.Secondary.AppWidget"
+            style="@style/Widget.LatentJam.TextView.Secondary.AppWidget"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="@dimen/spacing_medium"
@@ -81,7 +81,7 @@
 
             <android.widget.ImageButton
                 android:id="@+id/widget_repeat"
-                style="@style/Widget.Auxio.MaterialButton.AppWidget"
+                style="@style/Widget.LatentJam.MaterialButton.AppWidget"
                 android:layout_width="@dimen/size_touchable_small"
                 android:layout_height="@dimen/size_touchable_small"
                 android:contentDescription="@string/desc_change_repeat"
@@ -94,7 +94,7 @@
 
             <android.widget.ImageButton
                 android:id="@+id/widget_skip_prev"
-                style="@style/Widget.Auxio.MaterialButton.AppWidget"
+                style="@style/Widget.LatentJam.MaterialButton.AppWidget"
                 android:layout_width="@dimen/size_touchable_small"
                 android:layout_height="@dimen/size_touchable_small"
                 android:contentDescription="@string/desc_skip_prev"
@@ -107,7 +107,7 @@
 
             <android.widget.ImageButton
                 android:id="@+id/widget_play_pause"
-                style="@style/Widget.Auxio.MaterialButton.AppWidget.PlayPause"
+                style="@style/Widget.LatentJam.MaterialButton.AppWidget.PlayPause"
                 android:layout_width="@dimen/size_touchable_small"
                 android:layout_height="@dimen/size_touchable_small"
                 android:contentDescription="@string/desc_play_pause"
@@ -120,7 +120,7 @@
 
             <android.widget.ImageButton
                 android:id="@+id/widget_skip_next"
-                style="@style/Widget.Auxio.MaterialButton.AppWidget"
+                style="@style/Widget.LatentJam.MaterialButton.AppWidget"
                 android:layout_width="@dimen/size_touchable_small"
                 android:layout_height="@dimen/size_touchable_small"
                 android:contentDescription="@string/desc_skip_next"
@@ -133,7 +133,7 @@
 
             <android.widget.ImageButton
                 android:id="@+id/widget_shuffle"
-                style="@style/Widget.Auxio.MaterialButton.AppWidget"
+                style="@style/Widget.LatentJam.MaterialButton.AppWidget"
                 android:layout_width="@dimen/size_touchable_small"
                 android:layout_height="@dimen/size_touchable_small"
                 android:contentDescription="@string/desc_shuffle"

@@ -25,7 +25,7 @@
 
     <TextView
         android:id="@+id/disc_number"
-        style="@style/Widget.Auxio.TextView.Primary.Compact"
+        style="@style/Widget.LatentJam.TextView.Primary.Compact"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"
@@ -40,7 +40,7 @@
 
     <TextView
         android:id="@+id/disc_name"
-        style="@style/Widget.Auxio.TextView.Secondary.Compact"
+        style="@style/Widget.LatentJam.TextView.Secondary.Compact"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/spacing_mid_medium"

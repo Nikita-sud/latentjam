@@ -1,6 +1,7 @@
 /*
- * Copyright (c) 2024 Auxio Project
- * TagFields.kt is part of Auxio.
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * TagFields.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
- 
 package org.oxycblt.musikr.tag.parse
 
 import androidx.core.text.isDigitsOnly
@@ -43,6 +43,20 @@ internal fun Metadata.name() =
     (xiph["TITLE"] ?: mp4["©nam"] ?: mp4["©trk"] ?: id3v2["TIT2"])?.first()
 
 internal fun Metadata.sortName() = (xiph["TITLESORT"] ?: mp4["sonm"] ?: id3v2["TSOT"])?.first()
+
+// Beats-per-minute. Accepts integer or float strings (some taggers emit "128.0").
+// ID3v2: TBPM (v2.3/v2.4) / TBP (v2.2 — TagLibJNI normalizes to v2.4 names so we
+// only need TBPM here). Xiph: BPM. MP4: `tmpo` is normally a 16-bit integer atom
+// but TagLibJNI surfaces it as a string. Negative / zero / unparseable values
+// drop to null so the recommender's BPM filter treats them as "unknown".
+internal fun Metadata.bpm(): Int? =
+    (xiph["BPM"] ?: mp4["tmpo"] ?: id3v2["TBPM"])
+        ?.firstOrNull()
+        ?.let { raw ->
+            val trimmed = raw.trim()
+            trimmed.toIntOrNull() ?: trimmed.toFloatOrNull()?.toInt()
+        }
+        ?.takeIf { it in 1..400 }
 
 // Track.
 internal fun Metadata.track() =

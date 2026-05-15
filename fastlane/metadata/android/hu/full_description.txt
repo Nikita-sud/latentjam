@@ -1,4 +1,4 @@
-Az Auxio egy helyi zenelejátszó gyors, megbízható UI/UX felülettel, anélkül, hogy a többi zenelejátszóban előforduló sok felesleges funkcióval rendelkezne. Modern média lejátszó könyvtárakra építve, az Auxio kiváló könyvtámtámogatással és hallgatási minőséggel rendelkezik, összehasonlítva az elavult androidos funkciókat használó egyéb alkalmazásokkal. Röviden: <b>Zenét játszik le.</b>
+Az LatentJam egy helyi zenelejátszó gyors, megbízható UI/UX felülettel, anélkül, hogy a többi zenelejátszóban előforduló sok felesleges funkcióval rendelkezne. Modern média lejátszó könyvtárakra építve, az LatentJam kiváló könyvtámtámogatással és hallgatási minőséggel rendelkezik, összehasonlítva az elavult androidos funkciókat használó egyéb alkalmazásokkal. Röviden: <b>Zenét játszik le.</b>
 
 <b>Funkciók</b>
 

@@ -246,7 +246,7 @@
     <string name="clr_grey">ਸਲੇਟੀ</string>
     <string name="fmt_lib_total_duration">ਕੁੱਲ ਮਿਆਦ: %s</string>
     <string name="desc_music_location_delete">ਫੋਲਡਰ ਹਟਾਓ</string>
-    <string name="desc_auxio_icon">Auxio ਆਈਕਾਨ</string>
+    <string name="desc_latentjam_icon">LatentJam ਆਈਕਾਨ</string>
     <string name="lbl_appears_on">ਉੱਤੇ ਵਿਖਾਈ ਦਿੰਦਾ ਹੈ</string>
     <string name="lbl_playlists">ਪਲੇਅ-ਲਿਸਟਾਂ</string>
     <string name="lbl_share">ਸਾਂਝਾ ਕਰੋ</string>
@@ -295,5 +295,5 @@
     <string name="set_remember_pause">ਵਿਰਾਮ ਯਾਦ ਰੱਖੋ</string>
     <string name="set_replay_gain_mode_off">ਬੰਦ</string>
     <string name="lbl_start_playback">ਪਲੇਬੈਕ ਸ਼ੁਰੂ ਕਰੋ</string>
-    <string name="lng_tasker_start">ਪਹਿਲਾਂ ਸੁਰੱਖਿਅਤ ਕੀਤੀ ਸਥਿਤੀ ਦੀ ਵਰਤੋਂ ਕਰਕੇ Auxio ਨੂੰ ਸ਼ੁਰੂ ਕਰਦਾ ਹੈ। ਜੇਕਰ ਕੋਈ ਰੱਖਿਅਤ ਸਥਿਤੀ ਉਪਲਬਧ ਨਹੀਂ ਹੈ, ਤਾਂ ਸਾਰੇ ਗੀਤ ਸ਼ਫਲ ਤੇ ਚੱਲਣਗੇ ਅਤੇ ਪਲੇਬੈਕ ਤੁਰੰਤ ਸ਼ੁਰੂ ਹੋ ਜਾਵੇਗਾ। \n \nਚੇਤਾਵਨੀ: ਇਸ ਸੇਵਾ ਨੂੰ ਨਿਯੰਤਰਿਤ ਕਰਨ ਵਿੱਚ ਸਾਵਧਾਨ ਰਹੋ, ਜੇਕਰ ਤੁਸੀਂ ਇਸਨੂੰ ਬੰਦ ਕਰਦੇ ਹੋ ਅਤੇ ਫਿਰ ਇਸਨੂੰ ਦੁਬਾਰਾ ਵਰਤਣ ਦੀ ਕੋਸ਼ਿਸ਼ ਕਰਦੇ ਹੋ, ਤਾਂ ਤੁਸੀਂ ਸ਼ਾਇਦ ਐਪ ਨੂੰ ਕ੍ਰੈਸ਼ ਕਰ ਦਿਓਗੇ।</string>
+    <string name="lng_tasker_start">ਪਹਿਲਾਂ ਸੁਰੱਖਿਅਤ ਕੀਤੀ ਸਥਿਤੀ ਦੀ ਵਰਤੋਂ ਕਰਕੇ LatentJam ਨੂੰ ਸ਼ੁਰੂ ਕਰਦਾ ਹੈ। ਜੇਕਰ ਕੋਈ ਰੱਖਿਅਤ ਸਥਿਤੀ ਉਪਲਬਧ ਨਹੀਂ ਹੈ, ਤਾਂ ਸਾਰੇ ਗੀਤ ਸ਼ਫਲ ਤੇ ਚੱਲਣਗੇ ਅਤੇ ਪਲੇਬੈਕ ਤੁਰੰਤ ਸ਼ੁਰੂ ਹੋ ਜਾਵੇਗਾ। \n \nਚੇਤਾਵਨੀ: ਇਸ ਸੇਵਾ ਨੂੰ ਨਿਯੰਤਰਿਤ ਕਰਨ ਵਿੱਚ ਸਾਵਧਾਨ ਰਹੋ, ਜੇਕਰ ਤੁਸੀਂ ਇਸਨੂੰ ਬੰਦ ਕਰਦੇ ਹੋ ਅਤੇ ਫਿਰ ਇਸਨੂੰ ਦੁਬਾਰਾ ਵਰਤਣ ਦੀ ਕੋਸ਼ਿਸ਼ ਕਰਦੇ ਹੋ, ਤਾਂ ਤੁਸੀਂ ਸ਼ਾਇਦ ਐਪ ਨੂੰ ਕ੍ਰੈਸ਼ ਕਰ ਦਿਓਗੇ।</string>
 </resources>

@@ -1,4 +1,4 @@
-Auxio on kohalikus nutiseadmes töötav kiire ja usaldusväärse kasutajaliidesega muusikamängija. Rakendusest on eemaldatud teises sarnastes rakendustes leiduv kasutu lisafunktsionaalsus. Kuna kasutusel on tänapäevased muusikateegid, siis Auxiol on teiste sarnaste rakendustega (kes kasutavad Androidis leiduvat aegunud funktsionaalsust) võrreldes suurepärane muusikakogu tugi ning taasesituse kvaliteet. Lühidalt: Auxio <b>lihtsalt esitab muusikat</b>.
+LatentJam on kohalikus nutiseadmes töötav kiire ja usaldusväärse kasutajaliidesega muusikamängija. Rakendusest on eemaldatud teises sarnastes rakendustes leiduv kasutu lisafunktsionaalsus. Kuna kasutusel on tänapäevased muusikateegid, siis LatentJaml on teiste sarnaste rakendustega (kes kasutavad Androidis leiduvat aegunud funktsionaalsust) võrreldes suurepärane muusikakogu tugi ning taasesituse kvaliteet. Lühidalt: LatentJam <b>lihtsalt esitab muusikat</b>.
 
 <b>Funktsionaalsus</b>
 

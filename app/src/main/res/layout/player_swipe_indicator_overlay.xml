@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ~ Copyright (c) 2025 Auxio Project
-  ~ player_swipe_indicator_overlay.xml is part of Auxio.
+  ~ Copyright (c) 2025 LatentJam Project
+  ~ player_swipe_indicator_overlay.xml is part of LatentJam.
   ~
   ~ This program is free software: you can redistribute it and/or modify
   ~ it under the terms of the GNU General Public License as published by
@@ -23,14 +23,14 @@
     android:layout_height="match_parent">
 
     <!-- Left indicator (for previous) with background -->
-    <org.oxycblt.auxio.playback.ui.swipe.SwipeClipView
+    <io.github.nikitasud.latentjam.playback.ui.swipe.SwipeClipView
         android:id="@+id/left_swipe_clip_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clickable="false"
         android:focusable="false" />
 
-    <org.oxycblt.auxio.playback.ui.swipe.SwipeIndicatorView
+    <io.github.nikitasud.latentjam.playback.ui.swipe.SwipeIndicatorView
         android:id="@+id/left_swipe_indicator"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -42,14 +42,14 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <!-- Right indicator (for next) with background -->
-    <org.oxycblt.auxio.playback.ui.swipe.SwipeClipView
+    <io.github.nikitasud.latentjam.playback.ui.swipe.SwipeClipView
         android:id="@+id/right_swipe_clip_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clickable="false"
         android:focusable="false" />
 
-    <org.oxycblt.auxio.playback.ui.swipe.SwipeIndicatorView
+    <io.github.nikitasud.latentjam.playback.ui.swipe.SwipeIndicatorView
         android:id="@+id/right_swipe_indicator"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

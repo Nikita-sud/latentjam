@@ -2,7 +2,7 @@
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
     app:title="@string/set_ui">
 
-    <org.oxycblt.auxio.settings.ui.IntListPreference
+    <io.github.nikitasud.latentjam.settings.ui.IntListPreference
         app:defaultValue="@integer/theme_auto"
         app:entries="@array/entries_theme"
         app:entryIcons="@array/icons_theme"
@@ -11,7 +11,7 @@
         app:key="@string/set_key_theme"
         app:title="@string/set_theme" />
 
-    <org.oxycblt.auxio.settings.ui.WrappedDialogPreference
+    <io.github.nikitasud.latentjam.settings.ui.WrappedDialogPreference
         app:icon="@drawable/ic_accent_dynamic_24"
         app:key="@string/set_key_accent"
         app:title="@string/set_accent" />

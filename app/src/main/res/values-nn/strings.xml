@@ -168,7 +168,7 @@
     <string name="set_playback">Avspeling</string>
     <string name="set_headset_autoplay">Automatisk avspeling med hovudsett</string>
     <string name="set_rewind_prev">Spol atter før spor vert hoppa over</string>
-    <string name="set_rewind_prev_desc">Spol atter før Auxio hoppar til førre song</string>
+    <string name="set_rewind_prev_desc">Spol atter før LatentJam hoppar til førre song</string>
     <string name="set_repeat_pause">Pausa ved tvitaking</string>
     <string name="set_remember_pause">Hugs pausemodus</string>
     <string name="set_remember_pause_desc">Vert spelande/pausa ved sporbytting eller købrigding</string>
@@ -224,7 +224,7 @@
     <string name="lbl_feedback">Gjev atterbod</string>
     <string name="lng_indexing">Lader inn musikksamlinga di…</string>
     <string name="lng_playlist_created">Speleliste oppretta</string>
-    <string name="lng_tasker_start">Startar Auxio med den førre lagra tilstanden. Dersom ingen lagra tilstand er tilgjengeleg, skal alle songar blandast. Avspeling byrjar med éin gong.\n\nVARING: Ver varsam med å styra denne tenesta; om du lèt henne atter og så prøver å nøyta henne atter, skal det nok få appen til å krasja.</string>
+    <string name="lng_tasker_start">Startar LatentJam med den førre lagra tilstanden. Dersom ingen lagra tilstand er tilgjengeleg, skal alle songar blandast. Avspeling byrjar med éin gong.\n\nVARING: Ver varsam med å styra denne tenesta; om du lèt henne atter og så prøver å nøyta henne atter, skal det nok få appen til å krasja.</string>
     <string name="set_root_title">Innstillingar</string>
     <string name="set_ui_desc">Brigd drakta og programfargane</string>
     <string name="set_theme_day">Ljos</string>
@@ -260,7 +260,7 @@
     <string name="err_bad_location">Denne mappa er ikkje støtta</string>
     <string name="err_no_app">Ingen app funnen som kan handsama denne oppgåva</string>
     <string name="desc_play_pause">Spel av eller pause</string>
-    <string name="desc_auxio_icon">Auxio-ikon</string>
+    <string name="desc_latentjam_icon">LatentJam-ikon</string>
     <string name="desc_track_number">Spor %d</string>
     <string name="desc_remove_song">Tak bort denne songen</string>
     <string name="desc_song_handle">Flytta denne songen</string>
