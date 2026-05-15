@@ -31,6 +31,23 @@
 #define MINIMP3_EX_IMPLEMENTATION
 #include "minimp3_ex.h"
 
+// Native audio decoder that bypasses `android.media.MediaExtractor` for every
+// popular audio container we ship support for. The platform extractor charges
+// 3-15 s/track for random-offset seek on VBR mp3 (no seek table), Ogg streams
+// (linear page walk), M4A (sample-table I/O over SAF), and FLAC (block index
+// walk over SAF). That is an order of magnitude above the encoder's ~95 ms
+// budget. Native decoders on mmap()'d data run all of these in 30-150 ms.
+//
+// Format dispatch:
+//   "fLaC"            → dr_flac      (SEEKTABLE-aware sample seek)
+//   "RIFF"...WAVE     → dr_wav       (PCM offset arithmetic, trivial)
+//   "OggS"+OpusHead   → libopusfile  (binary-search granule seek)
+//   "OggS"+"\x01vorbis" → stb_vorbis (pushdata, sample-accurate seek)
+//   "ID3" / mp3 sync  → minimp3_ex   (byte-estimate seek, ~10 ms)
+//   "....ftyp"        → minimp4 demux + fdk-aac decoder  (sample-table seek)
+//
+// Returns mono float32 PCM at the source sample rate. Anything we can't
+// identify or fail to decode falls back to MediaExtractor on the Kotlin side.
 // Guard against a regression on MINIMP3_FLOAT_OUTPUT: if the macro is not
 // effective at this include site (e.g. minimp3.h was pulled in transitively
 // earlier without the define), `mp3d_sample_t` resolves to `int16_t` and

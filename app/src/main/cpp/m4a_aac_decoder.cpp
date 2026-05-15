@@ -16,9 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-struct bs_t` bitstream
-// reader with conflicting layouts. Including them in one TU breaks at parse
-// time, so we isolate minimp4's IMPLEMENTATION here.
 #include <android/log.h>
 #include <cstdint>
 #include <cstring>
@@ -33,6 +30,12 @@ struct bs_t` bitstream
 #define LOG_TAG "NativeAudioDec"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
+// M4A / AAC native fast-path decoder.
+//
+// Lives in its own translation unit because both `minimp3.h` (used in
+// `native_audio_decoder.cpp`) and `minimp4.h` define a `struct bs_t` bitstream
+// reader with conflicting layouts. Including them in one TU breaks at parse
+// time, so we isolate minimp4's IMPLEMENTATION here.
 namespace latentjam_audio {
 
 namespace {
