@@ -6,7 +6,7 @@
     android:layout_height="match_parent">
 
     <!-- Left overlay views -->
-    <io.github.nikitasud.latentjam.playback.ui.stepper.CircleClipTapView
+    <io.github.nikitasud.latentjam.playback.ui.stepper.TapView
         android:id="@+id/left_circle_clip_tap_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -26,7 +26,7 @@
         app:layout_constraintWidth_percent="0.5" />
 
     <!-- Right overlay views -->
-    <io.github.nikitasud.latentjam.playback.ui.stepper.CircleClipTapView
+    <io.github.nikitasud.latentjam.playback.ui.stepper.TapView
         android:id="@+id/right_circle_clip_tap_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

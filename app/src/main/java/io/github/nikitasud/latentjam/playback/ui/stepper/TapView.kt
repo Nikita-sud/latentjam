@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2021 Auxio Project
  * Copyright (c) 2026 LatentJam Project (modifications)
- * CircleClipTapView.kt is part of LatentJam.
+ * TapView.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,8 @@ import android.graphics.Path
 import android.util.AttributeSet
 import android.view.View
 
-class CircleClipTapView(context: Context?, attrs: AttributeSet) : View(context, attrs) {
+/** Cricle */
+class TapView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private var backgroundPaint = Paint()
 
@@ -33,14 +34,11 @@ class CircleClipTapView(context: Context?, attrs: AttributeSet) : View(context, 
     private var heightPx = 0
 
     // Background
-
     private var shapePath = Path()
     private var arcSize: Float = 80f
-    private var isLeft = true
+    private var direction = Direction.FORWARDS
 
     init {
-        requireNotNull(context) { "Context is null." }
-
         backgroundPaint.apply {
             style = Paint.Style.FILL
             isAntiAlias = true
@@ -62,11 +60,9 @@ class CircleClipTapView(context: Context?, attrs: AttributeSet) : View(context, 
         }
     }
 
-    fun updatePosition(newIsLeft: Boolean) {
-        if (isLeft != newIsLeft) {
-            isLeft = newIsLeft
-            updatePathShape()
-        }
+    fun setDirection(newDirection: Direction) {
+        direction = newDirection
+        updatePathShape()
     }
 
     private fun updatePathShape() {
@@ -74,8 +70,8 @@ class CircleClipTapView(context: Context?, attrs: AttributeSet) : View(context, 
 
         shapePath.reset()
 
-        val w = if (isLeft) 0f else widthPx.toFloat()
-        val f = if (isLeft) 1 else -1
+        val w = if (direction == Direction.BACKWARDS) 0f else widthPx.toFloat()
+        val f = if (direction == Direction.BACKWARDS) 1 else -1
 
         shapePath.moveTo(w, 0f)
         shapePath.lineTo(f * (halfWidth - arcSize) + w, 0f)

@@ -43,7 +43,7 @@ import io.github.nikitasud.latentjam.music.resolveNames
 import io.github.nikitasud.latentjam.playback.state.RepeatMode
 import io.github.nikitasud.latentjam.playback.state.ShuffleMode
 import io.github.nikitasud.latentjam.playback.ui.StyledSeekBar
-import io.github.nikitasud.latentjam.playback.ui.stepper.DisplayPortion
+import io.github.nikitasud.latentjam.playback.ui.stepper.Direction
 import io.github.nikitasud.latentjam.playback.ui.stepper.PlayerFastSeekOverlay
 import io.github.nikitasud.latentjam.ui.ViewBindingFragment
 import io.github.nikitasud.latentjam.util.collectImmediately
@@ -108,10 +108,7 @@ class PlaybackPanelFragment :
         binding.playbackCover.onSwipeListener = null
 
         // Set up fast seek overlay
-        binding.playbackFastSeekOverlay?.apply {
-            performListener(this@PlaybackPanelFragment)
-            seekSecondsSupplier { 10 } // 10 seconds per double-tap
-        }
+        binding.playbackFastSeekOverlay?.performListener = this
         binding.playbackSong.apply {
             isSelected = true
             setOnClickListener { navigateToCurrentSong() }
@@ -298,25 +295,10 @@ class PlaybackPanelFragment :
         playbackModel.song.value?.let { detailModel.showAlbum(it.album) }
     }
 
-    override fun getFastSeekDirection(
-        portion: DisplayPortion
-    ): PlayerFastSeekOverlay.PerformListener.FastSeekDirection {
-        return when (portion) {
-            DisplayPortion.LEFT,
-            DisplayPortion.LEFT_HALF ->
-                PlayerFastSeekOverlay.PerformListener.FastSeekDirection.BACKWARD
-            DisplayPortion.RIGHT,
-            DisplayPortion.RIGHT_HALF ->
-                PlayerFastSeekOverlay.PerformListener.FastSeekDirection.FORWARD
-            else -> PlayerFastSeekOverlay.PerformListener.FastSeekDirection.NONE
-        }
-    }
-
-    override fun seek(forward: Boolean) {
-        if (forward) {
-            playbackModel.stepForward()
-        } else {
-            playbackModel.stepBack()
+    override fun seek(direction: Direction) {
+        when (direction) {
+            Direction.FORWARDS -> playbackModel.stepForward()
+            Direction.BACKWARDS -> playbackModel.stepBackwards()
         }
     }
 }
