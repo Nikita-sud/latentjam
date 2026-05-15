@@ -46,15 +46,16 @@ import org.oxycblt.musikr.Music
  * @author Alexander Capehart
  */
 @Database(
-    entities = [
-        PlaybackState::class,
-        QueueHeapItem::class,
-        QueueShuffledMappingItem::class,
-        ListeningEventEntity::class,
-        TrackEmbeddingEntity::class,
-        TrackMetadataOverrideEntity::class,
-        LikedSongEntity::class,
-    ],
+    entities =
+        [
+            PlaybackState::class,
+            QueueHeapItem::class,
+            QueueShuffledMappingItem::class,
+            ListeningEventEntity::class,
+            TrackEmbeddingEntity::class,
+            TrackMetadataOverrideEntity::class,
+            LikedSongEntity::class,
+        ],
     version = 45,
     exportSchema = false,
 )
@@ -118,7 +119,8 @@ abstract class PersistenceDatabase : RoomDatabase() {
                         `ctxUid2` TEXT,
                         `ctxUid3` TEXT
                     )
-                    """.trimIndent()
+                    """
+                        .trimIndent()
                 )
                 it.execSQL(
                     """
@@ -128,19 +130,21 @@ abstract class PersistenceDatabase : RoomDatabase() {
                         `embedding` BLOB NOT NULL,
                         `embeddedAtMs` INTEGER NOT NULL
                     )
-                    """.trimIndent()
+                    """
+                        .trimIndent()
                 )
                 createMlIndices(it)
             }
 
         val MIGRATION_39_40 =
             Migration(39, 40) {
-                it.execSQL("ALTER TABLE PlaybackState ADD COLUMN shuffleMode TEXT NOT NULL DEFAULT 'OFF'")
+                it.execSQL(
+                    "ALTER TABLE PlaybackState ADD COLUMN shuffleMode TEXT NOT NULL DEFAULT 'OFF'"
+                )
             }
 
         // Fix-up: pre-existing v39/v40 DBs that crashed on the missing indices.
-        val MIGRATION_40_41 =
-            Migration(40, 41) { createMlIndices(it) }
+        val MIGRATION_40_41 = Migration(40, 41) { createMlIndices(it) }
 
         // v42 adds the per-track metadata override table — user-edited genre / artist /
         // year that the metadata rerank consults before falling back to file tags.
@@ -155,7 +159,8 @@ abstract class PersistenceDatabase : RoomDatabase() {
                         `year` INTEGER,
                         `updatedAtMs` INTEGER NOT NULL
                     )
-                    """.trimIndent()
+                    """
+                        .trimIndent()
                 )
             }
 
@@ -219,7 +224,8 @@ abstract class PersistenceDatabase : RoomDatabase() {
                         `songUid` TEXT NOT NULL PRIMARY KEY,
                         `likedAtMs` INTEGER NOT NULL
                     )
-                    """.trimIndent()
+                    """
+                        .trimIndent()
                 )
                 it.execSQL(
                     "ALTER TABLE `ListeningEventEntity` ADD COLUMN `liked` " +

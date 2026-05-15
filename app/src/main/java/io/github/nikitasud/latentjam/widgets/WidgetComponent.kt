@@ -153,7 +153,8 @@ private constructor(
         }
     }
 
-    override fun onQueueReordered(queue: List<Song>, index: Int, shuffleMode: ShuffleMode) = update()
+    override fun onQueueReordered(queue: List<Song>, index: Int, shuffleMode: ShuffleMode) =
+        update()
 
     override fun onNewPlayback(
         parent: MusicParent?,

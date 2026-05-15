@@ -1,10 +1,20 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * FavoritesHeaderAdapter.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.home.list
 
@@ -17,13 +27,13 @@ import io.github.nikitasud.latentjam.util.getPlural
 import io.github.nikitasud.latentjam.util.inflater
 
 /**
- * A single-item [RecyclerView.Adapter] that renders the pinned "Favorites" tile at
- * the top of the playlist list. Backed by [io.github.nikitasud.latentjam.ml.data.LikedSongRepository] —
- * the host fragment feeds the current liked-song count via [setSongCount] and
- * handles the click via [onClick].
+ * A single-item [RecyclerView.Adapter] that renders the pinned "Favorites" tile at the top of the
+ * playlist list. Backed by [io.github.nikitasud.latentjam.ml.data.LikedSongRepository] — the host
+ * fragment feeds the current liked-song count via [setSongCount] and handles the click via
+ * [onClick].
  *
- * Always renders exactly one row, so this adapter is composed with the real playlist
- * adapter via [androidx.recyclerview.widget.ConcatAdapter].
+ * Always renders exactly one row, so this adapter is composed with the real playlist adapter via
+ * [androidx.recyclerview.widget.ConcatAdapter].
  */
 class FavoritesHeaderAdapter(private val onClick: () -> Unit) :
     RecyclerView.Adapter<FavoritesHeaderAdapter.ViewHolder>() {
@@ -40,8 +50,7 @@ class FavoritesHeaderAdapter(private val onClick: () -> Unit) :
     override fun getItemCount(): Int = 1
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val binding =
-            ItemFavoritesPlaylistBinding.inflate(parent.context.inflater, parent, false)
+        val binding = ItemFavoritesPlaylistBinding.inflate(parent.context.inflater, parent, false)
         return ViewHolder(binding, onClick)
     }
 
@@ -49,10 +58,8 @@ class FavoritesHeaderAdapter(private val onClick: () -> Unit) :
         holder.bind(songCount)
     }
 
-    class ViewHolder(
-        private val binding: ItemFavoritesPlaylistBinding,
-        onClick: () -> Unit,
-    ) : RecyclerView.ViewHolder(binding.root) {
+    class ViewHolder(private val binding: ItemFavoritesPlaylistBinding, onClick: () -> Unit) :
+        RecyclerView.ViewHolder(binding.root) {
         init {
             binding.root.setOnClickListener { onClick() }
         }

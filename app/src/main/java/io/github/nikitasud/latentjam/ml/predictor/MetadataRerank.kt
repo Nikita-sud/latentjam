@@ -1,40 +1,47 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * MetadataRerank.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.ml.predictor
 
 import io.github.nikitasud.latentjam.ml.data.TrackMetadataResolver
-import org.oxycblt.musikr.Song
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
+import org.oxycblt.musikr.Song
 
 /**
  * Multiplicative metadata-aware rerank applied on top of cosine retrieval scores.
  *
- * Reads metadata via [TrackMetadataResolver] so user-supplied overrides (from the in-app
- * edit dialog) take precedence over file-embedded tags. Validated on the laptop archive —
- * the cross-language penalty alone catches the worst encoder failures (Beyoncé "Crazy in
- * Love" → Russian wartime march; Ария power metal → Chicago/Aerosmith).
+ * Reads metadata via [TrackMetadataResolver] so user-supplied overrides (from the in-app edit
+ * dialog) take precedence over file-embedded tags. Validated on the laptop archive — the
+ * cross-language penalty alone catches the worst encoder failures (Beyoncé "Crazy in Love" →
+ * Russian wartime march; Ария power metal → Chicago/Aerosmith).
  *
  * Per candidate the adjusted score is:
  *
- *   adjusted = cosine
- *            × (1 ± same_genre_bonus)          if both have genre tags
- *            × (1 - cross_language_penalty)    if seed and candidate detected languages differ
- *            × (1 - era_decade_penalty × Δdec) when both have year metadata
- *            - same_album_penalty              if same album as seed
- *            - same_artist_dup_penalty × count if the artist already appears earlier in the beam
+ * adjusted = cosine × (1 ± same_genre_bonus) if both have genre tags × (1 - cross_language_penalty)
+ * if seed and candidate detected languages differ × (1 - era_decade_penalty × Δdec) when both have
+ * year metadata
+ * - same_album_penalty if same album as seed
+ * - same_artist_dup_penalty × count if the artist already appears earlier in the beam
  */
 @Singleton
-class MetadataRerank
-@Inject
-constructor(private val metadata: TrackMetadataResolver) {
+class MetadataRerank @Inject constructor(private val metadata: TrackMetadataResolver) {
 
     data class Config(
         val sameGenreBonus: Float = 0.20f,
@@ -48,7 +55,10 @@ constructor(private val metadata: TrackMetadataResolver) {
     fun detectLanguage(song: Song): String {
         val text = buildString {
             append(song.name.raw)
-            metadata.effectiveArtist(song)?.let { append(' '); append(it) }
+            metadata.effectiveArtist(song)?.let {
+                append(' ')
+                append(it)
+            }
         }
         for (c in text) {
             if (c in 'Ѐ'..'ӿ') return "ru"
@@ -58,9 +68,9 @@ constructor(private val metadata: TrackMetadataResolver) {
     }
 
     /**
-     * Coarse genre coalescing. Returns null for missing/unknown so we can avoid
-     * penalizing untagged tracks. The buckets match the laptop eval — rap, rock, pop,
-     * dance, classical, soundtrack — plus the raw tag for everything else.
+     * Coarse genre coalescing. Returns null for missing/unknown so we can avoid penalizing untagged
+     * tracks. The buckets match the laptop eval — rap, rock, pop, dance, classical, soundtrack —
+     * plus the raw tag for everything else.
      */
     fun normalizeGenre(song: Song): String? {
         val raw = metadata.effectiveGenre(song)?.lowercase()?.trim() ?: return null
@@ -69,8 +79,11 @@ constructor(private val metadata: TrackMetadataResolver) {
             "hip" in raw || "rap" in raw || "trap" in raw || "phonk" in raw -> "rap"
             "rock" in raw || "metal" in raw || "punk" in raw || "grunge" in raw -> "rock"
             "pop" in raw -> "pop"
-            "dance" in raw || "electronic" in raw || "edm" in raw ||
-                "house" in raw || "techno" in raw -> "dance"
+            "dance" in raw ||
+                "electronic" in raw ||
+                "edm" in raw ||
+                "house" in raw ||
+                "techno" in raw -> "dance"
             "classical" in raw || "orchestral" in raw || "baroque" in raw -> "classical"
             "soundtrack" in raw || "score" in raw -> "soundtrack"
             else -> raw
@@ -83,9 +96,9 @@ constructor(private val metadata: TrackMetadataResolver) {
     }
 
     /**
-     * Adjust [baseCosine] by metadata bonuses/penalties relative to the seed. Does NOT
-     * apply artist-diversity penalty — that's positional and lives in the greedy pick
-     * loop in [rerankBeam].
+     * Adjust [baseCosine] by metadata bonuses/penalties relative to the seed. Does NOT apply
+     * artist-diversity penalty — that's positional and lives in the greedy pick loop in
+     * [rerankBeam].
      */
     fun pairwiseAdjust(
         baseCosine: Float,
@@ -106,8 +119,9 @@ constructor(private val metadata: TrackMetadataResolver) {
 
         val candGenre = normalizeGenre(candidate)
         if (seedGenre != null && candGenre != null) {
-            s *= if (seedGenre == candGenre) (1f + cfg.sameGenreBonus)
-                 else (1f - cfg.sameGenreBonus * 0.5f)
+            s *=
+                if (seedGenre == candGenre) (1f + cfg.sameGenreBonus)
+                else (1f - cfg.sameGenreBonus * 0.5f)
         }
 
         val candLang = detectLanguage(candidate)
@@ -125,9 +139,9 @@ constructor(private val metadata: TrackMetadataResolver) {
     }
 
     /**
-     * Rerank the cosine-sorted [candidates] using metadata signals and an artist-diversity
-     * penalty, returning at most [k] picks ordered by adjusted score. Each item is
-     * `(uidIndex, baseCosineScore, song)`.
+     * Rerank the cosine-sorted [candidates] using metadata signals and an artist-diversity penalty,
+     * returning at most [k] picks ordered by adjusted score. Each item is `(uidIndex,
+     * baseCosineScore, song)`.
      */
     fun rerankBeam(
         seed: Song,

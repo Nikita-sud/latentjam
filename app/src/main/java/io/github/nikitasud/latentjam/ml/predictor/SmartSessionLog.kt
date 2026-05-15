@@ -1,10 +1,20 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * SmartSessionLog.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.ml.predictor
 
@@ -25,40 +35,33 @@ import timber.log.Timber
 
 /**
  * Append-only JSONL log of SMART recommendation activity. Captures two event types:
+ * - `decision`: emitted on every RecommendationEngine pipeline run — records the seed track,
+ *   centroid composition, filter counts, and the top-K head picks with cosine scores. Lets us audit
+ *   "what did SMART pick, given what?".
+ * - `outcome`: emitted on every track finalize — records whether the user kept playing or skipped,
+ *   and how much of the track ran. Joins back to decisions via `(sessionId, sessionPos)`.
  *
- *   - `decision`: emitted on every RecommendationEngine pipeline run — records the
- *     seed track, centroid composition, filter counts, and the top-K head picks
- *     with cosine scores. Lets us audit "what did SMART pick, given what?".
+ * File: `getExternalFilesDir("smart_sessions")/events.jsonl`. Pull from a USB- connected device
+ * with:
  *
- *   - `outcome`: emitted on every track finalize — records whether the user kept
- *     playing or skipped, and how much of the track ran. Joins back to decisions
- *     via `(sessionId, sessionPos)`.
+ * adb pull /sdcard/Android/data/io.github.nikitasud.latentjam.debug/files/\
+ * smart_sessions/events.jsonl ./
  *
- * File: `getExternalFilesDir("smart_sessions")/events.jsonl`. Pull from a USB-
- * connected device with:
+ * The log writes **regardless of `MlSettings.enableEventLogging`** — it's a developer-facing debug
+ * log gated by being a debug build, not user-facing event tracking. Privacy: paths and tag strings
+ * stay on the device's external files dir, which app-private storage covers.
  *
- *   adb pull /sdcard/Android/data/io.github.nikitasud.latentjam.debug/files/\
- *       smart_sessions/events.jsonl ./
- *
- * The log writes **regardless of `MlSettings.enableEventLogging`** — it's a
- * developer-facing debug log gated by being a debug build, not user-facing event
- * tracking. Privacy: paths and tag strings stay on the device's external files
- * dir, which app-private storage covers.
- *
- * JSON shape is hand-rolled (no gson/moshi dep). Records are single-line so
- * `wc -l events.jsonl` gives you the event count, and `grep '"type":"decision"'`
- * isolates pipeline outputs.
+ * JSON shape is hand-rolled (no gson/moshi dep). Records are single-line so `wc -l events.jsonl`
+ * gives you the event count, and `grep '"type":"decision"'` isolates pipeline outputs.
  */
 @Singleton
-class SmartSessionLog @Inject constructor(
-    @ApplicationContext private val context: Context,
-) {
+class SmartSessionLog @Inject constructor(@ApplicationContext private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val writeLock = Mutex()
 
     /**
-     * Record one pipeline-decision event. Called from `RecommendationEngine.runPipeline`
-     * after the head picks are finalized but before the queue replace fires.
+     * Record one pipeline-decision event. Called from `RecommendationEngine.runPipeline` after the
+     * head picks are finalized but before the queue replace fires.
      */
     fun recordDecision(
         sessionId: String,
@@ -78,56 +81,84 @@ class SmartSessionLog @Inject constructor(
     ) {
         val nowMs = System.currentTimeMillis()
         scope.launch {
-            val line = buildString(2048) {
-                append('{')
-                kv("type", "decision"); append(',')
-                kv("ts", nowMs); append(',')
-                kv("session_id", sessionId); append(',')
-                kv("session_pos", sessionPos); append(',')
-                kv("seed_uid", seedUid); append(',')
-                kv("seed_name", seedName); append(',')
-                kv("seed_artists", seedArtists); append(',')
-                kv("seed_bpm", seedBpm); append(',')
-                kv("seed_energy", seedEnergy); append(',')
-                kv("seed_duration_ms", seedDurationMs); append(',')
-                kv("centroid_seed_count", centroidSeedCount); append(',')
-                kv("cooldown_artist_count", cooldownArtistCount); append(',')
-                kv("filter_label", filterLabel); append(',')
-                kv("pool_size", poolSize); append(',')
-                kv("tail_size", tailSize); append(',')
-                append("\"head\":")
-                appendPickArray(headPicks)
-                append('}')
-            }
+            val line =
+                buildString(2048) {
+                    append('{')
+                    kv("type", "decision")
+                    append(',')
+                    kv("ts", nowMs)
+                    append(',')
+                    kv("session_id", sessionId)
+                    append(',')
+                    kv("session_pos", sessionPos)
+                    append(',')
+                    kv("seed_uid", seedUid)
+                    append(',')
+                    kv("seed_name", seedName)
+                    append(',')
+                    kv("seed_artists", seedArtists)
+                    append(',')
+                    kv("seed_bpm", seedBpm)
+                    append(',')
+                    kv("seed_energy", seedEnergy)
+                    append(',')
+                    kv("seed_duration_ms", seedDurationMs)
+                    append(',')
+                    kv("centroid_seed_count", centroidSeedCount)
+                    append(',')
+                    kv("cooldown_artist_count", cooldownArtistCount)
+                    append(',')
+                    kv("filter_label", filterLabel)
+                    append(',')
+                    kv("pool_size", poolSize)
+                    append(',')
+                    kv("tail_size", tailSize)
+                    append(',')
+                    append("\"head\":")
+                    appendPickArray(headPicks)
+                    append('}')
+                }
             appendLine(line)
         }
     }
 
     /**
-     * Record one outcome event. Called from `ListeningEventRecorder.finalizeCurrent`
-     * for every finalized track regardless of source — we filter SMART-vs-not at
-     * read time using `sessionId`s present in the decision log.
+     * Record one outcome event. Called from `ListeningEventRecorder.finalizeCurrent` for every
+     * finalized track regardless of source — we filter SMART-vs-not at read time using `sessionId`s
+     * present in the decision log.
      */
     fun recordOutcome(event: ListeningEventEntity, songName: String?, songArtists: String?) {
         scope.launch {
             val durationMs = event.trackDurationMs.coerceAtLeast(0L)
             val playedPct = if (durationMs > 0) event.playedMs.toDouble() / durationMs else 0.0
-            val line = buildString(512) {
-                append('{')
-                kv("type", "outcome"); append(',')
-                kv("ts", event.endedAtMs); append(',')
-                kv("session_id", event.sessionId); append(',')
-                kv("session_pos", event.sessionPos); append(',')
-                kv("uid", event.songUid.toString()); append(',')
-                kv("name", songName); append(',')
-                kv("artists", songArtists); append(',')
-                kv("completed", event.completed); append(',')
-                kv("skipped", event.skipped); append(',')
-                kv("played_ms", event.playedMs); append(',')
-                kv("track_duration_ms", durationMs); append(',')
-                kv("played_pct", playedPct)
-                append('}')
-            }
+            val line =
+                buildString(512) {
+                    append('{')
+                    kv("type", "outcome")
+                    append(',')
+                    kv("ts", event.endedAtMs)
+                    append(',')
+                    kv("session_id", event.sessionId)
+                    append(',')
+                    kv("session_pos", event.sessionPos)
+                    append(',')
+                    kv("uid", event.songUid.toString())
+                    append(',')
+                    kv("name", songName)
+                    append(',')
+                    kv("artists", songArtists)
+                    append(',')
+                    kv("completed", event.completed)
+                    append(',')
+                    kv("skipped", event.skipped)
+                    append(',')
+                    kv("played_ms", event.playedMs)
+                    append(',')
+                    kv("track_duration_ms", durationMs)
+                    append(',')
+                    kv("played_pct", playedPct)
+                    append('}')
+                }
             appendLine(line)
         }
     }
@@ -137,7 +168,7 @@ class SmartSessionLog @Inject constructor(
             try {
                 val dir = File(context.getExternalFilesDir(null), DIR_NAME).apply { mkdirs() }
                 val file = File(dir, FILE_NAME)
-                FileWriter(file, /*append=*/true).use { it.write(line + "\n") }
+                FileWriter(file, /* append= */ true).use { it.write(line + "\n") }
             } catch (e: Exception) {
                 Timber.w(e, "SmartSessionLog: failed to append")
             }
@@ -146,14 +177,12 @@ class SmartSessionLog @Inject constructor(
 
     /**
      * A single head-pick row as captured at SMART decision time.
-     *
-     * - `score` — the raw cosine dot product against the query (centroid or
-     *   predictor state), already post-BPM/energy-penalty. Range roughly [-1, 1].
-     *   Kept for back-compat with `/tmp/format_sweep.py` and any prior JSONL
-     *   readers that only know this field.
-     * - `scorerScore` — the learned predictor's logit for this candidate, when
-     *   the predictor pipeline ran. Null when the pipeline took the cosine
-     *   fallback (predictor ONNX missing or threw at inference time).
+     * - `score` — the raw cosine dot product against the query (centroid or predictor state),
+     *   already post-BPM/energy-penalty. Range roughly [-1, 1]. Kept for back-compat with
+     *   `/tmp/format_sweep.py` and any prior JSONL readers that only know this field.
+     * - `scorerScore` — the learned predictor's logit for this candidate, when the predictor
+     *   pipeline ran. Null when the pipeline took the cosine fallback (predictor ONNX missing or
+     *   threw at inference time).
      */
     data class Pick(
         val uid: String,
@@ -169,11 +198,16 @@ class SmartSessionLog @Inject constructor(
         picks.forEachIndexed { i, p ->
             if (i > 0) append(',')
             append('{')
-            kv("uid", p.uid); append(',')
-            kv("name", p.name); append(',')
-            kv("artists", p.artists); append(',')
-            kv("bpm", p.bpm); append(',')
-            kv("score", p.score); append(',')
+            kv("uid", p.uid)
+            append(',')
+            kv("name", p.name)
+            append(',')
+            kv("artists", p.artists)
+            append(',')
+            kv("bpm", p.bpm)
+            append(',')
+            kv("score", p.score)
+            append(',')
             kv("scorer_score", p.scorerScore)
             append('}')
         }
@@ -186,26 +220,32 @@ class SmartSessionLog @Inject constructor(
         append('"').append(k).append("\":")
         if (v == null) append("null") else append('"').append(escape(v)).append('"')
     }
+
     private fun StringBuilder.kv(k: String, v: Long?) {
         append('"').append(k).append("\":").append(v?.toString() ?: "null")
     }
+
     private fun StringBuilder.kv(k: String, v: Int?) {
         append('"').append(k).append("\":").append(v?.toString() ?: "null")
     }
+
     private fun StringBuilder.kv(k: String, v: Float?) {
         append('"').append(k).append("\":").append(v?.toString() ?: "null")
     }
+
     private fun StringBuilder.kv(k: String, v: Double?) {
         append('"').append(k).append("\":").append(v?.toString() ?: "null")
     }
+
     private fun StringBuilder.kv(k: String, v: Boolean) {
         append('"').append(k).append("\":").append(if (v) "true" else "false")
     }
+
     private fun escape(s: String): String {
         val out = StringBuilder(s.length + 8)
         for (c in s) when (c) {
             '\\' -> out.append("\\\\")
-            '"'  -> out.append("\\\"")
+            '"' -> out.append("\\\"")
             '\n' -> out.append("\\n")
             '\r' -> out.append("\\r")
             '\t' -> out.append("\\t")

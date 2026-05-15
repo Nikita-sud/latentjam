@@ -1,10 +1,20 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * HistoryFeatureBuilder.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.ml.predictor
 
@@ -30,17 +40,18 @@ import org.oxycblt.musikr.Music
 /**
  * Build the five feature tensors the state encoder consumes, mirroring the recipe at
  * `latentjam-research/src/predictor/train_history.py`:
- *
- *   - history_small  (1, K, D[+1])  — last K=4 completed plays as embeddings (+ played_pct
- *                                     when use_played_pct=True; scoring_v1 uses K=4, D=512).
- *   - history_medium (1, D)         — sum_i emb_i * exp(-days_ago_i / 30) / sum_i weight_i
- *   - history_large  (1, D)         — sum_i emb_i * weight_i / sum_i weight_i where the
- *                                     weight = freq_count / (1 + days_ago/365)
- *   - time_features  (1, 5)         — [sin(h*2π/24), cos(...), sin(dow*2π/7), cos(...), is_weekend]
- *   - session_features (1, sessionFeatDim)
+ * - history_small (1, K, D[+1]) — last K=4 completed plays as embeddings (+ played_pct when
+ *   use_played_pct=True; scoring_v1 uses K=4, D=512).
+ * - history_medium (1, D) — sum_i emb_i * exp(-days_ago_i / 30) / sum_i weight_i
+ * - history_large (1, D) — sum_i emb_i * weight_i / sum_i weight_i where the weight = freq_count /
+ *   (1 + days_ago/365)
+ * - time_features (1, 5) — [sin(h*2π/24), cos(...), sin(dow*2π/7), cos(...), is_weekend]
+ * - session_features (1, sessionFeatDim)
  */
 @Singleton
-class HistoryFeatureBuilder @Inject constructor(
+class HistoryFeatureBuilder
+@Inject
+constructor(
     private val listeningEventDao: ListeningEventDao,
     private val trackEmbeddingDao: TrackEmbeddingDao,
     private val sessionTracker: SessionTracker,
@@ -60,55 +71,58 @@ class HistoryFeatureBuilder @Inject constructor(
         // to the DAO when the ring is empty (e.g. early in a session before the recorder
         // has finalized any completed plays — usually means we're still in cold-start anyway).
         val inMemory = sessionTracker.recentCompletedSnapshot()
-        val historySmall = if (inMemory.isNotEmpty()) {
-            buildHistorySmallFromMemory(
-                inMemory,
-                embeddingDim = embeddingDim,
-                tokenDim = historyTokenDim,
-                version = version,
-            )
-        } else {
-            // Fresh app start with no in-memory history yet: pull the most recent completed
-            // plays across ALL sessions, not just the current one. Smart shuffle then "warms
-            // up" instantly using past listening rather than waiting for 4 fresh completions.
-            // Prefer the same-session events first so the order matches the in-memory ring's
-            // semantics (newest first within the active session); fall back to cross-session
-            // history when the current session is empty.
-            val sameSession =
-                listeningEventDao.recentCompletedInSession(sessionId, CONTEXT_K)
-            val recent = if (sameSession.size >= CONTEXT_K) {
-                sameSession
+        val historySmall =
+            if (inMemory.isNotEmpty()) {
+                buildHistorySmallFromMemory(
+                    inMemory,
+                    embeddingDim = embeddingDim,
+                    tokenDim = historyTokenDim,
+                    version = version,
+                )
             } else {
-                listeningEventDao.recentCompleted(CONTEXT_K)
+                // Fresh app start with no in-memory history yet: pull the most recent completed
+                // plays across ALL sessions, not just the current one. Smart shuffle then "warms
+                // up" instantly using past listening rather than waiting for 4 fresh completions.
+                // Prefer the same-session events first so the order matches the in-memory ring's
+                // semantics (newest first within the active session); fall back to cross-session
+                // history when the current session is empty.
+                val sameSession = listeningEventDao.recentCompletedInSession(sessionId, CONTEXT_K)
+                val recent =
+                    if (sameSession.size >= CONTEXT_K) {
+                        sameSession
+                    } else {
+                        listeningEventDao.recentCompleted(CONTEXT_K)
+                    }
+                buildHistorySmall(
+                    recent,
+                    embeddingDim = embeddingDim,
+                    tokenDim = historyTokenDim,
+                    version = version,
+                )
             }
-            buildHistorySmall(
-                recent,
-                embeddingDim = embeddingDim,
-                tokenDim = historyTokenDim,
-                version = version,
-            )
-        }
 
         val mediumWindowMs = MEDIUM_WINDOW_DAYS * MS_PER_DAY
-        val mediumEvents = listeningEventDao.eventsSince(nowMs - mediumWindowMs)
-            .filter { it.completed }
-        val historyMedium = recencyWeightedCentroid(
-            events = mediumEvents,
-            nowMs = nowMs,
-            decayDays = MEDIUM_DECAY_DAYS,
-            embeddingDim = embeddingDim,
-            version = version,
-        )
+        val mediumEvents =
+            listeningEventDao.eventsSince(nowMs - mediumWindowMs).filter { it.completed }
+        val historyMedium =
+            recencyWeightedCentroid(
+                events = mediumEvents,
+                nowMs = nowMs,
+                decayDays = MEDIUM_DECAY_DAYS,
+                embeddingDim = embeddingDim,
+                version = version,
+            )
 
         val largeWindowMs = LARGE_WINDOW_DAYS * MS_PER_DAY
-        val largeEvents = listeningEventDao.eventsSince(nowMs - largeWindowMs)
-            .filter { it.completed }
-        val historyLarge = recencyAndFrequencyCentroid(
-            events = largeEvents,
-            nowMs = nowMs,
-            embeddingDim = embeddingDim,
-            version = version,
-        )
+        val largeEvents =
+            listeningEventDao.eventsSince(nowMs - largeWindowMs).filter { it.completed }
+        val historyLarge =
+            recencyAndFrequencyCentroid(
+                events = largeEvents,
+                nowMs = nowMs,
+                embeddingDim = embeddingDim,
+                version = version,
+            )
 
         val timeFeatures = computeTimeFeatures(nowMs)
 
@@ -138,11 +152,12 @@ class HistoryFeatureBuilder @Inject constructor(
             val rowOffset = i * tokenDim
             System.arraycopy(embedding, 0, out, rowOffset, embeddingDim)
             if (tokenDim > embeddingDim) {
-                val playedPct = if (event.trackDurationMs > 0) {
-                    event.playedMs.toFloat() / event.trackDurationMs.toFloat()
-                } else {
-                    0f
-                }
+                val playedPct =
+                    if (event.trackDurationMs > 0) {
+                        event.playedMs.toFloat() / event.trackDurationMs.toFloat()
+                    } else {
+                        0f
+                    }
                 out[rowOffset + embeddingDim] = playedPct.coerceIn(0f, 1f)
             }
         }
@@ -216,7 +231,8 @@ class HistoryFeatureBuilder @Inject constructor(
         for ((uid, count) in freq) {
             val emb = trackEmbeddingDao.get(uid, version) ?: continue
             val embedding = bytesToFloats(emb.embedding, embeddingDim)
-            val daysAgo = (nowMs - (mostRecent[uid] ?: nowMs)).coerceAtLeast(0L) / MS_PER_DAY.toDouble()
+            val daysAgo =
+                (nowMs - (mostRecent[uid] ?: nowMs)).coerceAtLeast(0L) / MS_PER_DAY.toDouble()
             val weight = count.toDouble() / (1.0 + daysAgo / LARGE_DECAY_DAYS)
             weightSum += weight
             for (k in 0 until embeddingDim) {
@@ -233,15 +249,14 @@ class HistoryFeatureBuilder @Inject constructor(
     /**
      * Build a [PredictorFeatures] suitable for a one-shot dry-run pipeline call.
      *
-     * The dry-run sweep picks random library tracks as seeds — there is no
-     * session history at that point, so the normal [build] returns a
-     * history_small full of zeros and `hasHistorySmall()` is false, which makes
-     * the predictor pipeline silently skip itself. To actually exercise the
-     * predictor on those seeds, we synthesise a one-track history: position 0
-     * is the seed embedding (completed at 100 %), positions 1..K-1 stay zero.
+     * The dry-run sweep picks random library tracks as seeds — there is no session history at that
+     * point, so the normal [build] returns a history_small full of zeros and `hasHistorySmall()` is
+     * false, which makes the predictor pipeline silently skip itself. To actually exercise the
+     * predictor on those seeds, we synthesise a one-track history: position 0 is the seed embedding
+     * (completed at 100 %), positions 1..K-1 stay zero.
      *
-     * Time + session features default to the current real wall-clock time and a
-     * fresh session at position 0.
+     * Time + session features default to the current real wall-clock time and a fresh session at
+     * position 0.
      */
     fun buildForDryRun(
         seedEmbedding: FloatArray,
@@ -263,7 +278,7 @@ class HistoryFeatureBuilder @Inject constructor(
             val off = k * historyTokenDim
             System.arraycopy(seedEmbedding, 0, historySmall, off, embeddingDim)
             if (historyTokenDim > embeddingDim) {
-                historySmall[off + embeddingDim] = 1f  // played_pct = 100 %
+                historySmall[off + embeddingDim] = 1f // played_pct = 100 %
             }
         }
         // historyMedium / historyLarge: best-available taste proxy at cold start
@@ -274,16 +289,18 @@ class HistoryFeatureBuilder @Inject constructor(
             historyMedium = seedEmbedding.copyOf(),
             historyLarge = seedEmbedding.copyOf(),
             timeFeatures = computeTimeFeatures(nowMs),
-            sessionFeatures = FloatArray(sessionFeatDim).also {
-                val src = floatArrayOf(
-                    ln(2f),     // log1p(session_pos=1)
-                    0f,         // last_skipped
-                    ln(1.5f),   // log1p(~30 s in session)
-                    1f,         // comp_rate
-                    1f,         // mean_pct (seed assumed completed)
-                )
-                System.arraycopy(src, 0, it, 0, minOf(src.size, it.size))
-            },
+            sessionFeatures =
+                FloatArray(sessionFeatDim).also {
+                    val src =
+                        floatArrayOf(
+                            ln(2f), // log1p(session_pos=1)
+                            0f, // last_skipped
+                            ln(1.5f), // log1p(~30 s in session)
+                            1f, // comp_rate
+                            1f, // mean_pct (seed assumed completed)
+                        )
+                    System.arraycopy(src, 0, it, 0, minOf(src.size, it.size))
+                },
         )
     }
 

@@ -65,14 +65,15 @@ constructor(
 ) : ViewModel(), PlaybackStateManager.Listener, PlaybackSettings.Listener {
 
     /**
-     * Translate an explicit shuffle intent (OFF / ON) into a mode that respects the user's
-     * current preference. The user told us they want SMART to be sticky — pressing the
-     * shuffle FAB or "shuffle album" while in SMART should keep them in SMART rather than
-     * silently dropping them back to plain random. Any non-SMART current state passes the
-     * intent through unchanged, so OFF→ON and ON→OFF transitions still work the obvious way.
+     * Translate an explicit shuffle intent (OFF / ON) into a mode that respects the user's current
+     * preference. The user told us they want SMART to be sticky — pressing the shuffle FAB or
+     * "shuffle album" while in SMART should keep them in SMART rather than silently dropping them
+     * back to plain random. Any non-SMART current state passes the intent through unchanged, so
+     * OFF→ON and ON→OFF transitions still work the obvious way.
      */
     private fun keepSmart(intent: ShuffleMode): ShuffleMode =
         if (playbackManager.shuffleMode == ShuffleMode.SMART) ShuffleMode.SMART else intent
+
     private var lastPositionJob: Job? = null
 
     private val _song = MutableStateFlow<Song?>(null)
@@ -212,10 +213,10 @@ constructor(
     }
 
     /**
-     * Shuffle all songs in the music library. If the user is currently in SMART, we keep
-     * them in SMART and just pick a random library track as the seed — the recommendation
-     * engine then rebuilds the upcoming queue around it. Without this, the FAB silently
-     * downgrades SMART to plain ON every time it's pressed.
+     * Shuffle all songs in the music library. If the user is currently in SMART, we keep them in
+     * SMART and just pick a random library track as the seed — the recommendation engine then
+     * rebuilds the upcoming queue around it. Without this, the FAB silently downgrades SMART to
+     * plain ON every time it's pressed.
      */
     fun shuffleAll() {
         L.d("Shuffling all songs")

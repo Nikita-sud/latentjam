@@ -20,9 +20,7 @@ package io.github.nikitasud.latentjam.playback.state
 
 import io.github.nikitasud.latentjam.R
 
-/**
- * Represents the current shuffle mode of the player.
- */
+/** Represents the current shuffle mode of the player. */
 enum class ShuffleMode {
     /** Shuffle is off. Tracks are played in their natural order. */
     OFF,
@@ -49,9 +47,7 @@ enum class ShuffleMode {
             IMPLICIT -> OFF
         }
 
-    /**
-     * The drawable resource for this mode.
-     */
+    /** The drawable resource for this mode. */
     val icon: Int
         get() =
             when (this) {

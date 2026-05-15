@@ -56,8 +56,8 @@ class SongViewHolder private constructor(private val binding: ItemSongBinding) :
      *
      * @param song The new [Song] to bind.
      * @param listener An [SelectableListListener] to bind interactions to.
-     * @param liked Whether this song is currently in the user's favorites. Controls
-     *   which star icon to show. Adapters that don't track favorites can pass false.
+     * @param liked Whether this song is currently in the user's favorites. Controls which star icon
+     *   to show. Adapters that don't track favorites can pass false.
      */
     fun bind(song: Song, listener: SelectableListListener<Song>, liked: Boolean = false) {
         listener.bind(song, this, menuButton = binding.songMenu)
@@ -67,9 +67,10 @@ class SongViewHolder private constructor(private val binding: ItemSongBinding) :
         binding.songLike.setIconResource(
             if (liked) R.drawable.ic_star_24 else R.drawable.ic_star_outline_24
         )
-        binding.songLike.contentDescription = binding.context.getString(
-            if (liked) R.string.desc_unlike_song else R.string.desc_like_song
-        )
+        binding.songLike.contentDescription =
+            binding.context.getString(
+                if (liked) R.string.desc_unlike_song else R.string.desc_like_song
+            )
         binding.songLike.setOnClickListener { listener.onToggleLike(song) }
     }
 

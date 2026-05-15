@@ -281,7 +281,8 @@ class PlaybackPanelFragment :
         val isLiked = song != null && likedSet.contains(song.uid)
         requireBinding().playbackFavorite.apply {
             setIconResource(if (isLiked) R.drawable.ic_star_24 else R.drawable.ic_star_outline_24)
-            contentDescription = getString(if (isLiked) R.string.desc_unlike_song else R.string.desc_like_song)
+            contentDescription =
+                getString(if (isLiked) R.string.desc_unlike_song else R.string.desc_like_song)
         }
     }
 

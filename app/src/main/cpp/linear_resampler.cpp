@@ -1,16 +1,25 @@
-// Linear-interpolation streaming resampler.
-//
-// Mirrors `KotlinLinearResampler` semantically (same algorithm, same state),
-// implemented in C++ with -O3 + -ffast-math so the compiler auto-vectorizes
-// the inner loop with NEON on arm64-v8a or SSE on x86_64. Measured on a mid-
-// range Android: ~5-15x faster than the pure-Kotlin equivalent for a 5-s
-// window of audio at 44.1 kHz → 16 kHz.
-//
-// State is a plain POD struct owned by the native heap. The Kotlin side holds
+/*
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * linear_resampler.cpp is part of LatentJam.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+struct owned by the native heap. The Kotlin side holds
 // an opaque `long` handle and is responsible for calling nativeDestroy() in
 // onCleanup() — we don't use phantom references / Cleaner here to keep the
 // JNI surface trivial and avoid the JVM threading overhead.
-
 #include <jni.h>
 #include <cmath>
 #include <cstdint>
@@ -20,18 +29,19 @@
 
 namespace {
 
-struct ResamplerState {
-    double ratio;        // src_sr / dst_sr; advance per output sample
-    double src_cursor;   // current position in global source stream
-    int64_t chunk_base;  // index of the first sample of the current chunk in the global stream
-    float prev_sample;   // last sample of the previous chunk (for cross-chunk interpolation)
-    bool has_prev;
-};
+    struct ResamplerState {
+        double ratio;        // src_sr / dst_sr; advance per output sample
+        double src_cursor;// current position in global source stream
+        int64_t chunk_base;// index of the first sample of the current chunk in the global stream
+        float prev_sample;// last sample of the previous chunk (for cross-chunk interpolation)
+        bool has_prev;
+    };
 
 // Pack (consumed, produced) into a single jlong: high 32 bits = consumed, low 32 = produced.
-static inline jlong pack_result(int32_t consumed, int32_t produced) {
-    return (static_cast<int64_t>(consumed) << 32) | static_cast<uint32_t>(produced);
-}
+    static inline jlong pack_result(int32_t consumed, int32_t produced) {
+        return (static_cast<int64_t>(consumed) << 32)
+        | static_cast<uint32_t>(produced);
+    }
 
 } // namespace
 
@@ -163,4 +173,5 @@ Java_io_github_nikitasud_latentjam_ml_audio_NativeLinearResampler_nativeFlush(
     return static_cast<jint>(produced);
 }
 
-} // extern "C"
+}
+    // extern "C"

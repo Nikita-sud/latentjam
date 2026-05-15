@@ -274,8 +274,8 @@ interface Song : Music {
     /** The [Disc] number. Will be null if no valid disc number was present in the metadata. */
     val disc: Disc?
     /**
-     * Beats-per-minute as read from the `TBPM` (ID3v2), `BPM` (Xiph) or `tmpo` (MP4) tag.
-     * Null when the tag is missing or the value is outside a sensible range (1..400 BPM).
+     * Beats-per-minute as read from the `TBPM` (ID3v2), `BPM` (Xiph) or `tmpo` (MP4) tag. Null when
+     * the tag is missing or the value is outside a sensible range (1..400 BPM).
      */
     val bpm: Int?
     /** The release [Date]. Will be null if no valid date was present in the metadata. */
