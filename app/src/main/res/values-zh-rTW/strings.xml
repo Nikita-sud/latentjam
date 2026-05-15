@@ -207,7 +207,7 @@
     <string name="set_rescan_desc">清除所有標籤快取並重新載入媒體（完整但速度較慢）</string>
     <string name="err_no_app">找不到可處理這項操作的應用程式</string>
     <string name="desc_remove_song">刪除歌曲</string>
-    <string name="desc_latentjam_icon">Auxio 圖示</string>
+    <string name="desc_latentjam_icon">LatentJam 圖示</string>
     <string name="def_track">沒有音軌</string>
     <string name="def_playback">沒有正在播放的音樂</string>
     <string name="clr_pink">粉色</string>
@@ -263,7 +263,7 @@
     <string name="lbl_donate">贊助</string>
     <string name="set_with_hidden">隱藏項目</string>
     <string name="set_hide_collaborators">隱藏合作夥伴</string>
-    <string name="lng_tasker_start">以先前儲存的狀態啟動 Auxio。\n如果沒有可用存檔，將會立即隨機播放所有曲目。\n\n警告：請謹慎使用這項服務，停用後再次啟用可能會導致應用程式崩潰。</string>
+    <string name="lng_tasker_start">以先前儲存的狀態啟動 LatentJam。\n如果沒有可用存檔，將會立即隨機播放所有曲目。\n\n警告：請謹慎使用這項服務，停用後再次啟用可能會導致應用程式崩潰。</string>
     <string name="set_rewind_prev">返回前倒帶</string>
     <string name="set_repeat_pause">重播暫停</string>
     <string name="set_cover_mode_balanced">平衡</string>

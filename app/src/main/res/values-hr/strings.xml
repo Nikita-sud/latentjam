@@ -97,7 +97,7 @@
     <string name="desc_tab_handle">Pomakni ovu karticu</string>
     <string name="desc_clear_search">Izbriši pretražene pojmove</string>
     <string name="desc_music_location_delete">Ukloni mapu</string>
-    <string name="desc_latentjam_icon">Auxio logotip</string>
+    <string name="desc_latentjam_icon">LatentJam logotip</string>
     <string name="desc_no_cover">Omot albuma</string>
     <string name="desc_album_cover">Omot albuma za %s</string>
     <string name="desc_artist_image">Slika izvođača za %s</string>
@@ -298,7 +298,7 @@
     <string name="set_remember_pause_desc">Nastavi reprodukciju/pauziranje prilikom preskakanja ili uređivanja redoslijeda</string>
     <string name="set_replay_gain_mode_off">Isključeno</string>
     <string name="lbl_start_playback">Pokreni reprodukciju</string>
-    <string name="lng_tasker_start">Pokreće Auxio koristeći prethodno spremljeno stanje. Ako nijedno spremljeno stanje nije dostupno, sve će se pjesme nasumično reproducirati. Reprodukcija će započeti odmah. \n \nUPOZORENJE: Oprez pri upravljanju ovom uslugom. Ako je zatvoriš i zatim je pokušaš ponovo koristiti, aplikacija će se vjerojatno zatvoriti.</string>
+    <string name="lng_tasker_start">Pokreće LatentJam koristeći prethodno spremljeno stanje. Ako nijedno spremljeno stanje nije dostupno, sve će se pjesme nasumično reproducirati. Reprodukcija će započeti odmah. \n \nUPOZORENJE: Oprez pri upravljanju ovom uslugom. Ako je zatvoriš i zatim je pokušaš ponovo koristiti, aplikacija će se vjerojatno zatvoriti.</string>
     <string name="lbl_more">Više</string>
     <string name="lbl_feedback">Povratne informacije</string>
     <string name="lbl_github">Prijavi problem na GitHubu</string>

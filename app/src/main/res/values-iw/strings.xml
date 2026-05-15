@@ -219,7 +219,7 @@
     <string name="lng_playlist_renamed">שונה שם רשימת ההשמעה</string>
     <string name="lng_playlist_deleted">רשימת השמעה נמחקה</string>
     <string name="lng_playlist_added">נוסף לרשימת השמעה</string>
-    <string name="desc_latentjam_icon">סמל Auxio</string>
+    <string name="desc_latentjam_icon">סמל LatentJam</string>
     <string name="desc_music_location_delete">הסרת תיקייה</string>
     <string name="desc_playlist_image">תמונת רשימת השמעה עבור %s</string>
     <string name="clr_red">אדום</string>
@@ -300,7 +300,7 @@
     <string name="lbl_replaygain_album">תיקון אלבומים ReplayGain</string>
     <string name="lbl_author">יוצר</string>
     <string name="lng_supporters_promo">תרמו לפרויקט כדי להוסיף את שמכם כאן!</string>
-    <string name="lng_tasker_start">מפעיל Auxio במצב שנשמר קודם לכן. אם אין מצב שמור זמין, כל השירים יתערבבו. השמעה תתחיל מידית.\n\nאזהרה: היזהר בשליטה בשירות זה, אם תסגרו אותו ואחר כך תנסו להשתמש בו שוב, ייתכן שתקרסו את האפליקציה.</string>
+    <string name="lng_tasker_start">מפעיל LatentJam במצב שנשמר קודם לכן. אם אין מצב שמור זמין, כל השירים יתערבבו. השמעה תתחיל מידית.\n\nאזהרה: היזהר בשליטה בשירות זה, אם תסגרו אותו ואחר כך תנסו להשתמש בו שוב, ייתכן שתקרסו את האפליקציה.</string>
     <string name="set_remember_pause_desc">הישאר בניגון/בהשהיה בעת דילוג או עריכה של התור</string>
     <string name="cdc_alac">קודק אודיו Apple ללא אובדן נתונים (ALAC)</string>
     <string name="lbl_feedback">משוב</string>

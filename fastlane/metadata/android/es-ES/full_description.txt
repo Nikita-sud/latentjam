@@ -1,4 +1,4 @@
-Auxio es un reproductor de música local con una interfaz de usuario (IU) rápida y fiable, sin las numerosas funciones inútiles de otros reproductores. Creado con bibliotecas de reproducción multimedia modernas, Auxio ofrece una compatibilidad con bibliotecas y una calidad de escucha superiores a las de otras aplicaciones que utilizan funciones obsoletas de Android. En resumen, reproduce música.
+LatentJam es un reproductor de música local con una interfaz de usuario (IU) rápida y fiable, sin las numerosas funciones inútiles de otros reproductores. Creado con bibliotecas de reproducción multimedia modernas, LatentJam ofrece una compatibilidad con bibliotecas y una calidad de escucha superiores a las de otras aplicaciones que utilizan funciones obsoletas de Android. En resumen, reproduce música.
 
 <b>Características</b>
 

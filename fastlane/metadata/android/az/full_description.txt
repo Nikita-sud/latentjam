@@ -1,4 +1,4 @@
-Auxio local musiqi pleyeridir və digər musiqi pleyerlərində olan bir çox lazımsız xüsusiyyət olmadan sürətli və etibarlı istifadəçi interfeysi və təcrübəsi təmin edir. Müasir media pleyer kitabxanalarına əsaslanan Auxio, köhnəlmiş Android funksionallığından istifadə edən digər tətbiqlərə nisbətən üstün kitabxana dəstəyi və dinləmə keyfiyyəti təqdim edir. Qısaca, <b>Musiqi ifa edir.</b>
+LatentJam local musiqi pleyeridir və digər musiqi pleyerlərində olan bir çox lazımsız xüsusiyyət olmadan sürətli və etibarlı istifadəçi interfeysi və təcrübəsi təmin edir. Müasir media pleyer kitabxanalarına əsaslanan LatentJam, köhnəlmiş Android funksionallığından istifadə edən digər tətbiqlərə nisbətən üstün kitabxana dəstəyi və dinləmə keyfiyyəti təqdim edir. Qısaca, <b>Musiqi ifa edir.</b>
 
 <b>Xüsusiyyətlər</b>
 

@@ -1,4 +1,4 @@
-Ang Auxio ay isang na lokal ng manunugtog at meron siya ng malakas, at maaasahan ng "UI" o "UX" ay walang dami ng mga walang-halaga sa mga iba pang ng mga manunugtog. Ito ay gumawa ng mga bago ng "media playback libraries", at ang Auxio naman ay meron ng superyor ng "library support" at ang mahusay na pakikinig ng mga musika mo at kaysa sa mga iba ng mga "manunugtog na apps" ng gamit ng mga obseleto ng mga tungkulin. Madaling salita, <b>Tumugtog ito ng mga musika.</b>
+Ang LatentJam ay isang na lokal ng manunugtog at meron siya ng malakas, at maaasahan ng "UI" o "UX" ay walang dami ng mga walang-halaga sa mga iba pang ng mga manunugtog. Ito ay gumawa ng mga bago ng "media playback libraries", at ang LatentJam naman ay meron ng superyor ng "library support" at ang mahusay na pakikinig ng mga musika mo at kaysa sa mga iba ng mga "manunugtog na apps" ng gamit ng mga obseleto ng mga tungkulin. Madaling salita, <b>Tumugtog ito ng mga musika.</b>
 
 <b>Mga Tampok</b>
 

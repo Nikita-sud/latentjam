@@ -1,4 +1,4 @@
-Auxio je lokalni predvajalnik glasbe z hitrim in zanesljivim uporabniškim vmesnikom brez večino nepotrebnih funkcij, ki jih najdete v drugih predvajalnikih glasbe. Zgrajen na sodobnih knjižnicah za predvajanje medijskih vsebin, Auxio ponuja izjemno podporo za knjižnico in kakovost poslušanja v primerjavi z aplikacijami, ki uporabljajo zastarelo funkcionalnost Androida. Skratka, <b>predvaja glasbo</b>.
+LatentJam je lokalni predvajalnik glasbe z hitrim in zanesljivim uporabniškim vmesnikom brez večino nepotrebnih funkcij, ki jih najdete v drugih predvajalnikih glasbe. Zgrajen na sodobnih knjižnicah za predvajanje medijskih vsebin, LatentJam ponuja izjemno podporo za knjižnico in kakovost poslušanja v primerjavi z aplikacijami, ki uporabljajo zastarelo funkcionalnost Androida. Skratka, <b>predvaja glasbo</b>.
 
 <b>Lastnosti</b>
 

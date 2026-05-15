@@ -1,4 +1,4 @@
-Auxio je lokalni glazbeni player s brzim, pouzdanim UI/UX bez mnogih beskorisnih značajki prisutnih u drugim glazbenim playerima. Izgrađen na osnovi modernih biblioteka za reprodukciju, Auxio ima vrhunsku podršku za biblioteku i kvalitetu slušanja u usporedbi s drugim aplikacijama koje koriste zastarjelu funkcionalnost Androida. Ukratko, <b>Reproducira glazbu.</b>.
+LatentJam je lokalni glazbeni player s brzim, pouzdanim UI/UX bez mnogih beskorisnih značajki prisutnih u drugim glazbenim playerima. Izgrađen na osnovi modernih biblioteka za reprodukciju, LatentJam ima vrhunsku podršku za biblioteku i kvalitetu slušanja u usporedbi s drugim aplikacijama koje koriste zastarjelu funkcionalnost Androida. Ukratko, <b>Reproducira glazbu.</b>.
 
 <b>Značajke</b>
 

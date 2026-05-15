@@ -80,7 +80,7 @@
     <string name="desc_play_pause">再生またはポーズ</string>
     <string name="desc_remove_song">再生待ちの曲を除去</string>
     <string name="desc_music_location_delete">フォルダを除去</string>
-    <string name="desc_latentjam_icon">Auxio アイコン</string>
+    <string name="desc_latentjam_icon">LatentJam アイコン</string>
     <string name="desc_no_cover">アルバムカバー</string>
     <string name="desc_album_cover">%s のアルバムカバー</string>
     <string name="desc_genre_image">%s のジャンル画像</string>
@@ -128,7 +128,7 @@
     <string name="fmt_db_neg">-%.1f デシベル</string>
     <string name="fmt_lib_album_count">読み込みが完了したアルバム数: %d</string>
     <string name="lbl_reset">リセット</string>
-    <string name="lbl_about">Auxioについて</string>
+    <string name="lbl_about">LatentJamについて</string>
     <string name="lbl_code">ソースコード</string>
     <string name="lbl_wiki">Wiki</string>
     <string name="lbl_version">バージョン</string>
@@ -306,7 +306,7 @@
     <string name="set_cover_mode_save_space">スペースの節約</string>
     <string name="cdc_alac">アップルロスレスオーディオコーデック（ALAC）</string>
     <string name="lbl_more">さらに</string>
-    <string name="lng_tasker_start">事前に保存した状態でAuxioを起動します。保存状態がない場合は、すべての曲がシャッフルされます。再生はすぐに開始されます\n\n警告: このサービスの操作には注意してください。このサービスを終了してから再度使用しようとすると、アプリがクラッシュする可能性があります</string>
+    <string name="lng_tasker_start">事前に保存した状態でLatentJamを起動します。保存状態がない場合は、すべての曲がシャッフルされます。再生はすぐに開始されます\n\n警告: このサービスの操作には注意してください。このサービスを終了してから再度使用しようとすると、アプリがクラッシュする可能性があります</string>
     <string name="lbl_sort_mode">並べ替える</string>
     <string name="lbl_path_style_absolute">絶対的</string>
     <string name="lbl_path_style_relative">相対的</string>

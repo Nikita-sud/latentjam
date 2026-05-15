@@ -13,7 +13,7 @@
     <string name="set_pre_amp_without">Justering uten etiketter</string>
     <string name="desc_tab_handle">Flytt denne fanen</string>
     <string name="desc_clear_search">Tøm søket</string>
-    <string name="desc_latentjam_icon">Auxio-ikon</string>
+    <string name="desc_latentjam_icon">LatentJam-ikon</string>
     <string name="desc_queue_bar">Åpne køen</string>
     <string name="def_date">Ingen dato</string>
     <string name="cdc_mp3">MPEG-1-lyd</string>
@@ -295,7 +295,7 @@
     <string name="lbl_import">Importér</string>
     <string name="lbl_export">Eksportér</string>
     <string name="lbl_more">Mer</string>
-    <string name="lng_tasker_start">Begynner Auxio med den forrige lagrede tilstanden. Dersom ingen lagrede tilstand er tilgjengelig, skal sangene omstokkes. Avspilling begynner med én gang.\n\nADVARSEL: Vær varsom med å kontrollere denne tjenesten, hvis du lukker den og så prøver å bruke den igjen, skal det nok få appen til å krasje.</string>
+    <string name="lng_tasker_start">Begynner LatentJam med den forrige lagrede tilstanden. Dersom ingen lagrede tilstand er tilgjengelig, skal sangene omstokkes. Avspilling begynner med én gang.\n\nADVARSEL: Vær varsom med å kontrollere denne tjenesten, hvis du lukker den og så prøver å bruke den igjen, skal det nok få appen til å krasje.</string>
     <string name="lbl_start_playback">Begynn avspilling</string>
     <string name="lbl_github">Opprett en sak på GitHub</string>
     <string name="lbl_feedback">Gi tilbakemelding</string>

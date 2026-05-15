@@ -1,4 +1,4 @@
-Auxio é un reprodutor de música nativo cunha UI/UX rápida e sólida sen as moitas funcións inútiles que se atopan noutros reprodutores de música. En comparación con outras aplicacións que usan a API nativa de MediaPlayer, Auxio baséase en Exoplayer, cunha mellor experiencia de escoita e mellor compatibilidade coa biblioteca de música, <b>exactamente como debería ser un reprodutor de música</b>.
+LatentJam é un reprodutor de música nativo cunha UI/UX rápida e sólida sen as moitas funcións inútiles que se atopan noutros reprodutores de música. En comparación con outras aplicacións que usan a API nativa de MediaPlayer, LatentJam baséase en Exoplayer, cunha mellor experiencia de escoita e mellor compatibilidade coa biblioteca de música, <b>exactamente como debería ser un reprodutor de música</b>.
 
 <b>Características</b>
 
