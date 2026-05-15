@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Diagnostics surface for the smart-shuffle ML stack. Every Preference entry on this
+    screen is read-only — MlDiagnosticsFragment populates the summaries dynamically on
+    each onResume so freshly-arrived events show up without an app restart.
+
+    The two action entries (Copy / Reset) are clickable Preferences with no backing
+    SharedPreferences value; the fragment's onPreferenceTreeClick reacts to their keys.
+-->
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:title="@string/set_ml_diagnostics">
+
+    <PreferenceCategory app:title="@string/set_ml_diag_encoder_title">
+        <Preference
+            app:icon="@drawable/ic_details_24"
+            app:key="@string/set_key_ml_diag_encoder"
+            app:summary="@string/set_ml_diag_encoder_uninit"
+            app:title="@string/set_ml_diag_encoder_title"
+            app:selectable="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/set_ml_diag_native_decoder_title">
+        <Preference
+            app:icon="@drawable/ic_details_24"
+            app:key="@string/set_key_ml_diag_native_decoder"
+            app:summary="@string/set_ml_diag_native_decoder_idle"
+            app:title="@string/set_ml_diag_native_decoder_title"
+            app:selectable="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/set_ml_diag_predictor_title">
+        <Preference
+            app:icon="@drawable/ic_details_24"
+            app:key="@string/set_key_ml_diag_predictor"
+            app:title="@string/set_ml_diag_predictor_title"
+            app:selectable="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/set_ml_diag_events_title">
+        <Preference
+            app:icon="@drawable/ic_details_24"
+            app:key="@string/set_key_ml_diag_events"
+            app:title="@string/set_ml_diag_events_title"
+            app:selectable="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/set_ml_diag_actions_category">
+        <Preference
+            app:icon="@drawable/ic_copy_24"
+            app:key="@string/set_key_ml_diag_copy"
+            app:summary="@string/set_ml_diag_copy_desc"
+            app:title="@string/set_ml_diag_copy" />
+        <Preference
+            app:icon="@drawable/ic_delete_24"
+            app:key="@string/set_key_ml_diag_reset"
+            app:summary="@string/set_ml_diag_reset_desc"
+            app:title="@string/set_ml_diag_reset" />
+    </PreferenceCategory>
+
+</PreferenceScreen>

@@ -5,6 +5,13 @@
     <string name="set_key_personalize" translatable="false">auxio_personalize</string>
     <string name="set_key_music" translatable="false">auxio_music</string>
     <string name="set_key_audio" translatable="false">auxio_audio</string>
+    <string name="set_key_ml_diagnostics" translatable="false">latentjam_ml_diagnostics</string>
+    <string name="set_key_ml_diag_encoder" translatable="false">latentjam_ml_diag_encoder</string>
+    <string name="set_key_ml_diag_native_decoder" translatable="false">latentjam_ml_diag_native_decoder</string>
+    <string name="set_key_ml_diag_predictor" translatable="false">latentjam_ml_diag_predictor</string>
+    <string name="set_key_ml_diag_events" translatable="false">latentjam_ml_diag_events</string>
+    <string name="set_key_ml_diag_copy" translatable="false">latentjam_ml_diag_copy</string>
+    <string name="set_key_ml_diag_reset" translatable="false">latentjam_ml_diag_reset</string>
 
     <string name="set_key_theme" translatable="false">KEY_THEME2</string>
     <string name="set_key_black_theme" translatable="false">KEY_BLACK_THEME</string>

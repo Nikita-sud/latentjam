@@ -516,6 +516,34 @@
     <string name="set_key_event_log" translatable="false">ml_enable_event_logging</string>
     <string name="set_ml_category">Recommendations</string>
 
+    <!-- ML diagnostics screen. Surfaces the runtime state that's normally invisible:
+         which encoder backend loaded (QNN HTP vs CPU), per-backend init errors, native
+         decoder hit rate by reason, predictor versions + whether a user-trained model
+         is in use, and listening-event counts. Intended for triaging "ML feels slow /
+         broken" reports. -->
+    <string name="set_ml_diagnostics">ML diagnostics</string>
+    <string name="set_ml_diagnostics_desc">Encoder backend, native decoder stats, predictor model state</string>
+
+    <string name="set_ml_diag_encoder_title">Audio encoder</string>
+    <string name="set_ml_diag_encoder_uninit">Not loaded yet — play a track to initialize the encoder</string>
+
+    <string name="set_ml_diag_native_decoder_title">Native audio decoder</string>
+    <string name="set_ml_diag_native_decoder_idle">No decode attempts yet</string>
+
+    <string name="set_ml_diag_predictor_title">Predictor</string>
+    <string name="set_ml_diag_events_title">Listening events</string>
+
+    <string name="set_ml_diag_copy">Copy diagnostics</string>
+    <string name="set_ml_diag_copy_desc">Put the diagnostic dump on the clipboard for a bug report</string>
+    <string name="set_ml_diag_copy_done">Diagnostics copied to clipboard</string>
+    <string name="set_ml_diag_copy_label" translatable="false">LatentJam ML diagnostics</string>
+
+    <string name="set_ml_diag_reset">Reset adaptive model to baseline</string>
+    <string name="set_ml_diag_reset_desc">Delete any on-device fine-tuning and load the bundled predictor</string>
+    <string name="set_ml_diag_reset_done">Adaptive model deleted; reverted to baseline</string>
+    <string name="set_ml_diag_reset_none">No adaptive model present — already on baseline</string>
+    <string name="set_ml_diag_actions_category">Actions</string>
+
     <!-- Edit metadata dialog -->
     <string name="lbl_edit_metadata">Edit metadata</string>
     <string name="lbl_metadata_genre">Genre</string>
