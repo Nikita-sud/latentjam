@@ -184,7 +184,9 @@ constructor(
     private fun isShuffled(shuffle: ShuffleMode) =
         when (shuffle) {
             ShuffleMode.ON -> true
-            ShuffleMode.OFF, ShuffleMode.SMART -> false
-            ShuffleMode.IMPLICIT -> playbackSettings.keepShuffle && playbackManager.shuffleMode == ShuffleMode.ON
+            ShuffleMode.OFF,
+            ShuffleMode.SMART -> false
+            ShuffleMode.IMPLICIT ->
+                playbackSettings.keepShuffle && playbackManager.shuffleMode == ShuffleMode.ON
         }
 }

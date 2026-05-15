@@ -169,10 +169,11 @@ private class ArtistSongViewHolder private constructor(private val binding: Item
             if (liked) io.github.nikitasud.latentjam.R.drawable.ic_star_24
             else io.github.nikitasud.latentjam.R.drawable.ic_star_outline_24
         )
-        binding.songLike.contentDescription = binding.context.getString(
-            if (liked) io.github.nikitasud.latentjam.R.string.desc_unlike_song
-            else io.github.nikitasud.latentjam.R.string.desc_like_song
-        )
+        binding.songLike.contentDescription =
+            binding.context.getString(
+                if (liked) io.github.nikitasud.latentjam.R.string.desc_unlike_song
+                else io.github.nikitasud.latentjam.R.string.desc_like_song
+            )
         binding.songLike.setOnClickListener { listener.onToggleLike(song) }
     }
 

@@ -1,10 +1,20 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * ListeningEventRecorder.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.ml.events
 
@@ -28,16 +38,18 @@ import org.oxycblt.musikr.Song
 import timber.log.Timber
 
 /**
- * Persists one row per finalized track listen so the predictor's on-device retrain pass has
- * fresh ground truth. Listens to [PlaybackStateManager] events directly — no UI dependency,
- * runs even when the app is in the background as long as the playback service is alive.
+ * Persists one row per finalized track listen so the predictor's on-device retrain pass has fresh
+ * ground truth. Listens to [PlaybackStateManager] events directly — no UI dependency, runs even
+ * when the app is in the background as long as the playback service is alive.
  *
- * Privacy gate: every write is gated on [MlSettings.enableEventLogging]; if the user hasn't
- * opted in, we still update the in-memory [SessionTracker] (so feature snapshots stay correct
- * for any concurrent recommendation work) but we do NOT touch Room.
+ * Privacy gate: every write is gated on [MlSettings.enableEventLogging]; if the user hasn't opted
+ * in, we still update the in-memory [SessionTracker] (so feature snapshots stay correct for any
+ * concurrent recommendation work) but we do NOT touch Room.
  */
 @Singleton
-class ListeningEventRecorder @Inject constructor(
+class ListeningEventRecorder
+@Inject
+constructor(
     private val playbackStateManager: PlaybackStateManager,
     private val sessionTracker: SessionTracker,
     private val listeningEventDao: ListeningEventDao,
@@ -53,10 +65,9 @@ class ListeningEventRecorder @Inject constructor(
     private var currentTrack: SessionTracker.TrackContext? = null
     private var lastObservedPositionMs: Long = 0L
     /**
-     * True iff the currently-tracked track started via `onNewPlayback` (user
-     * tapped a song / opened a parent) rather than `onIndexMoved` (queue
-     * advance). Drives the `wasUserStarted` column on the event we write when
-     * this track finalizes.
+     * True iff the currently-tracked track started via `onNewPlayback` (user tapped a song / opened
+     * a parent) rather than `onIndexMoved` (queue advance). Drives the `wasUserStarted` column on
+     * the event we write when this track finalizes.
      */
     private var currentWasUserStarted: Boolean = false
 
@@ -126,36 +137,39 @@ class ListeningEventRecorder @Inject constructor(
         //   or user tapped Next. Use position to disambiguate.
         // - NEW_PLAYBACK → user started fresh playback (different parent / search /
         //   etc.). Always counts as a context shift, never natural completion.
-        val finalizeReason = when (reason) {
-            FinalizeReason.SESSION_END -> "SESSION_END"
-            FinalizeReason.NEW_PLAYBACK -> "NEW_PLAYBACK"
-            FinalizeReason.INDEX_MOVED -> {
-                val nearEnd = durationMs > 0 && (durationMs - playedMs) <= NATURAL_END_TOLERANCE_MS
-                if (nearEnd) "TRACK_ENDED" else "USER_SKIPPED"
+        val finalizeReason =
+            when (reason) {
+                FinalizeReason.SESSION_END -> "SESSION_END"
+                FinalizeReason.NEW_PLAYBACK -> "NEW_PLAYBACK"
+                FinalizeReason.INDEX_MOVED -> {
+                    val nearEnd =
+                        durationMs > 0 && (durationMs - playedMs) <= NATURAL_END_TOLERANCE_MS
+                    if (nearEnd) "TRACK_ENDED" else "USER_SKIPPED"
+                }
             }
-        }
-        val event = ListeningEventEntity(
-            songUid = song.uid,
-            startedAtMs = track.startedAtMs,
-            endedAtMs = nowMs,
-            playedMs = playedMs,
-            trackDurationMs = durationMs,
-            completed = completed,
-            skipped = skipped,
-            sessionId = track.sessionId,
-            sessionPos = track.sessionPos,
-            parentUid = currentParent?.uid,
-            ctxUid0 = sessionContext.getOrNull(0),
-            ctxUid1 = sessionContext.getOrNull(1),
-            ctxUid2 = sessionContext.getOrNull(2),
-            ctxUid3 = sessionContext.getOrNull(3),
-            wasSmartPick = wasSmartPick,
-            finalizeReason = finalizeReason,
-            shuffleMode = shuffleMode.name,
-            repeatMode = playbackStateManager.repeatMode.name,
-            wasUserStarted = currentWasUserStarted,
-            liked = likedSongRepository.isLikedNow(song.uid),
-        )
+        val event =
+            ListeningEventEntity(
+                songUid = song.uid,
+                startedAtMs = track.startedAtMs,
+                endedAtMs = nowMs,
+                playedMs = playedMs,
+                trackDurationMs = durationMs,
+                completed = completed,
+                skipped = skipped,
+                sessionId = track.sessionId,
+                sessionPos = track.sessionPos,
+                parentUid = currentParent?.uid,
+                ctxUid0 = sessionContext.getOrNull(0),
+                ctxUid1 = sessionContext.getOrNull(1),
+                ctxUid2 = sessionContext.getOrNull(2),
+                ctxUid3 = sessionContext.getOrNull(3),
+                wasSmartPick = wasSmartPick,
+                finalizeReason = finalizeReason,
+                shuffleMode = shuffleMode.name,
+                repeatMode = playbackStateManager.repeatMode.name,
+                wasUserStarted = currentWasUserStarted,
+                liked = likedSongRepository.isLikedNow(song.uid),
+            )
         sessionTracker.onTrackFinalized(event)
         if (completed) {
             sessionContext.addFirst(song.uid)
@@ -169,8 +183,8 @@ class ListeningEventRecorder @Inject constructor(
         smartSessionLog.recordOutcome(
             event = event,
             songName = song.name.toString().takeIf { it.isNotBlank() },
-            songArtists = song.artists.joinToString(", ") { it.name.toString() }
-                .takeIf { it.isNotBlank() },
+            songArtists =
+                song.artists.joinToString(", ") { it.name.toString() }.takeIf { it.isNotBlank() },
         )
 
         // Reset state regardless of whether we persist; the in-memory bookkeeping must
@@ -193,7 +207,11 @@ class ListeningEventRecorder @Inject constructor(
         }
     }
 
-    private enum class FinalizeReason { INDEX_MOVED, NEW_PLAYBACK, SESSION_END }
+    private enum class FinalizeReason {
+        INDEX_MOVED,
+        NEW_PLAYBACK,
+        SESSION_END,
+    }
 
     companion object {
         const val CONTEXT_K = 4

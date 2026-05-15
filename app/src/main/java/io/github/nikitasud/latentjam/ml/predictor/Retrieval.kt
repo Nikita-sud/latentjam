@@ -1,10 +1,20 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * Retrieval.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.ml.predictor
 
@@ -16,14 +26,13 @@ import javax.inject.Singleton
 import org.oxycblt.musikr.Music
 
 /**
- * Cached embedding matrix + cosine top-K helper. Built lazily on first recommendation
- * request and invalidated when the library changes (handled by the engine).
+ * Cached embedding matrix + cosine top-K helper. Built lazily on first recommendation request and
+ * invalidated when the library changes (handled by the engine).
  */
 @Singleton
-class Retrieval @Inject constructor(
-    private val trackEmbeddingDao: TrackEmbeddingDao,
-    private val mlSettings: MlSettings,
-) {
+class Retrieval
+@Inject
+constructor(private val trackEmbeddingDao: TrackEmbeddingDao, private val mlSettings: MlSettings) {
     @Volatile private var snapshot: Snapshot? = null
 
     suspend fun ensureLoaded(modelVersion: String = mlSettings.embeddingVersion): Snapshot? {
@@ -55,25 +64,25 @@ class Retrieval @Inject constructor(
         val mean = computeMean(rawFlat, rows.size)
         val flat = rawFlat.copyOf()
         centerAndRenormalize(flat, rows.size, mean)
-        val s = Snapshot(
-            modelVersion = modelVersion,
-            uids = uids,
-            flat = flat,
-            rawFlat = rawFlat,
-            mean = mean,
-            tempos = tempos,
-            energies = energies,
-        )
+        val s =
+            Snapshot(
+                modelVersion = modelVersion,
+                uids = uids,
+                flat = flat,
+                rawFlat = rawFlat,
+                mean = mean,
+                tempos = tempos,
+                energies = energies,
+            )
         snapshot = s
         return s
     }
 
     /**
-     * Apply the corpus mean-centering transform to a query vector so it lives in the
-     * same space as `Snapshot.flat`. Callers MUST run their query through this before
-     * passing it to [cosineTopK] / [cosineSortAll] / [autoregressivePath] — the cached
-     * matrix is centered+renormalized at load time, so an uncentered query produces
-     * meaningless dot products.
+     * Apply the corpus mean-centering transform to a query vector so it lives in the same space as
+     * `Snapshot.flat`. Callers MUST run their query through this before passing it to [cosineTopK]
+     * / [cosineSortAll] / [autoregressivePath] — the cached matrix is centered+renormalized at load
+     * time, so an uncentered query produces meaningless dot products.
      */
     fun prepareQuery(snapshot: Snapshot, query: FloatArray): FloatArray {
         val out = FloatArray(EMBEDDING_DIM)
@@ -167,12 +176,12 @@ class Retrieval @Inject constructor(
     }
 
     /**
-     * Auto-regressive path through the library. Pick #1 is the nearest neighbor of [seed];
-     * pick #2 is the nearest neighbor of pick #1; pick #i is the nearest neighbor of pick
-     * #(i-1). Continues until every non-excluded track has been placed. Produces a queue
-     * where every consecutive pair is locally similar, while the whole walk can drift
-     * across stylistic neighborhoods. Cheaper than computing the full pairwise matrix —
-     * it's O(N² × D) but only one row of the matrix is touched per step.
+     * Auto-regressive path through the library. Pick #1 is the nearest neighbor of [seed]; pick #2
+     * is the nearest neighbor of pick #1; pick #i is the nearest neighbor of pick #(i-1). Continues
+     * until every non-excluded track has been placed. Produces a queue where every consecutive pair
+     * is locally similar, while the whole walk can drift across stylistic neighborhoods. Cheaper
+     * than computing the full pairwise matrix — it's O(N² × D) but only one row of the matrix is
+     * touched per step.
      */
     fun autoregressivePath(
         snapshot: Snapshot,
@@ -219,22 +228,19 @@ class Retrieval @Inject constructor(
     }
 
     /**
-     * Full library cosine sort, descending. Used by SMART shuffle to materialize a
-     * "smart-ordered" version of the entire queue rather than a 20-pick beam.
+     * Full library cosine sort, descending. Used by SMART shuffle to materialize a "smart-ordered"
+     * version of the entire queue rather than a 20-pick beam.
      *
-     * Scans [Snapshot.flat] (mean-centered). Pair with [prepareQuery] on the query
-     * vector to keep both sides in the same space.
+     * Scans [Snapshot.flat] (mean-centered). Pair with [prepareQuery] on the query vector to keep
+     * both sides in the same space.
      */
-    fun cosineSortAll(
-        snapshot: Snapshot,
-        state: FloatArray,
-        exclude: Set<Music.UID>,
-    ): List<Hit> = cosineSortAll(snapshot, state, exclude, useRaw = false)
+    fun cosineSortAll(snapshot: Snapshot, state: FloatArray, exclude: Set<Music.UID>): List<Hit> =
+        cosineSortAll(snapshot, state, exclude, useRaw = false)
 
     /**
-     * Variant of [cosineSortAll] that scans the raw (uncentered) embedding matrix.
-     * Used by the predictor pipeline, since `PredictorRuntime.encodeState` produces
-     * a state vector in the raw embedding space.
+     * Variant of [cosineSortAll] that scans the raw (uncentered) embedding matrix. Used by the
+     * predictor pipeline, since `PredictorRuntime.encodeState` produces a state vector in the raw
+     * embedding space.
      */
     fun cosineSortAllRaw(
         snapshot: Snapshot,
@@ -274,11 +280,10 @@ class Retrieval @Inject constructor(
     }
 
     /**
-     * In-memory view of the embedding table. Beyond the embedding matrix itself we
-     * also surface the parallel tempo/energy arrays so the recommender can apply BPM
-     * and energy filters without an extra DAO round-trip per candidate. NaN entries
-     * mean the feature is missing (e.g. row hasn't been backfilled, or the BPM
-     * estimator declined to commit on that track).
+     * In-memory view of the embedding table. Beyond the embedding matrix itself we also surface the
+     * parallel tempo/energy arrays so the recommender can apply BPM and energy filters without an
+     * extra DAO round-trip per candidate. NaN entries mean the feature is missing (e.g. row hasn't
+     * been backfilled, or the BPM estimator declined to commit on that track).
      */
     data class Snapshot(
         val modelVersion: String,
@@ -286,9 +291,9 @@ class Retrieval @Inject constructor(
         /** Flattened (N × EMBEDDING_DIM) embeddings, mean-centered + L2-normalized. */
         val flat: FloatArray,
         /**
-         * Same vectors as [flat] but in their raw (uncentered, L2-normalized) form.
-         * The predictor's scorer ONNX was trained on raw embeddings; pack pool
-         * candidates from this array when calling `PredictorRuntime.score`.
+         * Same vectors as [flat] but in their raw (uncentered, L2-normalized) form. The predictor's
+         * scorer ONNX was trained on raw embeddings; pack pool candidates from this array when
+         * calling `PredictorRuntime.score`.
          */
         val rawFlat: FloatArray,
         /** Corpus mean used to center [flat]; queries to [flat] must subtract this too. */

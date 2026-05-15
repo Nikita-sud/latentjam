@@ -62,11 +62,9 @@ class PersistenceRoomModule {
 
     @Provides fun queueDao(database: PersistenceDatabase) = database.queueDao()
 
-    @Provides
-    fun listeningEventDao(database: PersistenceDatabase) = database.listeningEventDao()
+    @Provides fun listeningEventDao(database: PersistenceDatabase) = database.listeningEventDao()
 
-    @Provides
-    fun trackEmbeddingDao(database: PersistenceDatabase) = database.trackEmbeddingDao()
+    @Provides fun trackEmbeddingDao(database: PersistenceDatabase) = database.trackEmbeddingDao()
 
     @Provides
     fun trackMetadataOverrideDao(database: PersistenceDatabase) =

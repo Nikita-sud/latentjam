@@ -1,10 +1,20 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * PredictorRuntime.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.ml.predictor
 
@@ -19,21 +29,19 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Owns the two predictor ONNX sessions (state encoder + scorer @ N=100) and exposes a
- * thin batch=1 API so the recommendation engine can stay pure-Kotlin.
+ * Owns the two predictor ONNX sessions (state encoder + scorer @ N=100) and exposes a thin batch=1
+ * API so the recommendation engine can stay pure-Kotlin.
  *
- * The session-feature dimension that scoring_v1 was trained on is 4. The Kotlin recorder
- * always builds a 5-vector (so newer checkpoints with `mean_played_pct` work without code
- * changes); we slice down to whatever the loaded graph wants when the input shape is read
- * out of the ONNX session at load time.
+ * The session-feature dimension that scoring_v1 was trained on is 4. The Kotlin recorder always
+ * builds a 5-vector (so newer checkpoints with `mean_played_pct` work without code changes); we
+ * slice down to whatever the loaded graph wants when the input shape is read out of the ONNX
+ * session at load time.
  *
- * `OrtEnvironment` is resolved lazily inside `ensureLoaded()` so the JNI library only loads
- * when a recommendation actually fires — startup never touches it.
+ * `OrtEnvironment` is resolved lazily inside `ensureLoaded()` so the JNI library only loads when a
+ * recommendation actually fires — startup never touches it.
  */
 @Singleton
-class PredictorRuntime @Inject constructor(
-    @ApplicationContext private val context: Context,
-) {
+class PredictorRuntime @Inject constructor(@ApplicationContext private val context: Context) {
     @Volatile private var ortEnvironment: OrtEnvironment? = null
     @Volatile private var stateSession: OrtSession? = null
     @Volatile private var scorerSession: OrtSession? = null
@@ -48,14 +56,16 @@ class PredictorRuntime @Inject constructor(
                 val bytes = OrtAssets.readAsset(context, STATE_ASSET)
                 val opts = OrtSession.SessionOptions().apply { setIntraOpNumThreads(2) }
                 val s = env.createSession(bytes, opts)
-                sessionFeatDim = s.inputInfo["session_features"]?.let {
-                    val info = it.info as ai.onnxruntime.TensorInfo
-                    info.shape[1].toInt()
-                } ?: 5
-                historyTokenDim = s.inputInfo["history_small"]?.let {
-                    val info = it.info as ai.onnxruntime.TensorInfo
-                    info.shape[2].toInt()
-                } ?: EMBEDDING_DIM
+                sessionFeatDim =
+                    s.inputInfo["session_features"]?.let {
+                        val info = it.info as ai.onnxruntime.TensorInfo
+                        info.shape[1].toInt()
+                    } ?: 5
+                historyTokenDim =
+                    s.inputInfo["history_small"]?.let {
+                        val info = it.info as ai.onnxruntime.TensorInfo
+                        info.shape[2].toInt()
+                    } ?: EMBEDDING_DIM
                 stateSession = s
             }
             if (scorerSession == null) {
@@ -82,42 +92,47 @@ class PredictorRuntime @Inject constructor(
         ensureLoaded()
         val sess = requireNotNull(stateSession)
         val env = requireNotNull(ortEnvironment)
-        val hsTensor = OnnxTensor.createTensor(
-            env,
-            FloatBuffer.wrap(features.historySmall),
-            longArrayOf(1, CONTEXT_K.toLong(), historyTokenDim.toLong()),
-        )
-        val hmTensor = OnnxTensor.createTensor(
-            env,
-            FloatBuffer.wrap(features.historyMedium),
-            longArrayOf(1, EMBEDDING_DIM.toLong()),
-        )
-        val hlTensor = OnnxTensor.createTensor(
-            env,
-            FloatBuffer.wrap(features.historyLarge),
-            longArrayOf(1, EMBEDDING_DIM.toLong()),
-        )
-        val tfTensor = OnnxTensor.createTensor(
-            env,
-            FloatBuffer.wrap(features.timeFeatures),
-            longArrayOf(1, features.timeFeatures.size.toLong()),
-        )
-        val sfTensor = OnnxTensor.createTensor(
-            env,
-            FloatBuffer.wrap(features.sessionFeatures),
-            longArrayOf(1, sessionFeatDim.toLong()),
-        )
-        try {
-            val inputs = mapOf(
-                "history_small" to hsTensor,
-                "history_medium" to hmTensor,
-                "history_large" to hlTensor,
-                "time_features" to tfTensor,
-                "session_features" to sfTensor,
+        val hsTensor =
+            OnnxTensor.createTensor(
+                env,
+                FloatBuffer.wrap(features.historySmall),
+                longArrayOf(1, CONTEXT_K.toLong(), historyTokenDim.toLong()),
             )
+        val hmTensor =
+            OnnxTensor.createTensor(
+                env,
+                FloatBuffer.wrap(features.historyMedium),
+                longArrayOf(1, EMBEDDING_DIM.toLong()),
+            )
+        val hlTensor =
+            OnnxTensor.createTensor(
+                env,
+                FloatBuffer.wrap(features.historyLarge),
+                longArrayOf(1, EMBEDDING_DIM.toLong()),
+            )
+        val tfTensor =
+            OnnxTensor.createTensor(
+                env,
+                FloatBuffer.wrap(features.timeFeatures),
+                longArrayOf(1, features.timeFeatures.size.toLong()),
+            )
+        val sfTensor =
+            OnnxTensor.createTensor(
+                env,
+                FloatBuffer.wrap(features.sessionFeatures),
+                longArrayOf(1, sessionFeatDim.toLong()),
+            )
+        try {
+            val inputs =
+                mapOf(
+                    "history_small" to hsTensor,
+                    "history_medium" to hmTensor,
+                    "history_large" to hlTensor,
+                    "time_features" to tfTensor,
+                    "session_features" to sfTensor,
+                )
             sess.run(inputs).use { result ->
-                @Suppress("UNCHECKED_CAST")
-                val out = result[0].value as Array<FloatArray>
+                @Suppress("UNCHECKED_CAST") val out = result[0].value as Array<FloatArray>
                 return out[0]
             }
         } finally {
@@ -144,20 +159,21 @@ class PredictorRuntime @Inject constructor(
         for (i in candidates.indices) {
             System.arraycopy(candidates[i], 0, flatCandidates, i * EMBEDDING_DIM, EMBEDDING_DIM)
         }
-        val stateTensor = OnnxTensor.createTensor(
-            env,
-            FloatBuffer.wrap(state),
-            longArrayOf(1, EMBEDDING_DIM.toLong()),
-        )
-        val candTensor = OnnxTensor.createTensor(
-            env,
-            FloatBuffer.wrap(flatCandidates),
-            longArrayOf(1, SCORER_N.toLong(), EMBEDDING_DIM.toLong()),
-        )
+        val stateTensor =
+            OnnxTensor.createTensor(
+                env,
+                FloatBuffer.wrap(state),
+                longArrayOf(1, EMBEDDING_DIM.toLong()),
+            )
+        val candTensor =
+            OnnxTensor.createTensor(
+                env,
+                FloatBuffer.wrap(flatCandidates),
+                longArrayOf(1, SCORER_N.toLong(), EMBEDDING_DIM.toLong()),
+            )
         try {
             sess.run(mapOf("state" to stateTensor, "candidates" to candTensor)).use { result ->
-                @Suppress("UNCHECKED_CAST")
-                val out = result[0].value as Array<FloatArray>
+                @Suppress("UNCHECKED_CAST") val out = result[0].value as Array<FloatArray>
                 return out[0]
             }
         } finally {
@@ -180,13 +196,13 @@ data class PredictorFeatures(
     /** (4, D) or (4, D+1) flattened row-major. */
     val historySmall: FloatArray,
     val historyMedium: FloatArray, // (D,)
-    val historyLarge: FloatArray,  // (D,)
-    val timeFeatures: FloatArray,  // (5,)
+    val historyLarge: FloatArray, // (D,)
+    val timeFeatures: FloatArray, // (5,)
     val sessionFeatures: FloatArray, // (sessionFeatDim,)
 ) {
     /**
-     * True if `historySmall` has at least one non-zero element — i.e. some completed-play
-     * embedding (current or past session) is filled in. Used as a cold-start gate.
+     * True if `historySmall` has at least one non-zero element — i.e. some completed-play embedding
+     * (current or past session) is filled in. Used as a cold-start gate.
      */
     fun hasHistorySmall(): Boolean {
         for (v in historySmall) if (v != 0f) return true

@@ -174,8 +174,10 @@ constructor(
 
     override fun onSetShuffleMode(shuffleMode: Int) {
         playbackManager.shuffleMode(
-            if (shuffleMode == PlaybackStateCompat.SHUFFLE_MODE_ALL ||
-                shuffleMode == PlaybackStateCompat.SHUFFLE_MODE_GROUP) {
+            if (
+                shuffleMode == PlaybackStateCompat.SHUFFLE_MODE_ALL ||
+                    shuffleMode == PlaybackStateCompat.SHUFFLE_MODE_GROUP
+            ) {
                 ShuffleMode.ON
             } else {
                 ShuffleMode.OFF

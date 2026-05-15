@@ -1,10 +1,20 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * TrackMetadataOverrideDao.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.ml.data
 
@@ -30,8 +40,7 @@ interface TrackMetadataOverrideDao {
     @Query("SELECT DISTINCT genre FROM track_metadata_override WHERE genre IS NOT NULL")
     suspend fun distinctOverrideGenres(): List<String>
 
-    @Query("SELECT COUNT(*) FROM track_metadata_override")
-    fun countFlow(): Flow<Int>
+    @Query("SELECT COUNT(*) FROM track_metadata_override") fun countFlow(): Flow<Int>
 
     @Query("DELETE FROM track_metadata_override WHERE songUid = :uid")
     suspend fun delete(uid: Music.UID)

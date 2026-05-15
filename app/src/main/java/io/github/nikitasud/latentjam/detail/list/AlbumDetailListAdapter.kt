@@ -220,9 +220,10 @@ private class AlbumSongViewHolder private constructor(private val binding: ItemA
         binding.songLike.setIconResource(
             if (liked) R.drawable.ic_star_24 else R.drawable.ic_star_outline_24
         )
-        binding.songLike.contentDescription = binding.context.getString(
-            if (liked) R.string.desc_unlike_song else R.string.desc_like_song
-        )
+        binding.songLike.contentDescription =
+            binding.context.getString(
+                if (liked) R.string.desc_unlike_song else R.string.desc_like_song
+            )
         binding.songLike.setOnClickListener { listener.onToggleLike(song) }
 
         val track = song.track

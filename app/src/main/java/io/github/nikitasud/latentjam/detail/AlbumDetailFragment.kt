@@ -31,7 +31,6 @@ import io.github.nikitasud.latentjam.list.Item
 import io.github.nikitasud.latentjam.list.ListFragment
 import io.github.nikitasud.latentjam.list.menu.Menu
 import io.github.nikitasud.latentjam.ml.data.LikedSongRepository
-import javax.inject.Inject
 import io.github.nikitasud.latentjam.music.PlaylistDecision
 import io.github.nikitasud.latentjam.music.PlaylistMessage
 import io.github.nikitasud.latentjam.music.resolve
@@ -43,6 +42,7 @@ import io.github.nikitasud.latentjam.util.collectImmediately
 import io.github.nikitasud.latentjam.util.getPlural
 import io.github.nikitasud.latentjam.util.navigateSafe
 import io.github.nikitasud.latentjam.util.showToast
+import javax.inject.Inject
 import org.oxycblt.musikr.Album
 import org.oxycblt.musikr.Music
 import org.oxycblt.musikr.MusicParent

@@ -94,9 +94,7 @@ class SongListFragment :
             playbackModel.isPlaying,
             ::updatePlayback,
         )
-        collectImmediately(likedSongRepository.likedSet) { uids ->
-            songAdapter.setLikedUids(uids)
-        }
+        collectImmediately(likedSongRepository.likedSet) { uids -> songAdapter.setLikedUids(uids) }
     }
 
     override fun onDestroyBinding(binding: FragmentHomeListBinding) {

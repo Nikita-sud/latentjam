@@ -1,10 +1,20 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * FavoritesFragment.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.home.list
 
@@ -32,13 +42,13 @@ import org.oxycblt.musikr.Music
 import org.oxycblt.musikr.Song
 
 /**
- * A song-list view backed by [LikedSongRepository]. Renders every song the user
- * has starred. Tapping a song plays the full favorites list starting there;
- * tapping the star removes the song (which removes the row).
+ * A song-list view backed by [LikedSongRepository]. Renders every song the user has starred.
+ * Tapping a song plays the full favorites list starting there; tapping the star removes the song
+ * (which removes the row).
  *
- * Not implemented as a true musikr [org.oxycblt.musikr.Playlist] because the
- * library's Playlist interface is sealed inside musikr. Instead the playlist
- * tab pins a "Favorites" tile that opens this fragment as its own destination.
+ * Not implemented as a true musikr [org.oxycblt.musikr.Playlist] because the library's Playlist
+ * interface is sealed inside musikr. Instead the playlist tab pins a "Favorites" tile that opens
+ * this fragment as its own destination.
  */
 @AndroidEntryPoint
 class FavoritesFragment : Fragment() {
@@ -49,16 +59,18 @@ class FavoritesFragment : Fragment() {
     @Inject lateinit var musicRepository: MusicRepository
 
     private var _binding: FragmentFavoritesBinding? = null
-    private val binding get() = _binding!!
+    private val binding
+        get() = _binding!!
 
-    private val adapter = FavoritesSongAdapter(
-        onClick = { tapped, fullList ->
-            val idx = fullList.indexOf(tapped).coerceAtLeast(0)
-            // Rotate so the tapped song plays first; rest of favorites follow.
-            playbackModel.play(fullList.subList(idx, fullList.size) + fullList.subList(0, idx))
-        },
-        onToggleLike = { likedSongRepository.toggle(it.uid) },
-    )
+    private val adapter =
+        FavoritesSongAdapter(
+            onClick = { tapped, fullList ->
+                val idx = fullList.indexOf(tapped).coerceAtLeast(0)
+                // Rotate so the tapped song plays first; rest of favorites follow.
+                playbackModel.play(fullList.subList(idx, fullList.size) + fullList.subList(0, idx))
+            },
+            onToggleLike = { likedSongRepository.toggle(it.uid) },
+        )
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -72,9 +84,7 @@ class FavoritesFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.favoritesToolbar.setNavigationOnClickListener {
-            findNavController().navigateUp()
-        }
+        binding.favoritesToolbar.setNavigationOnClickListener { findNavController().navigateUp() }
         binding.favoritesRecycler.adapter = adapter
 
         // Also re-resolve when the library reindexes — statistics emits a new

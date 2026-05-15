@@ -1,10 +1,20 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * EmbeddingExtractor.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.ml.encoder
 
@@ -20,46 +30,43 @@ import kotlin.random.Random
 import timber.log.Timber
 
 /**
- * Embed a track by mean-pooling [N_WINDOWS] contiguous 10-second windows starting at
- * one randomly-chosen offset.
+ * Embed a track by mean-pooling [N_WINDOWS] contiguous 10-second windows starting at one
+ * randomly-chosen offset.
  *
- * Why one offset + contiguous windows instead of N independent seeks: on Android the
- * dominant cost for VBR MP3 (and a lot of legacy AAC) is `MediaExtractor.seekTo` — for
- * files without a seek table the extractor falls back to scanning bytes from BOF, which
- * empirically costs 5-25 s/seek on a long track on a Snapdragon 8 Gen 3.
+ * Why one offset + contiguous windows instead of N independent seeks: on Android the dominant cost
+ * for VBR MP3 (and a lot of legacy AAC) is `MediaExtractor.seekTo` — for files without a seek table
+ * the extractor falls back to scanning bytes from BOF, which empirically costs 5-25 s/seek on a
+ * long track on a Snapdragon 8 Gen 3.
  *
  * Encoder: CLAP HTSAT, raw 48 kHz mono PCM → 512-d L2-normalized.
  */
 @Singleton
 class EmbeddingExtractor
 @Inject
-constructor(
-    private val encoder: EncoderRuntime,
-    private val audioDecoder: AudioDecoder,
-) {
+constructor(private val encoder: EncoderRuntime, private val audioDecoder: AudioDecoder) {
 
     /**
-     * Embed the audio at [uri]. Picks ONE random offset, decodes [N_WINDOWS] contiguous 5-s
-     * windows starting there, runs the batch through the encoder, mean-pools + L2-normalizes.
+     * Embed the audio at [uri]. Picks ONE random offset, decodes [N_WINDOWS] contiguous 5-s windows
+     * starting there, runs the batch through the encoder, mean-pools + L2-normalizes.
      *
-     * Per-stage timing is logged at DEBUG level so a quick `adb logcat -s EmbeddingExtractor`
-     * gives us decode-vs-encode breakdown live on-device. This is how we caught both (a) the
-     * silent fp16/XNNPACK fallback that made encode dominate at 5+ s/track and (b) the
-     * 3×-seek decode pathology that made decode dominate at 25 s/seek for long VBR MP3s.
+     * Per-stage timing is logged at DEBUG level so a quick `adb logcat -s EmbeddingExtractor` gives
+     * us decode-vs-encode breakdown live on-device. This is how we caught both (a) the silent
+     * fp16/XNNPACK fallback that made encode dominate at 5+ s/track and (b) the 3×-seek decode
+     * pathology that made decode dominate at 25 s/seek for long VBR MP3s.
      */
     /**
-     * Single-shot result of one embed pass: the 512-d L2-normalized embedding plus
-     * the lightweight handcrafted features ([AudioFeatures.bpm], [AudioFeatures.energy])
-     * computed from the same PCM. Returned together so the embedding worker writes
-     * one row to the DB instead of running two decode passes.
+     * Single-shot result of one embed pass: the 512-d L2-normalized embedding plus the lightweight
+     * handcrafted features ([AudioFeatures.bpm], [AudioFeatures.energy]) computed from the same
+     * PCM. Returned together so the embedding worker writes one row to the DB instead of running
+     * two decode passes.
      */
     data class EmbedResult(val embedding: FloatArray, val features: AudioFeatures) {
         override fun equals(other: Any?): Boolean =
             other is EmbedResult &&
                 embedding.contentEquals(other.embedding) &&
                 features == other.features
-        override fun hashCode(): Int =
-            embedding.contentHashCode() * 31 + features.hashCode()
+
+        override fun hashCode(): Int = embedding.contentHashCode() * 31 + features.hashCode()
     }
 
     /** Backwards-compatible shorthand that drops the features. */
@@ -84,19 +91,20 @@ constructor(
         var batchCount = 0
 
         val tDecodeStart = System.nanoTime()
-        val ok = audioDecoder.streamMonoWindows(
-            uri = uri,
-            windowSamples = EncoderRuntime.WINDOW_SAMPLES,
-            hopSamples = EncoderRuntime.WINDOW_SAMPLES, // back-to-back, no overlap
-            targetSampleRate = AudioDecoder.TARGET_SAMPLE_RATE,
-            startUs = startUs,
-            maxDecodeUs = sliceUs + DECODE_BUFFER_US,
-        ) { window ->
-            if (batchCount < N_WINDOWS) {
-                batchBuf.put(window)
-                batchCount += 1
+        val ok =
+            audioDecoder.streamMonoWindows(
+                uri = uri,
+                windowSamples = EncoderRuntime.WINDOW_SAMPLES,
+                hopSamples = EncoderRuntime.WINDOW_SAMPLES, // back-to-back, no overlap
+                targetSampleRate = AudioDecoder.TARGET_SAMPLE_RATE,
+                startUs = startUs,
+                maxDecodeUs = sliceUs + DECODE_BUFFER_US,
+            ) { window ->
+                if (batchCount < N_WINDOWS) {
+                    batchBuf.put(window)
+                    batchCount += 1
+                }
             }
-        }
         val decodeMs = (System.nanoTime() - tDecodeStart) / 1_000_000.0
 
         if (!ok || batchCount == 0) {
@@ -130,9 +138,7 @@ constructor(
             sumSq += v.toDouble() * v
         }
         val rmsRaw = kotlin.math.sqrt(sumSq / featurePcm.size).toFloat()
-        Timber.d(
-            "audio-range %s: min=%.3f max=%.3f rms=%.3f", uri, minV, maxV, rmsRaw,
-        )
+        Timber.d("audio-range %s: min=%.3f max=%.3f rms=%.3f", uri, minV, maxV, rmsRaw)
         val tFeatStart = System.nanoTime()
         val features = FeatureExtractor.extract(featurePcm, AudioDecoder.TARGET_SAMPLE_RATE)
         val featuresMs = (System.nanoTime() - tFeatStart) / 1_000_000.0
@@ -147,7 +153,12 @@ constructor(
         val totalMs = (System.nanoTime() - tStart) / 1_000_000.0
         Timber.d(
             "embed: %s n=%d total=%.1fms decode=%.1fms encode=%.1fms feat=%.1fms bpm=%s energy=%.3f",
-            uri, batchCount, totalMs, decodeMs, encodeMs, featuresMs,
+            uri,
+            batchCount,
+            totalMs,
+            decodeMs,
+            encodeMs,
+            featuresMs,
             features.bpm?.let { "%.1f".format(it) } ?: "?",
             features.energy,
         )

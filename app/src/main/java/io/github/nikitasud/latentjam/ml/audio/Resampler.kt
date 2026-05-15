@@ -1,21 +1,31 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * Resampler.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.ml.audio
 
 /**
  * Lightweight pure-Kotlin linear resampler.
  *
- * Linear interpolation is good-enough for embedding pipelines: the encoder is robust to
- * minor resampling artifacts (the SSL training pipeline uses resampy's higher-quality
- * sinc filter, but the recall@k delta on FMA-medium between linear and Kaiser-best is
- * within noise — verified offline). Avoids pulling in libsamplerate JNI which would add
- * a native dep just for one short hot path.
+ * Linear interpolation is good-enough for embedding pipelines: the encoder is robust to minor
+ * resampling artifacts (the SSL training pipeline uses resampy's higher-quality sinc filter, but
+ * the recall@k delta on FMA-medium between linear and Kaiser-best is within noise — verified
+ * offline). Avoids pulling in libsamplerate JNI which would add a native dep just for one short hot
+ * path.
  */
 internal object Resampler {
 

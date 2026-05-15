@@ -105,9 +105,9 @@ interface PlaybackStateHolder {
     fun addToQueue(songs: List<Song>, ack: StateAck.AddToQueue)
 
     /**
-     * Replace the entire upcoming portion of the queue (everything after the currently
-     * playing item) with [songs]. Used by SMART shuffle to fully reseed the queue without
-     * leaving the original linear-queue tail trailing behind.
+     * Replace the entire upcoming portion of the queue (everything after the currently playing
+     * item) with [songs]. Used by SMART shuffle to fully reseed the queue without leaving the
+     * original linear-queue tail trailing behind.
      *
      * @param songs The songs that should now occupy the upcoming slots.
      * @param ack The [StateAck] to return to [PlaybackStateManager].
@@ -115,13 +115,13 @@ interface PlaybackStateHolder {
     fun replaceUpcoming(songs: List<Song>, ack: StateAck.QueueReordered)
 
     /**
-     * Rebuild the queue around the currently-playing item: discard every track that has
-     * already been played (everything before the current index), keep the current track
-     * playing uninterrupted at slot 0, and place [songs] in the upcoming slots after it.
+     * Rebuild the queue around the currently-playing item: discard every track that has already
+     * been played (everything before the current index), keep the current track playing
+     * uninterrupted at slot 0, and place [songs] in the upcoming slots after it.
      *
-     * Used when SMART shuffle activates so the queue UI shows the current track at the
-     * top of the list with smart picks below — rather than buried under the linear-queue
-     * past, which is what `replaceUpcoming` alone would leave behind.
+     * Used when SMART shuffle activates so the queue UI shows the current track at the top of the
+     * list with smart picks below — rather than buried under the linear-queue past, which is what
+     * `replaceUpcoming` alone would leave behind.
      *
      * @param songs The songs that should occupy the slots after the current track.
      * @param ack The [StateAck] to return to [PlaybackStateManager].

@@ -384,10 +384,7 @@ class ExoPlaybackStateHolder(
         deferSave()
     }
 
-    override fun replaceQueueAroundCurrent(
-        songs: List<Song>,
-        ack: StateAck.QueueReordered,
-    ) {
+    override fun replaceQueueAroundCurrent(songs: List<Song>, ack: StateAck.QueueReordered) {
         // Drop the previously-played portion of the queue first so the current track ends
         // up at index 0. ExoPlayer adjusts `currentMediaItemIndex` automatically when items
         // before it are removed, so the in-progress audio keeps playing without interruption.

@@ -31,9 +31,9 @@ import io.github.nikitasud.latentjam.image.ImageSettings
 import io.github.nikitasud.latentjam.ml.MlSettings
 import io.github.nikitasud.latentjam.ml.encoder.EmbeddingScheduler
 import io.github.nikitasud.latentjam.ml.events.ListeningEventRecorder
+import io.github.nikitasud.latentjam.ml.predictor.RecommendationEngine
 import io.github.nikitasud.latentjam.ml.retrain.RetrainObserver
 import io.github.nikitasud.latentjam.playback.PlaybackSettings
-import io.github.nikitasud.latentjam.ml.predictor.RecommendationEngine
 import io.github.nikitasud.latentjam.ui.UISettings
 import io.github.nikitasud.latentjam.util.CopyleftNoticeTree
 import javax.inject.Inject

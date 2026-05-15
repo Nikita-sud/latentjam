@@ -1,10 +1,20 @@
 /*
- * Copyright (c) 2026 LatentJam Project
+ * Copyright (c) 2021 Auxio Project
+ * Copyright (c) 2026 LatentJam Project (modifications)
+ * AudioDecoder.kt is part of LatentJam.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package io.github.nikitasud.latentjam.ml.audio
 
@@ -29,17 +39,16 @@ import timber.log.Timber
  * **A note on extractor experiments**: we tried two alternative paths (ExoPlayer's
  * `MediaExtractorCompat` with its `OggExtractor` binary-search seeker, and a custom
  * `ByteArray`-backed `MediaDataSource` to bypass SAF I/O). Both regressed: the platform
- * `MediaExtractor` already maps the URI through the kernel buffer cache and is the fastest
- * path we measured on Snapdragon 8 Gen 3. The 1-15 s per-track variance you'll see in
- * `EmbeddingExtractor` logs is dominated by **random seek offset position** (deeper into the
- * file → more bytes for the extractor to walk on VBR mp3 / Ogg) plus thermal throttling on
- * sustained ML workloads, not by I/O choice.
+ * `MediaExtractor` already maps the URI through the kernel buffer cache and is the fastest path we
+ * measured on Snapdragon 8 Gen 3. The 1-15 s per-track variance you'll see in `EmbeddingExtractor`
+ * logs is dominated by **random seek offset position** (deeper into the file → more bytes for the
+ * extractor to walk on VBR mp3 / Ogg) plus thermal throttling on sustained ML workloads, not by I/O
+ * choice.
  *
- * Why streaming: the original "decode-all-then-embed" path held the full PCM buffer in RAM,
- * which capped us at ~90 s of audio per track to avoid OOM. That cap caused dramatic
- * mis-clusters for songs with dynamic structure (Free Bird's acoustic intro fooled it into
- * "Billy Joel"). The streaming window-accumulator keeps PCM memory bounded regardless of
- * track length.
+ * Why streaming: the original "decode-all-then-embed" path held the full PCM buffer in RAM, which
+ * capped us at ~90 s of audio per track to avoid OOM. That cap caused dramatic mis-clusters for
+ * songs with dynamic structure (Free Bird's acoustic intro fooled it into "Billy Joel"). The
+ * streaming window-accumulator keeps PCM memory bounded regardless of track length.
  */
 @Singleton
 class AudioDecoder @Inject constructor(@ApplicationContext private val context: Context) {
@@ -47,15 +56,13 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
     /**
      * Stream fixed-length, fixed-overlap windows of mono float PCM at [targetSampleRate].
      *
-     * Optionally seek to [startUs] and stop after [maxDecodeUs] microseconds of audio
-     * (both default to "whole track from the beginning"). When `maxDecodeUs > 0` we cap
-     * the decode so callers can sample only a chunk of the track without paying for the
-     * full decode pass.
+     * Optionally seek to [startUs] and stop after [maxDecodeUs] microseconds of audio (both default
+     * to "whole track from the beginning"). When `maxDecodeUs > 0` we cap the decode so callers can
+     * sample only a chunk of the track without paying for the full decode pass.
      *
-     * Calls [onWindow] once per emitted window with a freshly-allocated `FloatArray` of
-     * exactly [windowSamples] entries. Returns `true` on a clean decode (incl. emitting
-     * any partial final window), `false` if MediaExtractor/MediaCodec couldn't open the
-     * input.
+     * Calls [onWindow] once per emitted window with a freshly-allocated `FloatArray` of exactly
+     * [windowSamples] entries. Returns `true` on a clean decode (incl. emitting any partial final
+     * window), `false` if MediaExtractor/MediaCodec couldn't open the input.
      */
     fun streamMonoWindows(
         uri: Uri,
@@ -70,8 +77,17 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
         // It bypasses MediaExtractor + MediaCodec entirely, eliminating the 5-15 s SAF
         // seek scan that dominated everything else.
         if (maxDecodeUs > 0L && isNativeFastPathCandidate(uri)) {
-            if (tryStreamNative(uri, windowSamples, hopSamples, targetSampleRate,
-                                startUs, maxDecodeUs, onWindow)) {
+            if (
+                tryStreamNative(
+                    uri,
+                    windowSamples,
+                    hopSamples,
+                    targetSampleRate,
+                    startUs,
+                    maxDecodeUs,
+                    onWindow,
+                )
+            ) {
                 return true
             }
             Timber.v("native fast path declined for %s, falling back to MediaExtractor", uri)
@@ -92,24 +108,33 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
                 val window = WindowAccumulator(windowSamples, hopSamples, onWindow)
                 val resampleScratch = FloatArray(RESAMPLE_SCRATCH_LEN)
                 val monoScratch = FloatArray(MONO_SCRATCH_LEN)
-                val maxFrames = if (maxDecodeUs > 0L) {
-                    (sourceSr.toLong() * maxDecodeUs / 1_000_000L).toInt()
-                } else {
-                    Int.MAX_VALUE
-                }
+                val maxFrames =
+                    if (maxDecodeUs > 0L) {
+                        (sourceSr.toLong() * maxDecodeUs / 1_000_000L).toInt()
+                    } else {
+                        Int.MAX_VALUE
+                    }
                 var framesConsumed = 0L
 
                 decodeStreaming(demuxer, format, mime) { shortBuf, shortLen ->
                     if (framesConsumed >= maxFrames) return@decodeStreaming
                     val framesAvailable = shortLen / sourceCh.coerceAtLeast(1)
                     val framesBudget =
-                        (maxFrames - framesConsumed).toInt().coerceAtLeast(0).coerceAtMost(framesAvailable)
+                        (maxFrames - framesConsumed)
+                            .toInt()
+                            .coerceAtLeast(0)
+                            .coerceAtMost(framesAvailable)
                     if (framesBudget <= 0) return@decodeStreaming
                     var processed = 0
                     while (processed < framesBudget) {
                         val take = (framesBudget - processed).coerceAtMost(monoScratch.size)
                         downmixIntoFloat(
-                            shortBuf, processed * sourceCh, sourceCh, monoScratch, 0, take
+                            shortBuf,
+                            processed * sourceCh,
+                            sourceCh,
+                            monoScratch,
+                            0,
+                            take,
                         )
                         var resampledPos = 0
                         while (resampledPos < take) {
@@ -175,12 +200,11 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
     }
 
     /**
-     * Cheap check: is [uri]'s file extension one we accelerate natively? The native
-     * decoder covers mp3, opus, vorbis, flac, wav, and AAC-in-M4A. We use extension
-     * rather than mime sniffing so we don't pay an extra `ContentResolver` round-
-     * trip just to decide. False positives (mis-named file) are harmless — the
-     * native sniff inside [NativeAudioDecoder.tryDecode] discards them and returns
-     * null, after which we fall back to MediaExtractor.
+     * Cheap check: is [uri]'s file extension one we accelerate natively? The native decoder covers
+     * mp3, opus, vorbis, flac, wav, and AAC-in-M4A. We use extension rather than mime sniffing so
+     * we don't pay an extra `ContentResolver` round- trip just to decide. False positives
+     * (mis-named file) are harmless — the native sniff inside [NativeAudioDecoder.tryDecode]
+     * discards them and returns null, after which we fall back to MediaExtractor.
      */
     private fun isNativeFastPathCandidate(uri: Uri): Boolean {
         val seg = uri.lastPathSegment ?: return false
@@ -189,11 +213,11 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
     }
 
     /**
-     * Native-decoder fast path. Mmaps the file, decodes [maxDecodeUs] of mono PCM at the
-     * source SR starting at [startUs], pipes the result through our existing
-     * [StreamingLinearResampler] to convert to [targetSampleRate], and feeds windows into
-     * [onWindow]. Returns false if the native decoder declined (lib missing, unsupported
-     * format, error during decode) so the caller falls through to the MediaExtractor path.
+     * Native-decoder fast path. Mmaps the file, decodes [maxDecodeUs] of mono PCM at the source SR
+     * starting at [startUs], pipes the result through our existing [StreamingLinearResampler] to
+     * convert to [targetSampleRate], and feeds windows into [onWindow]. Returns false if the native
+     * decoder declined (lib missing, unsupported format, error during decode) so the caller falls
+     * through to the MediaExtractor path.
      */
     private fun tryStreamNative(
         uri: Uri,
@@ -204,19 +228,27 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
         maxDecodeUs: Long,
         onWindow: (FloatArray) -> Unit,
     ): Boolean {
-        val result = NativeAudioDecoder.tryDecode(context, uri, startUs, maxDecodeUs)
-            ?: return false
+        val result =
+            NativeAudioDecoder.tryDecode(context, uri, startUs, maxDecodeUs) ?: return false
         val pcm = result.samples
         if (pcm.isEmpty()) return false
         // DIAGNOSTIC: scan FULL native PCM right after JNI return — should be in [-1, 1].
         run {
-            var mn = Float.POSITIVE_INFINITY; var mx = Float.NEGATIVE_INFINITY
-            for (v in pcm) { if (v < mn) mn = v; if (v > mx) mx = v }
-            Timber.tag("AudioDecoderDiag").i(
-                "native pcm (full): ext=%s sr=%d n=%d range=[%.4f,%.4f]",
-                uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase(),
-                result.sourceSampleRate, pcm.size, mn, mx,
-            )
+            var mn = Float.POSITIVE_INFINITY
+            var mx = Float.NEGATIVE_INFINITY
+            for (v in pcm) {
+                if (v < mn) mn = v
+                if (v > mx) mx = v
+            }
+            Timber.tag("AudioDecoderDiag")
+                .i(
+                    "native pcm (full): ext=%s sr=%d n=%d range=[%.4f,%.4f]",
+                    uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase(),
+                    result.sourceSampleRate,
+                    pcm.size,
+                    mn,
+                    mx,
+                )
         }
         var producedTotal = 0
         val resampler = StreamingLinearResampler(result.sourceSampleRate, targetSampleRate)
@@ -234,8 +266,7 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
             var maxAbsOut = 0f
             while (off < pcm.size) {
                 val n = (pcm.size - off).coerceAtMost(chunk)
-                val (consumed, produced) =
-                    resampler.feed(pcm, off, n, scratch, 0, scratch.size)
+                val (consumed, produced) = resampler.feed(pcm, off, n, scratch, 0, scratch.size)
                 if (produced > 0) {
                     for (i in 0 until produced) {
                         val a = kotlin.math.abs(scratch[i])
@@ -247,9 +278,8 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
                 off += consumed
                 if (consumed == 0 && produced == 0) break
             }
-            Timber.tag("AudioDecoderDiag").i(
-                "resampler-pass: max|out|=%.3f over %d produced", maxAbsOut, producedTotal,
-            )
+            Timber.tag("AudioDecoderDiag")
+                .i("resampler-pass: max|out|=%.3f over %d produced", maxAbsOut, producedTotal)
             val tail = FloatArray(RESAMPLE_SCRATCH_LEN)
             val tailLen = resampler.flush(tail)
             if (tailLen > 0) {
@@ -260,7 +290,12 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
         } finally {
             resampler.close()
         }
-        Timber.d("native: pcm=%d sr=%d → resampled=%d", pcm.size, result.sourceSampleRate, producedTotal)
+        Timber.d(
+            "native: pcm=%d sr=%d → resampled=%d",
+            pcm.size,
+            result.sourceSampleRate,
+            producedTotal,
+        )
         return true
     }
 
@@ -292,13 +327,15 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
                         val sz = demuxer.readSampleData(buf, 0)
                         if (sz < 0) {
                             codec.queueInputBuffer(
-                                inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                                inputIndex,
+                                0,
+                                0,
+                                0,
+                                MediaCodec.BUFFER_FLAG_END_OF_STREAM,
                             )
                             sawInputEos = true
                         } else {
-                            codec.queueInputBuffer(
-                                inputIndex, 0, sz, demuxer.getSampleTime(), 0
-                            )
+                            codec.queueInputBuffer(inputIndex, 0, sz, demuxer.getSampleTime(), 0)
                             demuxer.advance()
                         }
                     }
@@ -313,7 +350,9 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
                             val take = (nShorts - copied).coerceAtMost(shortScratch.size)
                             outBuf.position(info.offset + copied * 2)
                             outBuf.limit(info.offset + (copied + take) * 2)
-                            outBuf.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+                            outBuf
+                                .order(ByteOrder.LITTLE_ENDIAN)
+                                .asShortBuffer()
                                 .get(shortScratch, 0, take)
                             onChunk(shortScratch, take)
                             copied += take
@@ -334,9 +373,8 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
     }
 
     /**
-     * Downmix [channels] interleaved shorts to mono floats in [-1, 1]. Reads frames
-     * starting at [srcFrameOff*channels] in [src]; writes [count] mono samples into [dst]
-     * starting at [dstOff].
+     * Downmix [channels] interleaved shorts to mono floats in [-1, 1]. Reads frames starting at
+     * [srcFrameOff*channels] in [src]; writes [count] mono samples into [dst] starting at [dstOff].
      */
     private fun downmixIntoFloat(
         src: ShortArray,
@@ -369,28 +407,42 @@ class AudioDecoder @Inject constructor(@ApplicationContext private val context: 
         private const val SHORT_SCRATCH_LEN = 8 * 1024
         private const val MONO_SCRATCH_LEN = 8 * 1024
         private const val RESAMPLE_SCRATCH_LEN = 8 * 1024
-        private val NATIVE_FAST_PATH_EXTENSIONS = setOf(
-            "mp3",            // minimp3
-            "opus", "ogg", "oga", // libopusfile / stb_vorbis (Ogg-wrapped)
-            "flac",           // dr_flac
-            "wav", "wave",    // dr_wav
-            "m4a", "m4b", "mp4", "aac", "f4a", // minimp4 + fdk-aac
-        )
+        private val NATIVE_FAST_PATH_EXTENSIONS =
+            setOf(
+                "mp3", // minimp3
+                "opus",
+                "ogg",
+                "oga", // libopusfile / stb_vorbis (Ogg-wrapped)
+                "flac", // dr_flac
+                "wav",
+                "wave", // dr_wav
+                "m4a",
+                "m4b",
+                "mp4",
+                "aac",
+                "f4a", // minimp4 + fdk-aac
+            )
     }
 }
 
 /**
  * Tiny demux abstraction over `android.media.MediaExtractor` and ExoPlayer's
- * `MediaExtractorCompat`. Both expose the same conceptual API but as unrelated Java types,
- * so we wrap each in a thin Kotlin facade with the methods our decoder actually uses.
+ * `MediaExtractorCompat`. Both expose the same conceptual API but as unrelated Java types, so we
+ * wrap each in a thin Kotlin facade with the methods our decoder actually uses.
  */
 private interface Demuxer : Closeable {
     val trackCount: Int
+
     fun getTrackFormat(index: Int): MediaFormat
+
     fun selectTrack(index: Int)
+
     fun seekTo(timeUs: Long)
+
     fun readSampleData(buffer: ByteBuffer, offset: Int): Int
+
     fun advance(): Boolean
+
     fun getSampleTime(): Long
 
     fun selectAudioTrack(): Int? {
@@ -403,9 +455,7 @@ private interface Demuxer : Closeable {
 }
 
 /** Wrapper around the platform `android.media.MediaExtractor`. */
-private class PlatformDemuxer private constructor(
-    private val extractor: MediaExtractor,
-) : Demuxer {
+private class PlatformDemuxer private constructor(private val extractor: MediaExtractor) : Demuxer {
     companion object {
         fun openFromUri(context: Context, uri: Uri): PlatformDemuxer {
             val ex = MediaExtractor()
@@ -413,24 +463,35 @@ private class PlatformDemuxer private constructor(
             return PlatformDemuxer(ex)
         }
     }
-    override val trackCount: Int get() = extractor.trackCount
+
+    override val trackCount: Int
+        get() = extractor.trackCount
+
     override fun getTrackFormat(index: Int): MediaFormat = extractor.getTrackFormat(index)
+
     override fun selectTrack(index: Int) = extractor.selectTrack(index)
+
     override fun seekTo(timeUs: Long) =
         extractor.seekTo(timeUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+
     override fun readSampleData(buffer: ByteBuffer, offset: Int): Int =
         extractor.readSampleData(buffer, offset)
+
     override fun advance(): Boolean = extractor.advance()
+
     override fun getSampleTime(): Long = extractor.sampleTime
+
     override fun close() {
-        try { extractor.release() } catch (_: Throwable) {}
+        try {
+            extractor.release()
+        } catch (_: Throwable) {}
     }
 }
 
 /**
- * Common interface implemented by the native NEON-optimized resampler and the pure-Kotlin
- * fallback. Same algorithm (linear interpolation, O(1) memory, cross-chunk-aware), same
- * call shape — only the language / SIMD backend differs.
+ * Common interface implemented by the native NEON-optimized resampler and the pure-Kotlin fallback.
+ * Same algorithm (linear interpolation, O(1) memory, cross-chunk-aware), same call shape — only the
+ * language / SIMD backend differs.
  */
 internal interface LinearResampler : AutoCloseable {
     /** Returns (input-consumed, output-produced). */
@@ -451,31 +512,38 @@ internal interface LinearResampler : AutoCloseable {
 }
 
 /**
- * Thin facade picking the fastest available [LinearResampler] backend at construction.
- * If `linear_resampler.so` loads successfully on this device/ABI we use the C++ NEON
- * implementation (~5-15× faster). Otherwise we fall back to [KotlinLinearResampler] —
- * same algorithm, just runs in the JVM.
+ * Thin facade picking the fastest available [LinearResampler] backend at construction. If
+ * `linear_resampler.so` loads successfully on this device/ABI we use the C++ NEON implementation
+ * (~5-15× faster). Otherwise we fall back to [KotlinLinearResampler] — same algorithm, just runs in
+ * the JVM.
  */
 internal class StreamingLinearResampler(fromSr: Int, toSr: Int) : LinearResampler {
     private val impl: LinearResampler =
         NativeLinearResampler.tryCreate(fromSr, toSr) ?: KotlinLinearResampler(fromSr, toSr)
 
     override fun feed(
-        src: FloatArray, srcOff: Int, srcLen: Int,
-        dst: FloatArray, dstOff: Int, dstCap: Int,
+        src: FloatArray,
+        srcOff: Int,
+        srcLen: Int,
+        dst: FloatArray,
+        dstOff: Int,
+        dstCap: Int,
     ) = impl.feed(src, srcOff, srcLen, dst, dstOff, dstCap)
 
     override fun flush(dst: FloatArray) = impl.flush(dst)
-    override fun close() { impl.close() }
+
+    override fun close() {
+        impl.close()
+    }
 }
 
 /**
- * Linear-interpolation streaming resampler. Memory: O(1). Maintains a "previous sample"
- * for interpolation across chunk boundaries; emits as many output samples as fit into the
- * provided destination buffer, returns (input-consumed, output-produced).
+ * Linear-interpolation streaming resampler. Memory: O(1). Maintains a "previous sample" for
+ * interpolation across chunk boundaries; emits as many output samples as fit into the provided
+ * destination buffer, returns (input-consumed, output-produced).
  *
- * Pure Kotlin. Kept as the cross-platform fallback used when [NativeLinearResampler]
- * fails to load (e.g. unusual ABI, library stripped from APK, security policy).
+ * Pure Kotlin. Kept as the cross-platform fallback used when [NativeLinearResampler] fails to load
+ * (e.g. unusual ABI, library stripped from APK, security policy).
  */
 internal class KotlinLinearResampler(fromSr: Int, toSr: Int) : LinearResampler {
     private val ratio: Double = fromSr.toDouble() / toSr.toDouble()
@@ -506,7 +574,7 @@ internal class KotlinLinearResampler(fromSr: Int, toSr: Int) : LinearResampler {
             // — produce nothing, return early so the caller can re-feed.
             if (localF < -1.0) break
             val i = if (localF >= 0.0) localF.toInt() else -1
-            if (i + 1 >= srcLen) break  // need next chunk for the upper sample
+            if (i + 1 >= srcLen) break // need next chunk for the upper sample
             val frac = (localF - i.toDouble()).toFloat()
             val s0 = if (i < 0) prevSample else src[srcOff + i]
             val s1 = src[srcOff + i + 1]
@@ -529,7 +597,10 @@ internal class KotlinLinearResampler(fromSr: Int, toSr: Int) : LinearResampler {
         // We keep one "prev" sample so consumed = max(0, keepFloat - 0). Actually keep
         // index `floor(srcCursor) - 1` and onward; consumed = floor(srcCursor) - chunkBase - 1.
         // But on the very first call we may have no prev yet, so clamp to [0, srcLen].
-        val crossed = (kotlin.math.floor(srcCursor).toLong() - chunkBase).coerceIn(0L, srcLen.toLong()).toInt()
+        val crossed =
+            (kotlin.math.floor(srcCursor).toLong() - chunkBase)
+                .coerceIn(0L, srcLen.toLong())
+                .toInt()
         // After this call, the caller will advance `off` by `crossed`; we update
         // chunkBase to match (so next call's `src[0]` is at global position chunkBase + crossed).
         if (crossed > 0) {
@@ -561,8 +632,8 @@ internal class KotlinLinearResampler(fromSr: Int, toSr: Int) : LinearResampler {
 
 /**
  * Sliding-window accumulator. Feeds a stream of mono samples; calls [onWindow] each time
- * [windowSamples] have accumulated, then keeps the last (windowSamples - hopSamples) for
- * overlap with the next window.
+ * [windowSamples] have accumulated, then keeps the last (windowSamples - hopSamples) for overlap
+ * with the next window.
  */
 internal class WindowAccumulator(
     private val windowSamples: Int,
@@ -571,7 +642,7 @@ internal class WindowAccumulator(
 ) {
     private val buf = FloatArray(windowSamples)
     private var fill = 0
-    private val keep = windowSamples - hopSamples  // overlap retained after each emit
+    private val keep = windowSamples - hopSamples // overlap retained after each emit
 
     fun feed(src: FloatArray, count: Int) {
         var srcOff = 0

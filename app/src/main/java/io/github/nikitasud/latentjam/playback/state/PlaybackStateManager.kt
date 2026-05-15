@@ -156,9 +156,9 @@ interface PlaybackStateManager {
     fun addToQueue(songs: List<Song>)
 
     /**
-     * Replace the entire upcoming portion of the queue (everything after the currently
-     * playing [Song]) with [songs]. The current track keeps playing uninterrupted; only
-     * the trailing queue is rewritten. Used by SMART shuffle to fully reseed the queue.
+     * Replace the entire upcoming portion of the queue (everything after the currently playing
+     * [Song]) with [songs]. The current track keeps playing uninterrupted; only the trailing queue
+     * is rewritten. Used by SMART shuffle to fully reseed the queue.
      *
      * @param songs The [Song]s that should now occupy the upcoming slots.
      */
@@ -166,9 +166,9 @@ interface PlaybackStateManager {
 
     /**
      * Like [replaceUpcoming] but also drops every track before the current one, so the
-     * currently-playing [Song] ends up at queue index 0 with [songs] following it. Used
-     * when SMART shuffle activates so the queue UI doesn't bury the current track under
-     * the previously-played linear tail.
+     * currently-playing [Song] ends up at queue index 0 with [songs] following it. Used when SMART
+     * shuffle activates so the queue UI doesn't bury the current track under the previously-played
+     * linear tail.
      *
      * @param songs The [Song]s that should sit immediately after the current track.
      */
@@ -714,10 +714,12 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
                     stateMirror.copy(
                         queue = rawQueue.resolveSongs(),
                         index = rawQueue.resolveIndex(),
-                        shuffleMode = if (rawQueue.isShuffled) ShuffleMode.ON else {
-                            if (stateMirror.shuffleMode == ShuffleMode.SMART) ShuffleMode.SMART 
-                            else ShuffleMode.OFF
-                        },
+                        shuffleMode =
+                            if (rawQueue.isShuffled) ShuffleMode.ON
+                            else {
+                                if (stateMirror.shuffleMode == ShuffleMode.SMART) ShuffleMode.SMART
+                                else ShuffleMode.OFF
+                            },
                         rawQueue = rawQueue,
                     )
                 listeners.forEach {
