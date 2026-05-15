@@ -32,6 +32,7 @@ import io.github.nikitasud.latentjam.ml.MlSettings
 import io.github.nikitasud.latentjam.ml.encoder.EmbeddingScheduler
 import io.github.nikitasud.latentjam.ml.events.ListeningEventRecorder
 import io.github.nikitasud.latentjam.ml.predictor.RecommendationEngine
+import io.github.nikitasud.latentjam.ml.retrain.EventRetentionWorker
 import io.github.nikitasud.latentjam.ml.retrain.RetrainObserver
 import io.github.nikitasud.latentjam.playback.PlaybackSettings
 import io.github.nikitasud.latentjam.ui.UISettings
@@ -87,6 +88,7 @@ class LatentJam : Application(), Configuration.Provider {
         recommendationEngine.attach()
         embeddingScheduler.attach()
         retrainObserver.start()
+        EventRetentionWorker.schedule(this)
         // Adding static shortcuts in a dynamic manner is better than declaring them
         // manually, as it will properly handle the difference between debug and release
         // LatentJam instances.

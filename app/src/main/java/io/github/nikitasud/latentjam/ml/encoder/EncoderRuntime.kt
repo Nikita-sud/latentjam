@@ -70,11 +70,23 @@ class EncoderRuntime @Inject constructor(@ApplicationContext private val context
     var backend: Backend = Backend.UNINITIALIZED
         private set
 
+    // Per-backend init failure messages from the most recent `ensureLoaded()` cascade.
+    // Captured even when a later backend succeeds — DiagnosticsFragment surfaces these so
+    // a user on a Snapdragon device whose QNN init failed can see *why* their phone fell
+    // back to CPU instead of having to file a vague "ML feels slow" report.
+    @Volatile private var backendErrors: Map<Backend, String> = emptyMap()
+
     enum class Backend {
         UNINITIALIZED,
         QNN_HTP,
         CPU,
     }
+
+    /**
+     * Snapshot of the per-backend init errors from the last [ensureLoaded] attempt. Empty until
+     * `ensureLoaded` has run at least once. Order matches cascade order.
+     */
+    fun lastBackendErrors(): Map<Backend, String> = backendErrors
 
     fun ensureLoaded() {
         if (session != null) return
@@ -84,12 +96,14 @@ class EncoderRuntime @Inject constructor(@ApplicationContext private val context
             val modelBytes = OrtAssets.readAsset(context, ENCODER_ASSET)
 
             val attempted = mutableListOf<Backend>()
+            val errors = LinkedHashMap<Backend, String>()
             for (target in listOf(Backend.QNN_HTP, Backend.CPU)) {
                 attempted.add(target)
-                val s = tryCreateSession(env, modelBytes, target)
-                if (s != null) {
-                    session = s
+                val outcome = tryCreateSession(env, modelBytes, target)
+                if (outcome.session != null) {
+                    session = outcome.session
                     backend = target
+                    backendErrors = errors
                     Timber.i(
                         "EncoderRuntime loaded: backend=%s (cascade tried %s)",
                         target,
@@ -97,16 +111,23 @@ class EncoderRuntime @Inject constructor(@ApplicationContext private val context
                     )
                     return
                 }
+                if (outcome.error != null) errors[target] = outcome.error
             }
-            error("EncoderRuntime: all backends failed (tried $attempted)")
+            backendErrors = errors
+            // Include the captured per-backend error messages so the surfaced exception
+            // names what failed where, instead of a bare "all backends failed".
+            val detail = errors.entries.joinToString(separator = " | ") { (b, msg) -> "$b: $msg" }
+            error("EncoderRuntime: all backends failed (tried $attempted) — $detail")
         }
     }
+
+    private data class CreateOutcome(val session: OrtSession?, val error: String?)
 
     private fun tryCreateSession(
         env: OrtEnvironment,
         modelBytes: ByteArray,
         target: Backend,
-    ): OrtSession? =
+    ): CreateOutcome =
         try {
             val opts = OrtSession.SessionOptions()
             when (target) {
@@ -126,10 +147,13 @@ class EncoderRuntime @Inject constructor(@ApplicationContext private val context
             }
             val s = env.createSession(modelBytes, opts)
             runProbe(env, s)
-            s
+            CreateOutcome(session = s, error = null)
         } catch (e: Throwable) {
             Timber.w(e, "EncoderRuntime: %s init failed", target)
-            null
+            CreateOutcome(
+                session = null,
+                error = "${e.javaClass.simpleName}: ${e.message ?: "<no message>"}",
+            )
         }
 
     /** One-shot dummy inference. Catches op-level errors and warms the HTP context. */

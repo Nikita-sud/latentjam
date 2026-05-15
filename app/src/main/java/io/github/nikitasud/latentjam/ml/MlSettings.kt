@@ -37,6 +37,14 @@ interface MlSettings : Settings<MlSettings.Listener> {
     val retrainThreshold: Int
 
     /**
+     * Listening events older than this many days are pruned by [EventRetentionWorker]. Bounded so
+     * the table can't grow without limit on long-running installs (a daily-driver user generates
+     * ~50 events/day; without pruning the table balloons by ~18k rows/year). Setting to 0 disables
+     * pruning entirely.
+     */
+    val eventRetentionDays: Int
+
+    /**
      * Encoder version string. Bumping this re-embeds every track on next library scan, so we keep
      * it scoped to anything that affects the embedding distribution: encoder weights, mel-spec
      * params, audio decode + resampler. The predictor version is tracked separately via
@@ -70,8 +78,10 @@ interface MlSettings : Settings<MlSettings.Listener> {
         // user-facing strings — they are stable preference keys that must not be localized.
         const val KEY_ENABLE_EVENT_LOGGING = "ml_enable_event_logging"
         const val KEY_RETRAIN_THRESHOLD = "ml_retrain_threshold"
+        const val KEY_EVENT_RETENTION_DAYS = "ml_event_retention_days"
 
         const val DEFAULT_RETRAIN_THRESHOLD = 1000
+        const val DEFAULT_EVENT_RETENTION_DAYS = 180
 
         const val EMBEDDING_VERSION_ASSET = "ml/embedding_version.txt"
         const val PREDICTOR_VERSION_ASSET = "ml/predictor_version.txt"
@@ -93,6 +103,13 @@ class MlSettingsImpl @Inject constructor(@ApplicationContext context: Context) :
             sharedPreferences.getInt(
                 MlSettings.KEY_RETRAIN_THRESHOLD,
                 MlSettings.DEFAULT_RETRAIN_THRESHOLD,
+            )
+
+    override val eventRetentionDays: Int
+        get() =
+            sharedPreferences.getInt(
+                MlSettings.KEY_EVENT_RETENTION_DAYS,
+                MlSettings.DEFAULT_EVENT_RETENTION_DAYS,
             )
 
     override val embeddingVersion: String by lazy {
