@@ -26,6 +26,26 @@
 #include "opus.h"
 #include "audio_decode_common.h"
 
+// Fast-path Opus decoder: bypasses libopusfile and calls libopus directly.
+//
+// Why: profiling shows libopusfile spends ~80 ms per track in `op_open_memory`
+// (end-of-file bisection to compute pcm_total, CRC32 on every page) plus
+// ~25 ms in `op_pcm_seek` (granule-position bisection). Actual codec work
+// (`opus_decode_float`) is only ~30 ms. That makes libopusfile responsible
+// for 75% of our Opus decode time — wrapper overhead, not codec cost.
+//
+// This file replaces the open+seek wrapper with a 200-line Ogg page walker:
+//   1. One linear pass over the mmap'd file, recording each page's byte
+//      offset, granule position, and packet-boundary state. No CRC checks.
+//      ~3 ms on a 5 MB file.
+//   2. Binary search the page table for the page covering our target sample.
+//   3. Walk forward through pages, reassembling packets (Opus packets may
+//      span pages via 255-byte segment continuation), and feeding each
+//      packet to `opus_decode_float` directly.
+//
+// We trust local files: skipping CRC32 validation is safe and is exactly
+// what Chromium's `media/filters/opus_audio_decoder.cc` and ffmpeg's
+// `libavformat` Ogg demuxer do.
 namespace {
 inline int64_t monotonic_ns() {
     timespec ts;

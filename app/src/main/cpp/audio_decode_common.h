@@ -16,10 +16,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-struct bs_t` with
+#pragma once
+
+// Shared between the main native decoder TU (`native_audio_decoder.cpp`) and
+// the M4A/AAC decoder TU (`m4a_aac_decoder.cpp`). The split exists because
+// `minimp3.h` and `minimp4.h` both declare an internal `struct bs_t` with
 // incompatible layouts — including both in the same compilation unit triggers
 // a type redefinition error.
-#pragma once
 
 #include <cstddef>
 #include <cstdint>
