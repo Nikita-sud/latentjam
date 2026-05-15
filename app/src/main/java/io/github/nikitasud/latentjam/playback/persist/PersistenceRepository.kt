@@ -71,6 +71,7 @@ constructor(
         return PlaybackStateManager.SavedState(
             positionMs = playbackState.positionMs,
             repeatMode = playbackState.repeatMode,
+            shuffleMode = playbackState.shuffleMode,
             parent = parent,
             heap = heap,
             shuffledMapping = shuffledMapping,
@@ -99,6 +100,7 @@ constructor(
                     index = state.index,
                     positionMs = state.positionMs,
                     repeatMode = state.repeatMode,
+                    shuffleMode = state.shuffleMode,
                     songUid = state.songUid,
                     parentUid = state.parent?.uid,
                 )

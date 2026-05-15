@@ -33,6 +33,7 @@ import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager
 import io.github.nikitasud.latentjam.playback.state.Progression
 import io.github.nikitasud.latentjam.playback.state.QueueChange
 import io.github.nikitasud.latentjam.playback.state.RepeatMode
+import io.github.nikitasud.latentjam.playback.state.ShuffleMode
 import io.github.nikitasud.latentjam.ui.UISettings
 import io.github.nikitasud.latentjam.util.getDimenPixels
 import javax.inject.Inject
@@ -86,7 +87,7 @@ private constructor(
         // Note: Store these values here so they remain consistent once the bitmap is loaded.
         val isPlaying = playbackManager.progression.isPlaying
         val repeatMode = playbackManager.repeatMode
-        val isShuffled = playbackManager.isShuffled
+        val shuffleMode = playbackManager.shuffleMode
 
         L.d("Updating widget with new playback state")
         bitmapProvider.load(
@@ -124,7 +125,7 @@ private constructor(
                 }
 
                 override fun onCompleted(bitmap: Bitmap?) {
-                    val state = PlaybackState(song, bitmap, isPlaying, repeatMode, isShuffled)
+                    val state = PlaybackState(song, bitmap, isPlaying, repeatMode, shuffleMode)
                     L.d("Bitmap loaded, uploading state $state")
                     widgetProvider.update(context, uiSettings, state)
                 }
@@ -152,13 +153,13 @@ private constructor(
         }
     }
 
-    override fun onQueueReordered(queue: List<Song>, index: Int, isShuffled: Boolean) = update()
+    override fun onQueueReordered(queue: List<Song>, index: Int, shuffleMode: ShuffleMode) = update()
 
     override fun onNewPlayback(
         parent: MusicParent?,
         queue: List<Song>,
         index: Int,
-        isShuffled: Boolean,
+        shuffleMode: ShuffleMode,
     ) = update()
 
     override fun onProgressionChanged(progression: Progression) = update()
@@ -175,16 +176,15 @@ private constructor(
      *
      * @param song [PlaybackStateManager.currentSong]
      * @param cover A pre-loaded album cover [Bitmap] for [song].
-     * @param cover A pre-loaded album cover [Bitmap] for [song], with rounded corners.
      * @param isPlaying [PlaybackStateManager.progression]
      * @param repeatMode [PlaybackStateManager.repeatMode]
-     * @param isShuffled [PlaybackStateManager.isShuffled]
+     * @param shuffleMode [PlaybackStateManager.shuffleMode]
      */
     data class PlaybackState(
         val song: Song,
         val cover: Bitmap?,
         val isPlaying: Boolean,
         val repeatMode: RepeatMode,
-        val isShuffled: Boolean,
+        val shuffleMode: ShuffleMode,
     )
 }

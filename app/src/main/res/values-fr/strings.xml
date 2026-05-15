@@ -349,4 +349,15 @@
     <string name="fmt_lib_total_size">Taille totale : %s</string>
     <string name="set_task_exit">Toujours quitter à la fermeture</string>
     <string name="set_task_exit_desc">Interrompre la lecture lorsque le lecteur est supprimé des fichiers récents, même s\'il est en cours de lecture</string>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Recommandations</string>
+    <string name="set_event_log">Enregistrer les événements d\'écoute</string>
+    <string name="set_event_log_desc">Reste sur l\'appareil. Utilisé pour personnaliser les recommandations de Lecture aléatoire intelligente.</string>
+    <string name="lbl_edit_metadata">Modifier les métadonnées</string>
+    <string name="lbl_metadata_genre">Genre</string>
+    <string name="lbl_metadata_artist">Artiste (remplacement)</string>
+    <string name="lbl_metadata_year">Année</string>
+    <string name="lbl_metadata_clear">Réinitialiser</string>
+    <string name="info_metadata_override_hint">Les remplacements restent dans l\'application et ne modifient pas le fichier audio.</string>
 </resources>

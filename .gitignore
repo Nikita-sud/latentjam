@@ -17,3 +17,16 @@ captures/
 .kotlin
 .aider*
 .env
+
+# Claude Code internal state
+.claude/
+
+# ML model binaries — distributed via GitHub Releases since
+# clap_audio.onnx exceeds GitHub's 100 MB per-file hard limit.
+# See README for the download location.
+app/src/main/assets/ml/*.onnx
+
+# Embedded git repos in vendored C++ third_party — we keep the source,
+# not the upstream git history.
+app/src/main/cpp/third_party/**/.git/
+app/src/main/cpp/third_party/**/.github/

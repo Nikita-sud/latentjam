@@ -35,12 +35,14 @@ import io.github.nikitasud.latentjam.list.adapter.SelectionIndicatorAdapter
 import io.github.nikitasud.latentjam.list.recycler.FastScrollRecyclerView
 import io.github.nikitasud.latentjam.list.recycler.SongViewHolder
 import io.github.nikitasud.latentjam.list.sort.Sort
+import io.github.nikitasud.latentjam.ml.data.LikedSongRepository
 import io.github.nikitasud.latentjam.music.IndexingState
 import io.github.nikitasud.latentjam.music.MusicViewModel
 import io.github.nikitasud.latentjam.playback.PlaybackViewModel
 import io.github.nikitasud.latentjam.playback.formatDurationMsPopup
 import io.github.nikitasud.latentjam.util.collectImmediately
 import java.util.Calendar
+import javax.inject.Inject
 import org.oxycblt.musikr.Music
 import org.oxycblt.musikr.MusicParent
 import org.oxycblt.musikr.Song
@@ -59,6 +61,7 @@ class SongListFragment :
     override val listModel: ListViewModel by activityViewModels()
     override val musicModel: MusicViewModel by activityViewModels()
     override val playbackModel: PlaybackViewModel by activityViewModels()
+    @Inject lateinit var likedSongRepository: LikedSongRepository
     private val songAdapter = SongAdapter(this)
 
     override fun onCreateBinding(inflater: LayoutInflater) =
@@ -91,6 +94,9 @@ class SongListFragment :
             playbackModel.isPlaying,
             ::updatePlayback,
         )
+        collectImmediately(likedSongRepository.likedSet) { uids ->
+            songAdapter.setLikedUids(uids)
+        }
     }
 
     override fun onDestroyBinding(binding: FragmentHomeListBinding) {
@@ -160,6 +166,10 @@ class SongListFragment :
         listModel.openMenu(R.menu.song, item, homeModel.playWith)
     }
 
+    override fun onToggleLike(item: Song) {
+        likedSongRepository.toggle(item.uid)
+    }
+
     private fun updateSongs(songs: List<Song>) {
         songAdapter.update(songs, homeModel.songInstructions.consume())
     }
@@ -189,11 +199,23 @@ class SongListFragment :
     private class SongAdapter(private val listener: SelectableListListener<Song>) :
         SelectionIndicatorAdapter<Song, SongViewHolder>(SongViewHolder.DIFF_CALLBACK) {
 
+        private var likedUids: Set<Music.UID> = emptySet()
+
+        fun setLikedUids(uids: Set<Music.UID>) {
+            // notifyDataSetChanged is heavy but cheap on this list size and avoids
+            // tracking per-row deltas — the underlying paged list is small enough
+            // (typically <2k songs). Refine to per-item only if profiling shows it
+            // matters.
+            likedUids = uids
+            notifyDataSetChanged()
+        }
+
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
             SongViewHolder.from(parent)
 
         override fun onBindViewHolder(holder: SongViewHolder, position: Int) {
-            holder.bind(getItem(position), listener)
+            val song = getItem(position)
+            holder.bind(song, listener, liked = song.uid in likedUids)
         }
     }
 }

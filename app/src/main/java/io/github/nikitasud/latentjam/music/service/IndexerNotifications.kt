@@ -40,7 +40,7 @@ class IndexingNotification(private val context: Context) :
     private var lastUpdateTime = -1L
 
     init {
-        setSmallIcon(R.drawable.ic_indexer_24)
+        setSmallIcon(R.drawable.ic_latentjam_24)
         setCategory(NotificationCompat.CATEGORY_PROGRESS)
         setShowWhen(false)
         setSilent(true)
@@ -101,7 +101,7 @@ class IndexingNotification(private val context: Context) :
 class ObservingNotification(context: Context) :
     ForegroundServiceNotification(context, indexerChannel) {
     init {
-        setSmallIcon(R.drawable.ic_indexer_24)
+        setSmallIcon(R.drawable.ic_latentjam_24)
         setCategory(NotificationCompat.CATEGORY_SERVICE)
         setShowWhen(false)
         setSilent(true)

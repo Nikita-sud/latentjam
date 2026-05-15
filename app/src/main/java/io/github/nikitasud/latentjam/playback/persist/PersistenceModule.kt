@@ -46,10 +46,31 @@ class PersistenceRoomModule {
                 "playback_persistence.db",
             )
             .fallbackToDestructiveMigration()
-            .addMigrations(PersistenceDatabase.MIGRATION_27_32)
+            .addMigrations(
+                PersistenceDatabase.MIGRATION_27_32,
+                PersistenceDatabase.MIGRATION_38_39,
+                PersistenceDatabase.MIGRATION_39_40,
+                PersistenceDatabase.MIGRATION_40_41,
+                PersistenceDatabase.MIGRATION_41_42,
+                PersistenceDatabase.MIGRATION_42_43,
+                PersistenceDatabase.MIGRATION_43_44,
+                PersistenceDatabase.MIGRATION_44_45,
+            )
             .build()
 
     @Provides fun playbackStateDao(database: PersistenceDatabase) = database.playbackStateDao()
 
     @Provides fun queueDao(database: PersistenceDatabase) = database.queueDao()
+
+    @Provides
+    fun listeningEventDao(database: PersistenceDatabase) = database.listeningEventDao()
+
+    @Provides
+    fun trackEmbeddingDao(database: PersistenceDatabase) = database.trackEmbeddingDao()
+
+    @Provides
+    fun trackMetadataOverrideDao(database: PersistenceDatabase) =
+        database.trackMetadataOverrideDao()
+
+    @Provides fun likedSongDao(database: PersistenceDatabase) = database.likedSongDao()
 }

@@ -23,6 +23,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.nikitasud.latentjam.list.adapter.UpdateInstructions
 import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager
 import io.github.nikitasud.latentjam.playback.state.QueueChange
+import io.github.nikitasud.latentjam.playback.state.ShuffleMode
 import io.github.nikitasud.latentjam.util.Event
 import io.github.nikitasud.latentjam.util.MutableEvent
 import javax.inject.Inject
@@ -79,7 +80,7 @@ class QueueViewModel @Inject constructor(private val playbackManager: PlaybackSt
         }
     }
 
-    override fun onQueueReordered(queue: List<Song>, index: Int, isShuffled: Boolean) {
+    override fun onQueueReordered(queue: List<Song>, index: Int, shuffleMode: ShuffleMode) {
         // Queue changed completely -> Replace queue, update index
         L.d("Queue changed completely, replacing queue and position")
         _queueInstructions.put(UpdateInstructions.Replace(0))
@@ -92,7 +93,7 @@ class QueueViewModel @Inject constructor(private val playbackManager: PlaybackSt
         parent: MusicParent?,
         queue: List<Song>,
         index: Int,
-        isShuffled: Boolean,
+        shuffleMode: ShuffleMode,
     ) {
         // Entirely new queue -> Replace queue, update index
         L.d("New playback, replacing queue and position")

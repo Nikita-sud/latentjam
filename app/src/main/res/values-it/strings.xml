@@ -348,4 +348,15 @@
         <item quantity="many">%d secondi</item>
         <item quantity="other">%d secondi</item>
     </plurals>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Consigli</string>
+    <string name="set_event_log">Registra eventi di ascolto</string>
+    <string name="set_event_log_desc">Rimane sul dispositivo. Usato per personalizzare i consigli di Riproduzione casuale intelligente.</string>
+    <string name="lbl_edit_metadata">Modifica metadati</string>
+    <string name="lbl_metadata_genre">Genere</string>
+    <string name="lbl_metadata_artist">Artista (override)</string>
+    <string name="lbl_metadata_year">Anno</string>
+    <string name="lbl_metadata_clear">Ripristina</string>
+    <string name="info_metadata_override_hint">Gli override rimangono nell\'app e non modificano il file audio.</string>
 </resources>

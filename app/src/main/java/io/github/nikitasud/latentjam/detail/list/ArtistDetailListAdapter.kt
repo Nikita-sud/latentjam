@@ -44,6 +44,13 @@ import org.oxycblt.musikr.Song
  */
 class ArtistDetailListAdapter(private val listener: Listener<Music>) :
     DetailListAdapter(listener, DIFF_CALLBACK) {
+    private var likedUids: Set<org.oxycblt.musikr.Music.UID> = emptySet()
+
+    fun setLikedUids(uids: Set<org.oxycblt.musikr.Music.UID>) {
+        likedUids = uids
+        notifyDataSetChanged()
+    }
+
     override fun getItemViewType(position: Int) =
         when (getItem(position)) {
             // Support a special artist albums/songs.
@@ -64,7 +71,8 @@ class ArtistDetailListAdapter(private val listener: Listener<Music>) :
         // Re-binding an item with new data and not just a changed selection/playing state.
         when (val item = getItem(position)) {
             is Album -> (holder as ArtistAlbumViewHolder).bind(item, listener)
-            is Song -> (holder as ArtistSongViewHolder).bind(item, listener)
+            is Song ->
+                (holder as ArtistSongViewHolder).bind(item, listener, liked = item.uid in likedUids)
         }
     }
 
@@ -152,11 +160,20 @@ private class ArtistSongViewHolder private constructor(private val binding: Item
      * @param song The new [Song] to bind.
      * @param listener An [SelectableListListener] to bind interactions to.
      */
-    fun bind(song: Song, listener: SelectableListListener<Song>) {
+    fun bind(song: Song, listener: SelectableListListener<Song>, liked: Boolean = false) {
         listener.bind(song, this, menuButton = binding.songMenu)
         binding.songAlbumCover.bind(song)
         binding.songName.text = song.name.resolve(binding.context)
         binding.songInfo.text = song.album.name.resolve(binding.context)
+        binding.songLike.setIconResource(
+            if (liked) io.github.nikitasud.latentjam.R.drawable.ic_star_24
+            else io.github.nikitasud.latentjam.R.drawable.ic_star_outline_24
+        )
+        binding.songLike.contentDescription = binding.context.getString(
+            if (liked) io.github.nikitasud.latentjam.R.string.desc_unlike_song
+            else io.github.nikitasud.latentjam.R.string.desc_like_song
+        )
+        binding.songLike.setOnClickListener { listener.onToggleLike(song) }
     }
 
     override fun updatePlayingIndicator(isActive: Boolean, isPlaying: Boolean) {

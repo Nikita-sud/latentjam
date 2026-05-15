@@ -126,6 +126,14 @@ interface SelectableListListener<in T> : ClickableListListener<T> {
     fun onSelect(item: T)
 
     /**
+     * Called when the user taps the star/favorite button on an item. Default no-op so
+     * adapters that don't render a star (album / artist / playlist rows) ignore it.
+     *
+     * @param item The [T] item whose liked state should be toggled.
+     */
+    fun onToggleLike(item: T) {}
+
+    /**
      * Binds this instance to a list item.
      *
      * @param item The [T] to bind this item to.

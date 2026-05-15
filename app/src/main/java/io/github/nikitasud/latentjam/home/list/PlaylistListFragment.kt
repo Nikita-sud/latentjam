@@ -24,9 +24,13 @@ import android.view.ViewGroup
 import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
+import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.ConcatAdapter
+import dagger.hilt.android.AndroidEntryPoint
 import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.databinding.FragmentHomeListBinding
 import io.github.nikitasud.latentjam.detail.DetailViewModel
+import io.github.nikitasud.latentjam.home.HomeFragmentDirections
 import io.github.nikitasud.latentjam.home.HomeViewModel
 import io.github.nikitasud.latentjam.list.ListFragment
 import io.github.nikitasud.latentjam.list.ListViewModel
@@ -35,11 +39,14 @@ import io.github.nikitasud.latentjam.list.adapter.SelectionIndicatorAdapter
 import io.github.nikitasud.latentjam.list.recycler.FastScrollRecyclerView
 import io.github.nikitasud.latentjam.list.recycler.PlaylistViewHolder
 import io.github.nikitasud.latentjam.list.sort.Sort
+import io.github.nikitasud.latentjam.ml.data.LikedSongRepository
 import io.github.nikitasud.latentjam.music.IndexingState
 import io.github.nikitasud.latentjam.music.MusicViewModel
 import io.github.nikitasud.latentjam.playback.PlaybackViewModel
 import io.github.nikitasud.latentjam.playback.formatDurationMsPopup
 import io.github.nikitasud.latentjam.util.collectImmediately
+import io.github.nikitasud.latentjam.util.navigateSafe
+import javax.inject.Inject
 import org.oxycblt.musikr.Music
 import org.oxycblt.musikr.MusicParent
 import org.oxycblt.musikr.Playlist
@@ -50,6 +57,7 @@ import org.oxycblt.musikr.Song
  *
  * @author Alexander Capehart (OxygenCobalt)
  */
+@AndroidEntryPoint
 class PlaylistListFragment :
     ListFragment<Playlist, FragmentHomeListBinding>(),
     FastScrollRecyclerView.PopupProvider,
@@ -59,7 +67,12 @@ class PlaylistListFragment :
     override val listModel: ListViewModel by activityViewModels()
     override val musicModel: MusicViewModel by activityViewModels()
     override val playbackModel: PlaybackViewModel by activityViewModels()
+    @Inject lateinit var likedSongRepository: LikedSongRepository
     private val playlistAdapter = PlaylistAdapter(this)
+    private val favoritesHeaderAdapter = FavoritesHeaderAdapter {
+        findNavController().navigateSafe(HomeFragmentDirections.showFavorites())
+    }
+    private val concatAdapter = ConcatAdapter(favoritesHeaderAdapter, playlistAdapter)
 
     override fun onCreateBinding(inflater: LayoutInflater) =
         FragmentHomeListBinding.inflate(inflater)
@@ -69,7 +82,7 @@ class PlaylistListFragment :
 
         binding.homeRecycler.apply {
             id = R.id.home_playlist_recycler
-            adapter = playlistAdapter
+            adapter = concatAdapter
             popupProvider = this@PlaylistListFragment
             listener = this@PlaylistListFragment
         }
@@ -94,6 +107,9 @@ class PlaylistListFragment :
             playbackModel.isPlaying,
             ::updatePlayback,
         )
+        collectImmediately(likedSongRepository.likedSet) { uids ->
+            favoritesHeaderAdapter.setSongCount(uids.size)
+        }
     }
 
     override fun onDestroyBinding(binding: FragmentHomeListBinding) {
@@ -106,7 +122,10 @@ class PlaylistListFragment :
     }
 
     override fun getPopupData(pos: Int): FastScrollRecyclerView.PopupProvider.PopupData? {
-        val playlist = homeModel.playlistList.value.getOrNull(pos) ?: return null
+        // ConcatAdapter prepends 1 Favorites tile, so RecyclerView position N
+        // corresponds to playlist index N-1. Position 0 = Favorites tile, no popup.
+        if (pos == 0) return null
+        val playlist = homeModel.playlistList.value.getOrNull(pos - 1) ?: return null
         // Change how we display the popup depending on the current sort mode.
         return when (homeModel.playlistSort.mode) {
             // By Name -> Use Name

@@ -30,6 +30,7 @@ import io.github.nikitasud.latentjam.databinding.DialogSongDetailBinding
 import io.github.nikitasud.latentjam.detail.list.SongProperty
 import io.github.nikitasud.latentjam.detail.list.SongPropertyAdapter
 import io.github.nikitasud.latentjam.list.adapter.UpdateInstructions
+import io.github.nikitasud.latentjam.ml.ui.EditMetadataDialog
 import io.github.nikitasud.latentjam.ui.ViewBindingMaterialDialogFragment
 import io.github.nikitasud.latentjam.util.collectImmediately
 import org.oxycblt.musikr.Song
@@ -53,7 +54,14 @@ class SongDetailDialog : ViewBindingMaterialDialogFragment<DialogSongDetailBindi
 
     override fun onConfigDialog(builder: AlertDialog.Builder) {
         super.onConfigDialog(builder)
-        builder.setTitle(R.string.lbl_props).setPositiveButton(R.string.lbl_ok, null)
+        builder
+            .setTitle(R.string.lbl_props)
+            .setPositiveButton(R.string.lbl_ok, null)
+            .setNeutralButton(R.string.lbl_edit_metadata) { _, _ ->
+                val uid = args.songUid
+                EditMetadataDialog.newInstance(uid)
+                    .show(parentFragmentManager, EditMetadataDialog.TAG)
+            }
     }
 
     override fun onBindingCreated(binding: DialogSongDetailBinding, savedInstanceState: Bundle?) {

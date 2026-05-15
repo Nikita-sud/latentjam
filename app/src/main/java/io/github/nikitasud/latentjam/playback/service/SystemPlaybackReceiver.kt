@@ -115,7 +115,7 @@ private constructor(
             }
             PlaybackActions.ACTION_INVERT_SHUFFLE -> {
                 L.d("Received shuffle event")
-                playbackManager.shuffled(!playbackManager.isShuffled)
+                playbackManager.shuffleMode(playbackManager.shuffleMode.increment())
             }
             PlaybackActions.ACTION_SKIP_PREV -> {
                 L.d("Received skip previous event")

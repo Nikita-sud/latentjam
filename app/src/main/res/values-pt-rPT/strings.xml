@@ -348,4 +348,15 @@
     <string name="lbl_no_folders">Sem pastas</string>
     <string name="desc_add_folder">Adicionar pasta</string>
     <string name="lng_play_next">Música vai ser reproduzida a seguir</string>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Recomendações</string>
+    <string name="set_event_log">Registar eventos de reprodução</string>
+    <string name="set_event_log_desc">Fica no dispositivo. Usado para personalizar as recomendações de Reprodução aleatória inteligente.</string>
+    <string name="lbl_edit_metadata">Editar metadados</string>
+    <string name="lbl_metadata_genre">Género</string>
+    <string name="lbl_metadata_artist">Artista (substituição)</string>
+    <string name="lbl_metadata_year">Ano</string>
+    <string name="lbl_metadata_clear">Repor</string>
+    <string name="info_metadata_override_hint">As substituições ficam na aplicação e não modificam o ficheiro de áudio.</string>
 </resources>

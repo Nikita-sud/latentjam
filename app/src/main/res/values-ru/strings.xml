@@ -353,4 +353,17 @@
     <string name="fmt_lib_total_size">Общий размер: %s</string>
     <string name="set_task_exit">Всегда выходить при закрытии</string>
     <string name="set_task_exit_desc">Останавливать воспроизведение при удалении из списка недавних, даже если оно активно</string>
+
+    <!-- ML / рекомендации -->
+    <string name="set_ml_category">Рекомендации</string>
+    <string name="set_event_log">Записывать события прослушивания</string>
+    <string name="set_event_log_desc">Хранятся локально. Используются для персонализации Умного перемешивания.</string>
+
+    <!-- Диалог редактирования метаданных -->
+    <string name="lbl_edit_metadata">Изменить метаданные</string>
+    <string name="lbl_metadata_genre">Жанр</string>
+    <string name="lbl_metadata_artist">Исполнитель (переопределение)</string>
+    <string name="lbl_metadata_year">Год</string>
+    <string name="lbl_metadata_clear">Сбросить</string>
+    <string name="info_metadata_override_hint">Переопределения хранятся в приложении и не изменяют аудиофайл.</string>
 </resources>

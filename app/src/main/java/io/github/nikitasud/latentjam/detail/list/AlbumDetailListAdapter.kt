@@ -56,6 +56,13 @@ import org.oxycblt.musikr.tag.Disc
  */
 class AlbumDetailListAdapter(private val listener: Listener<Song>) :
     DetailListAdapter(listener, DIFF_CALLBACK) {
+    private var likedUids: Set<org.oxycblt.musikr.Music.UID> = emptySet()
+
+    fun setLikedUids(uids: Set<org.oxycblt.musikr.Music.UID>) {
+        likedUids = uids
+        notifyDataSetChanged()
+    }
+
     override fun getItemViewType(position: Int) =
         when (getItem(position)) {
             // Support sub-headers for each disc, and special album songs.
@@ -77,7 +84,8 @@ class AlbumDetailListAdapter(private val listener: Listener<Song>) :
         super.onBindViewHolder(holder, position)
         when (val item = getItem(position)) {
             is DiscHeader -> (holder as DiscHeaderViewHolder).bind(item)
-            is Song -> (holder as AlbumSongViewHolder).bind(item, listener)
+            is Song ->
+                (holder as AlbumSongViewHolder).bind(item, listener, liked = item.uid in likedUids)
         }
     }
 
@@ -207,8 +215,15 @@ private class AlbumSongViewHolder private constructor(private val binding: ItemA
      * @param song The new [Song] to bind.
      * @param listener A [SelectableListListener] to bind interactions to.
      */
-    fun bind(song: Song, listener: SelectableListListener<Song>) {
+    fun bind(song: Song, listener: SelectableListListener<Song>, liked: Boolean = false) {
         listener.bind(song, this, menuButton = binding.songMenu)
+        binding.songLike.setIconResource(
+            if (liked) R.drawable.ic_star_24 else R.drawable.ic_star_outline_24
+        )
+        binding.songLike.contentDescription = binding.context.getString(
+            if (liked) R.string.desc_unlike_song else R.string.desc_like_song
+        )
+        binding.songLike.setOnClickListener { listener.onToggleLike(song) }
 
         val track = song.track
         if (track != null) {

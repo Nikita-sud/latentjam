@@ -345,4 +345,15 @@
     <string name="fmt_lib_total_size">Gesamte Größe: %s</string>
     <string name="set_task_exit">Beim Schließen immer beenden</string>
     <string name="set_task_exit_desc">Wiedergabe stoppen, wenn App geschlossen wird, auch beim Abspielen</string>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Empfehlungen</string>
+    <string name="set_event_log">Wiedergabeereignisse aufzeichnen</string>
+    <string name="set_event_log_desc">Bleibt auf dem Gerät. Wird zur Personalisierung von Smart-Shuffle-Empfehlungen verwendet.</string>
+    <string name="lbl_edit_metadata">Metadaten bearbeiten</string>
+    <string name="lbl_metadata_genre">Genre</string>
+    <string name="lbl_metadata_artist">Künstler (Überschreibung)</string>
+    <string name="lbl_metadata_year">Jahr</string>
+    <string name="lbl_metadata_clear">Zurücksetzen</string>
+    <string name="info_metadata_override_hint">Überschreibungen bleiben in der App und ändern die Audiodatei nicht.</string>
 </resources>

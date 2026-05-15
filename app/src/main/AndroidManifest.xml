@@ -35,7 +35,43 @@
         android:theme="@style/Theme.LatentJam.App"
         android:appCategory="audio"
         android:enableOnBackInvokedCallback="true"
+        android:largeHeap="true"
+        android:extractNativeLibs="true"
         tools:ignore="UnusedAttribute">
+
+        <!-- Allow ORT's QNN execution provider to dlopen `libcdsprpc.so` so it can talk
+             to the Qualcomm Hexagon DSP from a regular (non-system) app. Without this
+             declaration Android 13+ blocks the load and QNN HTP backend creation fails
+             with `QNN_DEVICE_ERROR_INVALID_CONFIG`. The required=false keeps the app
+             installable on non-Qualcomm devices. -->
+        <uses-native-library
+            android:name="libcdsprpc.so"
+            android:required="false" />
+
+        <!-- Disable WorkManager's androidx.startup auto-init. The default initializer fires
+             during ContentProvider creation, BEFORE Application.onCreate, which means our
+             Hilt-injected `workerFactory` field is still uninitialized when WorkManager's
+             Configuration.Provider getter is queried. Removing this delegate makes
+             WorkManager initialize lazily (first use), by which point Hilt is ready. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
+        <!-- Android 14+ requires every foreground service to declare its type. WorkManager's
+             bundled SystemForegroundService doesn't declare one in its AAR manifest, so when
+             EmbeddingWorker calls setForeground() with FOREGROUND_SERVICE_TYPE_DATA_SYNC the
+             system rejects it ("0x1 is not a subset of 0x0"). Merge the type in here. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
 
         <meta-data android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc"/>

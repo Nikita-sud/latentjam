@@ -346,4 +346,15 @@
         <item quantity="many">%d segundos</item>
         <item quantity="other">%d segundos</item>
     </plurals>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Recomendações</string>
+    <string name="set_event_log">Registrar eventos de reprodução</string>
+    <string name="set_event_log_desc">Permanece no dispositivo. Usado para personalizar as recomendações do modo Aleatório inteligente.</string>
+    <string name="lbl_edit_metadata">Editar metadados</string>
+    <string name="lbl_metadata_genre">Gênero</string>
+    <string name="lbl_metadata_artist">Artista (substituir)</string>
+    <string name="lbl_metadata_year">Ano</string>
+    <string name="lbl_metadata_clear">Redefinir</string>
+    <string name="info_metadata_override_hint">As substituições ficam no app e não modificam o arquivo de áudio.</string>
 </resources>

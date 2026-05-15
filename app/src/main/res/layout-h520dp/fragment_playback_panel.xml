@@ -52,7 +52,7 @@
         android:layout_marginEnd="@dimen/spacing_medium"
         android:orientation="vertical"
         app:layout_constraintBottom_toTopOf="@+id/playback_seek_bar"
-        app:layout_constraintEnd_toStartOf="@+id/playback_more"
+        app:layout_constraintEnd_toStartOf="@+id/playback_favorite"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/playback_toolbar"
@@ -81,6 +81,18 @@
             tools:text="Album Name" />
 
     </LinearLayout>
+
+    <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
+        android:id="@+id/playback_favorite"
+        style="@style/Widget.LatentJam.Button.Playback.More"
+        app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Medium"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/desc_like_song"
+        app:icon="@drawable/ic_star_outline_24"
+        app:layout_constraintBottom_toBottomOf="@+id/playback_info_container"
+        app:layout_constraintEnd_toStartOf="@+id/playback_more"
+        app:layout_constraintTop_toTopOf="@+id/playback_info_container" />
 
     <io.github.nikitasud.latentjam.ui.RippleFixMaterialButton
         android:id="@+id/playback_more"

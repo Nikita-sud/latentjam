@@ -22,6 +22,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.nikitasud.latentjam.list.ListSettings
+import io.github.nikitasud.latentjam.music.MusicRepository
 import io.github.nikitasud.latentjam.playback.state.DeferredPlayback
 import io.github.nikitasud.latentjam.playback.state.PlaybackCommand
 import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager
@@ -60,7 +61,18 @@ constructor(
     private val playbackSettings: PlaybackSettings,
     private val commandFactory: PlaybackCommand.Factory,
     private val listSettings: ListSettings,
+    private val musicRepository: MusicRepository,
 ) : ViewModel(), PlaybackStateManager.Listener, PlaybackSettings.Listener {
+
+    /**
+     * Translate an explicit shuffle intent (OFF / ON) into a mode that respects the user's
+     * current preference. The user told us they want SMART to be sticky — pressing the
+     * shuffle FAB or "shuffle album" while in SMART should keep them in SMART rather than
+     * silently dropping them back to plain random. Any non-SMART current state passes the
+     * intent through unchanged, so OFF→ON and ON→OFF transitions still work the obvious way.
+     */
+    private fun keepSmart(intent: ShuffleMode): ShuffleMode =
+        if (playbackManager.shuffleMode == ShuffleMode.SMART) ShuffleMode.SMART else intent
     private var lastPositionJob: Job? = null
 
     private val _song = MutableStateFlow<Song?>(null)
@@ -86,10 +98,10 @@ constructor(
     val repeatMode: StateFlow<RepeatMode>
         get() = _repeatMode
 
-    private val _isShuffled = MutableStateFlow(false)
-    /** Whether the queue is shuffled or not. */
-    val isShuffled: StateFlow<Boolean>
-        get() = _isShuffled
+    private val _shuffleMode = MutableStateFlow(ShuffleMode.OFF)
+    /** The current [ShuffleMode]. */
+    val shuffleMode: StateFlow<ShuffleMode>
+        get() = _shuffleMode
 
     private val _currentBarAction = MutableStateFlow(playbackSettings.barAction)
     /** The current secondary action to show alongside the play button in the playback bar. */
@@ -141,21 +153,21 @@ constructor(
         }
     }
 
-    override fun onQueueReordered(queue: List<Song>, index: Int, isShuffled: Boolean) {
+    override fun onQueueReordered(queue: List<Song>, index: Int, shuffleMode: ShuffleMode) {
         L.d("Queue completely changed, updating current song")
-        _isShuffled.value = isShuffled
+        _shuffleMode.value = shuffleMode
     }
 
     override fun onNewPlayback(
         parent: MusicParent?,
         queue: List<Song>,
         index: Int,
-        isShuffled: Boolean,
+        shuffleMode: ShuffleMode,
     ) {
         L.d("New playback started, updating playback information")
         _song.value = playbackManager.currentSong
         _parent.value = parent
-        _isShuffled.value = isShuffled
+        _shuffleMode.value = shuffleMode
     }
 
     override fun onProgressionChanged(progression: Progression) {
@@ -196,12 +208,27 @@ constructor(
     }
 
     fun shuffleExplicit(song: Song, with: PlaySong) {
-        playWithImpl(song, with, ShuffleMode.ON)
+        playWithImpl(song, with, keepSmart(ShuffleMode.ON))
     }
 
-    /** Shuffle all songs in the music library. */
+    /**
+     * Shuffle all songs in the music library. If the user is currently in SMART, we keep
+     * them in SMART and just pick a random library track as the seed — the recommendation
+     * engine then rebuilds the upcoming queue around it. Without this, the FAB silently
+     * downgrades SMART to plain ON every time it's pressed.
+     */
     fun shuffleAll() {
         L.d("Shuffling all songs")
+        if (playbackManager.shuffleMode == ShuffleMode.SMART) {
+            val library = musicRepository.library
+            val seed = library?.songs?.randomOrNull()
+            if (seed != null) {
+                L.d("In SMART; seeding random track ${seed.uid} and keeping SMART on")
+                playFromAllImpl(seed, ShuffleMode.SMART)
+                return
+            }
+            // Library not loaded yet — fall through and let the standard path handle it.
+        }
         playFromAllImpl(null, ShuffleMode.ON)
     }
 
@@ -317,7 +344,7 @@ constructor(
      */
     fun shuffle(album: Album) {
         L.d("Shuffling $album")
-        playImpl(commandFactory.album(album, ShuffleMode.ON))
+        playImpl(commandFactory.album(album, keepSmart(ShuffleMode.ON)))
     }
 
     /**
@@ -337,7 +364,7 @@ constructor(
      */
     fun shuffle(artist: Artist) {
         L.d("Shuffling $artist")
-        playImpl(commandFactory.artist(artist, ShuffleMode.ON))
+        playImpl(commandFactory.artist(artist, keepSmart(ShuffleMode.ON)))
     }
 
     /**
@@ -357,7 +384,7 @@ constructor(
      */
     fun shuffle(genre: Genre) {
         L.d("Shuffling $genre")
-        playImpl(commandFactory.genre(genre, ShuffleMode.ON))
+        playImpl(commandFactory.genre(genre, keepSmart(ShuffleMode.ON)))
     }
 
     /**
@@ -377,7 +404,7 @@ constructor(
      */
     fun shuffle(playlist: Playlist) {
         L.d("Shuffling $playlist")
-        playImpl(commandFactory.playlist(playlist, ShuffleMode.ON))
+        playImpl(commandFactory.playlist(playlist, keepSmart(ShuffleMode.ON)))
     }
 
     /**
@@ -397,7 +424,7 @@ constructor(
      */
     fun shuffle(songs: List<Song>) {
         L.d("Shuffling ${songs.size} songs")
-        playImpl(commandFactory.songs(songs, ShuffleMode.ON))
+        playImpl(commandFactory.songs(songs, keepSmart(ShuffleMode.ON)))
     }
 
     private fun playImpl(command: PlaybackCommand?) {
@@ -588,10 +615,10 @@ constructor(
         playbackManager.playing(!playbackManager.progression.isPlaying)
     }
 
-    /** Toggle [isShuffled] (ex. from on to off) */
+    /** Toggle [shuffleMode] (ex. from [ShuffleMode.OFF] to [ShuffleMode.ON]) */
     fun toggleShuffled() {
         L.d("Toggling shuffled state")
-        playbackManager.shuffled(!playbackManager.isShuffled)
+        playbackManager.shuffleMode(playbackManager.shuffleMode.increment())
     }
 
     /**

@@ -75,12 +75,6 @@ interface PlaybackCommand {
     }
 }
 
-enum class ShuffleMode {
-    ON,
-    OFF,
-    IMPLICIT,
-}
-
 class PlaybackCommandFactoryImpl
 @Inject
 constructor(
@@ -190,7 +184,7 @@ constructor(
     private fun isShuffled(shuffle: ShuffleMode) =
         when (shuffle) {
             ShuffleMode.ON -> true
-            ShuffleMode.OFF -> false
-            ShuffleMode.IMPLICIT -> playbackSettings.keepShuffle && playbackManager.isShuffled
+            ShuffleMode.OFF, ShuffleMode.SMART -> false
+            ShuffleMode.IMPLICIT -> playbackSettings.keepShuffle && playbackManager.shuffleMode == ShuffleMode.ON
         }
 }

@@ -51,5 +51,14 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/set_ml_category">
+
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="@string/set_key_event_log"
+            app:summary="@string/set_event_log_desc"
+            app:title="@string/set_event_log" />
+
+    </PreferenceCategory>
 
 </PreferenceScreen>

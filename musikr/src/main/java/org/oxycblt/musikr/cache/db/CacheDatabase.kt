@@ -36,7 +36,10 @@ import org.oxycblt.musikr.tag.Date
 import org.oxycblt.musikr.util.correctWhitespace
 import org.oxycblt.musikr.util.splitEscaped
 
-@Database(entities = [CachedFileData::class], version = 70, exportSchema = false)
+// v71 adds the `bpm` column for the recommender's BPM cooldown filter. Schema
+// changes rely on `fallbackToDestructiveMigration` — Room nukes the cache table
+// on version bump and the library scan re-populates it with the new shape.
+@Database(entities = [CachedFileData::class], version = 71, exportSchema = false)
 internal abstract class CacheDatabase : RoomDatabase() {
     abstract fun readDao(): CacheReadDao
 
@@ -92,6 +95,7 @@ internal data class CachedFileData(
     val sortName: String?,
     val track: Int?,
     val disc: Int?,
+    val bpm: Int?,
     val subtitle: String?,
     val date: Date?,
     val albumMusicBrainzId: String?,

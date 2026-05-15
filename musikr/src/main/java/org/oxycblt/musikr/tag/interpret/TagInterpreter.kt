@@ -141,6 +141,7 @@ private class TagInterpreterImpl(private val interpretation: Interpretation) : T
             rawName = songNameOrFileWithoutExtCorrect,
             track = song.tags.track,
             disc = song.tags.disc?.let { Disc(it, song.tags.subtitle) },
+            bpm = song.tags.bpm,
             date = song.tags.date,
             durationMs = song.tags.durationMs,
             bitrateKbps = song.properties.bitrateKbps,

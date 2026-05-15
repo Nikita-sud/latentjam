@@ -44,6 +44,20 @@ internal fun Metadata.name() =
 
 internal fun Metadata.sortName() = (xiph["TITLESORT"] ?: mp4["sonm"] ?: id3v2["TSOT"])?.first()
 
+// Beats-per-minute. Accepts integer or float strings (some taggers emit "128.0").
+// ID3v2: TBPM (v2.3/v2.4) / TBP (v2.2 — TagLibJNI normalizes to v2.4 names so we
+// only need TBPM here). Xiph: BPM. MP4: `tmpo` is normally a 16-bit integer atom
+// but TagLibJNI surfaces it as a string. Negative / zero / unparseable values
+// drop to null so the recommender's BPM filter treats them as "unknown".
+internal fun Metadata.bpm(): Int? =
+    (xiph["BPM"] ?: mp4["tmpo"] ?: id3v2["TBPM"])
+        ?.firstOrNull()
+        ?.let { raw ->
+            val trimmed = raw.trim()
+            trimmed.toIntOrNull() ?: trimmed.toFloatOrNull()?.toInt()
+        }
+        ?.takeIf { it in 1..400 }
+
 // Track.
 internal fun Metadata.track() =
     (parseXiphPositionField(

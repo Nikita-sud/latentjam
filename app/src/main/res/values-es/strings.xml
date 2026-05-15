@@ -346,4 +346,15 @@
         <item quantity="many">%d segundos</item>
         <item quantity="other">%d segundos</item>
     </plurals>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Recomendaciones</string>
+    <string name="set_event_log">Registrar eventos de reproducción</string>
+    <string name="set_event_log_desc">Se guarda en el dispositivo. Se usa para personalizar las recomendaciones de Mezcla inteligente.</string>
+    <string name="lbl_edit_metadata">Editar metadatos</string>
+    <string name="lbl_metadata_genre">Género</string>
+    <string name="lbl_metadata_artist">Artista (anular)</string>
+    <string name="lbl_metadata_year">Año</string>
+    <string name="lbl_metadata_clear">Restablecer</string>
+    <string name="info_metadata_override_hint">Las anulaciones se quedan en la aplicación y no modifican el archivo de audio.</string>
 </resources>

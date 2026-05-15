@@ -29,6 +29,8 @@ import io.github.nikitasud.latentjam.detail.list.ArtistDetailListAdapter
 import io.github.nikitasud.latentjam.list.Item
 import io.github.nikitasud.latentjam.list.ListFragment
 import io.github.nikitasud.latentjam.list.menu.Menu
+import io.github.nikitasud.latentjam.ml.data.LikedSongRepository
+import javax.inject.Inject
 import io.github.nikitasud.latentjam.music.PlaylistDecision
 import io.github.nikitasud.latentjam.music.PlaylistMessage
 import io.github.nikitasud.latentjam.music.resolve
@@ -57,6 +59,7 @@ class ArtistDetailFragment : DetailFragment<Artist, Music>() {
     // Information about what artist to display is initially within the navigation arguments
     // as a UID, as that is the only safe way to parcel an artist.
     private val args: ArtistDetailFragmentArgs by navArgs()
+    @Inject lateinit var likedSongRepository: LikedSongRepository
     private val artistListAdapter = ArtistDetailListAdapter(this)
 
     override fun getDetailListAdapter() = artistListAdapter
@@ -83,6 +86,9 @@ class ArtistDetailFragment : DetailFragment<Artist, Music>() {
             ::updatePlayback,
         )
         collect(playbackModel.playbackDecision.flow, ::handlePlaybackDecision)
+        collectImmediately(likedSongRepository.likedSet) { uids ->
+            artistListAdapter.setLikedUids(uids)
+        }
     }
 
     override fun onDestroyBinding(binding: FragmentDetailBinding) {
@@ -119,6 +125,11 @@ class ArtistDetailFragment : DetailFragment<Artist, Music>() {
             is Album -> listModel.openMenu(R.menu.artist_album, item)
             else -> error("Unexpected datatype: ${item::class.simpleName}")
         }
+    }
+
+    override fun onToggleLike(item: Music) {
+        // Star button only shows on song rows; album rows ignore the toggle.
+        if (item is Song) likedSongRepository.toggle(item.uid)
     }
 
     override fun onOpenSortMenu() {

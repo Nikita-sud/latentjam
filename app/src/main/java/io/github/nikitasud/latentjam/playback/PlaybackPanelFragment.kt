@@ -37,9 +37,11 @@ import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.databinding.FragmentPlaybackPanelBinding
 import io.github.nikitasud.latentjam.detail.DetailViewModel
 import io.github.nikitasud.latentjam.list.ListViewModel
+import io.github.nikitasud.latentjam.ml.data.LikedSongRepository
 import io.github.nikitasud.latentjam.music.resolve
 import io.github.nikitasud.latentjam.music.resolveNames
 import io.github.nikitasud.latentjam.playback.state.RepeatMode
+import io.github.nikitasud.latentjam.playback.state.ShuffleMode
 import io.github.nikitasud.latentjam.playback.ui.StyledSeekBar
 import io.github.nikitasud.latentjam.playback.ui.stepper.DisplayPortion
 import io.github.nikitasud.latentjam.playback.ui.stepper.PlayerFastSeekOverlay
@@ -47,6 +49,7 @@ import io.github.nikitasud.latentjam.ui.ViewBindingFragment
 import io.github.nikitasud.latentjam.util.collectImmediately
 import io.github.nikitasud.latentjam.util.showToast
 import io.github.nikitasud.latentjam.util.systemBarInsetsCompat
+import javax.inject.Inject
 import org.oxycblt.musikr.MusicParent
 import org.oxycblt.musikr.Song
 import timber.log.Timber as L
@@ -66,6 +69,7 @@ class PlaybackPanelFragment :
     StyledSeekBar.Listener,
     ViewTreeObserver.OnGlobalLayoutListener,
     PlayerFastSeekOverlay.PerformListener {
+    @Inject lateinit var likedSongRepository: LikedSongRepository
     private val playbackModel: PlaybackViewModel by activityViewModels()
     private val detailModel: DetailViewModel by activityViewModels()
     private val listModel: ListViewModel by activityViewModels()
@@ -139,6 +143,9 @@ class PlaybackPanelFragment :
         }
         binding.playbackSkipNext.setOnClickListener { playbackModel.next() }
         binding.playbackShuffle.setOnClickListener { playbackModel.toggleShuffled() }
+        binding.playbackFavorite.setOnClickListener {
+            playbackModel.song.value?.let { likedSongRepository.toggle(it.uid) }
+        }
         binding.playbackMore?.setOnClickListener {
             playbackModel.song.value?.let {
                 listModel.openMenu(R.menu.playback_song, it, PlaySong.ByItself)
@@ -151,7 +158,8 @@ class PlaybackPanelFragment :
         collectImmediately(playbackModel.positionDs, ::updatePosition)
         collectImmediately(playbackModel.repeatMode, ::updateRepeat)
         collectImmediately(playbackModel.isPlaying, ::updatePlaying)
-        collectImmediately(playbackModel.isShuffled, ::updateShuffled)
+        collectImmediately(playbackModel.shuffleMode, ::updateShuffled)
+        collectImmediately(likedSongRepository.likedSet, playbackModel.song, ::updateFavorite)
     }
 
     override fun onStart() {
@@ -263,8 +271,18 @@ class PlaybackPanelFragment :
         requireBinding().playbackSeekBar?.setWaveEnabled(isPlaying)
     }
 
-    private fun updateShuffled(isShuffled: Boolean) {
-        requireBinding().playbackShuffle.isChecked = isShuffled
+    private fun updateShuffled(shuffleMode: ShuffleMode) {
+        val shuffleButton = requireBinding().playbackShuffle
+        shuffleButton.isChecked = shuffleMode != ShuffleMode.OFF
+        shuffleButton.setIconResource(shuffleMode.icon)
+    }
+
+    private fun updateFavorite(likedSet: Set<org.oxycblt.musikr.Music.UID>, song: Song?) {
+        val isLiked = song != null && likedSet.contains(song.uid)
+        requireBinding().playbackFavorite.apply {
+            setIconResource(if (isLiked) R.drawable.ic_star_24 else R.drawable.ic_star_outline_24)
+            contentDescription = getString(if (isLiked) R.string.desc_unlike_song else R.string.desc_like_song)
+        }
     }
 
     private fun navigateToCurrentSong() {

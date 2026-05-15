@@ -61,6 +61,14 @@ android {
     packagingOptions {
         jniLibs {
             excludes += ['**/kotlin/**', '**/okhttp3/**']
+            // Force-extract native libs to /data/app/.../lib/<abi>/ on install rather
+            // than running them in-place from inside the APK. Required so the DSP-side
+            // fastrpc loader can fopen() `libQnnHtpV??Skel.so` — the DSP runs in a
+            // different security context and can't read native libs from inside an
+            // unextracted APK. AGP defaults this to `false` (smaller installs, faster
+            // updates) since API 23+; flipping to `true` costs ~30 MB on-disk for our
+            // QNN AAR but is the only way the Hexagon NPU path works.
+            useLegacyPackaging = true
         }
         resources {
             excludes += ['DebugProbesKt.bin', 'kotlin-tooling-metadata.json', '**/kotlin/**', '**/okhttp3/**', 'META-INF/*.version']
@@ -70,6 +78,23 @@ android {
     buildFeatures {
         viewBinding true
         buildConfig true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+
+    defaultConfig {
+        externalNativeBuild {
+            cmake {
+                // Only build the resampler — keep ABIs in sync with the AABs we ship.
+                abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"
+                arguments "-DANDROID_STL=c++_static"
+            }
+        }
     }
 }
 
@@ -140,6 +165,40 @@ dependencies {
     implementation "androidx.room:room-runtime:$room_version"
     ksp "androidx.room:room-compiler:$room_version"
     implementation "androidx.room:room-ktx:$room_version"
+
+    // WorkManager (for background ML tasks: embedding extraction, retrain stub).
+    // Hilt-aware variant uses HiltWorkerFactory wired in MlModule.
+    implementation "androidx.work:work-runtime-ktx:2.10.0"
+    implementation "androidx.hilt:hilt-work:1.2.0"
+    ksp "androidx.hilt:hilt-compiler:1.2.0"
+
+    // ML inference: ONNX Runtime Android AAR — for predictor models AND now for the encoder
+    // via the **QNN execution provider** which routes graphs to Qualcomm's Hexagon NPU
+    // (HTP) on Snapdragon SoCs. The `-qnn` flavor of the AAR enables ORT's QNN EP and
+    // transitively pulls `com.qualcomm.qti:qnn-runtime:2.33.0` (~30 MB of Hexagon backend
+    // libraries — `libQnnHtpV79*.so` covers Snapdragon 8 Gen 3 specifically).
+    //
+    // Why bother: TFLite's NNAPI delegate on Samsung One UI 16 runs our encoder on CPU
+    // instead of NPU because Samsung's NNAPI shim doesn't expose Hexagon — leaving the
+    // encoder to thermal-throttle from ~170 ms → ~870 ms per batch over a worker run.
+    // ORT QNN talks to QNN HTP directly, bypassing NNAPI entirely, so the NPU runs the
+    // graph in a separate thermal domain from the CPU.
+    //
+    // 1.22.0 ships 16 KB-aligned native libs, required for Android 15+ devices with 16 KB
+    // pages and for Google Play submission after 2025-11-01.
+    implementation "com.microsoft.onnxruntime:onnxruntime-android-qnn:1.26.0"
+
+    // (TFLite removed — the encoder migrated to ORT + QNN HTP for Hexagon NPU access,
+    // and the predictor was already on ORT. Nothing in the codebase imports
+    // `org.tensorflow.lite.*` anymore.)
+
+    // (BPM detection: we evaluated TarsosDSP and Aubio. TarsosDSP isn't published
+    // to Maven Central and every JitPack build of `JorenSix/TarsosDSP` reports
+    // "ok" status with no artifact actually uploaded. Vendoring upstream would
+    // pull ~500 lines that mostly handle file I/O we already do natively. We
+    // ship a 100-line onset-envelope autocorrelation tempo detector in
+    // `ml/features/BpmEstimator.kt` instead — runs on the same 15 s PCM the
+    // encoder consumes, no extra decode pass, no third-party dep.)
 
     // Build
     coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:$desugaring_version"

@@ -28,7 +28,16 @@ import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
+import io.github.nikitasud.latentjam.ml.data.LikedSongDao
+import io.github.nikitasud.latentjam.ml.data.LikedSongEntity
+import io.github.nikitasud.latentjam.ml.data.ListeningEventDao
+import io.github.nikitasud.latentjam.ml.data.ListeningEventEntity
+import io.github.nikitasud.latentjam.ml.data.TrackEmbeddingDao
+import io.github.nikitasud.latentjam.ml.data.TrackEmbeddingEntity
+import io.github.nikitasud.latentjam.ml.data.TrackMetadataOverrideDao
+import io.github.nikitasud.latentjam.ml.data.TrackMetadataOverrideEntity
 import io.github.nikitasud.latentjam.playback.state.RepeatMode
+import io.github.nikitasud.latentjam.playback.state.ShuffleMode
 import org.oxycblt.musikr.Music
 
 /**
@@ -37,8 +46,16 @@ import org.oxycblt.musikr.Music
  * @author Alexander Capehart
  */
 @Database(
-    entities = [PlaybackState::class, QueueHeapItem::class, QueueShuffledMappingItem::class],
-    version = 38,
+    entities = [
+        PlaybackState::class,
+        QueueHeapItem::class,
+        QueueShuffledMappingItem::class,
+        ListeningEventEntity::class,
+        TrackEmbeddingEntity::class,
+        TrackMetadataOverrideEntity::class,
+        LikedSongEntity::class,
+    ],
+    version = 45,
     exportSchema = false,
 )
 @TypeConverters(Music.UID.TypeConverters::class)
@@ -57,6 +74,14 @@ abstract class PersistenceDatabase : RoomDatabase() {
      */
     abstract fun queueDao(): QueueDao
 
+    abstract fun listeningEventDao(): ListeningEventDao
+
+    abstract fun trackEmbeddingDao(): TrackEmbeddingDao
+
+    abstract fun trackMetadataOverrideDao(): TrackMetadataOverrideDao
+
+    abstract fun likedSongDao(): LikedSongDao
+
     companion object {
         val MIGRATION_27_32 =
             Migration(27, 32) {
@@ -65,6 +90,161 @@ abstract class PersistenceDatabase : RoomDatabase() {
                 it.execSQL("ALTER TABLE queue_heap RENAME TO QueueHeapItem")
                 it.execSQL("ALTER TABLE queue_mapping RENAME TO QueueMappingItem")
             }
+
+        // v39 introduces the ML tables (listening events + cached track embeddings).
+        // The two tables are new and additive — no existing column types change — so
+        // a plain CREATE TABLE migration is sufficient. v0 of this migration omitted the
+        // index DDL declared on the @Entity, which made Room's TableInfo check throw on
+        // first open; v41 carries an idempotent fix-up so any in-the-wild v39/v40 DBs
+        // pick up the missing indices on next launch.
+        val MIGRATION_38_39 =
+            Migration(38, 39) {
+                it.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `ListeningEventEntity` (
+                        `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        `songUid` TEXT NOT NULL,
+                        `startedAtMs` INTEGER NOT NULL,
+                        `endedAtMs` INTEGER NOT NULL,
+                        `playedMs` INTEGER NOT NULL,
+                        `trackDurationMs` INTEGER NOT NULL,
+                        `completed` INTEGER NOT NULL,
+                        `skipped` INTEGER NOT NULL,
+                        `sessionId` TEXT NOT NULL,
+                        `sessionPos` INTEGER NOT NULL,
+                        `parentUid` TEXT,
+                        `ctxUid0` TEXT,
+                        `ctxUid1` TEXT,
+                        `ctxUid2` TEXT,
+                        `ctxUid3` TEXT
+                    )
+                    """.trimIndent()
+                )
+                it.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `TrackEmbeddingEntity` (
+                        `songUid` TEXT NOT NULL PRIMARY KEY,
+                        `modelVersion` TEXT NOT NULL,
+                        `embedding` BLOB NOT NULL,
+                        `embeddedAtMs` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                createMlIndices(it)
+            }
+
+        val MIGRATION_39_40 =
+            Migration(39, 40) {
+                it.execSQL("ALTER TABLE PlaybackState ADD COLUMN shuffleMode TEXT NOT NULL DEFAULT 'OFF'")
+            }
+
+        // Fix-up: pre-existing v39/v40 DBs that crashed on the missing indices.
+        val MIGRATION_40_41 =
+            Migration(40, 41) { createMlIndices(it) }
+
+        // v42 adds the per-track metadata override table — user-edited genre / artist /
+        // year that the metadata rerank consults before falling back to file tags.
+        val MIGRATION_41_42 =
+            Migration(41, 42) {
+                it.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `track_metadata_override` (
+                        `songUid` TEXT NOT NULL PRIMARY KEY,
+                        `genre` TEXT,
+                        `artist` TEXT,
+                        `year` INTEGER,
+                        `updatedAtMs` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+
+        // v43 adds:
+        //   - `tempo` + `energy` on TrackEmbeddingEntity for the Phase 0 BPM filter and
+        //     energy soft-penalty. Both are nullable; the embedding worker fills them
+        //     during the same pass that produces the encoder output.
+        //   - `wasSmartPick` on ListeningEventEntity so future training can distinguish
+        //     SMART-driven plays from manually-queued ones (the reviewer flagged this
+        //     as a precondition for any reranker training).
+        // All columns are additive and nullable / default-false — no data loss.
+        val MIGRATION_42_43 =
+            Migration(42, 43) {
+                it.execSQL("ALTER TABLE `TrackEmbeddingEntity` ADD COLUMN `tempo` REAL")
+                it.execSQL("ALTER TABLE `TrackEmbeddingEntity` ADD COLUMN `energy` REAL")
+                it.execSQL(
+                    "ALTER TABLE `ListeningEventEntity` ADD COLUMN `wasSmartPick` " +
+                        "INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+
+        // v44 adds four columns on ListeningEventEntity that the existing
+        // `completed`/`skipped` booleans conflated:
+        //   - `finalizeReason` distinguishes natural track-end from a user-initiated
+        //     skip and from session-end / new-playback context shifts.
+        //   - `shuffleMode` / `repeatMode` capture the playback context at finalize
+        //     time (broader than the existing `wasSmartPick` bool).
+        //   - `wasUserStarted` captures user agency at the START of this track
+        //     (tap-to-play vs queue-advance), which `wasSmartPick` doesn't tell us.
+        // All additive, all default to a safe value for legacy rows.
+        val MIGRATION_43_44 =
+            Migration(43, 44) {
+                it.execSQL(
+                    "ALTER TABLE `ListeningEventEntity` ADD COLUMN `finalizeReason` " +
+                        "TEXT NOT NULL DEFAULT 'UNKNOWN'"
+                )
+                it.execSQL(
+                    "ALTER TABLE `ListeningEventEntity` ADD COLUMN `shuffleMode` " +
+                        "TEXT NOT NULL DEFAULT 'OFF'"
+                )
+                it.execSQL(
+                    "ALTER TABLE `ListeningEventEntity` ADD COLUMN `repeatMode` " +
+                        "TEXT NOT NULL DEFAULT 'NONE'"
+                )
+                it.execSQL(
+                    "ALTER TABLE `ListeningEventEntity` ADD COLUMN `wasUserStarted` " +
+                        "INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+
+        // v45 adds the LikedSongEntity table (user-favorited songs, toggled via
+        // the star button on every song row) and the `liked` column on
+        // ListeningEventEntity. The recorder queries the table at finalize time
+        // and stamps the current liked state on each event row, giving the
+        // predictor a strong explicit positive signal per listen.
+        val MIGRATION_44_45 =
+            Migration(44, 45) {
+                it.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `LikedSongEntity` (
+                        `songUid` TEXT NOT NULL PRIMARY KEY,
+                        `likedAtMs` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                it.execSQL(
+                    "ALTER TABLE `ListeningEventEntity` ADD COLUMN `liked` " +
+                        "INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+
+        private fun createMlIndices(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_ListeningEventEntity_sessionId` " +
+                    "ON `ListeningEventEntity` (`sessionId`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_ListeningEventEntity_startedAtMs` " +
+                    "ON `ListeningEventEntity` (`startedAtMs`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_ListeningEventEntity_songUid` " +
+                    "ON `ListeningEventEntity` (`songUid`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_TrackEmbeddingEntity_modelVersion` " +
+                    "ON `TrackEmbeddingEntity` (`modelVersion`)"
+            )
+        }
     }
 }
 
@@ -144,6 +324,7 @@ data class PlaybackState(
     val index: Int,
     val positionMs: Long,
     val repeatMode: RepeatMode,
+    val shuffleMode: ShuffleMode,
     val songUid: Music.UID,
     val parentUid: Music.UID?,
 )

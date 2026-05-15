@@ -29,6 +29,7 @@ import io.github.nikitasud.latentjam.playback.PlaybackSettings
 import io.github.nikitasud.latentjam.playback.state.DeferredPlayback
 import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager
 import io.github.nikitasud.latentjam.playback.state.Progression
+import io.github.nikitasud.latentjam.playback.state.ShuffleMode
 import io.github.nikitasud.latentjam.widgets.WidgetComponent
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -186,7 +187,7 @@ private constructor(
         parent: MusicParent?,
         queue: List<Song>,
         index: Int,
-        isShuffled: Boolean,
+        shuffleMode: ShuffleMode,
     ) {
         cancelAutoStop()
     }

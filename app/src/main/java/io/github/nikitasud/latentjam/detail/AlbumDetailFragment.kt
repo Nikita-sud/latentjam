@@ -30,6 +30,8 @@ import io.github.nikitasud.latentjam.detail.list.AlbumDetailListAdapter
 import io.github.nikitasud.latentjam.list.Item
 import io.github.nikitasud.latentjam.list.ListFragment
 import io.github.nikitasud.latentjam.list.menu.Menu
+import io.github.nikitasud.latentjam.ml.data.LikedSongRepository
+import javax.inject.Inject
 import io.github.nikitasud.latentjam.music.PlaylistDecision
 import io.github.nikitasud.latentjam.music.PlaylistMessage
 import io.github.nikitasud.latentjam.music.resolve
@@ -57,6 +59,7 @@ class AlbumDetailFragment : DetailFragment<Album, Song>() {
     // Information about what album to display is initially within the navigation arguments
     // as a UID, as that is the only safe way to parcel an album.
     private val args: AlbumDetailFragmentArgs by navArgs()
+    @Inject lateinit var likedSongRepository: LikedSongRepository
     private val albumListAdapter = AlbumDetailListAdapter(this)
 
     override fun getDetailListAdapter() = albumListAdapter
@@ -83,6 +86,9 @@ class AlbumDetailFragment : DetailFragment<Album, Song>() {
             ::updatePlayback,
         )
         collect(playbackModel.playbackDecision.flow, ::handlePlaybackDecision)
+        collectImmediately(likedSongRepository.likedSet) { uids ->
+            albumListAdapter.setLikedUids(uids)
+        }
     }
 
     override fun onDestroyBinding(binding: FragmentDetailBinding) {
@@ -111,6 +117,10 @@ class AlbumDetailFragment : DetailFragment<Album, Song>() {
 
     override fun onOpenMenu(item: Song) {
         listModel.openMenu(R.menu.album_song, item, detailModel.playInAlbumWith)
+    }
+
+    override fun onToggleLike(item: Song) {
+        likedSongRepository.toggle(item.uid)
     }
 
     override fun onOpenSortMenu() {

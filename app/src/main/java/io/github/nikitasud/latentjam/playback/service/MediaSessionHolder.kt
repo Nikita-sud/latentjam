@@ -45,6 +45,7 @@ import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager
 import io.github.nikitasud.latentjam.playback.state.Progression
 import io.github.nikitasud.latentjam.playback.state.QueueChange
 import io.github.nikitasud.latentjam.playback.state.RepeatMode
+import io.github.nikitasud.latentjam.playback.state.ShuffleMode
 import io.github.nikitasud.latentjam.util.newBroadcastPendingIntent
 import io.github.nikitasud.latentjam.util.newMainPendingIntent
 import javax.inject.Inject
@@ -142,11 +143,11 @@ private constructor(
         }
     }
 
-    override fun onQueueReordered(queue: List<Song>, index: Int, isShuffled: Boolean) {
+    override fun onQueueReordered(queue: List<Song>, index: Int, shuffleMode: ShuffleMode) {
         updateQueue(queue)
         invalidateSessionState()
         mediaSession.setShuffleMode(
-            if (isShuffled) {
+            if (shuffleMode == ShuffleMode.ON) {
                 PlaybackStateCompat.SHUFFLE_MODE_ALL
             } else {
                 PlaybackStateCompat.SHUFFLE_MODE_NONE
@@ -159,7 +160,7 @@ private constructor(
         parent: MusicParent?,
         queue: List<Song>,
         index: Int,
-        isShuffled: Boolean,
+        shuffleMode: ShuffleMode,
     ) {
         updateMediaMetadata(playbackManager.currentSong, parent)
         updateQueue(queue)
@@ -337,11 +338,7 @@ private constructor(
             PlaybackStateCompat.CustomAction.Builder(
                     PlaybackActions.ACTION_INVERT_SHUFFLE,
                     context.getString(R.string.desc_shuffle),
-                    if (playbackManager.isShuffled) {
-                        R.drawable.ic_shuffle_on_24
-                    } else {
-                        R.drawable.ic_shuffle_off_24
-                    },
+                    playbackManager.shuffleMode.icon,
                 )
                 .build()
         state.addCustomAction(shuffleAction)
@@ -355,7 +352,7 @@ private constructor(
         invalidateSessionState()
 
         _notification.updateRepeatMode(playbackManager.repeatMode)
-        _notification.updateShuffled(playbackManager.isShuffled)
+        _notification.updateShuffleMode(playbackManager.shuffleMode)
 
         if (!bitmapProvider.isBusy) {
             L.d("Not loading a bitmap, post the notification")
@@ -395,7 +392,7 @@ private class PlaybackNotification(
         addAction(
             buildAction(context, PlaybackActions.ACTION_SKIP_NEXT, R.drawable.ic_skip_next_24)
         )
-        addAction(buildShuffleAction(context, false))
+        addAction(buildShuffleAction(context, ShuffleMode.OFF))
 
         setStyle(
             MediaStyle(this).setMediaSession(sessionToken).setShowActionsInCompactView(1, 2, 3)
@@ -450,11 +447,11 @@ private class PlaybackNotification(
     /**
      * Update the secondary action in this notification to show the current shuffle state.
      *
-     * @param isShuffled Whether the queue is currently shuffled or not.
+     * @param shuffleMode The current [ShuffleMode].
      */
-    fun updateShuffled(isShuffled: Boolean) {
-        L.d("Applying shuffle action: $isShuffled")
-        mActions[4] = buildShuffleAction(context, isShuffled)
+    fun updateShuffleMode(shuffleMode: ShuffleMode) {
+        L.d("Applying shuffle action: $shuffleMode")
+        mActions[4] = buildShuffleAction(context, shuffleMode)
     }
 
     // --- NOTIFICATION ACTION BUILDERS ---
@@ -481,15 +478,9 @@ private class PlaybackNotification(
 
     private fun buildShuffleAction(
         context: Context,
-        isShuffled: Boolean,
+        shuffleMode: ShuffleMode,
     ): NotificationCompat.Action {
-        val drawableRes =
-            if (isShuffled) {
-                R.drawable.ic_shuffle_on_24
-            } else {
-                R.drawable.ic_shuffle_off_24
-            }
-        return buildAction(context, PlaybackActions.ACTION_INVERT_SHUFFLE, drawableRes)
+        return buildAction(context, PlaybackActions.ACTION_INVERT_SHUFFLE, shuffleMode.icon)
     }
 
     private fun buildAction(context: Context, actionName: String, @DrawableRes iconRes: Int) =

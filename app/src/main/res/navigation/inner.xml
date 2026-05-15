@@ -43,6 +43,9 @@
             android:id="@+id/show_playlist"
             app:destination="@id/playlist_detail_fragment" />
         <action
+            android:id="@+id/show_favorites"
+            app:destination="@id/favorites_fragment" />
+        <action
             android:id="@+id/open_song_menu"
             app:destination="@id/song_menu_dialog" />
         <action
@@ -401,6 +404,12 @@
             android:id="@+id/play_from_genre"
             app:destination="@id/play_from_genre_dialog" />
     </fragment>
+
+    <fragment
+        android:id="@+id/favorites_fragment"
+        android:name="io.github.nikitasud.latentjam.home.list.FavoritesFragment"
+        android:label="favorites_fragment"
+        tools:layout="@layout/fragment_favorites" />
 
     <dialog
         android:id="@+id/playlist_song_sort_dialog"

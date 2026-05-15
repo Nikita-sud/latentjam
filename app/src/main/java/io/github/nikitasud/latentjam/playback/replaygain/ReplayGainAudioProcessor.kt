@@ -26,6 +26,7 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import io.github.nikitasud.latentjam.playback.PlaybackSettings
 import io.github.nikitasud.latentjam.playback.state.PlaybackStateManager
 import io.github.nikitasud.latentjam.playback.state.QueueChange
+import io.github.nikitasud.latentjam.playback.state.ShuffleMode
 import java.nio.ByteBuffer
 import javax.inject.Inject
 import kotlin.math.pow
@@ -86,7 +87,7 @@ constructor(
         parent: MusicParent?,
         queue: List<Song>,
         index: Int,
-        isShuffled: Boolean,
+        shuffleMode: ShuffleMode,
     ) {
         L.d("New playback started, updating playback information")
         applyReplayGain(playbackManager.currentSong)

@@ -358,6 +358,67 @@ class ExoPlaybackStateHolder(
         deferSave()
     }
 
+    override fun replaceUpcoming(songs: List<Song>, ack: StateAck.QueueReordered) {
+        val currTimeline = player.currentTimeline
+        val nextIndex =
+            if (currTimeline.isEmpty) {
+                C.INDEX_UNSET
+            } else {
+                currTimeline.getNextWindowIndex(
+                    player.currentMediaItemIndex,
+                    Player.REPEAT_MODE_OFF,
+                    player.shuffleModeEnabled,
+                )
+            }
+        val mediaItems = songs.map { it.buildMediaItem() }
+        if (nextIndex == C.INDEX_UNSET) {
+            // No upcoming items — just append.
+            player.addMediaItems(mediaItems)
+        } else {
+            // Replace [nextIndex, end) with the new items. This wipes the natural linear-
+            // queue tail in a single operation (no per-item Remove acks) and installs the
+            // smart-picked queue in its place. The current track keeps playing uninterrupted.
+            player.replaceMediaItems(nextIndex, player.mediaItemCount, mediaItems)
+        }
+        playbackManager.ack(this, ack)
+        deferSave()
+    }
+
+    override fun replaceQueueAroundCurrent(
+        songs: List<Song>,
+        ack: StateAck.QueueReordered,
+    ) {
+        // Drop the previously-played portion of the queue first so the current track ends
+        // up at index 0. ExoPlayer adjusts `currentMediaItemIndex` automatically when items
+        // before it are removed, so the in-progress audio keeps playing without interruption.
+        val currIdx = player.currentMediaItemIndex
+        if (currIdx > 0) {
+            player.removeMediaItems(0, currIdx)
+        }
+        // Now the current track is at index 0 (or the queue is empty). Replace everything
+        // after it with the supplied songs. Reusing the same nextIndex logic as
+        // [replaceUpcoming] guarantees we honor any in-flight shuffle-order tweaks.
+        val currTimeline = player.currentTimeline
+        val nextIndex =
+            if (currTimeline.isEmpty) {
+                C.INDEX_UNSET
+            } else {
+                currTimeline.getNextWindowIndex(
+                    player.currentMediaItemIndex,
+                    Player.REPEAT_MODE_OFF,
+                    player.shuffleModeEnabled,
+                )
+            }
+        val mediaItems = songs.map { it.buildMediaItem() }
+        if (nextIndex == C.INDEX_UNSET) {
+            player.addMediaItems(mediaItems)
+        } else {
+            player.replaceMediaItems(nextIndex, player.mediaItemCount, mediaItems)
+        }
+        playbackManager.ack(this, ack)
+        deferSave()
+    }
+
     override fun move(from: Int, to: Int, ack: StateAck.Move) {
         val indices = player.unscrambleQueueIndices()
         if (indices.isEmpty()) {
@@ -403,6 +464,7 @@ class ExoPlaybackStateHolder(
         rawQueue: RawQueue,
         positionMs: Long,
         repeatMode: RepeatMode,
+        shuffleMode: ShuffleMode,
         ack: StateAck.NewPlayback?,
     ) {
         var sendNewPlaybackEvent = false
@@ -413,7 +475,7 @@ class ExoPlaybackStateHolder(
         }
         if (rawQueue != resolveQueue()) {
             player.setMediaItems(rawQueue.heap.map { it.buildMediaItem() })
-            if (rawQueue.isShuffled) {
+            if (shuffleMode == ShuffleMode.ON) {
                 player.shuffleModeEnabled = true
                 player.setShuffleOrder(BetterShuffleOrder(rawQueue.shuffledMapping.toIntArray()))
             } else {

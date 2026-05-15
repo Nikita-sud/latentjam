@@ -27,6 +27,7 @@ import io.github.nikitasud.latentjam.R
 import io.github.nikitasud.latentjam.databinding.DialogMenuBinding
 import io.github.nikitasud.latentjam.detail.DetailViewModel
 import io.github.nikitasud.latentjam.list.ListViewModel
+import io.github.nikitasud.latentjam.ml.data.LikedSongRepository
 import io.github.nikitasud.latentjam.music.MusicViewModel
 import io.github.nikitasud.latentjam.music.resolve
 import io.github.nikitasud.latentjam.music.resolveNames
@@ -35,6 +36,7 @@ import io.github.nikitasud.latentjam.playback.formatDurationMs
 import io.github.nikitasud.latentjam.util.getPlural
 import io.github.nikitasud.latentjam.util.share
 import io.github.nikitasud.latentjam.util.showToast
+import javax.inject.Inject
 import org.oxycblt.musikr.Artist
 import org.oxycblt.musikr.Genre
 import org.oxycblt.musikr.Playlist
@@ -49,6 +51,7 @@ import org.oxycblt.musikr.Song
 class SongMenuDialogFragment : MenuDialogFragment<Menu.ForSong>() {
     override val menuModel: MenuViewModel by activityViewModels()
     override val listModel: ListViewModel by activityViewModels()
+    @Inject lateinit var likedSongRepository: LikedSongRepository
     private val detailModel: DetailViewModel by activityViewModels()
     private val musicModel: MusicViewModel by activityViewModels()
     private val playbackModel: PlaybackViewModel by activityViewModels()
@@ -81,6 +84,7 @@ class SongMenuDialogFragment : MenuDialogFragment<Menu.ForSong>() {
                 requireContext().showToast(R.string.lng_queue_added)
             }
             R.id.action_playlist_add -> musicModel.addToPlaylist(menu.song)
+            R.id.action_toggle_favorite -> likedSongRepository.toggle(menu.song.uid)
             R.id.action_artist_details -> detailModel.showArtist(menu.song)
             R.id.action_album_details -> detailModel.showAlbum(menu.song.album)
             R.id.action_share -> requireContext().share(menu.song)

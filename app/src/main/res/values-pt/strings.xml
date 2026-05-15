@@ -317,4 +317,15 @@
     <string name="set_with_hidden">Ignorar ficheiros ocultos</string>
     <string name="set_excluded_locations">Pastas excluídas</string>
     <string name="set_excluded_locations_desc">Gerir pastas para excluir do carregamento de música</string>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Recomendações</string>
+    <string name="set_event_log">Registar eventos de reprodução</string>
+    <string name="set_event_log_desc">Fica no dispositivo. Usado para personalizar as recomendações de Reprodução aleatória inteligente.</string>
+    <string name="lbl_edit_metadata">Editar metadados</string>
+    <string name="lbl_metadata_genre">Género</string>
+    <string name="lbl_metadata_artist">Artista (substituição)</string>
+    <string name="lbl_metadata_year">Ano</string>
+    <string name="lbl_metadata_clear">Repor</string>
+    <string name="info_metadata_override_hint">As substituições ficam na aplicação e não modificam o ficheiro de áudio.</string>
 </resources>

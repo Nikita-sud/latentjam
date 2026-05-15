@@ -23,10 +23,17 @@ import android.content.Intent
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
 import io.github.nikitasud.latentjam.home.HomeSettings
 import io.github.nikitasud.latentjam.image.ImageSettings
+import io.github.nikitasud.latentjam.ml.MlSettings
+import io.github.nikitasud.latentjam.ml.encoder.EmbeddingScheduler
+import io.github.nikitasud.latentjam.ml.events.ListeningEventRecorder
+import io.github.nikitasud.latentjam.ml.retrain.RetrainObserver
 import io.github.nikitasud.latentjam.playback.PlaybackSettings
+import io.github.nikitasud.latentjam.ml.predictor.RecommendationEngine
 import io.github.nikitasud.latentjam.ui.UISettings
 import io.github.nikitasud.latentjam.util.CopyleftNoticeTree
 import javax.inject.Inject
@@ -38,11 +45,20 @@ import timber.log.Timber
  * @author Alexander Capehart (OxygenCobalt)
  */
 @HiltAndroidApp
-class LatentJam : Application() {
+class LatentJam : Application(), Configuration.Provider {
     @Inject lateinit var imageSettings: ImageSettings
     @Inject lateinit var playbackSettings: PlaybackSettings
     @Inject lateinit var uiSettings: UISettings
     @Inject lateinit var homeSettings: HomeSettings
+    @Inject lateinit var mlSettings: MlSettings
+    @Inject lateinit var listeningEventRecorder: ListeningEventRecorder
+    @Inject lateinit var recommendationEngine: RecommendationEngine
+    @Inject lateinit var embeddingScheduler: EmbeddingScheduler
+    @Inject lateinit var retrainObserver: RetrainObserver
+    @Inject lateinit var workerFactory: HiltWorkerFactory
+
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
 
     override fun onCreate() {
         super.onCreate()
@@ -61,6 +77,16 @@ class LatentJam : Application() {
         playbackSettings.migrate()
         uiSettings.migrate()
         homeSettings.migrate()
+        mlSettings.migrate()
+
+        // ML wiring: events recorder + recommender attach to PlaybackStateManager,
+        // EmbeddingScheduler attaches to MusicRepository, RetrainObserver collects the
+        // event-count Flow. All four are application-scoped — the foreground service
+        // owns playback + indexing, so we want listeners alive even when no UI is bound.
+        listeningEventRecorder.attach()
+        recommendationEngine.attach()
+        embeddingScheduler.attach()
+        retrainObserver.start()
         // Adding static shortcuts in a dynamic manner is better than declaring them
         // manually, as it will properly handle the difference between debug and release
         // LatentJam instances.

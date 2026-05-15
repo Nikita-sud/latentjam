@@ -40,6 +40,7 @@ internal data class PreSong(
     val rawName: String,
     val track: Int?,
     val disc: Disc?,
+    val bpm: Int?,
     val date: Date?,
     val uri: Uri,
     val path: Path,

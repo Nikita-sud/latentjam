@@ -82,6 +82,19 @@ private constructor(
             observers.add(observer)
         }
 
+        // Belt-and-suspenders: SAF DocumentsProvider only notifies its
+        // observers for changes that go through the SAF API (system Files app,
+        // SAF-aware file managers). Direct filesystem writes (USB MTP, cloud
+        // sync, adb push) update MediaStore but NOT SAF — so without this
+        // second observer the user sees "I added a song, the app doesn't notice".
+        // MediaStore observer is global (all audio), so 500 ms debounce in
+        // LocationObserver groups spurious bursts.
+        val mediaStoreObserver =
+            LocationObserver(context, AOSPMediaStore.Audio.Media.EXTERNAL_CONTENT_URI) {
+                trySend(FSUpdate.LocationChanged(null))
+            }
+        observers.add(mediaStoreObserver)
+
         awaitClose { observers.forEach { observer -> observer.release() } }
     }
 

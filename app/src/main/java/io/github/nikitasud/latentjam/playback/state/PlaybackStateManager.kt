@@ -63,8 +63,8 @@ interface PlaybackStateManager {
     /** The index of the currently playing [Song] in the queue. */
     val index: Int
 
-    /** Whether the queue is shuffled or not. */
-    val isShuffled: Boolean
+    /** The current [ShuffleMode]. */
+    val shuffleMode: ShuffleMode
 
     /** The audio session ID of the internal player. Null if no internal player exists. */
     val currentAudioSessionId: Int?
@@ -156,6 +156,25 @@ interface PlaybackStateManager {
     fun addToQueue(songs: List<Song>)
 
     /**
+     * Replace the entire upcoming portion of the queue (everything after the currently
+     * playing [Song]) with [songs]. The current track keeps playing uninterrupted; only
+     * the trailing queue is rewritten. Used by SMART shuffle to fully reseed the queue.
+     *
+     * @param songs The [Song]s that should now occupy the upcoming slots.
+     */
+    fun replaceUpcoming(songs: List<Song>)
+
+    /**
+     * Like [replaceUpcoming] but also drops every track before the current one, so the
+     * currently-playing [Song] ends up at queue index 0 with [songs] following it. Used
+     * when SMART shuffle activates so the queue UI doesn't bury the current track under
+     * the previously-played linear tail.
+     *
+     * @param songs The [Song]s that should sit immediately after the current track.
+     */
+    fun replaceQueueAroundCurrent(songs: List<Song>)
+
+    /**
      * Add a [Song] to the end of the queue.
      *
      * @param song The [Song] to add.
@@ -178,11 +197,11 @@ interface PlaybackStateManager {
     fun removeQueueItem(at: Int)
 
     /**
-     * (Re)shuffle or (Re)order this instance.
+     * Update the current [ShuffleMode].
      *
-     * @param shuffled Whether to shuffle the queue or not.
+     * @param shuffleMode The new [ShuffleMode].
      */
-    fun shuffled(shuffled: Boolean)
+    fun shuffleMode(shuffleMode: ShuffleMode)
 
     /**
      * Acknowledges that an event has happened that modified the state held by the current
@@ -280,9 +299,9 @@ interface PlaybackStateManager {
          *
          * @param queue The songs of the new queue.
          * @param index The new index of the currently playing [Song].
-         * @param isShuffled Whether the queue is shuffled or not.
+         * @param shuffleMode The current [ShuffleMode].
          */
-        fun onQueueReordered(queue: List<Song>, index: Int, isShuffled: Boolean) {}
+        fun onQueueReordered(queue: List<Song>, index: Int, shuffleMode: ShuffleMode) {}
 
         /**
          * Called when a new playback configuration was created.
@@ -290,13 +309,13 @@ interface PlaybackStateManager {
          * @param parent The [MusicParent] item currently being played from.
          * @param queue The queue of [Song]s to play from.
          * @param index The index of the currently playing [Song].
-         * @param isShuffled Whether the queue is shuffled or not.
+         * @param shuffleMode The current [ShuffleMode].
          */
         fun onNewPlayback(
             parent: MusicParent?,
             queue: List<Song>,
             index: Int,
-            isShuffled: Boolean,
+            shuffleMode: ShuffleMode,
         ) {}
 
         /**
@@ -326,6 +345,7 @@ interface PlaybackStateManager {
     data class SavedState(
         val positionMs: Long,
         val repeatMode: RepeatMode,
+        val shuffleMode: ShuffleMode,
         val parent: MusicParent?,
         val heap: List<Song?>,
         val shuffledMapping: List<Int>,
@@ -341,7 +361,7 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
         val parent: MusicParent?,
         val queue: List<Song>,
         val index: Int,
-        val isShuffled: Boolean,
+        val shuffleMode: ShuffleMode,
         val rawQueue: RawQueue,
     )
 
@@ -355,7 +375,7 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
             parent = null,
             queue = emptyList(),
             index = -1,
-            isShuffled = false,
+            shuffleMode = ShuffleMode.OFF,
             rawQueue = RawQueue.nil(),
         )
     @Volatile private var stateHolder: PlaybackStateHolder? = null
@@ -380,8 +400,8 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
     override val index
         get() = stateMirror.index
 
-    override val isShuffled
-        get() = stateMirror.isShuffled
+    override val shuffleMode
+        get() = stateMirror.shuffleMode
 
     override val currentAudioSessionId: Int?
         get() = stateHolder?.audioSessionId
@@ -397,7 +417,7 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
                 stateMirror.parent,
                 stateMirror.queue,
                 stateMirror.index,
-                stateMirror.isShuffled,
+                stateMirror.shuffleMode,
             )
             listener.onProgressionChanged(stateMirror.progression)
             listener.onRepeatModeChanged(stateMirror.repeatMode)
@@ -426,6 +446,7 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
                 stateMirror.rawQueue,
                 stateMirror.progression.calculateElapsedPositionMs(),
                 stateMirror.repeatMode,
+                stateMirror.shuffleMode,
                 null,
             )
         }
@@ -502,6 +523,30 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
         }
     }
 
+    @Synchronized
+    override fun replaceUpcoming(songs: List<Song>) {
+        if (currentSong == null) {
+            L.d("Nothing playing, short-circuiting to new playback")
+            play(QueueCommand(songs))
+        } else {
+            val stateHolder = stateHolder ?: return
+            L.d("Replacing upcoming queue with ${songs.size} songs")
+            stateHolder.replaceUpcoming(songs, StateAck.QueueReordered)
+        }
+    }
+
+    @Synchronized
+    override fun replaceQueueAroundCurrent(songs: List<Song>) {
+        if (currentSong == null) {
+            L.d("Nothing playing, short-circuiting to new playback")
+            play(QueueCommand(songs))
+        } else {
+            val stateHolder = stateHolder ?: return
+            L.d("Rebuilding queue around current + ${songs.size} songs")
+            stateHolder.replaceQueueAroundCurrent(songs, StateAck.QueueReordered)
+        }
+    }
+
     private class QueueCommand(override val queue: List<Song>) : PlaybackCommand {
         override val song: Song? = null
         override val parent: MusicParent? = null
@@ -523,10 +568,16 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
     }
 
     @Synchronized
-    override fun shuffled(shuffled: Boolean) {
+    override fun shuffleMode(shuffleMode: ShuffleMode) {
         val stateHolder = stateHolder ?: return
-        L.d("Reordering queue [shuffled=$shuffled]")
-        stateHolder.shuffled(shuffled)
+        L.d("Reordering queue [shuffleMode=$shuffleMode]")
+        // Pre-set the mirror so the StateAck.QueueReordered handler (which fires from the
+        // shuffled() call below) sees the new mode and preserves SMART. ExoPlayer's
+        // shuffle bit is flipped only when the user picks ON; SMART keeps ExoPlayer in
+        // linear order and RecommendationEngine drives next-track selection via
+        // PlaybackStateManager.playNext().
+        stateMirror = stateMirror.copy(shuffleMode = shuffleMode)
+        stateHolder.shuffled(shuffleMode == ShuffleMode.ON)
     }
 
     // --- INTERNAL PLAYER FUNCTIONS ---
@@ -663,14 +714,17 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
                     stateMirror.copy(
                         queue = rawQueue.resolveSongs(),
                         index = rawQueue.resolveIndex(),
-                        isShuffled = rawQueue.isShuffled,
+                        shuffleMode = if (rawQueue.isShuffled) ShuffleMode.ON else {
+                            if (stateMirror.shuffleMode == ShuffleMode.SMART) ShuffleMode.SMART 
+                            else ShuffleMode.OFF
+                        },
                         rawQueue = rawQueue,
                     )
                 listeners.forEach {
                     it.onQueueReordered(
                         stateMirror.queue,
                         stateMirror.index,
-                        stateMirror.isShuffled,
+                        stateMirror.shuffleMode,
                     )
                 }
             }
@@ -681,7 +735,10 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
                         parent = stateHolder.parent,
                         queue = rawQueue.resolveSongs(),
                         index = rawQueue.resolveIndex(),
-                        isShuffled = rawQueue.isShuffled,
+                        shuffleMode =
+                            if (rawQueue.isShuffled) ShuffleMode.ON
+                            else if (stateMirror.shuffleMode == ShuffleMode.SMART) ShuffleMode.SMART
+                            else ShuffleMode.OFF,
                         rawQueue = rawQueue,
                     )
                 listeners.forEach {
@@ -689,7 +746,7 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
                         stateMirror.parent,
                         stateMirror.queue,
                         stateMirror.index,
-                        stateMirror.isShuffled,
+                        stateMirror.shuffleMode,
                     )
                 }
             }
@@ -715,6 +772,7 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
         return PlaybackStateManager.SavedState(
             positionMs = stateMirror.progression.calculateElapsedPositionMs(),
             repeatMode = stateMirror.repeatMode,
+            shuffleMode = stateMirror.shuffleMode,
             parent = stateMirror.parent,
             heap = stateMirror.rawQueue.heap,
             shuffledMapping = stateMirror.rawQueue.shuffledMapping,
@@ -803,6 +861,7 @@ class PlaybackStateManagerImpl @Inject constructor() : PlaybackStateManager {
             rawQueue,
             savedState.positionMs,
             savedState.repeatMode,
+            savedState.shuffleMode,
             StateAck.NewPlayback,
         )
 

@@ -34,6 +34,7 @@ import io.github.nikitasud.latentjam.music.resolve
 import io.github.nikitasud.latentjam.music.resolveNames
 import io.github.nikitasud.latentjam.playback.service.PlaybackActions
 import io.github.nikitasud.latentjam.playback.state.RepeatMode
+import io.github.nikitasud.latentjam.playback.state.ShuffleMode
 import io.github.nikitasud.latentjam.ui.UISettings
 import io.github.nikitasud.latentjam.ui.UISettingsImpl
 import io.github.nikitasud.latentjam.util.newBroadcastPendingIntent
@@ -455,11 +456,7 @@ class WidgetProvider : AppWidgetProvider() {
             }
         setImageViewResource(R.id.widget_repeat, repeatRes)
 
-        val shuffleRes =
-            when {
-                state.isShuffled -> R.drawable.ic_shuffle_on_24
-                else -> R.drawable.ic_shuffle_off_24
-            }
+        val shuffleRes = state.shuffleMode.icon
         setImageViewResource(R.id.widget_shuffle, shuffleRes)
 
         return this

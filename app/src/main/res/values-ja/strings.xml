@@ -310,4 +310,15 @@
     <string name="lbl_sort_mode">並べ替える</string>
     <string name="lbl_path_style_absolute">絶対的</string>
     <string name="lbl_path_style_relative">相対的</string>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">おすすめ</string>
+    <string name="set_event_log">再生イベントを記録</string>
+    <string name="set_event_log_desc">デバイス内に保存されます。スマートシャッフルのおすすめを個別最適化するために使われます。</string>
+    <string name="lbl_edit_metadata">メタデータを編集</string>
+    <string name="lbl_metadata_genre">ジャンル</string>
+    <string name="lbl_metadata_artist">アーティスト (上書き)</string>
+    <string name="lbl_metadata_year">年</string>
+    <string name="lbl_metadata_clear">リセット</string>
+    <string name="info_metadata_override_hint">上書きはアプリ内に残り、オーディオファイルは変更しません。</string>
 </resources>

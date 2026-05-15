@@ -28,6 +28,7 @@ import io.github.nikitasud.latentjam.detail.DetailViewModel
 import io.github.nikitasud.latentjam.music.resolve
 import io.github.nikitasud.latentjam.music.resolveNames
 import io.github.nikitasud.latentjam.playback.state.RepeatMode
+import io.github.nikitasud.latentjam.playback.state.ShuffleMode
 import io.github.nikitasud.latentjam.ui.ViewBindingFragment
 import io.github.nikitasud.latentjam.util.collectImmediately
 import org.oxycblt.musikr.Song
@@ -76,7 +77,7 @@ class PlaybackBarFragment : ViewBindingFragment<FragmentPlaybackBarBinding>() {
         collectImmediately(
             playbackModel.currentBarAction,
             playbackModel.repeatMode,
-            playbackModel.isShuffled,
+            playbackModel.shuffleMode,
             ::updateBarAction,
         )
     }
@@ -114,7 +115,7 @@ class PlaybackBarFragment : ViewBindingFragment<FragmentPlaybackBarBinding>() {
     private fun updateBarAction(
         actionMode: ActionMode,
         repeatMode: RepeatMode,
-        isShuffled: Boolean,
+        shuffleMode: ShuffleMode,
     ) {
         val binding = requireBinding()
         when (actionMode) {
@@ -146,12 +147,12 @@ class PlaybackBarFragment : ViewBindingFragment<FragmentPlaybackBarBinding>() {
                 L.d("Using shuffle action")
                 binding.playbackSecondaryAction.apply {
                     if (tag != actionMode) {
-                        setIconResource(R.drawable.sel_shuffle_state_24)
                         contentDescription = getString(R.string.desc_shuffle)
                         setOnClickListener { playbackModel.toggleShuffled() }
                         tag = actionMode
                     }
-                    isChecked = isShuffled
+                    setIconResource(shuffleMode.icon)
+                    isChecked = shuffleMode != ShuffleMode.OFF
                 }
             }
         }

@@ -353,4 +353,15 @@
     <string name="fmt_lib_total_size">Całkowita wielkość: %s</string>
     <string name="set_task_exit">Zawsze wychodź po zamknięciu</string>
     <string name="set_task_exit_desc">Zatrzymaj odtwarzanie po usunięciu aplikacji z pamięci, nawet jeśli jest w trakcie odtwarzania</string>
+
+    <!-- ML / recommendations + edit-metadata dialog -->
+    <string name="set_ml_category">Rekomendacje</string>
+    <string name="set_event_log">Zapisuj wydarzenia odtwarzania</string>
+    <string name="set_event_log_desc">Pozostaje na urządzeniu. Używane do personalizacji rekomendacji Inteligentnego losowania.</string>
+    <string name="lbl_edit_metadata">Edytuj metadane</string>
+    <string name="lbl_metadata_genre">Gatunek</string>
+    <string name="lbl_metadata_artist">Wykonawca (nadpisanie)</string>
+    <string name="lbl_metadata_year">Rok</string>
+    <string name="lbl_metadata_clear">Resetuj</string>
+    <string name="info_metadata_override_hint">Nadpisania pozostają w aplikacji i nie zmieniają pliku audio.</string>
 </resources>
