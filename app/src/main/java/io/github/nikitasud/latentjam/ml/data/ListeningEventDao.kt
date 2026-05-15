@@ -72,4 +72,7 @@ interface ListeningEventDao {
     suspend fun eventsForSession(sessionId: String): List<ListeningEventEntity>
 
     @Query("DELETE FROM ListeningEventEntity") suspend fun nuke()
+
+    @Query("DELETE FROM ListeningEventEntity WHERE startedAtMs < :cutoffMs")
+    suspend fun deleteOlderThan(cutoffMs: Long): Int
 }
