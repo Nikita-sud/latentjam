@@ -205,6 +205,11 @@ constructor(
         val bpmEnabled: Boolean,
         val energyEnabled: Boolean,
         val label: String,
+        // Ablation knobs — `true` means "production behavior". Everything default-true so
+        // existing FilterConfig sites (BPM_ONLY etc.) keep their current semantics.
+        val predictorEnabled: Boolean = true,
+        val artistCooldownEnabled: Boolean = true,
+        val dedupEnabled: Boolean = true,
     ) {
         companion object {
             val NEITHER = FilterConfig(false, false, "neither")
@@ -214,6 +219,40 @@ constructor(
 
             /** What real SMART activations use. See class doc for why this isn't BOTH. */
             val PRODUCTION = BPM_ONLY
+
+            // Ablation matrix for `runAblationSweep`. Each config differs from PRODUCTION
+            // in exactly one knob so the per-config delta cleanly attributes to that knob.
+            // RAW_COSINE turns ALL of them off — the "what does the encoder give us with
+            // no post-processing" floor.
+            val ABL_PRODUCTION = PRODUCTION.copy(label = "ablation/production")
+            val ABL_NO_PREDICTOR =
+                PRODUCTION.copy(label = "ablation/no-predictor", predictorEnabled = false)
+            val ABL_NO_BPM = PRODUCTION.copy(label = "ablation/no-bpm", bpmEnabled = false)
+            val ABL_WITH_ENERGY =
+                PRODUCTION.copy(label = "ablation/with-energy", energyEnabled = true)
+            val ABL_NO_COOLDOWN =
+                PRODUCTION.copy(label = "ablation/no-cooldown", artistCooldownEnabled = false)
+            val ABL_NO_DEDUP = PRODUCTION.copy(label = "ablation/no-dedup", dedupEnabled = false)
+            val ABL_RAW_COSINE =
+                FilterConfig(
+                    bpmEnabled = false,
+                    energyEnabled = false,
+                    label = "ablation/raw-cosine",
+                    predictorEnabled = false,
+                    artistCooldownEnabled = false,
+                    dedupEnabled = false,
+                )
+
+            val ABLATION_MATRIX =
+                listOf(
+                    ABL_PRODUCTION,
+                    ABL_NO_PREDICTOR,
+                    ABL_NO_BPM,
+                    ABL_WITH_ENERGY,
+                    ABL_NO_COOLDOWN,
+                    ABL_NO_DEDUP,
+                    ABL_RAW_COSINE,
+                )
         }
     }
 
@@ -282,39 +321,43 @@ constructor(
             // mean-centered centroid path so playback never breaks.
             val sessionSnapshotForFeatures = sessionTracker.snapshot(System.currentTimeMillis())
             var predictorState: FloatArray? = null
-            try {
-                val features =
-                    if (dryRun) {
-                        // Dry-run sweeps pick random library seeds with no session
-                        // history, so the normal build returns history_small = zeros
-                        // and the predictor would silently skip itself. Synthesise a
-                        // one-track history (the seed itself, completed) so the sweep
-                        // actually exercises the predictor path. Production code keeps
-                        // the strict "needs real history" gate below.
-                        historyFeatureBuilder.buildForDryRun(
-                            seedEmbedding = seedEmbeddings[0],
-                            nowMs = System.currentTimeMillis(),
-                            embeddingDim = Retrieval.EMBEDDING_DIM,
-                            historyTokenDim = predictorRuntime.historyTokenDim(),
-                            sessionFeatDim = predictorRuntime.sessionFeatDim(),
-                        )
+            // Ablation: when predictorEnabled=false we skip both the state-encoder pass and the
+            // scorer rerank below. The pipeline then reduces to the centroid + cosine fallback,
+            // which is the "what does SMART look like without the learned predictor" baseline.
+            if (filterConfig.predictorEnabled)
+                try {
+                    val features =
+                        if (dryRun) {
+                            // Dry-run sweeps pick random library seeds with no session
+                            // history, so the normal build returns history_small = zeros
+                            // and the predictor would silently skip itself. Synthesise a
+                            // one-track history (the seed itself, completed) so the sweep
+                            // actually exercises the predictor path. Production code keeps
+                            // the strict "needs real history" gate below.
+                            historyFeatureBuilder.buildForDryRun(
+                                seedEmbedding = seedEmbeddings[0],
+                                nowMs = System.currentTimeMillis(),
+                                embeddingDim = Retrieval.EMBEDDING_DIM,
+                                historyTokenDim = predictorRuntime.historyTokenDim(),
+                                sessionFeatDim = predictorRuntime.sessionFeatDim(),
+                            )
+                        } else {
+                            historyFeatureBuilder.build(
+                                nowMs = System.currentTimeMillis(),
+                                sessionId = sessionSnapshotForFeatures.sessionId,
+                                embeddingDim = Retrieval.EMBEDDING_DIM,
+                                historyTokenDim = predictorRuntime.historyTokenDim(),
+                                sessionFeatDim = predictorRuntime.sessionFeatDim(),
+                            )
+                        }
+                    if (features.hasHistorySmall()) {
+                        predictorState = predictorRuntime.encodeState(features)
                     } else {
-                        historyFeatureBuilder.build(
-                            nowMs = System.currentTimeMillis(),
-                            sessionId = sessionSnapshotForFeatures.sessionId,
-                            embeddingDim = Retrieval.EMBEDDING_DIM,
-                            historyTokenDim = predictorRuntime.historyTokenDim(),
-                            sessionFeatDim = predictorRuntime.sessionFeatDim(),
-                        )
+                        Timber.v("predictor: no history available, falling back to centroid")
                     }
-                if (features.hasHistorySmall()) {
-                    predictorState = predictorRuntime.encodeState(features)
-                } else {
-                    Timber.v("predictor: no history available, falling back to centroid")
+                } catch (e: Throwable) {
+                    Timber.w(e, "predictor unavailable, falling back to centroid+cosine")
                 }
-            } catch (e: Throwable) {
-                Timber.w(e, "predictor unavailable, falling back to centroid+cosine")
-            }
 
             val sorted =
                 if (predictorState != null) {
@@ -384,7 +427,11 @@ constructor(
                 val candidateTempo = snapshot.tempos[hit.uidIndex].takeIf { !it.isNaN() }
                 val candidateEnergy = snapshot.energies[hit.uidIndex].takeIf { !it.isNaN() }
 
-                val passesArtist = song.artists.none { it.uid in cooldownArtistIds }
+                // Ablation: if artistCooldownEnabled=false, every candidate passes the artist
+                // gate so the sweep can quantify how aggressive the cooldown is.
+                val passesArtist =
+                    !filterConfig.artistCooldownEnabled ||
+                        song.artists.none { it.uid in cooldownArtistIds }
 
                 // BPM soft penalty (was a hard filter — see commit). Octave-folded ratio:
                 // tracks one octave apart (60 ↔ 120) get a ×1.0 penalty since they're musically
@@ -409,8 +456,11 @@ constructor(
 
                 val candidateArtist = song.artists.firstOrNull()?.uid
                 val candidateTitle = normalizeTitle(song.name.raw)
+                // Ablation: if dedupEnabled=false, every candidate passes the dedup gate so we
+                // can measure how many head slots dedup actually consumes.
                 val passesDedup =
-                    poolSongs.size >= POOL_SIZE ||
+                    !filterConfig.dedupEnabled ||
+                        poolSongs.size >= POOL_SIZE ||
                         ((candidateArtist == null || candidateArtist !in seenHeadArtists) &&
                             candidateTitle !in seenHeadTitles)
                 if (poolSongs.size < POOL_SIZE && passesArtist && passesDedup) {
@@ -655,35 +705,42 @@ constructor(
                 Timber.i("dry-run sweep: only %d embedded songs, skipping", candidateSongs.size)
                 return@launch
             }
-            val sample = candidateSongs.shuffled().take(SWEEP_SIZE)
-            // Same flag set as production (FilterConfig.PRODUCTION = BPM_ONLY) — only
-            // the label differs across the three repeats so the JSONL analyzer can
-            // group `(seed, run)` to measure within-seed variance.
-            val runs =
-                (1..SWEEP_REPEATS).map { i ->
-                    FilterConfig(bpmEnabled = true, energyEnabled = false, label = "run-$i")
-                }
+            val sample =
+                candidateSongs
+                    .shuffled(java.util.Random(ABLATION_SEED_RNG))
+                    .take(ABLATION_SWEEP_SIZE)
+            // Ablation matrix: each seed runs against every config in `ABLATION_MATRIX`.
+            // Using a deterministic shuffle seed (ABLATION_SEED_RNG) so re-runs across rebuilds
+            // share the same seed set, which makes config-vs-config comparison clean.
+            val configs = FilterConfig.ABLATION_MATRIX
             Timber.i(
-                "dry-run sweep: %d seeds × %d repeats = %d decisions queued",
+                "ablation sweep: %d seeds × %d configs = %d decisions queued (configs=%s)",
                 sample.size,
-                runs.size,
-                sample.size * runs.size,
+                configs.size,
+                sample.size * configs.size,
+                configs.joinToString(",") { it.label.removePrefix("ablation/") },
             )
-            for (run in runs) {
+            // Outer loop is config (not seed) so logs interleave one-config-then-the-next,
+            // which is easier to follow when watching the sweep run live in logcat.
+            for (config in configs) {
+                Timber.i("ablation sweep: starting config=%s", config.label)
                 for (seed in sample) {
                     try {
-                        runPipeline(seed, dryRun = true, filterConfig = run)
+                        runPipeline(seed, dryRun = true, filterConfig = config)
                     } catch (e: Throwable) {
                         Timber.w(
                             e,
-                            "dry-run sweep: pipeline failed for %s under %s",
+                            "ablation sweep: pipeline failed for %s under %s",
                             seed.uid,
-                            run.label,
+                            config.label,
                         )
                     }
                 }
             }
-            Timber.i("dry-run sweep: done")
+            Timber.i(
+                "ablation sweep: done — %d decisions written to events.jsonl",
+                sample.size * configs.size,
+            )
         }
     }
 
@@ -775,5 +832,12 @@ constructor(
          * nearly-identical heads) or guessing (3 wildly different heads).
          */
         private const val SWEEP_REPEATS = 3
+
+        // Ablation sweep tuning. Larger seed sample (vs SWEEP_SIZE=50) so per-config metrics
+        // have enough sample to draw signal from — 100 seeds × 7 configs = 700 decisions,
+        // ~5 min of work on a Snapdragon 8 Gen 3 device. Deterministic RNG seed so successive
+        // builds sweep the same library subset and we can compare runs directly.
+        private const val ABLATION_SWEEP_SIZE = 100
+        private const val ABLATION_SEED_RNG = 0x1AB7E51L
     }
 }
