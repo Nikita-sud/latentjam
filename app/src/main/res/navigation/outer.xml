@@ -34,9 +34,17 @@
             android:id="@+id/audio_peferences"
             app:destination="@id/audio_preferences_fragment" />
         <action
+            android:id="@+id/ml_diagnostics"
+            app:destination="@id/ml_diagnostics_fragment" />
+        <action
             android:id="@+id/music_locations_settings"
             app:destination="@id/music_locations_dialog" />
     </fragment>
+
+    <fragment
+        android:id="@+id/ml_diagnostics_fragment"
+        android:name="io.github.nikitasud.latentjam.settings.categories.MlDiagnosticsFragment"
+        android:label="ml_diagnostics_fragment" />
 
     <fragment
         android:id="@+id/ui_preferences_fragment"

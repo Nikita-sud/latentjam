@@ -26,6 +26,12 @@
         app:summary="@string/set_audio_desc"
         app:title="@string/set_audio" />
 
+    <Preference
+        app:icon="@drawable/ic_details_24"
+        app:key="@string/set_key_ml_diagnostics"
+        app:summary="@string/set_ml_diagnostics_desc"
+        app:title="@string/set_ml_diagnostics" />
+
     <PreferenceCategory app:title="@string/set_library">
 
         <io.github.nikitasud.latentjam.settings.ui.WrappedDialogPreference
