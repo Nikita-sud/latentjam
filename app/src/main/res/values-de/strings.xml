@@ -356,4 +356,8 @@
     <string name="lbl_metadata_year">Jahr</string>
     <string name="lbl_metadata_clear">Zurücksetzen</string>
     <string name="info_metadata_override_hint">Überschreibungen bleiben in der App und ändern die Audiodatei nicht.</string>
+    <string name="set_saf_multithread">Datei-Erkundung mit mehreren Threads</string>
+    <string name="set_saf_multithread_desc">Schneller, funktioniert aber nicht auf allen Geräte</string>
+    <string name="err_share_too_large">Zu groß zum Teilen</string>
+    <string name="err_share_failed">Konnte nicht geteilt werden</string>
 </resources>

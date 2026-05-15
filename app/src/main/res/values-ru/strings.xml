@@ -366,4 +366,8 @@
     <string name="lbl_metadata_year">Год</string>
     <string name="lbl_metadata_clear">Сбросить</string>
     <string name="info_metadata_override_hint">Переопределения хранятся в приложении и не изменяют аудиофайл.</string>
+    <string name="set_saf_multithread">Многопоточное сканирование файлов</string>
+    <string name="set_saf_multithread_desc">Быстрее, но может работать некорректно на некоторых устройствах</string>
+    <string name="err_share_too_large">Размер превышает допустимый для отправки</string>
+    <string name="err_share_failed">Не удалось отправить</string>
 </resources>
