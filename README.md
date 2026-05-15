@@ -1,4 +1,4 @@
-<p align="center"><img src="fastlane/metadata/android/en-US/images/icon.png" width="150"></p>
+<p align="center"><img src=".github/icon.svg" width="150" alt="LatentJam icon"></p>
 <h1 align="center"><b>LatentJam</b></h1>
 <h4 align="center">A privacy-first Android music player that recommends what to play next — entirely on-device.</h4>
 <p align="center">
