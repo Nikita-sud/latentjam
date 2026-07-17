@@ -1,0 +1,9 @@
+LatentJam Monorepo
+Copyright (c) 2026 LatentJam Project
+
+Licensed under the Apache License, Version 2.0.
+See the LICENSE file in the root of this repository.
+
+This source tree is written from scratch and contains no code from the
+GPL-3.0-licensed LatentJam Android fork of Auxio, which lives on separate,
+unrelated branches of this repository under its own license.
