@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- "KMP" suffix distinguishes this build from the legacy app on a device
+         during development; rename to just "LatentJam" at replacement time. -->
+    <string name="app_name">LatentJam KMP</string>
+</resources>

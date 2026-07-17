@@ -15,21 +15,26 @@ ported-by-diff, or merged across that license boundary, in either direction.
 | Module | Contents |
 |---|---|
 | `:core:smart` | The similarity-engine architectural layer: `SimilarityEngine` interface, Koin DI, `expect`/`actual` embedding-backend stubs for Android (ONNX Runtime, later) and iOS (Core ML / ONNX Runtime, later), and an in-memory vector index. No ML runtime dependencies yet. |
+| `:composeApp` | Shared Compose Multiplatform UI + the `AppGraph` Koin composition root. A KMP **library** (AGP 9 has no KMP application plugin), consumed by both thin shells; also produces the `ComposeApp.framework` for iOS. |
+| `:androidApp` | Thin Android shell: `MainActivity` hosting the shared `App` composable. Application id `io.github.nikitasud.latentjam.kmp` so it coexists with the legacy app during development. |
+| `iosApp/` | Thin SwiftUI shell (Xcode project) hosting the shared UI via `ComposeUIViewController`; builds the Kotlin framework through the `embedAndSignAppleFrameworkForXcode` script phase. |
 
 ## Building
 
-Requires JDK 21 and (for iOS targets) Xcode. The Gradle daemon is disabled
-on purpose (`org.gradle.daemon=false`).
+Requires JDK 21 and (for iOS) Xcode. The Gradle daemon is disabled on
+purpose (`org.gradle.daemon=false`).
 
 ```bash
 ./gradlew --no-daemon :core:smart:testAndroidHostTest      # run all common tests on the JVM
-./gradlew --no-daemon :core:smart:compileKotlinIosArm64 \
-                      :core:smart:compileKotlinIosSimulatorArm64
-./gradlew --no-daemon :core:smart:assemble                 # AAR + iOS klibs
+./gradlew --no-daemon :androidApp:assembleDebug            # Android APK
+./gradlew --no-daemon :composeApp:linkDebugFrameworkIosSimulatorArm64   # iOS framework
+xcodebuild -project iosApp/iosApp.xcodeproj -target iosApp \
+    -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO  # iOS app
 ```
 
 ## Status
 
 Bootstrap stage: `:core:smart` defines the engine contract, DI wiring, and
-platform seams. Model loading, tensor ops, audio decoding, index persistence,
-and the Compose Multiplatform app shells land in later changes.
+platform seams; the app shells show a minimal engine-status screen on both
+platforms. Model loading, tensor ops, audio decoding, index persistence, and
+the real player UI land in later changes.
