@@ -22,11 +22,18 @@
     <string name="action_rename">नाम बदलें</string>
     <string name="action_clear">साफ़ करें</string>
     <string name="action_track_options">गाने के विकल्प</string>
+    <string name="action_create">बनाएं</string>
+    <string name="action_play_all">सभी चलाएं</string>
+    <string name="action_shuffle_all">सभी शफ़ल करें</string>
+    <string name="cd_more_options">और विकल्प</string>
+    <string name="cd_search_library">लाइब्रेरी में खोजें</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">गाना</string>
     <string name="track_untitled">बिना शीर्षक</string>
     <string name="track_unknown_artist">अज्ञात कलाकार</string>
+    <string name="track_unknown_album">अज्ञात एल्बम</string>
+    <string name="track_unknown_genre">अज्ञात शैली</string>
     <!-- Hindi distinguishes one and other. -->
     <plurals name="count_tracks">
         <item quantity="one">%1$d गाना</item>
@@ -35,6 +42,42 @@
     <!-- %1$s is a track title -->
     <string name="cd_track_options_for">%1$s के लिए ज़्यादा विकल्प</string>
     <string name="cd_track_options_generic">इस गाने के लिए ज़्यादा विकल्प</string>
+
+    <plurals name="count_albums">
+        <item quantity="one">%1$d एल्बम</item>
+        <item quantity="other">%1$d एल्बम</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">आपके लिए</string>
+    <string name="tab_playlists">प्लेलिस्ट</string>
+    <string name="tab_tracks">गाने</string>
+    <string name="tab_albums">एल्बम</string>
+    <string name="tab_artists">कलाकार</string>
+    <string name="tab_genres">शैलियां</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">इस डिवाइस पर कोई संगीत नहीं मिला.</string>
+    <string name="action_rescan_library">लाइब्रेरी दोबारा स्कैन करें</string>
+    <string name="sort_recently_added">हाल ही में जोड़े गए</string>
+    <string name="snack_track_deleted">गाना मिटाया गया</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">कुछ गाने चलाएं और यह पेज उन चीज़ों से भर जाएगा जिन पर लौटना बनता है.</string>
+    <string name="foryou_section_continue">अब तक अधूरे</string>
+    <string name="foryou_section_worth_revisiting">दोबारा सुनने लायक</string>
+    <string name="foryou_section_found_by_smart">SMART ने खोजे</string>
+    <string name="foryou_section_never_played">कभी नहीं चलाए</string>
+    <string name="foryou_kicker_resume">जहां छोड़ा था वहीं से सुनें</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="one">आपने इसे %1$d बार सुना</item>
+        <item quantity="other">आपने इसे %1$d बार सुना</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">कभी नहीं चलाया</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="one">पहले %1$d बार</item>
+        <item quantity="other">पहले %1$d बार</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">कुछ भी नहीं चल रहा</string>
@@ -73,6 +116,10 @@
          track has no title at all. -->
     <string name="playlist_add_to_title">"%1$s" को इसमें जोड़ें</string>
     <string name="playlist_add_to_title_generic">गाने को इसमें जोड़ें</string>
+    <string name="playlist_rename_title">प्लेलिस्ट का नाम बदलें</string>
+    <string name="snack_playlist_created">"%1$s" बनाई गई</string>
+    <string name="snack_playlist_deleted">"%1$s" मिटाई गई</string>
+    <string name="snack_added_to_playlist">"%1$s" में जोड़ा गया</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">अगले में चलाएं</string>
@@ -149,5 +196,32 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">लाइब्रेरी स्कैन करने के लिए LatentJam को आपके संगीत का ऐक्सेस चाहिए.</string>
     <string name="permission_grant">ऐक्सेस दें</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">डायग्नोस्टिक्स</string>
+    <string name="diagnostics_library">लाइब्रेरी: %1$s</string>
+    <string name="diagnostics_index_batch">%1$d को इंडेक्स करें</string>
+    <string name="diagnostics_index_all">सभी इंडेक्स करें</string>
+    <string name="diagnostics_rescan">दोबारा स्कैन करें</string>
+    <string name="diagnostics_indexing">इंडेक्स हो रहा है… %1$d/%2$d (ठीक %3$d, छोड़े %4$d, विफल %5$d)</string>
+    <string name="diagnostics_indexed_report">पूरा हुआ — %1$d इंडेक्स, %2$d छोड़े, %3$d विफल.</string>
+    <string name="diagnostics_history_empty">इतिहास: अभी कोई सुनना दर्ज नहीं है.</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="one">इतिहास: %1$d बार सुना गया.</item>
+        <item quantity="other">इतिहास: %1$d बार सुना गया.</item>
+    </plurals>
+    <string name="diagnostics_history_top">सबसे ज़्यादा: %1$s (%2$d×).</string>
+    <string name="diagnostics_engine">समानता इंजन</string>
+    <string name="diagnostics_engine_uninitialized">अभी शुरू नहीं हुआ.</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="one">तैयार — %1$d गाना इंडेक्स हुआ.</item>
+        <item quantity="other">तैयार — %1$d गाने इंडेक्स हुए.</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">फिर से शुरू करें</string>
+    <string name="diagnostics_engine_initialize">इंजन शुरू करें</string>
+
+    <string name="engine_error_model_unavailable">समानता मॉडल अभी शामिल नहीं है — इस बिल्ड में स्मार्ट शफ़ल बंद है.</string>
+    <string name="engine_error_not_indexed">लाइब्रेरी अभी इंडेक्स नहीं हुई.</string>
+    <string name="engine_error_backend">इंजन बैकएंड विफल: %1$s</string>
 
 </resources>

@@ -31,7 +31,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_play
+import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_caption_played_before
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_empty
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_never_played
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_played_times
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_resume
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_continue
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_found_by_smart
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_never_played
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_worth_revisiting
+import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
+import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * For You: what to play, drawn from what you own and how you have listened.
@@ -59,7 +75,7 @@ fun ForYouTab(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "Play a few tracks and this page will fill up with things worth returning to.",
+                text = stringResource(Res.string.foryou_empty),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -71,9 +87,9 @@ fun ForYouTab(
         page.hero?.let { hero ->
             item(key = "hero") { HeroCard(hero, onPlay = { onPlayHero(hero) }) }
         }
-        items(page.sections, key = { it.id }) { section ->
+        items(page.sections, key = { it.kind.name }) { section ->
             Text(
-                text = section.title,
+                text = section.kind.title(),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 10.dp),
@@ -102,6 +118,42 @@ fun ForYouTab(
 }
 
 /**
+ * The builder emits a section KIND; the heading is written here.
+ *
+ * Keeping the two apart is what lets the page rules stay a pure, unit-tested function while the
+ * words it implies still arrive in the reader's language.
+ */
+@Composable
+private fun ForYouSectionKind.title(): String = stringResource(
+    when (this) {
+        ForYouSectionKind.CONTINUE -> Res.string.foryou_section_continue
+        ForYouSectionKind.WORTH_REVISITING -> Res.string.foryou_section_worth_revisiting
+        ForYouSectionKind.FOUND_BY_SMART -> Res.string.foryou_section_found_by_smart
+        ForYouSectionKind.NEVER_PLAYED -> Res.string.foryou_section_never_played
+    },
+)
+
+/**
+ * Card captions. Both carry a count, so both go through the plural machinery rather than through
+ * string concatenation — the difference between "1 трек" and "5 треков" is not a suffix.
+ */
+@Composable
+private fun ForYouCaption.text(): String = when (this) {
+    is ForYouCaption.PlayedBefore ->
+        pluralStringResource(Res.plurals.foryou_caption_played_before, plays, plays)
+    is ForYouCaption.TrackCount ->
+        pluralStringResource(Res.plurals.count_tracks, tracks, tracks)
+}
+
+@Composable
+private fun ForYouKicker.text(): String = when (this) {
+    ForYouKicker.Resume -> stringResource(Res.string.foryou_kicker_resume)
+    is ForYouKicker.PlayedTimes ->
+        pluralStringResource(Res.plurals.foryou_kicker_played_times, plays, plays)
+    ForYouKicker.NeverPlayed -> stringResource(Res.string.foryou_kicker_never_played)
+}
+
+/**
  * A card is mostly its cover.
  *
  * Row titles are read about a quarter as often as the leftmost item is looked at, so the artwork
@@ -120,16 +172,23 @@ private fun ForYouCardItem(
     ) {
         Artwork(uri = card.track.artworkUri, size = 140.dp, cornerRadius = 12.dp)
         Text(
-            text = card.collection?.title ?: card.track.title ?: "Untitled",
+            text = card.collection?.title
+                ?: card.track.title
+                ?: stringResource(Res.string.track_untitled),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
+        // The caption replaces the artist where there is one, because "10× before" is the reason
+        // this card is here and the artist is already legible from the cover.
+        val caption = card.caption
         Text(
-            // The caption replaces the artist where there is one, because "10× before" is the reason
-            // this card is here and the artist is already legible from the cover.
-            text = card.reason ?: card.track.artist ?: "Unknown artist",
+            text = if (caption != null) {
+                caption.text()
+            } else {
+                card.track.artist ?: stringResource(Res.string.track_unknown_artist)
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -165,14 +224,14 @@ private fun HeroCard(hero: ForYouHero, onPlay: () -> Unit) {
             Artwork(uri = hero.track.artworkUri, size = 96.dp, cornerRadius = 14.dp)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = hero.kicker,
+                    text = hero.kicker.text(),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = hero.track.title ?: "Untitled",
+                    text = hero.track.title ?: stringResource(Res.string.track_untitled),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
@@ -180,7 +239,7 @@ private fun HeroCard(hero: ForYouHero, onPlay: () -> Unit) {
                     modifier = Modifier.padding(top = 2.dp),
                 )
                 Text(
-                    text = hero.track.artist ?: "Unknown artist",
+                    text = hero.track.artist ?: stringResource(Res.string.track_unknown_artist),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -190,7 +249,10 @@ private fun HeroCard(hero: ForYouHero, onPlay: () -> Unit) {
             // Icon-only and fixed size: a labelled button here clips under translation and large
             // font scales, which is a mistake this project has already made three times.
             FilledIconButton(onClick = onPlay) {
-                Icon(Icons.Rounded.PlayArrow, contentDescription = "Play")
+                Icon(
+                    imageVector = Icons.Rounded.PlayArrow,
+                    contentDescription = stringResource(Res.string.action_play),
+                )
             }
         }
     }

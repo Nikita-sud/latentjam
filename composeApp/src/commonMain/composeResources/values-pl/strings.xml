@@ -25,11 +25,18 @@
     <string name="action_rename">Zmień nazwę</string>
     <string name="action_clear">Wyczyść</string>
     <string name="action_track_options">Opcje utworu</string>
+    <string name="action_create">Utwórz</string>
+    <string name="action_play_all">Odtwórz wszystko</string>
+    <string name="action_shuffle_all">Odtwórz wszystko losowo</string>
+    <string name="cd_more_options">Więcej opcji</string>
+    <string name="cd_search_library">Szukaj w bibliotece</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Utwór</string>
     <string name="track_untitled">Bez tytułu</string>
     <string name="track_unknown_artist">Nieznany wykonawca</string>
+    <string name="track_unknown_album">Nieznany album</string>
+    <string name="track_unknown_genre">Nieznany gatunek</string>
     <!-- one: 1; few: 2–4, 22–24…; many: 0, 5–21…;
          other: fractions (1,5 utworu) and the required fallback. -->
     <plurals name="count_tracks">
@@ -41,6 +48,48 @@
     <!-- %1$s is a track title -->
     <string name="cd_track_options_for">Więcej opcji dla %1$s</string>
     <string name="cd_track_options_generic">Więcej opcji dla tego utworu</string>
+
+    <plurals name="count_albums">
+        <item quantity="one">%1$d album</item>
+        <item quantity="few">%1$d albumy</item>
+        <item quantity="many">%1$d albumów</item>
+        <item quantity="other">%1$d albumu</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">Dla Ciebie</string>
+    <string name="tab_playlists">Playlisty</string>
+    <string name="tab_tracks">Utwory</string>
+    <string name="tab_albums">Albumy</string>
+    <string name="tab_artists">Wykonawcy</string>
+    <string name="tab_genres">Gatunki</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">Nie znaleziono muzyki na tym urządzeniu.</string>
+    <string name="action_rescan_library">Skanuj bibliotekę ponownie</string>
+    <string name="sort_recently_added">Ostatnio dodane</string>
+    <string name="snack_track_deleted">Utwór usunięty</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">Posłuchaj kilku utworów, a ta strona zapełni się rzeczami, do których warto wrócić.</string>
+    <string name="foryou_section_continue">Niedokończone</string>
+    <string name="foryou_section_worth_revisiting">Warto wrócić</string>
+    <string name="foryou_section_found_by_smart">Znalezione przez SMART</string>
+    <string name="foryou_section_never_played">Nigdy nieodtwarzane</string>
+    <string name="foryou_kicker_resume">Wróć tam, gdzie skończyłeś</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="one">Słuchałeś tego %1$d raz</item>
+        <item quantity="few">Słuchałeś tego %1$d razy</item>
+        <item quantity="many">Słuchałeś tego %1$d razy</item>
+        <item quantity="other">Słuchałeś tego %1$d raza</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">Nigdy nieodtwarzane</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="one">Wcześniej %1$d raz</item>
+        <item quantity="few">Wcześniej %1$d razy</item>
+        <item quantity="many">Wcześniej %1$d razy</item>
+        <item quantity="other">Wcześniej %1$d raza</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nic nie jest odtwarzane</string>
@@ -81,6 +130,10 @@
          track has no title at all. -->
     <string name="playlist_add_to_title">Dodaj „%1$s” do playlisty</string>
     <string name="playlist_add_to_title_generic">Dodaj utwór do playlisty</string>
+    <string name="playlist_rename_title">Zmień nazwę playlisty</string>
+    <string name="snack_playlist_created">Utworzono „%1$s”</string>
+    <string name="snack_playlist_deleted">Usunięto „%1$s”</string>
+    <string name="snack_added_to_playlist">Dodano do „%1$s”</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Odtwórz jako następny</string>
@@ -157,5 +210,36 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam potrzebuje dostępu do Twojej muzyki, aby przeskanować bibliotekę.</string>
     <string name="permission_grant">Przyznaj dostęp</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">Diagnostyka</string>
+    <string name="diagnostics_library">Biblioteka: %1$s</string>
+    <string name="diagnostics_index_batch">Zindeksuj %1$d</string>
+    <string name="diagnostics_index_all">Zindeksuj wszystko</string>
+    <string name="diagnostics_rescan">Skanuj ponownie</string>
+    <string name="diagnostics_indexing">Indeksowanie… %1$d/%2$d (ok %3$d, pominięte %4$d, błędy %5$d)</string>
+    <string name="diagnostics_indexed_report">Gotowe — zindeksowano %1$d, pominięto %2$d, błędów %3$d.</string>
+    <string name="diagnostics_history_empty">Historia: brak zapisanych odtworzeń.</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="one">Historia: %1$d odtworzenie.</item>
+        <item quantity="few">Historia: %1$d odtworzenia.</item>
+        <item quantity="many">Historia: %1$d odtworzeń.</item>
+        <item quantity="other">Historia: %1$d odtworzenia.</item>
+    </plurals>
+    <string name="diagnostics_history_top">Najczęściej: %1$s (%2$d×).</string>
+    <string name="diagnostics_engine">Silnik podobieństwa</string>
+    <string name="diagnostics_engine_uninitialized">Jeszcze nie zainicjowano.</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="one">Gotowy — zindeksowano %1$d utwór.</item>
+        <item quantity="few">Gotowy — zindeksowano %1$d utwory.</item>
+        <item quantity="many">Gotowy — zindeksowano %1$d utworów.</item>
+        <item quantity="other">Gotowy — zindeksowano %1$d utworu.</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">Ponów inicjalizację</string>
+    <string name="diagnostics_engine_initialize">Zainicjuj silnik</string>
+
+    <string name="engine_error_model_unavailable">Model podobieństwa nie jest jeszcze dołączony — inteligentne odtwarzanie losowe jest wyłączone w tej wersji.</string>
+    <string name="engine_error_not_indexed">Biblioteka nie została jeszcze zindeksowana.</string>
+    <string name="engine_error_backend">Błąd silnika: %1$s</string>
 
 </resources>

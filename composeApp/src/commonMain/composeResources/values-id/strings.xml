@@ -27,11 +27,18 @@
     <string name="action_rename">Ganti nama</string>
     <string name="action_clear">Bersihkan</string>
     <string name="action_track_options">Opsi lagu</string>
+    <string name="action_create">Buat</string>
+    <string name="action_play_all">Putar semua</string>
+    <string name="action_shuffle_all">Putar semua secara acak</string>
+    <string name="cd_more_options">Opsi lainnya</string>
+    <string name="cd_search_library">Cari di pustaka</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Lagu</string>
     <string name="track_untitled">Tanpa judul</string>
     <string name="track_unknown_artist">Artis tidak dikenal</string>
+    <string name="track_unknown_album">Album tidak dikenal</string>
+    <string name="track_unknown_genre">Genre tidak dikenal</string>
     <!-- Indonesian distinguishes no plural categories: "other" only, and the
          noun is never reduplicated after a numeral (5 lagu, not 5 lagu-lagu). -->
     <plurals name="count_tracks">
@@ -40,6 +47,39 @@
     <!-- %1$s is a track title -->
     <string name="cd_track_options_for">Opsi lainnya untuk %1$s</string>
     <string name="cd_track_options_generic">Opsi lainnya untuk lagu ini</string>
+
+    <plurals name="count_albums">
+        <item quantity="other">%1$d album</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">Untuk kamu</string>
+    <string name="tab_playlists">Playlist</string>
+    <string name="tab_tracks">Lagu</string>
+    <string name="tab_albums">Album</string>
+    <string name="tab_artists">Artis</string>
+    <string name="tab_genres">Genre</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">Tidak ada musik yang ditemukan di perangkat ini.</string>
+    <string name="action_rescan_library">Pindai ulang pustaka</string>
+    <string name="sort_recently_added">Baru ditambahkan</string>
+    <string name="snack_track_deleted">Lagu dihapus</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">Putar beberapa lagu dan halaman ini akan terisi hal-hal yang layak didengar lagi.</string>
+    <string name="foryou_section_continue">Belum selesai</string>
+    <string name="foryou_section_worth_revisiting">Layak didengar lagi</string>
+    <string name="foryou_section_found_by_smart">Ditemukan SMART</string>
+    <string name="foryou_section_never_played">Belum pernah diputar</string>
+    <string name="foryou_kicker_resume">Lanjutkan dari tempat kamu berhenti</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="other">Kamu memutarnya %1$d kali</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">Belum pernah diputar</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="other">%1$d kali sebelumnya</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Tidak ada yang diputar</string>
@@ -77,6 +117,10 @@
          track has no title at all. -->
     <string name="playlist_add_to_title">Tambahkan "%1$s" ke playlist</string>
     <string name="playlist_add_to_title_generic">Tambahkan lagu ke playlist</string>
+    <string name="playlist_rename_title">Ganti nama playlist</string>
+    <string name="snack_playlist_created">Playlist "%1$s" dibuat</string>
+    <string name="snack_playlist_deleted">Playlist "%1$s" dihapus</string>
+    <string name="snack_added_to_playlist">Ditambahkan ke "%1$s"</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Putar berikutnya</string>
@@ -153,5 +197,30 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam memerlukan akses ke musik Anda untuk memindai pustaka.</string>
     <string name="permission_grant">Berikan akses</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">Diagnostik</string>
+    <string name="diagnostics_library">Pustaka: %1$s</string>
+    <string name="diagnostics_index_batch">Indeks %1$d</string>
+    <string name="diagnostics_index_all">Indeks semua</string>
+    <string name="diagnostics_rescan">Pindai ulang</string>
+    <string name="diagnostics_indexing">Mengindeks… %1$d/%2$d (ok %3$d, dilewati %4$d, gagal %5$d)</string>
+    <string name="diagnostics_indexed_report">Selesai — %1$d terindeks, %2$d dilewati, %3$d gagal.</string>
+    <string name="diagnostics_history_empty">Riwayat: belum ada putaran yang tercatat.</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="other">Riwayat: %1$d kali diputar.</item>
+    </plurals>
+    <string name="diagnostics_history_top">Paling sering: %1$s (%2$d×).</string>
+    <string name="diagnostics_engine">Mesin kemiripan</string>
+    <string name="diagnostics_engine_uninitialized">Belum diinisialisasi.</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="other">Siap — %1$d lagu terindeks.</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">Coba inisialisasi lagi</string>
+    <string name="diagnostics_engine_initialize">Inisialisasi mesin</string>
+
+    <string name="engine_error_model_unavailable">Model kemiripan belum disertakan — pemutaran acak cerdas dinonaktifkan di build ini.</string>
+    <string name="engine_error_not_indexed">Pustaka belum diindeks.</string>
+    <string name="engine_error_backend">Backend mesin gagal: %1$s</string>
 
 </resources>

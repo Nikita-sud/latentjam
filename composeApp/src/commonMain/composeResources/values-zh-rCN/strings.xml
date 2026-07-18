@@ -22,11 +22,18 @@
     <string name="action_rename">重命名</string>
     <string name="action_clear">清除</string>
     <string name="action_track_options">歌曲选项</string>
+    <string name="action_create">创建</string>
+    <string name="action_play_all">播放全部</string>
+    <string name="action_shuffle_all">随机播放全部</string>
+    <string name="cd_more_options">更多选项</string>
+    <string name="cd_search_library">搜索音乐库</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">歌曲</string>
     <string name="track_untitled">未命名</string>
     <string name="track_unknown_artist">未知艺人</string>
+    <string name="track_unknown_album">未知专辑</string>
+    <string name="track_unknown_genre">未知流派</string>
     <!-- Chinese has no grammatical plural: "other" only. -->
     <plurals name="count_tracks">
         <item quantity="other">%1$d 首歌曲</item>
@@ -34,6 +41,39 @@
     <!-- %1$s is a track title -->
     <string name="cd_track_options_for">%1$s 的更多选项</string>
     <string name="cd_track_options_generic">此歌曲的更多选项</string>
+
+    <plurals name="count_albums">
+        <item quantity="other">%1$d 张专辑</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">为你推荐</string>
+    <string name="tab_playlists">播放列表</string>
+    <string name="tab_tracks">歌曲</string>
+    <string name="tab_albums">专辑</string>
+    <string name="tab_artists">艺人</string>
+    <string name="tab_genres">流派</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">此设备上未找到音乐。</string>
+    <string name="action_rescan_library">重新扫描音乐库</string>
+    <string name="sort_recently_added">最近添加</string>
+    <string name="snack_track_deleted">已删除歌曲</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">先听几首歌，这里就会出现值得再听的内容。</string>
+    <string name="foryou_section_continue">还没听完</string>
+    <string name="foryou_section_worth_revisiting">值得再听</string>
+    <string name="foryou_section_found_by_smart">SMART 发现</string>
+    <string name="foryou_section_never_played">从未播放</string>
+    <string name="foryou_kicker_resume">从上次的位置继续</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="other">你听过 %1$d 次</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">从未播放</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="other">此前 %1$d 次</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">暂无播放内容</string>
@@ -71,6 +111,10 @@
          track has no title at all. -->
     <string name="playlist_add_to_title">将“%1$s”添加到</string>
     <string name="playlist_add_to_title_generic">将歌曲添加到</string>
+    <string name="playlist_rename_title">重命名播放列表</string>
+    <string name="snack_playlist_created">已创建“%1$s”</string>
+    <string name="snack_playlist_deleted">已删除“%1$s”</string>
+    <string name="snack_added_to_playlist">已添加到“%1$s”</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">下一首播放</string>
@@ -147,5 +191,30 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam 需要访问你的音乐才能扫描音乐库。</string>
     <string name="permission_grant">授予访问权限</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">诊断</string>
+    <string name="diagnostics_library">音乐库：%1$s</string>
+    <string name="diagnostics_index_batch">索引 %1$d 首</string>
+    <string name="diagnostics_index_all">索引全部</string>
+    <string name="diagnostics_rescan">重新扫描</string>
+    <string name="diagnostics_indexing">正在索引… %1$d/%2$d（成功 %3$d，跳过 %4$d，失败 %5$d）</string>
+    <string name="diagnostics_indexed_report">完成 — 已索引 %1$d，跳过 %2$d，失败 %3$d。</string>
+    <string name="diagnostics_history_empty">历史记录：尚无播放记录。</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="other">历史记录：%1$d 次播放。</item>
+    </plurals>
+    <string name="diagnostics_history_top">最常播放：%1$s（%2$d×）。</string>
+    <string name="diagnostics_engine">相似度引擎</string>
+    <string name="diagnostics_engine_uninitialized">尚未初始化。</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="other">已就绪 — 已索引 %1$d 首歌曲。</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">重试初始化</string>
+    <string name="diagnostics_engine_initialize">初始化引擎</string>
+
+    <string name="engine_error_model_unavailable">相似度模型尚未打包 — 此版本已停用智能随机播放。</string>
+    <string name="engine_error_not_indexed">音乐库尚未索引。</string>
+    <string name="engine_error_backend">引擎后端失败：%1$s</string>
 
 </resources>

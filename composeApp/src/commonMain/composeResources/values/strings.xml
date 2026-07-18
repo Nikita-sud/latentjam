@@ -29,11 +29,19 @@
     <string name="action_rename">Rename</string>
     <string name="action_clear">Clear</string>
     <string name="action_track_options">Track options</string>
+    <string name="action_create">Create</string>
+    <string name="action_play_all">Play all</string>
+    <string name="action_shuffle_all">Shuffle all</string>
+    <string name="cd_more_options">More options</string>
+    <!-- Content descriptions for the top bar. -->
+    <string name="cd_search_library">Search library</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Track</string>
     <string name="track_untitled">Untitled</string>
     <string name="track_unknown_artist">Unknown artist</string>
+    <string name="track_unknown_album">Unknown album</string>
+    <string name="track_unknown_genre">Unknown genre</string>
     <!-- A plural, not a plain string: "1 треков" / "1 piese" is broken Russian and
          broken Romanian. Translations declare whichever CLDR categories their
          language actually distinguishes; "other" is the required fallback. -->
@@ -44,6 +52,44 @@
     <!-- %1$s is a track title -->
     <string name="cd_track_options_for">More options for %1$s</string>
     <string name="cd_track_options_generic">More options for this track</string>
+
+    <plurals name="count_albums">
+        <item quantity="one">%1$d album</item>
+        <item quantity="other">%1$d albums</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">For You</string>
+    <string name="tab_playlists">Playlists</string>
+    <string name="tab_tracks">Tracks</string>
+    <string name="tab_albums">Albums</string>
+    <string name="tab_artists">Artists</string>
+    <string name="tab_genres">Genres</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">No music found on this device.</string>
+    <string name="action_rescan_library">Rescan library</string>
+    <string name="sort_recently_added">Recently added</string>
+    <string name="snack_track_deleted">Track deleted</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">Play a few tracks and this page will fill up with things worth returning to.</string>
+    <string name="foryou_section_continue">Still unfinished</string>
+    <string name="foryou_section_worth_revisiting">Worth revisiting</string>
+    <string name="foryou_section_found_by_smart">Found by SMART</string>
+    <string name="foryou_section_never_played">Never played</string>
+    <!-- Hero kickers: why this one track leads the page. -->
+    <string name="foryou_kicker_resume">Pick up where you left off</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="one">You played this %1$d time</item>
+        <item quantity="other">You played this %1$d times</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">Never played</string>
+    <!-- Card caption: how often this was played back when it was in rotation. -->
+    <plurals name="foryou_caption_played_before">
+        <item quantity="one">%1$d× before</item>
+        <item quantity="other">%1$d× before</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nothing playing</string>
@@ -82,6 +128,17 @@
          track has no title at all. -->
     <string name="playlist_add_to_title">Add "%1$s" to</string>
     <string name="playlist_add_to_title_generic">Add track to</string>
+    <string name="playlist_rename_title">Rename playlist</string>
+    <!-- %1$s is a playlist name -->
+    <string name="snack_playlist_created">Created "%1$s"</string>
+    <string name="snack_playlist_deleted">Deleted "%1$s"</string>
+    <string name="snack_added_to_playlist">Added to "%1$s"</string>
+    <!-- Titles of the playlists the app derives for you. These name a
+         collection, so they stay separate from the sort_* labels that name an
+         ordering — several languages word the two differently. -->
+    <string name="auto_playlist_recently_added">Recently added</string>
+    <string name="auto_playlist_most_played">Most played</string>
+    <string name="auto_playlist_recently_played">Recently played</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Play next</string>
@@ -105,6 +162,14 @@
     <string name="info_duration">Duration</string>
     <string name="info_location">Location</string>
     <string name="info_not_set">Not set</string>
+    <string name="info_edit">Edit tags</string>
+    <string name="info_save">Save</string>
+    <string name="info_cancel">Cancel</string>
+    <string name="info_saving">Saving…</string>
+    <string name="info_edit_note">Saved into the file itself, so every app sees the correction. Android will ask permission to modify the file.</string>
+    <string name="info_edit_refused">This file\'s tags are in a form that cannot be rewritten safely, so nothing was changed.</string>
+    <string name="info_edit_failed">Could not write to this file. It was left as it was.</string>
+    <string name="info_edit_unavailable">Editing tags is not available on this device.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Settings</string>
@@ -158,5 +223,37 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam needs access to your music to scan the library.</string>
     <string name="permission_grant">Grant access</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">Diagnostics</string>
+    <!-- %1$s is a track count, or an ellipsis while the library is still loading -->
+    <string name="diagnostics_library">Library: %1$s</string>
+    <!-- %1$d is the batch size -->
+    <string name="diagnostics_index_batch">Index %1$d</string>
+    <string name="diagnostics_index_all">Index all</string>
+    <string name="diagnostics_rescan">Rescan</string>
+    <!-- %1$d done of %2$d, then indexed / skipped / failed -->
+    <string name="diagnostics_indexing">Indexing… %1$d/%2$d (ok %3$d, skip %4$d, fail %5$d)</string>
+    <string name="diagnostics_indexed_report">Done — indexed %1$d, skipped %2$d, failed %3$d.</string>
+    <string name="diagnostics_history_empty">History: no listens recorded yet.</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="one">History: %1$d listen.</item>
+        <item quantity="other">History: %1$d listens.</item>
+    </plurals>
+    <!-- %1$s is a track title, %2$d how many times it was played -->
+    <string name="diagnostics_history_top">Top: %1$s (%2$d×).</string>
+    <string name="diagnostics_engine">Similarity engine</string>
+    <string name="diagnostics_engine_uninitialized">Not initialized yet.</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="one">Ready — %1$d track indexed.</item>
+        <item quantity="other">Ready — %1$d tracks indexed.</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">Retry initialization</string>
+    <string name="diagnostics_engine_initialize">Initialize engine</string>
+
+    <string name="engine_error_model_unavailable">Similarity model isn't bundled yet — smart shuffle is disabled in this build.</string>
+    <string name="engine_error_not_indexed">Library not indexed yet.</string>
+    <!-- %1$s is a technical failure message from the engine backend -->
+    <string name="engine_error_backend">Engine backend failed: %1$s</string>
 
 </resources>

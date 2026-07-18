@@ -25,11 +25,18 @@
     <string name="action_rename">Redenumește</string>
     <string name="action_clear">Șterge tot</string>
     <string name="action_track_options">Opțiuni pentru piesă</string>
+    <string name="action_create">Creează</string>
+    <string name="action_play_all">Redă tot</string>
+    <string name="action_shuffle_all">Redă aleatoriu tot</string>
+    <string name="cd_more_options">Mai multe opțiuni</string>
+    <string name="cd_search_library">Caută în bibliotecă</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Piesă</string>
     <string name="track_untitled">Fără titlu</string>
     <string name="track_unknown_artist">Artist necunoscut</string>
+    <string name="track_unknown_album">Album necunoscut</string>
+    <string name="track_unknown_genre">Gen necunoscut</string>
     <plurals name="count_tracks">
         <item quantity="one">%1$d piesă</item>
         <item quantity="few">%1$d piese</item>
@@ -37,6 +44,45 @@
     </plurals>
     <string name="cd_track_options_for">Mai multe opțiuni pentru %1$s</string>
     <string name="cd_track_options_generic">Mai multe opțiuni pentru această piesă</string>
+
+    <plurals name="count_albums">
+        <item quantity="one">%1$d album</item>
+        <item quantity="few">%1$d albume</item>
+        <item quantity="other">%1$d de albume</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">Pentru tine</string>
+    <string name="tab_playlists">Playlisturi</string>
+    <string name="tab_tracks">Piese</string>
+    <string name="tab_albums">Albume</string>
+    <string name="tab_artists">Artiști</string>
+    <string name="tab_genres">Genuri</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">Nu s-a găsit muzică pe acest dispozitiv.</string>
+    <string name="action_rescan_library">Rescanează biblioteca</string>
+    <string name="sort_recently_added">Adăugate recent</string>
+    <string name="snack_track_deleted">Piesă ștearsă</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">Ascultă câteva piese și pagina asta se va umple cu lucruri la care merită să revii.</string>
+    <string name="foryou_section_continue">Neterminate</string>
+    <string name="foryou_section_worth_revisiting">Merită reascultate</string>
+    <string name="foryou_section_found_by_smart">Găsite de SMART</string>
+    <string name="foryou_section_never_played">Neascultate încă</string>
+    <string name="foryou_kicker_resume">Reia de unde ai rămas</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="one">Ai ascultat-o de %1$d dată</item>
+        <item quantity="few">Ai ascultat-o de %1$d ori</item>
+        <item quantity="other">Ai ascultat-o de %1$d de ori</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">Neascultată încă</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="one">%1$d ascultare</item>
+        <item quantity="few">%1$d ascultări</item>
+        <item quantity="other">%1$d de ascultări</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nu se redă nimic</string>
@@ -69,6 +115,10 @@
     <string name="cd_playlist_options">Opțiuni pentru %1$s</string>
     <string name="playlist_add_to_title">Adaugă „%1$s” în</string>
     <string name="playlist_add_to_title_generic">Adaugă piesa în</string>
+    <string name="playlist_rename_title">Redenumește playlistul</string>
+    <string name="snack_playlist_created">Playlistul „%1$s” a fost creat</string>
+    <string name="snack_playlist_deleted">Playlistul „%1$s” a fost șters</string>
+    <string name="snack_added_to_playlist">Adăugat în „%1$s”</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Redă în continuare</string>
@@ -91,6 +141,14 @@
     <string name="info_duration">Durată</string>
     <string name="info_location">Locație</string>
     <string name="info_not_set">Nespecificat</string>
+    <string name="info_edit">Editează etichetele</string>
+    <string name="info_save">Salvează</string>
+    <string name="info_cancel">Anulează</string>
+    <string name="info_saving">Se salvează…</string>
+    <string name="info_edit_note">Se salvează în fișierul propriu-zis, așa că orice aplicație vede corectura. Android va cere permisiunea de a modifica fișierul.</string>
+    <string name="info_edit_refused">Etichetele acestui fișier sunt într-o formă care nu poate fi rescrisă în siguranță, așa că nimic nu a fost schimbat.</string>
+    <string name="info_edit_failed">Fișierul nu a putut fi scris. A rămas neschimbat.</string>
+    <string name="info_edit_unavailable">Editarea etichetelor nu este disponibilă pe acest dispozitiv.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Setări</string>
@@ -139,5 +197,34 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam are nevoie de acces la muzica ta ca să scaneze biblioteca.</string>
     <string name="permission_grant">Acordă acces</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">Diagnosticare</string>
+    <string name="diagnostics_library">Bibliotecă: %1$s</string>
+    <string name="diagnostics_index_batch">Indexează %1$d</string>
+    <string name="diagnostics_index_all">Indexează tot</string>
+    <string name="diagnostics_rescan">Rescanează</string>
+    <string name="diagnostics_indexing">Se indexează… %1$d/%2$d (reușite %3$d, sărite %4$d, eșuate %5$d)</string>
+    <string name="diagnostics_indexed_report">Gata — indexate %1$d, sărite %2$d, eșuate %3$d.</string>
+    <string name="diagnostics_history_empty">Istoric: nicio ascultare înregistrată încă.</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="one">Istoric: %1$d ascultare.</item>
+        <item quantity="few">Istoric: %1$d ascultări.</item>
+        <item quantity="other">Istoric: %1$d de ascultări.</item>
+    </plurals>
+    <string name="diagnostics_history_top">Cea mai ascultată: %1$s (%2$d×).</string>
+    <string name="diagnostics_engine">Motor de similaritate</string>
+    <string name="diagnostics_engine_uninitialized">Neinițializat încă.</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="one">Gata — %1$d piesă indexată.</item>
+        <item quantity="few">Gata — %1$d piese indexate.</item>
+        <item quantity="other">Gata — %1$d de piese indexate.</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">Reîncearcă inițializarea</string>
+    <string name="diagnostics_engine_initialize">Inițializează motorul</string>
+
+    <string name="engine_error_model_unavailable">Modelul de similaritate nu este încă inclus — redarea aleatorie inteligentă este dezactivată în această versiune.</string>
+    <string name="engine_error_not_indexed">Biblioteca nu este încă indexată.</string>
+    <string name="engine_error_backend">Motorul a eșuat: %1$s</string>
 
 </resources>

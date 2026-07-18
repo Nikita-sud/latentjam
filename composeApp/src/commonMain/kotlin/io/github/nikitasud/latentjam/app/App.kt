@@ -98,6 +98,60 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_close
+import io.github.nikitasud.latentjam.app.generated.resources.action_create
+import io.github.nikitasud.latentjam.app.generated.resources.action_next
+import io.github.nikitasud.latentjam.app.generated.resources.action_pause
+import io.github.nikitasud.latentjam.app.generated.resources.action_play
+import io.github.nikitasud.latentjam.app.generated.resources.action_play_all
+import io.github.nikitasud.latentjam.app.generated.resources.action_previous
+import io.github.nikitasud.latentjam.app.generated.resources.action_rename
+import io.github.nikitasud.latentjam.app.generated.resources.action_rescan_library
+import io.github.nikitasud.latentjam.app.generated.resources.action_shuffle_all
+import io.github.nikitasud.latentjam.app.generated.resources.cd_more_options
+import io.github.nikitasud.latentjam.app.generated.resources.cd_search_library
+import io.github.nikitasud.latentjam.app.generated.resources.count_albums
+import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_engine
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_engine_initialize
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_engine_ready
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_engine_retry
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_engine_uninitialized
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_history_empty
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_history_listens
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_history_top
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_index_all
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_index_batch
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_indexed_report
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_indexing
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_library
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_rescan
+import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_title
+import io.github.nikitasud.latentjam.app.generated.resources.engine_error_backend
+import io.github.nikitasud.latentjam.app.generated.resources.engine_error_model_unavailable
+import io.github.nikitasud.latentjam.app.generated.resources.engine_error_not_indexed
+import io.github.nikitasud.latentjam.app.generated.resources.info_artist
+import io.github.nikitasud.latentjam.app.generated.resources.info_title
+import io.github.nikitasud.latentjam.app.generated.resources.library_empty
+import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
+import io.github.nikitasud.latentjam.app.generated.resources.playlist_rename_title
+import io.github.nikitasud.latentjam.app.generated.resources.settings_title
+import io.github.nikitasud.latentjam.app.generated.resources.snack_added_to_playlist
+import io.github.nikitasud.latentjam.app.generated.resources.snack_playlist_created
+import io.github.nikitasud.latentjam.app.generated.resources.snack_playlist_deleted
+import io.github.nikitasud.latentjam.app.generated.resources.snack_track_deleted
+import io.github.nikitasud.latentjam.app.generated.resources.sort_recently_added
+import io.github.nikitasud.latentjam.app.generated.resources.tab_albums
+import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
+import io.github.nikitasud.latentjam.app.generated.resources.tab_for_you
+import io.github.nikitasud.latentjam.app.generated.resources.tab_genres
+import io.github.nikitasud.latentjam.app.generated.resources.tab_playlists
+import io.github.nikitasud.latentjam.app.generated.resources.tab_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_album
+import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
+import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_genre
+import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.AlbumGroup
 import io.github.nikitasud.latentjam.library.ArtistGroup
@@ -120,6 +174,11 @@ import kotlin.math.roundToInt
 import kotlin.math.floor
 import kotlin.math.ceil
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getPluralString
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /** Shared-element keys for the mini-player → now-playing morph. */
 internal const val ARTWORK_KEY = "now-playing-artwork"
@@ -228,7 +287,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val deleteTrack = rememberTrackDeleter {
             scope.launch {
                 tracks = library.tracks()
-                snackbar.showSnackbar("Track deleted")
+                snackbar.showSnackbar(getString(Res.string.snack_track_deleted))
             }
         }
 
@@ -237,13 +296,19 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 val stats = AppGraph.history.stats()
                 val listens = stats.values.sumOf { it.plays }
                 val top = stats.maxByOrNull { it.value.plays }
-                val topTitle = top?.let { entry ->
-                    catalog?.songs?.firstOrNull { it.id == entry.key }?.title ?: entry.key.value
-                }
+                val counted = getPluralString(Res.plurals.diagnostics_history_listens, listens, listens)
                 historySummary = when {
-                    listens == 0 -> "History: no listens recorded yet."
-                    top == null -> "History: $listens listens."
-                    else -> "History: $listens listens; top: $topTitle (${top.value.plays}×)."
+                    listens == 0 -> getString(Res.string.diagnostics_history_empty)
+                    top == null -> counted
+                    else -> {
+                        val title = catalog?.songs?.firstOrNull { it.id == top.key }?.title
+                            ?: top.key.value
+                        // Two sentences rather than one interpolated line: the listen count needs a
+                        // plural form of its own, and nesting it inside another sentence would pin
+                        // the word order of every translation to English's.
+                        counted + " " +
+                            getString(Res.string.diagnostics_history_top, title, top.value.plays)
+                    }
                 }
             }
         }
@@ -263,23 +328,29 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     skipped += report.skipped
                     failed += report.failed
                     val done = indexed + skipped + failed
-                    indexSummary =
-                        "Indexing… $done/${selection.size} (ok $indexed, skip $skipped, fail $failed)"
+                    indexSummary = getString(
+                        Res.string.diagnostics_indexing,
+                        done,
+                        selection.size,
+                        indexed,
+                        skipped,
+                        failed,
+                    )
                 }
-                indexSummary = "Done — indexed $indexed, skipped $skipped, failed $failed."
+                indexSummary =
+                    getString(Res.string.diagnostics_indexed_report, indexed, skipped, failed)
             }
         }
 
         fun showAlbumOf(track: TrackDescriptor) {
-            catalog?.albums
-                ?.firstOrNull { album -> album.tracks.any { it.id == track.id } }
-                ?.let { selectedCollection = it.toSelection() }
+            val album = catalog?.albums
+                ?.firstOrNull { group -> group.tracks.any { it.id == track.id } } ?: return
+            scope.launch { selectedCollection = album.toSelection() }
         }
 
         fun showArtistOf(track: TrackDescriptor) {
-            catalog?.artists
-                ?.firstOrNull { artist -> artist.name == track.artist }
-                ?.let { selectedCollection = it.toSelection() }
+            val artist = catalog?.artists?.firstOrNull { it.name == track.artist } ?: return
+            scope.launch { selectedCollection = artist.toSelection() }
         }
 
         // Opaque floor under the whole shell: during the morph the animating
@@ -325,12 +396,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             IconButton(onClick = { showCreatePlaylist = true }) {
                                                 Icon(
                                                     imageVector = Icons.Rounded.Add,
-                                                    contentDescription = "New playlist",
+                                                    contentDescription =
+                                                        stringResource(Res.string.playlist_new),
                                                 )
                                             }
                                         }
                                         IconButton(onClick = { showSearch = true }) {
-                                            Icon(Icons.Rounded.Search, contentDescription = "Search library")
+                                            Icon(
+                                                imageVector = Icons.Rounded.Search,
+                                                contentDescription =
+                                                    stringResource(Res.string.cd_search_library),
+                                            )
                                         }
                                         // Shuffle lives with the transport in the
                                         // player, not up here — the header is for
@@ -343,21 +419,23 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             animatedScope = animatedScope,
                                         ) { dismiss ->
                                             DropdownMenuItem(
-                                                text = { Text("Rescan library") },
+                                                text = {
+                                                    Text(stringResource(Res.string.action_rescan_library))
+                                                },
                                                 onClick = {
                                                     dismiss()
                                                     scope.launch { tracks = library.tracks() }
                                                 },
                                             )
                                             DropdownMenuItem(
-                                                text = { Text("Settings") },
+                                                text = { Text(stringResource(Res.string.settings_title)) },
                                                 onClick = {
                                                     dismiss()
                                                     showSettings = true
                                                 },
                                             )
                                             DropdownMenuItem(
-                                                text = { Text("Diagnostics") },
+                                                text = { Text(stringResource(Res.string.diagnostics_title)) },
                                                 onClick = {
                                                     dismiss()
                                                     showDiagnostics = true
@@ -397,7 +475,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     catalog.songs.isEmpty() -> Box(
                                         modifier = Modifier.fillMaxSize(),
                                         contentAlignment = Alignment.Center,
-                                    ) { Text("No music found on this device.") }
+                                    ) { Text(stringResource(Res.string.library_empty)) }
 
                                     // Pages follow the finger. The carousel strip above reads the
                                     // same pager position, so label and content move together
@@ -440,30 +518,44 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             playlists = playlists,
                                             tracksOf = ::tracksOf,
                                             contentPadding = listPadding,
+                                            // Building a selection resolves a track count, and a
+                                            // count is a plural — so it happens in a coroutine
+                                            // rather than in the click handler itself.
                                             onOpenAuto = { auto ->
-                                                selectedCollection = CollectionSelection(
-                                                    title = auto.title,
-                                                    subtitle = "${auto.tracks.size} tracks",
-                                                    artworkUri = auto.tracks
-                                                        .firstNotNullOfOrNull { it.artworkUri },
-                                                    tracks = auto.tracks,
-                                                )
+                                                scope.launch {
+                                                    selectedCollection = CollectionSelection(
+                                                        title = auto.title,
+                                                        subtitle = trackCountLabel(auto.tracks.size),
+                                                        artworkUri = auto.tracks
+                                                            .firstNotNullOfOrNull { it.artworkUri },
+                                                        tracks = auto.tracks,
+                                                    )
+                                                }
                                             },
                                             onOpenPlaylist = { playlist ->
-                                                selectedCollection = CollectionSelection(
-                                                    title = playlist.name,
-                                                    subtitle = "${playlist.trackIds.size} tracks",
-                                                    artworkUri = tracksOf(playlist)
-                                                        .firstNotNullOfOrNull { it.artworkUri },
-                                                    tracks = tracksOf(playlist),
-                                                )
+                                                scope.launch {
+                                                    selectedCollection = CollectionSelection(
+                                                        title = playlist.name,
+                                                        subtitle = trackCountLabel(
+                                                            playlist.trackIds.size,
+                                                        ),
+                                                        artworkUri = tracksOf(playlist)
+                                                            .firstNotNullOfOrNull { it.artworkUri },
+                                                        tracks = tracksOf(playlist),
+                                                    )
+                                                }
                                             },
                                             onRename = { renameTarget = it },
                                             onDelete = { playlist ->
                                                 scope.launch {
                                                     AppGraph.playlists.delete(playlist.id)
                                                     refreshPlaylists()
-                                                    snackbar.showSnackbar("Deleted \"${playlist.name}\"")
+                                                    snackbar.showSnackbar(
+                                                        getString(
+                                                            Res.string.snack_playlist_deleted,
+                                                            playlist.name,
+                                                        ),
+                                                    )
                                                 }
                                             },
                                         )
@@ -510,7 +602,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         ) {
                                             items(catalog.albums, key = { it.key }) { album ->
                                                 AlbumCard(album) {
-                                                    selectedCollection = album.toSelection()
+                                                    scope.launch {
+                                                        selectedCollection = album.toSelection()
+                                                    }
                                                 }
                                             }
                                         }
@@ -521,12 +615,19 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         ) {
                                             items(catalog.artists, key = { it.name ?: "?" }) { artist ->
                                                 GroupRow(
-                                                    title = artist.name ?: "Unknown artist",
-                                                    subtitle = "${artist.tracks.size} tracks • " +
-                                                        "${artist.albumCount} albums",
+                                                    title = artist.name
+                                                        ?: stringResource(Res.string.track_unknown_artist),
+                                                    subtitle = artistSubtitle(
+                                                        tracks = artist.tracks.size,
+                                                        albums = artist.albumCount,
+                                                    ),
                                                     artworkUri = artist.tracks
                                                         .firstNotNullOfOrNull { it.artworkUri },
-                                                ) { selectedCollection = artist.toSelection() }
+                                                ) {
+                                                    scope.launch {
+                                                        selectedCollection = artist.toSelection()
+                                                    }
+                                                }
                                             }
                                         }
 
@@ -536,11 +637,20 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         ) {
                                             items(catalog.genres, key = { it.name ?: "?" }) { genre ->
                                                 GroupRow(
-                                                    title = genre.name ?: "Unknown genre",
-                                                    subtitle = "${genre.tracks.size} tracks",
+                                                    title = genre.name
+                                                        ?: stringResource(Res.string.track_unknown_genre),
+                                                    subtitle = pluralStringResource(
+                                                        Res.plurals.count_tracks,
+                                                        genre.tracks.size,
+                                                        genre.tracks.size,
+                                                    ),
                                                     artworkUri = genre.tracks
                                                         .firstNotNullOfOrNull { it.artworkUri },
-                                                ) { selectedCollection = genre.toSelection() }
+                                                ) {
+                                                    scope.launch {
+                                                        selectedCollection = genre.toSelection()
+                                                    }
+                                                }
                                             }
                                         }
                                         }
@@ -597,7 +707,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     scope.launch {
                         AppGraph.playlists.addTracks(playlist.id, listOf(target.id))
                         refreshPlaylists()
-                        snackbar.showSnackbar("Added to \"${playlist.name}\"")
+                        snackbar.showSnackbar(
+                            getString(Res.string.snack_added_to_playlist, playlist.name),
+                        )
                     }
                 },
                 onCreateNew = {
@@ -612,8 +724,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         if (showCreatePlaylist) {
             val trackToSeed = pendingPlaylistTrack
             PlaylistNameDialog(
-                title = "New playlist",
-                confirmLabel = "Create",
+                title = stringResource(Res.string.playlist_new),
+                confirmLabel = stringResource(Res.string.action_create),
                 onConfirm = { name ->
                     showCreatePlaylist = false
                     pendingPlaylistTrack = null
@@ -623,7 +735,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             AppGraph.playlists.addTracks(created.id, listOf(trackToSeed.id))
                         }
                         refreshPlaylists()
-                        snackbar.showSnackbar("Created \"${created.name}\"")
+                        snackbar.showSnackbar(
+                            getString(Res.string.snack_playlist_created, created.name),
+                        )
                     }
                 },
                 onDismiss = {
@@ -635,9 +749,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         renameTarget?.let { target ->
             PlaylistNameDialog(
-                title = "Rename playlist",
+                title = stringResource(Res.string.playlist_rename_title),
                 initialName = target.name,
-                confirmLabel = "Rename",
+                confirmLabel = stringResource(Res.string.action_rename),
                 onConfirm = { name ->
                     renameTarget = null
                     scope.launch {
@@ -702,7 +816,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 indexSummary = indexSummary,
                 historySummary = historySummary,
                 onRescan = { scope.launch { tracks = library.tracks() } },
-                onIndexSample = { tracks?.let { loaded -> indexTracks(loaded.take(24)) } },
+                onIndexSample = {
+                    tracks?.let { loaded -> indexTracks(loaded.take(DIAGNOSTICS_SAMPLE)) }
+                },
                 onIndexAll = { tracks?.let(::indexTracks) },
                 onDismiss = { showDiagnostics = false },
             )
@@ -710,7 +826,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
     }
 }
 
-private val BROWSE_TABS = listOf("For You", "Playlists", "Tracks", "Albums", "Artists", "Genres")
+/**
+ * The carousel's sections, as resources rather than words: the strip reads them through
+ * `stringResource`, so the list is an order, not a set of labels.
+ */
+private val BROWSE_TABS: List<StringResource> = listOf(
+    Res.string.tab_for_you,
+    Res.string.tab_playlists,
+    Res.string.tab_tracks,
+    Res.string.tab_albums,
+    Res.string.tab_artists,
+    Res.string.tab_genres,
+)
 
 /** Playlists lead the carousel, but the app opens on Tracks. */
 private const val FOR_YOU_TAB = 0
@@ -725,29 +852,55 @@ private const val SMART_HERO_LENGTH = 20
 
 private const val INDEX_CHUNK_SIZE = 8
 
+/** How many tracks the diagnostics dialog indexes as a sample. */
+private const val DIAGNOSTICS_SAMPLE = 24
+
 /** Duration of the mini-player ↔ now-playing morph. */
 private const val MORPH_MILLIS = 340
 
-private fun AlbumGroup.toSelection() = CollectionSelection(
-    title = title ?: "Unknown album",
+// A selection is assembled in a click handler, which is not composition — so these resolve their
+// strings through the suspending resource API and are called from a coroutine. The alternative,
+// keeping English in the model and translating it on the way out, is what this pass exists to undo.
+
+private suspend fun AlbumGroup.toSelection() = CollectionSelection(
+    title = title ?: getString(Res.string.track_unknown_album),
     subtitle = artist,
     artworkUri = artworkUri,
     tracks = tracks,
 )
 
-private fun ArtistGroup.toSelection() = CollectionSelection(
-    title = name ?: "Unknown artist",
-    subtitle = "${tracks.size} tracks • $albumCount albums",
+private suspend fun ArtistGroup.toSelection() = CollectionSelection(
+    title = name ?: getString(Res.string.track_unknown_artist),
+    subtitle = getPluralString(Res.plurals.count_tracks, tracks.size, tracks.size) +
+        SUBTITLE_SEPARATOR +
+        getPluralString(Res.plurals.count_albums, albumCount, albumCount),
     artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
     tracks = tracks,
 )
 
-private fun GenreGroup.toSelection() = CollectionSelection(
-    title = name ?: "Unknown genre",
-    subtitle = "${tracks.size} tracks",
+private suspend fun GenreGroup.toSelection() = CollectionSelection(
+    title = name ?: getString(Res.string.track_unknown_genre),
+    subtitle = trackCountLabel(tracks.size),
     artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
     tracks = tracks,
 )
+
+private suspend fun trackCountLabel(count: Int): String =
+    getPluralString(Res.plurals.count_tracks, count, count)
+
+/**
+ * Joins two counted phrases in a subtitle.
+ *
+ * Punctuation rather than a word, so it needs no translation and survives being read
+ * right-to-left; the two halves around it are each separately pluralised.
+ */
+private const val SUBTITLE_SEPARATOR = " • "
+
+@Composable
+private fun artistSubtitle(tracks: Int, albums: Int): String =
+    pluralStringResource(Res.plurals.count_tracks, tracks, tracks) +
+        SUBTITLE_SEPARATOR +
+        pluralStringResource(Res.plurals.count_albums, albums, albums)
 
 // ---------------------------------------------------------------- components
 
@@ -833,7 +986,7 @@ private fun BrowseCarousel(pagerState: PagerState, onSelect: (Int) -> Unit) {
                 val distance = (offsetFromCentre(index)?.let { abs(it) / falloffPx } ?: 1f)
                     .coerceIn(0f, 1f)
                 Text(
-                    text = title,
+                    text = stringResource(title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -880,7 +1033,10 @@ internal fun OverflowButton(
                 )
             },
         ) {
-            Icon(Icons.Rounded.MoreVert, contentDescription = "More options")
+            Icon(
+                imageVector = Icons.Rounded.MoreVert,
+                contentDescription = stringResource(Res.string.cd_more_options),
+            )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             menuItems { open = false }
@@ -936,19 +1092,28 @@ private fun SongsHeader(
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             ),
         ) {
-            Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle all")
+            Icon(
+                imageVector = Icons.Rounded.Shuffle,
+                contentDescription = stringResource(Res.string.action_shuffle_all),
+            )
         }
         FilledIconButton(onClick = onPlayAll, modifier = Modifier.padding(start = 8.dp)) {
-            Icon(Icons.Rounded.PlayArrow, contentDescription = "Play all")
+            Icon(
+                imageVector = Icons.Rounded.PlayArrow,
+                contentDescription = stringResource(Res.string.action_play_all),
+            )
         }
     }
 }
 
-private fun SongSort.label(): String = when (this) {
-    SongSort.TITLE -> "Title"
-    SongSort.ARTIST -> "Artist"
-    SongSort.RECENT -> "Recently added"
-}
+@Composable
+private fun SongSort.label(): String = stringResource(
+    when (this) {
+        SongSort.TITLE -> Res.string.info_title
+        SongSort.ARTIST -> Res.string.info_artist
+        SongSort.RECENT -> Res.string.sort_recently_added
+    },
+)
 
 @Composable
 private fun AlbumCard(album: AlbumGroup, onClick: () -> Unit) {
@@ -980,14 +1145,14 @@ private fun AlbumCard(album: AlbumGroup, onClick: () -> Unit) {
             }
         }
         Text(
-            text = album.title ?: "Unknown album",
+            text = album.title ?: stringResource(Res.string.track_unknown_album),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = album.artist ?: "Unknown artist",
+            text = album.artist ?: stringResource(Res.string.track_unknown_artist),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -1084,13 +1249,13 @@ private fun MiniPlayerPill(
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = track.title ?: "Untitled",
+                        text = track.title ?: stringResource(Res.string.track_untitled),
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         modifier = Modifier.basicMarquee(),
                     )
                     Text(
-                        text = track.artist ?: "Unknown artist",
+                        text = track.artist ?: stringResource(Res.string.track_unknown_artist),
                         style = MaterialTheme.typography.bodySmall,
                         color = accent.onContainer.copy(alpha = 0.72f),
                         maxLines = 1,
@@ -1098,16 +1263,26 @@ private fun MiniPlayerPill(
                     )
                 }
                 IconButton(onClick = onPrevious) {
-                    Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous track")
+                    Icon(
+                        imageVector = Icons.Rounded.SkipPrevious,
+                        contentDescription = stringResource(Res.string.action_previous),
+                    )
                 }
                 IconButton(onClick = onTogglePlayPause) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        contentDescription = if (isPlaying) {
+                            stringResource(Res.string.action_pause)
+                        } else {
+                            stringResource(Res.string.action_play)
+                        },
                     )
                 }
                 IconButton(onClick = onNext) {
-                    Icon(Icons.Rounded.SkipNext, contentDescription = "Next track")
+                    Icon(
+                        imageVector = Icons.Rounded.SkipNext,
+                        contentDescription = stringResource(Res.string.action_next),
+                    )
                 }
             }
             // Hairline progress along the pill's inner edge — status without
@@ -1141,22 +1316,33 @@ private fun DiagnosticsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Diagnostics") },
+        title = { Text(stringResource(Res.string.diagnostics_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 EngineCard(engine)
-                Text("Library: ${trackCount?.toString() ?: "…"} tracks")
+                // An ellipsis stands in until the scan reports back; once it does, the count is a
+                // plural of its own and is formatted as one before being placed in the line.
+                val counted = trackCount
+                    ?.let { pluralStringResource(Res.plurals.count_tracks, it, it) }
+                    ?: "…"
+                Text(stringResource(Res.string.diagnostics_library, counted))
                 historySummary?.let { Text(it) }
                 indexSummary?.let { Text(it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onIndexSample) { Text("Index 24") }
-                    TextButton(onClick = onIndexAll) { Text("Index all") }
-                    TextButton(onClick = onRescan) { Text("Rescan") }
+                    TextButton(onClick = onIndexSample) {
+                        Text(stringResource(Res.string.diagnostics_index_batch, DIAGNOSTICS_SAMPLE))
+                    }
+                    TextButton(onClick = onIndexAll) {
+                        Text(stringResource(Res.string.diagnostics_index_all))
+                    }
+                    TextButton(onClick = onRescan) {
+                        Text(stringResource(Res.string.diagnostics_rescan))
+                    }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_close)) }
         },
     )
 }
@@ -1173,31 +1359,47 @@ private fun EngineCard(engine: SimilarityEngine) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "Similarity engine",
+                text = stringResource(Res.string.diagnostics_engine),
                 style = MaterialTheme.typography.titleMedium,
             )
             when (val current = state) {
-                EngineState.Uninitialized -> Text("Not initialized yet.")
+                EngineState.Uninitialized ->
+                    Text(stringResource(Res.string.diagnostics_engine_uninitialized))
                 EngineState.Initializing -> CircularProgressIndicator()
-                is EngineState.Ready -> Text("Ready — ${current.indexedCount} tracks indexed.")
+                is EngineState.Ready -> Text(
+                    pluralStringResource(
+                        Res.plurals.diagnostics_engine_ready,
+                        current.indexedCount,
+                        current.indexedCount,
+                    ),
+                )
                 is EngineState.Failed -> Text(current.error.toUserMessage())
             }
             Button(
                 onClick = { scope.launch { engine.initialize() } },
                 enabled = state !is EngineState.Initializing,
             ) {
-                Text(if (state is EngineState.Failed) "Retry initialization" else "Initialize engine")
+                Text(
+                    stringResource(
+                        if (state is EngineState.Failed) {
+                            Res.string.diagnostics_engine_retry
+                        } else {
+                            Res.string.diagnostics_engine_initialize
+                        },
+                    ),
+                )
             }
         }
     }
 }
 
 /** Friendly, non-technical wording for the typed engine errors. */
+@Composable
 private fun EngineError.toUserMessage(): String = when (this) {
     EngineError.ModelUnavailable ->
-        "Similarity model isn't bundled yet — smart shuffle is disabled in this build."
+        stringResource(Res.string.engine_error_model_unavailable)
     EngineError.NotIndexed ->
-        "Library not indexed yet."
+        stringResource(Res.string.engine_error_not_indexed)
     is EngineError.BackendFailure ->
-        "Engine backend failed: $message"
+        stringResource(Res.string.engine_error_backend, message)
 }

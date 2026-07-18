@@ -29,11 +29,18 @@
     <string name="action_rename">Cambiar nombre</string>
     <string name="action_clear">Borrar</string>
     <string name="action_track_options">Opciones de la canción</string>
+    <string name="action_create">Crear</string>
+    <string name="action_play_all">Reproducir todo</string>
+    <string name="action_shuffle_all">Reproducir todo al azar</string>
+    <string name="cd_more_options">Más opciones</string>
+    <string name="cd_search_library">Buscar en la biblioteca</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Canción</string>
     <string name="track_untitled">Sin título</string>
     <string name="track_unknown_artist">Artista desconocido</string>
+    <string name="track_unknown_album">Álbum desconocido</string>
+    <string name="track_unknown_genre">Género desconocido</string>
     <!-- Spanish distinguishes one (1) and other (everything else). -->
     <plurals name="count_tracks">
         <item quantity="one">%1$d canción</item>
@@ -42,6 +49,42 @@
     <!-- %1$s is a track title -->
     <string name="cd_track_options_for">Más opciones para %1$s</string>
     <string name="cd_track_options_generic">Más opciones para esta canción</string>
+
+    <plurals name="count_albums">
+        <item quantity="one">%1$d álbum</item>
+        <item quantity="other">%1$d álbumes</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">Para ti</string>
+    <string name="tab_playlists">Listas</string>
+    <string name="tab_tracks">Canciones</string>
+    <string name="tab_albums">Álbumes</string>
+    <string name="tab_artists">Artistas</string>
+    <string name="tab_genres">Géneros</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">No se encontró música en este dispositivo.</string>
+    <string name="action_rescan_library">Volver a analizar la biblioteca</string>
+    <string name="sort_recently_added">Añadidas recientemente</string>
+    <string name="snack_track_deleted">Canción eliminada</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">Reproduce algunas canciones y esta página se llenará de cosas a las que merece la pena volver.</string>
+    <string name="foryou_section_continue">Sin terminar</string>
+    <string name="foryou_section_worth_revisiting">Merece otra escucha</string>
+    <string name="foryou_section_found_by_smart">Encontradas por SMART</string>
+    <string name="foryou_section_never_played">Nunca reproducidas</string>
+    <string name="foryou_kicker_resume">Continúa donde lo dejaste</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="one">La escuchaste %1$d vez</item>
+        <item quantity="other">La escuchaste %1$d veces</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">Nunca reproducida</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="one">%1$d vez antes</item>
+        <item quantity="other">%1$d veces antes</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nada en reproducción</string>
@@ -80,6 +123,10 @@
          track has no title at all. -->
     <string name="playlist_add_to_title">Añadir «%1$s» a una lista</string>
     <string name="playlist_add_to_title_generic">Añadir la canción a una lista</string>
+    <string name="playlist_rename_title">Cambiar el nombre de la lista</string>
+    <string name="snack_playlist_created">Lista "%1$s" creada</string>
+    <string name="snack_playlist_deleted">Lista "%1$s" eliminada</string>
+    <string name="snack_added_to_playlist">Añadida a "%1$s"</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Reproducir a continuación</string>
@@ -156,5 +203,32 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam necesita acceso a tu música para explorar la biblioteca.</string>
     <string name="permission_grant">Conceder acceso</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">Diagnóstico</string>
+    <string name="diagnostics_library">Biblioteca: %1$s</string>
+    <string name="diagnostics_index_batch">Indexar %1$d</string>
+    <string name="diagnostics_index_all">Indexar todo</string>
+    <string name="diagnostics_rescan">Volver a analizar</string>
+    <string name="diagnostics_indexing">Indexando… %1$d/%2$d (ok %3$d, omitidas %4$d, fallidas %5$d)</string>
+    <string name="diagnostics_indexed_report">Listo — %1$d indexadas, %2$d omitidas, %3$d fallidas.</string>
+    <string name="diagnostics_history_empty">Historial: aún no hay reproducciones.</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="one">Historial: %1$d reproducción.</item>
+        <item quantity="other">Historial: %1$d reproducciones.</item>
+    </plurals>
+    <string name="diagnostics_history_top">Más escuchada: %1$s (%2$d×).</string>
+    <string name="diagnostics_engine">Motor de similitud</string>
+    <string name="diagnostics_engine_uninitialized">Aún no se ha inicializado.</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="one">Listo — %1$d canción indexada.</item>
+        <item quantity="other">Listo — %1$d canciones indexadas.</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">Reintentar la inicialización</string>
+    <string name="diagnostics_engine_initialize">Inicializar el motor</string>
+
+    <string name="engine_error_model_unavailable">El modelo de similitud aún no está incluido — la reproducción aleatoria inteligente está desactivada en esta versión.</string>
+    <string name="engine_error_not_indexed">La biblioteca aún no está indexada.</string>
+    <string name="engine_error_backend">Fallo del motor: %1$s</string>
 
 </resources>

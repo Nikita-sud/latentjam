@@ -25,11 +25,18 @@
     <string name="action_rename">Перейменувати</string>
     <string name="action_clear">Очистити</string>
     <string name="action_track_options">Дії з треком</string>
+    <string name="action_create">Створити</string>
+    <string name="action_play_all">Відтворити все</string>
+    <string name="action_shuffle_all">Перемішати все</string>
+    <string name="cd_more_options">Інші дії</string>
+    <string name="cd_search_library">Пошук у бібліотеці</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Трек</string>
     <string name="track_untitled">Без назви</string>
     <string name="track_unknown_artist">Невідомий виконавець</string>
+    <string name="track_unknown_album">Невідомий альбом</string>
+    <string name="track_unknown_genre">Невідомий жанр</string>
     <!-- one: 1, 21, 31…; few: 2–4, 22–24…; many: 0, 5–20, 25–30…;
          other: fractions (1,5 трека) and the required fallback. -->
     <plurals name="count_tracks">
@@ -41,6 +48,48 @@
     <!-- %1$s is a track title -->
     <string name="cd_track_options_for">Інші дії для %1$s</string>
     <string name="cd_track_options_generic">Інші дії для цього треку</string>
+
+    <plurals name="count_albums">
+        <item quantity="one">%1$d альбом</item>
+        <item quantity="few">%1$d альбоми</item>
+        <item quantity="many">%1$d альбомів</item>
+        <item quantity="other">%1$d альбому</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">Для вас</string>
+    <string name="tab_playlists">Плейлисти</string>
+    <string name="tab_tracks">Треки</string>
+    <string name="tab_albums">Альбоми</string>
+    <string name="tab_artists">Виконавці</string>
+    <string name="tab_genres">Жанри</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">На цьому пристрої не знайдено музики.</string>
+    <string name="action_rescan_library">Пересканувати бібліотеку</string>
+    <string name="sort_recently_added">Нещодавно додані</string>
+    <string name="snack_track_deleted">Трек видалено</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">Послухайте кілька треків — і тут з'явиться те, до чого варто повернутися.</string>
+    <string name="foryou_section_continue">Недослухане</string>
+    <string name="foryou_section_worth_revisiting">Варто повернутися</string>
+    <string name="foryou_section_found_by_smart">Знайдено SMART</string>
+    <string name="foryou_section_never_played">Ще не слухали</string>
+    <string name="foryou_kicker_resume">Продовжити з того самого місця</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="one">Ви слухали це %1$d раз</item>
+        <item quantity="few">Ви слухали це %1$d рази</item>
+        <item quantity="many">Ви слухали це %1$d разів</item>
+        <item quantity="other">Ви слухали це %1$d разу</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">Ще не слухали</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="one">Слухали %1$d раз</item>
+        <item quantity="few">Слухали %1$d рази</item>
+        <item quantity="many">Слухали %1$d разів</item>
+        <item quantity="other">Слухали %1$d разу</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Нічого не відтворюється</string>
@@ -81,6 +130,10 @@
          track has no title at all. -->
     <string name="playlist_add_to_title">Додати «%1$s» до плейлиста</string>
     <string name="playlist_add_to_title_generic">Додати трек до плейлиста</string>
+    <string name="playlist_rename_title">Перейменувати плейлист</string>
+    <string name="snack_playlist_created">Плейлист «%1$s» створено</string>
+    <string name="snack_playlist_deleted">Плейлист «%1$s» видалено</string>
+    <string name="snack_added_to_playlist">Додано до «%1$s»</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Відтворити наступним</string>
@@ -157,5 +210,36 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam потрібен доступ до вашої музики, щоб просканувати бібліотеку.</string>
     <string name="permission_grant">Надати доступ</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">Діагностика</string>
+    <string name="diagnostics_library">Бібліотека: %1$s</string>
+    <string name="diagnostics_index_batch">Проіндексувати %1$d</string>
+    <string name="diagnostics_index_all">Проіндексувати все</string>
+    <string name="diagnostics_rescan">Пересканувати</string>
+    <string name="diagnostics_indexing">Індексування… %1$d/%2$d (успішно %3$d, пропущено %4$d, помилок %5$d)</string>
+    <string name="diagnostics_indexed_report">Готово — проіндексовано %1$d, пропущено %2$d, з помилкою %3$d.</string>
+    <string name="diagnostics_history_empty">Історія: прослуховувань поки немає.</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="one">Історія: %1$d прослуховування.</item>
+        <item quantity="few">Історія: %1$d прослуховування.</item>
+        <item quantity="many">Історія: %1$d прослуховувань.</item>
+        <item quantity="other">Історія: %1$d прослуховування.</item>
+    </plurals>
+    <string name="diagnostics_history_top">Найчастіше: %1$s (%2$d×).</string>
+    <string name="diagnostics_engine">Рушій схожості</string>
+    <string name="diagnostics_engine_uninitialized">Ще не ініціалізовано.</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="one">Готово — проіндексовано %1$d трек.</item>
+        <item quantity="few">Готово — проіндексовано %1$d треки.</item>
+        <item quantity="many">Готово — проіндексовано %1$d треків.</item>
+        <item quantity="other">Готово — проіндексовано %1$d трека.</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">Повторити ініціалізацію</string>
+    <string name="diagnostics_engine_initialize">Ініціалізувати рушій</string>
+
+    <string name="engine_error_model_unavailable">Модель схожості ще не входить до збірки — розумне перемішування вимкнено.</string>
+    <string name="engine_error_not_indexed">Бібліотеку ще не проіндексовано.</string>
+    <string name="engine_error_backend">Збій рушія: %1$s</string>
 
 </resources>

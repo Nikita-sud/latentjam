@@ -22,11 +22,18 @@
     <string name="action_rename">Yeniden adlandır</string>
     <string name="action_clear">Temizle</string>
     <string name="action_track_options">Parça seçenekleri</string>
+    <string name="action_create">Oluştur</string>
+    <string name="action_play_all">Tümünü çal</string>
+    <string name="action_shuffle_all">Tümünü karışık çal</string>
+    <string name="cd_more_options">Diğer seçenekler</string>
+    <string name="cd_search_library">Kitaplıkta ara</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Parça</string>
     <string name="track_untitled">Adsız</string>
     <string name="track_unknown_artist">Bilinmeyen sanatçı</string>
+    <string name="track_unknown_album">Bilinmeyen albüm</string>
+    <string name="track_unknown_genre">Bilinmeyen tür</string>
     <!-- Turkish keeps the noun singular after a number, so both forms match. -->
     <plurals name="count_tracks">
         <item quantity="one">%1$d parça</item>
@@ -35,6 +42,42 @@
     <!-- %1$s is a track title -->
     <string name="cd_track_options_for">%1$s için diğer seçenekler</string>
     <string name="cd_track_options_generic">Bu parça için diğer seçenekler</string>
+
+    <plurals name="count_albums">
+        <item quantity="one">%1$d albüm</item>
+        <item quantity="other">%1$d albüm</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">Sana özel</string>
+    <string name="tab_playlists">Çalma listeleri</string>
+    <string name="tab_tracks">Parçalar</string>
+    <string name="tab_albums">Albümler</string>
+    <string name="tab_artists">Sanatçılar</string>
+    <string name="tab_genres">Türler</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">Bu cihazda müzik bulunamadı.</string>
+    <string name="action_rescan_library">Kitaplığı yeniden tara</string>
+    <string name="sort_recently_added">Son eklenenler</string>
+    <string name="snack_track_deleted">Parça silindi</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">Birkaç parça çal, bu sayfa geri dönmeye değer şeylerle dolsun.</string>
+    <string name="foryou_section_continue">Yarım kalanlar</string>
+    <string name="foryou_section_worth_revisiting">Yeniden dinlemeye değer</string>
+    <string name="foryou_section_found_by_smart">SMART'ın buldukları</string>
+    <string name="foryou_section_never_played">Hiç çalınmadı</string>
+    <string name="foryou_kicker_resume">Kaldığın yerden devam et</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="one">Bunu %1$d kez dinledin</item>
+        <item quantity="other">Bunu %1$d kez dinledin</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">Hiç çalınmadı</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="one">Daha önce %1$d kez</item>
+        <item quantity="other">Daha önce %1$d kez</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Çalan bir şey yok</string>
@@ -73,6 +116,10 @@
          track has no title at all. -->
     <string name="playlist_add_to_title">"%1$s" parçasını şuraya ekle</string>
     <string name="playlist_add_to_title_generic">Parçayı şuraya ekle</string>
+    <string name="playlist_rename_title">Çalma listesini yeniden adlandır</string>
+    <string name="snack_playlist_created">"%1$s" oluşturuldu</string>
+    <string name="snack_playlist_deleted">"%1$s" silindi</string>
+    <string name="snack_added_to_playlist">"%1$s" listesine eklendi</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Sıradaki olarak çal</string>
@@ -149,5 +196,32 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam'in kitaplığınızı tarayabilmesi için müziğinize erişmesi gerekiyor.</string>
     <string name="permission_grant">Erişim izni ver</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">Tanılama</string>
+    <string name="diagnostics_library">Kitaplık: %1$s</string>
+    <string name="diagnostics_index_batch">%1$d parçayı dizine ekle</string>
+    <string name="diagnostics_index_all">Tümünü dizine ekle</string>
+    <string name="diagnostics_rescan">Yeniden tara</string>
+    <string name="diagnostics_indexing">Dizine ekleniyor… %1$d/%2$d (tamam %3$d, atlanan %4$d, hatalı %5$d)</string>
+    <string name="diagnostics_indexed_report">Bitti — %1$d eklendi, %2$d atlandı, %3$d başarısız.</string>
+    <string name="diagnostics_history_empty">Geçmiş: henüz kayıtlı dinleme yok.</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="one">Geçmiş: %1$d dinleme.</item>
+        <item quantity="other">Geçmiş: %1$d dinleme.</item>
+    </plurals>
+    <string name="diagnostics_history_top">En çok dinlenen: %1$s (%2$d×).</string>
+    <string name="diagnostics_engine">Benzerlik motoru</string>
+    <string name="diagnostics_engine_uninitialized">Henüz başlatılmadı.</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="one">Hazır — %1$d parça dizine eklendi.</item>
+        <item quantity="other">Hazır — %1$d parça dizine eklendi.</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">Başlatmayı yeniden dene</string>
+    <string name="diagnostics_engine_initialize">Motoru başlat</string>
+
+    <string name="engine_error_model_unavailable">Benzerlik modeli henüz pakete eklenmedi — bu sürümde akıllı karışık çalma devre dışı.</string>
+    <string name="engine_error_not_indexed">Kitaplık henüz dizine eklenmedi.</string>
+    <string name="engine_error_backend">Motor arka ucu başarısız oldu: %1$s</string>
 
 </resources>

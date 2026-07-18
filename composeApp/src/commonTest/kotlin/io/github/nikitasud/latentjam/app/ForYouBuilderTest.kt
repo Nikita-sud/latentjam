@@ -62,9 +62,9 @@ class ForYouBuilderTest {
                 second.id to stats(plays = 6, last = now - 120 * day),
             ),
         )
-        val section = result.first { it.id == "worth-revisiting" }
+        val section = result.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
         assertEquals(listOf(second.id), section.cards.map { it.track.id })
-        assertEquals("6× before", section.cards.first().reason)
+        assertEquals(ForYouCaption.PlayedBefore(6), section.cards.first().caption)
     }
 
     @Test
@@ -75,7 +75,7 @@ class ForYouBuilderTest {
             stats = mapOf(recent.id to stats(plays = 10, last = now - 30 * day)),
         )
         // 30 days is an ordinary gap; surfacing it would claim an absence the listener never felt.
-        assertTrue(result.none { it.id == "worth-revisiting" })
+        assertTrue(result.none { it.kind == ForYouSectionKind.WORTH_REVISITING })
     }
 
     @Test
@@ -87,7 +87,7 @@ class ForYouBuilderTest {
                 disliked.id to stats(plays = 10, completions = 2, skips = 8, last = now - 200 * day),
             ),
         )
-        assertTrue(result.none { it.id == "worth-revisiting" })
+        assertTrue(result.none { it.kind == ForYouSectionKind.WORTH_REVISITING })
     }
 
     @Test
@@ -97,7 +97,7 @@ class ForYouBuilderTest {
             library = library,
             stats = library.associate { it.id to stats(plays = 5, last = now - 200 * day) },
         )
-        val section = result.first { it.id == "worth-revisiting" }
+        val section = result.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
         assertEquals(ForYouBuilder.MAX_PER_ARTIST, section.cards.size)
     }
 
@@ -143,7 +143,9 @@ class ForYouBuilderTest {
         }
         // The hero takes one track first, so assert on which tracks qualify rather than a raw count.
         val result = page(library = library, events = events)
-        val found = result.sections.first { it.id == "found-by-smart" }.cards.map { it.track.id }
+        val found = result.sections
+            .first { it.kind == ForYouSectionKind.FOUND_BY_SMART }
+            .cards.map { it.track.id }
         val smartIds = library.take(4).map { it.id }
         assertTrue(found.all { it in smartIds }, "only SMART-completed tracks may appear: $found")
         assertTrue(library[4].id !in found, "a track completed under ordinary shuffle must not appear")
@@ -153,7 +155,7 @@ class ForYouBuilderTest {
     fun `an empty history yields only what needs no history`() {
         val library = listOf(track("1"), track("2", artist = "B"))
         val result = sections(library = library)
-        assertEquals(listOf("never-played"), result.map { it.id })
+        assertEquals(listOf(ForYouSectionKind.NEVER_PLAYED), result.map { it.kind })
     }
 
     @Test
@@ -193,7 +195,7 @@ class ForYouBuilderTest {
                 ),
             ),
         )
-        assertTrue(result.sections.none { it.id == "continue" })
+        assertTrue(result.sections.none { it.kind == ForYouSectionKind.CONTINUE })
         assertEquals(null, result.hero?.resumeAtMs)
     }
 
@@ -204,10 +206,10 @@ class ForYouBuilderTest {
             library = listOf(loved),
             stats = mapOf(loved.id to stats(plays = 7, last = now - 200 * day)),
         )
-        assertEquals("You played this 7 times", withHistory.hero?.kicker)
+        assertEquals(ForYouKicker.PlayedTimes(7), withHistory.hero?.kicker)
 
         val fresh = page(library = listOf(track("2", artist = "B")))
-        assertEquals("Never played", fresh.hero?.kicker)
+        assertEquals(ForYouKicker.NeverPlayed, fresh.hero?.kicker)
     }
 
     @Test
@@ -231,7 +233,9 @@ class ForYouBuilderTest {
         val middle = track("2", artist = "B", added = 500)
         val new = track("3", artist = "C", added = 900)
         val result = page(library = listOf(old, new, middle))
-        val row = result.sections.first { it.id == "never-played" }.cards.map { it.track.id }
+        val row = result.sections
+            .first { it.kind == ForYouSectionKind.NEVER_PLAYED }
+            .cards.map { it.track.id }
         // Whatever the hero claimed, what remains is still ordered newest first.
         assertEquals(row.sortedByDescending { id -> listOf(old, middle, new).first { it.id == id }.addedAtMs }, row)
     }
@@ -244,9 +248,16 @@ class ForYouBuilderTest {
             stats = members.associate { it.id to stats(plays = 6, last = now - 200 * day) },
             playlists = listOf(Playlist(id = "p1", name = "Think", trackIds = members.map { it.id.value })),
         )
-        val row = result.sections.first { it.id == "worth-revisiting" }
+        val row = result.sections.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
         val collections = row.cards.mapNotNull { it.collection }
         assertEquals(listOf("Think"), collections.map { it.title })
+        // The caption counts what actually went quiet, not the playlist's length: the hero claimed
+        // one of the four before the row was built. It carries the number, not a rendered string,
+        // so the UI can pick the right plural form for it.
+        assertEquals(
+            ForYouCaption.TrackCount(3),
+            row.cards.first { it.collection != null }.caption,
+        )
         // The tracks it absorbed must not also stand alone beneath it.
         val loose = row.cards.filter { it.collection == null }.map { it.track.id }
         assertTrue(loose.none { id -> members.any { it.id == id } }, "absorbed tracks reappeared: $loose")
@@ -260,7 +271,7 @@ class ForYouBuilderTest {
             stats = members.associate { it.id to stats(plays = 6, last = now - 200 * day) },
             playlists = listOf(Playlist(id = "p1", name = "Think", trackIds = members.map { it.id.value })),
         )
-        val row = result.sections.firstOrNull { it.id == "worth-revisiting" }
+        val row = result.sections.firstOrNull { it.kind == ForYouSectionKind.WORTH_REVISITING }
         assertTrue(row?.cards?.all { it.collection == null } ?: true, "two tracks should not collapse")
     }
 
@@ -272,7 +283,7 @@ class ForYouBuilderTest {
             library = members,
             stats = members.associate { it.id to stats(plays = 6, last = now - 200 * day) },
         )
-        val row = result.sections.first { it.id == "worth-revisiting" }
+        val row = result.sections.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
         assertEquals(listOf("Gold"), row.cards.mapNotNull { it.collection }.map { it.title })
     }
 
@@ -285,7 +296,7 @@ class ForYouBuilderTest {
             stats = members.associate { it.id to stats(plays = 6, last = now - 200 * day) },
             playlists = listOf(Playlist(id = "p1", name = "Think", trackIds = members.map { it.id.value })),
         )
-        val row = result.sections.first { it.id == "worth-revisiting" }
+        val row = result.sections.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
         assertEquals(listOf("Think"), row.cards.mapNotNull { it.collection }.map { it.title })
     }
 }

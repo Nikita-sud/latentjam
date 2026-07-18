@@ -29,11 +29,18 @@
     <string name="action_rename">Renomear</string>
     <string name="action_clear">Limpar</string>
     <string name="action_track_options">Opções da música</string>
+    <string name="action_create">Criar</string>
+    <string name="action_play_all">Reproduzir tudo</string>
+    <string name="action_shuffle_all">Reproduzir tudo em ordem aleatória</string>
+    <string name="cd_more_options">Mais opções</string>
+    <string name="cd_search_library">Buscar na biblioteca</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Música</string>
     <string name="track_untitled">Sem título</string>
     <string name="track_unknown_artist">Artista desconhecido</string>
+    <string name="track_unknown_album">Álbum desconhecido</string>
+    <string name="track_unknown_genre">Gênero desconhecido</string>
     <!-- Portuguese distinguishes one (1) and other (everything else). -->
     <plurals name="count_tracks">
         <item quantity="one">%1$d música</item>
@@ -42,6 +49,42 @@
     <!-- %1$s is a track title -->
     <string name="cd_track_options_for">Mais opções para %1$s</string>
     <string name="cd_track_options_generic">Mais opções para esta música</string>
+
+    <plurals name="count_albums">
+        <item quantity="one">%1$d álbum</item>
+        <item quantity="other">%1$d álbuns</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">Para você</string>
+    <string name="tab_playlists">Playlists</string>
+    <string name="tab_tracks">Músicas</string>
+    <string name="tab_albums">Álbuns</string>
+    <string name="tab_artists">Artistas</string>
+    <string name="tab_genres">Gêneros</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">Nenhuma música encontrada neste dispositivo.</string>
+    <string name="action_rescan_library">Reescanear a biblioteca</string>
+    <string name="sort_recently_added">Adicionadas recentemente</string>
+    <string name="snack_track_deleted">Música excluída</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">Ouça algumas músicas e esta página vai se encher de coisas que valem a pena revisitar.</string>
+    <string name="foryou_section_continue">Ainda inacabadas</string>
+    <string name="foryou_section_worth_revisiting">Vale a pena revisitar</string>
+    <string name="foryou_section_found_by_smart">Encontradas pelo SMART</string>
+    <string name="foryou_section_never_played">Nunca reproduzidas</string>
+    <string name="foryou_kicker_resume">Continue de onde parou</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="one">Você ouviu %1$d vez</item>
+        <item quantity="other">Você ouviu %1$d vezes</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">Nunca reproduzida</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="one">%1$d vez antes</item>
+        <item quantity="other">%1$d vezes antes</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nada tocando</string>
@@ -80,6 +123,10 @@
          track has no title at all. -->
     <string name="playlist_add_to_title">Adicionar “%1$s” a uma playlist</string>
     <string name="playlist_add_to_title_generic">Adicionar a música a uma playlist</string>
+    <string name="playlist_rename_title">Renomear playlist</string>
+    <string name="snack_playlist_created">Playlist "%1$s" criada</string>
+    <string name="snack_playlist_deleted">Playlist "%1$s" excluída</string>
+    <string name="snack_added_to_playlist">Adicionada a "%1$s"</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Reproduzir a seguir</string>
@@ -156,5 +203,32 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">O LatentJam precisa de acesso à sua música para ler a biblioteca.</string>
     <string name="permission_grant">Conceder acesso</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">Diagnóstico</string>
+    <string name="diagnostics_library">Biblioteca: %1$s</string>
+    <string name="diagnostics_index_batch">Indexar %1$d</string>
+    <string name="diagnostics_index_all">Indexar tudo</string>
+    <string name="diagnostics_rescan">Reescanear</string>
+    <string name="diagnostics_indexing">Indexando… %1$d/%2$d (ok %3$d, puladas %4$d, falhas %5$d)</string>
+    <string name="diagnostics_indexed_report">Pronto — %1$d indexadas, %2$d puladas, %3$d com falha.</string>
+    <string name="diagnostics_history_empty">Histórico: nenhuma reprodução registrada ainda.</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="one">Histórico: %1$d reprodução.</item>
+        <item quantity="other">Histórico: %1$d reproduções.</item>
+    </plurals>
+    <string name="diagnostics_history_top">Mais tocada: %1$s (%2$d×).</string>
+    <string name="diagnostics_engine">Motor de similaridade</string>
+    <string name="diagnostics_engine_uninitialized">Ainda não inicializado.</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="one">Pronto — %1$d música indexada.</item>
+        <item quantity="other">Pronto — %1$d músicas indexadas.</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">Tentar inicializar de novo</string>
+    <string name="diagnostics_engine_initialize">Inicializar o motor</string>
+
+    <string name="engine_error_model_unavailable">O modelo de similaridade ainda não está incluído — a ordem aleatória inteligente está desativada nesta versão.</string>
+    <string name="engine_error_not_indexed">A biblioteca ainda não foi indexada.</string>
+    <string name="engine_error_backend">Falha no motor: %1$s</string>
 
 </resources>

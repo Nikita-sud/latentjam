@@ -11,15 +11,53 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 
 /**
+ * Which row this is.
+ *
+ * The builder decides which rows exist; it deliberately does not decide what they are called.
+ * A heading is presentation, and presentation here is localised — a pure function that answered
+ * in English would force every caller, the unit tests included, to speak it too.
+ */
+enum class ForYouSectionKind {
+    /** Tracks left unfinished. */
+    CONTINUE,
+
+    /** Proven favourites gone quiet. */
+    WORTH_REVISITING,
+
+    /** Tracks SMART surfaced that the listener then played through. */
+    FOUND_BY_SMART,
+
+    /** Owned but never heard. */
+    NEVER_PLAYED,
+}
+
+/**
+ * Why a card is on the page, as data rather than as a sentence.
+ *
+ * Deliberately not a fixed line: an explanation that reads the same every day carries no
+ * information and is decoration. Every variant carries its number rather than a formatted string,
+ * because the number is what selects the plural form — "1 трек" and "5 треков" are different words
+ * in most of the languages this ships in, and only the UI layer knows which language that is.
+ */
+sealed interface ForYouCaption {
+
+    /** How often this track was played back when it was in rotation. */
+    data class PlayedBefore(val plays: Int) : ForYouCaption
+
+    /** How many dormant tracks the collection on this card stands for. */
+    data class TrackCount(val tracks: Int) : ForYouCaption
+}
+
+/**
  * One row of the For You page.
  *
- * @param reason a per-item, data-derived caption, or null. Deliberately not a fixed sentence: an
- *   explanation that reads the same every day carries no information and is decoration.
+ * @param caption a per-item, data-derived reason, or null when the card is better served by the
+ *   artist name.
  */
 data class ForYouCard(
     /** Representative track: supplies the cover, and the title when this is not a collection. */
     val track: TrackDescriptor,
-    val reason: String? = null,
+    val caption: ForYouCaption? = null,
     /** When set, this card stands for a whole playlist or album rather than one track. */
     val collection: ForYouCollection? = null,
 )
@@ -37,10 +75,27 @@ data class ForYouCollection(
 )
 
 data class ForYouSection(
-    val id: String,
-    val title: String,
+    val kind: ForYouSectionKind,
     val cards: List<ForYouCard>,
 )
+
+/**
+ * Why the hero is the hero — the same argument the captions make, in the register of a headline.
+ *
+ * Separate from [ForYouCaption] because the two are worded differently even when they rest on the
+ * same fact: a card says "8× before", the hero says it played this eight times.
+ */
+sealed interface ForYouKicker {
+
+    /** Something was interrupted, and the hero picks it back up. */
+    data object Resume : ForYouKicker
+
+    /** A proven favourite gone quiet, with how often it was played. */
+    data class PlayedTimes(val plays: Int) : ForYouKicker
+
+    /** Owned but never heard. */
+    data object NeverPlayed : ForYouKicker
+}
 
 /**
  * The single card at the top of the page.
@@ -49,13 +104,13 @@ data class ForYouSection(
  * confident play possible without scrolling or comparing. Everything below it is for browsing; this
  * is for not having to.
  *
- * @param kicker why this one, in a few words. Data-derived and therefore different day to day —
- *   a line that always reads the same would be decoration.
+ * @param kicker why this one. Data-derived and therefore different day to day — a line that always
+ *   reads the same would be decoration.
  * @param resumeAtMs where to start, when this is an unfinished track
  */
 data class ForYouHero(
     val track: TrackDescriptor,
-    val kicker: String,
+    val kicker: ForYouKicker,
     val resumeAtMs: Long? = null,
 )
 
@@ -149,7 +204,7 @@ object ForYouBuilder {
         nowMs: Long,
     ): ForYouHero? {
         interrupted(byId, recentEvents)?.let { (track, at) ->
-            return ForYouHero(track, "Pick up where you left off", at)
+            return ForYouHero(track, ForYouKicker.Resume, at)
         }
         val revisit = stats.entries
             .filter { (_, stat) ->
@@ -160,11 +215,11 @@ object ForYouBuilder {
             }
             .maxByOrNull { it.value.completions }
         revisit?.let { (id, stat) ->
-            byId[id]?.let { return ForYouHero(it, "You played this ${stat.plays} times") }
+            byId[id]?.let { return ForYouHero(it, ForYouKicker.PlayedTimes(stat.plays)) }
         }
         return byId.values
             .firstOrNull { (stats[it.id]?.plays ?: 0) == 0 }
-            ?.let { ForYouHero(it, "Never played") }
+            ?.let { ForYouHero(it, ForYouKicker.NeverPlayed) }
     }
 
     /** The most recent track abandoned past [MIN_RESUME_MS], with where it stopped. */
@@ -204,8 +259,7 @@ object ForYouBuilder {
         )
         if (picked.isEmpty()) return null
         return ForYouSection(
-            id = "continue",
-            title = "Still unfinished",
+            kind = ForYouSectionKind.CONTINUE,
             cards = picked.map { ForYouCard(it) }.onEach { used.add(it.track.id) },
         )
     }
@@ -245,12 +299,11 @@ object ForYouBuilder {
         val singles = capPerArtist(dormant.filterNot { it.id in claimed })
 
         val cards = groups + singles.map { track ->
-            ForYouCard(track, reason = "${statOf[track.id]?.plays ?: 0}× before")
+            ForYouCard(track, caption = ForYouCaption.PlayedBefore(statOf[track.id]?.plays ?: 0))
         }
         if (cards.isEmpty()) return null
         return ForYouSection(
-            id = "worth-revisiting",
-            title = "Worth revisiting",
+            kind = ForYouSectionKind.WORTH_REVISITING,
             cards = cards.take(ROW_LIMIT).onEach { card ->
                 used.add(card.track.id)
                 card.collection?.tracks?.forEach { used.add(it.id) }
@@ -286,7 +339,7 @@ object ForYouBuilder {
             out.add(
                 ForYouCard(
                     track = members.first(),
-                    reason = "${members.size} tracks",
+                    caption = ForYouCaption.TrackCount(members.size),
                     collection = ForYouCollection(playlist.name, members),
                 ),
             )
@@ -302,7 +355,7 @@ object ForYouBuilder {
                 out.add(
                     ForYouCard(
                         track = members.first(),
-                        reason = "${members.size} tracks",
+                        caption = ForYouCaption.TrackCount(members.size),
                         collection = ForYouCollection(album, members),
                     ),
                 )
@@ -330,8 +383,7 @@ object ForYouBuilder {
         )
         if (picked.size < 3) return null
         return ForYouSection(
-            id = "found-by-smart",
-            title = "Found by SMART",
+            kind = ForYouSectionKind.FOUND_BY_SMART,
             cards = picked.map { ForYouCard(it) }.onEach { used.add(it.track.id) },
         )
     }
@@ -352,8 +404,7 @@ object ForYouBuilder {
         )
         if (picked.isEmpty()) return null
         return ForYouSection(
-            id = "never-played",
-            title = "Never played",
+            kind = ForYouSectionKind.NEVER_PLAYED,
             cards = picked.map { ForYouCard(it) }.onEach { used.add(it.track.id) },
         )
     }

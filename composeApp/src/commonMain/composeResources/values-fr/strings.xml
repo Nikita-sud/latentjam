@@ -34,11 +34,18 @@
     <string name="action_rename">Renommer</string>
     <string name="action_clear">Effacer</string>
     <string name="action_track_options">Options du morceau</string>
+    <string name="action_create">Créer</string>
+    <string name="action_play_all">Tout lire</string>
+    <string name="action_shuffle_all">Tout lire en aléatoire</string>
+    <string name="cd_more_options">Plus d'options</string>
+    <string name="cd_search_library">Rechercher dans la bibliothèque</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Morceau</string>
     <string name="track_untitled">Sans titre</string>
     <string name="track_unknown_artist">Artiste inconnu</string>
+    <string name="track_unknown_album">Album inconnu</string>
+    <string name="track_unknown_genre">Genre inconnu</string>
     <!-- French distinguishes one (0 and 1) and other (everything else). -->
     <plurals name="count_tracks">
         <item quantity="one">%1$d morceau</item>
@@ -47,6 +54,42 @@
     <!-- %1$s is a track title -->
     <string name="cd_track_options_for">Plus d’options pour %1$s</string>
     <string name="cd_track_options_generic">Plus d’options pour ce morceau</string>
+
+    <plurals name="count_albums">
+        <item quantity="one">%1$d album</item>
+        <item quantity="other">%1$d albums</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">Pour vous</string>
+    <string name="tab_playlists">Playlists</string>
+    <string name="tab_tracks">Morceaux</string>
+    <string name="tab_albums">Albums</string>
+    <string name="tab_artists">Artistes</string>
+    <string name="tab_genres">Genres</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">Aucune musique trouvée sur cet appareil.</string>
+    <string name="action_rescan_library">Réanalyser la bibliothèque</string>
+    <string name="sort_recently_added">Ajoutés récemment</string>
+    <string name="snack_track_deleted">Morceau supprimé</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">Écoutez quelques morceaux et cette page se remplira de choses qui méritent qu'on y revienne.</string>
+    <string name="foryou_section_continue">Pas encore terminés</string>
+    <string name="foryou_section_worth_revisiting">À réécouter</string>
+    <string name="foryou_section_found_by_smart">Trouvés par SMART</string>
+    <string name="foryou_section_never_played">Jamais écoutés</string>
+    <string name="foryou_kicker_resume">Reprenez où vous en étiez</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="one">Écouté %1$d fois</item>
+        <item quantity="other">Écouté %1$d fois</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">Jamais écouté</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="one">%1$d fois avant</item>
+        <item quantity="other">%1$d fois avant</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Aucune lecture en cours</string>
@@ -85,6 +128,10 @@
          track has no title at all. -->
     <string name="playlist_add_to_title">Ajouter « %1$s » à une playlist</string>
     <string name="playlist_add_to_title_generic">Ajouter le morceau à une playlist</string>
+    <string name="playlist_rename_title">Renommer la playlist</string>
+    <string name="snack_playlist_created">Playlist "%1$s" créée</string>
+    <string name="snack_playlist_deleted">Playlist "%1$s" supprimée</string>
+    <string name="snack_added_to_playlist">Ajouté à "%1$s"</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Lire ensuite</string>
@@ -161,5 +208,32 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam a besoin d’accéder à votre musique pour parcourir la bibliothèque.</string>
     <string name="permission_grant">Autoriser l’accès</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">Diagnostics</string>
+    <string name="diagnostics_library">Bibliothèque : %1$s</string>
+    <string name="diagnostics_index_batch">Indexer %1$d</string>
+    <string name="diagnostics_index_all">Tout indexer</string>
+    <string name="diagnostics_rescan">Réanalyser</string>
+    <string name="diagnostics_indexing">Indexation… %1$d/%2$d (ok %3$d, ignorés %4$d, échecs %5$d)</string>
+    <string name="diagnostics_indexed_report">Terminé — %1$d indexés, %2$d ignorés, %3$d en échec.</string>
+    <string name="diagnostics_history_empty">Historique : aucune écoute enregistrée.</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="one">Historique : %1$d écoute.</item>
+        <item quantity="other">Historique : %1$d écoutes.</item>
+    </plurals>
+    <string name="diagnostics_history_top">Le plus écouté : %1$s (%2$d×).</string>
+    <string name="diagnostics_engine">Moteur de similarité</string>
+    <string name="diagnostics_engine_uninitialized">Pas encore initialisé.</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="one">Prêt — %1$d morceau indexé.</item>
+        <item quantity="other">Prêt — %1$d morceaux indexés.</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">Relancer l'initialisation</string>
+    <string name="diagnostics_engine_initialize">Initialiser le moteur</string>
+
+    <string name="engine_error_model_unavailable">Le modèle de similarité n'est pas encore intégré — la lecture aléatoire intelligente est désactivée dans cette version.</string>
+    <string name="engine_error_not_indexed">La bibliothèque n'est pas encore indexée.</string>
+    <string name="engine_error_backend">Échec du moteur : %1$s</string>
 
 </resources>

@@ -22,11 +22,18 @@
     <string name="action_rename">名前を変更</string>
     <string name="action_clear">消去</string>
     <string name="action_track_options">曲のオプション</string>
+    <string name="action_create">作成</string>
+    <string name="action_play_all">すべて再生</string>
+    <string name="action_shuffle_all">すべてシャッフル再生</string>
+    <string name="cd_more_options">その他のオプション</string>
+    <string name="cd_search_library">ライブラリを検索</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">曲</string>
     <string name="track_untitled">タイトルなし</string>
     <string name="track_unknown_artist">不明なアーティスト</string>
+    <string name="track_unknown_album">不明なアルバム</string>
+    <string name="track_unknown_genre">不明なジャンル</string>
     <!-- Japanese has no grammatical plural: "other" only. -->
     <plurals name="count_tracks">
         <item quantity="other">%1$d曲</item>
@@ -34,6 +41,39 @@
     <!-- %1$s is a track title -->
     <string name="cd_track_options_for">%1$sのその他のオプション</string>
     <string name="cd_track_options_generic">この曲のその他のオプション</string>
+
+    <plurals name="count_albums">
+        <item quantity="other">%1$d枚のアルバム</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">あなたへ</string>
+    <string name="tab_playlists">プレイリスト</string>
+    <string name="tab_tracks">曲</string>
+    <string name="tab_albums">アルバム</string>
+    <string name="tab_artists">アーティスト</string>
+    <string name="tab_genres">ジャンル</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">この端末に音楽が見つかりません。</string>
+    <string name="action_rescan_library">ライブラリを再スキャン</string>
+    <string name="sort_recently_added">最近追加した順</string>
+    <string name="snack_track_deleted">曲を削除しました</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">何曲か再生すると、また聴きたくなるものがここに集まります。</string>
+    <string name="foryou_section_continue">聴きかけ</string>
+    <string name="foryou_section_worth_revisiting">もう一度聴きたい</string>
+    <string name="foryou_section_found_by_smart">SMART が見つけた曲</string>
+    <string name="foryou_section_never_played">未再生</string>
+    <string name="foryou_kicker_resume">続きから再生</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="other">%1$d回再生しました</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">未再生</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="other">以前%1$d回</item>
+    </plurals>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">再生中の曲はありません</string>
@@ -71,6 +111,10 @@
          track has no title at all. -->
     <string name="playlist_add_to_title">「%1$s」の追加先</string>
     <string name="playlist_add_to_title_generic">曲の追加先</string>
+    <string name="playlist_rename_title">プレイリストの名前を変更</string>
+    <string name="snack_playlist_created">「%1$s」を作成しました</string>
+    <string name="snack_playlist_deleted">「%1$s」を削除しました</string>
+    <string name="snack_added_to_playlist">「%1$s」に追加しました</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">次に再生</string>
@@ -147,5 +191,30 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">ライブラリをスキャンするため、LatentJamは音楽へのアクセスを必要とします。</string>
     <string name="permission_grant">アクセスを許可</string>
+
+    <!-- ======================================================= diagnostics -->
+    <string name="diagnostics_title">診断</string>
+    <string name="diagnostics_library">ライブラリ: %1$s</string>
+    <string name="diagnostics_index_batch">%1$d件をインデックス</string>
+    <string name="diagnostics_index_all">すべてインデックス</string>
+    <string name="diagnostics_rescan">再スキャン</string>
+    <string name="diagnostics_indexing">インデックス中… %1$d/%2$d（成功 %3$d、スキップ %4$d、失敗 %5$d）</string>
+    <string name="diagnostics_indexed_report">完了 — インデックス %1$d、スキップ %2$d、失敗 %3$d。</string>
+    <string name="diagnostics_history_empty">履歴: まだ再生記録がありません。</string>
+    <plurals name="diagnostics_history_listens">
+        <item quantity="other">履歴: %1$d回の再生。</item>
+    </plurals>
+    <string name="diagnostics_history_top">最多再生: %1$s（%2$d回）。</string>
+    <string name="diagnostics_engine">類似度エンジン</string>
+    <string name="diagnostics_engine_uninitialized">まだ初期化されていません。</string>
+    <plurals name="diagnostics_engine_ready">
+        <item quantity="other">準備完了 — %1$d曲をインデックス済み。</item>
+    </plurals>
+    <string name="diagnostics_engine_retry">初期化を再試行</string>
+    <string name="diagnostics_engine_initialize">エンジンを初期化</string>
+
+    <string name="engine_error_model_unavailable">類似度モデルはまだ同梱されていません — このビルドではスマートシャッフルは無効です。</string>
+    <string name="engine_error_not_indexed">ライブラリはまだインデックスされていません。</string>
+    <string name="engine_error_backend">エンジンのバックエンドで失敗しました: %1$s</string>
 
 </resources>
