@@ -37,9 +37,29 @@ internal class FileHistoryStore(context: Context) : HistoryStore {
     }
 }
 
+/** Whole-file rewrite; the list is a dozen short lines at most. */
+internal class FileRecentSearchStore(context: Context) : RecentSearchStore {
+
+    private val file = File(context.filesDir, FILE_NAME)
+
+    override suspend fun read(): List<String> = withContext(Dispatchers.IO) {
+        if (!file.exists()) emptyList() else file.readLines()
+    }
+
+    override suspend fun write(queries: List<String>): Unit = withContext(Dispatchers.IO) {
+        file.writeText(queries.joinToString("\n"))
+    }
+
+    private companion object {
+        const val FILE_NAME = "recent_searches.txt"
+    }
+}
+
 public actual fun listeningHistoryModule(): Module = module {
     single<HistoryStore> { FileHistoryStore(context = get()) }
     single<ListeningHistory> { DefaultListeningHistory(store = get()) }
+    single<RecentSearchStore> { FileRecentSearchStore(context = get()) }
+    single<RecentSearches> { DefaultRecentSearches(store = get()) }
 }
 
 public actual fun epochMillis(): Long = System.currentTimeMillis()

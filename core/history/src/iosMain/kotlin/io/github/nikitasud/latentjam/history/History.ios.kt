@@ -20,9 +20,17 @@ internal class InMemoryHistoryStore : HistoryStore {
     override suspend fun clear() { lines.clear() }
 }
 
+internal class InMemoryRecentSearchStore : RecentSearchStore {
+    private var queries: List<String> = emptyList()
+    override suspend fun read(): List<String> = queries
+    override suspend fun write(queries: List<String>) { this.queries = queries }
+}
+
 public actual fun listeningHistoryModule(): Module = module {
     single<HistoryStore> { InMemoryHistoryStore() }
     single<ListeningHistory> { DefaultListeningHistory(store = get()) }
+    single<RecentSearchStore> { InMemoryRecentSearchStore() }
+    single<RecentSearches> { DefaultRecentSearches(store = get()) }
 }
 
 public actual fun epochMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()

@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.ListeningHistory
+import io.github.nikitasud.latentjam.history.RecentSearches
 import io.github.nikitasud.latentjam.history.listeningHistoryModule
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.musicLibraryModule
@@ -93,6 +94,10 @@ object AppGraph {
 
     /** The local listening record. */
     val history: ListeningHistory
+        get() = koin.get()
+
+    /** Previously searched queries. */
+    val recentSearches: RecentSearches
         get() = koin.get()
 
     /** The device music collection. */
