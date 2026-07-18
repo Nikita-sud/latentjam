@@ -42,8 +42,8 @@ the new architecture, spec-first from the project's own design documents.
 | Mini-player progress line | Visibility of system status | ✅ |
 | Persistent labeled SMART control (icon+label+color) | State visibility, WCAG 1.4.1 | ✅ |
 | Predictive back opt-in | Platform consistency | ✅ (flag; nav transitions ⬜) |
-| Library search (M3 SearchBar) | Findability — top long-list fix | ⬜ next |
-| Fast scroller + sticky A–Z headers (854 rows) | Fitts's law, efficiency | ⬜ next |
+| Library search (live multi-field filter) | Findability — top long-list fix | ✅ |
+| Fast scroller + sticky A–Z headers (854 rows, Latin+Cyrillic) | Fitts's law, efficiency | ✅ |
 | Sort control (title/artist/date-added) + persistence | User control | ⬜ |
 | Motion system: container transform mini↔now-playing, shared-axis tabs | Spatial continuity | ⬜ |
 | Artwork-derived gradient on now-playing | Content-based color convention | ⬜ |
