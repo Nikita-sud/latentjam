@@ -643,20 +643,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
 
         infoTarget?.let { target ->
-            val saveMetadata = rememberMetadataEditor {
-                scope.launch {
-                    tracks = library.tracks()
-                    snackbar.showSnackbar("Tags updated")
-                }
-            }
-            TrackInfoSheet(
-                track = target,
-                onSave = { edits ->
-                    saveMetadata(target, edits)
-                    infoTarget = null
-                },
-                onDismiss = { infoTarget = null },
-            )
+            TrackInfoSheet(track = target, onDismiss = { infoTarget = null })
         }
 
         if (showSettings) {

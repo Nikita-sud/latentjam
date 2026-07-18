@@ -7,23 +7,19 @@ package io.github.nikitasud.latentjam.app
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,24 +29,26 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 /**
  * Everything the app knows about one track, and a way to correct it.
  *
- * Reading and editing are the same screen rather than two, because the reason to open this is
- * usually "that looks wrong" — the fields are the answer and the fix at once. Values are shown as
- * they actually are: an absent tag reads as "Not set" rather than being silently filled in with a
- * guess, since a guess is exactly what the user came here to remove.
+ * Values are shown as they actually are: an absent tag reads as "Not set" rather than being
+ * silently filled in with a guess, since a guess is exactly what a user opening this wants removed.
+ *
+ * ### Why there is no edit button
+ * Editing was built and then removed, because it does not work. Audio metadata columns in
+ * MediaStore (TITLE, ARTIST, ALBUM, YEAR) are DERIVED by the media provider from the file's own
+ * tags; writes to them are accepted and then ignored. Verified on API 36 — the write-consent dialog
+ * appears, consent is granted, `ContentResolver.update` reports success, and the value is unchanged.
+ * A direct `content update` from the shell, with full permissions, fails the same way.
+ *
+ * Correcting tags therefore means writing the audio FILE, which needs a tag writer per container
+ * format. That is a real commitment and a licensing decision (the obvious library is LGPL), so it
+ * is left as a deliberate choice rather than smuggled in behind a button that silently does nothing.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TrackInfoSheet(
     track: TrackDescriptor,
-    onSave: (TrackEdits) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var editing by remember(track.id) { mutableStateOf(false) }
-    var title by remember(track.id) { mutableStateOf(track.title.orEmpty()) }
-    var artist by remember(track.id) { mutableStateOf(track.artist.orEmpty()) }
-    var album by remember(track.id) { mutableStateOf(track.album.orEmpty()) }
-    var genre by remember(track.id) { mutableStateOf(track.genre.orEmpty()) }
-    var year by remember(track.id) { mutableStateOf(track.year?.toString().orEmpty()) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -82,44 +80,6 @@ internal fun TrackInfoSheet(
                 }
             }
 
-            if (editing) {
-                MetadataField("Title", title) { title = it }
-                MetadataField("Artist", artist) { artist = it }
-                MetadataField("Album", album) { album = it }
-                MetadataField("Genre", genre) { genre = it }
-                MetadataField("Year", year) { input ->
-                    // Filtered at entry rather than validated on save: a year is digits, and
-                    // rejecting the field afterwards would lose the rest of the edit.
-                    year = input.filter(Char::isDigit).take(4)
-                }
-                Text(
-                    text = "Corrections are saved to the system media library. They stick for " +
-                        "everyday use, but the file's own tags remain the original — editing the " +
-                        "file elsewhere will bring them back.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 12.dp),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Button(
-                        onClick = {
-                            onSave(
-                                TrackEdits(
-                                    title = title.trim().takeIf { it != track.title.orEmpty() },
-                                    artist = artist.trim().takeIf { it != track.artist.orEmpty() },
-                                    album = album.trim().takeIf { it != track.album.orEmpty() },
-                                    genre = genre.trim().takeIf { it != track.genre.orEmpty() },
-                                    year = year.toIntOrNull().takeIf { it != track.year },
-                                ),
-                            )
-                        },
-                    ) { Text("Save") }
-                    TextButton(onClick = { editing = false }) { Text("Cancel") }
-                }
-            } else {
                 InfoRow("Title", track.title)
                 InfoRow("Artist", track.artist)
                 InfoRow("Album", track.album)
@@ -127,12 +87,7 @@ internal fun TrackInfoSheet(
                 InfoRow("Year", track.year?.toString())
                 InfoRow("Duration", track.durationMs?.let(::formatDuration))
                 InfoRow("Location", track.audioUri)
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 24.dp),
-                ) {
-                    Button(onClick = { editing = true }) { Text("Edit tags") }
-                }
-            }
+                Spacer(modifier = Modifier.padding(bottom = 24.dp))
         }
     }
 }
@@ -157,13 +112,3 @@ private fun InfoRow(label: String, value: String?) {
     }
 }
 
-@Composable
-private fun MetadataField(label: String, value: String, onChange: (String) -> Unit) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
-        label = { Text(label) },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-    )
-}
