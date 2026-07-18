@@ -10,7 +10,9 @@ import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.playbackModule
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
+import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.di.smartEngineModule
+import io.github.nikitasud.latentjam.smart.smartEngineBackendModule
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
 import org.koin.core.module.Module
@@ -46,9 +48,19 @@ object AppGraph {
                 modules(
                     platformModule,
                     smartEngineModule,
+                    smartEngineBackendModule(),
                     musicLibraryModule(),
                     playbackModule(),
                     module {
+                        // Production model contract (mnv4-conv-m-distill-mw):
+                        // 960-dim embeddings, asset-shipped ONNX. Last-wins
+                        // override of the library default.
+                        single {
+                            SmartEngineConfig(
+                                embeddingDim = 960,
+                                modelLocator = "ml/mnv4_audio.onnx",
+                            )
+                        }
                         // The single point where playback meets the engine.
                         single<NextTrackChooser> { EngineNextTrackChooser(engine = get()) }
                     },

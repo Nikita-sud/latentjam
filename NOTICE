@@ -7,3 +7,7 @@ See the LICENSE file in the root of this repository.
 This source tree is written from scratch and contains no code from the
 GPL-3.0-licensed LatentJam Android fork of Auxio, which lives on separate,
 unrelated branches of this repository under its own license.
+
+The ML model weights under androidApp/src/main/assets/ml/ are proprietary
+LatentJam Project artifacts and are NOT covered by the Apache-2.0 license —
+see the LICENSE-MODEL.txt file alongside them.

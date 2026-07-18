@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import org.koin.core.module.Module
+
 /**
  * Platform seam for the similarity model: model loading and tensor operations
  * live behind this interface, implemented per platform (ONNX Runtime on
@@ -45,12 +47,13 @@ public interface EmbeddingBackend {
 }
 
 /**
- * Creates the platform's [EmbeddingBackend].
+ * Koin bindings for this platform's [EmbeddingBackend] — the module's single
+ * platform seam (same idiom as the library and playback modules).
  *
- * This expect/actual FACTORY FUNCTION is the module's single platform seam:
- * everything else — the engine, the index, the Koin module — is pure common
- * code. A function (rather than an `expect class`) keeps the platform types
- * fully hidden and lets tests substitute a fake by overriding the Koin
- * binding instead of touching platform code.
+ * Android's implementation resolves an `android.content.Context` from the
+ * graph for asset access and audio decoding; the app's platform module must
+ * bind one. The iOS actual has no extra requirements. Tests substitute a fake
+ * by overriding the binding (Koin last-definition-wins) instead of touching
+ * platform code.
  */
-public expect fun createEmbeddingBackend(config: SmartEngineConfig): EmbeddingBackend
+public expect fun smartEngineBackendModule(): Module

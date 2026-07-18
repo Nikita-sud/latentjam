@@ -4,56 +4,168 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import ai.onnxruntime.OnnxTensor
+import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtSession
+import android.content.Context
+import android.net.Uri
+import java.io.File
+import java.nio.FloatBuffer
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.sqrt
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import org.koin.core.module.Module
+import org.koin.dsl.module
+
 /**
- * Android [EmbeddingBackend] — currently a STUB that reports
- * [EngineError.ModelUnavailable] for every operation, so the app degrades
- * gracefully (smart shuffle disabled) until the real runtime lands.
+ * Android [EmbeddingBackend]: ONNX Runtime over the proprietary MNv4 audio
+ * encoder (`mnv4-conv-m-distill-mw`, an EfficientAT-family student).
  *
- * ### Where the real implementation goes (TODO)
- * This class is the single place Android tensor code will live. The intended
- * shape, kept out of the common layer on purpose:
+ * ### Model contract (fixed by the research-side export; do not drift)
+ * - Input `waveform`: `[1, 320000]` float32 — 10 s of mono audio in `[-1, 1]`
+ *   at 32 kHz. The mel frontend (Conv1d STFT) is INSIDE the graph, so this
+ *   backend feeds raw waveform — no DSP to keep in sync with training.
+ * - Output `embedding`: `[1, 960]` float32, L2-normalized in-graph.
  *
- * 1. **Runtime**: ONNX Runtime (`com.microsoft.onnxruntime:onnxruntime-android`).
- *    - [loadModel]: create one process-wide `OrtEnvironment`, then an
- *      `OrtSession` from the model bytes resolved via
- *      [SmartEngineConfig.modelLocator] (an `assets/` path or an absolute
- *      file path). Register the QNN execution provider for Hexagon-NPU
- *      offload on Snapdragon, falling back to CPU when unavailable.
- *    - Session options: a single intra-op thread is enough here — the engine
- *      already serializes calls on a dedicated dispatcher.
- * 2. **Input pipeline**: [embed] decodes a short window of audio from
- *    [TrackDescriptor.audioUri] (MediaCodec/MediaExtractor or a custom
- *    decoder), resamples to the encoder's expected rate, computes the
- *    mel-spectrogram, wraps it in an `OnnxTensor`, runs the CNN encoder, and
- *    returns the 512-dim embedding as a defensively copied [FloatArray].
- * 3. **Errors**: every ORT exception is mapped to
- *    `Result.failure(SmartEngineException(EngineError.BackendFailure(...)))` —
- *    never rethrown across the common boundary (see [EmbeddingBackend]).
- * 4. **[close]**: close the `OrtSession` (idempotently); keep the
- *    `OrtEnvironment` if shared, close it if owned.
+ * ### Track pooling
+ * [embed] runs up to three deterministic windows (20 % / 50 % / 80 % of the
+ * track), sums the window embeddings and L2-normalizes the sum (identical
+ * direction to mean-then-normalize). Deterministic windows make embeddings
+ * reproducible across re-indexing runs.
  *
- * No ONNX/TFLite dependency exists in this module yet — adding the runtime is
- * a deliberate, separate change.
+ * The last computed embedding is dumped to `files/debug_last_embedding.txt`
+ * for the Mac-side equivalence gate (adb `run-as` pull in debug builds).
+ *
+ * Threading: the engine serializes all calls on its single-parallelism
+ * dispatcher, so one ORT session with default options is safe.
  */
-internal class AndroidEmbeddingBackend(
-    @Suppress("unused") // Consumed by the real implementation (model location, dim checks).
+internal class OnnxEmbeddingBackend(
+    private val context: Context,
     private val config: SmartEngineConfig,
 ) : EmbeddingBackend {
 
-    override suspend fun loadModel(): Result<Unit> =
-        Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+    private val decoder = AndroidAudioDecoder(context)
+    private var session: OrtSession? = null
 
-    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> =
-        Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+    override suspend fun loadModel(): Result<Unit> {
+        if (session != null) return Result.success(Unit)
+        return try {
+            val assetPath = config.modelLocator ?: DEFAULT_ASSET_PATH
+            val modelBytes = context.assets.open(assetPath).use { it.readBytes() }
+            session = OrtEnvironment.getEnvironment().createSession(modelBytes)
+            Result.success(Unit)
+        } catch (t: Throwable) {
+            Result.failure(
+                SmartEngineException(
+                    EngineError.BackendFailure("Failed to load similarity model: ${t.message}", t),
+                ),
+            )
+        }
+    }
+
+    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+        val activeSession = session
+            ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        val audioUri = descriptor.audioUri
+            ?: return backendFailure("No audioUri for ${descriptor.id.value}")
+
+        return try {
+            val uri = Uri.parse(audioUri)
+            val pooled = FloatArray(config.embeddingDim)
+            var windows = 0
+            for (startMs in windowStartsMs(descriptor.durationMs)) {
+                currentCoroutineContext().ensureActive()
+                val waveform = decoder.decodeWindowMono(
+                    uri = uri,
+                    startMs = startMs,
+                    targetSampleRate = SAMPLE_RATE,
+                    targetSamples = WINDOW_SAMPLES,
+                ) ?: continue
+                val embedding = runWindow(activeSession, waveform)
+                if (embedding.size != config.embeddingDim) {
+                    return backendFailure(
+                        "Model produced ${embedding.size}-dim embedding, " +
+                            "expected ${config.embeddingDim}",
+                    )
+                }
+                for (i in pooled.indices) pooled[i] += embedding[i]
+                windows++
+            }
+            if (windows == 0) {
+                return backendFailure("Could not decode any audio window for ${descriptor.id.value}")
+            }
+            l2NormalizeInPlace(pooled)
+            dumpDebugEmbedding(descriptor, pooled)
+            Result.success(pooled)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (t: Throwable) {
+            Result.failure(
+                SmartEngineException(
+                    EngineError.BackendFailure("Embedding failed for ${descriptor.id.value}: ${t.message}", t),
+                ),
+            )
+        }
+    }
 
     override fun close() {
-        // Nothing to release in the stub. Real implementation: close the OrtSession.
+        runCatching { session?.close() }
+        session = null
+        // The process-global OrtEnvironment is deliberately left open.
+    }
+
+    private fun runWindow(session: OrtSession, waveform: FloatArray): FloatArray {
+        val environment = OrtEnvironment.getEnvironment()
+        OnnxTensor.createTensor(
+            environment,
+            FloatBuffer.wrap(waveform),
+            longArrayOf(1, WINDOW_SAMPLES.toLong()),
+        ).use { tensor ->
+            session.run(mapOf(INPUT_NAME to tensor)).use { output ->
+                @Suppress("UNCHECKED_CAST")
+                val result = output[0].value as Array<FloatArray>
+                return result[0]
+            }
+        }
+    }
+
+    private fun windowStartsMs(durationMs: Long?): List<Long> {
+        if (durationMs == null || durationMs <= WINDOW_MS) return listOf(0L)
+        val span = durationMs - WINDOW_MS
+        return WINDOW_POSITIONS.map { fraction -> (span * fraction).toLong() }
+    }
+
+    private fun l2NormalizeInPlace(vector: FloatArray) {
+        var sumOfSquares = 0f
+        for (component in vector) sumOfSquares += component * component
+        val norm = sqrt(sumOfSquares)
+        if (norm > 0f) for (i in vector.indices) vector[i] /= norm
+    }
+
+    private fun dumpDebugEmbedding(descriptor: TrackDescriptor, embedding: FloatArray) {
+        runCatching {
+            File(context.filesDir, DEBUG_DUMP_FILE)
+                .writeText("${descriptor.id.value}\n${embedding.joinToString(",")}\n")
+        }
+    }
+
+    private fun backendFailure(message: String): Result<FloatArray> =
+        Result.failure(SmartEngineException(EngineError.BackendFailure(message)))
+
+    private companion object {
+        // Contract constants from the research-side export
+        // (mnv4-conv-m-distill-mw): see scripts/distill/README.md there.
+        const val SAMPLE_RATE = 32_000
+        const val WINDOW_SAMPLES = 320_000
+        const val WINDOW_MS = WINDOW_SAMPLES * 1000L / SAMPLE_RATE
+        const val INPUT_NAME = "waveform"
+        const val DEFAULT_ASSET_PATH = "ml/mnv4_audio.onnx"
+        const val DEBUG_DUMP_FILE = "debug_last_embedding.txt"
+        val WINDOW_POSITIONS = listOf(0.2, 0.5, 0.8)
     }
 }
 
-/**
- * Android `actual` of the platform seam declared in commonMain.
- * Resolved by the common Koin module — no Android-specific DI module exists.
- */
-public actual fun createEmbeddingBackend(config: SmartEngineConfig): EmbeddingBackend =
-    AndroidEmbeddingBackend(config)
+public actual fun smartEngineBackendModule(): Module = module {
+    single<EmbeddingBackend> { OnnxEmbeddingBackend(context = get(), config = get()) }
+}

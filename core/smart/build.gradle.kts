@@ -32,6 +32,9 @@ kotlin {
             // this module's public API (smartEngineModule).
             api(libs.koin.core)
         }
+        androidMain.dependencies {
+            implementation(libs.onnxruntime.android)
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)

@@ -33,7 +33,19 @@ class EngineNextTrackChooser(
         val result = engine.nextTrack(
             ListeningContext(seed = current, recentTrackIds = recentIds),
         )
-        val match = result as? NextTrackResult.Match ?: return null
-        return candidates.firstOrNull { it.id == match.trackId }
+        val match = result as? NextTrackResult.Match
+        // Stdout lands in logcat (System.out) — deliberate observability for
+        // "did SMART actually use the engine?" without an Android dependency.
+        if (match == null) {
+            println("SMART chooser: engine abstained ($result) — random fallback")
+            return null
+        }
+        val chosen = candidates.firstOrNull { it.id == match.trackId }
+        println(
+            "SMART chooser: engine matched ${match.trackId.value} " +
+                "(similarity=${match.similarity})" +
+                if (chosen == null) " — not in candidate pool, random fallback" else "",
+        )
+        return chosen
     }
 }

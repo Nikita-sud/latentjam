@@ -1,0 +1,9 @@
+The model weights in this directory (mnv4_audio.onnx and associated version
+stamps) are NOT covered by the Apache-2.0 license of this repository.
+
+They are proprietary artifacts of the LatentJam Project
+(mnv4-conv-m-distill-mw student encoder), all rights reserved, distributed
+with this application for its exclusive use. The student network architecture
+derives from EfficientAT (MIT License, Copyright (c) 2022 Florian Schmid).
+
+The Apache-2.0 license of this repository applies to the source code only.

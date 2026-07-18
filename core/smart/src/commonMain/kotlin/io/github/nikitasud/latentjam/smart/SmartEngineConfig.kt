@@ -13,8 +13,9 @@ package io.github.nikitasud.latentjam.smart
  * Koin application — Koin's last-definition-wins override replaces the default.
  *
  * @property embeddingDim Dimensionality of the track embeddings. Must match
- *   the output of the similarity model (512 for the production CNN encoder).
- *   The engine validates every backend-produced vector against this value.
+ *   the output of the similarity model (960 for the production MNv4 encoder;
+ *   the app graph configures this). The engine validates every
+ *   backend-produced vector against this value.
  * @property modelLocator Platform-interpreted hint for where the model lives
  *   (an Android asset path, an iOS bundle resource name, an absolute file
  *   path, …). `null` lets the platform backend fall back to its built-in

@@ -5,12 +5,10 @@
 package io.github.nikitasud.latentjam.smart.di
 
 import io.github.nikitasud.latentjam.smart.DefaultSimilarityEngine
-import io.github.nikitasud.latentjam.smart.EmbeddingBackend
 import io.github.nikitasud.latentjam.smart.InMemoryVectorIndex
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.VectorIndex
-import io.github.nikitasud.latentjam.smart.createEmbeddingBackend
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import org.koin.core.module.Module
@@ -40,9 +38,11 @@ public val smartEngineDispatcherQualifier: StringQualifier = named("smart-engine
  * - A confined background dispatcher (see below), qualified by
  *   [smartEngineDispatcherQualifier].
  * - [VectorIndex] — the in-memory baseline implementation.
- * - [EmbeddingBackend] — the platform stub/implementation. Tests override
- *   this binding with a fake instead of touching platform code.
  * - [SimilarityEngine] — THE engine singleton.
+ *
+ * The platform's `EmbeddingBackend` binding is NOT here — install
+ * [io.github.nikitasud.latentjam.smart.smartEngineBackendModule] alongside
+ * this module (tests override that binding with a fake).
  *
  * ### Threading guarantee
  * The engine singleton is created lazily (Koin `single` default) — resolving
@@ -72,10 +72,6 @@ public val smartEngineModule: Module = module {
 
     single<VectorIndex> {
         InMemoryVectorIndex(dim = get<SmartEngineConfig>().embeddingDim)
-    }
-
-    single<EmbeddingBackend> {
-        createEmbeddingBackend(config = get())
     }
 
     single<SimilarityEngine> {

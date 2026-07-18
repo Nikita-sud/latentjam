@@ -83,7 +83,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
         var showDiagnostics by remember { mutableStateOf(false) }
+        var indexSummary by remember { mutableStateOf<String?>(null) }
         val now by playback.state.collectAsState()
+
+        fun indexTracks(selection: List<TrackDescriptor>) {
+            scope.launch {
+                indexSummary = "Indexing ${selection.size} tracks…"
+                val report = engine.indexLibrary(selection)
+                indexSummary = "Indexed ${report.indexed}, failed ${report.failed}."
+            }
+        }
 
         LaunchedEffect(Unit) { tracks = library.tracks() }
 
@@ -148,7 +157,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             DiagnosticsDialog(
                 engine = engine,
                 trackCount = tracks?.size,
+                indexSummary = indexSummary,
                 onRescan = { scope.launch { tracks = library.tracks() } },
+                onIndexSample = { tracks?.let { loaded -> indexTracks(loaded.take(24)) } },
+                onIndexAll = { tracks?.let(::indexTracks) },
                 onDismiss = { showDiagnostics = false },
             )
         }
@@ -280,7 +292,10 @@ private fun MiniPlayer(
 private fun DiagnosticsDialog(
     engine: SimilarityEngine,
     trackCount: Int?,
+    indexSummary: String?,
     onRescan: () -> Unit,
+    onIndexSample: () -> Unit,
+    onIndexAll: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
@@ -290,7 +305,12 @@ private fun DiagnosticsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 EngineCard(engine)
                 Text("Library: ${trackCount?.toString() ?: "…"} tracks")
-                TextButton(onClick = onRescan) { Text("Rescan library") }
+                indexSummary?.let { Text(it) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onIndexSample) { Text("Index 24") }
+                    TextButton(onClick = onIndexAll) { Text("Index all") }
+                    TextButton(onClick = onRescan) { Text("Rescan") }
+                }
             }
         },
         confirmButton = {
