@@ -32,14 +32,17 @@ internal class MediaStoreMusicLibrary(
 
     override suspend fun tracks(): List<TrackDescriptor> = withContext(Dispatchers.IO) {
         val tracks = mutableListOf<TrackDescriptor>()
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.DURATION,
-        )
+        // GENRE joined into the audio table only since API 30.
+        val genreSupported = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R
+        val projection = buildList {
+            add(MediaStore.Audio.Media._ID)
+            add(MediaStore.Audio.Media.TITLE)
+            add(MediaStore.Audio.Media.ARTIST)
+            add(MediaStore.Audio.Media.ALBUM)
+            add(MediaStore.Audio.Media.ALBUM_ID)
+            add(MediaStore.Audio.Media.DURATION)
+            if (genreSupported) add(MediaStore.Audio.Media.GENRE)
+        }.toTypedArray()
         context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             projection,
@@ -53,6 +56,7 @@ internal class MediaStoreMusicLibrary(
             val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val genreColumn = if (genreSupported) cursor.getColumnIndex(MediaStore.Audio.Media.GENRE) else -1
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val albumId = cursor.getLong(albumIdColumn)
@@ -61,6 +65,7 @@ internal class MediaStoreMusicLibrary(
                     title = cursor.getString(titleColumn).knownOrNull(),
                     artist = cursor.getString(artistColumn).knownOrNull(),
                     album = cursor.getString(albumColumn).knownOrNull(),
+                    genre = if (genreColumn >= 0) cursor.getString(genreColumn).knownOrNull() else null,
                     durationMs = cursor.getLong(durationColumn).takeIf { it > 0 },
                     audioUri = ContentUris
                         .withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)

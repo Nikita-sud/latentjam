@@ -137,8 +137,8 @@ fun NowPlayingScreen(playback: PlaybackController, onClose: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(formatTime(sliderPosition), style = MaterialTheme.typography.labelSmall)
-                Text(formatTime(now.durationMs), style = MaterialTheme.typography.labelSmall)
+                Text(formatDuration(sliderPosition), style = MaterialTheme.typography.labelSmall)
+                Text(formatDuration(now.durationMs), style = MaterialTheme.typography.labelSmall)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -272,7 +272,7 @@ private fun QueueSheet(
                     }
                     track.durationMs?.let { duration ->
                         Text(
-                            text = formatTime(duration),
+                            text = formatDuration(duration),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -283,9 +283,3 @@ private fun QueueSheet(
     }
 }
 
-private fun formatTime(milliseconds: Long): String {
-    val totalSeconds = (milliseconds / 1000).coerceAtLeast(0)
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "$minutes:${seconds.toString().padStart(2, '0')}"
-}

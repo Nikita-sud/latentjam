@@ -10,12 +10,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,6 +41,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -51,12 +57,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import io.github.nikitasud.latentjam.library.AlbumGroup
+import io.github.nikitasud.latentjam.library.ArtistGroup
+import io.github.nikitasud.latentjam.library.GenreGroup
+import io.github.nikitasud.latentjam.library.LibraryCatalog
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.ShuffleMode
@@ -69,11 +77,11 @@ import kotlinx.coroutines.launch
 /**
  * Root composable, shared by Android and iOS: the player shell.
  *
- * Songs list (auto-scanned on entry) → tap to play through the
- * [PlaybackController]; mini-player at the bottom; shuffle action in the top
- * bar cycling OFF → ON → SMART; engine/library diagnostics tucked behind the
- * info action. All Material 3, all original expression — the legacy app's
- * look is never consulted.
+ * Browse tabs (Songs / Albums / Artists / Genres) over the scanned library,
+ * drill-in collection details that scope the play queue, a global mini-player
+ * opening the now-playing screen, and diagnostics behind the info action.
+ * All Material 3, all original expression — the legacy app's look is never
+ * consulted.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,10 +90,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val scope = rememberCoroutineScope()
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
+        var selectedTab by remember { mutableStateOf(0) }
+        var selectedCollection by remember { mutableStateOf<CollectionSelection?>(null) }
         var showDiagnostics by remember { mutableStateOf(false) }
         var showNowPlaying by remember { mutableStateOf(false) }
         var indexSummary by remember { mutableStateOf<String?>(null) }
         val now by playback.state.collectAsState()
+
+        LaunchedEffect(Unit) { tracks = library.tracks() }
+        val catalog = remember(tracks) { tracks?.let { LibraryCatalog.build(it) } }
 
         fun indexTracks(selection: List<TrackDescriptor>) {
             // App-lifetime scope: indexing continues if the dialog closes or
@@ -109,24 +122,33 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
-        LaunchedEffect(Unit) { tracks = library.tracks() }
-
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = { Text("LatentJam") },
-                    actions = {
-                        ShuffleAction(mode = now.shuffleMode) {
-                            scope.launch {
-                                val newMode = playback.cycleShuffleMode()
-                                snackbar.showSnackbar(newMode.userLabel())
+                Column {
+                    TopAppBar(
+                        title = { Text("LatentJam") },
+                        actions = {
+                            ShuffleAction(mode = now.shuffleMode) {
+                                scope.launch {
+                                    val newMode = playback.cycleShuffleMode()
+                                    snackbar.showSnackbar(newMode.userLabel())
+                                }
                             }
+                            IconButton(onClick = { showDiagnostics = true }) {
+                                Icon(Icons.Filled.Info, contentDescription = "Diagnostics")
+                            }
+                        },
+                    )
+                    TabRow(selectedTabIndex = selectedTab) {
+                        BROWSE_TABS.forEachIndexed { index, title ->
+                            Tab(
+                                selected = selectedTab == index,
+                                onClick = { selectedTab = index },
+                                text = { Text(title) },
+                            )
                         }
-                        IconButton(onClick = { showDiagnostics = true }) {
-                            Icon(Icons.Filled.Info, contentDescription = "Diagnostics")
-                        }
-                    },
-                )
+                    }
+                }
             },
             bottomBar = {
                 now.track?.let { current ->
@@ -141,32 +163,66 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             },
             snackbarHost = { SnackbarHost(snackbar) },
         ) { padding ->
-            when (val loaded = tracks) {
-                null -> Box(
+            when {
+                catalog == null -> Box(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center,
                 ) { CircularProgressIndicator() }
 
-                else -> if (loaded.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize().padding(padding),
-                        contentAlignment = Alignment.Center,
-                    ) { Text("No music found on this device.") }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = padding,
-                    ) {
-                        itemsIndexed(loaded, key = { _, track -> track.id.value }) { index, track ->
+                catalog.songs.isEmpty() -> Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center,
+                ) { Text("No music found on this device.") }
+
+                else -> when (selectedTab) {
+                    0 -> LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
+                        itemsIndexed(catalog.songs, key = { _, track -> track.id.value }) { index, track ->
                             TrackRow(
                                 track = track,
                                 isCurrent = track.id == now.track?.id,
-                                onClick = { scope.launch { playback.play(loaded, index) } },
+                                onClick = { scope.launch { playback.play(catalog.songs, index) } },
                             )
+                        }
+                    }
+
+                    1 -> LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = padding,
+                    ) {
+                        items(catalog.albums, key = { it.key }) { album ->
+                            AlbumCard(album) { selectedCollection = album.toSelection() }
+                        }
+                    }
+
+                    2 -> LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
+                        items(catalog.artists, key = { it.name ?: "?" }) { artist ->
+                            GroupRow(
+                                title = artist.name ?: "Unknown artist",
+                                subtitle = "${artist.tracks.size} tracks • ${artist.albumCount} albums",
+                            ) { selectedCollection = artist.toSelection() }
+                        }
+                    }
+
+                    else -> LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
+                        items(catalog.genres, key = { it.name ?: "?" }) { genre ->
+                            GroupRow(
+                                title = genre.name ?: "Unknown genre",
+                                subtitle = "${genre.tracks.size} tracks",
+                            ) { selectedCollection = genre.toSelection() }
                         }
                     }
                 }
             }
+        }
+
+        selectedCollection?.let { selection ->
+            CollectionDetailScreen(
+                selection = selection,
+                currentTrackId = now.track?.id,
+                onPlayTrack = { index -> scope.launch { playback.play(selection.tracks, index) } },
+                onClose = { selectedCollection = null },
+            )
         }
 
         if (showNowPlaying) {
@@ -187,8 +243,31 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
     }
 }
 
+private val BROWSE_TABS = listOf("Songs", "Albums", "Artists", "Genres")
+
 /** Persist-and-report granularity for library indexing. */
 private const val INDEX_CHUNK_SIZE = 8
+
+private fun AlbumGroup.toSelection() = CollectionSelection(
+    title = title ?: "Unknown album",
+    subtitle = artist,
+    artworkUri = artworkUri,
+    tracks = tracks,
+)
+
+private fun ArtistGroup.toSelection() = CollectionSelection(
+    title = name ?: "Unknown artist",
+    subtitle = "${tracks.size} tracks • $albumCount albums",
+    artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
+    tracks = tracks,
+)
+
+private fun GenreGroup.toSelection() = CollectionSelection(
+    title = name ?: "Unknown genre",
+    subtitle = "${tracks.size} tracks",
+    artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
+    tracks = tracks,
+)
 
 // ---------------------------------------------------------------- components
 
@@ -205,64 +284,70 @@ private fun ShuffleAction(mode: ShuffleMode, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TrackRow(track: TrackDescriptor, isCurrent: Boolean, onClick: () -> Unit) {
-    Row(
+private fun AlbumCard(album: AlbumGroup, onClick: () -> Unit) {
+    Column(
         modifier = Modifier
-            .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(8.dp),
     ) {
-        Artwork(uri = track.artworkUri, size = 48.dp)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = track.title ?: "Untitled",
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Unspecified,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.MusicNote,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(
-                text = track.artist ?: "Unknown artist",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (album.artworkUri != null) {
+                AsyncImage(
+                    model = album.artworkUri,
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            }
         }
-        track.durationMs?.let { duration ->
-            Text(
-                text = formatDuration(duration),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            text = album.title ?: "Unknown album",
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        Text(
+            text = album.artist ?: "Unknown artist",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
 @Composable
-private fun Artwork(uri: String?, size: Dp) {
-    Box(
+private fun GroupRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Column(
         modifier = Modifier
-            .size(size)
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.Center,
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Icon(
-            imageVector = Icons.Filled.MusicNote,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        if (uri != null) {
-            AsyncImage(
-                model = uri,
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop,
-            )
-        }
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -381,13 +466,6 @@ private fun ShuffleMode.userLabel(): String = when (this) {
     ShuffleMode.OFF -> "Shuffle off"
     ShuffleMode.ON -> "Shuffle on"
     ShuffleMode.SMART -> "SMART shuffle — random fallback until the model lands"
-}
-
-private fun formatDuration(durationMs: Long): String {
-    val totalSeconds = durationMs / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "$minutes:${seconds.toString().padStart(2, '0')}"
 }
 
 /** Friendly, non-technical wording for the typed engine errors. */
