@@ -44,7 +44,10 @@ the new architecture, spec-first from the project's own design documents.
 | Predictive back opt-in | Platform consistency | ✅ (flag; nav transitions ⬜) |
 | Library search (live multi-field filter) | Findability — top long-list fix | ✅ |
 | Fast scroller + sticky A–Z headers (854 rows, Latin+Cyrillic) | Fitts's law, efficiency | ✅ |
-| Sort control (title/artist/date-added) + persistence | User control | ⬜ |
+| Sort control (title/artist/recently-added) | User control | ✅ (persistence ⬜) |
+| Floating mini-player pill w/ prev-play-next + progress | Convention, thumb reach | ✅ |
+| Rounded content container + emphasized scrollable tabs | Surface hierarchy | ✅ |
+| Per-row overflow (go to album / artist) | Navigational shortcuts | ✅ |
 | Motion system: container transform mini↔now-playing, shared-axis tabs | Spatial continuity | ⬜ |
 | Artwork-derived gradient on now-playing | Content-based color convention | ⬜ |
 | Mini-player swipe gestures (horizontal skip, vertical expand) | Efficiency convention | ⬜ |
