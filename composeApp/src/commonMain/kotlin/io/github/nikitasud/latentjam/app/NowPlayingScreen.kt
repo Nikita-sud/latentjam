@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -27,7 +26,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
@@ -37,6 +35,7 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -44,11 +43,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -72,16 +71,20 @@ import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.launch
 
+/** How much of the queue sheet stays visible under the player. */
+private val QueuePeekHeight = 84.dp
+
 /**
  * Full-screen now-playing view. The background carries the track's accent —
  * sampled from the cover, or derived from its position in latent space when
  * there is no cover — so the screen belongs to the music that is playing.
  *
- * Secondary actions (queue) sit in their own row above the seek bar; the
- * transport row keeps repeat and shuffle at the outer edges with the
- * play/pause target largest and centred (Fitts's law).
+ * The queue is not hidden behind a button: it sits at the bottom as a sheet
+ * that always peeks, so its presence (and the fact that it can be dragged up)
+ * is visible without discovery. The transport keeps repeat and shuffle at the
+ * outer edges with play/pause largest and centred (Fitts's law).
  */
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun NowPlayingScreen(
     playback: PlaybackController,
@@ -93,10 +96,10 @@ fun NowPlayingScreen(
 ) {
     val now by playback.state.collectAsState()
     val scope = rememberCoroutineScope()
-    var showQueue by remember { mutableStateOf(false) }
     // Local value while the thumb is being dragged, so the ticker doesn't
     // fight the user's finger; committed to the player on release.
     var dragPositionMs by remember { mutableStateOf<Long?>(null) }
+    val sheetState = rememberBottomSheetScaffoldState()
 
     PlatformBackHandler(enabled = true, onBack = onClose)
 
@@ -122,169 +125,174 @@ fun NowPlayingScreen(
                     ),
                 ),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // Matches the library's top bar geometry exactly, so the
-                // overflow lands in the same place before and after the morph.
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close")
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    OverflowButton(
-                        sharedScope = sharedScope,
-                        animatedScope = animatedScope,
-                    ) { dismiss ->
-                        DropdownMenuItem(
-                            text = { Text("Track options") },
-                            onClick = {
-                                dismiss()
-                                onTrackMenu()
-                            },
-                        )
-                    }
-                }
-
+            BottomSheetScaffold(
+                scaffoldState = sheetState,
+                sheetPeekHeight = QueuePeekHeight,
+                sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                sheetShadowElevation = 0.dp,
+                containerColor = Color.Transparent,
+                sheetContent = {
+                    QueueSheetContent(
+                        queue = now.queue,
+                        currentIndex = now.queueIndex,
+                        onPlayAt = { index -> scope.launch { playback.playAt(index) } },
+                    )
+                },
+            ) { sheetPadding ->
                 Column(
-                    modifier = Modifier.weight(1f).padding(horizontal = 24.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .padding(bottom = sheetPadding.calculateBottomPadding()),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                LargeArtwork(
-                    uri = now.track?.artworkUri,
-                    modifier = with(sharedScope) {
-                        Modifier.sharedElement(
-                            rememberSharedContentState(ARTWORK_KEY),
-                            animatedScope,
-                        )
-                    },
-                )
-                Spacer(modifier = Modifier.weight(1f))
-
-                Text(
-                    text = now.track?.title ?: "Nothing playing",
-                    style = MaterialTheme.typography.headlineSmall,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = listOfNotNull(now.track?.artist, now.track?.album).joinToString(" — "),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Secondary actions live above the seek bar; the queue is
-                // raised from the bottom rather than hidden in a top corner.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start,
-                ) {
-                    IconButton(onClick = { showQueue = true }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
-                            contentDescription = "Queue",
-                        )
-                    }
-                }
-
-                val duration = now.durationMs.coerceAtLeast(1)
-                val sliderPosition = (dragPositionMs ?: now.positionMs).coerceIn(0, duration)
-                Slider(
-                    value = sliderPosition.toFloat(),
-                    onValueChange = { dragPositionMs = it.toLong() },
-                    onValueChangeFinished = {
-                        dragPositionMs?.let { target -> scope.launch { playback.seekTo(target) } }
-                        dragPositionMs = null
-                    },
-                    valueRange = 0f..duration.toFloat(),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.onSurface,
-                        activeTrackColor = MaterialTheme.colorScheme.onSurface,
-                    ),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(formatDuration(sliderPosition), style = MaterialTheme.typography.labelSmall)
-                    Text(formatDuration(now.durationMs), style = MaterialTheme.typography.labelSmall)
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    RepeatButton(mode = now.repeatMode) {
-                        scope.launch { playback.cycleRepeatMode() }
-                    }
-                    IconButton(
-                        onClick = { scope.launch { playback.previous() } },
-                        modifier = Modifier.size(56.dp),
+                    // Matches the library's top bar geometry exactly, so the
+                    // overflow lands in the same place before and after the morph.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp)
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.SkipPrevious,
-                            contentDescription = "Previous",
-                            modifier = Modifier.size(36.dp),
-                        )
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close")
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        OverflowButton(
+                            sharedScope = sharedScope,
+                            animatedScope = animatedScope,
+                        ) { dismiss ->
+                            DropdownMenuItem(
+                                text = { Text("Track options") },
+                                onClick = {
+                                    dismiss()
+                                    onTrackMenu()
+                                },
+                            )
+                        }
                     }
-                    FilledIconButton(
-                        onClick = { scope.launch { playback.togglePlayPause() } },
-                        modifier = Modifier.size(72.dp),
-                    ) {
-                        Icon(
-                            imageVector = if (now.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = if (now.isPlaying) "Pause" else "Play",
-                            modifier = Modifier.size(36.dp),
-                        )
-                    }
-                    IconButton(
-                        onClick = { scope.launch { playback.next() } },
-                        modifier = Modifier.size(56.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.SkipNext,
-                            contentDescription = "Next",
-                            modifier = Modifier.size(36.dp),
-                        )
-                    }
-                    ShuffleButton(mode = now.shuffleMode) {
-                        scope.launch { playback.cycleShuffleMode() }
-                    }
-                }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Column(
+                        modifier = Modifier.weight(1f).padding(horizontal = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        LargeArtwork(
+                            uri = now.track?.artworkUri,
+                            modifier = with(sharedScope) {
+                                Modifier.sharedElement(
+                                    rememberSharedContentState(ARTWORK_KEY),
+                                    animatedScope,
+                                )
+                            },
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        Text(
+                            text = now.track?.title ?: "Nothing playing",
+                            style = MaterialTheme.typography.headlineSmall,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = listOfNotNull(now.track?.artist, now.track?.album)
+                                .joinToString(" — "),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        val duration = now.durationMs.coerceAtLeast(1)
+                        val sliderPosition = (dragPositionMs ?: now.positionMs).coerceIn(0, duration)
+                        Slider(
+                            value = sliderPosition.toFloat(),
+                            onValueChange = { dragPositionMs = it.toLong() },
+                            onValueChangeFinished = {
+                                dragPositionMs?.let { target ->
+                                    scope.launch { playback.seekTo(target) }
+                                }
+                                dragPositionMs = null
+                            },
+                            valueRange = 0f..duration.toFloat(),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.onSurface,
+                                activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = formatDuration(sliderPosition),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                            Text(
+                                text = formatDuration(now.durationMs),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            RepeatButton(mode = now.repeatMode) {
+                                scope.launch { playback.cycleRepeatMode() }
+                            }
+                            IconButton(
+                                onClick = { scope.launch { playback.previous() } },
+                                modifier = Modifier.size(56.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.SkipPrevious,
+                                    contentDescription = "Previous",
+                                    modifier = Modifier.size(36.dp),
+                                )
+                            }
+                            FilledIconButton(
+                                onClick = { scope.launch { playback.togglePlayPause() } },
+                                modifier = Modifier.size(72.dp),
+                            ) {
+                                Icon(
+                                    imageVector = if (now.isPlaying) {
+                                        Icons.Rounded.Pause
+                                    } else {
+                                        Icons.Rounded.PlayArrow
+                                    },
+                                    contentDescription = if (now.isPlaying) "Pause" else "Play",
+                                    modifier = Modifier.size(36.dp),
+                                )
+                            }
+                            IconButton(
+                                onClick = { scope.launch { playback.next() } },
+                                modifier = Modifier.size(56.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.SkipNext,
+                                    contentDescription = "Next",
+                                    modifier = Modifier.size(36.dp),
+                                )
+                            }
+                            ShuffleButton(mode = now.shuffleMode) {
+                                scope.launch { playback.cycleShuffleMode() }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                 }
             }
         }
-    }
-
-    if (showQueue) {
-        QueueSheet(
-            queue = now.queue,
-            currentIndex = now.queueIndex,
-            onPlayAt = { index -> scope.launch { playback.playAt(index) } },
-            onDismiss = { showQueue = false },
-        )
     }
 }
 
@@ -318,12 +326,18 @@ private fun LargeArtwork(uri: String?, modifier: Modifier = Modifier) {
 /** Repeat is a three-state control, so the icon itself changes, not just its tint. */
 @Composable
 private fun RepeatButton(mode: RepeatMode, onClick: () -> Unit) {
-    val tint = if (mode == RepeatMode.OFF) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        MaterialTheme.colorScheme.primary
-    }
-    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+    val active = mode != RepeatMode.OFF
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(48.dp),
+        colors = IconButtonDefaults.iconButtonColors(
+            contentColor = if (active) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        ),
+    ) {
         Icon(
             imageVector = if (mode == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
             contentDescription = when (mode) {
@@ -331,7 +345,6 @@ private fun RepeatButton(mode: RepeatMode, onClick: () -> Unit) {
                 RepeatMode.ALL -> "Repeating the queue. Tap to repeat one track."
                 RepeatMode.ONE -> "Repeating one track. Tap to turn repeat off."
             },
-            tint = tint,
         )
     }
 }
@@ -354,22 +367,26 @@ private fun ShuffleButton(mode: ShuffleMode, onClick: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The queue, always present at the bottom edge. The peek shows its handle and
+ * label; dragging up reveals the list.
+ */
 @Composable
-private fun QueueSheet(
+private fun QueueSheetContent(
     queue: List<TrackDescriptor>,
     currentIndex: Int,
     onPlayAt: (Int) -> Unit,
-    onDismiss: () -> Unit,
 ) {
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = currentIndex.coerceAtLeast(0),
     )
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = "Queue (${queue.size})",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            text = if (queue.isEmpty()) "Queue" else "Queue · ${queue.size}",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
         )
         LazyColumn(state = listState) {
             itemsIndexed(queue, key = { _, track -> track.id.value }) { index, track ->

@@ -244,18 +244,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         IconButton(onClick = { showSearch = true }) {
                                             Icon(Icons.Rounded.Search, contentDescription = "Search library")
                                         }
-                                        ShuffleAction(mode = now.shuffleMode) {
-                                            scope.launch {
-                                                val newMode = playback.cycleShuffleMode()
-                                                // Persistent label carries the state;
-                                                // explain only the novel mode.
-                                                if (newMode == ShuffleMode.SMART) {
-                                                    snackbar.showSnackbar(
-                                                        "Smart shuffle: similar tracks picked on-device",
-                                                    )
-                                                }
-                                            }
-                                        }
+                                        // Shuffle lives with the transport in the
+                                        // player, not up here — the header is for
+                                        // library-level actions.
                                         // Same glyph, same slot as the player's
                                         // overflow, and shared with it — so it
                                         // holds still through the morph.
@@ -687,35 +678,6 @@ private fun SongSort.label(): String = when (this) {
     SongSort.TITLE -> "Title"
     SongSort.ARTIST -> "Artist"
     SongSort.RECENT -> "Recently added"
-}
-
-@Composable
-private fun ShuffleAction(mode: ShuffleMode, onClick: () -> Unit) {
-    val tint = when (mode) {
-        ShuffleMode.OFF -> MaterialTheme.colorScheme.onSurfaceVariant
-        ShuffleMode.ON -> MaterialTheme.colorScheme.primary
-        ShuffleMode.SMART -> MaterialTheme.colorScheme.tertiary
-    }
-    val label = when (mode) {
-        ShuffleMode.OFF -> "Off"
-        ShuffleMode.ON -> "On"
-        ShuffleMode.SMART -> "Smart"
-    }
-    TextButton(onClick = onClick) {
-        Icon(
-            // SMART wears the app's own mark — the mode is LatentJam's whole
-            // point, so it gets its own symbol rather than a tinted shuffle.
-            imageVector = if (mode == ShuffleMode.SMART) LatentJamMark else Icons.Rounded.Shuffle,
-            contentDescription = "Shuffle mode: $label. Tap to change.",
-            tint = tint,
-        )
-        Text(
-            text = label,
-            color = tint,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.padding(start = 4.dp),
-        )
-    }
 }
 
 @Composable
