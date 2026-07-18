@@ -282,7 +282,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         accent = accent,
                         sharedScope = sharedScope,
                         animatedScope = this@AnimatedContent,
-                        onTrackMenu = { now.track?.let { trackMenuTarget = it } },
+                        onTrackMenu = { track -> trackMenuTarget = track },
                         onClose = { showNowPlaying = false },
                     )
                 } else {

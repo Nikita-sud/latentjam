@@ -4,6 +4,13 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode as AnimationRepeatMode
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -15,11 +22,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -28,6 +37,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
@@ -57,10 +67,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -91,7 +103,7 @@ fun NowPlayingScreen(
     accent: TrackAccent,
     sharedScope: SharedTransitionScope,
     animatedScope: AnimatedVisibilityScope,
-    onTrackMenu: () -> Unit,
+    onTrackMenu: (TrackDescriptor) -> Unit,
     onClose: () -> Unit,
 ) {
     val now by playback.state.collectAsState()
@@ -135,7 +147,9 @@ fun NowPlayingScreen(
                     QueueSheetContent(
                         queue = now.queue,
                         currentIndex = now.queueIndex,
+                        isPlaying = now.isPlaying,
                         onPlayAt = { index -> scope.launch { playback.playAt(index) } },
+                        onTrackMenu = onTrackMenu,
                     )
                 },
             ) { sheetPadding ->
@@ -167,7 +181,7 @@ fun NowPlayingScreen(
                                 text = { Text("Track options") },
                                 onClick = {
                                     dismiss()
-                                    onTrackMenu()
+                                    now.track?.let(onTrackMenu)
                                 },
                             )
                         }
@@ -368,6 +382,125 @@ private fun ShuffleButton(mode: ShuffleMode, onClick: () -> Unit) {
 }
 
 /**
+ * One queue entry.
+ *
+ * Three states have to be legible at a glance, because a queue is read while walking: what is
+ * playing, what is behind you, and what is still to come. The current track keeps full contrast and
+ * carries the equaliser over its cover; played tracks are dimmed as a whole — cover included — so
+ * the boundary between past and future is a single visible edge in the list rather than something
+ * to be inferred from a marker on one row.
+ */
+@Composable
+private fun QueueRow(
+    track: TrackDescriptor,
+    isCurrent: Boolean,
+    isPlayed: Boolean,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    onMenu: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            // Dim the whole row, not just the text: a full-contrast cover next to greyed labels
+            // still reads as "up next".
+            .alpha(if (isPlayed) 0.45f else 1f)
+            .padding(start = 20.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Artwork(uri = track.artworkUri, size = 48.dp)
+            if (isCurrent) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.6f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // White rather than a theme colour: the scrim is always dark, but the artwork
+                    // under it is anything at all, and the palette's primary is near-white here —
+                    // it would sink into a pale cover.
+                    PlayingBars(isPlaying = isPlaying, tint = Color.White)
+                }
+            }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = track.title ?: "Untitled",
+                style = MaterialTheme.typography.bodyMedium,
+                // Weight, not colour. The palette is deliberately neutral and its primary sits
+                // close to onSurface, so a colour swap here would be almost invisible.
+                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = track.artist ?: "Unknown artist",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        track.durationMs?.let { duration ->
+            Text(
+                text = formatDuration(duration),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(onClick = onMenu) {
+            Icon(
+                imageVector = Icons.Rounded.MoreVert,
+                contentDescription = "Track options",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * Three bars that rise and fall while audio is playing, and rest at a flat, even height when it is
+ * paused — so a glance distinguishes "this is the current track" from "this is playing right now"
+ * without a second icon.
+ */
+@Composable
+private fun PlayingBars(isPlaying: Boolean, tint: Color) {
+    val transition = rememberInfiniteTransition(label = "playing-bars")
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.Bottom,
+        modifier = Modifier.height(18.dp),
+    ) {
+        // Staggered periods, so the bars never move as one block.
+        listOf(620, 430, 780).forEachIndexed { index, period ->
+            val fraction by transition.animateFloat(
+                initialValue = 0.35f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(period, easing = FastOutSlowInEasing),
+                    repeatMode = AnimationRepeatMode.Reverse,
+                    initialStartOffset = StartOffset(index * 130),
+                ),
+                label = "bar$index",
+            )
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .fillMaxHeight(if (isPlaying) fraction else 0.45f)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(tint),
+            )
+        }
+    }
+}
+
+/**
  * The queue, always present at the bottom edge. The peek shows its handle and
  * label; dragging up reveals the list.
  */
@@ -375,7 +508,9 @@ private fun ShuffleButton(mode: ShuffleMode, onClick: () -> Unit) {
 private fun QueueSheetContent(
     queue: List<TrackDescriptor>,
     currentIndex: Int,
+    isPlaying: Boolean,
     onPlayAt: (Int) -> Unit,
+    onTrackMenu: (TrackDescriptor) -> Unit,
 ) {
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = currentIndex.coerceAtLeast(0),
@@ -396,44 +531,16 @@ private fun QueueSheetContent(
                 queue,
                 key = { index, track -> "$index:${track.id.value}" },
             ) { index, track ->
-                val isCurrent = index == currentIndex
-                Row(
-                    modifier = Modifier
-                        .animateItem()
-                        .fillMaxWidth()
-                        .clickable { onPlayAt(index) }
-                        .padding(horizontal = 24.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = track.title ?: "Untitled",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (isCurrent) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = track.artist ?: "Unknown artist",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    track.durationMs?.let { duration ->
-                        Text(
-                            text = formatDuration(duration),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+                QueueRow(
+                    track = track,
+                    isCurrent = index == currentIndex,
+                    // Everything above the playhead has been heard this session.
+                    isPlayed = index < currentIndex,
+                    isPlaying = isPlaying,
+                    onClick = { onPlayAt(index) },
+                    onMenu = { onTrackMenu(track) },
+                    modifier = Modifier.animateItem(),
+                )
             }
         }
     }
