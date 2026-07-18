@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Single-color variant of the LatentJam mark for Android 13+ themed icons.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:scaleX="0.6"
+        android:scaleY="0.6"
+        android:translateX="24"
+        android:translateY="24">
+
+        <path
+            android:pathData="M30,30 V75 H45"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="4"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeAlpha="0.5" />
+        <path
+            android:pathData="M30,30 C50,30 50,50 70,50"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="4"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M70,50 C70,70 60,75 45,75"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="4"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M24,30 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z"
+            android:fillColor="#FFFFFFFF" />
+        <path
+            android:pathData="M64,50 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z"
+            android:fillColor="#FFFFFFFF" />
+        <path
+            android:pathData="M39,75 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z"
+            android:fillColor="#FFFFFFFF" />
+    </group>
+</vector>

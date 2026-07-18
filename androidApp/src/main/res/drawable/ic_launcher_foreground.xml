@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  The LatentJam mark: three latent-space nodes joined by curved edges,
+  tracing an "L". Purple-to-cyan gradient on the nodes and edges.
+  Geometry transcribed from branding/logo.svg (LatentJam-authored),
+  centered into the adaptive-icon safe zone (108dp canvas, 60% scale).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:scaleX="0.6"
+        android:scaleY="0.6"
+        android:translateX="24"
+        android:translateY="24">
+
+        <!-- Ghost "L" behind the graph -->
+        <path
+            android:pathData="M30,30 V75 H45"
+            android:strokeWidth="4"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeAlpha="0.5">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="20" android:startY="20"
+                    android:endX="80" android:endY="80"
+                    android:startColor="#8E24AA"
+                    android:endColor="#00ACC1" />
+            </aapt:attr>
+        </path>
+
+        <!-- Edges -->
+        <path
+            android:pathData="M30,30 C50,30 50,50 70,50"
+            android:strokeWidth="4"
+            android:strokeLineCap="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="20" android:startY="20"
+                    android:endX="80" android:endY="80"
+                    android:startColor="#8E24AA"
+                    android:endColor="#00ACC1" />
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M70,50 C70,70 60,75 45,75"
+            android:strokeWidth="4"
+            android:strokeLineCap="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="20" android:startY="20"
+                    android:endX="80" android:endY="80"
+                    android:startColor="#8E24AA"
+                    android:endColor="#00ACC1" />
+            </aapt:attr>
+        </path>
+
+        <!-- Nodes -->
+        <path android:pathData="M24,30 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="20" android:startY="20"
+                    android:endX="80" android:endY="80"
+                    android:startColor="#8E24AA"
+                    android:endColor="#00ACC1" />
+            </aapt:attr>
+        </path>
+        <path android:pathData="M64,50 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="20" android:startY="20"
+                    android:endX="80" android:endY="80"
+                    android:startColor="#8E24AA"
+                    android:endColor="#00ACC1" />
+            </aapt:attr>
+        </path>
+        <path android:pathData="M39,75 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="20" android:startY="20"
+                    android:endX="80" android:endY="80"
+                    android:startColor="#8E24AA"
+                    android:endColor="#00ACC1" />
+            </aapt:attr>
+        </path>
+    </group>
+</vector>
