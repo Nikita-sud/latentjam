@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -87,6 +88,7 @@ fun NowPlayingScreen(
     accent: TrackAccent,
     sharedScope: SharedTransitionScope,
     animatedScope: AnimatedVisibilityScope,
+    onTrackMenu: () -> Unit,
     onClose: () -> Unit,
 ) {
     val now by playback.state.collectAsState()
@@ -124,17 +126,40 @@ fun NowPlayingScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                    .navigationBarsPadding(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Row(modifier = Modifier.fillMaxWidth()) {
+                // Matches the library's top bar geometry exactly, so the
+                // overflow lands in the same place before and after the morph.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     IconButton(onClick = onClose) {
                         Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close")
                     }
+                    Spacer(modifier = Modifier.weight(1f))
+                    OverflowButton(
+                        sharedScope = sharedScope,
+                        animatedScope = animatedScope,
+                    ) { dismiss ->
+                        DropdownMenuItem(
+                            text = { Text("Track options") },
+                            onClick = {
+                                dismiss()
+                                onTrackMenu()
+                            },
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier.weight(1f).padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                 LargeArtwork(
                     uri = now.track?.artworkUri,
                     modifier = with(sharedScope) {
@@ -247,7 +272,8 @@ fun NowPlayingScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
         }
     }

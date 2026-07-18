@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -43,7 +44,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
-import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -110,6 +111,7 @@ import kotlinx.coroutines.launch
 /** Shared-element keys for the mini-player → now-playing morph. */
 internal const val ARTWORK_KEY = "now-playing-artwork"
 internal const val PLAYER_SURFACE_KEY = "now-playing-surface"
+internal const val OVERFLOW_KEY = "overflow-button"
 
 /**
  * Root composable, shared by Android and iOS: the player shell.
@@ -225,6 +227,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         accent = accent,
                         sharedScope = sharedScope,
                         animatedScope = this@AnimatedContent,
+                        onTrackMenu = { now.track?.let { trackMenuTarget = it } },
                         onClose = { showNowPlaying = false },
                     )
                 } else {
@@ -253,8 +256,27 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             }
                                         }
-                                        IconButton(onClick = { showDiagnostics = true }) {
-                                            Icon(Icons.Rounded.Info, contentDescription = "Diagnostics")
+                                        // Same glyph, same slot as the player's
+                                        // overflow, and shared with it — so it
+                                        // holds still through the morph.
+                                        OverflowButton(
+                                            sharedScope = sharedScope,
+                                            animatedScope = animatedScope,
+                                        ) { dismiss ->
+                                            DropdownMenuItem(
+                                                text = { Text("Rescan library") },
+                                                onClick = {
+                                                    dismiss()
+                                                    scope.launch { tracks = library.tracks() }
+                                                },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Diagnostics") },
+                                                onClick = {
+                                                    dismiss()
+                                                    showDiagnostics = true
+                                                },
+                                            )
                                         }
                                     },
                                 )
@@ -569,6 +591,38 @@ private fun BrowseCarousel(selectedTab: Int, onSelect: (Int) -> Unit) {
                         },
                 )
             }
+        }
+    }
+}
+
+/**
+ * The app's overflow affordance. Rendered from the same shared element in
+ * both the library and the player and placed in the same slot, so the morph
+ * between them leaves it untouched — a fixed point the eye can hold on to
+ * while everything else moves.
+ */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+internal fun OverflowButton(
+    sharedScope: SharedTransitionScope,
+    animatedScope: AnimatedVisibilityScope,
+    menuItems: @Composable ColumnScope.(dismiss: () -> Unit) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(
+            onClick = { open = true },
+            modifier = with(sharedScope) {
+                Modifier.sharedElement(
+                    rememberSharedContentState(OVERFLOW_KEY),
+                    animatedScope,
+                )
+            },
+        ) {
+            Icon(Icons.Rounded.MoreVert, contentDescription = "More options")
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            menuItems { open = false }
         }
     }
 }
