@@ -7,6 +7,8 @@ package io.github.nikitasud.latentjam.library
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import platform.Foundation.NSDate
+import platform.Foundation.timeIntervalSince1970
 
 /**
  * iOS [MusicLibrary] — currently a STUB returning an empty collection, so the
@@ -37,5 +39,4 @@ public actual fun musicLibraryModule(): Module = module {
     single<Playlists> { DefaultPlaylists(store = get()) }
 }
 
-public actual fun nowMillis(): Long =
-    (platform.Foundation.NSDate().timeIntervalSince1970 * 1000).toLong()
+public actual fun nowMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()
