@@ -219,11 +219,12 @@ internal class AndroidPlaybackController(
         val currentIndex = player.currentMediaItemIndex
         val recentIds = (maxOf(0, currentIndex - RECENT_WINDOW) until currentIndex)
             .map { index -> TrackId(player.getMediaItemAt(index).mediaId) }
-        val excluded = buildSet {
-            addAll(recentIds)
-            add(current.id)
-        }
-        val candidates = pool.filter { it.id !in excluded }
+        // Everything ALREADY in the queue is off the table, not just the recent window: a track
+        // appended twice would play twice in one sitting, and the queue list would hold two rows
+        // claiming the same identity.
+        val queued = (0 until player.mediaItemCount)
+            .mapTo(HashSet()) { index -> TrackId(player.getMediaItemAt(index).mediaId) }
+        val candidates = pool.filter { it.id !in queued }
         if (candidates.isEmpty()) return
 
         val chosen = runCatching { chooser.choose(current, recentIds, candidates) }

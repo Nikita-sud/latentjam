@@ -101,7 +101,12 @@ fun CollectionDetailScreen(
                         }
                     }
                 }
-                itemsIndexed(selection.tracks, key = { _, track -> track.id.value }) { index, track ->
+                // Position is part of the key: a playlist may list the same track twice, and
+                // identity alone would make that a crash rather than a repeat.
+                itemsIndexed(
+                    selection.tracks,
+                    key = { index, track -> "$index:${track.id.value}" },
+                ) { index, track ->
                     TrackRow(
                         track = track,
                         isCurrent = track.id == currentTrackId,

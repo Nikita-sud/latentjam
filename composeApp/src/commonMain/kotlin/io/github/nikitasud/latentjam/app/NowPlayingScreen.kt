@@ -389,7 +389,13 @@ private fun QueueSheetContent(
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
         )
         LazyColumn(state = listState) {
-            itemsIndexed(queue, key = { _, track -> track.id.value }) { index, track ->
+            // Keyed by POSITION as well as identity. A queue may legitimately hold the same track
+            // more than once — added by hand, or repeated across a long session — and a key that is
+            // only the track id turns that into a crash during measurement.
+            itemsIndexed(
+                queue,
+                key = { index, track -> "$index:${track.id.value}" },
+            ) { index, track ->
                 val isCurrent = index == currentIndex
                 Row(
                     modifier = Modifier
