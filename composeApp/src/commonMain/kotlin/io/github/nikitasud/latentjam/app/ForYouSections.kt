@@ -27,6 +27,31 @@ data class ForYouSection(
 )
 
 /**
+ * The single card at the top of the page.
+ *
+ * It exists because the decision window is about a minute: the first screen has to make one
+ * confident play possible without scrolling or comparing. Everything below it is for browsing; this
+ * is for not having to.
+ *
+ * @param kicker why this one, in a few words. Data-derived and therefore different day to day —
+ *   a line that always reads the same would be decoration.
+ * @param resumeAtMs where to start, when this is an unfinished track
+ */
+data class ForYouHero(
+    val track: TrackDescriptor,
+    val kicker: String,
+    val resumeAtMs: Long? = null,
+)
+
+/** The page: one hero, then rows. */
+data class ForYouPage(
+    val hero: ForYouHero? = null,
+    val sections: List<ForYouSection> = emptyList(),
+) {
+    val isEmpty: Boolean get() = hero == null && sections.isEmpty()
+}
+
+/**
  * Builds the For You page from listening history and the library.
  *
  * Pure functions over plain data, so every rule here is testable without a device — which is the
@@ -56,24 +81,108 @@ object ForYouBuilder {
     /** One artist cannot own a row. A crude calibration, but the one that matters most. */
     const val MAX_PER_ARTIST = 2
 
+    /**
+     * A part-played track counts as resumable only past this point — before it, the listener was
+     * auditioning rather than interrupted, and offering to resume reads as noise.
+     */
+    const val MIN_RESUME_MS = 45_000L
+
     fun build(
         library: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats>,
         recentEvents: List<ListenEvent>,
         nowMs: Long,
         excluded: Set<TrackId> = emptySet(),
-    ): List<ForYouSection> {
+    ): ForYouPage {
         val byId = library.associateBy { it.id }
-        // Accumulates across sections, so a track shown once is not shown again further down.
+        // Accumulates across the page, so a track shown once is not shown again further down.
         val used = HashSet<TrackId>(excluded)
 
-        val sections = mutableListOf<ForYouSection>()
+        val hero = hero(byId, stats, recentEvents, nowMs)
+        hero?.let { used.add(it.track.id) }
 
+        val sections = mutableListOf<ForYouSection>()
+        continueListening(byId, recentEvents, used)?.let(sections::add)
         worthRevisiting(byId, stats, nowMs, used)?.let(sections::add)
         foundBySmart(byId, recentEvents, used)?.let(sections::add)
         neverPlayed(library, stats, used)?.let(sections::add)
 
-        return sections
+        return ForYouPage(hero, sections)
+    }
+
+    /**
+     * Picks the one thing most worth offering, in descending order of how strong a claim it has:
+     * something interrupted, then a proven favourite gone quiet, then something owned and unheard.
+     *
+     * Falling through rather than insisting on one signal is what lets the card exist on day one and
+     * still be the best available answer in month six.
+     */
+    private fun hero(
+        byId: Map<TrackId, TrackDescriptor>,
+        stats: Map<TrackId, TrackStats>,
+        recentEvents: List<ListenEvent>,
+        nowMs: Long,
+    ): ForYouHero? {
+        interrupted(byId, recentEvents)?.let { (track, at) ->
+            return ForYouHero(track, "Pick up where you left off", at)
+        }
+        val revisit = stats.entries
+            .filter { (_, stat) ->
+                stat.plays >= MIN_PLAYS_TO_COUNT &&
+                    stat.lastPlayedAtMs > 0 &&
+                    nowMs - stat.lastPlayedAtMs >= QUIET_MS &&
+                    stat.completions >= stat.skips
+            }
+            .maxByOrNull { it.value.completions }
+        revisit?.let { (id, stat) ->
+            byId[id]?.let { return ForYouHero(it, "You played this ${stat.plays} times") }
+        }
+        return byId.values
+            .firstOrNull { (stats[it.id]?.plays ?: 0) == 0 }
+            ?.let { ForYouHero(it, "Never played") }
+    }
+
+    /** The most recent track abandoned past [MIN_RESUME_MS], with where it stopped. */
+    private fun interrupted(
+        byId: Map<TrackId, TrackDescriptor>,
+        recentEvents: List<ListenEvent>,
+    ): Pair<TrackDescriptor, Long>? =
+        recentEvents
+            .firstOrNull { event ->
+                !event.completed &&
+                    event.playedMs >= MIN_RESUME_MS &&
+                    // Guard against a stale position past the end of a since-replaced file.
+                    (event.trackDurationMs ?: 0) > event.playedMs &&
+                    byId.containsKey(event.trackId)
+            }
+            ?.let { event -> byId.getValue(event.trackId) to event.playedMs }
+
+    /**
+     * Tracks left unfinished. Distinct from "recently played", which is memory — this is an
+     * outstanding intention, and the only row here with a resume position attached.
+     */
+    private fun continueListening(
+        byId: Map<TrackId, TrackDescriptor>,
+        recentEvents: List<ListenEvent>,
+        used: MutableSet<TrackId>,
+    ): ForYouSection? {
+        val picked = capPerArtist(
+            recentEvents
+                .filter { event ->
+                    !event.completed &&
+                        event.playedMs >= MIN_RESUME_MS &&
+                        (event.trackDurationMs ?: 0) > event.playedMs &&
+                        event.trackId !in used
+                }
+                .distinctBy { it.trackId }
+                .mapNotNull { byId[it.trackId] },
+        )
+        if (picked.isEmpty()) return null
+        return ForYouSection(
+            id = "continue",
+            title = "Still unfinished",
+            cards = picked.map { ForYouCard(it) }.onEach { used.add(it.track.id) },
+        )
     }
 
     /**

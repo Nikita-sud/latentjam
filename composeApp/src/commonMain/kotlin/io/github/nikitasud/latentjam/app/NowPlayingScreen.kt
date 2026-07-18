@@ -77,11 +77,30 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_close
+import io.github.nikitasud.latentjam.app.generated.resources.action_next
+import io.github.nikitasud.latentjam.app.generated.resources.action_pause
+import io.github.nikitasud.latentjam.app.generated.resources.action_play
+import io.github.nikitasud.latentjam.app.generated.resources.action_previous
+import io.github.nikitasud.latentjam.app.generated.resources.action_track_options
+import io.github.nikitasud.latentjam.app.generated.resources.cd_repeat_all
+import io.github.nikitasud.latentjam.app.generated.resources.cd_repeat_off
+import io.github.nikitasud.latentjam.app.generated.resources.cd_repeat_one
+import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_off
+import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_on
+import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_smart
+import io.github.nikitasud.latentjam.app.generated.resources.now_playing_nothing
+import io.github.nikitasud.latentjam.app.generated.resources.queue_title
+import io.github.nikitasud.latentjam.app.generated.resources.queue_title_count
+import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
+import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 
 /** How much of the queue sheet stays visible under the player. */
 private val QueuePeekHeight = 84.dp
@@ -170,7 +189,10 @@ fun NowPlayingScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         IconButton(onClick = onClose) {
-                            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close")
+                            Icon(
+                                Icons.Rounded.KeyboardArrowDown,
+                                contentDescription = stringResource(Res.string.action_close),
+                            )
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         OverflowButton(
@@ -178,7 +200,7 @@ fun NowPlayingScreen(
                             animatedScope = animatedScope,
                         ) { dismiss ->
                             DropdownMenuItem(
-                                text = { Text("Track options") },
+                                text = { Text(stringResource(Res.string.action_track_options)) },
                                 onClick = {
                                     dismiss()
                                     now.track?.let(onTrackMenu)
@@ -203,7 +225,7 @@ fun NowPlayingScreen(
                         Spacer(modifier = Modifier.weight(1f))
 
                         Text(
-                            text = now.track?.title ?: "Nothing playing",
+                            text = now.track?.title ?: stringResource(Res.string.now_playing_nothing),
                             style = MaterialTheme.typography.headlineSmall,
                             textAlign = TextAlign.Center,
                             maxLines = 2,
@@ -269,7 +291,7 @@ fun NowPlayingScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.SkipPrevious,
-                                    contentDescription = "Previous",
+                                    contentDescription = stringResource(Res.string.action_previous),
                                     modifier = Modifier.size(36.dp),
                                 )
                             }
@@ -283,7 +305,11 @@ fun NowPlayingScreen(
                                     } else {
                                         Icons.Rounded.PlayArrow
                                     },
-                                    contentDescription = if (now.isPlaying) "Pause" else "Play",
+                                    contentDescription = if (now.isPlaying) {
+                                        stringResource(Res.string.action_pause)
+                                    } else {
+                                        stringResource(Res.string.action_play)
+                                    },
                                     modifier = Modifier.size(36.dp),
                                 )
                             }
@@ -293,7 +319,7 @@ fun NowPlayingScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.SkipNext,
-                                    contentDescription = "Next",
+                                    contentDescription = stringResource(Res.string.action_next),
                                     modifier = Modifier.size(36.dp),
                                 )
                             }
@@ -354,11 +380,13 @@ private fun RepeatButton(mode: RepeatMode, onClick: () -> Unit) {
     ) {
         Icon(
             imageVector = if (mode == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
-            contentDescription = when (mode) {
-                RepeatMode.OFF -> "Repeat off. Tap to repeat the queue."
-                RepeatMode.ALL -> "Repeating the queue. Tap to repeat one track."
-                RepeatMode.ONE -> "Repeating one track. Tap to turn repeat off."
-            },
+            contentDescription = stringResource(
+                when (mode) {
+                    RepeatMode.OFF -> Res.string.cd_repeat_off
+                    RepeatMode.ALL -> Res.string.cd_repeat_all
+                    RepeatMode.ONE -> Res.string.cd_repeat_one
+                },
+            ),
         )
     }
 }
@@ -375,7 +403,15 @@ private fun ShuffleButton(mode: ShuffleMode, onClick: () -> Unit) {
             // SMART wears the app's own mark; plain shuffle keeps the
             // standard glyph, so the three states never rely on tint alone.
             imageVector = if (mode == ShuffleMode.SMART) LatentJamMark else Icons.Rounded.Shuffle,
-            contentDescription = "Shuffle: ${mode.name.lowercase()}. Tap to change.",
+            // One string per state rather than an interpolated enum name: the enum
+            // is English source code, and a screen reader would have read it out.
+            contentDescription = stringResource(
+                when (mode) {
+                    ShuffleMode.OFF -> Res.string.cd_shuffle_off
+                    ShuffleMode.ON -> Res.string.cd_shuffle_on
+                    ShuffleMode.SMART -> Res.string.cd_shuffle_smart
+                },
+            ),
             tint = tint,
         )
     }
@@ -430,7 +466,7 @@ private fun QueueRow(
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = track.title ?: "Untitled",
+                text = track.title ?: stringResource(Res.string.track_untitled),
                 style = MaterialTheme.typography.bodyMedium,
                 // Weight, not colour. The palette is deliberately neutral and its primary sits
                 // close to onSurface, so a colour swap here would be almost invisible.
@@ -440,7 +476,7 @@ private fun QueueRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = track.artist ?: "Unknown artist",
+                text = track.artist ?: stringResource(Res.string.track_unknown_artist),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -457,7 +493,7 @@ private fun QueueRow(
         IconButton(onClick = onMenu) {
             Icon(
                 imageVector = Icons.Rounded.MoreVert,
-                contentDescription = "Track options",
+                contentDescription = stringResource(Res.string.action_track_options),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -517,7 +553,11 @@ private fun QueueSheetContent(
     )
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = if (queue.isEmpty()) "Queue" else "Queue · ${queue.size}",
+            text = if (queue.isEmpty()) {
+                stringResource(Res.string.queue_title)
+            } else {
+                stringResource(Res.string.queue_title_count, queue.size)
+            },
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Русский. Терминология — как в реальных плеерах (Яндекс Музыка, Apple Music,
+  Spotify): «Очередь», «Перемешать», «Медиатека», «Исполнитель».
+  «LatentJam» и «SMART» не переводятся.
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">Воспроизвести</string>
+    <string name="action_pause">Пауза</string>
+    <string name="action_next">Следующий трек</string>
+    <string name="action_previous">Предыдущий трек</string>
+    <string name="action_shuffle">Перемешать</string>
+    <string name="action_close">Закрыть</string>
+    <string name="action_back">Назад</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_rename">Переименовать</string>
+    <string name="action_clear">Очистить</string>
+    <string name="action_track_options">Действия с треком</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">Трек</string>
+    <string name="track_untitled">Без названия</string>
+    <string name="track_unknown_artist">Неизвестный исполнитель</string>
+    <plurals name="count_tracks">
+        <item quantity="one">%1$d трек</item>
+        <item quantity="few">%1$d трека</item>
+        <item quantity="many">%1$d треков</item>
+        <item quantity="other">%1$d трека</item>
+    </plurals>
+    <string name="cd_track_options_for">Действия с треком «%1$s»</string>
+    <string name="cd_track_options_generic">Действия с этим треком</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">Ничего не играет</string>
+    <string name="queue_title">Очередь</string>
+    <string name="queue_title_count">Очередь · %1$d</string>
+    <string name="cd_repeat_off">Повтор выключен. Нажмите, чтобы повторять очередь.</string>
+    <string name="cd_repeat_all">Повтор очереди. Нажмите, чтобы повторять один трек.</string>
+    <string name="cd_repeat_one">Повтор одного трека. Нажмите, чтобы выключить повтор.</string>
+    <string name="cd_shuffle_off">Перемешивание выключено. Нажмите, чтобы изменить.</string>
+    <string name="cd_shuffle_on">Перемешивание включено. Нажмите, чтобы изменить.</string>
+    <string name="cd_shuffle_smart">Перемешивание SMART включено. Нажмите, чтобы изменить.</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">Поиск</string>
+    <string name="cd_close_search">Закрыть поиск</string>
+    <string name="cd_clear_query">Очистить запрос</string>
+    <string name="search_no_matches">Ничего не найдено по запросу «%1$s».</string>
+    <plurals name="search_hint_count">
+        <item quantity="one">Поиск по %1$d треку.</item>
+        <item quantity="few">Поиск по %1$d трекам.</item>
+        <item quantity="many">Поиск по %1$d трекам.</item>
+        <item quantity="other">Поиск по %1$d трекам.</item>
+    </plurals>
+    <string name="search_recent_title">Недавние запросы</string>
+    <string name="cd_forget_search">Забыть «%1$s»</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">Плейлистов пока нет — нажмите +, чтобы создать.</string>
+    <string name="playlist_name_placeholder">Название плейлиста</string>
+    <string name="playlist_new">Новый плейлист</string>
+    <string name="cd_playlist_options">Действия с плейлистом «%1$s»</string>
+    <string name="playlist_add_to_title">Добавить «%1$s» в плейлист</string>
+    <string name="playlist_add_to_title_generic">Добавить трек в плейлист</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">Слушать следующим</string>
+    <string name="action_add_to_queue">Добавить в очередь</string>
+    <string name="action_add_to_playlist">Добавить в плейлист</string>
+    <string name="action_go_to_album">Перейти к альбому</string>
+    <string name="action_go_to_artist">Перейти к исполнителю</string>
+    <string name="action_information">Информация</string>
+    <string name="action_delete_from_device">Удалить с устройства</string>
+    <string name="dialog_delete_track_title">Удалить этот трек?</string>
+    <string name="dialog_delete_track_message">«%1$s» будет удалён с этого устройства. Это действие нельзя отменить.</string>
+    <string name="dialog_delete_track_message_generic">Этот трек будет удалён с этого устройства. Это действие нельзя отменить.</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">Название</string>
+    <string name="info_artist">Исполнитель</string>
+    <string name="info_album">Альбом</string>
+    <string name="info_genre">Жанр</string>
+    <string name="info_year">Год</string>
+    <string name="info_duration">Длительность</string>
+    <string name="info_location">Расположение</string>
+    <string name="info_not_set">Не указано</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_section_appearance">Внешний вид</string>
+    <string name="settings_theme">Тема</string>
+    <string name="theme_system">Как в системе</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="settings_section_playback">Воспроизведение</string>
+    <string name="settings_equalizer">Эквалайзер</string>
+    <string name="settings_equalizer_subtitle">Настройка звучания для аудиовыхода этого устройства</string>
+    <string name="settings_intelligence">Умные функции</string>
+    <string name="settings_smart_engine">Движок SMART</string>
+    <string name="settings_smart_engine_subtitle">Что модель на устройстве знает о вашей медиатеке</string>
+    <string name="settings_section_about">О приложении</string>
+    <string name="settings_about_body">LatentJam — локальный музыкальный плеер с рекомендациями прямо на устройстве. Ничего о том, что вы слушаете, не покидает это устройство.</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">Включён</string>
+    <string name="state_off">Выключен</string>
+    <string name="equalizer_presets">Пресеты</string>
+    <string name="equalizer_bands">Полосы</string>
+    <string name="equalizer_bass_boost">Усиление баса</string>
+    <string name="equalizer_reset">Сбросить</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">Состояние</string>
+    <string name="intelligence_engine">Движок</string>
+    <string name="intelligence_library">Медиатека</string>
+    <string name="intelligence_fingerprints">Звуковые отпечатки</string>
+    <string name="intelligence_indexed_of">%1$d из %2$d</string>
+    <string name="intelligence_fingerprint_note">Треки без отпечатка можно слушать, но SMART не станет их подбирать и не будет учитывать их при оценке того, что подходит.</string>
+    <string name="intelligence_section_analysis">Анализ</string>
+    <string name="intelligence_analysis_note">Первое прослушивание трека не анализирует его. Отпечатки вычисляются пачками, и работа продолжается с того места, где остановилась.</string>
+    <string name="intelligence_analyse_batch">Проанализировать %1$d</string>
+    <string name="intelligence_analyse_all">Проанализировать всё</string>
+    <string name="intelligence_analysed_batch_report">Проанализировано: %1$d, пропущено: %2$d, с ошибкой: %3$d.</string>
+    <string name="intelligence_analysed_all_report">Проанализировано: %1$d, с ошибкой: %2$d.</string>
+    <string name="intelligence_section_privacy">Конфиденциальность</string>
+    <string name="intelligence_privacy_body">Все модели работают на этом устройстве. Ваша медиатека, история прослушиваний и всё, что из них выводится, остаются здесь — ни аккаунта, ни выгрузки на сервер.</string>
+    <string name="engine_state_not_started">Не запущен</string>
+    <string name="engine_state_starting">Запускается…</string>
+    <string name="engine_state_ready">Готов</string>
+    <string name="engine_state_unavailable">Недоступен — %1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">Чтобы просканировать медиатеку, приложению LatentJam нужен доступ к вашей музыке.</string>
+    <string name="permission_grant">Предоставить доступ</string>
+
+</resources>

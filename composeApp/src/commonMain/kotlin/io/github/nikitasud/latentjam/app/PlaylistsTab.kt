@@ -51,9 +51,22 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
+import io.github.nikitasud.latentjam.app.generated.resources.action_delete
+import io.github.nikitasud.latentjam.app.generated.resources.action_rename
+import io.github.nikitasud.latentjam.app.generated.resources.cd_playlist_options
+import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.playlist_add_to_title
+import io.github.nikitasud.latentjam.app.generated.resources.playlist_add_to_title_generic
+import io.github.nikitasud.latentjam.app.generated.resources.playlist_name_placeholder
+import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
+import io.github.nikitasud.latentjam.app.generated.resources.playlists_empty
 import io.github.nikitasud.latentjam.library.AutoPlaylist
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * The Playlists tab: the playlists the app derives for you across the top,
@@ -98,7 +111,7 @@ internal fun PlaylistsTabContent(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        text = "No playlists yet — use + to make one.",
+                        text = stringResource(Res.string.playlists_empty),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -153,7 +166,7 @@ private fun AutoPlaylistCard(auto: AutoPlaylist, onClick: () -> Unit) {
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = "${auto.tracks.size} tracks",
+            text = pluralStringResource(Res.plurals.count_tracks, auto.tracks.size, auto.tracks.size),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -190,7 +203,7 @@ private fun PlaylistRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${playlist.trackIds.size} tracks",
+                text = pluralStringResource(Res.plurals.count_tracks, playlist.trackIds.size, playlist.trackIds.size),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -199,13 +212,13 @@ private fun PlaylistRow(
             IconButton(onClick = { menuOpen = true }) {
                 Icon(
                     imageVector = Icons.Rounded.MoreVert,
-                    contentDescription = "Options for ${playlist.name}",
+                    contentDescription = stringResource(Res.string.cd_playlist_options, playlist.name),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(
-                    text = { Text("Rename") },
+                    text = { Text(stringResource(Res.string.action_rename)) },
                     leadingIcon = {
                         Icon(Icons.Rounded.DriveFileRenameOutline, contentDescription = null)
                     },
@@ -215,7 +228,12 @@ private fun PlaylistRow(
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                    text = {
+                        Text(
+                            text = stringResource(Res.string.action_delete),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Rounded.DeleteOutline,
@@ -251,7 +269,7 @@ internal fun PlaylistNameDialog(
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
-                placeholder = { Text("Playlist name") },
+                placeholder = { Text(stringResource(Res.string.playlist_name_placeholder)) },
             )
         },
         confirmButton = {
@@ -260,7 +278,9 @@ internal fun PlaylistNameDialog(
                 enabled = name.isNotBlank(),
             ) { Text(confirmLabel) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
+        },
     )
 }
 
@@ -276,8 +296,16 @@ internal fun AddToPlaylistSheet(
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.navigationBarsPadding()) {
+            // Two whole sentences rather than a fragment plus an interpolated
+            // fallback noun: "track" would have had to decline with the verb in
+            // half the languages this ships in.
+            val trackTitle = track.title
             Text(
-                text = "Add \"${track.title ?: "track"}\" to",
+                text = if (trackTitle != null) {
+                    stringResource(Res.string.playlist_add_to_title, trackTitle)
+                } else {
+                    stringResource(Res.string.playlist_add_to_title_generic)
+                },
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -300,7 +328,7 @@ internal fun AddToPlaylistSheet(
                     tint = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    text = "New playlist",
+                    text = stringResource(Res.string.playlist_new),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -326,7 +354,7 @@ internal fun AddToPlaylistSheet(
                         Column {
                             Text(text = playlist.name, style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                text = "${playlist.trackIds.size} tracks",
+                                text = pluralStringResource(Res.plurals.count_tracks, playlist.trackIds.size, playlist.trackIds.size),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

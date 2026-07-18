@@ -16,6 +16,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,12 +47,13 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
  */
 @Composable
 fun ForYouTab(
-    sections: List<ForYouSection>,
+    page: ForYouPage,
     contentPadding: PaddingValues,
     onPlay: (List<TrackDescriptor>, Int) -> Unit,
+    onPlayHero: (ForYouHero) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
 ) {
-    if (sections.isEmpty()) {
+    if (page.isEmpty) {
         Box(
             modifier = Modifier.fillMaxSize().padding(32.dp),
             contentAlignment = Alignment.Center,
@@ -60,7 +68,10 @@ fun ForYouTab(
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
-        items(sections, key = { it.id }) { section ->
+        page.hero?.let { hero ->
+            item(key = "hero") { HeroCard(hero, onPlay = { onPlayHero(hero) }) }
+        }
+        items(page.sections, key = { it.id }) { section ->
             Text(
                 text = section.title,
                 style = MaterialTheme.typography.titleMedium,
@@ -121,5 +132,62 @@ private fun ForYouCardItem(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+/**
+ * The one-tap card.
+ *
+ * Sized so it and the first row's covers share the opening screen — the point is a decision made
+ * without scrolling, and a card that fills the viewport would hide the alternatives that make the
+ * choice feel like a choice. Playing it hands the track to SMART as a seed rather than queuing it
+ * alone: the personal signal decides what to start from, the model decides what follows.
+ */
+@Composable
+private fun HeroCard(hero: ForYouHero, onPlay: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .clickable(onClick = onPlay),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Artwork(uri = hero.track.artworkUri, size = 96.dp, cornerRadius = 14.dp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = hero.kicker,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = hero.track.title ?: "Untitled",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                Text(
+                    text = hero.track.artist ?: "Unknown artist",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            // Icon-only and fixed size: a labelled button here clips under translation and large
+            // font scales, which is a mistake this project has already made three times.
+            FilledIconButton(onClick = onPlay) {
+                Icon(Icons.Rounded.PlayArrow, contentDescription = "Play")
+            }
+        }
     }
 }

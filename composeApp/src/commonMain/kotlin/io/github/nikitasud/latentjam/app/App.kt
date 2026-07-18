@@ -180,10 +180,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // persisted index, and backfill any missing metadata-text vectors. All idempotent. Doing it
         // here rather than on first press means the SMART button is instant when it is finally
         // tapped, instead of stalling on tens of MB of model loading.
-        var forYou by remember { mutableStateOf<List<ForYouSection>>(emptyList()) }
+        var forYou by remember { mutableStateOf(ForYouPage()) }
         LaunchedEffect(tracks, selectedTab == FOR_YOU_TAB) {
             val loaded = tracks ?: return@LaunchedEffect
-            if (selectedTab != FOR_YOU_TAB || forYou.isNotEmpty()) return@LaunchedEffect
+            if (selectedTab != FOR_YOU_TAB || !forYou.isEmpty) return@LaunchedEffect
             forYou = ForYouBuilder.build(
                 library = loaded,
                 stats = AppGraph.history.stats(),
@@ -411,10 +411,25 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     ) { tab ->
                                         when (tab) {
                                         FOR_YOU_TAB -> ForYouTab(
-                                            sections = forYou,
+                                            page = forYou,
                                             contentPadding = listPadding,
                                             onPlay = { list, index ->
                                                 scope.launch { playback.play(list, index) }
+                                            },
+                                            onPlayHero = { hero ->
+                                                scope.launch {
+                                                    // Personal signal picked the seed; SMART decides
+                                                    // what follows it.
+                                                    val queue = engine.smartQueue(
+                                                        hero.track,
+                                                        catalog.songs,
+                                                        SMART_HERO_LENGTH,
+                                                    )
+                                                    val byId = catalog.songs.associateBy { it.id }
+                                                    val tail = queue.mapNotNull(byId::get)
+                                                    playback.play(listOf(hero.track) + tail, 0)
+                                                    hero.resumeAtMs?.let { playback.seekTo(it) }
+                                                }
                                             },
                                             onTrackMenu = { trackMenuTarget = it },
                                         )
@@ -703,6 +718,9 @@ private const val TRACKS_TAB = 2
 
 /** Persist-and-report granularity for library indexing. */
 private const val RECENT_EVENTS_FOR_YOU = 500
+
+/** Long enough to be a sitting, short enough to still reflect the seed. */
+private const val SMART_HERO_LENGTH = 20
 
 private const val INDEX_CHUNK_SIZE = 8
 

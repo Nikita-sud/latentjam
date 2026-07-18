@@ -24,7 +24,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.info_album
+import io.github.nikitasud.latentjam.app.generated.resources.info_artist
+import io.github.nikitasud.latentjam.app.generated.resources.info_duration
+import io.github.nikitasud.latentjam.app.generated.resources.info_genre
+import io.github.nikitasud.latentjam.app.generated.resources.info_location
+import io.github.nikitasud.latentjam.app.generated.resources.info_not_set
+import io.github.nikitasud.latentjam.app.generated.resources.info_title
+import io.github.nikitasud.latentjam.app.generated.resources.info_year
+import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
+import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Everything the app knows about one track, and a way to correct it.
@@ -65,13 +77,13 @@ internal fun TrackInfoSheet(
                 Artwork(uri = track.artworkUri, size = 64.dp)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = track.title ?: "Untitled",
+                        text = track.title ?: stringResource(Res.string.track_untitled),
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = track.artist ?: "Unknown artist",
+                        text = track.artist ?: stringResource(Res.string.track_unknown_artist),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -80,13 +92,16 @@ internal fun TrackInfoSheet(
                 }
             }
 
-                InfoRow("Title", track.title)
-                InfoRow("Artist", track.artist)
-                InfoRow("Album", track.album)
-                InfoRow("Genre", track.genre)
-                InfoRow("Year", track.year?.toString())
-                InfoRow("Duration", track.durationMs?.let(::formatDuration))
-                InfoRow("Location", track.audioUri)
+                InfoRow(stringResource(Res.string.info_title), track.title)
+                InfoRow(stringResource(Res.string.info_artist), track.artist)
+                InfoRow(stringResource(Res.string.info_album), track.album)
+                InfoRow(stringResource(Res.string.info_genre), track.genre)
+                InfoRow(stringResource(Res.string.info_year), track.year?.toString())
+                InfoRow(
+                    stringResource(Res.string.info_duration),
+                    track.durationMs?.let(::formatDuration),
+                )
+                InfoRow(stringResource(Res.string.info_location), track.audioUri)
                 Spacer(modifier = Modifier.padding(bottom = 24.dp))
         }
     }
@@ -101,7 +116,7 @@ private fun InfoRow(label: String, value: String?) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = value?.takeIf { it.isNotBlank() } ?: "Not set",
+            text = value?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.info_not_set),
             style = MaterialTheme.typography.bodyMedium,
             color = if (value.isNullOrBlank()) {
                 MaterialTheme.colorScheme.onSurfaceVariant

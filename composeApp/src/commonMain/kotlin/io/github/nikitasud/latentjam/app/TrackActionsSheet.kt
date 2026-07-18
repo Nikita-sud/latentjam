@@ -35,7 +35,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
+import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_queue
+import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
+import io.github.nikitasud.latentjam.app.generated.resources.action_delete
+import io.github.nikitasud.latentjam.app.generated.resources.action_delete_from_device
+import io.github.nikitasud.latentjam.app.generated.resources.action_go_to_album
+import io.github.nikitasud.latentjam.app.generated.resources.action_go_to_artist
+import io.github.nikitasud.latentjam.app.generated.resources.action_information
+import io.github.nikitasud.latentjam.app.generated.resources.action_play
+import io.github.nikitasud.latentjam.app.generated.resources.action_play_next
+import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message
+import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message_generic
+import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_title
+import io.github.nikitasud.latentjam.app.generated.resources.label_track
+import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
+import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Track actions, raised from the bottom rather than dropped from the row —
@@ -66,18 +84,18 @@ internal fun TrackActionsSheet(
                 Artwork(uri = track.artworkUri, size = 56.dp, cornerRadius = 16.dp)
                 Column {
                     Text(
-                        text = "Track",
+                        text = stringResource(Res.string.label_track),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Text(
-                        text = track.title ?: "Untitled",
+                        text = track.title ?: stringResource(Res.string.track_untitled),
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = track.artist ?: "Unknown artist",
+                        text = track.artist ?: stringResource(Res.string.track_unknown_artist),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -86,17 +104,38 @@ internal fun TrackActionsSheet(
                 }
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SheetAction(Icons.Rounded.PlayArrow, "Play") { onDismiss(); onPlay() }
-            SheetAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Play next") { onDismiss(); onPlayNext() }
-            SheetAction(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { onDismiss(); onAddToQueue() }
-            SheetAction(Icons.Rounded.LibraryAdd, "Add to playlist") { onDismiss(); onAddToPlaylist() }
-            SheetAction(Icons.Rounded.Album, "Go to album") { onDismiss(); onGoToAlbum() }
-            SheetAction(Icons.Rounded.Person, "Go to artist") { onDismiss(); onGoToArtist() }
-            SheetAction(Icons.Rounded.Info, "Information") { onDismiss(); onInfo() }
+            SheetAction(
+                Icons.Rounded.PlayArrow,
+                stringResource(Res.string.action_play),
+            ) { onDismiss(); onPlay() }
+            SheetAction(
+                Icons.AutoMirrored.Rounded.PlaylistAdd,
+                stringResource(Res.string.action_play_next),
+            ) { onDismiss(); onPlayNext() }
+            SheetAction(
+                Icons.AutoMirrored.Rounded.QueueMusic,
+                stringResource(Res.string.action_add_to_queue),
+            ) { onDismiss(); onAddToQueue() }
+            SheetAction(
+                Icons.Rounded.LibraryAdd,
+                stringResource(Res.string.action_add_to_playlist),
+            ) { onDismiss(); onAddToPlaylist() }
+            SheetAction(
+                Icons.Rounded.Album,
+                stringResource(Res.string.action_go_to_album),
+            ) { onDismiss(); onGoToAlbum() }
+            SheetAction(
+                Icons.Rounded.Person,
+                stringResource(Res.string.action_go_to_artist),
+            ) { onDismiss(); onGoToArtist() }
+            SheetAction(
+                Icons.Rounded.Info,
+                stringResource(Res.string.action_information),
+            ) { onDismiss(); onInfo() }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             SheetAction(
                 icon = Icons.Rounded.DeleteOutline,
-                label = "Delete from device",
+                label = stringResource(Res.string.action_delete_from_device),
                 tint = MaterialTheme.colorScheme.error,
             ) { onDismiss(); onDelete() }
         }
@@ -112,20 +151,27 @@ internal fun DeleteTrackDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Delete this track?") },
+        title = { Text(stringResource(Res.string.dialog_delete_track_title)) },
         text = {
+            val title = track.title
             Text(
-                "\"${track.title ?: "This track"}\" will be removed from this device. " +
-                    "This can't be undone.",
+                if (title != null) {
+                    stringResource(Res.string.dialog_delete_track_message, title)
+                } else {
+                    stringResource(Res.string.dialog_delete_track_message_generic)
+                },
             )
         },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("Delete", color = MaterialTheme.colorScheme.error)
+                Text(
+                    text = stringResource(Res.string.action_delete),
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
         },
     )
 }

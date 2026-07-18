@@ -30,6 +30,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.activity.compose.rememberLauncherForActivityResult
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.permission_audio_rationale
+import io.github.nikitasud.latentjam.app.generated.resources.permission_grant
+import org.jetbrains.compose.resources.stringResource
 import org.koin.dsl.module
 
 /**
@@ -93,11 +97,11 @@ private fun AudioPermissionGate(onGranted: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = "LatentJam needs access to your music to scan the library.",
+                    text = stringResource(Res.string.permission_audio_rationale),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Button(onClick = { launcher.launch(audioPermission) }) {
-                    Text("Grant access")
+                    Text(stringResource(Res.string.permission_grant))
                 }
             }
         }

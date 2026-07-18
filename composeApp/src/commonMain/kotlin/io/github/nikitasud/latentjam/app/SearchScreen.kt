@@ -49,9 +49,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_clear
+import io.github.nikitasud.latentjam.app.generated.resources.cd_clear_query
+import io.github.nikitasud.latentjam.app.generated.resources.cd_close_search
+import io.github.nikitasud.latentjam.app.generated.resources.cd_forget_search
+import io.github.nikitasud.latentjam.app.generated.resources.search_hint_count
+import io.github.nikitasud.latentjam.app.generated.resources.search_no_matches
+import io.github.nikitasud.latentjam.app.generated.resources.search_placeholder
+import io.github.nikitasud.latentjam.app.generated.resources.search_recent_title
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Full-screen library search: auto-focused field, live filtering over
@@ -112,7 +123,10 @@ internal fun SearchScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Close search")
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(Res.string.cd_close_search),
+                    )
                 }
                 TextField(
                     value = query,
@@ -120,7 +134,7 @@ internal fun SearchScreen(
                     modifier = Modifier.weight(1f).focusRequester(focusRequester),
                     placeholder = {
                         Text(
-                            text = "Search",
+                            text = stringResource(Res.string.search_placeholder),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -137,7 +151,10 @@ internal fun SearchScreen(
                     trailingIcon = {
                         if (query.isNotEmpty()) {
                             IconButton(onClick = { query = "" }) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Clear query")
+                                Icon(
+                                    Icons.Rounded.Close,
+                                    contentDescription = stringResource(Res.string.cd_clear_query),
+                                )
                             }
                         }
                     },
@@ -154,7 +171,7 @@ internal fun SearchScreen(
 
             when {
                 query.isNotBlank() && results.isEmpty() ->
-                    CenteredHint("No matches for \"${query.trim()}\".")
+                    CenteredHint(stringResource(Res.string.search_no_matches, query.trim()))
 
                 query.isNotBlank() -> LazyColumn {
                     itemsIndexed(results, key = { _, track -> track.id.value }) { index, track ->
@@ -191,7 +208,7 @@ internal fun SearchScreen(
                     },
                 )
 
-                else -> CenteredHint("Search your ${songs.size} tracks.")
+                else -> CenteredHint(pluralStringResource(Res.plurals.search_hint_count, songs.size, songs.size))
             }
         }
     }
@@ -210,12 +227,12 @@ private fun RecentSearchList(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Recent searches",
+                text = stringResource(Res.string.search_recent_title),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onClearAll) { Text("Clear") }
+            TextButton(onClick = onClearAll) { Text(stringResource(Res.string.action_clear)) }
         }
         Surface(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
@@ -245,7 +262,7 @@ private fun RecentSearchList(
                         IconButton(onClick = { onRemove(entry) }) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
-                                contentDescription = "Forget \"$entry\"",
+                                contentDescription = stringResource(Res.string.cd_forget_search, entry),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }

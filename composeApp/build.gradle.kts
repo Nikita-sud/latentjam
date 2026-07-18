@@ -20,6 +20,13 @@ kotlin {
         minSdk = 24
         // Host tests are OPT-IN on this plugin; without it commonTest never runs.
         withHostTest {}
+        // So is the Android resource/asset pipeline. Compose Multiplatform ships
+        // its strings as ASSETS (assets/composeResources/…), and with this off the
+        // module builds and links fine but packages nothing — every
+        // stringResource() would miss at runtime. Verified by inspecting the APK.
+        androidResources {
+            enable = true
+        }
     }
 
     listOf(

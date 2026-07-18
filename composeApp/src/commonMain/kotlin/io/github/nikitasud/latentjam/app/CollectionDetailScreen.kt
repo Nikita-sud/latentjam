@@ -35,8 +35,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_back
+import io.github.nikitasud.latentjam.app.generated.resources.action_play
+import io.github.nikitasud.latentjam.app.generated.resources.action_shuffle
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * What the user drilled into from a browse tab; playing from here scopes the
@@ -79,7 +84,10 @@ fun CollectionDetailScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(Res.string.action_back),
+                    )
                 }
                 Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
                     Text(
@@ -116,11 +124,17 @@ fun CollectionDetailScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             FilledTonalIconButton(onClick = onShuffle) {
-                                Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle")
+                                Icon(
+                                    Icons.Rounded.Shuffle,
+                                    contentDescription = stringResource(Res.string.action_shuffle),
+                                )
                             }
                             Spacer(modifier = Modifier.padding(horizontal = 6.dp))
                             FilledIconButton(onClick = { onPlayTrack(0) }) {
-                                Icon(Icons.Rounded.PlayArrow, contentDescription = "Play")
+                                Icon(
+                                    Icons.Rounded.PlayArrow,
+                                    contentDescription = stringResource(Res.string.action_play),
+                                )
                             }
                         }
                     }

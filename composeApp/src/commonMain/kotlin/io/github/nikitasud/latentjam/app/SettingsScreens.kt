@@ -51,11 +51,54 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_back
+import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.engine_state_not_started
+import io.github.nikitasud.latentjam.app.generated.resources.engine_state_ready
+import io.github.nikitasud.latentjam.app.generated.resources.engine_state_starting
+import io.github.nikitasud.latentjam.app.generated.resources.engine_state_unavailable
+import io.github.nikitasud.latentjam.app.generated.resources.equalizer_bands
+import io.github.nikitasud.latentjam.app.generated.resources.equalizer_bass_boost
+import io.github.nikitasud.latentjam.app.generated.resources.equalizer_presets
+import io.github.nikitasud.latentjam.app.generated.resources.equalizer_reset
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_analyse_all
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_analyse_batch
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_analysed_all_report
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_analysed_batch_report
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_analysis_note
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_engine
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_fingerprint_note
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_fingerprints
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_indexed_of
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_library
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_privacy_body
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_section_analysis
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_section_privacy
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_section_status
+import io.github.nikitasud.latentjam.app.generated.resources.settings_about_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer
+import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.settings_intelligence
+import io.github.nikitasud.latentjam.app.generated.resources.settings_section_about
+import io.github.nikitasud.latentjam.app.generated.resources.settings_section_appearance
+import io.github.nikitasud.latentjam.app.generated.resources.settings_section_playback
+import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine
+import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.settings_theme
+import io.github.nikitasud.latentjam.app.generated.resources.settings_title
+import io.github.nikitasud.latentjam.app.generated.resources.state_off
+import io.github.nikitasud.latentjam.app.generated.resources.state_on
+import io.github.nikitasud.latentjam.app.generated.resources.theme_dark
+import io.github.nikitasud.latentjam.app.generated.resources.theme_light
+import io.github.nikitasud.latentjam.app.generated.resources.theme_system
 import io.github.nikitasud.latentjam.playback.EqualizerController
 import io.github.nikitasud.latentjam.smart.EngineState
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /** Which settings surface is showing. Flat rather than a nav graph — there are three of them. */
 enum class SettingsPage { ROOT, EQUALIZER, INTELLIGENCE }
@@ -88,11 +131,13 @@ fun SettingsScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            when (page) {
-                                SettingsPage.ROOT -> "Settings"
-                                SettingsPage.EQUALIZER -> "Equalizer"
-                                SettingsPage.INTELLIGENCE -> "Intelligence"
-                            },
+                            stringResource(
+                                when (page) {
+                                    SettingsPage.ROOT -> Res.string.settings_title
+                                    SettingsPage.EQUALIZER -> Res.string.settings_equalizer
+                                    SettingsPage.INTELLIGENCE -> Res.string.settings_intelligence
+                                },
+                            ),
                         )
                     },
                     navigationIcon = {
@@ -101,7 +146,10 @@ fun SettingsScreen(
                                 if (page == SettingsPage.ROOT) onClose() else page = SettingsPage.ROOT
                             },
                         ) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(Res.string.action_back),
+                            )
                         }
                     },
                 )
@@ -126,9 +174,9 @@ private fun SettingsRoot(settings: AppSettings, onOpen: (SettingsPage) -> Unit) 
     val theme by settings.themeMode.collectAsState()
     LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
         item {
-            SettingsSection("Appearance") {
+            SettingsSection(stringResource(Res.string.settings_section_appearance)) {
                 Text(
-                    text = "Theme",
+                    text = stringResource(Res.string.settings_theme),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -143,11 +191,13 @@ private fun SettingsRoot(settings: AppSettings, onOpen: (SettingsPage) -> Unit) 
                             onClick = { settings.setThemeMode(mode) },
                             label = {
                                 Text(
-                                    when (mode) {
-                                        ThemeMode.SYSTEM -> "Follow system"
-                                        ThemeMode.LIGHT -> "Light"
-                                        ThemeMode.DARK -> "Dark"
-                                    },
+                                    stringResource(
+                                        when (mode) {
+                                            ThemeMode.SYSTEM -> Res.string.theme_system
+                                            ThemeMode.LIGHT -> Res.string.theme_light
+                                            ThemeMode.DARK -> Res.string.theme_dark
+                                        },
+                                    ),
                                 )
                             },
                         )
@@ -156,28 +206,27 @@ private fun SettingsRoot(settings: AppSettings, onOpen: (SettingsPage) -> Unit) 
             }
         }
         item {
-            SettingsSection("Playback") {
+            SettingsSection(stringResource(Res.string.settings_section_playback)) {
                 SettingsRow(
-                    title = "Equalizer",
-                    subtitle = "Tone controls for this device's audio output",
+                    title = stringResource(Res.string.settings_equalizer),
+                    subtitle = stringResource(Res.string.settings_equalizer_subtitle),
                     onClick = { onOpen(SettingsPage.EQUALIZER) },
                 )
             }
         }
         item {
-            SettingsSection("Intelligence") {
+            SettingsSection(stringResource(Res.string.settings_intelligence)) {
                 SettingsRow(
-                    title = "SMART engine",
-                    subtitle = "What the on-device model knows about your library",
+                    title = stringResource(Res.string.settings_smart_engine),
+                    subtitle = stringResource(Res.string.settings_smart_engine_subtitle),
                     onClick = { onOpen(SettingsPage.INTELLIGENCE) },
                 )
             }
         }
         item {
-            SettingsSection("About") {
+            SettingsSection(stringResource(Res.string.settings_section_about)) {
                 Text(
-                    text = "LatentJam — a local music player with an on-device recommender. " +
-                        "Nothing about your listening leaves this device.",
+                    text = stringResource(Res.string.settings_about_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -222,9 +271,16 @@ private fun EqualizerSettings(equalizer: EqualizerController) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Equalizer", style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        text = if (state.enabled) "On" else "Off",
+                        text = stringResource(Res.string.settings_equalizer),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text = if (state.enabled) {
+                            stringResource(Res.string.state_on)
+                        } else {
+                            stringResource(Res.string.state_off)
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -238,7 +294,7 @@ private fun EqualizerSettings(equalizer: EqualizerController) {
 
         if (state.presets.isNotEmpty()) {
             item {
-                SettingsSection("Presets") {
+                SettingsSection(stringResource(Res.string.equalizer_presets)) {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(horizontal = 20.dp),
@@ -256,7 +312,7 @@ private fun EqualizerSettings(equalizer: EqualizerController) {
         }
 
         item {
-            SettingsSection("Bands") {
+            SettingsSection(stringResource(Res.string.equalizer_bands)) {
                 Row(
                     modifier = Modifier.fillMaxWidth().height(260.dp).padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -276,7 +332,7 @@ private fun EqualizerSettings(equalizer: EqualizerController) {
 
         if (state.bassBoostSupported) {
             item {
-                SettingsSection("Bass boost") {
+                SettingsSection(stringResource(Res.string.equalizer_bass_boost)) {
                     Slider(
                         value = state.bassBoostStrength.toFloat(),
                         onValueChange = { scope.launch { equalizer.setBassBoost(it.toInt()) } },
@@ -290,7 +346,9 @@ private fun EqualizerSettings(equalizer: EqualizerController) {
 
         item {
             Box(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-                OutlinedButton(onClick = { scope.launch { equalizer.reset() } }) { Text("Reset to flat") }
+                OutlinedButton(onClick = { scope.launch { equalizer.reset() } }) {
+                    Text(stringResource(Res.string.equalizer_reset))
+                }
             }
         }
     }
@@ -368,19 +426,29 @@ private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDes
     val state by engine.state.collectAsState()
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
+    // The counts, not a finished sentence: formatting happens in the composition
+    // below, so the message is in the reader's language and re-localises if the
+    // system language changes while this screen is open.
+    var outcome by remember { mutableStateOf<AnalysisOutcome?>(null) }
 
     val indexed = (state as? EngineState.Ready)?.indexedCount ?: 0
     val total = tracks.size
 
     LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
         item {
-            SettingsSection("Status") {
-                StatRow("Engine", describeEngineState(state))
-                StatRow("Library", "$total tracks")
+            SettingsSection(stringResource(Res.string.intelligence_section_status)) {
+                StatRow(stringResource(Res.string.intelligence_engine), describeEngineState(state))
                 StatRow(
-                    label = "Sound fingerprints",
-                    value = if (total == 0) "—" else "$indexed of $total",
+                    label = stringResource(Res.string.intelligence_library),
+                    value = pluralStringResource(Res.plurals.count_tracks, total, total),
+                )
+                StatRow(
+                    label = stringResource(Res.string.intelligence_fingerprints),
+                    value = if (total == 0) {
+                        "—"
+                    } else {
+                        stringResource(Res.string.intelligence_indexed_of, indexed, total)
+                    },
                 )
                 if (total > 0 && indexed < total) {
                     LinearProgressIndicator(
@@ -388,8 +456,7 @@ private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDes
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                     )
                     Text(
-                        text = "Tracks without a fingerprint can still be played, but SMART will not " +
-                            "pick them or use them to judge what fits.",
+                        text = stringResource(Res.string.intelligence_fingerprint_note),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -399,10 +466,9 @@ private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDes
         }
 
         item {
-            SettingsSection("Analysis") {
+            SettingsSection(stringResource(Res.string.intelligence_section_analysis)) {
                 Text(
-                    text = "Listening a track for the first time does not analyse it. Fingerprints are " +
-                        "computed in batches, and the work resumes where it left off.",
+                    text = stringResource(Res.string.intelligence_analysis_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -416,20 +482,23 @@ private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDes
                         enabled = !busy && total > 0,
                         onClick = {
                             busy = true
-                            message = null
+                            outcome = null
                             AppGraph.appScope.launch {
                                 val report = engine.indexLibrary(tracks.take(INDEX_BATCH))
-                                message = "Analysed ${report.indexed}, skipped ${report.skipped}, " +
-                                    "failed ${report.failed}."
+                                outcome = AnalysisOutcome.Batch(
+                                    indexed = report.indexed,
+                                    skipped = report.skipped,
+                                    failed = report.failed,
+                                )
                                 busy = false
                             }
                         },
-                    ) { Text("Analyse $INDEX_BATCH") }
+                    ) { Text(stringResource(Res.string.intelligence_analyse_batch, INDEX_BATCH)) }
                     OutlinedButton(
                         enabled = !busy && total > 0,
                         onClick = {
                             busy = true
-                            message = null
+                            outcome = null
                             AppGraph.appScope.launch {
                                 var indexedNow = 0
                                 var failed = 0
@@ -438,18 +507,30 @@ private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDes
                                     indexedNow += report.indexed
                                     failed += report.failed
                                 }
-                                message = "Analysed $indexedNow, failed $failed."
+                                outcome = AnalysisOutcome.Everything(indexedNow, failed)
                                 busy = false
                             }
                         },
-                    ) { Text("Analyse everything") }
+                    ) { Text(stringResource(Res.string.intelligence_analyse_all)) }
                     if (busy) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp))
                     }
                 }
-                message?.let { text ->
+                outcome?.let { done ->
                     Text(
-                        text = text,
+                        text = when (done) {
+                            is AnalysisOutcome.Batch -> stringResource(
+                                Res.string.intelligence_analysed_batch_report,
+                                done.indexed,
+                                done.skipped,
+                                done.failed,
+                            )
+                            is AnalysisOutcome.Everything -> stringResource(
+                                Res.string.intelligence_analysed_all_report,
+                                done.indexed,
+                                done.failed,
+                            )
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -459,10 +540,9 @@ private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDes
         }
 
         item {
-            SettingsSection("Privacy") {
+            SettingsSection(stringResource(Res.string.intelligence_section_privacy)) {
                 Text(
-                    text = "Every model runs on this device. Your library, your listening history and " +
-                        "everything derived from them stay here — there is no account and no upload.",
+                    text = stringResource(Res.string.intelligence_privacy_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -474,11 +554,18 @@ private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDes
 
 private const val INDEX_BATCH = 24
 
+/** What an analysis run reported, kept as counts so the sentence can be localised. */
+private sealed interface AnalysisOutcome {
+    data class Batch(val indexed: Int, val skipped: Int, val failed: Int) : AnalysisOutcome
+    data class Everything(val indexed: Int, val failed: Int) : AnalysisOutcome
+}
+
+@Composable
 private fun describeEngineState(state: EngineState): String = when (state) {
-    is EngineState.Uninitialized -> "Not started"
-    is EngineState.Initializing -> "Starting…"
-    is EngineState.Ready -> "Ready"
-    is EngineState.Failed -> "Unavailable — ${state.error}"
+    is EngineState.Uninitialized -> stringResource(Res.string.engine_state_not_started)
+    is EngineState.Initializing -> stringResource(Res.string.engine_state_starting)
+    is EngineState.Ready -> stringResource(Res.string.engine_state_ready)
+    is EngineState.Failed -> stringResource(Res.string.engine_state_unavailable, state.error)
 }
 
 // -------------------------------------------------------------------- pieces

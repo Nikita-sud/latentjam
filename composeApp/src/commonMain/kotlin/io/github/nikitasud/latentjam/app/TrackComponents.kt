@@ -31,7 +31,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.cd_track_options_for
+import io.github.nikitasud.latentjam.app.generated.resources.cd_track_options_generic
+import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
+import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import org.jetbrains.compose.resources.stringResource
 
 /** Square, rounded artwork with a music-note placeholder behind it. */
 @Composable
@@ -86,14 +92,14 @@ internal fun TrackRow(
         Artwork(uri = track.artworkUri, size = 48.dp)
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = track.title ?: "Untitled",
+                text = track.title ?: stringResource(Res.string.track_untitled),
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Unspecified,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = track.artist ?: "Unknown artist",
+                text = track.artist ?: stringResource(Res.string.track_unknown_artist),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -101,10 +107,16 @@ internal fun TrackRow(
             )
         }
         if (onMenu != null) {
+            val title = track.title
+            val menuDescription = if (title != null) {
+                stringResource(Res.string.cd_track_options_for, title)
+            } else {
+                stringResource(Res.string.cd_track_options_generic)
+            }
             IconButton(onClick = onMenu) {
                 Icon(
                     imageVector = Icons.Rounded.MoreVert,
-                    contentDescription = "More options for ${track.title ?: "this track"}",
+                    contentDescription = menuDescription,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
