@@ -9,9 +9,13 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -356,7 +360,34 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         contentAlignment = Alignment.Center,
                                     ) { Text("No music found on this device.") }
 
-                                    else -> when (selectedTab) {
+                                    // Shared-axis X: the outgoing page leaves the way the incoming
+                                    // one arrives, so the motion reads as travelling along the
+                                    // carousel rather than as two unrelated screens swapping. The
+                                    // slide is deliberately a fraction of the width — a full-width
+                                    // push would imply the pages are further apart than they are.
+                                    else -> AnimatedContent(
+                                        targetState = selectedTab,
+                                        label = "browse-tab",
+                                        transitionSpec = {
+                                            val forward = targetState > initialState
+                                            val enter = slideInHorizontally(
+                                                tween(TAB_TRANSITION_MS, easing = FastOutSlowInEasing),
+                                            ) { width -> if (forward) width / 8 else -width / 8 } +
+                                                fadeIn(tween(200, delayMillis = 40))
+                                            // The fades OVERLAP on purpose. Material's shared axis
+                                            // lets the outgoing page finish before the incoming one
+                                            // ramps up, which here left a frame of bare background
+                                            // between two dense lists — it read as a flicker.
+                                            val exit = slideOutHorizontally(
+                                                tween(TAB_TRANSITION_MS, easing = FastOutSlowInEasing),
+                                            ) { width -> if (forward) -width / 8 else width / 8 } +
+                                                fadeOut(tween(170))
+                                            // Pages differ in height; letting the container resize
+                                            // mid-flight makes the lists jump.
+                                            enter togetherWith exit using SizeTransform(clip = false)
+                                        },
+                                    ) { tab ->
+                                        when (tab) {
                                         PLAYLISTS_TAB -> PlaylistsTabContent(
                                             autoPlaylists = autoPlaylists,
                                             playlists = playlists,
@@ -464,6 +495,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                         .firstNotNullOfOrNull { it.artworkUri },
                                                 ) { selectedCollection = genre.toSelection() }
                                             }
+                                        }
                                         }
                                     }
                                 }
@@ -618,6 +650,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 private val BROWSE_TABS = listOf("Playlists", "Tracks", "Albums", "Artists", "Genres")
 
 /** Playlists lead the carousel, but the app opens on Tracks. */
+/**
+ * Tab-change duration. Long enough to read as travel between neighbours, short enough that a quick
+ * scrub across the carousel never feels like waiting for an animation to finish.
+ */
+private const val TAB_TRANSITION_MS = 260
+
 private const val PLAYLISTS_TAB = 0
 private const val TRACKS_TAB = 1
 
