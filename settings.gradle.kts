@@ -38,5 +38,6 @@ rootProject.name = "latentjam-monorepo"
 include(":core:smart")
 include(":core:library")
 include(":core:playback")
+include(":core:history")
 include(":composeApp")
 include(":androidApp")

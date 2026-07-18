@@ -100,10 +100,27 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var showNowPlaying by remember { mutableStateOf(false) }
         var showSearch by remember { mutableStateOf(false) }
         var indexSummary by remember { mutableStateOf<String?>(null) }
+        var historySummary by remember { mutableStateOf<String?>(null) }
         val now by playback.state.collectAsState()
 
         LaunchedEffect(Unit) { tracks = library.tracks() }
         val catalog = remember(tracks) { tracks?.let { LibraryCatalog.build(it) } }
+
+        LaunchedEffect(showDiagnostics) {
+            if (showDiagnostics) {
+                val stats = AppGraph.history.stats()
+                val listens = stats.values.sumOf { it.plays }
+                val top = stats.maxByOrNull { it.value.plays }
+                val topTitle = top?.let { entry ->
+                    catalog?.songs?.firstOrNull { it.id == entry.key }?.title ?: entry.key.value
+                }
+                historySummary = when {
+                    listens == 0 -> "History: no listens recorded yet."
+                    top == null -> "History: $listens listens."
+                    else -> "History: $listens listens; top: $topTitle (${top.value.plays}×)."
+                }
+            }
+        }
 
         fun indexTracks(selection: List<TrackDescriptor>) {
             // App-lifetime scope: indexing continues if the dialog closes or
@@ -259,6 +276,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 engine = engine,
                 trackCount = tracks?.size,
                 indexSummary = indexSummary,
+                historySummary = historySummary,
                 onRescan = { scope.launch { tracks = library.tracks() } },
                 onIndexSample = { tracks?.let { loaded -> indexTracks(loaded.take(24)) } },
                 onIndexAll = { tracks?.let(::indexTracks) },
@@ -457,6 +475,7 @@ private fun DiagnosticsDialog(
     engine: SimilarityEngine,
     trackCount: Int?,
     indexSummary: String?,
+    historySummary: String?,
     onRescan: () -> Unit,
     onIndexSample: () -> Unit,
     onIndexAll: () -> Unit,
@@ -469,6 +488,7 @@ private fun DiagnosticsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 EngineCard(engine)
                 Text("Library: ${trackCount?.toString() ?: "…"} tracks")
+                historySummary?.let { Text(it) }
                 indexSummary?.let { Text(it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = onIndexSample) { Text("Index 24") }

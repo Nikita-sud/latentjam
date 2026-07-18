@@ -38,6 +38,7 @@ kotlin {
             api(project(":core:smart"))
             api(project(":core:library"))
             api(project(":core:playback"))
+            api(project(":core:history"))
             api(compose.runtime)
             api(compose.foundation)
             api(compose.material3)

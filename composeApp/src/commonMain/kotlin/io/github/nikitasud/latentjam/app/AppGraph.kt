@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.ListeningHistory
+import io.github.nikitasud.latentjam.history.listeningHistoryModule
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.musicLibraryModule
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
@@ -61,6 +63,7 @@ object AppGraph {
                     smartEngineBackendModule(),
                     musicLibraryModule(),
                     playbackModule(),
+                    listeningHistoryModule(),
                     module {
                         // Production model contract (mnv4-conv-m-distill-mw):
                         // 960-dim embeddings, asset-shipped ONNX. Last-wins
@@ -79,11 +82,17 @@ object AppGraph {
                     },
                 )
             }
+            // History observes playback for the app's whole lifetime.
+            appScope.launchPlaybackHistoryRecorder(playback, history)
         }
     }
 
     /** The process-wide similarity engine. */
     val engine: SimilarityEngine
+        get() = koin.get()
+
+    /** The local listening record. */
+    val history: ListeningHistory
         get() = koin.get()
 
     /** The device music collection. */
