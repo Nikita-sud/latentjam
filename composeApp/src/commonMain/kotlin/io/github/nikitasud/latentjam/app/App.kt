@@ -4,20 +4,44 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,8 +50,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import io.github.nikitasud.latentjam.library.MusicLibrary
+import io.github.nikitasud.latentjam.playback.PlaybackController
+import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.EngineState
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
@@ -35,37 +67,236 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.launch
 
 /**
- * Root composable, shared by Android and iOS.
+ * Root composable, shared by Android and iOS: the player shell.
  *
- * Still a deliberately small status screen, now with two live cards: the
- * similarity engine's lifecycle (stub backends → graceful "model not bundled"
- * state) and the device music library (real MediaStore data on Android). Both
- * are driven from UI-scoped coroutines — safe by contract, because engine and
- * library confine their own work to background dispatchers.
+ * Songs list (auto-scanned on entry) → tap to play through the
+ * [PlaybackController]; mini-player at the bottom; shuffle action in the top
+ * bar cycling OFF → ON → SMART; engine/library diagnostics tucked behind the
+ * info action. All Material 3, all original expression — the legacy app's
+ * look is never consulted.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun App(engine: SimilarityEngine, library: MusicLibrary) {
+fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackController) {
     MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = "LatentJam",
-                    style = MaterialTheme.typography.headlineLarge,
-                )
-                Text(
-                    text = "On-device smart shuffle — cross-platform core",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+        val scope = rememberCoroutineScope()
+        val snackbar = remember { SnackbarHostState() }
+        var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
+        var showDiagnostics by remember { mutableStateOf(false) }
+        val now by playback.state.collectAsState()
 
-                EngineCard(engine)
-                LibraryCard(library)
+        LaunchedEffect(Unit) { tracks = library.tracks() }
+
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("LatentJam") },
+                    actions = {
+                        ShuffleAction(mode = now.shuffleMode) {
+                            scope.launch {
+                                val newMode = playback.cycleShuffleMode()
+                                snackbar.showSnackbar(newMode.userLabel())
+                            }
+                        }
+                        IconButton(onClick = { showDiagnostics = true }) {
+                            Icon(Icons.Filled.Info, contentDescription = "Diagnostics")
+                        }
+                    },
+                )
+            },
+            bottomBar = {
+                now.track?.let { current ->
+                    MiniPlayer(
+                        track = current,
+                        isPlaying = now.isPlaying,
+                        onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
+                        onNext = { scope.launch { playback.next() } },
+                    )
+                }
+            },
+            snackbarHost = { SnackbarHost(snackbar) },
+        ) { padding ->
+            when (val loaded = tracks) {
+                null -> Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator() }
+
+                else -> if (loaded.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("No music found on this device.") }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = padding,
+                    ) {
+                        itemsIndexed(loaded, key = { _, track -> track.id.value }) { index, track ->
+                            TrackRow(
+                                track = track,
+                                isCurrent = track.id == now.track?.id,
+                                onClick = { scope.launch { playback.play(loaded, index) } },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showDiagnostics) {
+            DiagnosticsDialog(
+                engine = engine,
+                trackCount = tracks?.size,
+                onRescan = { scope.launch { tracks = library.tracks() } },
+                onDismiss = { showDiagnostics = false },
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------- components
+
+@Composable
+private fun ShuffleAction(mode: ShuffleMode, onClick: () -> Unit) {
+    val tint = when (mode) {
+        ShuffleMode.OFF -> MaterialTheme.colorScheme.onSurfaceVariant
+        ShuffleMode.ON -> MaterialTheme.colorScheme.primary
+        ShuffleMode.SMART -> MaterialTheme.colorScheme.tertiary
+    }
+    IconButton(onClick = onClick) {
+        Icon(Icons.Filled.Shuffle, contentDescription = "Shuffle mode: $mode", tint = tint)
+    }
+}
+
+@Composable
+private fun TrackRow(track: TrackDescriptor, isCurrent: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Artwork(uri = track.artworkUri, size = 48.dp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = track.title ?: "Untitled",
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = track.artist ?: "Unknown artist",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        track.durationMs?.let { duration ->
+            Text(
+                text = formatDuration(duration),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun Artwork(uri: String?, size: Dp) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.MusicNote,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (uri != null) {
+            AsyncImage(
+                model = uri,
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MiniPlayer(
+    track: TrackDescriptor,
+    isPlaying: Boolean,
+    onTogglePlayPause: () -> Unit,
+    onNext: () -> Unit,
+) {
+    Surface(tonalElevation = 3.dp) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Artwork(uri = track.artworkUri, size = 44.dp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = track.title ?: "Untitled",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = track.artist ?: "Unknown artist",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            IconButton(onClick = onTogglePlayPause) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                )
+            }
+            IconButton(onClick = onNext) {
+                Icon(Icons.Filled.SkipNext, contentDescription = "Next track")
             }
         }
     }
+}
+
+@Composable
+private fun DiagnosticsDialog(
+    engine: SimilarityEngine,
+    trackCount: Int?,
+    onRescan: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Diagnostics") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                EngineCard(engine)
+                Text("Library: ${trackCount?.toString() ?: "…"} tracks")
+                TextButton(onClick = onRescan) { Text("Rescan library") }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        },
+    )
 }
 
 @Composable
@@ -73,63 +304,6 @@ private fun EngineCard(engine: SimilarityEngine) {
     val state by engine.state.collectAsState()
     val scope = rememberCoroutineScope()
 
-    StatusCard(title = "Similarity engine") {
-        when (val current = state) {
-            EngineState.Uninitialized -> Text("Not initialized yet.")
-            EngineState.Initializing -> CircularProgressIndicator()
-            is EngineState.Ready -> Text("Ready — ${current.indexedCount} tracks indexed.")
-            is EngineState.Failed -> Text(current.error.toUserMessage())
-        }
-        Button(
-            onClick = { scope.launch { engine.initialize() } },
-            enabled = state !is EngineState.Initializing,
-        ) {
-            Text(if (state is EngineState.Failed) "Retry initialization" else "Initialize engine")
-        }
-    }
-}
-
-@Composable
-private fun LibraryCard(library: MusicLibrary) {
-    var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
-    var scanning by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    StatusCard(title = "Music library") {
-        when {
-            scanning -> CircularProgressIndicator()
-            tracks == null -> Text("Not scanned yet.")
-            else -> {
-                val found = tracks.orEmpty()
-                Text("${found.size} tracks found.")
-                found.take(3).forEach { track ->
-                    Text(
-                        text = listOfNotNull(track.artist, track.title ?: "Untitled")
-                            .joinToString(" — "),
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
-        Button(
-            onClick = {
-                scope.launch {
-                    scanning = true
-                    tracks = library.tracks()
-                    scanning = false
-                }
-            },
-            enabled = !scanning,
-        ) {
-            Text(if (tracks == null) "Scan library" else "Rescan")
-        }
-    }
-}
-
-/** Shared chrome for the status cards: title + centered content column. */
-@Composable
-private fun StatusCard(title: String, content: @Composable () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -137,12 +311,38 @@ private fun StatusCard(title: String, content: @Composable () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = title,
+                text = "Similarity engine",
                 style = MaterialTheme.typography.titleMedium,
             )
-            content()
+            when (val current = state) {
+                EngineState.Uninitialized -> Text("Not initialized yet.")
+                EngineState.Initializing -> CircularProgressIndicator()
+                is EngineState.Ready -> Text("Ready — ${current.indexedCount} tracks indexed.")
+                is EngineState.Failed -> Text(current.error.toUserMessage())
+            }
+            Button(
+                onClick = { scope.launch { engine.initialize() } },
+                enabled = state !is EngineState.Initializing,
+            ) {
+                Text(if (state is EngineState.Failed) "Retry initialization" else "Initialize engine")
+            }
         }
     }
+}
+
+// ------------------------------------------------------------------- helpers
+
+private fun ShuffleMode.userLabel(): String = when (this) {
+    ShuffleMode.OFF -> "Shuffle off"
+    ShuffleMode.ON -> "Shuffle on"
+    ShuffleMode.SMART -> "SMART shuffle — random fallback until the model lands"
+}
+
+private fun formatDuration(durationMs: Long): String {
+    val totalSeconds = durationMs / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "$minutes:${seconds.toString().padStart(2, '0')}"
 }
 
 /** Friendly, non-technical wording for the typed engine errors. */

@@ -37,10 +37,13 @@ kotlin {
             // (SimilarityEngine in App()'s signature, @Composable App itself).
             api(project(":core:smart"))
             api(project(":core:library"))
+            api(project(":core:playback"))
             api(compose.runtime)
             api(compose.foundation)
             api(compose.material3)
             api(compose.ui)
+            implementation(compose.materialIconsExtended)
+            implementation(libs.coil.compose)
         }
         androidMain.dependencies {
             // MainActivity lives here (see its KDoc for the AGP 9 rationale).

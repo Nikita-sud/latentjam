@@ -53,7 +53,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             var granted by remember { mutableStateOf(hasAudioPermission()) }
             if (granted) {
-                App(engine = AppGraph.engine, library = AppGraph.library)
+                App(
+                    engine = AppGraph.engine,
+                    library = AppGraph.library,
+                    playback = AppGraph.playback,
+                )
             } else {
                 AudioPermissionGate(onGranted = { granted = true })
             }

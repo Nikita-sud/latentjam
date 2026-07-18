@@ -35,6 +35,8 @@ public value class TrackId(public val value: String)
  *   `content://` URI on Android, a file URL on iOS, …). Backends that embed
  *   raw audio (the CNN encoder) use this to decode the waveform; metadata-only
  *   backends ignore it. `null` means "audio not available for this track".
+ * @property artworkUri Platform-resolvable locator of the track's cover art,
+ *   for UI and media-notification display. The engine ignores it.
  */
 public data class TrackDescriptor(
     public val id: TrackId,
@@ -44,6 +46,7 @@ public data class TrackDescriptor(
     public val genre: String? = null,
     public val durationMs: Long? = null,
     public val audioUri: String? = null,
+    public val artworkUri: String? = null,
 )
 
 /**

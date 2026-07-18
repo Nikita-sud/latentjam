@@ -37,6 +37,7 @@ internal class MediaStoreMusicLibrary(
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.ALBUM_ID,
             MediaStore.Audio.Media.DURATION,
         )
         context.contentResolver.query(
@@ -50,9 +51,11 @@ internal class MediaStoreMusicLibrary(
             val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
             val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+            val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
+                val albumId = cursor.getLong(albumIdColumn)
                 tracks += TrackDescriptor(
                     id = TrackId(id.toString()),
                     title = cursor.getString(titleColumn).knownOrNull(),
@@ -62,6 +65,9 @@ internal class MediaStoreMusicLibrary(
                     audioUri = ContentUris
                         .withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
                         .toString(),
+                    artworkUri = albumId.takeIf { it > 0 }?.let { album ->
+                        ContentUris.withAppendedId(ALBUM_ART_URI, album).toString()
+                    },
                 )
             }
         }
@@ -71,6 +77,11 @@ internal class MediaStoreMusicLibrary(
     /** MediaStore reports missing tags as the literal string "<unknown>". */
     private fun String?.knownOrNull(): String? =
         this?.takeIf { it.isNotBlank() && it != MediaStore.UNKNOWN_STRING }
+
+    private companion object {
+        /** Base of the classic per-album artwork content URIs. */
+        val ALBUM_ART_URI: android.net.Uri = android.net.Uri.parse("content://media/external/audio/albumart")
+    }
 }
 
 public actual fun musicLibraryModule(): Module = module {

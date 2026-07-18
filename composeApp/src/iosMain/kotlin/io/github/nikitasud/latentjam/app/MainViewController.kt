@@ -15,6 +15,10 @@ import platform.UIKit.UIViewController
 fun MainViewController(): UIViewController {
     AppGraph.start()
     return ComposeUIViewController {
-        App(engine = AppGraph.engine, library = AppGraph.library)
+        App(
+            engine = AppGraph.engine,
+            library = AppGraph.library,
+            playback = AppGraph.playback,
+        )
     }
 }

@@ -16,6 +16,7 @@ ported-by-diff, or merged across that license boundary, in either direction.
 |---|---|
 | `:core:smart` | The similarity-engine architectural layer: `SimilarityEngine` interface, Koin DI, `expect`/`actual` embedding-backend stubs for Android (ONNX Runtime, later) and iOS (Core ML / ONNX Runtime, later), and an in-memory vector index. No ML runtime dependencies yet. |
 | `:core:library` | `MusicLibrary` port onto the device's music collection: MediaStore-backed on Android (permission-gated), stub on iOS pending a MusicKit/files source. |
+| `:core:playback` | `PlaybackController` port with the OFF/ON/SMART shuffle cycle. Android: Media3/ExoPlayer behind a `MediaSessionService` (background playback, media notification); SMART stays one track ahead via a pluggable `NextTrackChooser` with random fallback. iOS: stub pending AVQueuePlayer. |
 | `:composeApp` | Shared Compose Multiplatform UI + the `AppGraph` Koin composition root. A KMP **library** (AGP 9 has no KMP application plugin), consumed by both thin shells; also produces the `ComposeApp.framework` for iOS. |
 | `:androidApp` | Thin Android shell: `MainActivity` hosting the shared `App` composable. Application id `io.github.nikitasud.latentjam.kmp` so it coexists with the legacy app during development. |
 | `iosApp/` | Thin SwiftUI shell (Xcode project) hosting the shared UI via `ComposeUIViewController`; builds the Kotlin framework through the `embedAndSignAppleFrameworkForXcode` script phase. |

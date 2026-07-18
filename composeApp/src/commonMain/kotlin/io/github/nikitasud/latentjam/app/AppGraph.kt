@@ -6,6 +6,9 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.musicLibraryModule
+import io.github.nikitasud.latentjam.playback.NextTrackChooser
+import io.github.nikitasud.latentjam.playback.PlaybackController
+import io.github.nikitasud.latentjam.playback.playbackModule
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.di.smartEngineModule
 import org.koin.core.Koin
@@ -40,7 +43,16 @@ object AppGraph {
     fun start(platformModule: Module = module { }) {
         if (koinApp == null) {
             koinApp = koinApplication {
-                modules(platformModule, smartEngineModule, musicLibraryModule())
+                modules(
+                    platformModule,
+                    smartEngineModule,
+                    musicLibraryModule(),
+                    playbackModule(),
+                    module {
+                        // The single point where playback meets the engine.
+                        single<NextTrackChooser> { EngineNextTrackChooser(engine = get()) }
+                    },
+                )
             }
         }
     }
@@ -51,6 +63,10 @@ object AppGraph {
 
     /** The device music collection. */
     val library: MusicLibrary
+        get() = koin.get()
+
+    /** The playback controller (media-session-backed on Android). */
+    val playback: PlaybackController
         get() = koin.get()
 
     private val koin: Koin
