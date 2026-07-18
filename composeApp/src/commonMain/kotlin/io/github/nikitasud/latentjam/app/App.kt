@@ -98,6 +98,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.AlbumGroup
 import io.github.nikitasud.latentjam.library.ArtistGroup
 import io.github.nikitasud.latentjam.library.AutoPlaylists
@@ -179,6 +180,19 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // persisted index, and backfill any missing metadata-text vectors. All idempotent. Doing it
         // here rather than on first press means the SMART button is instant when it is finally
         // tapped, instead of stalling on tens of MB of model loading.
+        var forYou by remember { mutableStateOf<List<ForYouSection>>(emptyList()) }
+        LaunchedEffect(tracks, selectedTab == FOR_YOU_TAB) {
+            val loaded = tracks ?: return@LaunchedEffect
+            if (selectedTab != FOR_YOU_TAB || forYou.isNotEmpty()) return@LaunchedEffect
+            forYou = ForYouBuilder.build(
+                library = loaded,
+                stats = AppGraph.history.stats(),
+                recentEvents = AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU),
+                nowMs = epochMillis(),
+                excluded = setOfNotNull(now.track?.id),
+            )
+        }
+
         LaunchedEffect(tracks) {
             val loaded = tracks ?: return@LaunchedEffect
             AppGraph.appScope.launch {
@@ -396,6 +410,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         key = { page -> page },
                                     ) { tab ->
                                         when (tab) {
+                                        FOR_YOU_TAB -> ForYouTab(
+                                            sections = forYou,
+                                            contentPadding = listPadding,
+                                            onPlay = { list, index ->
+                                                scope.launch { playback.play(list, index) }
+                                            },
+                                            onTrackMenu = { trackMenuTarget = it },
+                                        )
+
                                         PLAYLISTS_TAB -> PlaylistsTabContent(
                                             autoPlaylists = autoPlaylists,
                                             playlists = playlists,
@@ -459,7 +482,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             )
                                         }
 
-                                        2 -> LazyVerticalGrid(
+                                        3 -> LazyVerticalGrid(
                                             columns = GridCells.Fixed(2),
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = PaddingValues(
@@ -476,7 +499,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             }
                                         }
 
-                                        3 -> LazyColumn(
+                                        4 -> LazyColumn(
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = listPadding,
                                         ) {
@@ -671,13 +694,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
     }
 }
 
-private val BROWSE_TABS = listOf("Playlists", "Tracks", "Albums", "Artists", "Genres")
+private val BROWSE_TABS = listOf("For You", "Playlists", "Tracks", "Albums", "Artists", "Genres")
 
 /** Playlists lead the carousel, but the app opens on Tracks. */
-private const val PLAYLISTS_TAB = 0
-private const val TRACKS_TAB = 1
+private const val FOR_YOU_TAB = 0
+private const val PLAYLISTS_TAB = 1
+private const val TRACKS_TAB = 2
 
 /** Persist-and-report granularity for library indexing. */
+private const val RECENT_EVENTS_FOR_YOU = 500
+
 private const val INDEX_CHUNK_SIZE = 8
 
 /** Duration of the mini-player ↔ now-playing morph. */
