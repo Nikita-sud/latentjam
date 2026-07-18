@@ -1,0 +1,109 @@
+/*
+ * Copyright (c) 2026 LatentJam Project
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package io.github.nikitasud.latentjam.library.tags
+
+import java.io.File
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+/**
+ * Runs the tag writer against ACTUAL music files.
+ *
+ * The synthetic fixtures elsewhere prove the codec agrees with the author's reading of the spec.
+ * They cannot prove it agrees with what encoders in the wild actually emit — and tags in the wild
+ * are full of oddities no specification predicts. This is the test that stands between the writer
+ * and someone's library.
+ *
+ * Point `ID3_REAL_FILES` at a directory of .mp3 files; absent, this reports as skipped rather than
+ * failing, since real music cannot be committed to the repository.
+ */
+class Id3RealFileTest {
+
+    private fun files(): List<File>? =
+        System.getenv("ID3_REAL_FILES")
+            ?.let(::File)
+            ?.takeIf { it.isDirectory }
+            ?.listFiles { f -> f.extension.equals("mp3", ignoreCase = true) }
+            ?.sortedBy { it.name }
+            ?.takeIf { it.isNotEmpty() }
+
+    @Test
+    fun `real files round-trip without losing anything`() {
+        val files = files() ?: run {
+            println("SKIP: set ID3_REAL_FILES to a directory of .mp3 files")
+            return
+        }
+
+        val failures = mutableListOf<String>()
+        for (file in files) {
+            val original = file.readBytes()
+            val before = Id3Tags.read(original)
+            if (before == null) {
+                // A refusal is a valid outcome, but we want to know which files hit it and why.
+                println("${file.name}: no readable tag (${Id3Tags.refusalOf(original)})")
+                continue
+            }
+
+            // 1. No-op edit must not disturb the frames that are already there.
+            val untouched = updateId3Tag(original, TagEdits())
+            if (untouched != null) {
+                val after = Id3Tags.read(untouched)
+                if (after?.frameIds?.toSet() != before.frameIds.toSet()) {
+                    failures += "${file.name}: no-op edit changed frames " +
+                        "${before.frameIds} -> ${after?.frameIds}"
+                }
+            }
+
+            // 2. A real edit must land, and must not cost any other frame — album art above all.
+            val edited = updateId3Tag(original, TagEdits(title = "Проверка テスト"))
+            if (edited == null) {
+                failures += "${file.name}: refused a plain title edit (${Id3Tags.refusalOf(original)})"
+                continue
+            }
+            val after = Id3Tags.read(edited)
+            if (after == null) {
+                failures += "${file.name}: tag unreadable after edit"
+                continue
+            }
+            if (after.title != "Проверка テスト") {
+                failures += "${file.name}: title did not survive: ${after.title}"
+            }
+            val lost = before.frameIds.toSet() - after.frameIds.toSet()
+            if (lost.isNotEmpty()) failures += "${file.name}: LOST FRAMES $lost"
+
+            if (before.artist != null && after.artist != before.artist) {
+                failures += "${file.name}: artist changed by a title-only edit"
+            }
+
+            // 3. The audio itself must be untouched. This is the one that matters most: a writer
+            //    that corrupts the stream is worse than one that refuses.
+            val audioBefore = original.copyOfRange(before.totalLength, original.size)
+            val audioAfter = edited.copyOfRange(after.totalLength, edited.size)
+            if (!audioBefore.contentEquals(audioAfter)) {
+                failures += "${file.name}: AUDIO STREAM ALTERED"
+            }
+        }
+
+        assertTrue(failures.isEmpty(), "real-file failures:\n" + failures.joinToString("\n"))
+        println("id3: ${files.size} real files round-tripped with frames and audio intact")
+    }
+
+    @Test
+    fun `a real file is never silently truncated`() {
+        val files = files() ?: return
+        for (file in files) {
+            val original = file.readBytes()
+            val edited = updateId3Tag(original, TagEdits(title = "x")) ?: continue
+            val before = Id3Tags.read(original) ?: continue
+            val after = Id3Tags.read(edited) ?: continue
+            assertEquals(
+                original.size - before.totalLength,
+                edited.size - after.totalLength,
+                "${file.name}: audio length changed",
+            )
+        }
+    }
+}

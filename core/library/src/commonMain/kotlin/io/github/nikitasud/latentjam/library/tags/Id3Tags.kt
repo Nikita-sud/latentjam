@@ -1,0 +1,311 @@
+/*
+ * Copyright (c) 2026 LatentJam Project
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package io.github.nikitasud.latentjam.library.tags
+
+/**
+ * Reads and rewrites the ID3v2 tag at the head of a file.
+ *
+ * Everything here operates on [ByteArray] and performs no IO, so the format
+ * logic is testable on the host JVM and identical on every target.
+ *
+ * ### Preservation
+ *
+ * Frames this codec does not understand — album art, ReplayGain, comments,
+ * lyrics, anything — are copied to the output byte for byte, in their original
+ * order. Only the five managed text frames are ever rewritten. A tag that
+ * cannot be fully accounted for is refused rather than partially rewritten,
+ * because a partial rewrite is indistinguishable from deleting the frames that
+ * were not understood.
+ *
+ * ### How much of the file to pass
+ *
+ * - [updateTag] and the top-level [updateId3Tag] take the **whole file** and
+ *   return the whole new file. Simplest to use and the natural input for an
+ *   atomic write-temp-then-rename.
+ * - [buildUpdate] needs only the leading bytes: at least [Id3Codec.HEADER_SIZE]
+ *   bytes to read the header, and then as many as [tagLength] reports. It hands
+ *   back the new tag plus how many leading bytes it replaces, so a caller can
+ *   stream the untouched audio instead of holding a whole file in memory.
+ *
+ * Nothing here writes files, so atomicity is the caller's to arrange: write to
+ * a temporary file in the same directory, fsync, then rename over the original.
+ */
+public object Id3Tags {
+
+    /** Frame IDs this writer manages. Everything else is opaque and preserved. */
+    private const val FRAME_TITLE = "TIT2"
+    private const val FRAME_ARTIST = "TPE1"
+    private const val FRAME_ALBUM = "TALB"
+    private const val FRAME_GENRE = "TCON"
+
+    /** ID3v2.3's year frame — exactly four characters. */
+    private const val FRAME_YEAR_V23 = "TYER"
+
+    /** ID3v2.4's recording-time frame, which supersedes TYER. */
+    private const val FRAME_YEAR_V24 = "TDRC"
+
+    /**
+     * Slack left at the end of a tag this codec creates or grows, so the next
+     * few edits can reuse the same footprint instead of moving the audio.
+     */
+    private const val PADDING = 1024
+
+    /**
+     * Container magics that must never be given a prepended ID3v2 tag. The
+     * check is deny-known-foreign rather than require-MPEG, because real MP3s
+     * routinely start with junk bytes that no sync-word test survives.
+     */
+    private val FOREIGN_MAGIC = listOf("fLaC", "OggS", "RIFF", "FORM", "MThd", "wvpk", "PNG")
+
+    /**
+     * Total byte length of the tag at the head of [prefix], or 0 when there is
+     * none. Null when [prefix] is shorter than a header or the header is
+     * unusable. Needs only the first [Id3Codec.HEADER_SIZE] bytes.
+     */
+    public fun tagLength(prefix: ByteArray): Int? = Id3Codec.tagLength(prefix)
+
+    /**
+     * Reads the tag at the head of [prefix], or null when there is none or it
+     * is one this codec refuses. Use [refusalOf] to tell those two apart.
+     */
+    public fun read(prefix: ByteArray): Id3TagInfo? {
+        val tag = (Id3Codec.parse(prefix) as? Id3Parse.Parsed)?.tag ?: return null
+        val year = when (tag.version) {
+            Id3Version.V2_4 -> text(tag, FRAME_YEAR_V24) ?: text(tag, FRAME_YEAR_V23)
+            Id3Version.V2_3 -> text(tag, FRAME_YEAR_V23) ?: text(tag, FRAME_YEAR_V24)
+        }
+        return Id3TagInfo(
+            version = tag.version,
+            totalLength = tag.totalLength,
+            title = text(tag, FRAME_TITLE),
+            artist = text(tag, FRAME_ARTIST),
+            album = text(tag, FRAME_ALBUM),
+            genre = text(tag, FRAME_GENRE),
+            year = year,
+            frameIds = tag.frames.map { it.id },
+        )
+    }
+
+    /**
+     * Why [prefix] cannot be rewritten, or null when it can be (including when
+     * it simply has no tag yet).
+     */
+    public fun refusalOf(prefix: ByteArray): Id3Refusal? =
+        (Id3Codec.parse(prefix) as? Id3Parse.Refused)?.reason
+
+    /**
+     * Builds a replacement tag from the leading bytes of a file.
+     *
+     * [prefix] must contain at least the whole existing tag — ask [tagLength]
+     * how long that is. Returns null when the tag cannot be rewritten safely;
+     * [refusalOf] says why.
+     *
+     * When there is no tag yet, one is created at [newTagVersion], and the data
+     * is checked against [FOREIGN_MAGIC] first so a FLAC or WAV never gets an
+     * ID3v2 tag stapled to its front.
+     */
+    public fun buildUpdate(
+        prefix: ByteArray,
+        edits: TagEdits,
+        newTagVersion: Id3Version = Id3Version.V2_3,
+    ): Id3TagUpdate? = when (val parsed = Id3Codec.parse(prefix)) {
+        is Id3Parse.Refused -> null
+
+        is Id3Parse.Parsed -> {
+            val tag = parsed.tag
+            val frames = applyEdits(tag.version, tag.frames, edits)
+            val needed = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames)
+            // Keep the original footprint whenever the new frames still fit:
+            // the surplus becomes padding, the audio never moves, and the caller
+            // may patch just the head of the file instead of rewriting it.
+            val total = if (needed <= tag.totalLength) tag.totalLength else needed + PADDING
+            Id3Codec.serialize(tag.version, tag.isExperimental, frames, total)
+                ?.let { Id3TagUpdate(it, tag.totalLength) }
+        }
+
+        Id3Parse.Absent -> when {
+            !canPrependTag(prefix) -> null
+            else -> {
+                val frames = applyEdits(newTagVersion, emptyList(), edits)
+                val total = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames) + PADDING
+                Id3Codec.serialize(newTagVersion, experimental = false, frames = frames, totalLength = total)
+                    ?.let { Id3TagUpdate(it, 0) }
+            }
+        }
+    }
+
+    /**
+     * Whole file in, whole file out. Returns null when the tag cannot be
+     * rewritten safely, in which case the original must be left untouched.
+     */
+    public fun updateTag(
+        original: ByteArray,
+        edits: TagEdits,
+        newTagVersion: Id3Version = Id3Version.V2_3,
+    ): ByteArray? {
+        val update = buildUpdate(original, edits, newTagVersion) ?: return null
+        val out = ByteArray(update.tag.size + (original.size - update.replacedLength))
+        update.tag.copyInto(out)
+        original.copyInto(out, destinationOffset = update.tag.size, startIndex = update.replacedLength)
+        return out
+    }
+
+    /**
+     * Applies [edits] to [frames], preserving everything else in place.
+     *
+     * A replaced frame keeps its original position, so player-visible frame
+     * order is stable; a frame that did not exist is appended.
+     */
+    private fun applyEdits(
+        version: Id3Version,
+        frames: List<Id3RawFrame>,
+        edits: TagEdits,
+    ): List<Id3RawFrame> {
+        var result = frames
+        result = setText(version, result, FRAME_TITLE, edits.title)
+        result = setText(version, result, FRAME_ARTIST, edits.artist)
+        result = setText(version, result, FRAME_ALBUM, edits.album)
+        result = setText(version, result, FRAME_GENRE, edits.genre)
+
+        val yearFrame = if (version == Id3Version.V2_4) FRAME_YEAR_V24 else FRAME_YEAR_V23
+        val staleYear = if (version == Id3Version.V2_4) FRAME_YEAR_V23 else FRAME_YEAR_V24
+        result = setText(
+            version = version,
+            frames = result,
+            id = yearFrame,
+            value = edits.year?.let { normaliseYear(it, version) },
+            // Drop the other version's year frame so the file cannot end up
+            // carrying two years that disagree.
+            alsoRemove = listOf(staleYear),
+        )
+        return result
+    }
+
+    /**
+     * Sets, replaces or removes a text frame.
+     *
+     * A null [value] leaves the frame alone. An empty [value] removes it. Any
+     * duplicate frames with the same ID are collapsed into the single new one,
+     * and every ID in [alsoRemove] is dropped regardless.
+     */
+    private fun setText(
+        version: Id3Version,
+        frames: List<Id3RawFrame>,
+        id: String,
+        value: String?,
+        alsoRemove: List<String> = emptyList(),
+    ): List<Id3RawFrame> {
+        if (value == null) return frames
+        val doomed = alsoRemove + id
+        val out = ArrayList<Id3RawFrame>(frames.size + 1)
+        var placed = false
+        for (frame in frames) {
+            if (frame.id !in doomed) {
+                out.add(frame)
+                continue
+            }
+            if (frame.id == id && !placed && value.isNotEmpty()) {
+                out.add(newTextFrame(version, id, value))
+                placed = true
+            }
+            // Every other match is dropped: duplicates of the frame we just
+            // wrote, and the other version's stale year frame.
+        }
+        if (!placed && value.isNotEmpty()) out.add(newTextFrame(version, id, value))
+        return out
+    }
+
+    /** New frames get clean flags — no grouping, compression or encryption. */
+    private fun newTextFrame(version: Id3Version, id: String, value: String): Id3RawFrame =
+        Id3RawFrame(id, byteArrayOf(0, 0), Id3Text.encodeTextFrameBody(value, version))
+
+    /**
+     * TYER is defined as exactly four characters, so on ID3v2.3 a fuller
+     * timestamp is narrowed to its leading year. TDRC on 2.4 takes it whole.
+     */
+    private fun normaliseYear(value: String, version: Id3Version): String {
+        if (version == Id3Version.V2_4 || value.length <= 4) return value
+        val head = value.take(4)
+        return if (head.all { it in '0'..'9' }) head else value
+    }
+
+    /** Decoded text of the first frame with [id], or null when absent/opaque. */
+    private fun text(tag: Id3RawTag, id: String): String? {
+        val frame = tag.frames.firstOrNull { it.id == id } ?: return null
+        val body = frameTextBody(frame, tag.version) ?: return null
+        if (body.isEmpty()) return null
+        val raw = Id3Text.decode(body[0].toInt() and 0xFF, body, 1, body.size) ?: return null
+        // ID3v2.4 allows several NUL-separated values in one text frame. They
+        // are flattened for display; the frame is only ever rewritten wholesale.
+        return raw.split('\u0000')
+            .filter { it.isNotEmpty() }
+            .joinToString("; ")
+            .ifEmpty { null }
+    }
+
+    /**
+     * Strips the optional per-frame prefixes so the encoding byte is really the
+     * first byte, and undoes frame-level unsynchronisation. Returns null for
+     * compressed or encrypted frames, whose contents are not readable here —
+     * they are still preserved verbatim on write.
+     */
+    private fun frameTextBody(frame: Id3RawFrame, version: Id3Version): ByteArray? {
+        val format = frame.flags[1].toInt() and 0xFF
+        var start = 0
+        var unsynchronised = false
+        when (version) {
+            Id3Version.V2_3 -> {
+                if (format and 0x80 != 0 || format and 0x40 != 0) return null // compressed/encrypted
+                if (format and 0x20 != 0) start += 1 // grouping identity
+            }
+            Id3Version.V2_4 -> {
+                if (format and 0x08 != 0 || format and 0x04 != 0) return null // compressed/encrypted
+                if (format and 0x40 != 0) start += 1 // grouping identity
+                if (format and 0x01 != 0) start += 4 // data length indicator
+                unsynchronised = format and 0x02 != 0
+            }
+        }
+        if (start > frame.body.size) return null
+        return if (unsynchronised) {
+            Id3Text.deunsynchronise(frame.body, start, frame.body.size)
+        } else {
+            frame.body.copyOfRange(start, frame.body.size)
+        }
+    }
+
+    /** False when [data] is a container that must not be given an ID3v2 tag. */
+    private fun canPrependTag(data: ByteArray): Boolean {
+        if (data.size < 4) return false
+        if (FOREIGN_MAGIC.any { matchesAscii(data, 0, it) }) return false
+        // ISO base media (M4A/MP4) carries its magic at offset 4.
+        if (data.size >= 8 && matchesAscii(data, 4, "ftyp")) return false
+        return true
+    }
+
+    private fun matchesAscii(data: ByteArray, at: Int, text: String): Boolean {
+        if (at + text.length > data.size) return false
+        for (i in text.indices) if (data[at + i] != text[i].code.toByte()) return false
+        return true
+    }
+}
+
+/**
+ * Rewrites the ID3v2 tag at the head of [original], returning the new file
+ * bytes, or null when the tag cannot be rewritten without risking data loss.
+ *
+ * [original] should be the whole file: the result is the whole new file, ready
+ * to be written to a temporary file and renamed over the original. For a
+ * streaming caller that would rather not hold the file in memory, use
+ * [Id3Tags.buildUpdate], which needs only the leading bytes.
+ *
+ * A null return is a normal outcome, not an error to work around — see
+ * [Id3Refusal], and [Id3Tags.refusalOf] for the specific reason. The original
+ * file must be left exactly as it is.
+ */
+public fun updateId3Tag(
+    original: ByteArray,
+    edits: TagEdits,
+    newTagVersion: Id3Version = Id3Version.V2_3,
+): ByteArray? = Id3Tags.updateTag(original, edits, newTagVersion)
