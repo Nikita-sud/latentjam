@@ -65,7 +65,11 @@
     <string name="foryou_section_continue">聴きかけ</string>
     <string name="foryou_section_worth_revisiting">もう一度聴きたい</string>
     <string name="foryou_section_found_by_smart">SMART が見つけた曲</string>
+    <string name="foryou_section_worlds">ワールド</string>
     <string name="foryou_section_never_played">未再生</string>
+    <!-- ワールドでできる 2 つのこと。推測せずに選ばせる。 -->
+    <string name="foryou_world_open">曲を表示</string>
+    <string name="foryou_world_smart">ここから SMART を開始</string>
     <string name="foryou_kicker_resume">続きから再生</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="other">%1$d回再生しました</item>
@@ -115,6 +119,9 @@
     <string name="snack_playlist_created">「%1$s」を作成しました</string>
     <string name="snack_playlist_deleted">「%1$s」を削除しました</string>
     <string name="snack_added_to_playlist">「%1$s」に追加しました</string>
+    <string name="auto_playlist_recently_added">最近追加した曲</string>
+    <string name="auto_playlist_most_played">よく再生した曲</string>
+    <string name="auto_playlist_recently_played">最近再生した曲</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">次に再生</string>
@@ -138,6 +145,14 @@
     <string name="info_duration">再生時間</string>
     <string name="info_location">保存場所</string>
     <string name="info_not_set">未設定</string>
+    <string name="info_edit">タグを編集</string>
+    <string name="info_save">保存</string>
+    <string name="info_cancel">キャンセル</string>
+    <string name="info_saving">保存中…</string>
+    <string name="info_edit_note">ファイル自体に保存されるため、すべてのアプリに修正が反映されます。Android がファイルの変更許可を求めます。</string>
+    <string name="info_edit_refused">このファイルのタグは安全に書き換えられない形式のため、何も変更されませんでした。</string>
+    <string name="info_edit_failed">このファイルに書き込めませんでした。元のままです。</string>
+    <string name="info_edit_unavailable">このデバイスではタグの編集を利用できません。</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">設定</string>

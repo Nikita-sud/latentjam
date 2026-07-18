@@ -65,7 +65,11 @@
     <string name="foryou_section_continue">还没听完</string>
     <string name="foryou_section_worth_revisiting">值得再听</string>
     <string name="foryou_section_found_by_smart">SMART 发现</string>
+    <string name="foryou_section_worlds">音乐世界</string>
     <string name="foryou_section_never_played">从未播放</string>
+    <!-- 对一个世界能做的两件事，交给用户选择而不是替他决定。 -->
+    <string name="foryou_world_open">显示曲目</string>
+    <string name="foryou_world_smart">从这里开始 SMART</string>
     <string name="foryou_kicker_resume">从上次的位置继续</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="other">你听过 %1$d 次</item>
@@ -115,6 +119,9 @@
     <string name="snack_playlist_created">已创建“%1$s”</string>
     <string name="snack_playlist_deleted">已删除“%1$s”</string>
     <string name="snack_added_to_playlist">已添加到“%1$s”</string>
+    <string name="auto_playlist_recently_added">最近添加</string>
+    <string name="auto_playlist_most_played">最常播放</string>
+    <string name="auto_playlist_recently_played">最近播放</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">下一首播放</string>
@@ -138,6 +145,14 @@
     <string name="info_duration">时长</string>
     <string name="info_location">文件位置</string>
     <string name="info_not_set">未设置</string>
+    <string name="info_edit">编辑标签</string>
+    <string name="info_save">保存</string>
+    <string name="info_cancel">取消</string>
+    <string name="info_saving">正在保存…</string>
+    <string name="info_edit_note">直接写入文件本身，因此所有应用都能看到更正。Android 会请求修改文件的权限。</string>
+    <string name="info_edit_refused">此文件的标签采用了无法安全重写的形式，因此未做任何更改。</string>
+    <string name="info_edit_failed">无法写入此文件。文件保持原样。</string>
+    <string name="info_edit_unavailable">此设备不支持编辑标签。</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">设置</string>

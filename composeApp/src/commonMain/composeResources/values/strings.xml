@@ -77,7 +77,11 @@
     <string name="foryou_section_continue">Still unfinished</string>
     <string name="foryou_section_worth_revisiting">Worth revisiting</string>
     <string name="foryou_section_found_by_smart">Found by SMART</string>
+    <string name="foryou_section_worlds">Worlds</string>
     <string name="foryou_section_never_played">Never played</string>
+    <!-- The two things to do with a world, offered rather than guessed at. -->
+    <string name="foryou_world_open">Show the tracks</string>
+    <string name="foryou_world_smart">Start SMART from here</string>
     <!-- Hero kickers: why this one track leads the page. -->
     <string name="foryou_kicker_resume">Pick up where you left off</string>
     <plurals name="foryou_kicker_played_times">
@@ -167,7 +171,7 @@
     <string name="info_cancel">Cancel</string>
     <string name="info_saving">Saving…</string>
     <string name="info_edit_note">Saved into the file itself, so every app sees the correction. Android will ask permission to modify the file.</string>
-    <string name="info_edit_refused">This file\'s tags are in a form that cannot be rewritten safely, so nothing was changed.</string>
+    <string name="info_edit_refused">This file's tags are in a form that cannot be rewritten safely, so nothing was changed.</string>
     <string name="info_edit_failed">Could not write to this file. It was left as it was.</string>
     <string name="info_edit_unavailable">Editing tags is not available on this device.</string>
 

@@ -192,6 +192,10 @@ internal class DefaultSimilarityEngine(
             }
         }
 
+    override suspend fun metadataVectors(): Map<TrackId, FloatArray> = withContext(dispatcher) {
+        mutex.withLock { textIndex?.entries().orEmpty() }
+    }
+
     override suspend fun smartQueue(
         seed: TrackDescriptor,
         library: List<TrackDescriptor>,

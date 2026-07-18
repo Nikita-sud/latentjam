@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -285,6 +286,83 @@ class ForYouBuilderTest {
         )
         val row = result.sections.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
         assertEquals(listOf("Gold"), row.cards.mapNotNull { it.collection }.map { it.title })
+    }
+
+    @Test
+    fun `a world is one card, standing for the whole region`() {
+        val members = (1..12).map { track("$it", artist = "Artist$it") }
+        val result = ForYouBuilder.build(
+            library = members,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = listOf(LibraryWorld("Hard Rock", members)),
+        )
+        val row = result.sections.first { it.kind == ForYouSectionKind.WORLDS }
+        assertEquals(1, row.cards.size)
+        assertEquals("Hard Rock", row.cards.single().collection?.title)
+        assertEquals(ForYouCaption.TrackCount(12), row.cards.single().caption)
+    }
+
+    @Test
+    fun `the world the listener actually lives in comes first`() {
+        val quiet = (1..5).map { track("q$it", artist = "Quiet$it") }
+        val loved = (1..5).map { track("l$it", artist = "Loved$it") }
+        val result = ForYouBuilder.build(
+            library = quiet + loved,
+            // The regions are found without reference to listening; which one leads is not.
+            stats = loved.associate { it.id to stats(plays = 20, last = now - day) },
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = listOf(LibraryWorld("Quiet", quiet), LibraryWorld("Loved", loved)),
+        )
+        val row = result.sections.first { it.kind == ForYouSectionKind.WORLDS }
+        assertEquals(listOf("Loved", "Quiet"), row.cards.mapNotNull { it.collection?.title })
+    }
+
+    @Test
+    fun `a world does not retire its members from the rows below it`() {
+        val members = (1..6).map { track("$it", artist = "Artist$it") }
+        val result = ForYouBuilder.build(
+            library = members,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = listOf(LibraryWorld("Disco", members)),
+        )
+        // A world's pool is the whole library, so consuming it would starve every later row for the
+        // sake of a rule about the same album showing up three times.
+        val neverPlayed = result.sections.first { it.kind == ForYouSectionKind.NEVER_PLAYED }
+        assertTrue(neverPlayed.cards.isNotEmpty(), "the worlds row swallowed the library")
+    }
+
+    @Test
+    fun `a world whose centre is already on the page shows the next track in, and starts there`() {
+        val members = (1..6).map { track("$it", artist = "Artist$it") }
+        val result = ForYouBuilder.build(
+            library = members,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = listOf(LibraryWorld("Disco", members)),
+        )
+        val heroId = result.hero?.track?.id
+        assertEquals(members.first().id, heroId, "the fixture needs the medoid to be the hero")
+
+        val card = result.sections.first { it.kind == ForYouSectionKind.WORLDS }.cards.single()
+        // Not the medoid, because the hero already showed that cover — but still the most central
+        // track left, taken from the ordering rather than chosen some other way.
+        assertEquals(members[1].id, card.track.id)
+        // And the list starts on the same record the card shows. A card that pictures one track and
+        // plays another is the smallest possible way to look broken.
+        assertEquals(card.track.id, card.collection?.tracks?.first()?.id)
+        assertEquals(members.size, card.collection?.tracks?.size)
+    }
+
+    @Test
+    fun `no worlds, no row`() {
+        val result = page(library = listOf(track("1"), track("2", artist = "B")))
+        assertTrue(result.sections.none { it.kind == ForYouSectionKind.WORLDS })
     }
 
     @Test

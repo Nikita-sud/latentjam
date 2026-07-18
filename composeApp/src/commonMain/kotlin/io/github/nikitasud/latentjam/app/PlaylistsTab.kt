@@ -55,6 +55,9 @@ import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.action_delete
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
+import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_most_played
+import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_recently_added
+import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_recently_played
 import io.github.nikitasud.latentjam.app.generated.resources.cd_playlist_options
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_add_to_title
@@ -63,8 +66,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.playlist_name_place
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
 import io.github.nikitasud.latentjam.app.generated.resources.playlists_empty
 import io.github.nikitasud.latentjam.library.AutoPlaylist
+import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -131,6 +136,24 @@ internal fun PlaylistsTabContent(
     }
 }
 
+/**
+ * The builder emits a playlist KIND; the title is written here.
+ *
+ * Same split as the For You sections: the derivation stays a pure, unit-tested
+ * function in core, and the words it implies arrive in the reader's language.
+ *
+ * The mapping lives on its own so both readers can share it — cards resolve it
+ * in composition, while opening a collection resolves it inside a coroutine.
+ */
+internal fun AutoPlaylistKind.titleRes(): StringResource = when (this) {
+    AutoPlaylistKind.RECENTLY_ADDED -> Res.string.auto_playlist_recently_added
+    AutoPlaylistKind.MOST_PLAYED -> Res.string.auto_playlist_most_played
+    AutoPlaylistKind.RECENTLY_PLAYED -> Res.string.auto_playlist_recently_played
+}
+
+@Composable
+private fun AutoPlaylistKind.title(): String = stringResource(titleRes())
+
 @Composable
 private fun AutoPlaylistCard(auto: AutoPlaylist, onClick: () -> Unit) {
     Column(
@@ -159,7 +182,7 @@ private fun AutoPlaylistCard(auto: AutoPlaylist, onClick: () -> Unit) {
             }
         }
         Text(
-            text = auto.title,
+            text = auto.kind.title(),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

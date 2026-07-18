@@ -10,10 +10,14 @@ import io.github.nikitasud.latentjam.smart.TrackId
 /** The kinds of playlist the app derives rather than the user curating. */
 public enum class AutoPlaylistKind { RECENTLY_ADDED, MOST_PLAYED, RECENTLY_PLAYED }
 
-/** A playlist computed from library and listening data, never stored. */
+/**
+ * A playlist computed from library and listening data, never stored.
+ *
+ * Carries a [kind] and no title: the words belong to the UI layer, which turns
+ * the kind into a heading in the reader's language.
+ */
 public data class AutoPlaylist(
     public val kind: AutoPlaylistKind,
-    public val title: String,
     public val tracks: List<TrackDescriptor>,
 )
 
@@ -52,9 +56,9 @@ public object AutoPlaylists {
             .take(PLAYED_LIMIT)
 
         return listOf(
-            AutoPlaylist(AutoPlaylistKind.RECENTLY_ADDED, "Recently added", recentlyAdded),
-            AutoPlaylist(AutoPlaylistKind.MOST_PLAYED, "Most played", mostPlayed),
-            AutoPlaylist(AutoPlaylistKind.RECENTLY_PLAYED, "Recently played", recentlyPlayed),
+            AutoPlaylist(AutoPlaylistKind.RECENTLY_ADDED, recentlyAdded),
+            AutoPlaylist(AutoPlaylistKind.MOST_PLAYED, mostPlayed),
+            AutoPlaylist(AutoPlaylistKind.RECENTLY_PLAYED, recentlyPlayed),
         ).filter { it.tracks.isNotEmpty() }
     }
 }

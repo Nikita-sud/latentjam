@@ -102,6 +102,18 @@ public interface SimilarityEngine {
     public suspend fun ensureMetadataVectors(library: List<TrackDescriptor>): Int
 
     /**
+     * A snapshot of every stored metadata-text vector, by track.
+     *
+     * Exposed for callers that want to reason about the SHAPE of a library rather than about one
+     * neighbourhood of it — clustering it into regions, for instance. Taken under the engine's own
+     * lock and copied, because [VectorIndex] implementations are not thread-safe and background
+     * indexing may be writing into this one at the time.
+     *
+     * Empty when the platform has no text encoder, or before [initialize].
+     */
+    public suspend fun metadataVectors(): Map<TrackId, FloatArray>
+
+    /**
      * Builds a SMART queue: a coherent walk of up to [length] tracks starting from [seed].
      *
      * This is not [nextTrack] repeated. The walk carries state — how far it has drifted from the

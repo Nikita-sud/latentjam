@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart.chain
 
+import io.github.nikitasud.latentjam.smart.Genres
 import kotlin.math.abs
 
 /**
@@ -38,37 +39,19 @@ internal object MetadataRerank {
         return "en"
     }
 
-    private val GENRE_ALIASES = listOf(
-        "hip" to "rap", "rap" to "rap", "trap" to "rap", "phonk" to "rap",
-        "rock" to "rock", "metal" to "rock", "punk" to "rock", "grunge" to "rock",
-        "pop" to "pop",
-        "dance" to "dance", "electronic" to "dance", "edm" to "dance",
-        "house" to "dance", "techno" to "dance",
-        "classical" to "classical", "orchestral" to "classical", "baroque" to "classical",
-        "soundtrack" to "soundtrack", "score" to "soundtrack",
-    )
-
-    /** Coarse genre family, or null when the tag is missing or meaningless. */
-    fun normalizeGenre(genre: String?): String? {
-        val raw = genre?.lowercase()?.trim().orEmpty()
-        if (raw.isEmpty() || raw == "<unknown>" || raw == "unknown" || raw == "other") return null
-        for ((needle, family) in GENRE_ALIASES) if (needle in raw) return family
-        return raw
-    }
-
-    private val HUB_GENRE_TOKENS = setOf(
-        "ost", "soundtrack", "score", "anime", "cinematic",
-        "orchestral", "game", "ambient", "library", "western",
-    )
-
-    private val TOKEN_SPLIT = Regex("[^a-zа-яё]+")
+    /**
+     * Coarse genre family, or null when the tag is missing or meaningless.
+     *
+     * The vocabulary itself lives in [Genres] because library clustering names its clusters with
+     * the same families; two copies of that table would drift.
+     */
+    fun normalizeGenre(genre: String?): String? = Genres.normalize(genre)
 
     /**
      * Whether the track belongs to the dense cinematic/game/anime cluster. That cluster is a hub in
      * embedding space: it leaks into chains from sparse seeds unless damped.
      */
-    fun isHubGenre(genre: String?): Boolean =
-        genre?.lowercase()?.split(TOKEN_SPLIT)?.any { it in HUB_GENRE_TOKENS } == true
+    fun isHubGenre(genre: String?): Boolean = Genres.isHub(genre)
 
     private val BRACKETED = Regex("\\s*[\\(\\[][^()\\[\\]]*[\\)\\]]\\s*")
     private val WHITESPACE = Regex("\\s+")

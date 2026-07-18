@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
 
 /**
  * Which row this is.
@@ -26,6 +27,15 @@ enum class ForYouSectionKind {
 
     /** Tracks SMART surfaced that the listener then played through. */
     FOUND_BY_SMART,
+
+    /**
+     * Regions the library falls into, found in embedding space rather than in the tags.
+     *
+     * The only row here that needs no listening history at all, and the only one that cannot
+     * collapse under its own feedback — everything above it is derived from what was already
+     * played, so it can only ever reflect existing habits back.
+     */
+    WORLDS,
 
     /** Owned but never heard. */
     NEVER_PLAYED,
@@ -173,6 +183,7 @@ object ForYouBuilder {
         nowMs: Long,
         excluded: Set<TrackId> = emptySet(),
         playlists: List<Playlist> = emptyList(),
+        worlds: List<LibraryWorld> = emptyList(),
     ): ForYouPage {
         val byId = library.associateBy { it.id }
         // Accumulates across the page, so a track shown once is not shown again further down.
@@ -185,6 +196,11 @@ object ForYouBuilder {
         continueListening(byId, recentEvents, used)?.let(sections::add)
         worthRevisiting(byId, stats, nowMs, used, playlists)?.let(sections::add)
         foundBySmart(byId, recentEvents, used)?.let(sections::add)
+        // Above "never played" and below the history rows on purpose. With nothing logged the rows
+        // above are all empty and this becomes the first thing on the page — which is what it is
+        // for. Once there IS history, rows built from it have the better claim on the top of a
+        // surface where the first two get read and the rest largely do not.
+        worlds(worlds, stats, used)?.let(sections::add)
         neverPlayed(library, stats, used)?.let(sections::add)
 
         return ForYouPage(hero, sections)
@@ -385,6 +401,52 @@ object ForYouBuilder {
         return ForYouSection(
             kind = ForYouSectionKind.FOUND_BY_SMART,
             cards = picked.map { ForYouCard(it) }.onEach { used.add(it.track.id) },
+        )
+    }
+
+    /**
+     * The library's own regions, ordered by how much of the listener's time is actually spent in
+     * each.
+     *
+     * The worlds themselves are found without any reference to listening — that is the whole point
+     * of the row — but which of them leads is a personal question, and the answer is simply where
+     * the plays are. A listener with a large soundtrack collection they never open should not have
+     * it first.
+     *
+     * Unlike every other row here, a world does NOT consume its members. Its pool is the entire
+     * library, so retiring several hundred tracks from the rows below it would starve them for the
+     * sake of a rule meant to stop the same album appearing three times. Only the cover is claimed,
+     * because two identical covers on one page is exactly what that rule is about.
+     */
+    private fun worlds(
+        worlds: List<LibraryWorld>,
+        stats: Map<TrackId, TrackStats>,
+        used: MutableSet<TrackId>,
+    ): ForYouSection? {
+        if (worlds.isEmpty()) return null
+        val cards = worlds
+            .sortedByDescending { world -> world.tracks.sumOf { stats[it.id]?.plays ?: 0 } }
+            .mapNotNull { world ->
+                // Center-outward, so this is still the most central member — just the most central
+                // one the page has not already spent. Taking it from the ordering rather than
+                // recomputing it is what keeps the cover and the seed the same track.
+                val cover = world.tracks.firstOrNull { it.id !in used } ?: return@mapNotNull null
+                ForYouCard(
+                    track = cover,
+                    caption = ForYouCaption.TrackCount(world.tracks.size),
+                    collection = ForYouCollection(
+                        title = world.name,
+                        // The cover leads the list too. A card that shows one record and starts on
+                        // another is the smallest possible way to look broken.
+                        tracks = listOf(cover) + world.tracks.filterNot { it.id == cover.id },
+                    ),
+                )
+            }
+            .take(ROW_LIMIT)
+        if (cards.isEmpty()) return null
+        return ForYouSection(
+            kind = ForYouSectionKind.WORLDS,
+            cards = cards.onEach { used.add(it.track.id) },
         )
     }
 

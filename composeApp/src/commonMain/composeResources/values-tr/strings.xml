@@ -67,7 +67,11 @@
     <string name="foryou_section_continue">Yarım kalanlar</string>
     <string name="foryou_section_worth_revisiting">Yeniden dinlemeye değer</string>
     <string name="foryou_section_found_by_smart">SMART'ın buldukları</string>
+    <string name="foryou_section_worlds">Dünyalar</string>
     <string name="foryou_section_never_played">Hiç çalınmadı</string>
+    <!-- Bir dünyayla yapılabilecek iki şey; tahmin edilmek yerine sorulur. -->
+    <string name="foryou_world_open">Parçaları göster</string>
+    <string name="foryou_world_smart">SMART’ı buradan başlat</string>
     <string name="foryou_kicker_resume">Kaldığın yerden devam et</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="one">Bunu %1$d kez dinledin</item>
@@ -120,6 +124,9 @@
     <string name="snack_playlist_created">"%1$s" oluşturuldu</string>
     <string name="snack_playlist_deleted">"%1$s" silindi</string>
     <string name="snack_added_to_playlist">"%1$s" listesine eklendi</string>
+    <string name="auto_playlist_recently_added">Son eklenenler</string>
+    <string name="auto_playlist_most_played">En çok dinlenenler</string>
+    <string name="auto_playlist_recently_played">Son dinlenenler</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Sıradaki olarak çal</string>
@@ -143,6 +150,14 @@
     <string name="info_duration">Süre</string>
     <string name="info_location">Konum</string>
     <string name="info_not_set">Belirtilmemiş</string>
+    <string name="info_edit">Etiketleri düzenle</string>
+    <string name="info_save">Kaydet</string>
+    <string name="info_cancel">İptal</string>
+    <string name="info_saving">Kaydediliyor…</string>
+    <string name="info_edit_note">Dosyanın kendisine kaydedilir, böylece düzeltmeyi tüm uygulamalar görür. Android dosyayı değiştirmek için izin isteyecek.</string>
+    <string name="info_edit_refused">Bu dosyanın etiketleri güvenle yeniden yazılamayacak bir yapıda olduğu için hiçbir şey değiştirilmedi.</string>
+    <string name="info_edit_failed">Bu dosyaya yazılamadı. Olduğu gibi bırakıldı.</string>
+    <string name="info_edit_unavailable">Etiket düzenleme bu cihazda kullanılamıyor.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ayarlar</string>

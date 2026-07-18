@@ -79,7 +79,11 @@
     <string name="foryou_section_continue">Pas encore terminés</string>
     <string name="foryou_section_worth_revisiting">À réécouter</string>
     <string name="foryou_section_found_by_smart">Trouvés par SMART</string>
+    <string name="foryou_section_worlds">Univers</string>
     <string name="foryou_section_never_played">Jamais écoutés</string>
+    <!-- Les deux choses possibles avec un univers, proposées plutôt que devinées. -->
+    <string name="foryou_world_open">Voir les morceaux</string>
+    <string name="foryou_world_smart">Lancer SMART d’ici</string>
     <string name="foryou_kicker_resume">Reprenez où vous en étiez</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="one">Écouté %1$d fois</item>
@@ -132,6 +136,9 @@
     <string name="snack_playlist_created">Playlist "%1$s" créée</string>
     <string name="snack_playlist_deleted">Playlist "%1$s" supprimée</string>
     <string name="snack_added_to_playlist">Ajouté à "%1$s"</string>
+    <string name="auto_playlist_recently_added">Ajoutés récemment</string>
+    <string name="auto_playlist_most_played">Les plus écoutés</string>
+    <string name="auto_playlist_recently_played">Écoutés récemment</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Lire ensuite</string>
@@ -155,6 +162,14 @@
     <string name="info_duration">Durée</string>
     <string name="info_location">Emplacement</string>
     <string name="info_not_set">Non renseigné</string>
+    <string name="info_edit">Modifier les tags</string>
+    <string name="info_save">Enregistrer</string>
+    <string name="info_cancel">Annuler</string>
+    <string name="info_saving">Enregistrement…</string>
+    <string name="info_edit_note">Enregistré dans le fichier lui-même, afin que toutes les applications voient la correction. Android demandera l'autorisation de modifier le fichier.</string>
+    <string name="info_edit_refused">Les tags de ce fichier sont dans une forme qui ne peut pas être réécrite en toute sécurité, rien n'a donc été modifié.</string>
+    <string name="info_edit_failed">Impossible d'écrire dans ce fichier. Il est resté tel quel.</string>
+    <string name="info_edit_unavailable">La modification des tags n'est pas disponible sur cet appareil.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Paramètres</string>

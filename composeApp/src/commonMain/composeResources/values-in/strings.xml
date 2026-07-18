@@ -80,7 +80,11 @@
     <string name="foryou_section_continue">Belum selesai</string>
     <string name="foryou_section_worth_revisiting">Layak didengar lagi</string>
     <string name="foryou_section_found_by_smart">Ditemukan SMART</string>
+    <string name="foryou_section_worlds">Dunia</string>
     <string name="foryou_section_never_played">Belum pernah diputar</string>
+    <!-- Dua hal yang bisa dilakukan dengan sebuah dunia, ditawarkan alih-alih ditebak. -->
+    <string name="foryou_world_open">Tampilkan lagu</string>
+    <string name="foryou_world_smart">Mulai SMART dari sini</string>
     <string name="foryou_kicker_resume">Lanjutkan dari tempat kamu berhenti</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="other">Kamu memutarnya %1$d kali</item>
@@ -130,6 +134,9 @@
     <string name="snack_playlist_created">Playlist "%1$s" dibuat</string>
     <string name="snack_playlist_deleted">Playlist "%1$s" dihapus</string>
     <string name="snack_added_to_playlist">Ditambahkan ke "%1$s"</string>
+    <string name="auto_playlist_recently_added">Baru ditambahkan</string>
+    <string name="auto_playlist_most_played">Paling sering diputar</string>
+    <string name="auto_playlist_recently_played">Baru diputar</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Putar berikutnya</string>
@@ -153,6 +160,14 @@
     <string name="info_duration">Durasi</string>
     <string name="info_location">Lokasi</string>
     <string name="info_not_set">Tidak diatur</string>
+    <string name="info_edit">Edit tag</string>
+    <string name="info_save">Simpan</string>
+    <string name="info_cancel">Batal</string>
+    <string name="info_saving">Menyimpan…</string>
+    <string name="info_edit_note">Disimpan ke dalam file itu sendiri, sehingga semua aplikasi melihat koreksinya. Android akan meminta izin untuk mengubah file.</string>
+    <string name="info_edit_refused">Tag file ini dalam bentuk yang tidak dapat ditulis ulang dengan aman, jadi tidak ada yang diubah.</string>
+    <string name="info_edit_failed">Tidak dapat menulis ke file ini. File dibiarkan apa adanya.</string>
+    <string name="info_edit_unavailable">Pengeditan tag tidak tersedia di perangkat ini.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Setelan</string>

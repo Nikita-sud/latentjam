@@ -80,7 +80,11 @@
     <string name="foryou_section_continue">لم تكتمل بعد</string>
     <string name="foryou_section_worth_revisiting">يستحق الاستماع مجددًا</string>
     <string name="foryou_section_found_by_smart">اكتشفها SMART</string>
+    <string name="foryou_section_worlds">عوالم</string>
     <string name="foryou_section_never_played">لم تُشغَّل قط</string>
+    <!-- الشيئان اللذان يمكن فعلهما بعالم، معروضان بدل تخمينهما. -->
+    <string name="foryou_world_open">عرض المقاطع</string>
+    <string name="foryou_world_smart">ابدأ SMART من هنا</string>
     <string name="foryou_kicker_resume">تابع من حيث توقفت</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="zero">شغّلته %1$d مرة</item>
@@ -145,6 +149,9 @@
     <string name="snack_playlist_created">تم إنشاء "%1$s"</string>
     <string name="snack_playlist_deleted">تم حذف "%1$s"</string>
     <string name="snack_added_to_playlist">تمت الإضافة إلى "%1$s"</string>
+    <string name="auto_playlist_recently_added">المضافة حديثًا</string>
+    <string name="auto_playlist_most_played">الأكثر تشغيلًا</string>
+    <string name="auto_playlist_recently_played">المشغَّلة حديثًا</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">تشغيل التالي</string>
@@ -168,6 +175,14 @@
     <string name="info_duration">المدة</string>
     <string name="info_location">الموقع</string>
     <string name="info_not_set">غير محدد</string>
+    <string name="info_edit">تعديل الوسوم</string>
+    <string name="info_save">حفظ</string>
+    <string name="info_cancel">إلغاء</string>
+    <string name="info_saving">جارٍ الحفظ…</string>
+    <string name="info_edit_note">يُحفظ في الملف نفسه، فترى كل التطبيقات التصحيح. سيطلب Android الإذن لتعديل الملف.</string>
+    <string name="info_edit_refused">وسوم هذا الملف بصيغة لا يمكن إعادة كتابتها بأمان، لذلك لم يتغير شيء.</string>
+    <string name="info_edit_failed">تعذّرت الكتابة إلى هذا الملف. تُرك كما كان.</string>
+    <string name="info_edit_unavailable">تعديل الوسوم غير متاح على هذا الجهاز.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">الإعدادات</string>

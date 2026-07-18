@@ -67,7 +67,11 @@
     <string name="foryou_section_continue">अब तक अधूरे</string>
     <string name="foryou_section_worth_revisiting">दोबारा सुनने लायक</string>
     <string name="foryou_section_found_by_smart">SMART ने खोजे</string>
+    <string name="foryou_section_worlds">दुनिया</string>
     <string name="foryou_section_never_played">कभी नहीं चलाए</string>
+    <!-- एक दुनिया के साथ करने योग्य दो काम — अनुमान लगाने के बजाय पूछे गए। -->
+    <string name="foryou_world_open">ट्रैक दिखाएँ</string>
+    <string name="foryou_world_smart">यहाँ से SMART शुरू करें</string>
     <string name="foryou_kicker_resume">जहां छोड़ा था वहीं से सुनें</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="one">आपने इसे %1$d बार सुना</item>
@@ -120,6 +124,9 @@
     <string name="snack_playlist_created">"%1$s" बनाई गई</string>
     <string name="snack_playlist_deleted">"%1$s" मिटाई गई</string>
     <string name="snack_added_to_playlist">"%1$s" में जोड़ा गया</string>
+    <string name="auto_playlist_recently_added">हाल ही में जोड़े गए</string>
+    <string name="auto_playlist_most_played">सबसे ज़्यादा चलाए गए</string>
+    <string name="auto_playlist_recently_played">हाल ही में चलाए गए</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">अगले में चलाएं</string>
@@ -143,6 +150,14 @@
     <string name="info_duration">अवधि</string>
     <string name="info_location">फ़ाइल की जगह</string>
     <string name="info_not_set">सेट नहीं है</string>
+    <string name="info_edit">टैग संपादित करें</string>
+    <string name="info_save">सहेजें</string>
+    <string name="info_cancel">रद्द करें</string>
+    <string name="info_saving">सहेजा जा रहा है…</string>
+    <string name="info_edit_note">फ़ाइल में ही सहेजा जाता है, इसलिए सुधार हर ऐप को दिखता है। Android फ़ाइल बदलने की अनुमति माँगेगा।</string>
+    <string name="info_edit_refused">इस फ़ाइल के टैग ऐसे रूप में हैं जिन्हें सुरक्षित रूप से दोबारा नहीं लिखा जा सकता, इसलिए कुछ नहीं बदला गया।</string>
+    <string name="info_edit_failed">इस फ़ाइल में नहीं लिखा जा सका। इसे जैसा था वैसा ही छोड़ दिया गया।</string>
+    <string name="info_edit_unavailable">इस डिवाइस पर टैग संपादित करना उपलब्ध नहीं है।</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">सेटिंग</string>

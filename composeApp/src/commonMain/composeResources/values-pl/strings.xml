@@ -75,7 +75,11 @@
     <string name="foryou_section_continue">Niedokończone</string>
     <string name="foryou_section_worth_revisiting">Warto wrócić</string>
     <string name="foryou_section_found_by_smart">Znalezione przez SMART</string>
+    <string name="foryou_section_worlds">Światy</string>
     <string name="foryou_section_never_played">Nigdy nieodtwarzane</string>
+    <!-- Dwie rzeczy, które można zrobić ze światem — zaproponowane, nie zgadywane. -->
+    <string name="foryou_world_open">Pokaż utwory</string>
+    <string name="foryou_world_smart">Zacznij SMART stąd</string>
     <string name="foryou_kicker_resume">Wróć tam, gdzie skończyłeś</string>
     <plurals name="foryou_kicker_played_times">
         <item quantity="one">Słuchałeś tego %1$d raz</item>
@@ -134,6 +138,9 @@
     <string name="snack_playlist_created">Utworzono „%1$s”</string>
     <string name="snack_playlist_deleted">Usunięto „%1$s”</string>
     <string name="snack_added_to_playlist">Dodano do „%1$s”</string>
+    <string name="auto_playlist_recently_added">Ostatnio dodane</string>
+    <string name="auto_playlist_most_played">Najczęściej odtwarzane</string>
+    <string name="auto_playlist_recently_played">Ostatnio odtwarzane</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Odtwórz jako następny</string>
@@ -157,6 +164,14 @@
     <string name="info_duration">Czas trwania</string>
     <string name="info_location">Lokalizacja</string>
     <string name="info_not_set">Nie ustawiono</string>
+    <string name="info_edit">Edytuj tagi</string>
+    <string name="info_save">Zapisz</string>
+    <string name="info_cancel">Anuluj</string>
+    <string name="info_saving">Zapisywanie…</string>
+    <string name="info_edit_note">Zapisywane w samym pliku, więc poprawkę zobaczą wszystkie aplikacje. Android poprosi o zgodę na modyfikację pliku.</string>
+    <string name="info_edit_refused">Tagi tego pliku są zapisane w formie, której nie da się bezpiecznie nadpisać, więc nic nie zostało zmienione.</string>
+    <string name="info_edit_failed">Nie udało się zapisać tego pliku. Pozostał bez zmian.</string>
+    <string name="info_edit_unavailable">Edycja tagów jest niedostępna na tym urządzeniu.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ustawienia</string>

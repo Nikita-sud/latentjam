@@ -169,11 +169,16 @@ import io.github.nikitasud.latentjam.smart.EngineState
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorlds
+import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.floor
 import kotlin.math.ceil
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getPluralString
 import org.jetbrains.compose.resources.getString
@@ -240,9 +245,20 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // here rather than on first press means the SMART button is instant when it is finally
         // tapped, instead of stalling on tens of MB of model loading.
         var forYou by remember { mutableStateOf(ForYouPage()) }
-        LaunchedEffect(tracks, selectedTab == FOR_YOU_TAB) {
+        var worlds by remember { mutableStateOf<List<LibraryWorld>>(emptyList()) }
+        var builtWorlds by remember { mutableStateOf<List<LibraryWorld>?>(null) }
+        var metadataVectorsReady by remember { mutableStateOf(false) }
+        var worldTarget by remember { mutableStateOf<ForYouCard?>(null) }
+
+        LaunchedEffect(tracks, selectedTab == FOR_YOU_TAB, worlds) {
             val loaded = tracks ?: return@LaunchedEffect
-            if (selectedTab != FOR_YOU_TAB || !forYou.isEmpty) return@LaunchedEffect
+            if (selectedTab != FOR_YOU_TAB) return@LaunchedEffect
+            // Built once, and again only when the worlds arrive — the text index fills in the
+            // background, so on a cold library they are simply not ready at first visit. Never
+            // rebuilt on a mere return to the tab: a page that regroups itself while being read is
+            // indistinguishable from a broken one.
+            if (!forYou.isEmpty && builtWorlds == worlds) return@LaunchedEffect
+            builtWorlds = worlds
             forYou = ForYouBuilder.build(
                 library = loaded,
                 stats = AppGraph.history.stats(),
@@ -250,6 +266,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 nowMs = epochMillis(),
                 excluded = setOfNotNull(now.track?.id),
                 playlists = playlists,
+                worlds = worlds,
             )
         }
 
@@ -259,6 +276,21 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 engine.initialize()
                 val added = engine.ensureMetadataVectors(loaded)
                 println("SMART: ready (${engine.state.value}); encoded $added metadata vectors")
+                metadataVectorsReady = true
+            }
+        }
+
+        // The regions the library falls into. Clustered over the METADATA-TEXT index rather than
+        // the audio one: audio embeddings only exist after the listener goes looking for the
+        // button that makes them, while text vectors are encoded for everything at first launch —
+        // so clustering the other space would leave this row missing for almost everyone.
+        LaunchedEffect(tracks, metadataVectorsReady) {
+            val loaded = tracks ?: return@LaunchedEffect
+            if (!metadataVectorsReady) return@LaunchedEffect
+            val vectors = engine.metadataVectors()
+            if (vectors.isEmpty()) return@LaunchedEffect
+            worlds = withContext(Dispatchers.Default) {
+                LibraryWorlds.discover(loaded, vectors, TextEncoder.TEXT_DIM)
             }
         }
         val catalog = remember(tracks) { tracks?.let { LibraryCatalog.build(it) } }
@@ -511,6 +543,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             },
                                             onTrackMenu = { trackMenuTarget = it },
+                                            onOpenWorld = { worldTarget = it },
                                         )
 
                                         PLAYLISTS_TAB -> PlaylistsTabContent(
@@ -696,6 +729,34 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onInfo = { infoTarget = target },
                 onDelete = { deleteTarget = target },
                 onDismiss = { trackMenuTarget = null },
+            )
+        }
+
+        worldTarget?.let { target ->
+            val world = target.collection
+            WorldActionsSheet(
+                card = target,
+                onOpen = {
+                    scope.launch {
+                        selectedCollection = CollectionSelection(
+                            title = world?.title.orEmpty(),
+                            subtitle = trackCountLabel(world?.tracks?.size ?: 0),
+                            artworkUri = target.track.artworkUri,
+                            tracks = world?.tracks.orEmpty(),
+                        )
+                    }
+                },
+                onStartSmart = {
+                    scope.launch {
+                        // The same track the card showed, so the journey starts from the record
+                        // the listener was looking at when they chose this.
+                        val songs = catalog?.songs.orEmpty()
+                        val queue = engine.smartQueue(target.track, songs, SMART_HERO_LENGTH)
+                        val byId = songs.associateBy { it.id }
+                        playback.play(listOf(target.track) + queue.mapNotNull(byId::get), 0)
+                    }
+                },
+                onDismiss = { worldTarget = null },
             )
         }
 

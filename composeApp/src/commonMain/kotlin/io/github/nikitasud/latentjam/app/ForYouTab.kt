@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,9 +19,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +47,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_resum
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_continue
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_found_by_smart
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_never_played
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_worlds
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_worth_revisiting
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_world_open
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_world_smart
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -68,6 +76,7 @@ fun ForYouTab(
     onPlay: (List<TrackDescriptor>, Int) -> Unit,
     onPlayHero: (ForYouHero) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
+    onOpenWorld: (ForYouCard) -> Unit = {},
 ) {
     if (page.isEmpty) {
         Box(
@@ -102,11 +111,21 @@ fun ForYouTab(
                     ForYouCardItem(
                         card = card,
                         onClick = {
-                            // A collection card plays its own contents; a track card plays the row
-                            // from that point, so the rest of the shelf stays available.
-                            card.collection?.let { onPlay(it.tracks, 0) } ?: run {
-                                val tracks = section.cards.filter { it.collection == null }.map { it.track }
-                                onPlay(tracks, tracks.indexOfFirst { it.id == card.track.id })
+                            when {
+                                // A world is a hundred-odd tracks, and there are two reasonable
+                                // things to do with one. Guessing which was the previous build's
+                                // mistake: it played immediately, and the tap that meant "show me
+                                // this" was indistinguishable from the tap that meant "play it".
+                                section.kind == ForYouSectionKind.WORLDS -> onOpenWorld(card)
+                                // A collection card plays its own contents; a track card plays the
+                                // row from that point, so the rest of the shelf stays available.
+                                card.collection != null -> onPlay(card.collection.tracks, 0)
+                                else -> {
+                                    val tracks = section.cards
+                                        .filter { it.collection == null }
+                                        .map { it.track }
+                                    onPlay(tracks, tracks.indexOfFirst { it.id == card.track.id })
+                                }
                             }
                         },
                         onLongClick = { onTrackMenu(card.track) },
@@ -129,9 +148,95 @@ private fun ForYouSectionKind.title(): String = stringResource(
         ForYouSectionKind.CONTINUE -> Res.string.foryou_section_continue
         ForYouSectionKind.WORTH_REVISITING -> Res.string.foryou_section_worth_revisiting
         ForYouSectionKind.FOUND_BY_SMART -> Res.string.foryou_section_found_by_smart
+        ForYouSectionKind.WORLDS -> Res.string.foryou_section_worlds
         ForYouSectionKind.NEVER_PLAYED -> Res.string.foryou_section_never_played
     },
 )
+
+/**
+ * The two things a world is good for, asked rather than assumed.
+ *
+ * A region of the library is not one record, so tapping it cannot mean one thing. Offering the
+ * choice costs a tap and buys the difference between browsing and committing — the previous
+ * implementation played on touch, and the way back from a hundred-track queue you did not ask for
+ * is long enough that people stopped touching.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun WorldActionsSheet(
+    card: ForYouCard,
+    onOpen: () -> Unit,
+    onStartSmart: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val world = card.collection ?: return
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.navigationBarsPadding()) {
+            Row(
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Artwork(uri = card.track.artworkUri, size = 56.dp, cornerRadius = 12.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = world.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = pluralStringResource(
+                            Res.plurals.count_tracks,
+                            world.tracks.size,
+                            world.tracks.size,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            SheetAction(
+                icon = Icons.AutoMirrored.Rounded.QueueMusic,
+                label = stringResource(Res.string.foryou_world_open),
+                onClick = {
+                    onDismiss()
+                    onOpen()
+                },
+            )
+            // Seeded from the cover, which is the world's most central track — so the journey
+            // starts from the middle of the region rather than from its edge.
+            SheetAction(
+                icon = Icons.Rounded.AutoAwesome,
+                label = stringResource(Res.string.foryou_world_smart),
+                onClick = {
+                    onDismiss()
+                    onStartSmart()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SheetAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        Icon(imageVector = icon, contentDescription = null)
+        Text(text = label, style = MaterialTheme.typography.bodyLarge)
+    }
+}
 
 /**
  * Card captions. Both carry a count, so both go through the plural machinery rather than through
