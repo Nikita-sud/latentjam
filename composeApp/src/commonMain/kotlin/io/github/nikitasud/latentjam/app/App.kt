@@ -524,7 +524,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             onOpenAuto = { auto ->
                                                 scope.launch {
                                                     selectedCollection = CollectionSelection(
-                                                        title = auto.title,
+                                                        title = getString(auto.kind.titleRes()),
                                                         subtitle = trackCountLabel(auto.tracks.size),
                                                         artworkUri = auto.tracks
                                                             .firstNotNullOfOrNull { it.artworkUri },
@@ -796,7 +796,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
 
         infoTarget?.let { target ->
-            TrackInfoSheet(track = target, onDismiss = { infoTarget = null })
+            TrackInfoSheet(
+                track = target,
+                // Without this the list keeps the old title until relaunch — the write lands, the
+                // rescan finishes, and the UI is still holding the pre-edit snapshot.
+                onSaved = { scope.launch { tracks = library.tracks() } },
+                onDismiss = { infoTarget = null },
+            )
         }
 
         if (showSettings) {

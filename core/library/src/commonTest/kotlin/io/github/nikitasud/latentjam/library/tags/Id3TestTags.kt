@@ -84,6 +84,44 @@ internal object Id3TestTags {
         byteArrayOf(0xFF.toByte(), 0xFB.toByte(), 0x90.toByte(), 0x00) +
             ByteArray(size) { (it % 256).toByte() }
 
+    /**
+     * A 128-byte ID3v1 trailer: `TAG`, then fixed-width Latin-1 fields with no
+     * separators — title 30, artist 30, album 30, year 4, comment 30, genre 1.
+     */
+    fun v1Trailer(
+        title: String = "Old v1 title",
+        artist: String = "Old v1 artist",
+        album: String = "Old v1 album",
+        year: String = "1999",
+        comment: String = "",
+        genre: Int = 17,
+    ): ByteArray {
+        val out = ArrayList<Byte>()
+        out.addAll("TAG".map { it.code.toByte() })
+        fun field(text: String, width: Int) {
+            for (i in 0 until width) out.add(if (i < text.length) text[i].code.toByte() else 0)
+        }
+        field(title, 30)
+        field(artist, 30)
+        field(album, 30)
+        field(year, 4)
+        field(comment, 30)
+        out.add(genre.toByte())
+        return out.toByteArray()
+    }
+
+    /**
+     * ID3v1.2's 227-byte `TAG+` block. Only ever meaningful immediately in front
+     * of a [v1Trailer], which is the only way a reader can find it.
+     */
+    fun v1ExtendedTrailer(): ByteArray {
+        val out = ArrayList<Byte>()
+        out.addAll("TAG+".map { it.code.toByte() })
+        // 60/60/60 title, artist, album; 1 speed; 30 genre; 6 start; 6 end.
+        repeat(223) { out.add(0) }
+        return out.toByteArray()
+    }
+
     fun build(
         major: Int,
         frames: List<TestFrame>,

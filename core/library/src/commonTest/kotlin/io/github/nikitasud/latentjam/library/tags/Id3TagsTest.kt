@@ -663,6 +663,169 @@ internal class Id3TagsTest {
         assertEquals(0, out[5].toInt() and 0x10, "the rewritten tag declares no footer")
     }
 
+    // ---------------------------------------------------------------- id3v1 trailer
+
+    @Test
+    fun anEditThatChangesSomethingRemovesTheId3v1Trailer() {
+        for (major in versions) {
+            val audio = mp3Payload()
+            val file = Id3TestTags.build(
+                major = major,
+                frames = listOf(TestFrame("TIT2", latin1Body("Old")), artFrame(size = 200)),
+            ) + audio + Id3TestTags.v1Trailer(title = "Old v1 title")
+
+            val out = assertNotNull(updateId3Tag(file, TagEdits(title = "New")), "v2.$major")
+            val info = assertNotNull(Id3Tags.read(out))
+
+            assertEquals("New", info.title, "v2.$major")
+            assertEquals(0, Id3v1.trailerLength(out), "the stale v1 trailer must be gone (v2.$major)")
+            assertContentEquals(
+                audio,
+                out.copyOfRange(info.totalLength, out.size),
+                "only the trailer goes — the audio is untouched (v2.$major)",
+            )
+        }
+    }
+
+    @Test
+    fun aNoOpEditLeavesTheId3v1TrailerExactlyWhereItWas() {
+        val file = Id3TestTags.build(
+            major = 3,
+            frames = listOf(TestFrame("TIT2", latin1Body("Old")), artFrame(size = 200)),
+            padding = 64,
+        ) + mp3Payload() + Id3TestTags.v1Trailer()
+
+        val out = assertNotNull(updateId3Tag(file, TagEdits()))
+        assertContentEquals(file, out, "a no-op rewrite must stay usable as a probe")
+        assertEquals(Id3v1.TRAILER_SIZE, Id3v1.trailerLength(out))
+    }
+
+    @Test
+    fun theExtendedTagPlusBlockIsRemovedTogetherWithItsTrailer() {
+        val audio = mp3Payload()
+        val file = Id3TestTags.build(3, listOf(TestFrame("TIT2", latin1Body("Old")))) +
+            audio + Id3TestTags.v1ExtendedTrailer() + Id3TestTags.v1Trailer()
+
+        assertEquals(Id3v1.EXTENDED_SIZE + Id3v1.TRAILER_SIZE, Id3v1.trailerLength(file))
+
+        val out = assertNotNull(updateId3Tag(file, TagEdits(artist = "New")))
+        val info = assertNotNull(Id3Tags.read(out))
+        assertEquals(0, Id3v1.trailerLength(out))
+        assertContentEquals(
+            audio,
+            out.copyOfRange(info.totalLength, out.size),
+            "leaving TAG+ behind would strand 227 bytes nothing can reach",
+        )
+    }
+
+    @Test
+    fun stackedId3v1TrailersAllGoTogether() {
+        // A tagger that appends a block without removing the old one. Only the
+        // last is ever read, so removing just that one promotes an older lie.
+        val audio = mp3Payload()
+        val file = Id3TestTags.build(3, listOf(TestFrame("TIT2", latin1Body("Old")))) + audio +
+            Id3TestTags.v1Trailer(title = "Older", artist = "Older artist") +
+            Id3TestTags.v1Trailer(title = "Newer", artist = "Newer artist")
+
+        assertEquals(2 * Id3v1.TRAILER_SIZE, Id3v1.trailerLength(file))
+
+        val out = assertNotNull(updateId3Tag(file, TagEdits(title = "New")))
+        val info = assertNotNull(Id3Tags.read(out))
+        assertEquals(0, Id3v1.trailerLength(out))
+        assertContentEquals(audio, out.copyOfRange(info.totalLength, out.size))
+    }
+
+    @Test
+    fun stackingDeeperThanTheCapIsReportedUpToTheCap() {
+        // The cap is what lets a caller holding only the tail of a file get the
+        // same answer as one holding all of it.
+        val audio = mp3Payload()
+        var file = Id3TestTags.build(3, listOf(TestFrame("TIT2", latin1Body("Old")))) + audio
+        repeat(Id3v1.MAX_STACKED_TRAILERS + 1) { file += Id3TestTags.v1Trailer() }
+
+        assertEquals(Id3v1.MAX_STACKED_TRAILERS * Id3v1.TRAILER_SIZE, Id3v1.trailerLength(file))
+        assertEquals(
+            Id3v1.trailerLength(file),
+            Id3v1.trailerLength(file.copyOfRange(file.size - Id3v1.MAX_TRAILER_SIZE, file.size)),
+            "the tail alone must answer the same as the whole file",
+        )
+    }
+
+    @Test
+    fun aTagPlusBlockWithNoTrailerBehindItIsNotTouched() {
+        val audio = mp3Payload()
+        val orphan = Id3TestTags.v1ExtendedTrailer()
+        val file = Id3TestTags.build(3, listOf(TestFrame("TIT2", latin1Body("Old")))) + audio + orphan
+
+        // Found only by counting back from a `TAG` block, so without one there is
+        // nothing here this codec claims to recognise.
+        assertEquals(0, Id3v1.trailerLength(file))
+
+        val out = assertNotNull(updateId3Tag(file, TagEdits(title = "New")))
+        val info = assertNotNull(Id3Tags.read(out))
+        assertContentEquals(audio + orphan, out.copyOfRange(info.totalLength, out.size))
+    }
+
+    @Test
+    fun aFileWithOnlyAnId3v1TrailerGainsAV2TagAndLosesTheV1() {
+        val audio = mp3Payload()
+        val file = audio + Id3TestTags.v1Trailer(title = "Only v1")
+
+        val out = assertNotNull(updateId3Tag(file, TagEdits(title = "Fresh")))
+        val info = assertNotNull(Id3Tags.read(out))
+        assertEquals("Fresh", info.title)
+        assertEquals(0, Id3v1.trailerLength(out))
+        assertContentEquals(audio, out.copyOfRange(info.totalLength, out.size))
+    }
+
+    @Test
+    fun aTrailerThatWouldOverlapTheTagIsIgnoredRatherThanCutAudio() {
+        // Almost all tag, and `TAG` falls 128 bytes from the end by coincidence —
+        // inside the tag's own frame data, not after the audio.
+        val tag = Id3TestTags.build(3, listOf(TestFrame("TXXX", ByteArray(300) { 1 })))
+        val audio = mp3Payload(size = 60)
+        val file = tag + audio
+        val at = file.size - Id3v1.TRAILER_SIZE
+        assertTrue(at in Id3Codec.HEADER_SIZE until tag.size, "fixture must put the match inside the tag")
+        for (i in "TAG".indices) file[at + i] = "TAG"[i].code.toByte()
+
+        assertEquals(Id3v1.TRAILER_SIZE, Id3v1.trailerLength(file), "the coincidence does look like a trailer")
+
+        val out = assertNotNull(updateId3Tag(file, TagEdits(title = "New")))
+        val info = assertNotNull(Id3Tags.read(out))
+        assertContentEquals(
+            file.copyOfRange(tag.size, file.size),
+            out.copyOfRange(info.totalLength, out.size),
+            "no audio may be cut on the strength of three bytes",
+        )
+        assertContentEquals(
+            file.copyOfRange(Id3Codec.HEADER_SIZE + Id3Codec.FRAME_HEADER_SIZE, tag.size),
+            Id3TestTags.frameBody(out, "TXXX"),
+            "and the frame those bytes really belong to is intact",
+        )
+    }
+
+    @Test
+    fun theStreamingPathDropsTheSameTrailerAsAWholeFileRewrite() {
+        val audio = mp3Payload()
+        val file = Id3TestTags.build(3, listOf(TestFrame("TIT2", latin1Body("Old")), artFrame(size = 300))) +
+            audio + Id3TestTags.v1Trailer()
+        val edits = TagEdits(title = "New")
+
+        // What a streaming caller does at both ends: header, then exactly the
+        // tag, then just enough of the tail to know where to stop.
+        val tagLength = assertNotNull(Id3Tags.tagLength(file.copyOfRange(0, Id3Tags.HEADER_SIZE)))
+        val update = assertNotNull(Id3Tags.buildUpdate(file.copyOfRange(0, tagLength), edits))
+        val tail = file.copyOfRange(file.size - Id3v1.MAX_TRAILER_SIZE, file.size)
+
+        assertEquals(Id3v1.TRAILER_SIZE, Id3Tags.droppedTrailerLength(tail, edits))
+        assertEquals(0, Id3Tags.droppedTrailerLength(tail, TagEdits()), "nothing changed, nothing went stale")
+
+        val rebuilt = update.tag +
+            file.copyOfRange(update.replacedLength, file.size - Id3Tags.droppedTrailerLength(tail, edits))
+        assertContentEquals(updateId3Tag(file, edits), rebuilt)
+    }
+
     // ---------------------------------------------------------------- api shape
 
     @Test

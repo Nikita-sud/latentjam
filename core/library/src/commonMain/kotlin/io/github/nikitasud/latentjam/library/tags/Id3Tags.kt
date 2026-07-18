@@ -24,10 +24,12 @@ package io.github.nikitasud.latentjam.library.tags
  * - [updateTag] and the top-level [updateId3Tag] take the **whole file** and
  *   return the whole new file. Simplest to use and the natural input for an
  *   atomic write-temp-then-rename.
- * - [buildUpdate] needs only the leading bytes: at least [Id3Codec.HEADER_SIZE]
- *   bytes to read the header, and then as many as [tagLength] reports. It hands
- *   back the new tag plus how many leading bytes it replaces, so a caller can
- *   stream the untouched audio instead of holding a whole file in memory.
+ * - [buildUpdate] needs only the leading bytes: at least [HEADER_SIZE] bytes to
+ *   read the header, and then as many as [tagLength] reports. It hands back the
+ *   new tag plus how many leading bytes it replaces, so a caller can stream the
+ *   untouched audio instead of holding a whole file in memory. Such a caller
+ *   must also ask [droppedTrailerLength] how many bytes to stop short of at the
+ *   end, which [updateTag] does on its behalf.
  *
  * Nothing here writes files, so atomicity is the caller's to arrange: write to
  * a temporary file in the same directory, fsync, then rename over the original.
@@ -59,12 +61,31 @@ public object Id3Tags {
      */
     private val FOREIGN_MAGIC = listOf("fLaC", "OggS", "RIFF", "FORM", "MThd", "wvpk", "PNG")
 
+    /** Bytes a caller must read before [tagLength] can answer. */
+    public const val HEADER_SIZE: Int = Id3Codec.HEADER_SIZE
+
     /**
      * Total byte length of the tag at the head of [prefix], or 0 when there is
      * none. Null when [prefix] is shorter than a header or the header is
-     * unusable. Needs only the first [Id3Codec.HEADER_SIZE] bytes.
+     * unusable. Needs only the first [HEADER_SIZE] bytes.
      */
     public fun tagLength(prefix: ByteArray): Int? = Id3Codec.tagLength(prefix)
+
+    /**
+     * How many trailing bytes of ID3v1 a rewrite with [edits] would drop from a
+     * file whose tail is [tail] — see [Id3v1] for why it is dropped at all.
+     *
+     * Always zero for an empty [edits]. Nothing about the metadata changed, so
+     * nothing the trailer says became any less true than it already was, and a
+     * no-op rewrite stays byte-for-byte identical to its input — which is what
+     * makes it safe to use as a probe for "would this file survive an edit".
+     *
+     * [tail] may be the whole file or just its last [Id3v1.MAX_TRAILER_SIZE]
+     * bytes. [updateTag] applies this itself; the streaming path through
+     * [buildUpdate], which never sees the end of the file, has to ask.
+     */
+    public fun droppedTrailerLength(tail: ByteArray, edits: TagEdits): Int =
+        if (edits.isEmpty) 0 else Id3v1.trailerLength(tail)
 
     /**
      * Reads the tag at the head of [prefix], or null when there is none or it
@@ -139,6 +160,9 @@ public object Id3Tags {
     /**
      * Whole file in, whole file out. Returns null when the tag cannot be
      * rewritten safely, in which case the original must be left untouched.
+     *
+     * An edit that changes anything also drops the ID3v1 trailer, so the file
+     * is left with a single account of itself — [droppedTrailerLength].
      */
     public fun updateTag(
         original: ByteArray,
@@ -146,9 +170,20 @@ public object Id3Tags {
         newTagVersion: Id3Version = Id3Version.V2_3,
     ): ByteArray? {
         val update = buildUpdate(original, edits, newTagVersion) ?: return null
-        val out = ByteArray(update.tag.size + (original.size - update.replacedLength))
+        // A trailer that would reach back into the tag just rebuilt is a false
+        // positive — `TAG` happening to fall 128 bytes from the end of a file
+        // that is almost entirely tag. Keep every byte rather than cut audio on
+        // the strength of a three-byte coincidence.
+        val keepUntil = (original.size - droppedTrailerLength(original, edits))
+            .takeIf { it >= update.replacedLength } ?: original.size
+        val out = ByteArray(update.tag.size + (keepUntil - update.replacedLength))
         update.tag.copyInto(out)
-        original.copyInto(out, destinationOffset = update.tag.size, startIndex = update.replacedLength)
+        original.copyInto(
+            destination = out,
+            destinationOffset = update.tag.size,
+            startIndex = update.replacedLength,
+            endIndex = keepUntil,
+        )
         return out
     }
 
@@ -294,6 +329,10 @@ public object Id3Tags {
 /**
  * Rewrites the ID3v2 tag at the head of [original], returning the new file
  * bytes, or null when the tag cannot be rewritten without risking data loss.
+ *
+ * An edit that changes anything also removes the ID3v1 trailer, if there is
+ * one, so the file is not left holding two disagreeing accounts of itself. See
+ * [Id3v1] for the measurements behind that choice.
  *
  * [original] should be the whole file: the result is the whole new file, ready
  * to be written to a temporary file and renamed over the original. For a
