@@ -51,7 +51,8 @@ the new architecture, spec-first from the project's own design documents.
 | Rounded icon set throughout (shapes match the app's language) | Visual coherence | ✅ |
 | Delete track (system-owned on API 30+, confirmed in app) | Library management parity | ✅ |
 | Per-row overflow (go to album / artist) | Navigational shortcuts | ✅ |
-| Motion system: container transform mini↔now-playing, shared-axis tabs | Spatial continuity | ⬜ |
+| Container transform: mini-player morphs into now-playing | Spatial continuity | ✅ |
+| Shared-axis transitions between browse sections | Spatial continuity | ⬜ |
 | Artwork-derived colour (mini-player + now-playing gradient) | Content-based colour convention | ✅ |
 | Latent-space colour for artwork-less tracks | Signature: the model made visible | ✅ |
 | Repeat mode OFF/ALL/ONE | Player parity, state visibility | ✅ |
