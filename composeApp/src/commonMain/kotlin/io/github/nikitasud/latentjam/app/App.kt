@@ -12,10 +12,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,22 +28,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.automirrored.rounded.Sort
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -54,13 +62,9 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -68,6 +72,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,10 +82,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
 import coil3.compose.AsyncImage
 import io.github.nikitasud.latentjam.library.AlbumGroup
 import io.github.nikitasud.latentjam.library.ArtistGroup
@@ -119,12 +127,21 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var showNowPlaying by remember { mutableStateOf(false) }
         var showSearch by remember { mutableStateOf(false) }
         var trackMenuTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
+        var deleteTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
         var indexSummary by remember { mutableStateOf<String?>(null) }
         var historySummary by remember { mutableStateOf<String?>(null) }
         val now by playback.state.collectAsState()
 
         LaunchedEffect(Unit) { tracks = library.tracks() }
         val catalog = remember(tracks) { tracks?.let { LibraryCatalog.build(it) } }
+
+        // Rescan after a delete so the removed track leaves every list at once.
+        val deleteTrack = rememberTrackDeleter {
+            scope.launch {
+                tracks = library.tracks()
+                snackbar.showSnackbar("Track deleted")
+            }
+        }
 
         LaunchedEffect(showDiagnostics) {
             if (showDiagnostics) {
@@ -186,7 +203,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         ),
                         actions = {
                             IconButton(onClick = { showSearch = true }) {
-                                Icon(Icons.Filled.Search, contentDescription = "Search library")
+                                Icon(Icons.Rounded.Search, contentDescription = "Search library")
                             }
                             ShuffleAction(mode = now.shuffleMode) {
                                 scope.launch {
@@ -201,11 +218,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 }
                             }
                             IconButton(onClick = { showDiagnostics = true }) {
-                                Icon(Icons.Filled.Info, contentDescription = "Diagnostics")
+                                Icon(Icons.Rounded.Info, contentDescription = "Diagnostics")
                             }
                         },
                     )
-                    BrowseTabs(selectedTab) { selectedTab = it }
+                    BrowseCarousel(selectedTab) { selectedTab = it }
                 }
             },
             bottomBar = {
@@ -326,7 +343,19 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onAddToQueue = { scope.launch { playback.addToQueue(target) } },
                 onGoToAlbum = { showAlbumOf(target) },
                 onGoToArtist = { showArtistOf(target) },
+                onDelete = { deleteTarget = target },
                 onDismiss = { trackMenuTarget = null },
+            )
+        }
+
+        deleteTarget?.let { target ->
+            DeleteTrackDialog(
+                track = target,
+                onConfirm = {
+                    deleteTarget = null
+                    deleteTrack(target)
+                },
+                onDismiss = { deleteTarget = null },
             )
         }
 
@@ -395,44 +424,86 @@ private fun GenreGroup.toSelection() = CollectionSelection(
 
 // ---------------------------------------------------------------- components
 
-/** Scrollable tabs; the selected one is emphasized in size and weight. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The browse switcher as a snapping carousel: the active section sits in the
+ * middle at full size while its neighbours shrink and fade with distance, so
+ * where you are — and what's adjacent — is legible at a glance. Swiping the
+ * carousel changes section; tapping a neighbour brings it to the centre.
+ */
 @Composable
-private fun BrowseTabs(selectedTab: Int, onSelect: (Int) -> Unit) {
-    ScrollableTabRow(
-        selectedTabIndex = selectedTab,
-        edgePadding = 16.dp,
-        containerColor = MaterialTheme.colorScheme.surface,
-        divider = {},
-        indicator = { positions ->
-            TabRowDefaults.PrimaryIndicator(
-                modifier = Modifier.tabIndicatorOffset(positions[selectedTab]),
-                width = 32.dp,
-            )
-        },
+private fun BrowseCarousel(selectedTab: Int, onSelect: (Int) -> Unit) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface),
     ) {
-        BROWSE_TABS.forEachIndexed { index, title ->
-            val selected = selectedTab == index
-            Tab(
-                selected = selected,
-                onClick = { onSelect(index) },
-                text = {
+        val itemWidth = 148.dp
+        val sidePadding = (maxWidth - itemWidth) / 2
+        val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedTab)
+        val density = LocalDensity.current
+        val itemWidthPx = with(density) { itemWidth.toPx() }
+
+        // Follow whatever the carousel settles on.
+        val centeredIndex by remember {
+            derivedStateOf {
+                val info = listState.layoutInfo
+                val centre = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+                info.visibleItemsInfo.minByOrNull { item ->
+                    abs((item.offset + item.size / 2f) - centre)
+                }?.index
+            }
+        }
+        LaunchedEffect(listState.isScrollInProgress) {
+            if (!listState.isScrollInProgress) {
+                centeredIndex?.let { if (it != selectedTab) onSelect(it) }
+            }
+        }
+        LaunchedEffect(selectedTab) {
+            if (centeredIndex != selectedTab) listState.animateScrollToItem(selectedTab)
+        }
+
+        LazyRow(
+            state = listState,
+            flingBehavior = rememberSnapFlingBehavior(listState),
+            contentPadding = PaddingValues(horizontal = sidePadding),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().height(72.dp),
+        ) {
+            itemsIndexed(BROWSE_TABS) { index, title ->
+                val info = listState.layoutInfo
+                val centre = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+                val item = info.visibleItemsInfo.firstOrNull { it.index == index }
+                // 0 at the centre, 1 one full item away.
+                val distance = item
+                    ?.let { abs((it.offset + it.size / 2f) - centre) / itemWidthPx }
+                    ?.coerceIn(0f, 1f)
+                    ?: 1f
+                val scale = 1f - 0.28f * distance
+                val fade = 1f - 0.6f * distance
+
+                Box(
+                    modifier = Modifier
+                        .width(itemWidth)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onSelect(index) },
+                    contentAlignment = Alignment.Center,
+                ) {
                     Text(
                         text = title,
-                        style = if (selected) {
-                            MaterialTheme.typography.titleLarge
-                        } else {
-                            MaterialTheme.typography.titleMedium
-                        },
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            alpha = fade
                         },
                     )
-                },
-            )
+                }
+            }
         }
     }
 }
@@ -455,7 +526,7 @@ private fun SongsHeader(
         Box(modifier = Modifier.weight(1f)) {
             TextButton(onClick = { sortMenuOpen = true }) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Sort,
+                    imageVector = Icons.AutoMirrored.Rounded.Sort,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -485,10 +556,10 @@ private fun SongsHeader(
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             ),
         ) {
-            Icon(Icons.Filled.Shuffle, contentDescription = "Shuffle all")
+            Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle all")
         }
         FilledIconButton(onClick = onPlayAll, modifier = Modifier.padding(start = 8.dp)) {
-            Icon(Icons.Filled.PlayArrow, contentDescription = "Play all")
+            Icon(Icons.Rounded.PlayArrow, contentDescription = "Play all")
         }
     }
 }
@@ -515,7 +586,7 @@ private fun ShuffleAction(mode: ShuffleMode, onClick: () -> Unit) {
         Icon(
             // SMART wears the app's own mark — the mode is LatentJam's whole
             // point, so it gets its own symbol rather than a tinted shuffle.
-            imageVector = if (mode == ShuffleMode.SMART) LatentJamMark else Icons.Filled.Shuffle,
+            imageVector = if (mode == ShuffleMode.SMART) LatentJamMark else Icons.Rounded.Shuffle,
             contentDescription = "Shuffle mode: $label. Tap to change.",
             tint = tint,
         )
@@ -544,7 +615,7 @@ private fun AlbumCard(album: AlbumGroup, onClick: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Filled.MusicNote,
+                imageVector = Icons.Rounded.MusicNote,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -653,16 +724,16 @@ private fun MiniPlayerPill(
                     )
                 }
                 IconButton(onClick = onPrevious) {
-                    Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous track")
+                    Icon(Icons.Rounded.SkipPrevious, contentDescription = "Previous track")
                 }
                 IconButton(onClick = onTogglePlayPause) {
                     Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                         contentDescription = if (isPlaying) "Pause" else "Play",
                     )
                 }
                 IconButton(onClick = onNext) {
-                    Icon(Icons.Filled.SkipNext, contentDescription = "Next track")
+                    Icon(Icons.Rounded.SkipNext, contentDescription = "Next track")
                 }
             }
             LinearProgressIndicator(

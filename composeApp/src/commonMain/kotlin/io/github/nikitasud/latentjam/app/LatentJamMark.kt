@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.group
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 
@@ -31,39 +32,45 @@ val LatentJamMark: ImageVector by lazy {
         viewportWidth = 100f,
         viewportHeight = 100f,
     ).apply {
-        // Ghost "L" behind the graph.
-        path(
-            stroke = SolidColor(Color.Black),
-            strokeLineWidth = 6f,
-            strokeAlpha = 0.4f,
-            strokeLineCap = StrokeCap.Round,
-            strokeLineJoin = StrokeJoin.Round,
-        ) {
-            moveTo(30f, 30f)
-            verticalLineTo(75f)
-            horizontalLineTo(45f)
+        // The brand geometry only fills the middle of its 100×100 artboard,
+        // which would render visibly smaller than Material's icons (they fill
+        // their viewport edge to edge). Scaling about the mark's own centre
+        // gives it the same optical weight as its neighbours.
+        group(pivotX = 50f, pivotY = 52.5f, scaleX = 1.5f, scaleY = 1.5f) {
+            // Ghost "L" behind the graph.
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 6f,
+                strokeAlpha = 0.4f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(30f, 30f)
+                verticalLineTo(75f)
+                horizontalLineTo(45f)
+            }
+            // Edges.
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 7f,
+                strokeLineCap = StrokeCap.Round,
+            ) {
+                moveTo(30f, 30f)
+                curveTo(50f, 30f, 50f, 50f, 70f, 50f)
+            }
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 7f,
+                strokeLineCap = StrokeCap.Round,
+            ) {
+                moveTo(70f, 50f)
+                curveTo(70f, 70f, 60f, 75f, 45f, 75f)
+            }
+            // Nodes.
+            node(centerX = 30f, centerY = 30f)
+            node(centerX = 70f, centerY = 50f)
+            node(centerX = 45f, centerY = 75f)
         }
-        // Edges.
-        path(
-            stroke = SolidColor(Color.Black),
-            strokeLineWidth = 7f,
-            strokeLineCap = StrokeCap.Round,
-        ) {
-            moveTo(30f, 30f)
-            curveTo(50f, 30f, 50f, 50f, 70f, 50f)
-        }
-        path(
-            stroke = SolidColor(Color.Black),
-            strokeLineWidth = 7f,
-            strokeLineCap = StrokeCap.Round,
-        ) {
-            moveTo(70f, 50f)
-            curveTo(70f, 70f, 60f, 75f, 45f, 75f)
-        }
-        // Nodes.
-        node(centerX = 30f, centerY = 30f)
-        node(centerX = 70f, centerY = 50f)
-        node(centerX = 45f, centerY = 75f)
     }.build()
 }
 

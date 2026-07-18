@@ -12,20 +12,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,6 +49,7 @@ internal fun TrackActionsSheet(
     onAddToQueue: () -> Unit,
     onGoToAlbum: () -> Unit,
     onGoToArtist: () -> Unit,
+    onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -54,7 +59,7 @@ internal fun TrackActionsSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Artwork(uri = track.artworkUri, size = 56.dp)
+                Artwork(uri = track.artworkUri, size = 56.dp, cornerRadius = 16.dp)
                 Column {
                     Text(
                         text = "Track",
@@ -77,17 +82,60 @@ internal fun TrackActionsSheet(
                 }
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SheetAction(Icons.Filled.PlayArrow, "Play") { onDismiss(); onPlay() }
-            SheetAction(Icons.AutoMirrored.Filled.PlaylistAdd, "Play next") { onDismiss(); onPlayNext() }
-            SheetAction(Icons.AutoMirrored.Filled.QueueMusic, "Add to queue") { onDismiss(); onAddToQueue() }
-            SheetAction(Icons.Filled.Album, "Go to album") { onDismiss(); onGoToAlbum() }
-            SheetAction(Icons.Filled.Person, "Go to artist") { onDismiss(); onGoToArtist() }
+            SheetAction(Icons.Rounded.PlayArrow, "Play") { onDismiss(); onPlay() }
+            SheetAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Play next") { onDismiss(); onPlayNext() }
+            SheetAction(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { onDismiss(); onAddToQueue() }
+            SheetAction(Icons.Rounded.Album, "Go to album") { onDismiss(); onGoToAlbum() }
+            SheetAction(Icons.Rounded.Person, "Go to artist") { onDismiss(); onGoToArtist() }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            SheetAction(
+                icon = Icons.Rounded.DeleteOutline,
+                label = "Delete from device",
+                tint = MaterialTheme.colorScheme.error,
+            ) { onDismiss(); onDelete() }
         }
     }
 }
 
+/** Confirmation for the one action here that cannot be undone. */
 @Composable
-private fun SheetAction(icon: ImageVector, label: String, onClick: () -> Unit) {
+internal fun DeleteTrackDialog(
+    track: TrackDescriptor,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete this track?") },
+        text = {
+            Text(
+                "\"${track.title ?: "This track"}\" will be removed from this device. " +
+                    "This can't be undone.",
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Delete", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun SheetAction(
+    icon: ImageVector,
+    label: String,
+    tint: Color = Color.Unspecified,
+    onClick: () -> Unit,
+) {
+    val resolvedTint = if (tint == Color.Unspecified) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        tint
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -96,11 +144,11 @@ private fun SheetAction(icon: ImageVector, label: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        Icon(imageVector = icon, contentDescription = null, tint = resolvedTint)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (tint == Color.Unspecified) Color.Unspecified else tint,
         )
-        Text(text = label, style = MaterialTheme.typography.bodyLarge)
     }
 }

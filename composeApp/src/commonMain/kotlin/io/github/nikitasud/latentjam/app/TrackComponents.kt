@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,7 +44,7 @@ internal fun Artwork(uri: String?, size: Dp, cornerRadius: Dp = 8.dp) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = Icons.Filled.MusicNote,
+            imageVector = Icons.Rounded.MusicNote,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -98,7 +98,7 @@ internal fun TrackRow(
         if (onMenu != null) {
             IconButton(onClick = onMenu) {
                 Icon(
-                    imageVector = Icons.Filled.MoreVert,
+                    imageVector = Icons.Rounded.MoreVert,
                     contentDescription = "More options for ${track.title ?: "this track"}",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

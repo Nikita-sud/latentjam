@@ -24,16 +24,16 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.RepeatOne
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -113,7 +113,7 @@ fun NowPlayingScreen(playback: PlaybackController, onClose: () -> Unit) {
             ) {
                 Row(modifier = Modifier.fillMaxWidth()) {
                     IconButton(onClick = onClose) {
-                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Close")
+                        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Close")
                     }
                 }
 
@@ -147,7 +147,7 @@ fun NowPlayingScreen(playback: PlaybackController, onClose: () -> Unit) {
                 ) {
                     IconButton(onClick = { showQueue = true }) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                            imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
                             contentDescription = "Queue",
                         )
                     }
@@ -192,7 +192,7 @@ fun NowPlayingScreen(playback: PlaybackController, onClose: () -> Unit) {
                         modifier = Modifier.size(56.dp),
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.SkipPrevious,
+                            imageVector = Icons.Rounded.SkipPrevious,
                             contentDescription = "Previous",
                             modifier = Modifier.size(36.dp),
                         )
@@ -202,7 +202,7 @@ fun NowPlayingScreen(playback: PlaybackController, onClose: () -> Unit) {
                         modifier = Modifier.size(72.dp),
                     ) {
                         Icon(
-                            imageVector = if (now.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            imageVector = if (now.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             contentDescription = if (now.isPlaying) "Pause" else "Play",
                             modifier = Modifier.size(36.dp),
                         )
@@ -212,7 +212,7 @@ fun NowPlayingScreen(playback: PlaybackController, onClose: () -> Unit) {
                         modifier = Modifier.size(56.dp),
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.SkipNext,
+                            imageVector = Icons.Rounded.SkipNext,
                             contentDescription = "Next",
                             modifier = Modifier.size(36.dp),
                         )
@@ -248,7 +248,7 @@ private fun LargeArtwork(uri: String?) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = Icons.Filled.MusicNote,
+            imageVector = Icons.Rounded.MusicNote,
             contentDescription = null,
             modifier = Modifier.size(96.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -274,7 +274,7 @@ private fun RepeatButton(mode: RepeatMode, onClick: () -> Unit) {
     }
     IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
         Icon(
-            imageVector = if (mode == RepeatMode.ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+            imageVector = if (mode == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
             contentDescription = when (mode) {
                 RepeatMode.OFF -> "Repeat off. Tap to repeat the queue."
                 RepeatMode.ALL -> "Repeating the queue. Tap to repeat one track."
@@ -296,7 +296,7 @@ private fun ShuffleButton(mode: ShuffleMode, onClick: () -> Unit) {
         Icon(
             // SMART wears the app's own mark; plain shuffle keeps the
             // standard glyph, so the three states never rely on tint alone.
-            imageVector = if (mode == ShuffleMode.SMART) LatentJamMark else Icons.Filled.Shuffle,
+            imageVector = if (mode == ShuffleMode.SMART) LatentJamMark else Icons.Rounded.Shuffle,
             contentDescription = "Shuffle: ${mode.name.lowercase()}. Tap to change.",
             tint = tint,
         )
