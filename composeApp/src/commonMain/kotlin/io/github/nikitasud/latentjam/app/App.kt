@@ -163,6 +163,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var selectedCollection by remember { mutableStateOf<CollectionSelection?>(null) }
         var showDiagnostics by remember { mutableStateOf(false) }
         var showSettings by remember { mutableStateOf(false) }
+        var infoTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
         var showNowPlaying by remember { mutableStateOf(false) }
         var showSearch by remember { mutableStateOf(false) }
         var trackMenuTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
@@ -543,6 +544,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onAddToPlaylist = { addToPlaylistTarget = target },
                 onGoToAlbum = { showAlbumOf(target) },
                 onGoToArtist = { showArtistOf(target) },
+                onInfo = { infoTarget = target },
                 onDelete = { deleteTarget = target },
                 onDismiss = { trackMenuTarget = null },
             )
@@ -624,6 +626,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 selection = selection,
                 currentTrackId = now.track?.id,
                 onPlayTrack = { index -> scope.launch { playback.play(selection.tracks, index) } },
+                onShuffle = { scope.launch { playback.play(selection.tracks.shuffled(), 0) } },
                 onTrackMenu = { trackMenuTarget = it },
                 onClose = { selectedCollection = null },
             )
@@ -636,6 +639,23 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
                 onTrackMenu = { trackMenuTarget = it },
                 onClose = { showSearch = false },
+            )
+        }
+
+        infoTarget?.let { target ->
+            val saveMetadata = rememberMetadataEditor {
+                scope.launch {
+                    tracks = library.tracks()
+                    snackbar.showSnackbar("Tags updated")
+                }
+            }
+            TrackInfoSheet(
+                track = target,
+                onSave = { edits ->
+                    saveMetadata(target, edits)
+                    infoTarget = null
+                },
+                onDismiss = { infoTarget = null },
             )
         }
 

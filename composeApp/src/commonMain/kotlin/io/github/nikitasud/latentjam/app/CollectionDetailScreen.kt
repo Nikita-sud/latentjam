@@ -25,6 +25,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -51,6 +59,7 @@ fun CollectionDetailScreen(
     selection: CollectionSelection,
     currentTrackId: TrackId?,
     onPlayTrack: (Int) -> Unit,
+    onShuffle: () -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -63,46 +72,59 @@ fun CollectionDetailScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
+            // Title and count sit in the bar itself rather than under a large cover: this screen
+            // is a list you came to play, and a hero image would push the first track off-screen.
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose) {
                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                 }
+                Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
+                    Text(
+                        text = selection.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    selection.subtitle?.let { subtitle ->
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
+
             LazyColumn {
-                item(key = "header") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                item(key = "actions") {
+                    // Shuffle and play live on their own rounded surface, mirroring the Tracks tab
+                    // so the same two controls sit in the same place wherever a list is shown.
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     ) {
-                        Artwork(uri = selection.artworkUri, size = 112.dp)
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = selection.title,
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            selection.subtitle?.let { subtitle ->
-                                Text(
-                                    text = subtitle,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            FilledTonalIconButton(onClick = onShuffle) {
+                                Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle")
                             }
-                            Button(onClick = { onPlayTrack(0) }) {
-                                Text("Play all")
+                            Spacer(modifier = Modifier.padding(horizontal = 6.dp))
+                            FilledIconButton(onClick = { onPlayTrack(0) }) {
+                                Icon(Icons.Rounded.PlayArrow, contentDescription = "Play")
                             }
                         }
                     }
                 }
-                // Position is part of the key: a playlist may list the same track twice, and
-                // identity alone would make that a crash rather than a repeat.
                 itemsIndexed(
                     selection.tracks,
                     key = { index, track -> "$index:${track.id.value}" },
@@ -113,6 +135,12 @@ fun CollectionDetailScreen(
                         onClick = { onPlayTrack(index) },
                         onMenu = { onTrackMenu(track) },
                     )
+                    if (index < selection.tracks.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 88.dp, end = 16.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                        )
+                    }
                 }
             }
         }
