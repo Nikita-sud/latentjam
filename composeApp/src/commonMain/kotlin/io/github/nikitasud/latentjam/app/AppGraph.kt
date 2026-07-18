@@ -12,6 +12,8 @@ import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.library.musicLibraryModule
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.PlaybackController
+import io.github.nikitasud.latentjam.playback.EqualizerController
+import io.github.nikitasud.latentjam.playback.equalizerModule
 import io.github.nikitasud.latentjam.playback.playbackModule
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
@@ -73,6 +75,8 @@ object AppGraph {
                     smartChainInputsModule(),
                     musicLibraryModule(),
                     playbackModule(),
+                    equalizerModule(),
+                    appSettingsModule(),
                     listeningHistoryModule(),
                     module {
                         // Production model contract (mnv4-conv-m-distill-mw):
@@ -115,6 +119,14 @@ object AppGraph {
 
     /** The device music collection. */
     val library: MusicLibrary
+        get() = koin.get()
+
+    /** Shell-level user preferences (theme). */
+    val settings: AppSettings
+        get() = koin.get()
+
+    /** The system equalizer attached to our audio output. */
+    val equalizer: EqualizerController
         get() = koin.get()
 
     /** The playback controller (media-session-backed on Android). */

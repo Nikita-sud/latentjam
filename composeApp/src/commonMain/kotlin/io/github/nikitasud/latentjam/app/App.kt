@@ -138,7 +138,13 @@ internal const val OVERFLOW_KEY = "overflow-button"
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackController) {
-    MaterialTheme(colorScheme = latentJamColorScheme(darkTheme = isSystemInDarkTheme())) {
+    val themeMode by AppGraph.settings.themeMode.collectAsState()
+    val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    MaterialTheme(colorScheme = latentJamColorScheme(darkTheme = darkTheme)) {
         val scope = rememberCoroutineScope()
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
@@ -156,6 +162,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var songSort by remember { mutableStateOf(SongSort.TITLE) }
         var selectedCollection by remember { mutableStateOf<CollectionSelection?>(null) }
         var showDiagnostics by remember { mutableStateOf(false) }
+        var showSettings by remember { mutableStateOf(false) }
         var showNowPlaying by remember { mutableStateOf(false) }
         var showSearch by remember { mutableStateOf(false) }
         var trackMenuTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
@@ -324,6 +331,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 onClick = {
                                                     dismiss()
                                                     scope.launch { tracks = library.tracks() }
+                                                },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Settings") },
+                                                onClick = {
+                                                    dismiss()
+                                                    showSettings = true
                                                 },
                                             )
                                             DropdownMenuItem(
@@ -622,6 +636,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
                 onTrackMenu = { trackMenuTarget = it },
                 onClose = { showSearch = false },
+            )
+        }
+
+        if (showSettings) {
+            SettingsScreen(
+                settings = AppGraph.settings,
+                equalizer = AppGraph.equalizer,
+                engine = engine,
+                tracks = tracks.orEmpty(),
+                onClose = { showSettings = false },
             )
         }
 

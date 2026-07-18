@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.playback
 
+import android.media.AudioManager
 import androidx.media3.common.AudioAttributes
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -28,16 +29,25 @@ public class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        // The audio session id is generated HERE rather than read back from the player: the
+        // equalizer effect binds to a session, and asking for one we chose removes any window
+        // where the effect could attach to a session the player has already replaced.
+        val audioSessionId = (getSystemService(AUDIO_SERVICE) as AudioManager).generateAudioSessionId()
         val player = ExoPlayer.Builder(this)
             .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true)
             .build()
+            .apply { setAudioSessionId(audioSessionId) }
+        // Announced rather than injected: this service is built by the system and cannot see
+        // the app's scoped Koin graph. Whoever owns the equalizer picks the session up from here.
+        AudioSessionRegistry.publish(audioSessionId)
         mediaSession = MediaSession.Builder(this, player).build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onDestroy() {
+        AudioSessionRegistry.publish(null)
         mediaSession?.run {
             player.release()
             release()
