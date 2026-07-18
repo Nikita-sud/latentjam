@@ -46,6 +46,20 @@ internal class StubPlaybackController : PlaybackController {
 
     override suspend fun playAt(queueIndex: Int) = Unit
 
+    override suspend fun cycleRepeatMode(): RepeatMode {
+        val next = when (mutableState.value.repeatMode) {
+            RepeatMode.OFF -> RepeatMode.ALL
+            RepeatMode.ALL -> RepeatMode.ONE
+            RepeatMode.ONE -> RepeatMode.OFF
+        }
+        mutableState.update { it.copy(repeatMode = next) }
+        return next
+    }
+
+    override suspend fun playNext(track: TrackDescriptor) = Unit
+
+    override suspend fun addToQueue(track: TrackDescriptor) = Unit
+
     override suspend fun cycleShuffleMode(): ShuffleMode {
         val next = when (mutableState.value.shuffleMode) {
             ShuffleMode.OFF -> ShuffleMode.ON

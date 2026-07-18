@@ -133,6 +133,10 @@ internal class DefaultSimilarityEngine(
         }
     }
 
+    override suspend fun embedding(trackId: TrackId): FloatArray? = withContext(dispatcher) {
+        mutex.withLock { index.vector(trackId) }
+    }
+
     override suspend fun release() {
         withContext(dispatcher) {
             mutex.withLock {

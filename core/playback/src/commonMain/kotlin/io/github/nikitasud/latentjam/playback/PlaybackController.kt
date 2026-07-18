@@ -18,6 +18,9 @@ import org.koin.core.module.Module
  */
 public enum class ShuffleMode { OFF, ON, SMART }
 
+/** Repeat positions: no repeat, repeat the queue, repeat one track. */
+public enum class RepeatMode { OFF, ALL, ONE }
+
 /**
  * Snapshot of what is playing right now — the UI's single source of truth.
  *
@@ -34,6 +37,7 @@ public data class NowPlaying(
     public val track: TrackDescriptor? = null,
     public val isPlaying: Boolean = false,
     public val shuffleMode: ShuffleMode = ShuffleMode.OFF,
+    public val repeatMode: RepeatMode = RepeatMode.OFF,
     public val positionMs: Long = 0,
     public val durationMs: Long = 0,
     public val queue: List<TrackDescriptor> = emptyList(),
@@ -93,6 +97,15 @@ public interface PlaybackController {
 
     /** Advances OFF → ON → SMART → OFF and returns the new mode. */
     public suspend fun cycleShuffleMode(): ShuffleMode
+
+    /** Advances OFF → ALL → ONE → OFF and returns the new mode. */
+    public suspend fun cycleRepeatMode(): RepeatMode
+
+    /** Inserts [track] directly after the current one. */
+    public suspend fun playNext(track: TrackDescriptor)
+
+    /** Appends [track] to the end of the queue. */
+    public suspend fun addToQueue(track: TrackDescriptor)
 }
 
 /**

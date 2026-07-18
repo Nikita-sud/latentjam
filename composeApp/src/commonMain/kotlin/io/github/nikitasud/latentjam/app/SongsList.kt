@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,20 +36,30 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.SongSorting
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+
+private val RailWidth = 26.dp
+private val RailGap = 10.dp
+private val BubbleSize = 56.dp
 
 /**
  * The Songs tab for large libraries: sorted per [sort], sticky index headers,
- * and a draggable A–Z rail with a preview bubble — position-based navigation
- * instead of endless flinging (Fitts's law for ~1000-row lists). Recency sort
- * drops the headers and rail, which have no meaning there.
+ * and an A–Z rail in its own pill — position-based navigation instead of
+ * endless flinging (Fitts's law for ~1000-row lists). While dragging, the
+ * letter appears beside the finger rather than over the list, so the titles
+ * being scrubbed past stay readable. Recency sort drops the index entirely.
  *
  * Playing from here queues the tracks in the displayed order.
  */
@@ -59,8 +71,7 @@ internal fun SectionedSongsList(
     currentTrackId: TrackId?,
     contentPadding: PaddingValues,
     onPlay: (queue: List<TrackDescriptor>, index: Int) -> Unit,
-    onShowAlbum: (TrackDescriptor) -> Unit,
-    onShowArtist: (TrackDescriptor) -> Unit,
+    onTrackMenu: (TrackDescriptor) -> Unit,
 ) {
     val sections = remember(songs, sort) { SongSorting.sections(songs, sort) }
     val displayOrder = remember(sections) { sections.flatMap { it.tracks } }
@@ -68,13 +79,20 @@ internal fun SectionedSongsList(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var previewBucket by remember { mutableStateOf<String?>(null) }
+    var touchY by remember { mutableStateOf(0f) }
+    var railTopPx by remember { mutableStateOf(0f) }
     val showIndex = sort != SongSort.RECENT && sections.size > 1
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
-            contentPadding = contentPadding,
-            modifier = Modifier.fillMaxSize(),
+            // Keeps row content — especially the overflow buttons — clear of
+            // the rail so neither is hard to hit.
+            contentPadding = PaddingValues(
+                end = if (showIndex) RailWidth + RailGap else 0.dp,
+                bottom = 12.dp,
+            ),
+            modifier = Modifier.fillMaxSize().padding(contentPadding),
         ) {
             indexed.forEach { section ->
                 if (showIndex) {
@@ -91,8 +109,7 @@ internal fun SectionedSongsList(
                         track = track,
                         isCurrent = track.id == currentTrackId,
                         onClick = { onPlay(displayOrder, section.firstTrackGlobalIndex + indexInSection) },
-                        onShowAlbum = { onShowAlbum(track) },
-                        onShowArtist = { onShowArtist(track) },
+                        onMenu = { onTrackMenu(track) },
                     )
                 }
             }
@@ -101,33 +118,43 @@ internal fun SectionedSongsList(
         if (showIndex) {
             AlphabetRail(
                 buckets = indexed.map { it.bucket },
+                activeBucket = previewBucket,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .fillMaxHeight()
-                    .padding(contentPadding),
-                onSelect = { bucketIndex ->
+                    .padding(contentPadding)
+                    .padding(vertical = 8.dp, horizontal = 2.dp)
+                    .onGloballyPositioned { railTopPx = it.positionInParent().y },
+                onSelect = { bucketIndex, y ->
+                    touchY = y
                     previewBucket = indexed[bucketIndex].bucket
-                    scope.launch {
-                        listState.scrollToItem(indexed[bucketIndex].emitStartIndex)
-                    }
+                    scope.launch { listState.scrollToItem(indexed[bucketIndex].emitStartIndex) }
                 },
                 onSelectionEnd = { previewBucket = null },
             )
-        }
 
-        previewBucket?.let { bucket ->
-            Surface(
-                modifier = Modifier.align(Alignment.Center).size(72.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                tonalElevation = 6.dp,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = bucket,
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
+            // Letter bubble tracks the finger and sits beside the rail.
+            previewBucket?.let { bucket ->
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset {
+                            IntOffset(
+                                x = -(RailWidth + RailGap).roundToPx(),
+                                y = (railTopPx + touchY - (BubbleSize / 2).toPx()).roundToInt(),
+                            )
+                        }
+                        .size(BubbleSize),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.82f),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = bucket,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.inverseOnSurface,
+                        )
+                    }
                 }
             }
         }
@@ -147,12 +174,13 @@ private fun SectionHeader(bucket: String) {
     )
 }
 
-/** Slim letter rail; drag or tap maps y-position to a bucket. */
+/** Letter rail inside a soft pill; drag or tap maps y-position to a bucket. */
 @Composable
 private fun AlphabetRail(
     buckets: List<String>,
+    activeBucket: String?,
     modifier: Modifier = Modifier,
-    onSelect: (Int) -> Unit,
+    onSelect: (index: Int, y: Float) -> Unit,
     onSelectionEnd: () -> Unit,
 ) {
     var railHeightPx by remember { mutableStateOf(0) }
@@ -162,37 +190,53 @@ private fun AlphabetRail(
         return ((y / railHeightPx) * buckets.size).toInt().coerceIn(0, buckets.lastIndex)
     }
 
-    Column(
-        modifier = modifier
-            .width(24.dp)
-            .onSizeChanged { railHeightPx = it.height }
-            .pointerInput(buckets) {
-                detectDragGestures(
-                    onDragStart = { offset -> bucketIndexAt(offset.y)?.let(onSelect) },
-                    onDrag = { change, _ -> bucketIndexAt(change.position.y)?.let(onSelect) },
-                    onDragEnd = onSelectionEnd,
-                    onDragCancel = onSelectionEnd,
+    Surface(
+        modifier = modifier.width(RailWidth),
+        shape = RoundedCornerShape(percent = 50),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+    ) {
+        Column(
+            modifier = Modifier
+                .onSizeChanged { railHeightPx = it.height }
+                .pointerInput(buckets) {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            bucketIndexAt(offset.y)?.let { onSelect(it, offset.y) }
+                        },
+                        onDrag = { change, _ ->
+                            bucketIndexAt(change.position.y)?.let { onSelect(it, change.position.y) }
+                        },
+                        onDragEnd = onSelectionEnd,
+                        onDragCancel = onSelectionEnd,
+                    )
+                }
+                .pointerInput(buckets) {
+                    detectTapGestures(
+                        onPress = { offset ->
+                            bucketIndexAt(offset.y)?.let { onSelect(it, offset.y) }
+                            tryAwaitRelease()
+                            onSelectionEnd()
+                        },
+                    )
+                }
+                .padding(vertical = 6.dp),
+            verticalArrangement = Arrangement.SpaceEvenly,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            buckets.forEach { bucket ->
+                val active = bucket == activeBucket
+                Text(
+                    text = bucket,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                    color = if (active) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    textAlign = TextAlign.Center,
                 )
             }
-            .pointerInput(buckets) {
-                detectTapGestures(
-                    onPress = { offset ->
-                        bucketIndexAt(offset.y)?.let(onSelect)
-                        tryAwaitRelease()
-                        onSelectionEnd()
-                    },
-                )
-            },
-        verticalArrangement = Arrangement.SpaceEvenly,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        buckets.forEach { bucket ->
-            Text(
-                text = bucket,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
         }
     }
 }

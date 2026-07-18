@@ -118,6 +118,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var showDiagnostics by remember { mutableStateOf(false) }
         var showNowPlaying by remember { mutableStateOf(false) }
         var showSearch by remember { mutableStateOf(false) }
+        var trackMenuTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
         var indexSummary by remember { mutableStateOf<String?>(null) }
         var historySummary by remember { mutableStateOf<String?>(null) }
         val now by playback.state.collectAsState()
@@ -217,6 +218,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     now.track?.let { current ->
                         MiniPlayerPill(
                             track = current,
+                            accent = rememberTrackAccent(current),
                             isPlaying = now.isPlaying,
                             progress = if (now.durationMs > 0) {
                                 (now.positionMs.toFloat() / now.durationMs).coerceIn(0f, 1f)
@@ -276,10 +278,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 songs = catalog.songs,
                                 sort = songSort,
                                 currentTrackId = now.track?.id,
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                                 onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
-                                onShowAlbum = ::showAlbumOf,
-                                onShowArtist = ::showArtistOf,
+                                onTrackMenu = { trackMenuTarget = it },
                             )
                         }
 
@@ -315,6 +316,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     }
                 }
             }
+        }
+
+        trackMenuTarget?.let { target ->
+            TrackActionsSheet(
+                track = target,
+                onPlay = { scope.launch { playback.play(listOf(target), 0) } },
+                onPlayNext = { scope.launch { playback.playNext(target) } },
+                onAddToQueue = { scope.launch { playback.addToQueue(target) } },
+                onGoToAlbum = { showAlbumOf(target) },
+                onGoToArtist = { showArtistOf(target) },
+                onDismiss = { trackMenuTarget = null },
+            )
         }
 
         selectedCollection?.let { selection ->
@@ -354,7 +367,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
     }
 }
 
-private val BROWSE_TABS = listOf("Songs", "Albums", "Artists", "Genres")
+private val BROWSE_TABS = listOf("Tracks", "Albums", "Artists", "Genres")
 
 /** Persist-and-report granularity for library indexing. */
 private const val INDEX_CHUNK_SIZE = 8
@@ -500,7 +513,9 @@ private fun ShuffleAction(mode: ShuffleMode, onClick: () -> Unit) {
     }
     TextButton(onClick = onClick) {
         Icon(
-            imageVector = Icons.Filled.Shuffle,
+            // SMART wears the app's own mark — the mode is LatentJam's whole
+            // point, so it gets its own symbol rather than a tinted shuffle.
+            imageVector = if (mode == ShuffleMode.SMART) LatentJamMark else Icons.Filled.Shuffle,
             contentDescription = "Shuffle mode: $label. Tap to change.",
             tint = tint,
         )
@@ -594,6 +609,7 @@ private fun GroupRow(title: String, subtitle: String, artworkUri: String?, onCli
 @Composable
 private fun MiniPlayerPill(
     track: TrackDescriptor,
+    accent: TrackAccent,
     isPlaying: Boolean,
     progress: Float,
     onTogglePlayPause: () -> Unit,
@@ -608,9 +624,10 @@ private fun MiniPlayerPill(
             .fillMaxWidth()
             .clickable(onClick = onOpen),
         shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        tonalElevation = 6.dp,
+        // Colour comes from the cover art, or from the track's place in
+        // latent space when it has none.
+        color = accent.container,
+        contentColor = accent.onContainer,
         shadowElevation = 6.dp,
     ) {
         Column {
@@ -630,7 +647,7 @@ private fun MiniPlayerPill(
                     Text(
                         text = track.artist ?: "Unknown artist",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                        color = accent.onContainer.copy(alpha = 0.72f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -655,8 +672,8 @@ private fun MiniPlayerPill(
                     .padding(horizontal = 16.dp, vertical = 6.dp)
                     .height(3.dp)
                     .clip(RoundedCornerShape(2.dp)),
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.24f),
+                color = accent.onContainer,
+                trackColor = accent.onContainer.copy(alpha = 0.24f),
                 drawStopIndicator = {},
             )
         }

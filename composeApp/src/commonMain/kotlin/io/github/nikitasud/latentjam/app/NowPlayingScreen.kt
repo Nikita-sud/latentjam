@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,14 +23,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Shuffle
@@ -36,9 +38,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,22 +55,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.nikitasud.latentjam.playback.PlaybackController
+import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.launch
 
 /**
- * Full-screen now-playing view: large artwork, track block, drag-to-seek
- * slider on the ticker-fed position, transport row (shuffle / previous /
- * play-pause / next), and the queue as a modal sheet with jump-to-track.
- * Original Material 3 expression throughout.
+ * Full-screen now-playing view. The background carries the track's accent —
+ * sampled from the cover, or derived from its position in latent space when
+ * there is no cover — so the screen belongs to the music that is playing.
+ *
+ * Secondary actions (queue) sit in their own row above the seek bar; the
+ * transport row keeps repeat and shuffle at the outer edges with the
+ * play/pause target largest and centred (Fitts's law).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NowPlayingScreen(playback: PlaybackController, onClose: () -> Unit) {
     val now by playback.state.collectAsState()
@@ -75,101 +85,145 @@ fun NowPlayingScreen(playback: PlaybackController, onClose: () -> Unit) {
     // Local value while the thumb is being dragged, so the ticker doesn't
     // fight the user's finger; committed to the player on release.
     var dragPositionMs by remember { mutableStateOf<Long?>(null) }
+    val accent = rememberTrackAccent(now.track)
 
     PlatformBackHandler(enabled = true, onBack = onClose)
 
     Surface(modifier = Modifier.fillMaxSize()) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.surface,
+                            accent.container,
+                        ),
+                    ),
+                ),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Close")
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Close")
+                    }
                 }
-                IconButton(onClick = { showQueue = true }) {
-                    Icon(Icons.Filled.QueueMusic, contentDescription = "Queue")
-                }
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                LargeArtwork(uri = now.track?.artworkUri)
+                Spacer(modifier = Modifier.weight(1f))
 
-            LargeArtwork(uri = now.track?.artworkUri)
+                Text(
+                    text = now.track?.title ?: "Nothing playing",
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = listOfNotNull(now.track?.artist, now.track?.album).joinToString(" — "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.weight(1f))
 
-            Text(
-                text = now.track?.title ?: "Nothing playing",
-                style = MaterialTheme.typography.headlineSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = listOfNotNull(now.track?.artist, now.track?.album).joinToString(" — "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            val duration = now.durationMs.coerceAtLeast(1)
-            val sliderPosition = (dragPositionMs ?: now.positionMs).coerceIn(0, duration)
-            Slider(
-                value = sliderPosition.toFloat(),
-                onValueChange = { dragPositionMs = it.toLong() },
-                onValueChangeFinished = {
-                    dragPositionMs?.let { target -> scope.launch { playback.seekTo(target) } }
-                    dragPositionMs = null
-                },
-                valueRange = 0f..duration.toFloat(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(formatDuration(sliderPosition), style = MaterialTheme.typography.labelSmall)
-                Text(formatDuration(now.durationMs), style = MaterialTheme.typography.labelSmall)
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ShuffleModeButton(mode = now.shuffleMode) {
-                    scope.launch { playback.cycleShuffleMode() }
-                }
-                IconButton(onClick = { scope.launch { playback.previous() } }) {
-                    Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous")
-                }
-                FilledIconButton(
-                    onClick = { scope.launch { playback.togglePlayPause() } },
-                    modifier = Modifier.size(64.dp),
+                // Secondary actions live above the seek bar; the queue is
+                // raised from the bottom rather than hidden in a top corner.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start,
                 ) {
-                    Icon(
-                        imageVector = if (now.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (now.isPlaying) "Pause" else "Play",
-                    )
+                    IconButton(onClick = { showQueue = true }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                            contentDescription = "Queue",
+                        )
+                    }
                 }
-                IconButton(onClick = { scope.launch { playback.next() } }) {
-                    Icon(Icons.Filled.SkipNext, contentDescription = "Next")
-                }
-                // Balances the row so the play button stays centered.
-                Spacer(modifier = Modifier.size(48.dp))
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
+                val duration = now.durationMs.coerceAtLeast(1)
+                val sliderPosition = (dragPositionMs ?: now.positionMs).coerceIn(0, duration)
+                Slider(
+                    value = sliderPosition.toFloat(),
+                    onValueChange = { dragPositionMs = it.toLong() },
+                    onValueChangeFinished = {
+                        dragPositionMs?.let { target -> scope.launch { playback.seekTo(target) } }
+                        dragPositionMs = null
+                    },
+                    valueRange = 0f..duration.toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.onSurface,
+                        activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(formatDuration(sliderPosition), style = MaterialTheme.typography.labelSmall)
+                    Text(formatDuration(now.durationMs), style = MaterialTheme.typography.labelSmall)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    RepeatButton(mode = now.repeatMode) {
+                        scope.launch { playback.cycleRepeatMode() }
+                    }
+                    IconButton(
+                        onClick = { scope.launch { playback.previous() } },
+                        modifier = Modifier.size(56.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.SkipPrevious,
+                            contentDescription = "Previous",
+                            modifier = Modifier.size(36.dp),
+                        )
+                    }
+                    FilledIconButton(
+                        onClick = { scope.launch { playback.togglePlayPause() } },
+                        modifier = Modifier.size(72.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (now.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (now.isPlaying) "Pause" else "Play",
+                            modifier = Modifier.size(36.dp),
+                        )
+                    }
+                    IconButton(
+                        onClick = { scope.launch { playback.next() } },
+                        modifier = Modifier.size(56.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.SkipNext,
+                            contentDescription = "Next",
+                            modifier = Modifier.size(36.dp),
+                        )
+                    }
+                    ShuffleButton(mode = now.shuffleMode) {
+                        scope.launch { playback.cycleShuffleMode() }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
         }
     }
 
@@ -189,7 +243,7 @@ private fun LargeArtwork(uri: String?) {
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
@@ -210,15 +264,42 @@ private fun LargeArtwork(uri: String?) {
     }
 }
 
+/** Repeat is a three-state control, so the icon itself changes, not just its tint. */
 @Composable
-private fun ShuffleModeButton(mode: ShuffleMode, onClick: () -> Unit) {
+private fun RepeatButton(mode: RepeatMode, onClick: () -> Unit) {
+    val tint = if (mode == RepeatMode.OFF) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+        Icon(
+            imageVector = if (mode == RepeatMode.ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+            contentDescription = when (mode) {
+                RepeatMode.OFF -> "Repeat off. Tap to repeat the queue."
+                RepeatMode.ALL -> "Repeating the queue. Tap to repeat one track."
+                RepeatMode.ONE -> "Repeating one track. Tap to turn repeat off."
+            },
+            tint = tint,
+        )
+    }
+}
+
+@Composable
+private fun ShuffleButton(mode: ShuffleMode, onClick: () -> Unit) {
     val tint = when (mode) {
         ShuffleMode.OFF -> MaterialTheme.colorScheme.onSurfaceVariant
         ShuffleMode.ON -> MaterialTheme.colorScheme.primary
         ShuffleMode.SMART -> MaterialTheme.colorScheme.tertiary
     }
-    IconButton(onClick = onClick) {
-        Icon(Icons.Filled.Shuffle, contentDescription = "Shuffle mode: $mode", tint = tint)
+    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+        Icon(
+            // SMART wears the app's own mark; plain shuffle keeps the
+            // standard glyph, so the three states never rely on tint alone.
+            imageVector = if (mode == ShuffleMode.SMART) LatentJamMark else Icons.Filled.Shuffle,
+            contentDescription = "Shuffle: ${mode.name.lowercase()}. Tap to change.",
+            tint = tint,
+        )
     }
 }
 
@@ -283,4 +364,3 @@ private fun QueueSheet(
         }
     }
 }
-

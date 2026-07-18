@@ -73,6 +73,7 @@ internal class AndroidPlaybackController(
     /** Rebuilt only when the queue actually changes; shared by ticker emissions. */
     private var cachedQueue: List<TrackDescriptor> = emptyList()
     private var tickerJob: Job? = null
+    private var repeat: RepeatMode = RepeatMode.OFF
 
     private val playerListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -147,6 +148,38 @@ internal class AndroidPlaybackController(
         if (queueIndex !in 0 until player.mediaItemCount) return@withContext
         player.seekTo(queueIndex, 0L)
         player.play()
+        pushState()
+    }
+
+    override suspend fun cycleRepeatMode(): RepeatMode = withContext(Dispatchers.Main) {
+        repeat = when (repeat) {
+            RepeatMode.OFF -> RepeatMode.ALL
+            RepeatMode.ALL -> RepeatMode.ONE
+            RepeatMode.ONE -> RepeatMode.OFF
+        }
+        controller?.repeatMode = when (repeat) {
+            RepeatMode.OFF -> Player.REPEAT_MODE_OFF
+            RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+            RepeatMode.ONE -> Player.REPEAT_MODE_ONE
+        }
+        pushState()
+        repeat
+    }
+
+    override suspend fun playNext(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
+        val player = controller ?: return@withContext
+        poolById[track.id.value] = track
+        val insertAt = (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
+        player.addMediaItem(insertAt, track.toMediaItem())
+        rebuildQueueSnapshot()
+        pushState()
+    }
+
+    override suspend fun addToQueue(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
+        val player = controller ?: return@withContext
+        poolById[track.id.value] = track
+        player.addMediaItem(track.toMediaItem())
+        rebuildQueueSnapshot()
         pushState()
     }
 
@@ -234,6 +267,7 @@ internal class AndroidPlaybackController(
             track = track,
             isPlaying = player?.isPlaying == true,
             shuffleMode = mode,
+            repeatMode = repeat,
             positionMs = player?.currentPosition?.coerceAtLeast(0) ?: 0,
             durationMs = duration ?: track?.durationMs ?: 0,
             queue = cachedQueue,

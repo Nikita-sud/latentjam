@@ -81,6 +81,15 @@ public interface SimilarityEngine {
     public suspend fun nextTrack(context: ListeningContext): NextTrackResult
 
     /**
+     * The stored embedding for [trackId], or `null` if it is not indexed.
+     *
+     * Exposed so the UI can express a track's position in latent space —
+     * similar-sounding tracks land near each other, so a colour derived from
+     * this vector is a visual echo of the similarity model itself.
+     */
+    public suspend fun embedding(trackId: TrackId): FloatArray?
+
+    /**
      * Releases the model and clears the index, returning the engine to
      * [EngineState.Uninitialized]. The engine may be [initialize]d again
      * afterwards. Safe to call in any state.
