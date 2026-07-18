@@ -46,7 +46,10 @@ the new architecture, spec-first from the project's own design documents.
 | Fast scroller + sticky A–Z headers (854 rows, Latin+Cyrillic) | Fitts's law, efficiency | ✅ |
 | Sort control (title/artist/recently-added) | User control | ✅ (persistence ⬜) |
 | Floating mini-player pill w/ prev-play-next + progress | Convention, thumb reach | ✅ |
-| Rounded content container + emphasized scrollable tabs | Surface hierarchy | ✅ |
+| Rounded content container | Surface hierarchy | ✅ |
+| Snapping carousel browse switcher (centre = active, neighbours fade) | Orientation, delight | ✅ |
+| Rounded icon set throughout (shapes match the app's language) | Visual coherence | ✅ |
+| Delete track (system-owned on API 30+, confirmed in app) | Library management parity | ✅ |
 | Per-row overflow (go to album / artist) | Navigational shortcuts | ✅ |
 | Motion system: container transform mini↔now-playing, shared-axis tabs | Spatial continuity | ⬜ |
 | Artwork-derived colour (mini-player + now-playing gradient) | Content-based colour convention | ✅ |
