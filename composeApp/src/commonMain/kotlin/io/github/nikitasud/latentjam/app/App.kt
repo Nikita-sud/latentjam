@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AlertDialog
@@ -97,6 +98,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var selectedCollection by remember { mutableStateOf<CollectionSelection?>(null) }
         var showDiagnostics by remember { mutableStateOf(false) }
         var showNowPlaying by remember { mutableStateOf(false) }
+        var showSearch by remember { mutableStateOf(false) }
         var indexSummary by remember { mutableStateOf<String?>(null) }
         val now by playback.state.collectAsState()
 
@@ -131,6 +133,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     TopAppBar(
                         title = { Text("LatentJam") },
                         actions = {
+                            IconButton(onClick = { showSearch = true }) {
+                                Icon(Icons.Filled.Search, contentDescription = "Search library")
+                            }
                             ShuffleAction(mode = now.shuffleMode) {
                                 scope.launch {
                                     val newMode = playback.cycleShuffleMode()
@@ -189,15 +194,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 ) { Text("No music found on this device.") }
 
                 else -> when (selectedTab) {
-                    0 -> LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-                        itemsIndexed(catalog.songs, key = { _, track -> track.id.value }) { index, track ->
-                            TrackRow(
-                                track = track,
-                                isCurrent = track.id == now.track?.id,
-                                onClick = { scope.launch { playback.play(catalog.songs, index) } },
-                            )
-                        }
-                    }
+                    0 -> SectionedSongsList(
+                        songs = catalog.songs,
+                        currentTrackId = now.track?.id,
+                        contentPadding = padding,
+                        onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
+                    )
 
                     1 -> LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
@@ -236,6 +238,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 currentTrackId = now.track?.id,
                 onPlayTrack = { index -> scope.launch { playback.play(selection.tracks, index) } },
                 onClose = { selectedCollection = null },
+            )
+        }
+
+        if (showSearch) {
+            SearchScreen(
+                songs = catalog?.songs.orEmpty(),
+                currentTrackId = now.track?.id,
+                onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
+                onClose = { showSearch = false },
             )
         }
 
