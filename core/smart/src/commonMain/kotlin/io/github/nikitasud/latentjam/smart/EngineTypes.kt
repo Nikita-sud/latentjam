@@ -101,11 +101,14 @@ public sealed interface NextTrackResult {
  *
  * @property indexed Number of tracks successfully embedded and upserted.
  * @property failed Number of tracks that could not be indexed.
+ * @property skipped Number of tracks already present in the index (their
+ *   embedding was reused — this is what makes re-runs resumable and cheap).
  * @property errors Per-track failure reasons for the [failed] tracks.
  */
 public data class IndexReport(
     public val indexed: Int,
     public val failed: Int,
+    public val skipped: Int = 0,
     public val errors: Map<TrackId, EngineError> = emptyMap(),
 )
 

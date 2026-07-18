@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.smart.di
 
 import io.github.nikitasud.latentjam.smart.DefaultSimilarityEngine
 import io.github.nikitasud.latentjam.smart.InMemoryVectorIndex
+import io.github.nikitasud.latentjam.smart.IndexStore
+import io.github.nikitasud.latentjam.smart.NoopIndexStore
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.VectorIndex
@@ -74,10 +76,15 @@ public val smartEngineModule: Module = module {
         InMemoryVectorIndex(dim = get<SmartEngineConfig>().embeddingDim)
     }
 
+    // Overridden by platforms with a real store (Android's file-backed one,
+    // bound in smartEngineBackendModule, listed after this module).
+    single<IndexStore> { NoopIndexStore() }
+
     single<SimilarityEngine> {
         DefaultSimilarityEngine(
             backend = get(),
             index = get(),
+            store = get(),
             config = get(),
             dispatcher = get(smartEngineDispatcherQualifier),
         )

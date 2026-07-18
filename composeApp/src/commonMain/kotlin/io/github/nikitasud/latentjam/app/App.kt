@@ -87,10 +87,24 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val now by playback.state.collectAsState()
 
         fun indexTracks(selection: List<TrackDescriptor>) {
-            scope.launch {
-                indexSummary = "Indexing ${selection.size} tracks…"
-                val report = engine.indexLibrary(selection)
-                indexSummary = "Indexed ${report.indexed}, failed ${report.failed}."
+            // App-lifetime scope: indexing continues if the dialog closes or
+            // the screen recomposes. Chunked so the engine persists (and the
+            // Ready(indexedCount) state advances) as it goes — resumable at
+            // chunk granularity after process death.
+            AppGraph.appScope.launch {
+                var indexed = 0
+                var skipped = 0
+                var failed = 0
+                selection.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
+                    val report = engine.indexLibrary(chunk)
+                    indexed += report.indexed
+                    skipped += report.skipped
+                    failed += report.failed
+                    val done = indexed + skipped + failed
+                    indexSummary =
+                        "Indexing… $done/${selection.size} (ok $indexed, skip $skipped, fail $failed)"
+                }
+                indexSummary = "Done — indexed $indexed, skipped $skipped, failed $failed."
             }
         }
 
@@ -166,6 +180,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
     }
 }
+
+/** Persist-and-report granularity for library indexing. */
+private const val INDEX_CHUNK_SIZE = 8
 
 // ---------------------------------------------------------------- components
 

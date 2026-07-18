@@ -46,6 +46,11 @@ public class InMemoryVectorIndex(
 
     override fun vector(id: TrackId): FloatArray? = vectors[id]?.copyOf()
 
+    override fun contains(id: TrackId): Boolean = id in vectors
+
+    override fun entries(): Map<TrackId, FloatArray> =
+        vectors.entries.associate { (id, vector) -> id to vector.copyOf() }
+
     override fun nearest(query: FloatArray, k: Int, exclude: Set<TrackId>): List<ScoredTrack> {
         require(query.size == dim) {
             "Query vector has dimension ${query.size}, expected $dim"

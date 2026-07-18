@@ -168,4 +168,7 @@ internal class OnnxEmbeddingBackend(
 
 public actual fun smartEngineBackendModule(): Module = module {
     single<EmbeddingBackend> { OnnxEmbeddingBackend(context = get(), config = get()) }
+    // Overrides the common NoopIndexStore (this module is listed after
+    // smartEngineModule; Koin last-definition-wins).
+    single<IndexStore> { FileIndexStore(context = get()) }
 }

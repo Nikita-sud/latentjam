@@ -20,8 +20,12 @@ package io.github.nikitasud.latentjam.smart
  *   (an Android asset path, an iOS bundle resource name, an absolute file
  *   path, …). `null` lets the platform backend fall back to its built-in
  *   default location. The common layer never interprets this string.
+ * @property modelVersion Version string of the embedding model, used to key
+ *   persisted index snapshots ([IndexStore]) — embeddings from different
+ *   model versions must never mix. Keep in sync with the shipped model asset.
  */
 public data class SmartEngineConfig(
     public val embeddingDim: Int = 512,
     public val modelLocator: String? = null,
+    public val modelVersion: String = "unversioned",
 )

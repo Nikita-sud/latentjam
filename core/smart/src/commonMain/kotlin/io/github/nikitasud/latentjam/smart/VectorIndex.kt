@@ -43,6 +43,15 @@ public interface VectorIndex {
      */
     public fun vector(id: TrackId): FloatArray?
 
+    /** Whether a vector is stored for [id] (no copying, unlike [vector]). */
+    public operator fun contains(id: TrackId): Boolean
+
+    /**
+     * Snapshot of all stored entries (defensive copies), for persistence.
+     * Vectors are in stored (normalized) form.
+     */
+    public fun entries(): Map<TrackId, FloatArray>
+
     /**
      * The `k` most cosine-similar stored vectors to [query], best first,
      * skipping every id in [exclude]. The query does not need to be

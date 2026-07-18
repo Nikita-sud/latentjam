@@ -10,6 +10,9 @@ GPL-3.0 Auxio-fork branches that live elsewhere in this repository — this
 branch descends from its own parentless root commit. Nothing may be copied,
 ported-by-diff, or merged across that license boundary, in either direction.
 
+See [ROADMAP.md](ROADMAP.md) for the feature-parity plan (Auxio-functionality
+parity + LatentJam's own features, For You page included).
+
 ## Modules
 
 | Module | Contents |

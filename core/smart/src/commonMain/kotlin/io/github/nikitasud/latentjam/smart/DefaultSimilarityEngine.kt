@@ -33,6 +33,7 @@ import kotlinx.coroutines.withContext
 internal class DefaultSimilarityEngine(
     private val backend: EmbeddingBackend,
     private val index: VectorIndex,
+    private val store: IndexStore,
     private val config: SmartEngineConfig,
     private val dispatcher: CoroutineDispatcher,
 ) : SimilarityEngine {
@@ -49,6 +50,7 @@ internal class DefaultSimilarityEngine(
             mutableState.value = EngineState.Initializing
             backend.loadModel().fold(
                 onSuccess = {
+                    restorePersistedIndex()
                     mutableState.value = EngineState.Ready(indexedCount = index.size)
                     Result.success(Unit)
                 },
@@ -70,9 +72,11 @@ internal class DefaultSimilarityEngine(
                     errors = tracks.associate { it.id to EngineError.ModelUnavailable },
                 )
             }
+            // Resumability: tracks already in the index keep their embedding.
+            val (alreadyIndexed, toEmbed) = tracks.partition { it.id in index }
             var indexed = 0
             val errors = LinkedHashMap<TrackId, EngineError>()
-            for (track in tracks) {
+            for (track in toEmbed) {
                 backend.embed(track).fold(
                     onSuccess = { vector ->
                         val rejection = validateAndUpsert(track.id, vector)
@@ -81,8 +85,16 @@ internal class DefaultSimilarityEngine(
                     onFailure = { throwable -> errors[track.id] = throwable.toEngineError() },
                 )
             }
+            if (indexed > 0) {
+                runCatching { store.save(config.modelVersion, index.entries()) }
+            }
             mutableState.value = EngineState.Ready(indexedCount = index.size)
-            IndexReport(indexed = indexed, failed = errors.size, errors = errors)
+            IndexReport(
+                indexed = indexed,
+                failed = errors.size,
+                skipped = alreadyIndexed.size,
+                errors = errors,
+            )
         }
     }
 
@@ -128,6 +140,19 @@ internal class DefaultSimilarityEngine(
                 index.clear()
                 mutableState.value = EngineState.Uninitialized
             }
+        }
+    }
+
+    /**
+     * Loads the persisted snapshot into an EMPTY index (a live index is never
+     * clobbered on re-initialize). Individually invalid entries are skipped;
+     * a missing/mismatched snapshot just means starting empty.
+     */
+    private suspend fun restorePersistedIndex() {
+        if (index.size > 0) return
+        val persisted = runCatching { store.load(config.modelVersion) }.getOrNull() ?: return
+        for ((id, vector) in persisted) {
+            runCatching { index.upsert(id, vector) }
         }
     }
 

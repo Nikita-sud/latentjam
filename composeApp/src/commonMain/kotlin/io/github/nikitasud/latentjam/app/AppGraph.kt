@@ -13,6 +13,9 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.di.smartEngineModule
 import io.github.nikitasud.latentjam.smart.smartEngineBackendModule
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
 import org.koin.core.module.Module
@@ -41,6 +44,13 @@ object AppGraph {
 
     private var koinApp: KoinApplication? = null
 
+    /**
+     * App-lifetime scope for work that must outlive any single composition
+     * (e.g. library indexing). Dies with the process; WorkManager-grade
+     * scheduling is a later roadmap item.
+     */
+    val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     /** Initializes the graph. Call once from the platform entry point. */
     fun start(platformModule: Module = module { }) {
         if (koinApp == null) {
@@ -59,6 +69,9 @@ object AppGraph {
                             SmartEngineConfig(
                                 embeddingDim = 960,
                                 modelLocator = "ml/mnv4_audio.onnx",
+                                // Must match assets/ml/embedding_version.txt;
+                                // keys the persisted index snapshot.
+                                modelVersion = "mnv4-conv-m-distill-mw-ep4+v3",
                             )
                         }
                         // The single point where playback meets the engine.

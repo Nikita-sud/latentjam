@@ -20,10 +20,12 @@ internal class DefaultSimilarityEngineTest {
     private class Harness {
         val backend = FakeEmbeddingBackend()
         val index = InMemoryVectorIndex(dim = 3)
+        val store = FakeIndexStore()
         val engine = DefaultSimilarityEngine(
             backend = backend,
             index = index,
-            config = SmartEngineConfig(embeddingDim = 3),
+            store = store,
+            config = SmartEngineConfig(embeddingDim = 3, modelVersion = "test-model"),
             dispatcher = Dispatchers.Default.limitedParallelism(1, "test-smart-engine"),
         )
     }
@@ -220,7 +222,57 @@ internal class DefaultSimilarityEngineTest {
         )
 
         assertTrue(harness.engine.initialize().isSuccess)
-        assertEquals(EngineState.Ready(indexedCount = 0), harness.engine.state.value, "index must be cleared")
+        // release() clears the in-memory index but NOT the persisted snapshot:
+        // re-initialize restores the three indexed tracks from the store.
+        assertEquals(EngineState.Ready(indexedCount = 3), harness.engine.state.value)
         assertEquals(2, harness.backend.loadModelCalls)
+    }
+
+    // --------------------------------------------------------------- persistence
+
+    @Test
+    fun initializeRestoresPersistedSnapshot() = runTest {
+        val harness = Harness()
+        harness.store.snapshots["test-model"] = mapOf(
+            near.id to floatArrayOf(0.9f, 0.1f, 0f),
+            far.id to floatArrayOf(0f, 1f, 0f),
+        )
+        harness.registerTriangle()
+
+        harness.engine.initialize()
+
+        assertEquals(EngineState.Ready(indexedCount = 2), harness.engine.state.value)
+        // Query works purely from restored vectors: seed embeds on the fly,
+        // neighbors come from the snapshot.
+        val result = harness.engine.nextTrack(ListeningContext(seed = seed))
+        assertEquals(near.id, assertIs<NextTrackResult.Match>(result).trackId)
+    }
+
+    @Test
+    fun indexLibrarySkipsAlreadyIndexedTracks() = runTest {
+        val harness = Harness()
+        harness.registerTriangle()
+        harness.engine.initialize()
+        harness.engine.indexLibrary(listOf(seed, near))
+        val embedCallsAfterFirst = harness.backend.embedCalls
+
+        val report = harness.engine.indexLibrary(listOf(seed, near, far))
+
+        assertEquals(1, report.indexed, "only the new track embeds")
+        assertEquals(2, report.skipped)
+        assertEquals(0, report.failed)
+        assertEquals(embedCallsAfterFirst + 1, harness.backend.embedCalls)
+    }
+
+    @Test
+    fun indexLibraryPersistsSnapshotAfterBatch() = runTest {
+        val harness = Harness()
+        harness.registerTriangle()
+        harness.engine.initialize()
+
+        harness.engine.indexLibrary(listOf(seed, near, far))
+
+        assertEquals(1, harness.store.saveCalls)
+        assertEquals(3, harness.store.snapshots["test-model"]?.size)
     }
 }
