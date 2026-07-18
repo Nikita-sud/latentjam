@@ -15,11 +15,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,11 +43,11 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 
 /** Square, rounded artwork with a music-note placeholder behind it. */
 @Composable
-internal fun Artwork(uri: String?, size: Dp) {
+internal fun Artwork(uri: String?, size: Dp, cornerRadius: Dp = 8.dp) {
     Box(
         modifier = Modifier
             .size(size)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(cornerRadius))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
@@ -57,14 +67,23 @@ internal fun Artwork(uri: String?, size: Dp) {
     }
 }
 
-/** Standard track list row: artwork, title/artist, duration. */
+/**
+ * Standard track row: artwork, title/artist, and either a duration or an
+ * overflow menu with jumps to the track's album and artist.
+ */
 @Composable
-internal fun TrackRow(track: TrackDescriptor, isCurrent: Boolean, onClick: () -> Unit) {
+internal fun TrackRow(
+    track: TrackDescriptor,
+    isCurrent: Boolean,
+    onClick: () -> Unit,
+    onShowAlbum: (() -> Unit)? = null,
+    onShowArtist: (() -> Unit)? = null,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -85,12 +104,53 @@ internal fun TrackRow(track: TrackDescriptor, isCurrent: Boolean, onClick: () ->
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        track.durationMs?.let { duration ->
-            Text(
-                text = formatDuration(duration),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        if (onShowAlbum != null || onShowArtist != null) {
+            TrackOverflowMenu(onShowAlbum = onShowAlbum, onShowArtist = onShowArtist)
+        } else {
+            track.durationMs?.let { duration ->
+                Text(
+                    text = formatDuration(duration),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 12.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackOverflowMenu(onShowAlbum: (() -> Unit)?, onShowArtist: (() -> Unit)?) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = Icons.Filled.MoreVert,
+                contentDescription = "More options",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            onShowAlbum?.let { action ->
+                DropdownMenuItem(
+                    text = { Text("Go to album") },
+                    leadingIcon = { Icon(Icons.Filled.Album, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        action()
+                    },
+                )
+            }
+            onShowArtist?.let { action ->
+                DropdownMenuItem(
+                    text = { Text("Go to artist") },
+                    leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        action()
+                    },
+                )
+            }
         }
     }
 }

@@ -4,7 +4,13 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -17,39 +23,48 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -61,7 +76,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -70,6 +87,7 @@ import io.github.nikitasud.latentjam.library.ArtistGroup
 import io.github.nikitasud.latentjam.library.GenreGroup
 import io.github.nikitasud.latentjam.library.LibraryCatalog
 import io.github.nikitasud.latentjam.library.MusicLibrary
+import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.EngineError
@@ -81,11 +99,11 @@ import kotlinx.coroutines.launch
 /**
  * Root composable, shared by Android and iOS: the player shell.
  *
- * Browse tabs (Songs / Albums / Artists / Genres) over the scanned library,
- * drill-in collection details that scope the play queue, a global mini-player
- * opening the now-playing screen, and diagnostics behind the info action.
- * All Material 3, all original expression — the legacy app's look is never
- * consulted.
+ * Browse tabs over the scanned library sit in a rounded content container,
+ * with a sort/play header on Songs, drill-in collection details that scope
+ * the play queue, and a floating mini-player pill that expands to the
+ * now-playing screen. All Material 3, all original expression — the legacy
+ * app's look is never consulted.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,6 +113,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
         var selectedTab by remember { mutableStateOf(0) }
+        var songSort by remember { mutableStateOf(SongSort.TITLE) }
         var selectedCollection by remember { mutableStateOf<CollectionSelection?>(null) }
         var showDiagnostics by remember { mutableStateOf(false) }
         var showNowPlaying by remember { mutableStateOf(false) }
@@ -144,11 +163,26 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
+        fun showAlbumOf(track: TrackDescriptor) {
+            catalog?.albums
+                ?.firstOrNull { album -> album.tracks.any { it.id == track.id } }
+                ?.let { selectedCollection = it.toSelection() }
+        }
+
+        fun showArtistOf(track: TrackDescriptor) {
+            catalog?.artists
+                ?.firstOrNull { artist -> artist.name == track.artist }
+                ?.let { selectedCollection = it.toSelection() }
+        }
+
         Scaffold(
             topBar = {
                 Column {
                     TopAppBar(
                         title = { Text("LatentJam") },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
                         actions = {
                             IconButton(onClick = { showSearch = true }) {
                                 Icon(Icons.Filled.Search, contentDescription = "Search library")
@@ -170,79 +204,113 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             }
                         },
                     )
-                    TabRow(selectedTabIndex = selectedTab) {
-                        BROWSE_TABS.forEachIndexed { index, title ->
-                            Tab(
-                                selected = selectedTab == index,
-                                onClick = { selectedTab = index },
-                                text = { Text(title) },
-                            )
-                        }
-                    }
+                    BrowseTabs(selectedTab) { selectedTab = it }
                 }
             },
             bottomBar = {
-                now.track?.let { current ->
-                    MiniPlayer(
-                        track = current,
-                        isPlaying = now.isPlaying,
-                        progress = if (now.durationMs > 0) {
-                            (now.positionMs.toFloat() / now.durationMs).coerceIn(0f, 1f)
-                        } else {
-                            0f
-                        },
-                        onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
-                        onNext = { scope.launch { playback.next() } },
-                        onOpen = { showNowPlaying = true },
-                    )
+                // Slide-in pill: presence itself is feedback that playback started.
+                AnimatedVisibility(
+                    visible = now.track != null,
+                    enter = slideInVertically { it } + fadeIn(),
+                    exit = slideOutVertically { it } + fadeOut(),
+                ) {
+                    now.track?.let { current ->
+                        MiniPlayerPill(
+                            track = current,
+                            isPlaying = now.isPlaying,
+                            progress = if (now.durationMs > 0) {
+                                (now.positionMs.toFloat() / now.durationMs).coerceIn(0f, 1f)
+                            } else {
+                                0f
+                            },
+                            onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
+                            onPrevious = { scope.launch { playback.previous() } },
+                            onNext = { scope.launch { playback.next() } },
+                            onOpen = { showNowPlaying = true },
+                        )
+                    }
                 }
             },
             snackbarHost = { SnackbarHost(snackbar) },
+            containerColor = MaterialTheme.colorScheme.surface,
         ) { padding ->
-            when {
-                catalog == null -> Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center,
-                ) { CircularProgressIndicator() }
-
-                catalog.songs.isEmpty() -> Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center,
-                ) { Text("No music found on this device.") }
-
-                else -> when (selectedTab) {
-                    0 -> SectionedSongsList(
-                        songs = catalog.songs,
-                        currentTrackId = now.track?.id,
-                        contentPadding = padding,
-                        onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
-                    )
-
-                    1 -> LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
+            // Content lives in a raised, top-rounded container so the list
+            // reads as a distinct surface under the chrome.
+            Surface(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+            ) {
+                when {
+                    catalog == null -> Box(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = padding,
-                    ) {
-                        items(catalog.albums, key = { it.key }) { album ->
-                            AlbumCard(album) { selectedCollection = album.toSelection() }
-                        }
-                    }
+                        contentAlignment = Alignment.Center,
+                    ) { CircularProgressIndicator() }
 
-                    2 -> LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-                        items(catalog.artists, key = { it.name ?: "?" }) { artist ->
-                            GroupRow(
-                                title = artist.name ?: "Unknown artist",
-                                subtitle = "${artist.tracks.size} tracks • ${artist.albumCount} albums",
-                            ) { selectedCollection = artist.toSelection() }
-                        }
-                    }
+                    catalog.songs.isEmpty() -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("No music found on this device.") }
 
-                    else -> LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-                        items(catalog.genres, key = { it.name ?: "?" }) { genre ->
-                            GroupRow(
-                                title = genre.name ?: "Unknown genre",
-                                subtitle = "${genre.tracks.size} tracks",
-                            ) { selectedCollection = genre.toSelection() }
+                    else -> when (selectedTab) {
+                        0 -> Column {
+                            SongsHeader(
+                                sort = songSort,
+                                onSortChange = { songSort = it },
+                                onShuffleAll = {
+                                    scope.launch {
+                                        playback.play(catalog.songs.shuffled(), 0)
+                                    }
+                                },
+                                onPlayAll = {
+                                    scope.launch {
+                                        playback.play(
+                                            io.github.nikitasud.latentjam.library.SongSorting
+                                                .sort(catalog.songs, songSort),
+                                            0,
+                                        )
+                                    }
+                                },
+                            )
+                            SectionedSongsList(
+                                songs = catalog.songs,
+                                sort = songSort,
+                                currentTrackId = now.track?.id,
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp),
+                                onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
+                                onShowAlbum = ::showAlbumOf,
+                                onShowArtist = ::showArtistOf,
+                            )
+                        }
+
+                        1 -> LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
+                        ) {
+                            items(catalog.albums, key = { it.key }) { album ->
+                                AlbumCard(album) { selectedCollection = album.toSelection() }
+                            }
+                        }
+
+                        2 -> LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            items(catalog.artists, key = { it.name ?: "?" }) { artist ->
+                                GroupRow(
+                                    title = artist.name ?: "Unknown artist",
+                                    subtitle = "${artist.tracks.size} tracks • ${artist.albumCount} albums",
+                                    artworkUri = artist.tracks.firstNotNullOfOrNull { it.artworkUri },
+                                ) { selectedCollection = artist.toSelection() }
+                            }
+                        }
+
+                        else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            items(catalog.genres, key = { it.name ?: "?" }) { genre ->
+                                GroupRow(
+                                    title = genre.name ?: "Unknown genre",
+                                    subtitle = "${genre.tracks.size} tracks",
+                                    artworkUri = genre.tracks.firstNotNullOfOrNull { it.artworkUri },
+                                ) { selectedCollection = genre.toSelection() }
+                            }
                         }
                     }
                 }
@@ -314,11 +382,110 @@ private fun GenreGroup.toSelection() = CollectionSelection(
 
 // ---------------------------------------------------------------- components
 
-/**
- * Persistent, redundantly-coded shuffle state (icon + label + color): a
- * three-state control must stay readable after any transient feedback is
- * gone, and never through color alone.
- */
+/** Scrollable tabs; the selected one is emphasized in size and weight. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BrowseTabs(selectedTab: Int, onSelect: (Int) -> Unit) {
+    ScrollableTabRow(
+        selectedTabIndex = selectedTab,
+        edgePadding = 16.dp,
+        containerColor = MaterialTheme.colorScheme.surface,
+        divider = {},
+        indicator = { positions ->
+            TabRowDefaults.PrimaryIndicator(
+                modifier = Modifier.tabIndicatorOffset(positions[selectedTab]),
+                width = 32.dp,
+            )
+        },
+    ) {
+        BROWSE_TABS.forEachIndexed { index, title ->
+            val selected = selectedTab == index
+            Tab(
+                selected = selected,
+                onClick = { onSelect(index) },
+                text = {
+                    Text(
+                        text = title,
+                        style = if (selected) {
+                            MaterialTheme.typography.titleLarge
+                        } else {
+                            MaterialTheme.typography.titleMedium
+                        },
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                },
+            )
+        }
+    }
+}
+
+/** Sort selector plus shuffle-all / play-all, above the songs list. */
+@Composable
+private fun SongsHeader(
+    sort: SongSort,
+    onSortChange: (SongSort) -> Unit,
+    onShuffleAll: () -> Unit,
+    onPlayAll: () -> Unit,
+) {
+    var sortMenuOpen by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 8.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.weight(1f)) {
+            TextButton(onClick = { sortMenuOpen = true }) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Sort,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = sort.label(),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                SongSort.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.label()) },
+                        onClick = {
+                            sortMenuOpen = false
+                            onSortChange(option)
+                        },
+                    )
+                }
+            }
+        }
+        FilledIconButton(
+            onClick = onShuffleAll,
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            ),
+        ) {
+            Icon(Icons.Filled.Shuffle, contentDescription = "Shuffle all")
+        }
+        FilledIconButton(onClick = onPlayAll, modifier = Modifier.padding(start = 8.dp)) {
+            Icon(Icons.Filled.PlayArrow, contentDescription = "Play all")
+        }
+    }
+}
+
+private fun SongSort.label(): String = when (this) {
+    SongSort.TITLE -> "Title"
+    SongSort.ARTIST -> "Artist"
+    SongSort.RECENT -> "Recently added"
+}
+
 @Composable
 private fun ShuffleAction(mode: ShuffleMode, onClick: () -> Unit) {
     val tint = when (mode) {
@@ -357,7 +524,7 @@ private fun AlbumCard(album: AlbumGroup, onClick: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
@@ -380,7 +547,7 @@ private fun AlbumCard(album: AlbumGroup, onClick: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp),
+            modifier = Modifier.padding(top = 8.dp),
         )
         Text(
             text = album.artist ?: "Unknown artist",
@@ -393,79 +560,105 @@ private fun AlbumCard(album: AlbumGroup, onClick: () -> Unit) {
 }
 
 @Composable
-private fun GroupRow(title: String, subtitle: String, onClick: () -> Unit) {
-    Column(
+private fun GroupRow(title: String, subtitle: String, artworkUri: String?, onClick: () -> Unit) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Artwork(uri = artworkUri, size = 48.dp, cornerRadius = 24.dp)
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
+/**
+ * Floating mini-player: a tinted pill above the navigation bar with its own
+ * progress line, marquee title, and prev/play/next. Tapping expands to the
+ * now-playing screen.
+ */
 @Composable
-private fun MiniPlayer(
+private fun MiniPlayerPill(
     track: TrackDescriptor,
     isPlaying: Boolean,
     progress: Float,
     onTogglePlayPause: () -> Unit,
+    onPrevious: () -> Unit,
     onNext: () -> Unit,
     onOpen: () -> Unit,
 ) {
-    Surface(tonalElevation = 3.dp) {
+    Surface(
+        modifier = Modifier
+            .navigationBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .clickable(onClick = onOpen),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        tonalElevation = 6.dp,
+        shadowElevation = 6.dp,
+    ) {
         Column {
-            // Elapsed-position status, always visible (ticker-fed).
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth().height(3.dp),
-                drawStopIndicator = {},
-            )
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpen)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-            Artwork(uri = track.artworkUri, size = 44.dp)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = track.title ?: "Untitled",
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = track.artist ?: "Unknown artist",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            IconButton(onClick = onTogglePlayPause) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
-                )
-            }
+                Artwork(uri = track.artworkUri, size = 44.dp, cornerRadius = 22.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = track.title ?: "Untitled",
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        modifier = Modifier.basicMarquee(),
+                    )
+                    Text(
+                        text = track.artist ?: "Unknown artist",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                IconButton(onClick = onPrevious) {
+                    Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous track")
+                }
+                IconButton(onClick = onTogglePlayPause) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                    )
+                }
                 IconButton(onClick = onNext) {
                     Icon(Icons.Filled.SkipNext, contentDescription = "Next track")
                 }
             }
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.24f),
+                drawStopIndicator = {},
+            )
         }
     }
 }
@@ -532,14 +725,6 @@ private fun EngineCard(engine: SimilarityEngine) {
             }
         }
     }
-}
-
-// ------------------------------------------------------------------- helpers
-
-private fun ShuffleMode.userLabel(): String = when (this) {
-    ShuffleMode.OFF -> "Shuffle off"
-    ShuffleMode.ON -> "Shuffle on"
-    ShuffleMode.SMART -> "SMART shuffle — random fallback until the model lands"
 }
 
 /** Friendly, non-technical wording for the typed engine errors. */

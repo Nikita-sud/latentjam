@@ -8,6 +8,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -36,31 +37,38 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import io.github.nikitasud.latentjam.library.SongSort
+import io.github.nikitasud.latentjam.library.SongSorting
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.launch
 
 /**
- * The Songs tab for large libraries: punctuation-normalized alphabetical
- * order, a sticky header per initial (Latin, Cyrillic, and a '#' bucket),
- * and a draggable A–Z rail with a preview bubble — position-based
- * navigation instead of endless flinging (Fitts's law for ~1000-row lists).
+ * The Songs tab for large libraries: sorted per [sort], sticky index headers,
+ * and a draggable A–Z rail with a preview bubble — position-based navigation
+ * instead of endless flinging (Fitts's law for ~1000-row lists). Recency sort
+ * drops the headers and rail, which have no meaning there.
  *
- * Playing from here queues the tracks in the displayed (normalized) order.
+ * Playing from here queues the tracks in the displayed order.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun SectionedSongsList(
     songs: List<TrackDescriptor>,
+    sort: SongSort,
     currentTrackId: TrackId?,
     contentPadding: PaddingValues,
     onPlay: (queue: List<TrackDescriptor>, index: Int) -> Unit,
+    onShowAlbum: (TrackDescriptor) -> Unit,
+    onShowArtist: (TrackDescriptor) -> Unit,
 ) {
-    val sections = remember(songs) { buildSections(songs) }
+    val sections = remember(songs, sort) { SongSorting.sections(songs, sort) }
     val displayOrder = remember(sections) { sections.flatMap { it.tracks } }
+    val indexed = remember(sections) { indexSections(sections) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    var previewBucket by remember { mutableStateOf<Char?>(null) }
+    var previewBucket by remember { mutableStateOf<String?>(null) }
+    val showIndex = sort != SongSort.RECENT && sections.size > 1
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -68,9 +76,11 @@ internal fun SectionedSongsList(
             contentPadding = contentPadding,
             modifier = Modifier.fillMaxSize(),
         ) {
-            sections.forEach { section ->
-                stickyHeader(key = "header-${section.bucket}", contentType = "header") {
-                    SectionHeader(section.bucket)
+            indexed.forEach { section ->
+                if (showIndex) {
+                    stickyHeader(key = "header-${section.bucket}", contentType = "header") {
+                        SectionHeader(section.bucket)
+                    }
                 }
                 itemsIndexed(
                     items = section.tracks,
@@ -81,23 +91,29 @@ internal fun SectionedSongsList(
                         track = track,
                         isCurrent = track.id == currentTrackId,
                         onClick = { onPlay(displayOrder, section.firstTrackGlobalIndex + indexInSection) },
+                        onShowAlbum = { onShowAlbum(track) },
+                        onShowArtist = { onShowArtist(track) },
                     )
                 }
             }
         }
 
-        AlphabetRail(
-            buckets = sections.map { it.bucket },
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .padding(contentPadding),
-            onSelect = { bucketIndex ->
-                previewBucket = sections[bucketIndex].bucket
-                scope.launch { listState.scrollToItem(sections[bucketIndex].emitStartIndex) }
-            },
-            onSelectionEnd = { previewBucket = null },
-        )
+        if (showIndex) {
+            AlphabetRail(
+                buckets = indexed.map { it.bucket },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .padding(contentPadding),
+                onSelect = { bucketIndex ->
+                    previewBucket = indexed[bucketIndex].bucket
+                    scope.launch {
+                        listState.scrollToItem(indexed[bucketIndex].emitStartIndex)
+                    }
+                },
+                onSelectionEnd = { previewBucket = null },
+            )
+        }
 
         previewBucket?.let { bucket ->
             Surface(
@@ -108,7 +124,7 @@ internal fun SectionedSongsList(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
-                        text = bucket.toString(),
+                        text = bucket,
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
@@ -119,14 +135,14 @@ internal fun SectionedSongsList(
 }
 
 @Composable
-private fun SectionHeader(bucket: Char) {
+private fun SectionHeader(bucket: String) {
     Text(
-        text = bucket.toString(),
+        text = bucket,
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
             .padding(horizontal = 16.dp, vertical = 4.dp),
     )
 }
@@ -134,7 +150,7 @@ private fun SectionHeader(bucket: Char) {
 /** Slim letter rail; drag or tap maps y-position to a bucket. */
 @Composable
 private fun AlphabetRail(
-    buckets: List<Char>,
+    buckets: List<String>,
     modifier: Modifier = Modifier,
     onSelect: (Int) -> Unit,
     onSelectionEnd: () -> Unit,
@@ -167,12 +183,12 @@ private fun AlphabetRail(
                     },
                 )
             },
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly,
+        verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         buckets.forEach { bucket ->
             Text(
-                text = bucket.toString(),
+                text = bucket,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -181,10 +197,11 @@ private fun AlphabetRail(
     }
 }
 
-// ------------------------------------------------------------------ sections
+// ------------------------------------------------------------------ indexing
 
-private data class SongSection(
-    val bucket: Char,
+/** A section plus the positions it occupies, for rail jumps and queue mapping. */
+private data class IndexedSection(
+    val bucket: String,
     val tracks: List<TrackDescriptor>,
     /** Index of this section's HEADER in LazyColumn emission order. */
     val emitStartIndex: Int,
@@ -192,33 +209,21 @@ private data class SongSection(
     val firstTrackGlobalIndex: Int,
 )
 
-private fun buildSections(songs: List<TrackDescriptor>): List<SongSection> {
-    val sorted = songs.sortedBy(::sortKey)
-    val grouped = sorted.groupBy(::bucketOf)
-    val sections = mutableListOf<SongSection>()
+private fun indexSections(
+    sections: List<io.github.nikitasud.latentjam.library.SongSection>,
+): List<IndexedSection> {
+    val indexed = mutableListOf<IndexedSection>()
     var emitIndex = 0
     var globalIndex = 0
-    for ((bucket, tracks) in grouped) {
-        sections += SongSection(
-            bucket = bucket,
-            tracks = tracks,
+    for (section in sections) {
+        indexed += IndexedSection(
+            bucket = section.bucket,
+            tracks = section.tracks,
             emitStartIndex = emitIndex,
             firstTrackGlobalIndex = globalIndex,
         )
-        emitIndex += 1 + tracks.size // header + rows
-        globalIndex += tracks.size
+        emitIndex += 1 + section.tracks.size // header + rows
+        globalIndex += section.tracks.size
     }
-    return sections
-}
-
-/** Leading punctuation is ignored so "(I Just)…" files under I, not "(". */
-private fun sortKey(track: TrackDescriptor): String =
-    (track.title ?: "")
-        .trimStart { !it.isLetterOrDigit() }
-        .lowercase()
-        .ifEmpty { "￿" }
-
-private fun bucketOf(track: TrackDescriptor): Char {
-    val first = track.title?.firstOrNull { it.isLetterOrDigit() } ?: return '#'
-    return if (first.isLetter()) first.uppercaseChar() else '#'
+    return indexed
 }
