@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,6 +38,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -86,7 +89,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackController) {
-    MaterialTheme {
+    MaterialTheme(colorScheme = latentJamColorScheme(darkTheme = isSystemInDarkTheme())) {
         val scope = rememberCoroutineScope()
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
@@ -131,7 +134,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             ShuffleAction(mode = now.shuffleMode) {
                                 scope.launch {
                                     val newMode = playback.cycleShuffleMode()
-                                    snackbar.showSnackbar(newMode.userLabel())
+                                    // Persistent label carries the state; explain
+                                    // only the novel mode once per activation.
+                                    if (newMode == ShuffleMode.SMART) {
+                                        snackbar.showSnackbar(
+                                            "Smart shuffle: similar tracks picked on-device",
+                                        )
+                                    }
                                 }
                             }
                             IconButton(onClick = { showDiagnostics = true }) {
@@ -155,6 +164,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     MiniPlayer(
                         track = current,
                         isPlaying = now.isPlaying,
+                        progress = if (now.durationMs > 0) {
+                            (now.positionMs.toFloat() / now.durationMs).coerceIn(0f, 1f)
+                        } else {
+                            0f
+                        },
                         onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
                         onNext = { scope.launch { playback.next() } },
                         onOpen = { showNowPlaying = true },
@@ -271,6 +285,11 @@ private fun GenreGroup.toSelection() = CollectionSelection(
 
 // ---------------------------------------------------------------- components
 
+/**
+ * Persistent, redundantly-coded shuffle state (icon + label + color): a
+ * three-state control must stay readable after any transient feedback is
+ * gone, and never through color alone.
+ */
 @Composable
 private fun ShuffleAction(mode: ShuffleMode, onClick: () -> Unit) {
     val tint = when (mode) {
@@ -278,8 +297,23 @@ private fun ShuffleAction(mode: ShuffleMode, onClick: () -> Unit) {
         ShuffleMode.ON -> MaterialTheme.colorScheme.primary
         ShuffleMode.SMART -> MaterialTheme.colorScheme.tertiary
     }
-    IconButton(onClick = onClick) {
-        Icon(Icons.Filled.Shuffle, contentDescription = "Shuffle mode: $mode", tint = tint)
+    val label = when (mode) {
+        ShuffleMode.OFF -> "Off"
+        ShuffleMode.ON -> "On"
+        ShuffleMode.SMART -> "Smart"
+    }
+    TextButton(onClick = onClick) {
+        Icon(
+            imageVector = Icons.Filled.Shuffle,
+            contentDescription = "Shuffle mode: $label. Tap to change.",
+            tint = tint,
+        )
+        Text(
+            text = label,
+            color = tint,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(start = 4.dp),
+        )
     }
 }
 
@@ -355,20 +389,28 @@ private fun GroupRow(title: String, subtitle: String, onClick: () -> Unit) {
 private fun MiniPlayer(
     track: TrackDescriptor,
     isPlaying: Boolean,
+    progress: Float,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
     onOpen: () -> Unit,
 ) {
     Surface(tonalElevation = 3.dp) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onOpen)
-                .navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        Column {
+            // Elapsed-position status, always visible (ticker-fed).
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().height(3.dp),
+                drawStopIndicator = {},
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpen)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
             Artwork(uri = track.artworkUri, size = 44.dp)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -391,8 +433,9 @@ private fun MiniPlayer(
                     contentDescription = if (isPlaying) "Pause" else "Play",
                 )
             }
-            IconButton(onClick = onNext) {
-                Icon(Icons.Filled.SkipNext, contentDescription = "Next track")
+                IconButton(onClick = onNext) {
+                    Icon(Icons.Filled.SkipNext, contentDescription = "Next track")
+                }
             }
         }
     }

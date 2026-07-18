@@ -31,8 +31,25 @@ the new architecture, spec-first from the project's own design documents.
 | Android Auto | ⬜ |
 | Headset autoplay / becoming-noisy | ✅ (Media3) |
 | Equalizer intent support | ⬜ |
-| Edge-to-edge, Material 3, dynamic color | ✅ |
+| Edge-to-edge, Material 3, dynamic color, dark theme | ✅ |
 | Settings screen | ⬜ |
+
+## UX polish backlog (from the 2026-07 UX/HCI research pass)
+
+| Item | Why (principle) | Status |
+|---|---|---|
+| Dark theme + Material You dynamic color (brand palette < API 31, iOS) | Comfort, platform consistency | ✅ |
+| Mini-player progress line | Visibility of system status | ✅ |
+| Persistent labeled SMART control (icon+label+color) | State visibility, WCAG 1.4.1 | ✅ |
+| Predictive back opt-in | Platform consistency | ✅ (flag; nav transitions ⬜) |
+| Library search (M3 SearchBar) | Findability — top long-list fix | ⬜ next |
+| Fast scroller + sticky A–Z headers (854 rows) | Fitts's law, efficiency | ⬜ next |
+| Sort control (title/artist/date-added) + persistence | User control | ⬜ |
+| Motion system: container transform mini↔now-playing, shared-axis tabs | Spatial continuity | ⬜ |
+| Artwork-derived gradient on now-playing | Content-based color convention | ⬜ |
+| Mini-player swipe gestures (horizontal skip, vertical expand) | Efficiency convention | ⬜ |
+| Scroll-to-top affordance; queue item animations | Long-list ergonomics | ✅ queue anims; rest ⬜ |
+| Consider bottom NavigationBar for top-level browse | Thumb-reach | ⬜ (debatable, last) |
 
 ## LatentJam features (our own, re-authored)
 

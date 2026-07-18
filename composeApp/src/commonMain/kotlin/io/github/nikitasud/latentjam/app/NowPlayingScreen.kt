@@ -240,10 +240,11 @@ private fun QueueSheet(
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
         )
         LazyColumn(state = listState) {
-            itemsIndexed(queue) { index, track ->
+            itemsIndexed(queue, key = { _, track -> track.id.value }) { index, track ->
                 val isCurrent = index == currentIndex
                 Row(
                     modifier = Modifier
+                        .animateItem()
                         .fillMaxWidth()
                         .clickable { onPlayAt(index) }
                         .padding(horizontal = 24.dp, vertical = 10.dp),
