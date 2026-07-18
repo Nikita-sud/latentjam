@@ -49,7 +49,10 @@ the new architecture, spec-first from the project's own design documents.
 | Rounded content container + emphasized scrollable tabs | Surface hierarchy | ✅ |
 | Per-row overflow (go to album / artist) | Navigational shortcuts | ✅ |
 | Motion system: container transform mini↔now-playing, shared-axis tabs | Spatial continuity | ⬜ |
-| Artwork-derived gradient on now-playing | Content-based color convention | ⬜ |
+| Artwork-derived colour (mini-player + now-playing gradient) | Content-based colour convention | ✅ |
+| Latent-space colour for artwork-less tracks | Signature: the model made visible | ✅ |
+| Repeat mode OFF/ALL/ONE | Player parity, state visibility | ✅ |
+| Track actions bottom sheet (play next / add to queue / jumps) | Thumb zone, room for context | ✅ |
 | Mini-player swipe gestures (horizontal skip, vertical expand) | Efficiency convention | ⬜ |
 | Scroll-to-top affordance; queue item animations | Long-list ergonomics | ✅ queue anims; rest ⬜ |
 | Consider bottom NavigationBar for top-level browse | Thumb-reach | ⬜ (debatable, last) |
