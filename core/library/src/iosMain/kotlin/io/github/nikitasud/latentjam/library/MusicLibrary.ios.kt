@@ -25,6 +25,17 @@ internal class StubMusicLibrary : MusicLibrary {
     override suspend fun tracks(): List<TrackDescriptor> = emptyList()
 }
 
+internal class InMemoryPlaylistStore : PlaylistStore {
+    private var lines: List<String> = emptyList()
+    override suspend fun read(): List<String> = lines
+    override suspend fun write(lines: List<String>) { this.lines = lines }
+}
+
 public actual fun musicLibraryModule(): Module = module {
     single<MusicLibrary> { StubMusicLibrary() }
+    single<PlaylistStore> { InMemoryPlaylistStore() }
+    single<Playlists> { DefaultPlaylists(store = get()) }
 }
+
+public actual fun nowMillis(): Long =
+    (platform.Foundation.NSDate().timeIntervalSince1970 * 1000).toLong()

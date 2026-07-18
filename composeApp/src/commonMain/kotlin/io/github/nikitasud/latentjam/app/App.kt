@@ -44,6 +44,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
@@ -94,9 +95,11 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.nikitasud.latentjam.library.AlbumGroup
 import io.github.nikitasud.latentjam.library.ArtistGroup
+import io.github.nikitasud.latentjam.library.AutoPlaylists
 import io.github.nikitasud.latentjam.library.GenreGroup
 import io.github.nikitasud.latentjam.library.LibraryCatalog
 import io.github.nikitasud.latentjam.library.MusicLibrary
+import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.SongSorting
 import io.github.nikitasud.latentjam.playback.PlaybackController
@@ -105,6 +108,7 @@ import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.EngineState
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 
@@ -130,7 +134,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val scope = rememberCoroutineScope()
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
-        var selectedTab by remember { mutableStateOf(0) }
+        var selectedTab by remember { mutableStateOf(TRACKS_TAB) }
+        var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
+        var playCounts by remember { mutableStateOf<Map<TrackId, Int>>(emptyMap()) }
+        var lastPlayedAt by remember { mutableStateOf<Map<TrackId, Long>>(emptyMap()) }
+        var showCreatePlaylist by remember { mutableStateOf(false) }
+        var renameTarget by remember { mutableStateOf<Playlist?>(null) }
+        var addToPlaylistTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
+        var pendingPlaylistTrack by remember { mutableStateOf<TrackDescriptor?>(null) }
         var songSort by remember { mutableStateOf(SongSort.TITLE) }
         var selectedCollection by remember { mutableStateOf<CollectionSelection?>(null) }
         var showDiagnostics by remember { mutableStateOf(false) }
@@ -145,6 +156,26 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         LaunchedEffect(Unit) { tracks = library.tracks() }
         val catalog = remember(tracks) { tracks?.let { LibraryCatalog.build(it) } }
+        val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
+
+        suspend fun refreshPlaylists() {
+            playlists = AppGraph.playlists.all()
+            val stats = AppGraph.history.stats()
+            playCounts = stats.mapValues { it.value.plays }
+            lastPlayedAt = stats.mapValues { it.value.lastPlayedAtMs }
+        }
+
+        LaunchedEffect(Unit) { refreshPlaylists() }
+        // Auto playlists are derived from listening, so refresh them whenever
+        // the user comes back to the tab rather than only at startup.
+        LaunchedEffect(selectedTab) { if (selectedTab == PLAYLISTS_TAB) refreshPlaylists() }
+
+        val autoPlaylists = remember(catalog, playCounts, lastPlayedAt) {
+            catalog?.let { AutoPlaylists.build(it.songs, playCounts, lastPlayedAt) }.orEmpty()
+        }
+
+        fun tracksOf(playlist: Playlist): List<TrackDescriptor> =
+            playlist.trackIds.mapNotNull { tracksById[TrackId(it)] }
 
         // Rescan after a delete so the removed track leaves every list at once.
         val deleteTrack = rememberTrackDeleter {
@@ -241,6 +272,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         containerColor = MaterialTheme.colorScheme.surface,
                                     ),
                                     actions = {
+                                        // Creating belongs to the tab that shows
+                                        // what you'd create, so it appears there.
+                                        if (selectedTab == PLAYLISTS_TAB) {
+                                            IconButton(onClick = { showCreatePlaylist = true }) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Add,
+                                                    contentDescription = "New playlist",
+                                                )
+                                            }
+                                        }
                                         IconButton(onClick = { showSearch = true }) {
                                             Icon(Icons.Rounded.Search, contentDescription = "Search library")
                                         }
@@ -303,7 +344,40 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     ) { Text("No music found on this device.") }
 
                                     else -> when (selectedTab) {
-                                        0 -> Column {
+                                        PLAYLISTS_TAB -> PlaylistsTabContent(
+                                            autoPlaylists = autoPlaylists,
+                                            playlists = playlists,
+                                            tracksOf = ::tracksOf,
+                                            contentPadding = listPadding,
+                                            onOpenAuto = { auto ->
+                                                selectedCollection = CollectionSelection(
+                                                    title = auto.title,
+                                                    subtitle = "${auto.tracks.size} tracks",
+                                                    artworkUri = auto.tracks
+                                                        .firstNotNullOfOrNull { it.artworkUri },
+                                                    tracks = auto.tracks,
+                                                )
+                                            },
+                                            onOpenPlaylist = { playlist ->
+                                                selectedCollection = CollectionSelection(
+                                                    title = playlist.name,
+                                                    subtitle = "${playlist.trackIds.size} tracks",
+                                                    artworkUri = tracksOf(playlist)
+                                                        .firstNotNullOfOrNull { it.artworkUri },
+                                                    tracks = tracksOf(playlist),
+                                                )
+                                            },
+                                            onRename = { renameTarget = it },
+                                            onDelete = { playlist ->
+                                                scope.launch {
+                                                    AppGraph.playlists.delete(playlist.id)
+                                                    refreshPlaylists()
+                                                    snackbar.showSnackbar("Deleted \"${playlist.name}\"")
+                                                }
+                                            },
+                                        )
+
+                                        TRACKS_TAB -> Column {
                                             SongsHeader(
                                                 sort = songSort,
                                                 onSortChange = { songSort = it },
@@ -333,7 +407,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             )
                                         }
 
-                                        1 -> LazyVerticalGrid(
+                                        2 -> LazyVerticalGrid(
                                             columns = GridCells.Fixed(2),
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = PaddingValues(
@@ -350,7 +424,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             }
                                         }
 
-                                        2 -> LazyColumn(
+                                        3 -> LazyColumn(
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = listPadding,
                                         ) {
@@ -414,10 +488,71 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onPlay = { scope.launch { playback.play(listOf(target), 0) } },
                 onPlayNext = { scope.launch { playback.playNext(target) } },
                 onAddToQueue = { scope.launch { playback.addToQueue(target) } },
+                onAddToPlaylist = { addToPlaylistTarget = target },
                 onGoToAlbum = { showAlbumOf(target) },
                 onGoToArtist = { showArtistOf(target) },
                 onDelete = { deleteTarget = target },
                 onDismiss = { trackMenuTarget = null },
+            )
+        }
+
+        addToPlaylistTarget?.let { target ->
+            AddToPlaylistSheet(
+                track = target,
+                playlists = playlists,
+                onAddTo = { playlist ->
+                    scope.launch {
+                        AppGraph.playlists.addTracks(playlist.id, listOf(target.id))
+                        refreshPlaylists()
+                        snackbar.showSnackbar("Added to \"${playlist.name}\"")
+                    }
+                },
+                onCreateNew = {
+                    // Remember the track so the new playlist starts with it.
+                    pendingPlaylistTrack = target
+                    showCreatePlaylist = true
+                },
+                onDismiss = { addToPlaylistTarget = null },
+            )
+        }
+
+        if (showCreatePlaylist) {
+            val trackToSeed = pendingPlaylistTrack
+            PlaylistNameDialog(
+                title = "New playlist",
+                confirmLabel = "Create",
+                onConfirm = { name ->
+                    showCreatePlaylist = false
+                    pendingPlaylistTrack = null
+                    scope.launch {
+                        val created = AppGraph.playlists.create(name)
+                        if (trackToSeed != null) {
+                            AppGraph.playlists.addTracks(created.id, listOf(trackToSeed.id))
+                        }
+                        refreshPlaylists()
+                        snackbar.showSnackbar("Created \"${created.name}\"")
+                    }
+                },
+                onDismiss = {
+                    showCreatePlaylist = false
+                    pendingPlaylistTrack = null
+                },
+            )
+        }
+
+        renameTarget?.let { target ->
+            PlaylistNameDialog(
+                title = "Rename playlist",
+                initialName = target.name,
+                confirmLabel = "Rename",
+                onConfirm = { name ->
+                    renameTarget = null
+                    scope.launch {
+                        AppGraph.playlists.rename(target.id, name)
+                        refreshPlaylists()
+                    }
+                },
+                onDismiss = { renameTarget = null },
             )
         }
 
@@ -467,7 +602,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
     }
 }
 
-private val BROWSE_TABS = listOf("Tracks", "Albums", "Artists", "Genres")
+private val BROWSE_TABS = listOf("Playlists", "Tracks", "Albums", "Artists", "Genres")
+
+/** Playlists lead the carousel, but the app opens on Tracks. */
+private const val PLAYLISTS_TAB = 0
+private const val TRACKS_TAB = 1
 
 /** Persist-and-report granularity for library indexing. */
 private const val INDEX_CHUNK_SIZE = 8

@@ -93,6 +93,28 @@ internal class MediaStoreMusicLibrary(
     }
 }
 
+/** Whole-file rewrite; playlists are few and short. */
+internal class FilePlaylistStore(private val context: Context) : PlaylistStore {
+
+    private val file get() = java.io.File(context.filesDir, FILE_NAME)
+
+    override suspend fun read(): List<String> = withContext(Dispatchers.IO) {
+        if (!file.exists()) emptyList() else file.readLines()
+    }
+
+    override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.IO) {
+        file.writeText(lines.joinToString("\n"))
+    }
+
+    private companion object {
+        const val FILE_NAME = "playlists.txt"
+    }
+}
+
 public actual fun musicLibraryModule(): Module = module {
     single<MusicLibrary> { MediaStoreMusicLibrary(context = get()) }
+    single<PlaylistStore> { FilePlaylistStore(context = get()) }
+    single<Playlists> { DefaultPlaylists(store = get()) }
 }
+
+public actual fun nowMillis(): Long = System.currentTimeMillis()

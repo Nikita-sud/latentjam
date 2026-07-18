@@ -8,6 +8,7 @@ import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.RecentSearches
 import io.github.nikitasud.latentjam.history.listeningHistoryModule
 import io.github.nikitasud.latentjam.library.MusicLibrary
+import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.library.musicLibraryModule
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.PlaybackController
@@ -98,6 +99,10 @@ object AppGraph {
 
     /** Previously searched queries. */
     val recentSearches: RecentSearches
+        get() = koin.get()
+
+    /** The user's playlists. */
+    val playlists: Playlists
         get() = koin.get()
 
     /** The device music collection. */

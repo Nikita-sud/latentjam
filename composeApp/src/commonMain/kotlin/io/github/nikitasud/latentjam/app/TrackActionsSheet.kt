@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.AlertDialog
@@ -47,6 +48,7 @@ internal fun TrackActionsSheet(
     onPlay: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
+    onAddToPlaylist: () -> Unit,
     onGoToAlbum: () -> Unit,
     onGoToArtist: () -> Unit,
     onDelete: () -> Unit,
@@ -85,6 +87,7 @@ internal fun TrackActionsSheet(
             SheetAction(Icons.Rounded.PlayArrow, "Play") { onDismiss(); onPlay() }
             SheetAction(Icons.AutoMirrored.Rounded.PlaylistAdd, "Play next") { onDismiss(); onPlayNext() }
             SheetAction(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { onDismiss(); onAddToQueue() }
+            SheetAction(Icons.Rounded.LibraryAdd, "Add to playlist") { onDismiss(); onAddToPlaylist() }
             SheetAction(Icons.Rounded.Album, "Go to album") { onDismiss(); onGoToAlbum() }
             SheetAction(Icons.Rounded.Person, "Go to artist") { onDismiss(); onGoToArtist() }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
