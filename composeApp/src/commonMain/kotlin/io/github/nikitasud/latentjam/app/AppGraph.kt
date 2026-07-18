@@ -4,33 +4,57 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.library.MusicLibrary
+import io.github.nikitasud.latentjam.library.musicLibraryModule
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.di.smartEngineModule
+import org.koin.core.Koin
 import org.koin.core.KoinApplication
+import org.koin.core.module.Module
 import org.koin.dsl.koinApplication
+import org.koin.dsl.module
 
 /**
  * The app's single composition root, shared verbatim by the Android and iOS
  * entry points.
  *
  * A SCOPED Koin application (not the `startKoin` global) — nothing else in
- * the process can collide with it, and `by lazy` gives thread-safe,
- * exactly-once initialization on both JVM and Kotlin/Native, whichever
- * platform entry touches it first.
+ * the process can collide with it. Each platform entry point calls [start]
+ * exactly once before touching [engine]/[library], passing whatever platform
+ * bindings its modules need (Android contributes an `android.content.Context`
+ * for the MediaStore-backed library; iOS passes nothing).
  *
- * Resolving [engine] is allocation-only (the engine singleton defers all
- * heavy work to its suspend functions), so it is safe to call while building
+ * [start] is idempotent but not thread-safe by design: both entry points call
+ * it from the platform's main thread during launch, before any concurrent
+ * access exists.
+ *
+ * Resolving [engine]/[library] is allocation-only (all heavy work hides
+ * behind their suspend functions), so both are safe to read while building
  * the very first UI frame.
  */
 object AppGraph {
 
-    private val koinApp: KoinApplication by lazy {
-        koinApplication {
-            modules(smartEngineModule)
+    private var koinApp: KoinApplication? = null
+
+    /** Initializes the graph. Call once from the platform entry point. */
+    fun start(platformModule: Module = module { }) {
+        if (koinApp == null) {
+            koinApp = koinApplication {
+                modules(platformModule, smartEngineModule, musicLibraryModule())
+            }
         }
     }
 
     /** The process-wide similarity engine. */
     val engine: SimilarityEngine
-        get() = koinApp.koin.get()
+        get() = koin.get()
+
+    /** The device music collection. */
+    val library: MusicLibrary
+        get() = koin.get()
+
+    private val koin: Koin
+        get() = checkNotNull(koinApp) {
+            "AppGraph.start() must be called by the platform entry point before use"
+        }.koin
 }

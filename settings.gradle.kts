@@ -36,5 +36,6 @@ dependencyResolutionManagement {
 rootProject.name = "latentjam-monorepo"
 
 include(":core:smart")
+include(":core:library")
 include(":composeApp")
 include(":androidApp")

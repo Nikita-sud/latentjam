@@ -9,9 +9,12 @@ import platform.UIKit.UIViewController
 
 /**
  * iOS entry point, called from the iosApp Swift shell
- * (`MainViewControllerKt.MainViewController()`): a thin shell around the
- * shared [App] composable. All wiring lives in the common [AppGraph].
+ * (`MainViewControllerKt.MainViewController()`): starts the shared [AppGraph]
+ * (no platform bindings needed on iOS) and hosts the shared [App] composable.
  */
-fun MainViewController(): UIViewController = ComposeUIViewController {
-    App(engine = AppGraph.engine)
+fun MainViewController(): UIViewController {
+    AppGraph.start()
+    return ComposeUIViewController {
+        App(engine = AppGraph.engine, library = AppGraph.library)
+    }
 }

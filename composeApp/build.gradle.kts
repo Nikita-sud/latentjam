@@ -36,6 +36,7 @@ kotlin {
             // api, not implementation: :androidApp consumes these types
             // (SimilarityEngine in App()'s signature, @Composable App itself).
             api(project(":core:smart"))
+            api(project(":core:library"))
             api(compose.runtime)
             api(compose.foundation)
             api(compose.material3)
