@@ -4,6 +4,9 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -77,19 +80,33 @@ import kotlinx.coroutines.launch
  * transport row keeps repeat and shuffle at the outer edges with the
  * play/pause target largest and centred (Fitts's law).
  */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun NowPlayingScreen(playback: PlaybackController, onClose: () -> Unit) {
+fun NowPlayingScreen(
+    playback: PlaybackController,
+    accent: TrackAccent,
+    sharedScope: SharedTransitionScope,
+    animatedScope: AnimatedVisibilityScope,
+    onClose: () -> Unit,
+) {
     val now by playback.state.collectAsState()
     val scope = rememberCoroutineScope()
     var showQueue by remember { mutableStateOf(false) }
     // Local value while the thumb is being dragged, so the ticker doesn't
     // fight the user's finger; committed to the player on release.
     var dragPositionMs by remember { mutableStateOf<Long?>(null) }
-    val accent = rememberTrackAccent(now.track)
 
     PlatformBackHandler(enabled = true, onBack = onClose)
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    Surface(
+        // Same shared container as the mini-player pill: the pill grows into
+        // this screen instead of being swapped for it.
+        modifier = with(sharedScope) {
+            Modifier
+                .fillMaxSize()
+                .sharedBounds(rememberSharedContentState(PLAYER_SURFACE_KEY), animatedScope)
+        },
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -118,7 +135,15 @@ fun NowPlayingScreen(playback: PlaybackController, onClose: () -> Unit) {
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
-                LargeArtwork(uri = now.track?.artworkUri)
+                LargeArtwork(
+                    uri = now.track?.artworkUri,
+                    modifier = with(sharedScope) {
+                        Modifier.sharedElement(
+                            rememberSharedContentState(ARTWORK_KEY),
+                            animatedScope,
+                        )
+                    },
+                )
                 Spacer(modifier = Modifier.weight(1f))
 
                 Text(
@@ -238,9 +263,9 @@ fun NowPlayingScreen(playback: PlaybackController, onClose: () -> Unit) {
 }
 
 @Composable
-private fun LargeArtwork(uri: String?) {
+private fun LargeArtwork(uri: String?, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .aspectRatio(1f)
             .clip(RoundedCornerShape(24.dp))

@@ -35,9 +35,14 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 
 /** Square, rounded artwork with a music-note placeholder behind it. */
 @Composable
-internal fun Artwork(uri: String?, size: Dp, cornerRadius: Dp = 8.dp) {
+internal fun Artwork(
+    uri: String?,
+    size: Dp,
+    cornerRadius: Dp = 8.dp,
+    modifier: Modifier = Modifier,
+) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(cornerRadius))
             .background(MaterialTheme.colorScheme.surfaceVariant),

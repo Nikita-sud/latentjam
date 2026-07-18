@@ -54,6 +54,7 @@ internal fun SearchScreen(
     songs: List<TrackDescriptor>,
     currentTrackId: TrackId?,
     onPlay: (queue: List<TrackDescriptor>, index: Int) -> Unit,
+    onTrackMenu: (TrackDescriptor) -> Unit,
     onClose: () -> Unit,
 ) {
     PlatformBackHandler(enabled = true, onBack = onClose)
@@ -114,6 +115,7 @@ internal fun SearchScreen(
                             track = track,
                             isCurrent = track.id == currentTrackId,
                             onClick = { onPlay(results, index) },
+                            onMenu = { onTrackMenu(track) },
                         )
                     }
                 }

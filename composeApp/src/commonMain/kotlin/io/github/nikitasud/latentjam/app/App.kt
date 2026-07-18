@@ -4,15 +4,19 @@
  */
 package io.github.nikitasud.latentjam.app
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -27,8 +31,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -37,6 +39,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
@@ -72,7 +75,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,7 +90,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlin.math.abs
 import coil3.compose.AsyncImage
 import io.github.nikitasud.latentjam.library.AlbumGroup
 import io.github.nikitasud.latentjam.library.ArtistGroup
@@ -96,24 +97,31 @@ import io.github.nikitasud.latentjam.library.GenreGroup
 import io.github.nikitasud.latentjam.library.LibraryCatalog
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.SongSort
+import io.github.nikitasud.latentjam.library.SongSorting
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.EngineState
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlin.math.abs
 import kotlinx.coroutines.launch
+
+/** Shared-element keys for the mini-player → now-playing morph. */
+internal const val ARTWORK_KEY = "now-playing-artwork"
+internal const val PLAYER_SURFACE_KEY = "now-playing-surface"
 
 /**
  * Root composable, shared by Android and iOS: the player shell.
  *
- * Browse tabs over the scanned library sit in a rounded content container,
- * with a sort/play header on Songs, drill-in collection details that scope
- * the play queue, and a floating mini-player pill that expands to the
- * now-playing screen. All Material 3, all original expression — the legacy
- * app's look is never consulted.
+ * A carousel switches between library sections, the content sits on one
+ * full-bleed rounded surface, and the mini-player floats on that surface —
+ * expanding into the now-playing screen through a shared-element morph, so
+ * the pill visibly becomes the player rather than being replaced by it.
+ * All Material 3, all original expression — the legacy app's look is never
+ * consulted.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackController) {
     MaterialTheme(colorScheme = latentJamColorScheme(darkTheme = isSystemInDarkTheme())) {
@@ -131,6 +139,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var indexSummary by remember { mutableStateOf<String?>(null) }
         var historySummary by remember { mutableStateOf<String?>(null) }
         val now by playback.state.collectAsState()
+        val accent = rememberTrackAccent(now.track)
 
         LaunchedEffect(Unit) { tracks = library.tracks() }
         val catalog = remember(tracks) { tracks?.let { LibraryCatalog.build(it) } }
@@ -193,141 +202,183 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 ?.let { selectedCollection = it.toSelection() }
         }
 
-        Scaffold(
-            topBar = {
-                Column {
-                    TopAppBar(
-                        title = { Text("LatentJam") },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                        actions = {
-                            IconButton(onClick = { showSearch = true }) {
-                                Icon(Icons.Rounded.Search, contentDescription = "Search library")
-                            }
-                            ShuffleAction(mode = now.shuffleMode) {
-                                scope.launch {
-                                    val newMode = playback.cycleShuffleMode()
-                                    // Persistent label carries the state; explain
-                                    // only the novel mode once per activation.
-                                    if (newMode == ShuffleMode.SMART) {
-                                        snackbar.showSnackbar(
-                                            "Smart shuffle: similar tracks picked on-device",
-                                        )
-                                    }
-                                }
-                            }
-                            IconButton(onClick = { showDiagnostics = true }) {
-                                Icon(Icons.Rounded.Info, contentDescription = "Diagnostics")
+        SharedTransitionLayout {
+            val sharedScope = this
+            AnimatedContent(
+                targetState = showNowPlaying,
+                transitionSpec = {
+                    fadeIn(tween(MORPH_MILLIS)) togetherWith fadeOut(tween(MORPH_MILLIS))
+                },
+                label = "player-morph",
+            ) { expanded ->
+                if (expanded) {
+                    NowPlayingScreen(
+                        playback = playback,
+                        accent = accent,
+                        sharedScope = sharedScope,
+                        animatedScope = this@AnimatedContent,
+                        onClose = { showNowPlaying = false },
+                    )
+                } else {
+                    val animatedScope = this@AnimatedContent
+                    Scaffold(
+                        topBar = {
+                            Column {
+                                TopAppBar(
+                                    title = { Text("LatentJam") },
+                                    colors = TopAppBarDefaults.topAppBarColors(
+                                        containerColor = MaterialTheme.colorScheme.surface,
+                                    ),
+                                    actions = {
+                                        IconButton(onClick = { showSearch = true }) {
+                                            Icon(Icons.Rounded.Search, contentDescription = "Search library")
+                                        }
+                                        ShuffleAction(mode = now.shuffleMode) {
+                                            scope.launch {
+                                                val newMode = playback.cycleShuffleMode()
+                                                // Persistent label carries the state;
+                                                // explain only the novel mode.
+                                                if (newMode == ShuffleMode.SMART) {
+                                                    snackbar.showSnackbar(
+                                                        "Smart shuffle: similar tracks picked on-device",
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        IconButton(onClick = { showDiagnostics = true }) {
+                                            Icon(Icons.Rounded.Info, contentDescription = "Diagnostics")
+                                        }
+                                    },
+                                )
+                                BrowseCarousel(selectedTab) { selectedTab = it }
                             }
                         },
-                    )
-                    BrowseCarousel(selectedTab) { selectedTab = it }
-                }
-            },
-            bottomBar = {
-                // Slide-in pill: presence itself is feedback that playback started.
-                AnimatedVisibility(
-                    visible = now.track != null,
-                    enter = slideInVertically { it } + fadeIn(),
-                    exit = slideOutVertically { it } + fadeOut(),
-                ) {
-                    now.track?.let { current ->
-                        MiniPlayerPill(
-                            track = current,
-                            accent = rememberTrackAccent(current),
-                            isPlaying = now.isPlaying,
-                            progress = if (now.durationMs > 0) {
-                                (now.positionMs.toFloat() / now.durationMs).coerceIn(0f, 1f)
-                            } else {
-                                0f
-                            },
-                            onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
-                            onPrevious = { scope.launch { playback.previous() } },
-                            onNext = { scope.launch { playback.next() } },
-                            onOpen = { showNowPlaying = true },
-                        )
-                    }
-                }
-            },
-            snackbarHost = { SnackbarHost(snackbar) },
-            containerColor = MaterialTheme.colorScheme.surface,
-        ) { padding ->
-            // Content lives in a raised, top-rounded container so the list
-            // reads as a distinct surface under the chrome.
-            Surface(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
-            ) {
-                when {
-                    catalog == null -> Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) { CircularProgressIndicator() }
-
-                    catalog.songs.isEmpty() -> Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) { Text("No music found on this device.") }
-
-                    else -> when (selectedTab) {
-                        0 -> Column {
-                            SongsHeader(
-                                sort = songSort,
-                                onSortChange = { songSort = it },
-                                onShuffleAll = {
-                                    scope.launch {
-                                        playback.play(catalog.songs.shuffled(), 0)
-                                    }
-                                },
-                                onPlayAll = {
-                                    scope.launch {
-                                        playback.play(
-                                            io.github.nikitasud.latentjam.library.SongSorting
-                                                .sort(catalog.songs, songSort),
-                                            0,
-                                        )
-                                    }
-                                },
-                            )
-                            SectionedSongsList(
-                                songs = catalog.songs,
-                                sort = songSort,
-                                currentTrackId = now.track?.id,
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                                onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
-                                onTrackMenu = { trackMenuTarget = it },
-                            )
-                        }
-
-                        1 -> LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
+                        snackbarHost = { SnackbarHost(snackbar) },
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ) { padding ->
+                        // One full-bleed surface: it runs to the bottom edge so the
+                        // mini-player floats ON the content rather than sitting on a
+                        // separate band of background.
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = padding.calculateTopPadding()),
+                            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainer,
                         ) {
-                            items(catalog.albums, key = { it.key }) { album ->
-                                AlbumCard(album) { selectedCollection = album.toSelection() }
-                            }
-                        }
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                val listPadding = PaddingValues(
+                                    bottom = if (now.track != null) 104.dp else 12.dp,
+                                )
+                                when {
+                                    catalog == null -> Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center,
+                                    ) { CircularProgressIndicator() }
 
-                        2 -> LazyColumn(modifier = Modifier.fillMaxSize()) {
-                            items(catalog.artists, key = { it.name ?: "?" }) { artist ->
-                                GroupRow(
-                                    title = artist.name ?: "Unknown artist",
-                                    subtitle = "${artist.tracks.size} tracks • ${artist.albumCount} albums",
-                                    artworkUri = artist.tracks.firstNotNullOfOrNull { it.artworkUri },
-                                ) { selectedCollection = artist.toSelection() }
-                            }
-                        }
+                                    catalog.songs.isEmpty() -> Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center,
+                                    ) { Text("No music found on this device.") }
 
-                        else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
-                            items(catalog.genres, key = { it.name ?: "?" }) { genre ->
-                                GroupRow(
-                                    title = genre.name ?: "Unknown genre",
-                                    subtitle = "${genre.tracks.size} tracks",
-                                    artworkUri = genre.tracks.firstNotNullOfOrNull { it.artworkUri },
-                                ) { selectedCollection = genre.toSelection() }
+                                    else -> when (selectedTab) {
+                                        0 -> Column {
+                                            SongsHeader(
+                                                sort = songSort,
+                                                onSortChange = { songSort = it },
+                                                onShuffleAll = {
+                                                    scope.launch {
+                                                        playback.play(catalog.songs.shuffled(), 0)
+                                                    }
+                                                },
+                                                onPlayAll = {
+                                                    scope.launch {
+                                                        playback.play(
+                                                            SongSorting.sort(catalog.songs, songSort),
+                                                            0,
+                                                        )
+                                                    }
+                                                },
+                                            )
+                                            SectionedSongsList(
+                                                songs = catalog.songs,
+                                                sort = songSort,
+                                                currentTrackId = now.track?.id,
+                                                contentPadding = listPadding,
+                                                onPlay = { queue, index ->
+                                                    scope.launch { playback.play(queue, index) }
+                                                },
+                                                onTrackMenu = { trackMenuTarget = it },
+                                            )
+                                        }
+
+                                        1 -> LazyVerticalGrid(
+                                            columns = GridCells.Fixed(2),
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentPadding = PaddingValues(
+                                                start = 8.dp,
+                                                end = 8.dp,
+                                                top = 8.dp,
+                                                bottom = listPadding.calculateBottomPadding(),
+                                            ),
+                                        ) {
+                                            items(catalog.albums, key = { it.key }) { album ->
+                                                AlbumCard(album) {
+                                                    selectedCollection = album.toSelection()
+                                                }
+                                            }
+                                        }
+
+                                        2 -> LazyColumn(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentPadding = listPadding,
+                                        ) {
+                                            items(catalog.artists, key = { it.name ?: "?" }) { artist ->
+                                                GroupRow(
+                                                    title = artist.name ?: "Unknown artist",
+                                                    subtitle = "${artist.tracks.size} tracks • " +
+                                                        "${artist.albumCount} albums",
+                                                    artworkUri = artist.tracks
+                                                        .firstNotNullOfOrNull { it.artworkUri },
+                                                ) { selectedCollection = artist.toSelection() }
+                                            }
+                                        }
+
+                                        else -> LazyColumn(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentPadding = listPadding,
+                                        ) {
+                                            items(catalog.genres, key = { it.name ?: "?" }) { genre ->
+                                                GroupRow(
+                                                    title = genre.name ?: "Unknown genre",
+                                                    subtitle = "${genre.tracks.size} tracks",
+                                                    artworkUri = genre.tracks
+                                                        .firstNotNullOfOrNull { it.artworkUri },
+                                                ) { selectedCollection = genre.toSelection() }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                now.track?.let { current ->
+                                    MiniPlayerPill(
+                                        track = current,
+                                        accent = accent,
+                                        isPlaying = now.isPlaying,
+                                        progress = if (now.durationMs > 0) {
+                                            (now.positionMs.toFloat() / now.durationMs).coerceIn(0f, 1f)
+                                        } else {
+                                            0f
+                                        },
+                                        sharedScope = sharedScope,
+                                        animatedScope = animatedScope,
+                                        onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
+                                        onPrevious = { scope.launch { playback.previous() } },
+                                        onNext = { scope.launch { playback.next() } },
+                                        onOpen = { showNowPlaying = true },
+                                        modifier = Modifier.align(Alignment.BottomCenter),
+                                    )
+                                }
                             }
                         }
                     }
@@ -364,6 +415,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 selection = selection,
                 currentTrackId = now.track?.id,
                 onPlayTrack = { index -> scope.launch { playback.play(selection.tracks, index) } },
+                onTrackMenu = { trackMenuTarget = it },
                 onClose = { selectedCollection = null },
             )
         }
@@ -373,12 +425,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 songs = catalog?.songs.orEmpty(),
                 currentTrackId = now.track?.id,
                 onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
+                onTrackMenu = { trackMenuTarget = it },
                 onClose = { showSearch = false },
             )
-        }
-
-        if (showNowPlaying) {
-            NowPlayingScreen(playback = playback, onClose = { showNowPlaying = false })
         }
 
         if (showDiagnostics) {
@@ -400,6 +449,9 @@ private val BROWSE_TABS = listOf("Tracks", "Albums", "Artists", "Genres")
 
 /** Persist-and-report granularity for library indexing. */
 private const val INDEX_CHUNK_SIZE = 8
+
+/** Duration of the mini-player ↔ now-playing morph. */
+private const val MORPH_MILLIS = 340
 
 private fun AlbumGroup.toSelection() = CollectionSelection(
     title = title ?: "Unknown album",
@@ -425,84 +477,88 @@ private fun GenreGroup.toSelection() = CollectionSelection(
 // ---------------------------------------------------------------- components
 
 /**
- * The browse switcher as a snapping carousel: the active section sits in the
- * middle at full size while its neighbours shrink and fade with distance, so
- * where you are — and what's adjacent — is legible at a glance. Swiping the
- * carousel changes section; tapping a neighbour brings it to the centre.
+ * Compact section switcher: the active section sits centred at full size,
+ * its neighbours shrink and fade with distance so they stay readable but
+ * clearly secondary. Items are only as wide as their label, which keeps the
+ * strip tight instead of eating a band of the screen.
  */
 @Composable
 private fun BrowseCarousel(selectedTab: Int, onSelect: (Int) -> Unit) {
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface),
     ) {
-        val itemWidth = 148.dp
-        val sidePadding = (maxWidth - itemWidth) / 2
-        val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedTab)
-        val density = LocalDensity.current
-        val itemWidthPx = with(density) { itemWidth.toPx() }
+        val sidePadding = (maxWidth / 2 - 56.dp).coerceAtLeast(0.dp)
+        val falloffPx = with(density) { 140.dp.toPx() }
 
-        // Follow whatever the carousel settles on.
-        val centeredIndex by remember {
-            derivedStateOf {
-                val info = listState.layoutInfo
-                val centre = (info.viewportStartOffset + info.viewportEndOffset) / 2f
-                info.visibleItemsInfo.minByOrNull { item ->
-                    abs((item.offset + item.size / 2f) - centre)
-                }?.index
+        fun offsetFromCentre(index: Int): Float? {
+            val info = listState.layoutInfo
+            val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return null
+            val centre = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+            return (item.offset + item.size / 2f) - centre
+        }
+
+        LaunchedEffect(selectedTab) {
+            val delta = offsetFromCentre(selectedTab)
+            if (delta == null) {
+                listState.animateScrollToItem(selectedTab)
+                offsetFromCentre(selectedTab)?.let { correction ->
+                    if (abs(correction) > 1f) listState.animateScrollBy(correction)
+                }
+            } else if (abs(delta) > 1f) {
+                listState.animateScrollBy(delta)
             }
         }
+
+        // Settle on whatever ended up nearest the middle.
         LaunchedEffect(listState.isScrollInProgress) {
             if (!listState.isScrollInProgress) {
-                centeredIndex?.let { if (it != selectedTab) onSelect(it) }
+                val info = listState.layoutInfo
+                val centre = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+                val nearest = info.visibleItemsInfo.minByOrNull { item ->
+                    abs((item.offset + item.size / 2f) - centre)
+                } ?: return@LaunchedEffect
+                if (nearest.index != selectedTab) {
+                    onSelect(nearest.index)
+                } else {
+                    val delta = (nearest.offset + nearest.size / 2f) - centre
+                    if (abs(delta) > 1f) listState.animateScrollBy(delta)
+                }
             }
-        }
-        LaunchedEffect(selectedTab) {
-            if (centeredIndex != selectedTab) listState.animateScrollToItem(selectedTab)
         }
 
         LazyRow(
             state = listState,
-            flingBehavior = rememberSnapFlingBehavior(listState),
             contentPadding = PaddingValues(horizontal = sidePadding),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().height(72.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp),
         ) {
             itemsIndexed(BROWSE_TABS) { index, title ->
-                val info = listState.layoutInfo
-                val centre = (info.viewportStartOffset + info.viewportEndOffset) / 2f
-                val item = info.visibleItemsInfo.firstOrNull { it.index == index }
-                // 0 at the centre, 1 one full item away.
-                val distance = item
-                    ?.let { abs((it.offset + it.size / 2f) - centre) / itemWidthPx }
-                    ?.coerceIn(0f, 1f)
-                    ?: 1f
-                val scale = 1f - 0.28f * distance
-                val fade = 1f - 0.6f * distance
-
-                Box(
+                val distance = (offsetFromCentre(index)?.let { abs(it) / falloffPx } ?: 1f)
+                    .coerceIn(0f, 1f)
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
-                        .width(itemWidth)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                        ) { onSelect(index) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.graphicsLayer {
+                        ) { onSelect(index) }
+                        .padding(horizontal = 14.dp)
+                        .graphicsLayer {
+                            val scale = 1f - 0.26f * distance
                             scaleX = scale
                             scaleY = scale
-                            alpha = fade
+                            alpha = 1f - 0.6f * distance
                         },
-                    )
-                }
+                )
             }
         }
     }
@@ -673,41 +729,63 @@ private fun GroupRow(title: String, subtitle: String, artworkUri: String?, onCli
 }
 
 /**
- * Floating mini-player: a tinted pill above the navigation bar with its own
- * progress line, marquee title, and prev/play/next. Tapping expands to the
- * now-playing screen.
+ * Floating mini-player: a tinted pill sitting directly on the content
+ * surface, hugging the screen edges. Its artwork and container are shared
+ * elements, so opening the player grows this pill into the full screen.
  */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun MiniPlayerPill(
     track: TrackDescriptor,
     accent: TrackAccent,
     isPlaying: Boolean,
     progress: Float,
+    sharedScope: SharedTransitionScope,
+    animatedScope: AnimatedVisibilityScope,
     onTogglePlayPause: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .navigationBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 6.dp, vertical = 6.dp)
             .fillMaxWidth()
+            .then(
+                with(sharedScope) {
+                    Modifier.sharedBounds(
+                        rememberSharedContentState(PLAYER_SURFACE_KEY),
+                        animatedScope,
+                    )
+                },
+            )
             .clickable(onClick = onOpen),
-        shape = RoundedCornerShape(28.dp),
-        // Colour comes from the cover art, or from the track's place in
-        // latent space when it has none.
+        shape = RoundedCornerShape(26.dp),
         color = accent.container,
         contentColor = accent.onContainer,
-        shadowElevation = 6.dp,
+        shadowElevation = 8.dp,
     ) {
-        Column {
+        Box {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 4.dp, top = 8.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Artwork(uri = track.artworkUri, size = 44.dp, cornerRadius = 22.dp)
+                Artwork(
+                    uri = track.artworkUri,
+                    size = 44.dp,
+                    cornerRadius = 22.dp,
+                    modifier = with(sharedScope) {
+                        Modifier.sharedElement(
+                            rememberSharedContentState(ARTWORK_KEY),
+                            animatedScope,
+                        )
+                    },
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = track.title ?: "Untitled",
@@ -736,15 +814,18 @@ private fun MiniPlayerPill(
                     Icon(Icons.Rounded.SkipNext, contentDescription = "Next track")
                 }
             }
+            // Hairline progress along the pill's inner edge — status without
+            // giving the bar a band of its own.
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                color = accent.onContainer,
-                trackColor = accent.onContainer.copy(alpha = 0.24f),
+                    .height(2.dp)
+                    .clip(CircleShape),
+                color = accent.onContainer.copy(alpha = 0.9f),
+                trackColor = accent.onContainer.copy(alpha = 0.2f),
                 drawStopIndicator = {},
             )
         }

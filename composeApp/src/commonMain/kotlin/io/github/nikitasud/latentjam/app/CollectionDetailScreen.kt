@@ -51,6 +51,7 @@ fun CollectionDetailScreen(
     selection: CollectionSelection,
     currentTrackId: TrackId?,
     onPlayTrack: (Int) -> Unit,
+    onTrackMenu: (TrackDescriptor) -> Unit,
     onClose: () -> Unit,
 ) {
     PlatformBackHandler(enabled = true, onBack = onClose)
@@ -105,6 +106,7 @@ fun CollectionDetailScreen(
                         track = track,
                         isCurrent = track.id == currentTrackId,
                         onClick = { onPlayTrack(index) },
+                        onMenu = { onTrackMenu(track) },
                     )
                 }
             }
