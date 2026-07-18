@@ -83,6 +83,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
         var showDiagnostics by remember { mutableStateOf(false) }
+        var showNowPlaying by remember { mutableStateOf(false) }
         var indexSummary by remember { mutableStateOf<String?>(null) }
         val now by playback.state.collectAsState()
 
@@ -134,6 +135,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         isPlaying = now.isPlaying,
                         onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
                         onNext = { scope.launch { playback.next() } },
+                        onOpen = { showNowPlaying = true },
                     )
                 }
             },
@@ -165,6 +167,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     }
                 }
             }
+        }
+
+        if (showNowPlaying) {
+            NowPlayingScreen(playback = playback, onClose = { showNowPlaying = false })
         }
 
         if (showDiagnostics) {
@@ -266,11 +272,13 @@ private fun MiniPlayer(
     isPlaying: Boolean,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
+    onOpen: () -> Unit,
 ) {
     Surface(tonalElevation = 3.dp) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable(onClick = onOpen)
                 .navigationBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

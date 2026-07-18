@@ -20,12 +20,24 @@ public enum class ShuffleMode { OFF, ON, SMART }
 
 /**
  * Snapshot of what is playing right now — the UI's single source of truth.
- * Position/progress tracking arrives with the full now-playing screen.
+ *
+ * While playing, implementations refresh [positionMs] on a coarse ticker
+ * (~2×/s) — plenty for a seek bar, cheap enough to ignore.
+ *
+ * @property positionMs Playhead position within the current track.
+ * @property durationMs Current track duration (0 when unknown).
+ * @property queue The play queue in order (immutable snapshot; rebuilt only
+ *   when the queue actually changes, so ticker emissions share the same list).
+ * @property queueIndex Index of the current track in [queue], -1 when empty.
  */
 public data class NowPlaying(
     public val track: TrackDescriptor? = null,
     public val isPlaying: Boolean = false,
     public val shuffleMode: ShuffleMode = ShuffleMode.OFF,
+    public val positionMs: Long = 0,
+    public val durationMs: Long = 0,
+    public val queue: List<TrackDescriptor> = emptyList(),
+    public val queueIndex: Int = -1,
 )
 
 /**
@@ -72,6 +84,12 @@ public interface PlaybackController {
 
     /** Returns to the previous track (or restarts the current one, player-standard). */
     public suspend fun previous()
+
+    /** Moves the playhead within the current track. */
+    public suspend fun seekTo(positionMs: Long)
+
+    /** Jumps to the queue entry at [queueIndex] (no-op when out of range). */
+    public suspend fun playAt(queueIndex: Int)
 
     /** Advances OFF → ON → SMART → OFF and returns the new mode. */
     public suspend fun cycleShuffleMode(): ShuffleMode

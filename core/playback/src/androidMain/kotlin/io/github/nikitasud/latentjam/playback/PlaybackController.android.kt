@@ -9,19 +9,24 @@ import android.content.Context
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
@@ -65,13 +70,26 @@ internal class AndroidPlaybackController(
     private val poolById = mutableMapOf<String, TrackDescriptor>()
     private var mode: ShuffleMode = ShuffleMode.OFF
 
+    /** Rebuilt only when the queue actually changes; shared by ticker emissions. */
+    private var cachedQueue: List<TrackDescriptor> = emptyList()
+    private var tickerJob: Job? = null
+
     private val playerListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            rebuildQueueSnapshot()
             pushState()
             mainScope.launch { appendSmartNextIfNeeded() }
         }
 
-        override fun onIsPlayingChanged(isPlaying: Boolean) = pushState()
+        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+            rebuildQueueSnapshot()
+            pushState()
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            updateTicker(isPlaying)
+            pushState()
+        }
 
         override fun onPlaybackStateChanged(playbackState: Int) = pushState()
     }
@@ -94,6 +112,7 @@ internal class AndroidPlaybackController(
             }
             player.prepare()
             player.play()
+            rebuildQueueSnapshot()
             pushState()
             appendSmartNextIfNeeded()
         }
@@ -117,6 +136,20 @@ internal class AndroidPlaybackController(
         pushState()
     }
 
+    override suspend fun seekTo(positionMs: Long): Unit = withContext(Dispatchers.Main) {
+        val player = controller ?: return@withContext
+        player.seekTo(positionMs)
+        pushState()
+    }
+
+    override suspend fun playAt(queueIndex: Int): Unit = withContext(Dispatchers.Main) {
+        val player = controller ?: return@withContext
+        if (queueIndex !in 0 until player.mediaItemCount) return@withContext
+        player.seekTo(queueIndex, 0L)
+        player.play()
+        pushState()
+    }
+
     override suspend fun cycleShuffleMode(): ShuffleMode = withContext(Dispatchers.Main) {
         mode = when (mode) {
             ShuffleMode.OFF -> ShuffleMode.ON
@@ -136,6 +169,7 @@ internal class AndroidPlaybackController(
                     appendSmartNextIfNeeded()
                 }
             }
+            rebuildQueueSnapshot()
         }
         pushState()
         mode
@@ -163,14 +197,47 @@ internal class AndroidPlaybackController(
             .getOrNull()
             ?: candidates.random()
         player.addMediaItem(chosen.toMediaItem())
+        rebuildQueueSnapshot()
+        pushState()
+    }
+
+    /** Main-thread only. */
+    private fun rebuildQueueSnapshot() {
+        val player = controller ?: return
+        cachedQueue = (0 until player.mediaItemCount).mapNotNull { itemIndex ->
+            poolById[player.getMediaItemAt(itemIndex).mediaId]
+        }
+    }
+
+    /** Coarse position refresh while playing; idle otherwise. */
+    private fun updateTicker(isPlaying: Boolean) {
+        if (isPlaying) {
+            if (tickerJob == null) {
+                tickerJob = mainScope.launch {
+                    while (isActive) {
+                        pushState()
+                        delay(TICKER_INTERVAL_MS)
+                    }
+                }
+            }
+        } else {
+            tickerJob?.cancel()
+            tickerJob = null
+        }
     }
 
     private fun pushState() {
         val player = controller
+        val duration = player?.duration?.takeIf { it != C.TIME_UNSET && it > 0 }
+        val track = player?.currentMediaItem?.mediaId?.let(poolById::get)
         mutableState.value = NowPlaying(
-            track = player?.currentMediaItem?.mediaId?.let(poolById::get),
+            track = track,
             isPlaying = player?.isPlaying == true,
             shuffleMode = mode,
+            positionMs = player?.currentPosition?.coerceAtLeast(0) ?: 0,
+            durationMs = duration ?: track?.durationMs ?: 0,
+            queue = cachedQueue,
+            queueIndex = player?.currentMediaItemIndex?.takeIf { cachedQueue.isNotEmpty() } ?: -1,
         )
     }
 
@@ -214,6 +281,9 @@ internal class AndroidPlaybackController(
     private companion object {
         /** How many previously played tracks SMART excludes from re-selection. */
         const val RECENT_WINDOW = 10
+
+        /** Seek-bar refresh cadence while playing. */
+        const val TICKER_INTERVAL_MS = 500L
     }
 }
 

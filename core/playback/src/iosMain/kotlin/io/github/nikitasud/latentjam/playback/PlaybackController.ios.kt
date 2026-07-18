@@ -40,6 +40,12 @@ internal class StubPlaybackController : PlaybackController {
 
     override suspend fun previous() = Unit
 
+    override suspend fun seekTo(positionMs: Long) {
+        mutableState.update { it.copy(positionMs = positionMs) }
+    }
+
+    override suspend fun playAt(queueIndex: Int) = Unit
+
     override suspend fun cycleShuffleMode(): ShuffleMode {
         val next = when (mutableState.value.shuffleMode) {
             ShuffleMode.OFF -> ShuffleMode.ON
