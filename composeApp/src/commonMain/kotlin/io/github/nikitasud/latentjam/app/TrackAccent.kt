@@ -17,7 +17,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 
 /** A track's accent colour plus a readable foreground for it. */
 data class TrackAccent(val container: Color, val onContainer: Color)
@@ -47,8 +49,11 @@ fun rememberTrackAccent(track: TrackDescriptor?): TrackAccent {
 
     val artworkColor = rememberArtworkColor(track?.artworkUri)
     val latentColor = rememberLatentColor(track.takeIf { artworkColor == null })
+    // Every track gets an identity, even before it is indexed: the id hash is
+    // arbitrary but stable, so a coverless track is never just grey.
+    val identityColor = track?.let { identityColorOf(it.id.value) }
 
-    val seed = artworkColor ?: latentColor
+    val seed = artworkColor ?: latentColor ?: identityColor
     val target = seed?.let { toContainer(it, dark) } ?: fallback
     val container by animateColorAsState(target, label = "accent-container")
     val onContainer = if (seed == null) {
@@ -60,10 +65,8 @@ fun rememberTrackAccent(track: TrackDescriptor?): TrackAccent {
 }
 
 /**
- * Hue from the track's embedding: three wide slices of the vector are summed
- * into pseudo-RGB, then pushed to a usable saturation. Deterministic, so a
- * track always wears the same colour, and neighbours in latent space wear
- * neighbouring colours.
+ * Hue from the track's embedding. Deterministic, so a track always wears the
+ * same colour, and neighbours in latent space wear neighbouring hues.
  */
 @Composable
 private fun rememberLatentColor(track: TrackDescriptor?): Color? {
@@ -76,21 +79,39 @@ private fun rememberLatentColor(track: TrackDescriptor?): Color? {
     return color
 }
 
+/**
+ * The embedding's DIRECTION picks the hue.
+ *
+ * Magnitudes are useless here: these vectors are L2-normalised and roughly
+ * isotropic, so any per-slice average lands on the same number and every
+ * track comes out the same grey. Signed sums of three slices do vary, so
+ * their angle in the plane maps to a hue and the third axis nudges
+ * saturation — vivid, well-spread, and still stable per track.
+ */
 private fun latentColorOf(embedding: FloatArray): Color {
-    if (embedding.isEmpty()) return Color.Gray
+    if (embedding.size < 3) return Color.Gray
     val slice = embedding.size / 3
-    fun channel(from: Int, to: Int): Float {
+    fun signedSum(from: Int, to: Int): Float {
         var sum = 0f
-        for (i in from until to) sum += abs(embedding[i])
-        val mean = sum / (to - from).coerceAtLeast(1)
-        // Embedding components are small; scale into a usable range.
-        return (mean * 12f).coerceIn(0.15f, 1f)
+        for (i in from until to) sum += embedding[i]
+        return sum
     }
-    return Color(
-        red = channel(0, slice),
-        green = channel(slice, slice * 2),
-        blue = channel(slice * 2, embedding.size),
-    )
+    val x = signedSum(0, slice)
+    val y = signedSum(slice, slice * 2)
+    val z = signedSum(slice * 2, embedding.size)
+
+    val hue = ((atan2(y, x) / (2f * PI.toFloat()) + 1f) % 1f) * 360f
+    val saturation = (0.45f + 0.3f * (abs(z) / (abs(x) + abs(y) + abs(z) + 1e-6f)))
+        .coerceIn(0.35f, 0.8f)
+    return Color.hsl(hue, saturation, 0.5f)
+}
+
+/** Stable pseudo-random hue from the track id — an identity, not a meaning. */
+private fun identityColorOf(id: String): Color {
+    var hash = 0
+    for (character in id) hash = hash * 31 + character.code
+    val hue = ((hash % 360) + 360) % 360
+    return Color.hsl(hue.toFloat(), 0.42f, 0.5f)
 }
 
 /** Tames a raw sampled colour into a surface that text can sit on. */
