@@ -9,18 +9,15 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +41,9 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -86,6 +86,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -114,6 +115,9 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.math.floor
+import kotlin.math.ceil
 import kotlinx.coroutines.launch
 
 /** Shared-element keys for the mini-player → now-playing morph. */
@@ -138,7 +142,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val scope = rememberCoroutineScope()
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
-        var selectedTab by remember { mutableStateOf(TRACKS_TAB) }
+        // The pager owns the section position; everything else reads it. One source of truth means
+        // the strip and the content can never disagree about where a half-finished swipe is.
+        val pagerState = rememberPagerState(initialPage = TRACKS_TAB) { BROWSE_TABS.size }
+        val selectedTab = pagerState.currentPage
         var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
         var playCounts by remember { mutableStateOf<Map<TrackId, Int>>(emptyMap()) }
         var lastPlayedAt by remember { mutableStateOf<Map<TrackId, Long>>(emptyMap()) }
@@ -329,7 +336,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
                                     },
                                 )
-                                BrowseCarousel(selectedTab) { selectedTab = it }
+                                BrowseCarousel(pagerState) { tab ->
+                                    scope.launch { pagerState.animateScrollToPage(tab) }
+                                }
                             }
                         },
                         snackbarHost = { SnackbarHost(snackbar) },
@@ -360,32 +369,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         contentAlignment = Alignment.Center,
                                     ) { Text("No music found on this device.") }
 
-                                    // Shared-axis X: the outgoing page leaves the way the incoming
-                                    // one arrives, so the motion reads as travelling along the
-                                    // carousel rather than as two unrelated screens swapping. The
-                                    // slide is deliberately a fraction of the width — a full-width
-                                    // push would imply the pages are further apart than they are.
-                                    else -> AnimatedContent(
-                                        targetState = selectedTab,
-                                        label = "browse-tab",
-                                        transitionSpec = {
-                                            val forward = targetState > initialState
-                                            val enter = slideInHorizontally(
-                                                tween(TAB_TRANSITION_MS, easing = FastOutSlowInEasing),
-                                            ) { width -> if (forward) width / 8 else -width / 8 } +
-                                                fadeIn(tween(200, delayMillis = 40))
-                                            // The fades OVERLAP on purpose. Material's shared axis
-                                            // lets the outgoing page finish before the incoming one
-                                            // ramps up, which here left a frame of bare background
-                                            // between two dense lists — it read as a flicker.
-                                            val exit = slideOutHorizontally(
-                                                tween(TAB_TRANSITION_MS, easing = FastOutSlowInEasing),
-                                            ) { width -> if (forward) -width / 8 else width / 8 } +
-                                                fadeOut(tween(170))
-                                            // Pages differ in height; letting the container resize
-                                            // mid-flight makes the lists jump.
-                                            enter togetherWith exit using SizeTransform(clip = false)
-                                        },
+                                    // Pages follow the finger. The carousel strip above reads the
+                                    // same pager position, so label and content move together
+                                    // rather than one chasing the other after the fact.
+                                    else -> HorizontalPager(
+                                        state = pagerState,
+                                        modifier = Modifier.fillMaxSize(),
+                                        // Neighbours stay composed, so a swipe reveals a built list
+                                        // instead of an empty page filling in mid-gesture.
+                                        beyondViewportPageCount = 1,
+                                        key = { page -> page },
                                     ) { tab ->
                                         when (tab) {
                                         PLAYLISTS_TAB -> PlaylistsTabContent(
@@ -650,12 +643,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 private val BROWSE_TABS = listOf("Playlists", "Tracks", "Albums", "Artists", "Genres")
 
 /** Playlists lead the carousel, but the app opens on Tracks. */
-/**
- * Tab-change duration. Long enough to read as travel between neighbours, short enough that a quick
- * scrub across the carousel never feels like waiting for an animation to finish.
- */
-private const val TAB_TRANSITION_MS = 260
-
 private const val PLAYLISTS_TAB = 0
 private const val TRACKS_TAB = 1
 
@@ -695,9 +682,10 @@ private fun GenreGroup.toSelection() = CollectionSelection(
  * strip tight instead of eating a band of the screen.
  */
 @Composable
-private fun BrowseCarousel(selectedTab: Int, onSelect: (Int) -> Unit) {
+private fun BrowseCarousel(pagerState: PagerState, onSelect: (Int) -> Unit) {
     val listState = rememberLazyListState()
     val density = LocalDensity.current
+    val selectedTab = pagerState.currentPage
 
     BoxWithConstraints(
         modifier = Modifier
@@ -714,21 +702,37 @@ private fun BrowseCarousel(selectedTab: Int, onSelect: (Int) -> Unit) {
             return (item.offset + item.size / 2f) - centre
         }
 
-        LaunchedEffect(selectedTab) {
-            val delta = offsetFromCentre(selectedTab)
-            if (delta == null) {
-                listState.animateScrollToItem(selectedTab)
-                offsetFromCentre(selectedTab)?.let { correction ->
-                    if (abs(correction) > 1f) listState.animateScrollBy(correction)
+        // Track the pager CONTINUOUSLY rather than jumping once a swipe settles: the strip is the
+        // same gesture seen from a different angle, so it should move with the finger. Between two
+        // labels the centre is interpolated, because labels are only as wide as their text and the
+        // step between them is uneven.
+        LaunchedEffect(pagerState, sidePadding) {
+            snapshotFlow { pagerState.currentPage + pagerState.currentPageOffsetFraction }
+                .collect { position ->
+                    val lower = floor(position).toInt()
+                    val upper = ceil(position).toInt()
+                    val lowerOffset = offsetFromCentre(lower)
+                    val upperOffset = if (upper == lower) lowerOffset else offsetFromCentre(upper)
+                    val delta = when {
+                        lowerOffset != null && upperOffset != null ->
+                            lowerOffset + (upperOffset - lowerOffset) * (position - lower)
+                        lowerOffset != null -> lowerOffset
+                        upperOffset != null -> upperOffset
+                        // Neither neighbour is on screen — a jump, not a swipe.
+                        else -> {
+                            listState.scrollToItem(position.roundToInt())
+                            null
+                        }
+                    }
+                    // Driven, not animated: the pager's own motion is the animation.
+                    if (delta != null && abs(delta) > 0.5f) listState.scrollBy(delta)
                 }
-            } else if (abs(delta) > 1f) {
-                listState.animateScrollBy(delta)
-            }
         }
 
-        // Settle on whatever ended up nearest the middle.
+        // Settle on whatever ended up nearest the middle. Only when the strip itself was dragged —
+        // while the pager is moving it is the one in charge, and both correcting at once fights.
         LaunchedEffect(listState.isScrollInProgress) {
-            if (!listState.isScrollInProgress) {
+            if (!listState.isScrollInProgress && !pagerState.isScrollInProgress) {
                 val info = listState.layoutInfo
                 val centre = (info.viewportStartOffset + info.viewportEndOffset) / 2f
                 val nearest = info.visibleItemsInfo.minByOrNull { item ->
