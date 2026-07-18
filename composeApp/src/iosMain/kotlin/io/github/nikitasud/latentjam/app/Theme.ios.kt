@@ -9,4 +9,4 @@ import androidx.compose.runtime.Composable
 
 @Composable
 actual fun latentJamColorScheme(darkTheme: Boolean): ColorScheme =
-    if (darkTheme) BrandDarkColors else BrandLightColors
+    if (darkTheme) NeutralDarkColors else NeutralLightColors

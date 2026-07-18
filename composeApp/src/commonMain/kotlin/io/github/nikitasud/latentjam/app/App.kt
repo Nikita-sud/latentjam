@@ -202,6 +202,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 ?.let { selectedCollection = it.toSelection() }
         }
 
+        // Opaque floor under the whole shell: during the morph the animating
+        // content is smaller than the window, and without this the platform
+        // window background shows through as a flash.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
         SharedTransitionLayout {
             val sharedScope = this
             AnimatedContent(
@@ -384,6 +392,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     }
                 }
             }
+        }
         }
 
         trackMenuTarget?.let { target ->
@@ -729,9 +738,12 @@ private fun GroupRow(title: String, subtitle: String, artworkUri: String?, onCli
 }
 
 /**
- * Floating mini-player: a tinted pill sitting directly on the content
- * surface, hugging the screen edges. Its artwork and container are shared
- * elements, so opening the player grows this pill into the full screen.
+ * The mini-player: a tinted bar sealed to the bottom edge, rounded only at
+ * the top. It spans the full width and extends behind the navigation bar on
+ * purpose — any inset would leave a strip of background around it, which
+ * reads as a panel pasted onto a rectangle rather than part of the app. Its
+ * artwork and container are shared elements, so opening the player grows
+ * this bar into the full screen.
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -750,8 +762,6 @@ private fun MiniPlayerPill(
 ) {
     Surface(
         modifier = modifier
-            .navigationBarsPadding()
-            .padding(horizontal = 6.dp, vertical = 6.dp)
             .fillMaxWidth()
             .then(
                 with(sharedScope) {
@@ -762,16 +772,16 @@ private fun MiniPlayerPill(
                 },
             )
             .clickable(onClick = onOpen),
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
         color = accent.container,
         contentColor = accent.onContainer,
         shadowElevation = 8.dp,
     ) {
-        Box {
+        Box(modifier = Modifier.navigationBarsPadding()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 8.dp, end = 4.dp, top = 8.dp, bottom = 12.dp),
+                    .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -820,7 +830,7 @@ private fun MiniPlayerPill(
                 progress = { progress },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .padding(horizontal = 20.dp, vertical = 4.dp)
                     .fillMaxWidth()
                     .height(2.dp)
                     .clip(CircleShape),

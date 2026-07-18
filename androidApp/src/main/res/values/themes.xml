@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Bare platform theme; all real theming happens in Compose MaterialTheme. -->
-    <style name="Theme.LatentJam" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      Bare platform theme; all real theming happens in Compose MaterialTheme.
+      windowBackground matters even so: it paints the cold-start frame, and it
+      shows through whenever Compose content is smaller than the window —
+      during the mini-player → now-playing morph, for instance.
+    -->
+    <style name="Theme.LatentJam" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
 </resources>
