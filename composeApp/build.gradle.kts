@@ -18,6 +18,8 @@ kotlin {
         namespace = "io.github.nikitasud.latentjam.app.shared"
         compileSdk = 36
         minSdk = 24
+        // Host tests are OPT-IN on this plugin; without it commonTest never runs.
+        withHostTest {}
     }
 
     listOf(
@@ -44,11 +46,28 @@ kotlin {
             api(compose.material3)
             api(compose.ui)
             implementation(compose.materialIconsExtended)
+            // Compose Multiplatform resources: the generated `Res` accessors plus
+            // stringResource(). Strings live in commonMain/composeResources/values,
+            // translations in values-<lang>. NOT Android res/ — the plugin packages
+            // them as assets and resolves the locale itself.
+            implementation(compose.components.resources)
             implementation(libs.coil.compose)
+        }
+
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
         }
         androidMain.dependencies {
             // MainActivity lives here (see its KDoc for the AGP 9 rationale).
             api(libs.androidx.activity.compose)
         }
     }
+}
+
+compose.resources {
+    // The root project sets no `group`, so the default package for the generated
+    // Res class ("{group}.{module}.generated.resources") would be rootless and
+    // would change the day a group is added. Pin it instead.
+    packageOfResClass = "io.github.nikitasud.latentjam.app.generated.resources"
+    publicResClass = true
 }
