@@ -50,6 +50,10 @@ public data class TrackDescriptor(
     public val audioUri: String? = null,
     public val artworkUri: String? = null,
     public val addedAtMs: Long? = null,
+    /** Release year. Feeds the chain's era penalty, so a missing value simply costs that signal. */
+    public val year: Int? = null,
+    /** Loudness in `[0, 1]`, or null when unmeasured. Feeds the chain's energy-smoothness term. */
+    public val energy: Float? = null,
 )
 
 /**

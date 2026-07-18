@@ -90,6 +90,35 @@ public interface SimilarityEngine {
     public suspend fun embedding(trackId: TrackId): FloatArray?
 
     /**
+     * Encodes any missing metadata-text vectors for [library], and persists them.
+     *
+     * Cheap and idempotent — tracks that already have one are skipped — but not free on a cold
+     * library, so callers should run it in the background rather than in front of a SMART press.
+     * Separate from [indexLibrary] because audio embedding is expensive enough to stay
+     * user-initiated, while this can simply happen.
+     *
+     * @return how many vectors were added
+     */
+    public suspend fun ensureMetadataVectors(library: List<TrackDescriptor>): Int
+
+    /**
+     * Builds a SMART queue: a coherent walk of up to [length] tracks starting from [seed].
+     *
+     * This is not [nextTrack] repeated. The walk carries state — how far it has drifted from the
+     * seed, which artists and titles it has already used, how much the energy jumped last hop — and
+     * that state is what keeps a queue coherent instead of letting it wander into whatever happens
+     * to sit nearest at each step.
+     *
+     * @param library every track the queue may draw from; unindexed ones are ignored
+     * @return track ids in play order, excluding [seed]; empty when SMART cannot run
+     */
+    public suspend fun smartQueue(
+        seed: TrackDescriptor,
+        library: List<TrackDescriptor>,
+        length: Int,
+    ): List<TrackId>
+
+    /**
      * Releases the model and clears the index, returning the engine to
      * [EngineState.Uninitialized]. The engine may be [initialize]d again
      * afterwards. Safe to call in any state.

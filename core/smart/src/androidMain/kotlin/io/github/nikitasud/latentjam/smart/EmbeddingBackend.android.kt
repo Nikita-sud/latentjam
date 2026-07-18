@@ -9,6 +9,7 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
 import android.net.Uri
+import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
 import java.io.File
 import java.nio.FloatBuffer
 import kotlin.coroutines.cancellation.CancellationException
@@ -171,4 +172,8 @@ public actual fun smartEngineBackendModule(): Module = module {
     // Overrides the common NoopIndexStore (this module is listed after
     // smartEngineModule; Koin last-definition-wins).
     single<IndexStore> { FileIndexStore(context = get()) }
+
+    single<IndexStore>(smartTextIndexQualifier) {
+        FileIndexStore(context = get(), fileName = "smart_text_index.bin")
+    }
 }

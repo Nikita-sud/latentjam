@@ -42,6 +42,7 @@ internal class MediaStoreMusicLibrary(
             add(MediaStore.Audio.Media.ALBUM_ID)
             add(MediaStore.Audio.Media.DURATION)
             add(MediaStore.Audio.Media.DATE_ADDED)
+            add(MediaStore.Audio.Media.YEAR)
             if (genreSupported) add(MediaStore.Audio.Media.GENRE)
         }.toTypedArray()
         context.contentResolver.query(
@@ -58,6 +59,7 @@ internal class MediaStoreMusicLibrary(
             val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val addedColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+            val yearColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
             val genreColumn = if (genreSupported) cursor.getColumnIndex(MediaStore.Audio.Media.GENRE) else -1
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
@@ -77,6 +79,7 @@ internal class MediaStoreMusicLibrary(
                     },
                     // MediaStore stores DATE_ADDED in epoch seconds.
                     addedAtMs = cursor.getLong(addedColumn).takeIf { it > 0 }?.times(1000),
+                    year = cursor.getInt(yearColumn).takeIf { it > 0 },
                 )
             }
         }

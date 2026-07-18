@@ -16,7 +16,10 @@ import io.github.nikitasud.latentjam.playback.playbackModule
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.di.smartEngineModule
+import io.github.nikitasud.latentjam.smart.chain.smartPredictorModule
+import io.github.nikitasud.latentjam.smart.smartChainInputsModule
 import io.github.nikitasud.latentjam.smart.smartEngineBackendModule
+import io.github.nikitasud.latentjam.smart.text.smartTextEncoderModule
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -63,6 +66,11 @@ object AppGraph {
                     platformModule,
                     smartEngineModule,
                     smartEngineBackendModule(),
+                    // The SMART chain's models and inputs. Bound separately from the embedding
+                    // backend because a platform can have one without the other.
+                    smartPredictorModule(),
+                    smartTextEncoderModule(),
+                    smartChainInputsModule(),
                     musicLibraryModule(),
                     playbackModule(),
                     listeningHistoryModule(),

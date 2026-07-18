@@ -5,12 +5,16 @@
 package io.github.nikitasud.latentjam.smart.di
 
 import io.github.nikitasud.latentjam.smart.DefaultSimilarityEngine
+import io.github.nikitasud.latentjam.smart.DescriptorSource
 import io.github.nikitasud.latentjam.smart.InMemoryVectorIndex
+import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.IndexStore
 import io.github.nikitasud.latentjam.smart.NoopIndexStore
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
+import io.github.nikitasud.latentjam.smart.SmartClock
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.VectorIndex
+import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import org.koin.core.module.Module
@@ -24,6 +28,12 @@ import org.koin.dsl.module
  * the exact dispatcher the engine runs on.
  */
 public val smartEngineDispatcherQualifier: StringQualifier = named("smart-engine-dispatcher")
+
+/**
+ * Qualifier of the chain's metadata-text vector index and its store. Separate from the audio
+ * bindings because the two spaces differ in dimensionality and are persisted independently.
+ */
+public val smartTextIndexQualifier: StringQualifier = named("smart-text-index")
 
 /**
  * Koin module providing the SMART similarity engine.
@@ -76,9 +86,16 @@ public val smartEngineModule: Module = module {
         InMemoryVectorIndex(dim = get<SmartEngineConfig>().embeddingDim)
     }
 
+    // The chain's metadata-text vectors: same structure as the audio index, different
+    // dimensionality, so it gets its own binding and its own persisted file.
+    single<VectorIndex>(smartTextIndexQualifier) {
+        InMemoryVectorIndex(dim = TextEncoder.TEXT_DIM)
+    }
+
     // Overridden by platforms with a real store (Android's file-backed one,
     // bound in smartEngineBackendModule, listed after this module).
     single<IndexStore> { NoopIndexStore() }
+    single<IndexStore>(smartTextIndexQualifier) { NoopIndexStore() }
 
     single<SimilarityEngine> {
         DefaultSimilarityEngine(
@@ -87,6 +104,12 @@ public val smartEngineModule: Module = module {
             store = get(),
             config = get(),
             dispatcher = get(smartEngineDispatcherQualifier),
+            predictor = getOrNull<PredictorRuntime>(),
+            textEncoder = getOrNull<TextEncoder>(),
+            textIndex = get<VectorIndex>(smartTextIndexQualifier),
+            textStore = get<IndexStore>(smartTextIndexQualifier),
+            descriptorSource = getOrNull<DescriptorSource>(),
+            clock = getOrNull<SmartClock>() ?: SmartClock,
         )
     }
 }

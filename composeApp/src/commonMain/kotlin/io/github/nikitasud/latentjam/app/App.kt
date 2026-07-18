@@ -155,6 +155,19 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val accent = rememberTrackAccent(now.track)
 
         LaunchedEffect(Unit) { tracks = library.tracks() }
+
+        // Arm SMART in the background as soon as the library is known: load the models, restore the
+        // persisted index, and backfill any missing metadata-text vectors. All idempotent. Doing it
+        // here rather than on first press means the SMART button is instant when it is finally
+        // tapped, instead of stalling on tens of MB of model loading.
+        LaunchedEffect(tracks) {
+            val loaded = tracks ?: return@LaunchedEffect
+            AppGraph.appScope.launch {
+                engine.initialize()
+                val added = engine.ensureMetadataVectors(loaded)
+                println("SMART: ready (${engine.state.value}); encoded $added metadata vectors")
+            }
+        }
         val catalog = remember(tracks) { tracks?.let { LibraryCatalog.build(it) } }
         val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
 

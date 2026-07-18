@@ -21,10 +21,13 @@ import kotlinx.coroutines.withContext
  * the previous snapshot intact. Any parse problem or version mismatch simply
  * yields `null` (the engine re-indexes).
  */
-internal class FileIndexStore(context: Context) : IndexStore {
+internal class FileIndexStore(
+    context: Context,
+    fileName: String = FILE_NAME,
+) : IndexStore {
 
-    private val file = File(context.filesDir, FILE_NAME)
-    private val tempFile = File(context.filesDir, "$FILE_NAME.tmp")
+    private val file = File(context.filesDir, fileName)
+    private val tempFile = File(context.filesDir, "$fileName.tmp")
 
     override suspend fun load(modelVersion: String): Map<TrackId, FloatArray>? =
         withContext(Dispatchers.IO) {
