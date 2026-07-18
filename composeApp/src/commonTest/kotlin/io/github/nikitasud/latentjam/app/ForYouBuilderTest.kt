@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.TrackStats
+import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
@@ -43,7 +44,11 @@ class ForYouBuilderTest {
         library: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats> = emptyMap(),
         events: List<ListenEvent> = emptyList(),
-    ) = ForYouBuilder.build(library, stats, events, now)
+        playlists: List<Playlist> = emptyList(),
+    ) = ForYouBuilder.build(library, stats, events, now, playlists = playlists)
+
+    private fun track(id: String, artist: String, album: String) =
+        TrackDescriptor(id = TrackId(id), title = "T$id", artist = artist, album = album)
 
     @Test
     fun `a loved track gone quiet is worth revisiting`() {
@@ -229,5 +234,58 @@ class ForYouBuilderTest {
         val row = result.sections.first { it.id == "never-played" }.cards.map { it.track.id }
         // Whatever the hero claimed, what remains is still ordered newest first.
         assertEquals(row.sortedByDescending { id -> listOf(old, middle, new).first { it.id == id }.addedAtMs }, row)
+    }
+
+    @Test
+    fun `a dormant playlist is offered as one card, not as its tracks`() {
+        val members = (1..4).map { track("$it", artist = "Artist$it") }
+        val result = page(
+            library = members,
+            stats = members.associate { it.id to stats(plays = 6, last = now - 200 * day) },
+            playlists = listOf(Playlist(id = "p1", name = "Think", trackIds = members.map { it.id.value })),
+        )
+        val row = result.sections.first { it.id == "worth-revisiting" }
+        val collections = row.cards.mapNotNull { it.collection }
+        assertEquals(listOf("Think"), collections.map { it.title })
+        // The tracks it absorbed must not also stand alone beneath it.
+        val loose = row.cards.filter { it.collection == null }.map { it.track.id }
+        assertTrue(loose.none { id -> members.any { it.id == id } }, "absorbed tracks reappeared: $loose")
+    }
+
+    @Test
+    fun `two dormant tracks are coincidence, not a playlist worth offering`() {
+        val members = (1..2).map { track("$it", artist = "Artist$it") }
+        val result = page(
+            library = members,
+            stats = members.associate { it.id to stats(plays = 6, last = now - 200 * day) },
+            playlists = listOf(Playlist(id = "p1", name = "Think", trackIds = members.map { it.id.value })),
+        )
+        val row = result.sections.firstOrNull { it.id == "worth-revisiting" }
+        assertTrue(row?.cards?.all { it.collection == null } ?: true, "two tracks should not collapse")
+    }
+
+    @Test
+    fun `an album collapses when enough of it went quiet`() {
+        // Four: the hero claims one, and three must remain for the album to be worth offering.
+        val members = (1..4).map { track("$it", artist = "A", album = "Gold") }
+        val result = page(
+            library = members,
+            stats = members.associate { it.id to stats(plays = 6, last = now - 200 * day) },
+        )
+        val row = result.sections.first { it.id == "worth-revisiting" }
+        assertEquals(listOf("Gold"), row.cards.mapNotNull { it.collection }.map { it.title })
+    }
+
+    @Test
+    fun `a playlist claims its tracks before the album does`() {
+        // Same tracks belong to both; the playlist is deliberate, the shared album is incidental.
+        val members = (1..4).map { track("$it", artist = "A", album = "Gold") }
+        val result = page(
+            library = members,
+            stats = members.associate { it.id to stats(plays = 6, last = now - 200 * day) },
+            playlists = listOf(Playlist(id = "p1", name = "Think", trackIds = members.map { it.id.value })),
+        )
+        val row = result.sections.first { it.id == "worth-revisiting" }
+        assertEquals(listOf("Think"), row.cards.mapNotNull { it.collection }.map { it.title })
     }
 }

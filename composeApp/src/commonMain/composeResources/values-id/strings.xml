@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Indonesian translation of values/strings.xml.
+
+  Placeholders are POSITIONAL (%1$s / %1$d) and keep their numbers.
+  Apostrophes and quotation marks are written RAW: Compose Multiplatform only
+  unescapes \uXXXX, \n, \t and \\, so a backslash would reach the UI.
+  "LatentJam" and "SMART" are names and stay untranslated.
+  Indonesian has no grammatical plural, so every plurals block carries the
+  single required "other" category and never reduplicates after a numeral.
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">Putar</string>
+    <string name="action_pause">Jeda</string>
+    <string name="action_next">Berikutnya</string>
+    <string name="action_previous">Sebelumnya</string>
+    <string name="action_shuffle">Acak</string>
+    <string name="action_close">Tutup</string>
+    <string name="action_back">Kembali</string>
+    <string name="action_cancel">Batal</string>
+    <string name="action_delete">Hapus</string>
+    <string name="action_rename">Ganti nama</string>
+    <string name="action_clear">Bersihkan</string>
+    <string name="action_track_options">Opsi lagu</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">Lagu</string>
+    <string name="track_untitled">Tanpa judul</string>
+    <string name="track_unknown_artist">Artis tidak dikenal</string>
+    <!-- Indonesian distinguishes no plural categories: "other" only, and the
+         noun is never reduplicated after a numeral (5 lagu, not 5 lagu-lagu). -->
+    <plurals name="count_tracks">
+        <item quantity="other">%1$d lagu</item>
+    </plurals>
+    <!-- %1$s is a track title -->
+    <string name="cd_track_options_for">Opsi lainnya untuk %1$s</string>
+    <string name="cd_track_options_generic">Opsi lainnya untuk lagu ini</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">Tidak ada yang diputar</string>
+    <string name="queue_title">Antrean</string>
+    <!-- %1$d is how many tracks are in the queue -->
+    <string name="queue_title_count">Antrean · %1$d</string>
+    <string name="cd_repeat_off">Pengulangan nonaktif. Ketuk untuk mengulang antrean.</string>
+    <string name="cd_repeat_all">Antrean sedang diulang. Ketuk untuk mengulang satu lagu.</string>
+    <string name="cd_repeat_one">Satu lagu sedang diulang. Ketuk untuk menonaktifkan pengulangan.</string>
+    <string name="cd_shuffle_off">Pemutaran acak nonaktif. Ketuk untuk mengubah.</string>
+    <string name="cd_shuffle_on">Pemutaran acak aktif. Ketuk untuk mengubah.</string>
+    <string name="cd_shuffle_smart">Pemutaran acak SMART aktif. Ketuk untuk mengubah.</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">Cari</string>
+    <string name="cd_close_search">Tutup pencarian</string>
+    <string name="cd_clear_query">Hapus teks pencarian</string>
+    <!-- %1$s is what the user typed -->
+    <string name="search_no_matches">Tidak ada hasil untuk "%1$s".</string>
+    <!-- %1$d is the size of the library -->
+    <plurals name="search_hint_count">
+        <item quantity="other">Cari di pustaka Anda: %1$d lagu.</item>
+    </plurals>
+    <string name="search_recent_title">Pencarian terbaru</string>
+    <!-- %1$s is a past search term being removed from history -->
+    <string name="cd_forget_search">Lupakan "%1$s"</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">Belum ada playlist — gunakan + untuk membuatnya.</string>
+    <string name="playlist_name_placeholder">Nama playlist</string>
+    <string name="playlist_new">Playlist baru</string>
+    <!-- %1$s is a playlist name -->
+    <string name="cd_playlist_options">Opsi untuk %1$s</string>
+    <!-- Sheet header. %1$s is a track title; the generic form is used when the
+         track has no title at all. -->
+    <string name="playlist_add_to_title">Tambahkan "%1$s" ke playlist</string>
+    <string name="playlist_add_to_title_generic">Tambahkan lagu ke playlist</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">Putar berikutnya</string>
+    <string name="action_add_to_queue">Tambahkan ke antrean</string>
+    <string name="action_add_to_playlist">Tambahkan ke playlist</string>
+    <string name="action_go_to_album">Buka album</string>
+    <string name="action_go_to_artist">Buka artis</string>
+    <string name="action_information">Informasi</string>
+    <string name="action_delete_from_device">Hapus dari perangkat</string>
+    <string name="dialog_delete_track_title">Hapus lagu ini?</string>
+    <!-- %1$s is a track title -->
+    <string name="dialog_delete_track_message">"%1$s" akan dihapus dari perangkat ini. Tindakan ini tidak dapat dibatalkan.</string>
+    <string name="dialog_delete_track_message_generic">Lagu ini akan dihapus dari perangkat ini. Tindakan ini tidak dapat dibatalkan.</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">Judul</string>
+    <string name="info_artist">Artis</string>
+    <string name="info_album">Album</string>
+    <string name="info_genre">Genre</string>
+    <string name="info_year">Tahun</string>
+    <string name="info_duration">Durasi</string>
+    <string name="info_location">Lokasi</string>
+    <string name="info_not_set">Tidak diatur</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">Setelan</string>
+    <string name="settings_section_appearance">Tampilan</string>
+    <string name="settings_theme">Tema</string>
+    <string name="theme_system">Ikuti sistem</string>
+    <string name="theme_light">Terang</string>
+    <string name="theme_dark">Gelap</string>
+    <string name="settings_section_playback">Pemutaran</string>
+    <string name="settings_equalizer">Ekualiser</string>
+    <string name="settings_equalizer_subtitle">Kontrol nada untuk keluaran audio perangkat ini</string>
+    <string name="settings_intelligence">Kecerdasan</string>
+    <string name="settings_smart_engine">Mesin SMART</string>
+    <string name="settings_smart_engine_subtitle">Apa yang diketahui model di perangkat tentang pustaka Anda</string>
+    <string name="settings_section_about">Tentang</string>
+    <string name="settings_about_body">LatentJam — pemutar musik lokal dengan mesin rekomendasi yang berjalan di perangkat. Tidak ada informasi tentang apa yang Anda dengarkan yang meninggalkan perangkat ini.</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">Aktif</string>
+    <string name="state_off">Nonaktif</string>
+    <string name="equalizer_presets">Preset</string>
+    <string name="equalizer_bands">Pita frekuensi</string>
+    <string name="equalizer_bass_boost">Penguat bas</string>
+    <string name="equalizer_reset">Setel ulang ke datar</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">Status</string>
+    <string name="intelligence_engine">Mesin</string>
+    <string name="intelligence_library">Pustaka</string>
+    <string name="intelligence_fingerprints">Sidik jari suara</string>
+    <!-- %1$d tracks analysed out of %2$d in the library -->
+    <string name="intelligence_indexed_of">%1$d dari %2$d</string>
+    <string name="intelligence_fingerprint_note">Lagu tanpa sidik jari suara tetap bisa diputar, tetapi SMART tidak akan memilihnya atau memakainya untuk menilai apa yang cocok.</string>
+    <string name="intelligence_section_analysis">Analisis</string>
+    <string name="intelligence_analysis_note">Mendengarkan lagu untuk pertama kalinya tidak menganalisisnya. Sidik jari dihitung per kelompok, dan pekerjaan dilanjutkan dari titik terakhir.</string>
+    <!-- %1$d is the batch size -->
+    <string name="intelligence_analyse_batch">Analisis %1$d</string>
+    <string name="intelligence_analyse_all">Analisis semuanya</string>
+    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
+    <string name="intelligence_analysed_batch_report">Dianalisis %1$d, dilewati %2$d, gagal %3$d.</string>
+    <!-- %1$d analysed, %2$d failed -->
+    <string name="intelligence_analysed_all_report">Dianalisis %1$d, gagal %2$d.</string>
+    <string name="intelligence_section_privacy">Privasi</string>
+    <string name="intelligence_privacy_body">Semua model berjalan di perangkat ini. Pustaka Anda, riwayat mendengarkan Anda, dan segala hal yang berasal darinya tetap di sini — tidak ada akun dan tidak ada unggahan.</string>
+    <string name="engine_state_not_started">Belum dimulai</string>
+    <string name="engine_state_starting">Memulai…</string>
+    <string name="engine_state_ready">Siap</string>
+    <!-- %1$s is a technical failure reason reported by the engine -->
+    <string name="engine_state_unavailable">Tidak tersedia — %1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">LatentJam memerlukan akses ke musik Anda untuk memindai pustaka.</string>
+    <string name="permission_grant">Berikan akses</string>
+
+</resources>

@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Polish translation of values/strings.xml.
+
+  Placeholders are POSITIONAL (%1$s / %1$d) and keep their numbers.
+  Apostrophes and quotation marks are written RAW: Compose Multiplatform only
+  unescapes \uXXXX, \n, \t and \\, so a backslash would reach the UI.
+  "LatentJam" and "SMART" are names and stay untranslated.
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">Odtwórz</string>
+    <string name="action_pause">Wstrzymaj</string>
+    <string name="action_next">Następny utwór</string>
+    <string name="action_previous">Poprzedni utwór</string>
+    <string name="action_shuffle">Odtwarzanie losowe</string>
+    <string name="action_close">Zamknij</string>
+    <string name="action_back">Wstecz</string>
+    <string name="action_cancel">Anuluj</string>
+    <string name="action_delete">Usuń</string>
+    <string name="action_rename">Zmień nazwę</string>
+    <string name="action_clear">Wyczyść</string>
+    <string name="action_track_options">Opcje utworu</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">Utwór</string>
+    <string name="track_untitled">Bez tytułu</string>
+    <string name="track_unknown_artist">Nieznany wykonawca</string>
+    <!-- one: 1; few: 2–4, 22–24…; many: 0, 5–21…;
+         other: fractions (1,5 utworu) and the required fallback. -->
+    <plurals name="count_tracks">
+        <item quantity="one">%1$d utwór</item>
+        <item quantity="few">%1$d utwory</item>
+        <item quantity="many">%1$d utworów</item>
+        <item quantity="other">%1$d utworu</item>
+    </plurals>
+    <!-- %1$s is a track title -->
+    <string name="cd_track_options_for">Więcej opcji dla %1$s</string>
+    <string name="cd_track_options_generic">Więcej opcji dla tego utworu</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">Nic nie jest odtwarzane</string>
+    <string name="queue_title">Kolejka</string>
+    <!-- %1$d is how many tracks are in the queue -->
+    <string name="queue_title_count">Kolejka · %1$d</string>
+    <string name="cd_repeat_off">Powtarzanie wyłączone. Dotknij, aby powtarzać kolejkę.</string>
+    <string name="cd_repeat_all">Kolejka jest powtarzana. Dotknij, aby powtarzać jeden utwór.</string>
+    <string name="cd_repeat_one">Utwór jest powtarzany. Dotknij, aby wyłączyć powtarzanie.</string>
+    <string name="cd_shuffle_off">Odtwarzanie losowe wyłączone. Dotknij, aby zmienić.</string>
+    <string name="cd_shuffle_on">Odtwarzanie losowe włączone. Dotknij, aby zmienić.</string>
+    <string name="cd_shuffle_smart">Odtwarzanie losowe SMART włączone. Dotknij, aby zmienić.</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">Szukaj</string>
+    <string name="cd_close_search">Zamknij wyszukiwanie</string>
+    <string name="cd_clear_query">Wyczyść zapytanie</string>
+    <!-- %1$s is what the user typed -->
+    <string name="search_no_matches">Brak wyników dla „%1$s”.</string>
+    <!-- %1$d is the size of the library -->
+    <plurals name="search_hint_count">
+        <item quantity="one">Przeszukaj bibliotekę: %1$d utwór.</item>
+        <item quantity="few">Przeszukaj bibliotekę: %1$d utwory.</item>
+        <item quantity="many">Przeszukaj bibliotekę: %1$d utworów.</item>
+        <item quantity="other">Przeszukaj bibliotekę: %1$d utworu.</item>
+    </plurals>
+    <string name="search_recent_title">Ostatnie wyszukiwania</string>
+    <!-- %1$s is a past search term being removed from history -->
+    <string name="cd_forget_search">Zapomnij „%1$s”</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">Nie masz jeszcze playlist — użyj +, aby utworzyć.</string>
+    <string name="playlist_name_placeholder">Nazwa playlisty</string>
+    <string name="playlist_new">Nowa playlista</string>
+    <!-- %1$s is a playlist name -->
+    <string name="cd_playlist_options">Opcje playlisty %1$s</string>
+    <!-- Sheet header. %1$s is a track title; the generic form is used when the
+         track has no title at all. -->
+    <string name="playlist_add_to_title">Dodaj „%1$s” do playlisty</string>
+    <string name="playlist_add_to_title_generic">Dodaj utwór do playlisty</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">Odtwórz jako następny</string>
+    <string name="action_add_to_queue">Dodaj do kolejki</string>
+    <string name="action_add_to_playlist">Dodaj do playlisty</string>
+    <string name="action_go_to_album">Przejdź do albumu</string>
+    <string name="action_go_to_artist">Przejdź do wykonawcy</string>
+    <string name="action_information">Informacje</string>
+    <string name="action_delete_from_device">Usuń z urządzenia</string>
+    <string name="dialog_delete_track_title">Usunąć ten utwór?</string>
+    <!-- %1$s is a track title -->
+    <string name="dialog_delete_track_message">Utwór „%1$s” zostanie usunięty z tego urządzenia. Tej operacji nie można cofnąć.</string>
+    <string name="dialog_delete_track_message_generic">Ten utwór zostanie usunięty z tego urządzenia. Tej operacji nie można cofnąć.</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">Tytuł</string>
+    <string name="info_artist">Wykonawca</string>
+    <string name="info_album">Album</string>
+    <string name="info_genre">Gatunek</string>
+    <string name="info_year">Rok</string>
+    <string name="info_duration">Czas trwania</string>
+    <string name="info_location">Lokalizacja</string>
+    <string name="info_not_set">Nie ustawiono</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">Ustawienia</string>
+    <string name="settings_section_appearance">Wygląd</string>
+    <string name="settings_theme">Motyw</string>
+    <string name="theme_system">Zgodnie z systemem</string>
+    <string name="theme_light">Jasny</string>
+    <string name="theme_dark">Ciemny</string>
+    <string name="settings_section_playback">Odtwarzanie</string>
+    <string name="settings_equalizer">Korektor dźwięku</string>
+    <string name="settings_equalizer_subtitle">Regulacja barwy dźwięku dla wyjścia audio tego urządzenia</string>
+    <string name="settings_intelligence">Inteligencja</string>
+    <string name="settings_smart_engine">Silnik SMART</string>
+    <string name="settings_smart_engine_subtitle">Co model działający na urządzeniu wie o Twojej bibliotece</string>
+    <string name="settings_section_about">O aplikacji</string>
+    <string name="settings_about_body">LatentJam — lokalny odtwarzacz muzyki z systemem rekomendacji działającym na urządzeniu. Żadne informacje o tym, czego słuchasz, nie opuszczają tego urządzenia.</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">Włączony</string>
+    <string name="state_off">Wyłączony</string>
+    <string name="equalizer_presets">Ustawienia wstępne</string>
+    <string name="equalizer_bands">Pasma</string>
+    <string name="equalizer_bass_boost">Wzmocnienie basów</string>
+    <string name="equalizer_reset">Wyzeruj korektor</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">Stan</string>
+    <string name="intelligence_engine">Silnik</string>
+    <string name="intelligence_library">Biblioteka</string>
+    <string name="intelligence_fingerprints">Odciski dźwiękowe</string>
+    <!-- %1$d tracks analysed out of %2$d in the library -->
+    <string name="intelligence_indexed_of">%1$d z %2$d</string>
+    <string name="intelligence_fingerprint_note">Utwory bez odcisku nadal można odtwarzać, ale SMART ich nie wybierze ani nie uwzględni przy dobieraniu pasujących utworów.</string>
+    <string name="intelligence_section_analysis">Analiza</string>
+    <string name="intelligence_analysis_note">Pierwsze odtworzenie utworu nie powoduje jego analizy. Odciski są obliczane partiami, a praca jest wznawiana w miejscu, w którym została przerwana.</string>
+    <!-- %1$d is the batch size -->
+    <string name="intelligence_analyse_batch">Przeanalizuj %1$d</string>
+    <string name="intelligence_analyse_all">Przeanalizuj wszystko</string>
+    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
+    <string name="intelligence_analysed_batch_report">Przeanalizowano: %1$d, pominięto: %2$d, niepowodzenia: %3$d.</string>
+    <!-- %1$d analysed, %2$d failed -->
+    <string name="intelligence_analysed_all_report">Przeanalizowano: %1$d, niepowodzenia: %2$d.</string>
+    <string name="intelligence_section_privacy">Prywatność</string>
+    <string name="intelligence_privacy_body">Wszystkie modele działają na tym urządzeniu. Twoja biblioteka, historia słuchania i wszystko, co z nich wynika, zostaje tutaj — nie ma konta ani wysyłania danych.</string>
+    <string name="engine_state_not_started">Nie uruchomiono</string>
+    <string name="engine_state_starting">Uruchamianie…</string>
+    <string name="engine_state_ready">Gotowy</string>
+    <!-- %1$s is a technical failure reason reported by the engine -->
+    <string name="engine_state_unavailable">Niedostępny — %1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">LatentJam potrzebuje dostępu do Twojej muzyki, aby przeskanować bibliotekę.</string>
+    <string name="permission_grant">Przyznaj dostęp</string>
+
+</resources>

@@ -190,6 +190,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 recentEvents = AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU),
                 nowMs = epochMillis(),
                 excluded = setOfNotNull(now.track?.id),
+                playlists = playlists,
             )
         }
 

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Arabic translation of values/strings.xml.
+
+  Placeholders are POSITIONAL (%1$s / %1$d) and keep their numbers.
+  Apostrophes and quotation marks are written RAW: Compose Multiplatform only
+  unescapes \uXXXX, \n, \t and \\, so a backslash would reach the UI.
+  "LatentJam" and "SMART" are names and stay untranslated, in Latin script.
+  No bidi control characters here: the framework mirrors the layout.
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">تشغيل</string>
+    <string name="action_pause">إيقاف مؤقت</string>
+    <string name="action_next">التالي</string>
+    <string name="action_previous">السابق</string>
+    <string name="action_shuffle">تشغيل عشوائي</string>
+    <string name="action_close">إغلاق</string>
+    <string name="action_back">رجوع</string>
+    <string name="action_cancel">إلغاء</string>
+    <string name="action_delete">حذف</string>
+    <string name="action_rename">إعادة تسمية</string>
+    <string name="action_clear">مسح</string>
+    <string name="action_track_options">خيارات المقطع الصوتي</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">مقطع صوتي</string>
+    <string name="track_untitled">بدون عنوان</string>
+    <string name="track_unknown_artist">فنان غير معروف</string>
+    <!-- Arabic distinguishes all six CLDR categories: zero, one, two (dual),
+         few (3–10), many (11–99) and the required other fallback. -->
+    <plurals name="count_tracks">
+        <item quantity="zero">%1$d مقطع صوتي</item>
+        <item quantity="one">%1$d مقطع صوتي</item>
+        <item quantity="two">%1$d مقطعان صوتيان</item>
+        <item quantity="few">%1$d مقاطع صوتية</item>
+        <item quantity="many">%1$d مقطعًا صوتيًا</item>
+        <item quantity="other">%1$d مقطع صوتي</item>
+    </plurals>
+    <!-- %1$s is a track title -->
+    <string name="cd_track_options_for">المزيد من الخيارات لـ %1$s</string>
+    <string name="cd_track_options_generic">المزيد من الخيارات لهذا المقطع الصوتي</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">لا يوجد تشغيل حاليًا</string>
+    <string name="queue_title">قائمة الانتظار</string>
+    <!-- %1$d is how many tracks are in the queue -->
+    <string name="queue_title_count">قائمة الانتظار · %1$d</string>
+    <string name="cd_repeat_off">التكرار متوقف. انقر لتكرار قائمة الانتظار.</string>
+    <string name="cd_repeat_all">يتم تكرار قائمة الانتظار. انقر لتكرار مقطع واحد.</string>
+    <string name="cd_repeat_one">يتم تكرار مقطع واحد. انقر لإيقاف التكرار.</string>
+    <string name="cd_shuffle_off">التشغيل العشوائي متوقف. انقر للتغيير.</string>
+    <string name="cd_shuffle_on">التشغيل العشوائي مفعّل. انقر للتغيير.</string>
+    <string name="cd_shuffle_smart">تشغيل SMART العشوائي مفعّل. انقر للتغيير.</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">بحث</string>
+    <string name="cd_close_search">إغلاق البحث</string>
+    <string name="cd_clear_query">مسح نص البحث</string>
+    <!-- %1$s is what the user typed -->
+    <string name="search_no_matches">لا توجد نتائج لـ «%1$s».</string>
+    <!-- %1$d is the size of the library -->
+    <plurals name="search_hint_count">
+        <item quantity="zero">ابحث في مكتبتك: %1$d مقطع صوتي.</item>
+        <item quantity="one">ابحث في مكتبتك: %1$d مقطع صوتي.</item>
+        <item quantity="two">ابحث في مكتبتك: %1$d مقطعان صوتيان.</item>
+        <item quantity="few">ابحث في مكتبتك: %1$d مقاطع صوتية.</item>
+        <item quantity="many">ابحث في مكتبتك: %1$d مقطعًا صوتيًا.</item>
+        <item quantity="other">ابحث في مكتبتك: %1$d مقطع صوتي.</item>
+    </plurals>
+    <string name="search_recent_title">عمليات البحث الأخيرة</string>
+    <!-- %1$s is a past search term being removed from history -->
+    <string name="cd_forget_search">نسيان «%1$s»</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">لا توجد قوائم تشغيل بعد — استخدم + لإنشاء واحدة.</string>
+    <string name="playlist_name_placeholder">اسم قائمة التشغيل</string>
+    <string name="playlist_new">قائمة تشغيل جديدة</string>
+    <!-- %1$s is a playlist name -->
+    <string name="cd_playlist_options">خيارات %1$s</string>
+    <!-- Sheet header. %1$s is a track title; the generic form is used when the
+         track has no title at all. -->
+    <string name="playlist_add_to_title">إضافة «%1$s» إلى قائمة تشغيل</string>
+    <string name="playlist_add_to_title_generic">إضافة المقطع الصوتي إلى قائمة تشغيل</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">تشغيل التالي</string>
+    <string name="action_add_to_queue">إضافة إلى قائمة الانتظار</string>
+    <string name="action_add_to_playlist">إضافة إلى قائمة تشغيل</string>
+    <string name="action_go_to_album">الانتقال إلى الألبوم</string>
+    <string name="action_go_to_artist">الانتقال إلى الفنان</string>
+    <string name="action_information">معلومات</string>
+    <string name="action_delete_from_device">حذف من الجهاز</string>
+    <string name="dialog_delete_track_title">حذف هذا المقطع الصوتي؟</string>
+    <!-- %1$s is a track title -->
+    <string name="dialog_delete_track_message">سيتم حذف «%1$s» من هذا الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>
+    <string name="dialog_delete_track_message_generic">سيتم حذف هذا المقطع الصوتي من هذا الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">العنوان</string>
+    <string name="info_artist">الفنان</string>
+    <string name="info_album">الألبوم</string>
+    <string name="info_genre">النوع</string>
+    <string name="info_year">السنة</string>
+    <string name="info_duration">المدة</string>
+    <string name="info_location">الموقع</string>
+    <string name="info_not_set">غير محدد</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">الإعدادات</string>
+    <string name="settings_section_appearance">المظهر</string>
+    <string name="settings_theme">السمة</string>
+    <string name="theme_system">اتّباع النظام</string>
+    <string name="theme_light">فاتح</string>
+    <string name="theme_dark">داكن</string>
+    <string name="settings_section_playback">التشغيل</string>
+    <string name="settings_equalizer">المعادل الصوتي</string>
+    <string name="settings_equalizer_subtitle">التحكم في نبرة الصوت لمخرج الصوت في هذا الجهاز</string>
+    <string name="settings_intelligence">الذكاء</string>
+    <string name="settings_smart_engine">محرك SMART</string>
+    <string name="settings_smart_engine_subtitle">ما يعرفه النموذج العامل على الجهاز عن مكتبتك</string>
+    <string name="settings_section_about">حول التطبيق</string>
+    <string name="settings_about_body">LatentJam — مشغّل موسيقى محلي مزوّد بمحرك توصيات يعمل على الجهاز. لا تغادر أي معلومات عن استماعك هذا الجهاز.</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">مفعّل</string>
+    <string name="state_off">متوقف</string>
+    <string name="equalizer_presets">الإعدادات المسبقة</string>
+    <string name="equalizer_bands">النطاقات</string>
+    <string name="equalizer_bass_boost">تعزيز الجهير</string>
+    <string name="equalizer_reset">إعادة الضبط إلى الوضع المسطح</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">الحالة</string>
+    <string name="intelligence_engine">المحرك</string>
+    <string name="intelligence_library">المكتبة</string>
+    <string name="intelligence_fingerprints">البصمات الصوتية</string>
+    <!-- %1$d tracks analysed out of %2$d in the library -->
+    <string name="intelligence_indexed_of">%1$d من %2$d</string>
+    <string name="intelligence_fingerprint_note">يمكن تشغيل المقاطع التي بلا بصمة صوتية، لكن SMART لن يختارها ولن يعتمد عليها في تحديد ما يناسبك.</string>
+    <string name="intelligence_section_analysis">التحليل</string>
+    <string name="intelligence_analysis_note">الاستماع إلى مقطع لأول مرة لا يحلّله. تُحسب البصمات على دفعات، ويستأنف العمل من حيث توقف.</string>
+    <!-- %1$d is the batch size -->
+    <string name="intelligence_analyse_batch">تحليل %1$d</string>
+    <string name="intelligence_analyse_all">تحليل كل شيء</string>
+    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
+    <string name="intelligence_analysed_batch_report">تم تحليل %1$d، وتخطي %2$d، وفشل %3$d.</string>
+    <!-- %1$d analysed, %2$d failed -->
+    <string name="intelligence_analysed_all_report">تم تحليل %1$d، وفشل %2$d.</string>
+    <string name="intelligence_section_privacy">الخصوصية</string>
+    <string name="intelligence_privacy_body">تعمل كل النماذج على هذا الجهاز. مكتبتك وسجل استماعك وكل ما يُشتق منهما يبقى هنا — لا حساب ولا رفع للبيانات.</string>
+    <string name="engine_state_not_started">لم يبدأ</string>
+    <string name="engine_state_starting">جارٍ البدء…</string>
+    <string name="engine_state_ready">جاهز</string>
+    <!-- %1$s is a technical failure reason reported by the engine -->
+    <string name="engine_state_unavailable">غير متاح — %1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">يحتاج LatentJam إلى الوصول إلى موسيقاك لفحص المكتبة.</string>
+    <string name="permission_grant">السماح بالوصول</string>
+
+</resources>

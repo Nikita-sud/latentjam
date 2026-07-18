@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Korean (ko). Keys and ordering follow values/strings.xml.
+  Apostrophes and quotation marks are RAW; only \uXXXX \n \t \\ are unescaped.
+  "LatentJam" and "SMART" are names — never translated.
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">재생</string>
+    <string name="action_pause">일시정지</string>
+    <string name="action_next">다음 곡</string>
+    <string name="action_previous">이전 곡</string>
+    <string name="action_shuffle">셔플</string>
+    <string name="action_close">닫기</string>
+    <string name="action_back">뒤로</string>
+    <string name="action_cancel">취소</string>
+    <string name="action_delete">삭제</string>
+    <string name="action_rename">이름 변경</string>
+    <string name="action_clear">지우기</string>
+    <string name="action_track_options">곡 옵션</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">곡</string>
+    <string name="track_untitled">제목 없음</string>
+    <string name="track_unknown_artist">알 수 없는 아티스트</string>
+    <!-- Korean has no grammatical plural: "other" only. -->
+    <plurals name="count_tracks">
+        <item quantity="other">%1$d곡</item>
+    </plurals>
+    <!-- %1$s is a track title -->
+    <string name="cd_track_options_for">%1$s의 추가 옵션</string>
+    <string name="cd_track_options_generic">이 곡의 추가 옵션</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">재생 중인 곡 없음</string>
+    <string name="queue_title">재생 대기열</string>
+    <!-- %1$d is how many tracks are in the queue -->
+    <string name="queue_title_count">재생 대기열 · %1$d</string>
+    <string name="cd_repeat_off">반복이 꺼져 있습니다. 탭하면 대기열 전체를 반복합니다.</string>
+    <string name="cd_repeat_all">대기열 전체를 반복하고 있습니다. 탭하면 한 곡 반복으로 바뀝니다.</string>
+    <string name="cd_repeat_one">한 곡을 반복하고 있습니다. 탭하면 반복이 꺼집니다.</string>
+    <string name="cd_shuffle_off">셔플이 꺼져 있습니다. 탭하면 변경됩니다.</string>
+    <string name="cd_shuffle_on">셔플이 켜져 있습니다. 탭하면 변경됩니다.</string>
+    <string name="cd_shuffle_smart">SMART 셔플이 켜져 있습니다. 탭하면 변경됩니다.</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">검색</string>
+    <string name="cd_close_search">검색 닫기</string>
+    <string name="cd_clear_query">검색어 지우기</string>
+    <!-- %1$s is what the user typed -->
+    <string name="search_no_matches">‘%1$s’에 대한 검색 결과가 없습니다.</string>
+    <!-- %1$d is the size of the library -->
+    <plurals name="search_hint_count">
+        <item quantity="other">내 라이브러리의 %1$d곡에서 검색하세요.</item>
+    </plurals>
+    <string name="search_recent_title">최근 검색어</string>
+    <!-- %1$s is a past search term being removed from history -->
+    <string name="cd_forget_search">‘%1$s’ 검색 기록 삭제</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">아직 플레이리스트가 없습니다. +를 눌러 만들어 보세요.</string>
+    <string name="playlist_name_placeholder">플레이리스트 이름</string>
+    <string name="playlist_new">새 플레이리스트</string>
+    <!-- %1$s is a playlist name -->
+    <string name="cd_playlist_options">%1$s 옵션</string>
+    <!-- Sheet header. %1$s is a track title; the generic form is used when the
+         track has no title at all. -->
+    <string name="playlist_add_to_title">‘%1$s’ 추가 위치</string>
+    <string name="playlist_add_to_title_generic">곡 추가 위치</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">다음에 재생</string>
+    <string name="action_add_to_queue">대기열에 추가</string>
+    <string name="action_add_to_playlist">플레이리스트에 추가</string>
+    <string name="action_go_to_album">앨범으로 이동</string>
+    <string name="action_go_to_artist">아티스트로 이동</string>
+    <string name="action_information">정보</string>
+    <string name="action_delete_from_device">기기에서 삭제</string>
+    <string name="dialog_delete_track_title">이 곡을 삭제할까요?</string>
+    <!-- %1$s is a track title -->
+    <string name="dialog_delete_track_message">‘%1$s’을(를) 이 기기에서 삭제합니다. 이 작업은 되돌릴 수 없습니다.</string>
+    <string name="dialog_delete_track_message_generic">이 곡을 이 기기에서 삭제합니다. 이 작업은 되돌릴 수 없습니다.</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">제목</string>
+    <string name="info_artist">아티스트</string>
+    <string name="info_album">앨범</string>
+    <string name="info_genre">장르</string>
+    <string name="info_year">연도</string>
+    <string name="info_duration">재생 시간</string>
+    <string name="info_location">파일 위치</string>
+    <string name="info_not_set">없음</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">설정</string>
+    <string name="settings_section_appearance">화면</string>
+    <string name="settings_theme">테마</string>
+    <string name="theme_system">시스템 설정 따르기</string>
+    <string name="theme_light">라이트</string>
+    <string name="theme_dark">다크</string>
+    <string name="settings_section_playback">재생</string>
+    <string name="settings_equalizer">이퀄라이저</string>
+    <string name="settings_equalizer_subtitle">이 기기의 오디오 출력 음색 조절</string>
+    <string name="settings_intelligence">인텔리전스</string>
+    <string name="settings_smart_engine">SMART 엔진</string>
+    <string name="settings_smart_engine_subtitle">온디바이스 모델이 내 라이브러리에 대해 알고 있는 것</string>
+    <string name="settings_section_about">정보</string>
+    <string name="settings_about_body">LatentJam은 온디바이스 추천 기능을 갖춘 로컬 음악 플레이어입니다. 청취 기록은 이 기기를 벗어나지 않습니다.</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">켜짐</string>
+    <string name="state_off">꺼짐</string>
+    <string name="equalizer_presets">프리셋</string>
+    <string name="equalizer_bands">대역</string>
+    <string name="equalizer_bass_boost">저음 강화</string>
+    <string name="equalizer_reset">평탄하게 초기화</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">상태</string>
+    <string name="intelligence_engine">엔진</string>
+    <string name="intelligence_library">라이브러리</string>
+    <string name="intelligence_fingerprints">사운드 지문</string>
+    <!-- %1$d tracks analysed out of %2$d in the library -->
+    <string name="intelligence_indexed_of">%2$d곡 중 %1$d곡</string>
+    <string name="intelligence_fingerprint_note">지문이 없는 곡도 재생할 수 있지만, SMART가 그런 곡을 고르거나 어울리는 곡을 판단하는 데 사용하지는 않습니다.</string>
+    <string name="intelligence_section_analysis">분석</string>
+    <string name="intelligence_analysis_note">곡을 처음 재생한다고 해서 분석이 이루어지지는 않습니다. 지문은 일정 단위로 나눠 계산되며, 중단된 지점부터 다시 이어집니다.</string>
+    <!-- %1$d is the batch size -->
+    <string name="intelligence_analyse_batch">%1$d곡 분석</string>
+    <string name="intelligence_analyse_all">전체 분석</string>
+    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
+    <string name="intelligence_analysed_batch_report">%1$d곡 분석, %2$d곡 건너뜀, %3$d곡 실패.</string>
+    <!-- %1$d analysed, %2$d failed -->
+    <string name="intelligence_analysed_all_report">%1$d곡 분석, %2$d곡 실패.</string>
+    <string name="intelligence_section_privacy">개인 정보 보호</string>
+    <string name="intelligence_privacy_body">모든 모델은 이 기기에서 실행됩니다. 라이브러리와 청취 기록, 그리고 여기서 파생된 모든 것은 이 기기에 머무릅니다. 계정도, 업로드도 없습니다.</string>
+    <string name="engine_state_not_started">시작 안 함</string>
+    <string name="engine_state_starting">시작하는 중…</string>
+    <string name="engine_state_ready">준비됨</string>
+    <!-- %1$s is a technical failure reason reported by the engine -->
+    <string name="engine_state_unavailable">사용할 수 없음: %1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">라이브러리를 검색하려면 LatentJam에 음악 접근 권한이 필요합니다.</string>
+    <string name="permission_grant">권한 허용</string>
+
+</resources>

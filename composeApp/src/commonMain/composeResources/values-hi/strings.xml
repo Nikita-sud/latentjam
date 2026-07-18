@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Hindi (hi). Keys and ordering follow values/strings.xml.
+  Apostrophes and quotation marks are RAW; only \uXXXX \n \t \\ are unescaped.
+  "LatentJam" and "SMART" are names — never translated.
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">चलाएं</string>
+    <string name="action_pause">रोकें</string>
+    <string name="action_next">अगला</string>
+    <string name="action_previous">पिछला</string>
+    <string name="action_shuffle">शफ़ल</string>
+    <string name="action_close">बंद करें</string>
+    <string name="action_back">वापस</string>
+    <string name="action_cancel">रद्द करें</string>
+    <string name="action_delete">मिटाएं</string>
+    <string name="action_rename">नाम बदलें</string>
+    <string name="action_clear">साफ़ करें</string>
+    <string name="action_track_options">गाने के विकल्प</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">गाना</string>
+    <string name="track_untitled">बिना शीर्षक</string>
+    <string name="track_unknown_artist">अज्ञात कलाकार</string>
+    <!-- Hindi distinguishes one and other. -->
+    <plurals name="count_tracks">
+        <item quantity="one">%1$d गाना</item>
+        <item quantity="other">%1$d गाने</item>
+    </plurals>
+    <!-- %1$s is a track title -->
+    <string name="cd_track_options_for">%1$s के लिए ज़्यादा विकल्प</string>
+    <string name="cd_track_options_generic">इस गाने के लिए ज़्यादा विकल्प</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">कुछ भी नहीं चल रहा</string>
+    <string name="queue_title">क्यू</string>
+    <!-- %1$d is how many tracks are in the queue -->
+    <string name="queue_title_count">क्यू · %1$d</string>
+    <string name="cd_repeat_off">दोहराना बंद है. पूरे क्यू को दोहराने के लिए टैप करें.</string>
+    <string name="cd_repeat_all">पूरा क्यू दोहराया जा रहा है. सिर्फ़ एक गाना दोहराने के लिए टैप करें.</string>
+    <string name="cd_repeat_one">एक ही गाना दोहराया जा रहा है. दोहराना बंद करने के लिए टैप करें.</string>
+    <string name="cd_shuffle_off">शफ़ल बंद है. बदलने के लिए टैप करें.</string>
+    <string name="cd_shuffle_on">शफ़ल चालू है. बदलने के लिए टैप करें.</string>
+    <string name="cd_shuffle_smart">SMART शफ़ल चालू है. बदलने के लिए टैप करें.</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">खोजें</string>
+    <string name="cd_close_search">खोज बंद करें</string>
+    <string name="cd_clear_query">खोज का टेक्स्ट मिटाएं</string>
+    <!-- %1$s is what the user typed -->
+    <string name="search_no_matches">"%1$s" के लिए कोई नतीजा नहीं मिला.</string>
+    <!-- %1$d is the size of the library -->
+    <plurals name="search_hint_count">
+        <item quantity="one">अपने %1$d गाने में खोजें.</item>
+        <item quantity="other">अपने %1$d गानों में खोजें.</item>
+    </plurals>
+    <string name="search_recent_title">हाल की खोजें</string>
+    <!-- %1$s is a past search term being removed from history -->
+    <string name="cd_forget_search">"%1$s" को खोज इतिहास से हटाएं</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">अभी कोई प्लेलिस्ट नहीं है. नई बनाने के लिए + पर टैप करें.</string>
+    <string name="playlist_name_placeholder">प्लेलिस्ट का नाम</string>
+    <string name="playlist_new">नई प्लेलिस्ट</string>
+    <!-- %1$s is a playlist name -->
+    <string name="cd_playlist_options">%1$s के विकल्प</string>
+    <!-- Sheet header. %1$s is a track title; the generic form is used when the
+         track has no title at all. -->
+    <string name="playlist_add_to_title">"%1$s" को इसमें जोड़ें</string>
+    <string name="playlist_add_to_title_generic">गाने को इसमें जोड़ें</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">अगले में चलाएं</string>
+    <string name="action_add_to_queue">क्यू में जोड़ें</string>
+    <string name="action_add_to_playlist">प्लेलिस्ट में जोड़ें</string>
+    <string name="action_go_to_album">एल्बम पर जाएं</string>
+    <string name="action_go_to_artist">कलाकार पर जाएं</string>
+    <string name="action_information">जानकारी</string>
+    <string name="action_delete_from_device">डिवाइस से मिटाएं</string>
+    <string name="dialog_delete_track_title">क्या यह गाना मिटाना है?</string>
+    <!-- %1$s is a track title -->
+    <string name="dialog_delete_track_message">"%1$s" इस डिवाइस से हटा दिया जाएगा. इसे पहले जैसा नहीं किया जा सकता.</string>
+    <string name="dialog_delete_track_message_generic">यह गाना इस डिवाइस से हटा दिया जाएगा. इसे पहले जैसा नहीं किया जा सकता.</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">शीर्षक</string>
+    <string name="info_artist">कलाकार</string>
+    <string name="info_album">एल्बम</string>
+    <string name="info_genre">शैली</string>
+    <string name="info_year">साल</string>
+    <string name="info_duration">अवधि</string>
+    <string name="info_location">फ़ाइल की जगह</string>
+    <string name="info_not_set">सेट नहीं है</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">सेटिंग</string>
+    <string name="settings_section_appearance">दिखावट</string>
+    <string name="settings_theme">थीम</string>
+    <string name="theme_system">सिस्टम के हिसाब से</string>
+    <string name="theme_light">लाइट</string>
+    <string name="theme_dark">डार्क</string>
+    <string name="settings_section_playback">प्लेबैक</string>
+    <string name="settings_equalizer">इक्वलाइज़र</string>
+    <string name="settings_equalizer_subtitle">इस डिवाइस के ऑडियो आउटपुट के लिए टोन कंट्रोल</string>
+    <string name="settings_intelligence">इंटेलिजेंस</string>
+    <string name="settings_smart_engine">SMART इंजन</string>
+    <string name="settings_smart_engine_subtitle">डिवाइस पर मौजूद मॉडल आपकी लाइब्रेरी के बारे में क्या जानता है</string>
+    <string name="settings_section_about">ऐप के बारे में</string>
+    <string name="settings_about_body">LatentJam — डिवाइस पर ही चलने वाले सुझाव इंजन के साथ एक लोकल म्यूज़िक प्लेयर. आप क्या सुनते हैं, इससे जुड़ी कोई भी जानकारी इस डिवाइस से बाहर नहीं जाती.</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">चालू</string>
+    <string name="state_off">बंद</string>
+    <string name="equalizer_presets">प्रीसेट</string>
+    <string name="equalizer_bands">बैंड</string>
+    <string name="equalizer_bass_boost">बेस बूस्ट</string>
+    <string name="equalizer_reset">फ़्लैट पर रीसेट करें</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">स्थिति</string>
+    <string name="intelligence_engine">इंजन</string>
+    <string name="intelligence_library">लाइब्रेरी</string>
+    <string name="intelligence_fingerprints">साउंड फ़िंगरप्रिंट</string>
+    <!-- %1$d tracks analysed out of %2$d in the library -->
+    <string name="intelligence_indexed_of">%2$d में से %1$d</string>
+    <string name="intelligence_fingerprint_note">जिन गानों का फ़िंगरप्रिंट नहीं है, वे फिर भी चलाए जा सकते हैं. लेकिन SMART न तो उन्हें चुनेगा और न ही यह तय करने में उनका इस्तेमाल करेगा कि कौन-सा गाना जमेगा.</string>
+    <string name="intelligence_section_analysis">विश्लेषण</string>
+    <string name="intelligence_analysis_note">किसी गाने को पहली बार सुनने से उसका विश्लेषण नहीं होता. फ़िंगरप्रिंट बैच में तैयार किए जाते हैं और काम वहीं से आगे बढ़ता है, जहां वह छूटा था.</string>
+    <!-- %1$d is the batch size -->
+    <string name="intelligence_analyse_batch">%1$d गानों का विश्लेषण करें</string>
+    <string name="intelligence_analyse_all">सभी का विश्लेषण करें</string>
+    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
+    <string name="intelligence_analysed_batch_report">%1$d का विश्लेषण हुआ, %2$d छोड़े गए, %3$d नहीं हो पाए.</string>
+    <!-- %1$d analysed, %2$d failed -->
+    <string name="intelligence_analysed_all_report">%1$d का विश्लेषण हुआ, %2$d नहीं हो पाए.</string>
+    <string name="intelligence_section_privacy">निजता</string>
+    <string name="intelligence_privacy_body">हर मॉडल इसी डिवाइस पर चलता है. आपकी लाइब्रेरी, आपका सुनने का इतिहास और इनसे बनी हर चीज़ यहीं रहती है — न कोई अकाउंट है, न कुछ अपलोड होता है.</string>
+    <string name="engine_state_not_started">शुरू नहीं हुआ</string>
+    <string name="engine_state_starting">शुरू हो रहा है…</string>
+    <string name="engine_state_ready">तैयार</string>
+    <!-- %1$s is a technical failure reason reported by the engine -->
+    <string name="engine_state_unavailable">उपलब्ध नहीं — %1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">लाइब्रेरी स्कैन करने के लिए LatentJam को आपके संगीत का ऐक्सेस चाहिए.</string>
+    <string name="permission_grant">ऐक्सेस दें</string>
+
+</resources>

@@ -86,8 +86,12 @@ fun ForYouTab(
                     ForYouCardItem(
                         card = card,
                         onClick = {
-                            val tracks = section.cards.map { it.track }
-                            onPlay(tracks, tracks.indexOfFirst { it.id == card.track.id })
+                            // A collection card plays its own contents; a track card plays the row
+                            // from that point, so the rest of the shelf stays available.
+                            card.collection?.let { onPlay(it.tracks, 0) } ?: run {
+                                val tracks = section.cards.filter { it.collection == null }.map { it.track }
+                                onPlay(tracks, tracks.indexOfFirst { it.id == card.track.id })
+                            }
                         },
                         onLongClick = { onTrackMenu(card.track) },
                     )
@@ -116,7 +120,7 @@ private fun ForYouCardItem(
     ) {
         Artwork(uri = card.track.artworkUri, size = 140.dp, cornerRadius = 12.dp)
         Text(
-            text = card.track.title ?: "Untitled",
+            text = card.collection?.title ?: card.track.title ?: "Untitled",
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

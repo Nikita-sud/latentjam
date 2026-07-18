@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Japanese (ja). Keys and ordering follow values/strings.xml.
+  Apostrophes and quotation marks are RAW; only \uXXXX \n \t \\ are unescaped.
+  "LatentJam" and "SMART" are names — never translated.
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">再生</string>
+    <string name="action_pause">一時停止</string>
+    <string name="action_next">次の曲</string>
+    <string name="action_previous">前の曲</string>
+    <string name="action_shuffle">シャッフル</string>
+    <string name="action_close">閉じる</string>
+    <string name="action_back">戻る</string>
+    <string name="action_cancel">キャンセル</string>
+    <string name="action_delete">削除</string>
+    <string name="action_rename">名前を変更</string>
+    <string name="action_clear">消去</string>
+    <string name="action_track_options">曲のオプション</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">曲</string>
+    <string name="track_untitled">タイトルなし</string>
+    <string name="track_unknown_artist">不明なアーティスト</string>
+    <!-- Japanese has no grammatical plural: "other" only. -->
+    <plurals name="count_tracks">
+        <item quantity="other">%1$d曲</item>
+    </plurals>
+    <!-- %1$s is a track title -->
+    <string name="cd_track_options_for">%1$sのその他のオプション</string>
+    <string name="cd_track_options_generic">この曲のその他のオプション</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">再生中の曲はありません</string>
+    <string name="queue_title">再生キュー</string>
+    <!-- %1$d is how many tracks are in the queue -->
+    <string name="queue_title_count">再生キュー · %1$d</string>
+    <string name="cd_repeat_off">リピートはオフです。タップするとキュー全体をリピートします。</string>
+    <string name="cd_repeat_all">キュー全体をリピート中です。タップすると1曲リピートに切り替わります。</string>
+    <string name="cd_repeat_one">1曲をリピート中です。タップするとリピートがオフになります。</string>
+    <string name="cd_shuffle_off">シャッフルはオフです。タップすると切り替わります。</string>
+    <string name="cd_shuffle_on">シャッフルはオンです。タップすると切り替わります。</string>
+    <string name="cd_shuffle_smart">SMARTシャッフルがオンです。タップすると切り替わります。</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">検索</string>
+    <string name="cd_close_search">検索を閉じる</string>
+    <string name="cd_clear_query">検索キーワードを消去</string>
+    <!-- %1$s is what the user typed -->
+    <string name="search_no_matches">「%1$s」に一致するものはありません。</string>
+    <!-- %1$d is the size of the library -->
+    <plurals name="search_hint_count">
+        <item quantity="other">ライブラリの%1$d曲から検索できます。</item>
+    </plurals>
+    <string name="search_recent_title">最近の検索</string>
+    <!-- %1$s is a past search term being removed from history -->
+    <string name="cd_forget_search">「%1$s」を履歴から削除</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">プレイリストはまだありません。+ をタップして作成できます。</string>
+    <string name="playlist_name_placeholder">プレイリスト名</string>
+    <string name="playlist_new">新規プレイリスト</string>
+    <!-- %1$s is a playlist name -->
+    <string name="cd_playlist_options">%1$sのオプション</string>
+    <!-- Sheet header. %1$s is a track title; the generic form is used when the
+         track has no title at all. -->
+    <string name="playlist_add_to_title">「%1$s」の追加先</string>
+    <string name="playlist_add_to_title_generic">曲の追加先</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">次に再生</string>
+    <string name="action_add_to_queue">キューに追加</string>
+    <string name="action_add_to_playlist">プレイリストに追加</string>
+    <string name="action_go_to_album">アルバムを表示</string>
+    <string name="action_go_to_artist">アーティストを表示</string>
+    <string name="action_information">情報</string>
+    <string name="action_delete_from_device">デバイスから削除</string>
+    <string name="dialog_delete_track_title">この曲を削除しますか？</string>
+    <!-- %1$s is a track title -->
+    <string name="dialog_delete_track_message">「%1$s」をこのデバイスから削除します。この操作は取り消せません。</string>
+    <string name="dialog_delete_track_message_generic">この曲をこのデバイスから削除します。この操作は取り消せません。</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">タイトル</string>
+    <string name="info_artist">アーティスト</string>
+    <string name="info_album">アルバム</string>
+    <string name="info_genre">ジャンル</string>
+    <string name="info_year">年</string>
+    <string name="info_duration">再生時間</string>
+    <string name="info_location">保存場所</string>
+    <string name="info_not_set">未設定</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">設定</string>
+    <string name="settings_section_appearance">外観</string>
+    <string name="settings_theme">テーマ</string>
+    <string name="theme_system">システムに合わせる</string>
+    <string name="theme_light">ライト</string>
+    <string name="theme_dark">ダーク</string>
+    <string name="settings_section_playback">再生</string>
+    <string name="settings_equalizer">イコライザ</string>
+    <string name="settings_equalizer_subtitle">このデバイスの音声出力の音質を調整します</string>
+    <string name="settings_intelligence">インテリジェンス</string>
+    <string name="settings_smart_engine">SMARTエンジン</string>
+    <string name="settings_smart_engine_subtitle">オンデバイスモデルがライブラリについて把握している内容</string>
+    <string name="settings_section_about">このアプリについて</string>
+    <string name="settings_about_body">LatentJamは、オンデバイスのレコメンド機能を備えたローカル音楽プレーヤーです。再生履歴に関する情報がこのデバイスの外に出ることはありません。</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">オン</string>
+    <string name="state_off">オフ</string>
+    <string name="equalizer_presets">プリセット</string>
+    <string name="equalizer_bands">帯域</string>
+    <string name="equalizer_bass_boost">低音ブースト</string>
+    <string name="equalizer_reset">フラットに戻す</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">ステータス</string>
+    <string name="intelligence_engine">エンジン</string>
+    <string name="intelligence_library">ライブラリ</string>
+    <string name="intelligence_fingerprints">サウンド指紋</string>
+    <!-- %1$d tracks analysed out of %2$d in the library -->
+    <string name="intelligence_indexed_of">%2$d曲中%1$d曲</string>
+    <string name="intelligence_fingerprint_note">指紋のない曲も再生できますが、SMARTがその曲を選ぶことはなく、何が合うかを判断する材料にも使われません。</string>
+    <string name="intelligence_section_analysis">解析</string>
+    <string name="intelligence_analysis_note">曲を初めて再生しても解析は行われません。指紋はまとめて計算され、中断したところから再開されます。</string>
+    <!-- %1$d is the batch size -->
+    <string name="intelligence_analyse_batch">%1$d曲を解析</string>
+    <string name="intelligence_analyse_all">すべて解析</string>
+    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
+    <string name="intelligence_analysed_batch_report">%1$d曲を解析、%2$d曲をスキップ、%3$d曲が失敗しました。</string>
+    <!-- %1$d analysed, %2$d failed -->
+    <string name="intelligence_analysed_all_report">%1$d曲を解析、%2$d曲が失敗しました。</string>
+    <string name="intelligence_section_privacy">プライバシー</string>
+    <string name="intelligence_privacy_body">モデルはすべてこのデバイス上で動作します。ライブラリも再生履歴も、そこから導き出されたものもすべてこの端末に留まります。アカウントもアップロードもありません。</string>
+    <string name="engine_state_not_started">未開始</string>
+    <string name="engine_state_starting">起動中…</string>
+    <string name="engine_state_ready">準備完了</string>
+    <!-- %1$s is a technical failure reason reported by the engine -->
+    <string name="engine_state_unavailable">利用できません：%1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">ライブラリをスキャンするため、LatentJamは音楽へのアクセスを必要とします。</string>
+    <string name="permission_grant">アクセスを許可</string>
+
+</resources>

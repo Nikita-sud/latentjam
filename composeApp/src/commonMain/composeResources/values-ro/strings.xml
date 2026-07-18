@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Română. Terminologie ca în playerele reale (Spotify, YouTube Music):
+  „Coadă”, „Redare aleatorie”, „Bibliotecă”, „Artist”.
+  „LatentJam” și „SMART” nu se traduc.
+
+  Atenție la plural: româna are trei forme — 1 piesă / 2 piese / 20 DE piese.
+  Categoria CLDR `other` (20+) trebuie să conțină „de”.
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">Redă</string>
+    <string name="action_pause">Pauză</string>
+    <string name="action_next">Piesa următoare</string>
+    <string name="action_previous">Piesa anterioară</string>
+    <string name="action_shuffle">Redare aleatorie</string>
+    <string name="action_close">Închide</string>
+    <string name="action_back">Înapoi</string>
+    <string name="action_cancel">Anulează</string>
+    <string name="action_delete">Șterge</string>
+    <string name="action_rename">Redenumește</string>
+    <string name="action_clear">Șterge tot</string>
+    <string name="action_track_options">Opțiuni pentru piesă</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">Piesă</string>
+    <string name="track_untitled">Fără titlu</string>
+    <string name="track_unknown_artist">Artist necunoscut</string>
+    <plurals name="count_tracks">
+        <item quantity="one">%1$d piesă</item>
+        <item quantity="few">%1$d piese</item>
+        <item quantity="other">%1$d de piese</item>
+    </plurals>
+    <string name="cd_track_options_for">Mai multe opțiuni pentru %1$s</string>
+    <string name="cd_track_options_generic">Mai multe opțiuni pentru această piesă</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">Nu se redă nimic</string>
+    <string name="queue_title">Coadă</string>
+    <string name="queue_title_count">Coadă · %1$d</string>
+    <string name="cd_repeat_off">Repetarea este dezactivată. Atinge pentru a repeta coada.</string>
+    <string name="cd_repeat_all">Se repetă coada. Atinge pentru a repeta o singură piesă.</string>
+    <string name="cd_repeat_one">Se repetă o singură piesă. Atinge pentru a dezactiva repetarea.</string>
+    <string name="cd_shuffle_off">Redarea aleatorie este dezactivată. Atinge pentru a schimba.</string>
+    <string name="cd_shuffle_on">Redarea aleatorie este activată. Atinge pentru a schimba.</string>
+    <string name="cd_shuffle_smart">Redarea aleatorie SMART este activată. Atinge pentru a schimba.</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">Caută</string>
+    <string name="cd_close_search">Închide căutarea</string>
+    <string name="cd_clear_query">Șterge căutarea</string>
+    <string name="search_no_matches">Niciun rezultat pentru „%1$s”.</string>
+    <plurals name="search_hint_count">
+        <item quantity="one">Caută în %1$d piesă.</item>
+        <item quantity="few">Caută în %1$d piese.</item>
+        <item quantity="other">Caută în %1$d de piese.</item>
+    </plurals>
+    <string name="search_recent_title">Căutări recente</string>
+    <string name="cd_forget_search">Uită „%1$s”</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">Încă niciun playlist — apasă + ca să creezi unul.</string>
+    <string name="playlist_name_placeholder">Numele playlistului</string>
+    <string name="playlist_new">Playlist nou</string>
+    <string name="cd_playlist_options">Opțiuni pentru %1$s</string>
+    <string name="playlist_add_to_title">Adaugă „%1$s” în</string>
+    <string name="playlist_add_to_title_generic">Adaugă piesa în</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">Redă în continuare</string>
+    <string name="action_add_to_queue">Adaugă la coadă</string>
+    <string name="action_add_to_playlist">Adaugă în playlist</string>
+    <string name="action_go_to_album">Mergi la album</string>
+    <string name="action_go_to_artist">Mergi la artist</string>
+    <string name="action_information">Informații</string>
+    <string name="action_delete_from_device">Șterge de pe dispozitiv</string>
+    <string name="dialog_delete_track_title">Ștergi această piesă?</string>
+    <string name="dialog_delete_track_message">„%1$s” va fi ștearsă de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>
+    <string name="dialog_delete_track_message_generic">Această piesă va fi ștearsă de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">Titlu</string>
+    <string name="info_artist">Artist</string>
+    <string name="info_album">Album</string>
+    <string name="info_genre">Gen</string>
+    <string name="info_year">An</string>
+    <string name="info_duration">Durată</string>
+    <string name="info_location">Locație</string>
+    <string name="info_not_set">Nespecificat</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">Setări</string>
+    <string name="settings_section_appearance">Aspect</string>
+    <string name="settings_theme">Temă</string>
+    <string name="theme_system">Ca sistemul</string>
+    <string name="theme_light">Luminoasă</string>
+    <string name="theme_dark">Întunecată</string>
+    <string name="settings_section_playback">Redare</string>
+    <string name="settings_equalizer">Egalizator</string>
+    <string name="settings_equalizer_subtitle">Reglaje de ton pentru ieșirea audio a acestui dispozitiv</string>
+    <string name="settings_intelligence">Inteligență</string>
+    <string name="settings_smart_engine">Motorul SMART</string>
+    <string name="settings_smart_engine_subtitle">Ce știe despre biblioteca ta modelul de pe dispozitiv</string>
+    <string name="settings_section_about">Despre</string>
+    <string name="settings_about_body">LatentJam — un player de muzică local, cu recomandări făcute chiar pe dispozitiv. Nimic din ce asculți nu părăsește acest dispozitiv.</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">Activat</string>
+    <string name="state_off">Dezactivat</string>
+    <string name="equalizer_presets">Presetări</string>
+    <string name="equalizer_bands">Benzi</string>
+    <string name="equalizer_bass_boost">Accentuare bași</string>
+    <string name="equalizer_reset">Resetează</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">Stare</string>
+    <string name="intelligence_engine">Motor</string>
+    <string name="intelligence_library">Bibliotecă</string>
+    <string name="intelligence_fingerprints">Amprente sonore</string>
+    <string name="intelligence_indexed_of">%1$d din %2$d</string>
+    <string name="intelligence_fingerprint_note">Piesele fără amprentă pot fi ascultate, dar SMART nu le va alege și nu le va folosi ca să judece ce se potrivește.</string>
+    <string name="intelligence_section_analysis">Analiză</string>
+    <string name="intelligence_analysis_note">Ascultarea unei piese pentru prima dată nu o analizează. Amprentele se calculează în loturi, iar munca se reia de unde a rămas.</string>
+    <string name="intelligence_analyse_batch">Analizează %1$d</string>
+    <string name="intelligence_analyse_all">Analizează tot</string>
+    <string name="intelligence_analysed_batch_report">Analizate: %1$d, sărite: %2$d, eșuate: %3$d.</string>
+    <string name="intelligence_analysed_all_report">Analizate: %1$d, eșuate: %2$d.</string>
+    <string name="intelligence_section_privacy">Confidențialitate</string>
+    <string name="intelligence_privacy_body">Toate modelele rulează pe acest dispozitiv. Biblioteca ta, istoricul ascultărilor și tot ce derivă din ele rămân aici — nu există cont și nu se încarcă nimic.</string>
+    <string name="engine_state_not_started">Nepornit</string>
+    <string name="engine_state_starting">Pornește…</string>
+    <string name="engine_state_ready">Gata</string>
+    <string name="engine_state_unavailable">Indisponibil — %1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">LatentJam are nevoie de acces la muzica ta ca să scaneze biblioteca.</string>
+    <string name="permission_grant">Acordă acces</string>
+
+</resources>

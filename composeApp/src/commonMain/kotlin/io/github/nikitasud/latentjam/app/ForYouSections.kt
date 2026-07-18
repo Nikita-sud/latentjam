@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.TrackStats
+import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 
@@ -16,8 +17,23 @@ import io.github.nikitasud.latentjam.smart.TrackId
  *   explanation that reads the same every day carries no information and is decoration.
  */
 data class ForYouCard(
+    /** Representative track: supplies the cover, and the title when this is not a collection. */
     val track: TrackDescriptor,
     val reason: String? = null,
+    /** When set, this card stands for a whole playlist or album rather than one track. */
+    val collection: ForYouCollection? = null,
+)
+
+/**
+ * A group offered as one thing.
+ *
+ * The unit in which music was loved is not always the track. Someone who only ever played a song
+ * inside one playlist did not fall for the song — resurfacing it alone misrepresents how they
+ * listened, and the playlist is the honest offer.
+ */
+data class ForYouCollection(
+    val title: String,
+    val tracks: List<TrackDescriptor>,
 )
 
 data class ForYouSection(
@@ -82,6 +98,14 @@ object ForYouBuilder {
     const val MAX_PER_ARTIST = 2
 
     /**
+     * How many dormant tracks a playlist or album needs before it is offered as a whole.
+     *
+     * Two is coincidence — any pair of tracks shares some album. Three is a pattern, and at that
+     * point the group is a better description of what went quiet than three separate cards are.
+     */
+    const val COLLAPSE_MIN = 3
+
+    /**
      * A part-played track counts as resumable only past this point — before it, the listener was
      * auditioning rather than interrupted, and offering to resume reads as noise.
      */
@@ -93,6 +117,7 @@ object ForYouBuilder {
         recentEvents: List<ListenEvent>,
         nowMs: Long,
         excluded: Set<TrackId> = emptySet(),
+        playlists: List<Playlist> = emptyList(),
     ): ForYouPage {
         val byId = library.associateBy { it.id }
         // Accumulates across the page, so a track shown once is not shown again further down.
@@ -103,7 +128,7 @@ object ForYouBuilder {
 
         val sections = mutableListOf<ForYouSection>()
         continueListening(byId, recentEvents, used)?.let(sections::add)
-        worthRevisiting(byId, stats, nowMs, used)?.let(sections::add)
+        worthRevisiting(byId, stats, nowMs, used, playlists)?.let(sections::add)
         foundBySmart(byId, recentEvents, used)?.let(sections::add)
         neverPlayed(library, stats, used)?.let(sections::add)
 
@@ -194,6 +219,7 @@ object ForYouBuilder {
         stats: Map<TrackId, TrackStats>,
         nowMs: Long,
         used: MutableSet<TrackId>,
+        playlists: List<Playlist>,
     ): ForYouSection? {
         val candidates = stats.entries
             .filter { (id, stat) ->
@@ -210,17 +236,78 @@ object ForYouBuilder {
                 byId[id]?.let { track -> track to stat }
             }
 
-        val picked = capPerArtist(candidates.map { it.first })
-        if (picked.isEmpty()) return null
+        val dormant = candidates.map { it.first }
         val statOf = candidates.associate { it.first.id to it.second }
+
+        // Groups first, so the tracks they absorb never also appear as singles below them.
+        val claimed = HashSet<TrackId>()
+        val groups = collapseToCollections(dormant, playlists, claimed)
+        val singles = capPerArtist(dormant.filterNot { it.id in claimed })
+
+        val cards = groups + singles.map { track ->
+            ForYouCard(track, reason = "${statOf[track.id]?.plays ?: 0}× before")
+        }
+        if (cards.isEmpty()) return null
         return ForYouSection(
             id = "worth-revisiting",
             title = "Worth revisiting",
-            cards = picked.map { track ->
-                val plays = statOf[track.id]?.plays ?: 0
-                ForYouCard(track, reason = "${plays}× before")
-            }.onEach { used.add(it.track.id) },
+            cards = cards.take(ROW_LIMIT).onEach { card ->
+                used.add(card.track.id)
+                card.collection?.tracks?.forEach { used.add(it.id) }
+            },
         )
+    }
+
+    /**
+     * Offers a playlist or album in place of its dormant members, when enough of them went quiet
+     * together.
+     *
+     * Playlists win over albums: a playlist is something the listener assembled deliberately, so it
+     * describes their intent better than a shared release does.
+     *
+     * This infers grouping from MEMBERSHIP, not from where the plays actually happened — listening
+     * events carry no record of the playlist or album they were started from. That would be the
+     * precise version of this rule, and it needs a new field on the event log.
+     */
+    private fun collapseToCollections(
+        dormant: List<TrackDescriptor>,
+        playlists: List<Playlist>,
+        claimed: MutableSet<TrackId>,
+    ): List<ForYouCard> {
+        val out = mutableListOf<ForYouCard>()
+        val dormantById = dormant.associateBy { it.id }
+
+        for (playlist in playlists) {
+            val members = playlist.trackIds
+                .mapNotNull { id -> dormantById[TrackId(id)] }
+                .filterNot { it.id in claimed }
+            if (members.size < COLLAPSE_MIN) continue
+            members.forEach { claimed.add(it.id) }
+            out.add(
+                ForYouCard(
+                    track = members.first(),
+                    reason = "${members.size} tracks",
+                    collection = ForYouCollection(playlist.name, members),
+                ),
+            )
+        }
+
+        dormant
+            .filterNot { it.id in claimed }
+            .filter { !it.album.isNullOrBlank() }
+            .groupBy { it.album!! }
+            .filterValues { it.size >= COLLAPSE_MIN }
+            .forEach { (album, members) ->
+                members.forEach { claimed.add(it.id) }
+                out.add(
+                    ForYouCard(
+                        track = members.first(),
+                        reason = "${members.size} tracks",
+                        collection = ForYouCollection(album, members),
+                    ),
+                )
+            }
+        return out
     }
 
     /**

@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Ukrainian translation of values/strings.xml.
+
+  Placeholders are POSITIONAL (%1$s / %1$d) and keep their numbers.
+  Apostrophes and quotation marks are written RAW: Compose Multiplatform only
+  unescapes \uXXXX, \n, \t and \\, so a backslash would reach the UI.
+  "LatentJam" and "SMART" are names and stay untranslated.
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">Відтворити</string>
+    <string name="action_pause">Пауза</string>
+    <string name="action_next">Наступний трек</string>
+    <string name="action_previous">Попередній трек</string>
+    <string name="action_shuffle">Перемішати</string>
+    <string name="action_close">Закрити</string>
+    <string name="action_back">Назад</string>
+    <string name="action_cancel">Скасувати</string>
+    <string name="action_delete">Видалити</string>
+    <string name="action_rename">Перейменувати</string>
+    <string name="action_clear">Очистити</string>
+    <string name="action_track_options">Дії з треком</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">Трек</string>
+    <string name="track_untitled">Без назви</string>
+    <string name="track_unknown_artist">Невідомий виконавець</string>
+    <!-- one: 1, 21, 31…; few: 2–4, 22–24…; many: 0, 5–20, 25–30…;
+         other: fractions (1,5 трека) and the required fallback. -->
+    <plurals name="count_tracks">
+        <item quantity="one">%1$d трек</item>
+        <item quantity="few">%1$d треки</item>
+        <item quantity="many">%1$d треків</item>
+        <item quantity="other">%1$d трека</item>
+    </plurals>
+    <!-- %1$s is a track title -->
+    <string name="cd_track_options_for">Інші дії для %1$s</string>
+    <string name="cd_track_options_generic">Інші дії для цього треку</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">Нічого не відтворюється</string>
+    <string name="queue_title">Черга</string>
+    <!-- %1$d is how many tracks are in the queue -->
+    <string name="queue_title_count">Черга · %1$d</string>
+    <string name="cd_repeat_off">Повтор вимкнено. Торкніться, щоб повторювати чергу.</string>
+    <string name="cd_repeat_all">Черга повторюється. Торкніться, щоб повторювати один трек.</string>
+    <string name="cd_repeat_one">Трек повторюється. Торкніться, щоб вимкнути повтор.</string>
+    <string name="cd_shuffle_off">Перемішування вимкнено. Торкніться, щоб змінити.</string>
+    <string name="cd_shuffle_on">Перемішування увімкнено. Торкніться, щоб змінити.</string>
+    <string name="cd_shuffle_smart">Перемішування SMART увімкнено. Торкніться, щоб змінити.</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">Пошук</string>
+    <string name="cd_close_search">Закрити пошук</string>
+    <string name="cd_clear_query">Очистити запит</string>
+    <!-- %1$s is what the user typed -->
+    <string name="search_no_matches">Нічого не знайдено за запитом «%1$s».</string>
+    <!-- %1$d is the size of the library -->
+    <plurals name="search_hint_count">
+        <item quantity="one">Пошук у вашій бібліотеці: %1$d трек.</item>
+        <item quantity="few">Пошук у вашій бібліотеці: %1$d треки.</item>
+        <item quantity="many">Пошук у вашій бібліотеці: %1$d треків.</item>
+        <item quantity="other">Пошук у вашій бібліотеці: %1$d трека.</item>
+    </plurals>
+    <string name="search_recent_title">Нещодавні запити</string>
+    <!-- %1$s is a past search term being removed from history -->
+    <string name="cd_forget_search">Забути «%1$s»</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">Плейлистів ще немає — натисніть +, щоб створити.</string>
+    <string name="playlist_name_placeholder">Назва плейлиста</string>
+    <string name="playlist_new">Новий плейлист</string>
+    <!-- %1$s is a playlist name -->
+    <string name="cd_playlist_options">Дії з плейлистом %1$s</string>
+    <!-- Sheet header. %1$s is a track title; the generic form is used when the
+         track has no title at all. -->
+    <string name="playlist_add_to_title">Додати «%1$s» до плейлиста</string>
+    <string name="playlist_add_to_title_generic">Додати трек до плейлиста</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">Відтворити наступним</string>
+    <string name="action_add_to_queue">Додати до черги</string>
+    <string name="action_add_to_playlist">Додати до плейлиста</string>
+    <string name="action_go_to_album">Перейти до альбому</string>
+    <string name="action_go_to_artist">Перейти до виконавця</string>
+    <string name="action_information">Відомості</string>
+    <string name="action_delete_from_device">Видалити з пристрою</string>
+    <string name="dialog_delete_track_title">Видалити цей трек?</string>
+    <!-- %1$s is a track title -->
+    <string name="dialog_delete_track_message">«%1$s» буде видалено з цього пристрою. Скасувати цю дію не вдасться.</string>
+    <string name="dialog_delete_track_message_generic">Цей трек буде видалено з цього пристрою. Скасувати цю дію не вдасться.</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">Назва</string>
+    <string name="info_artist">Виконавець</string>
+    <string name="info_album">Альбом</string>
+    <string name="info_genre">Жанр</string>
+    <string name="info_year">Рік</string>
+    <string name="info_duration">Тривалість</string>
+    <string name="info_location">Розташування</string>
+    <string name="info_not_set">Не вказано</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">Налаштування</string>
+    <string name="settings_section_appearance">Вигляд</string>
+    <string name="settings_theme">Тема</string>
+    <string name="theme_system">Як у системі</string>
+    <string name="theme_light">Світла</string>
+    <string name="theme_dark">Темна</string>
+    <string name="settings_section_playback">Відтворення</string>
+    <string name="settings_equalizer">Еквалайзер</string>
+    <string name="settings_equalizer_subtitle">Налаштування звучання для аудіовиходу цього пристрою</string>
+    <string name="settings_intelligence">Інтелект</string>
+    <string name="settings_smart_engine">Рушій SMART</string>
+    <string name="settings_smart_engine_subtitle">Що модель на пристрої знає про вашу бібліотеку</string>
+    <string name="settings_section_about">Про застосунок</string>
+    <string name="settings_about_body">LatentJam — локальний музичний плеєр із рекомендаціями просто на пристрої. Дані про ваше прослуховування не залишають цей пристрій.</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">Увімкнено</string>
+    <string name="state_off">Вимкнено</string>
+    <string name="equalizer_presets">Пресети</string>
+    <string name="equalizer_bands">Смуги</string>
+    <string name="equalizer_bass_boost">Підсилення басів</string>
+    <string name="equalizer_reset">Скинути до нуля</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">Стан</string>
+    <string name="intelligence_engine">Рушій</string>
+    <string name="intelligence_library">Бібліотека</string>
+    <string name="intelligence_fingerprints">Звукові відбитки</string>
+    <!-- %1$d tracks analysed out of %2$d in the library -->
+    <string name="intelligence_indexed_of">%1$d з %2$d</string>
+    <string name="intelligence_fingerprint_note">Треки без відбитка можна слухати, але SMART не вибиратиме їх і не враховуватиме, добираючи схоже.</string>
+    <string name="intelligence_section_analysis">Аналіз</string>
+    <string name="intelligence_analysis_note">Перше прослуховування треку не запускає його аналіз. Відбитки обчислюються пакетами, і робота продовжується з місця, де зупинилася.</string>
+    <!-- %1$d is the batch size -->
+    <string name="intelligence_analyse_batch">Проаналізувати %1$d</string>
+    <string name="intelligence_analyse_all">Проаналізувати все</string>
+    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
+    <string name="intelligence_analysed_batch_report">Проаналізовано %1$d, пропущено %2$d, не вдалося %3$d.</string>
+    <!-- %1$d analysed, %2$d failed -->
+    <string name="intelligence_analysed_all_report">Проаналізовано %1$d, не вдалося %2$d.</string>
+    <string name="intelligence_section_privacy">Конфіденційність</string>
+    <string name="intelligence_privacy_body">Усі моделі працюють на цьому пристрої. Ваша бібліотека, історія прослуховування й усе, що з них випливає, залишаються тут — жодних облікових записів і жодних вивантажень.</string>
+    <string name="engine_state_not_started">Не запущено</string>
+    <string name="engine_state_starting">Запускається…</string>
+    <string name="engine_state_ready">Готово</string>
+    <!-- %1$s is a technical failure reason reported by the engine -->
+    <string name="engine_state_unavailable">Недоступно — %1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">LatentJam потрібен доступ до вашої музики, щоб просканувати бібліотеку.</string>
+    <string name="permission_grant">Надати доступ</string>
+
+</resources>

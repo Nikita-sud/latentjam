@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Turkish (tr). Keys and ordering follow values/strings.xml.
+  Apostrophes and quotation marks are RAW; only \uXXXX \n \t \\ are unescaped.
+  "LatentJam" and "SMART" are names — never translated.
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">Çal</string>
+    <string name="action_pause">Duraklat</string>
+    <string name="action_next">Sonraki</string>
+    <string name="action_previous">Önceki</string>
+    <string name="action_shuffle">Karışık çal</string>
+    <string name="action_close">Kapat</string>
+    <string name="action_back">Geri</string>
+    <string name="action_cancel">İptal</string>
+    <string name="action_delete">Sil</string>
+    <string name="action_rename">Yeniden adlandır</string>
+    <string name="action_clear">Temizle</string>
+    <string name="action_track_options">Parça seçenekleri</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">Parça</string>
+    <string name="track_untitled">Adsız</string>
+    <string name="track_unknown_artist">Bilinmeyen sanatçı</string>
+    <!-- Turkish keeps the noun singular after a number, so both forms match. -->
+    <plurals name="count_tracks">
+        <item quantity="one">%1$d parça</item>
+        <item quantity="other">%1$d parça</item>
+    </plurals>
+    <!-- %1$s is a track title -->
+    <string name="cd_track_options_for">%1$s için diğer seçenekler</string>
+    <string name="cd_track_options_generic">Bu parça için diğer seçenekler</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">Çalan bir şey yok</string>
+    <string name="queue_title">Sıra</string>
+    <!-- %1$d is how many tracks are in the queue -->
+    <string name="queue_title_count">Sıra · %1$d</string>
+    <string name="cd_repeat_off">Tekrar kapalı. Sıranın tamamını tekrarlamak için dokunun.</string>
+    <string name="cd_repeat_all">Sıranın tamamı tekrarlanıyor. Tek parçayı tekrarlamak için dokunun.</string>
+    <string name="cd_repeat_one">Tek parça tekrarlanıyor. Tekrarı kapatmak için dokunun.</string>
+    <string name="cd_shuffle_off">Karışık çalma kapalı. Değiştirmek için dokunun.</string>
+    <string name="cd_shuffle_on">Karışık çalma açık. Değiştirmek için dokunun.</string>
+    <string name="cd_shuffle_smart">SMART karışık çalma açık. Değiştirmek için dokunun.</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">Ara</string>
+    <string name="cd_close_search">Aramayı kapat</string>
+    <string name="cd_clear_query">Arama metnini temizle</string>
+    <!-- %1$s is what the user typed -->
+    <string name="search_no_matches">"%1$s" için sonuç bulunamadı.</string>
+    <!-- %1$d is the size of the library -->
+    <plurals name="search_hint_count">
+        <item quantity="one">%1$d parçanız arasında arama yapın.</item>
+        <item quantity="other">%1$d parçanız arasında arama yapın.</item>
+    </plurals>
+    <string name="search_recent_title">Son aramalar</string>
+    <!-- %1$s is a past search term being removed from history -->
+    <string name="cd_forget_search">"%1$s" aramasını geçmişten sil</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">Henüz çalma listesi yok — oluşturmak için + simgesine dokunun.</string>
+    <string name="playlist_name_placeholder">Çalma listesi adı</string>
+    <string name="playlist_new">Yeni çalma listesi</string>
+    <!-- %1$s is a playlist name -->
+    <string name="cd_playlist_options">%1$s için seçenekler</string>
+    <!-- Sheet header. %1$s is a track title; the generic form is used when the
+         track has no title at all. -->
+    <string name="playlist_add_to_title">"%1$s" parçasını şuraya ekle</string>
+    <string name="playlist_add_to_title_generic">Parçayı şuraya ekle</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">Sıradaki olarak çal</string>
+    <string name="action_add_to_queue">Sıraya ekle</string>
+    <string name="action_add_to_playlist">Çalma listesine ekle</string>
+    <string name="action_go_to_album">Albüme git</string>
+    <string name="action_go_to_artist">Sanatçıya git</string>
+    <string name="action_information">Bilgi</string>
+    <string name="action_delete_from_device">Cihazdan sil</string>
+    <string name="dialog_delete_track_title">Bu parça silinsin mi?</string>
+    <!-- %1$s is a track title -->
+    <string name="dialog_delete_track_message">"%1$s" bu cihazdan kaldırılacak. Bu işlem geri alınamaz.</string>
+    <string name="dialog_delete_track_message_generic">Bu parça bu cihazdan kaldırılacak. Bu işlem geri alınamaz.</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">Başlık</string>
+    <string name="info_artist">Sanatçı</string>
+    <string name="info_album">Albüm</string>
+    <string name="info_genre">Tür</string>
+    <string name="info_year">Yıl</string>
+    <string name="info_duration">Süre</string>
+    <string name="info_location">Konum</string>
+    <string name="info_not_set">Belirtilmemiş</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">Ayarlar</string>
+    <string name="settings_section_appearance">Görünüm</string>
+    <string name="settings_theme">Tema</string>
+    <string name="theme_system">Sistem ayarını kullan</string>
+    <string name="theme_light">Açık</string>
+    <string name="theme_dark">Koyu</string>
+    <string name="settings_section_playback">Oynatma</string>
+    <string name="settings_equalizer">Ekolayzır</string>
+    <string name="settings_equalizer_subtitle">Bu cihazın ses çıkışı için ton denetimleri</string>
+    <string name="settings_intelligence">Akıllı özellikler</string>
+    <string name="settings_smart_engine">SMART motoru</string>
+    <string name="settings_smart_engine_subtitle">Cihazdaki modelin kitaplığınız hakkında bildikleri</string>
+    <string name="settings_section_about">Hakkında</string>
+    <string name="settings_about_body">LatentJam — cihaz üzerinde çalışan bir öneri motoruna sahip yerel müzik çalar. Ne dinlediğinize dair hiçbir şey bu cihazdan dışarı çıkmaz.</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">Açık</string>
+    <string name="state_off">Kapalı</string>
+    <string name="equalizer_presets">Hazır ayarlar</string>
+    <string name="equalizer_bands">Bantlar</string>
+    <string name="equalizer_bass_boost">Bas yükseltme</string>
+    <string name="equalizer_reset">Düz ayara sıfırla</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">Durum</string>
+    <string name="intelligence_engine">Motor</string>
+    <string name="intelligence_library">Kitaplık</string>
+    <string name="intelligence_fingerprints">Ses parmak izleri</string>
+    <!-- %1$d tracks analysed out of %2$d in the library -->
+    <string name="intelligence_indexed_of">%2$d parçadan %1$d tanesi</string>
+    <string name="intelligence_fingerprint_note">Parmak izi olmayan parçalar yine de çalınabilir ama SMART onları seçmez ve neyin uyduğuna karar verirken kullanmaz.</string>
+    <string name="intelligence_section_analysis">Analiz</string>
+    <string name="intelligence_analysis_note">Bir parçayı ilk kez dinlemek onu analiz etmez. Parmak izleri gruplar hâlinde hesaplanır ve işlem kaldığı yerden devam eder.</string>
+    <!-- %1$d is the batch size -->
+    <string name="intelligence_analyse_batch">%1$d parça analiz et</string>
+    <string name="intelligence_analyse_all">Tümünü analiz et</string>
+    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
+    <string name="intelligence_analysed_batch_report">%1$d parça analiz edildi, %2$d parça atlandı, %3$d parça başarısız oldu.</string>
+    <!-- %1$d analysed, %2$d failed -->
+    <string name="intelligence_analysed_all_report">%1$d parça analiz edildi, %2$d parça başarısız oldu.</string>
+    <string name="intelligence_section_privacy">Gizlilik</string>
+    <string name="intelligence_privacy_body">Bütün modeller bu cihazda çalışır. Kitaplığınız, dinleme geçmişiniz ve bunlardan türetilen her şey burada kalır — ne hesap var ne de yükleme.</string>
+    <string name="engine_state_not_started">Başlatılmadı</string>
+    <string name="engine_state_starting">Başlatılıyor…</string>
+    <string name="engine_state_ready">Hazır</string>
+    <!-- %1$s is a technical failure reason reported by the engine -->
+    <string name="engine_state_unavailable">Kullanılamıyor — %1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">LatentJam'in kitaplığınızı tarayabilmesi için müziğinize erişmesi gerekiyor.</string>
+    <string name="permission_grant">Erişim izni ver</string>
+
+</resources>
