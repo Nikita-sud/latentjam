@@ -65,5 +65,12 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.koin.test)
         }
+        // An iOS test target exists so the native ports can be gated on the same
+        // fixtures the JVM ones are. Without it the iOS actuals — the tokenizer's
+        // Unicode predicates especially — are unverified, and a mismatch there
+        // shifts vectors silently rather than failing anything.
+        iosTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
     }
 }

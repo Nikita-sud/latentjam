@@ -70,7 +70,7 @@ class LibraryWorldsTest {
     }
 
     @Test
-    fun `spellings of one genre are counted as one, and the cover supplies the words`() {
+    fun `spellings of one genre are counted as one and the cover supplies the words`() {
         val library = corpus {
             // Trap, Phonk and Hip-Hop are one family. Counted separately none of the three reaches
             // the share a claim needs, so a rule that grouped by raw tag would find nothing to say
@@ -136,7 +136,7 @@ class LibraryWorldsTest {
     }
 
     @Test
-    fun `the biggest world leads, and every world keeps its medoid first`() {
+    fun `the biggest world leads and every world keeps its medoid first`() {
         val library = corpus {
             repeat(20) { add("big$it", angle = 0.3, genre = "Disco", artist = "Artist$it") }
             repeat(6) { add("small$it", angle = 3.5, genre = "Techno", artist = "Other$it") }
@@ -157,7 +157,7 @@ class LibraryWorldsTest {
     }
 
     @Test
-    fun `tracks the index has not reached yet are absent, not pooled together`() {
+    fun `tracks the index has not reached yet are absent rather than pooled together`() {
         val library = corpus {
             repeat(10) { add("known$it", angle = 0.3, genre = "Disco", artist = "Artist$it") }
             repeat(10) { add("known2$it", angle = 3.4, genre = "Techno", artist = "Other$it") }

@@ -88,7 +88,7 @@ class TrackClusteringTest {
     }
 
     @Test
-    fun `a handful of tracks that sit together is noise, not a cluster`() {
+    fun `a handful of tracks that sit together is noise rather than a cluster`() {
         val random = Random(3)
         val ids = mutableListOf<TrackId>()
         val vectors = mutableMapOf<TrackId, FloatArray>()
