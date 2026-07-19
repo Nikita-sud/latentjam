@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,8 +30,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -157,6 +160,25 @@ fun NowPlayingScreen(
                     ),
                 ),
         ) {
+            // Continues the sheet's own colour through the system-bar strip beneath it.
+            //
+            // The scaffold below is lifted by navigationBarsPadding(), so without this the gradient
+            // painted by the enclosing Box shows through in the gap — an artwork-tinted band that
+            // changes colour every track. Behind Android's three-button bar that passes for a tinted
+            // nav bar, but under an iPhone's home indicator it reads as a stray stripe.
+            //
+            // This is the rule the mini-player pill already follows: the SURFACE runs to the physical
+            // edge, only the CONTENT is inset. Sizing from the same WindowInsets the scaffold pads by
+            // means the two cannot drift — a home-button iPhone reports no inset and this draws
+            // nothing at all, while a three-button Android phone gets the full 48dp.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            )
+
             // The inset belongs on the SCAFFOLD, and it takes both modifiers to work. The app
             // draws edge to edge (no opting out from Android 15) and BottomSheetScaffold applies no
             // insets of its own, so the sheet was anchored to the raw bottom of the window and its
