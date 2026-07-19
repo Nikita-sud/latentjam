@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -69,6 +70,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -131,7 +133,6 @@ fun NowPlayingScreen(
     // fight the user's finger; committed to the player on release.
     var dragPositionMs by remember { mutableStateOf<Long?>(null) }
     val sheetState = rememberBottomSheetScaffoldState()
-
     PlatformBackHandler(enabled = true, onBack = onClose)
 
     Surface(
@@ -156,7 +157,21 @@ fun NowPlayingScreen(
                     ),
                 ),
         ) {
+            // The inset belongs on the SCAFFOLD, and it takes both modifiers to work. The app
+            // draws edge to edge (no opting out from Android 15) and BottomSheetScaffold applies no
+            // insets of its own, so the sheet was anchored to the raw bottom of the window and its
+            // peek — the "Queue · n" label — sat behind the system buttons.
+            //
+            // Padding the sheet CONTENT cannot fix that, which is worth recording because it is the
+            // obvious thing to reach for: a peeking sheet is taller than its container and
+            // translated downwards, so the foot of its content is already far below the window and
+            // padding there is invisible. navigationBarsPadding() moves the anchor the sheet hangs
+            // from, which lifts the peek; clipToBounds() then cuts the part of the sheet that still
+            // overhangs the container, which is what keeps queue rows out of the bar in both the
+            // collapsed and the expanded state. The gradient behind the bar is unaffected — it is
+            // painted by the Box outside this.
             BottomSheetScaffold(
+                modifier = Modifier.navigationBarsPadding().clipToBounds(),
                 scaffoldState = sheetState,
                 sheetPeekHeight = QueuePeekHeight,
                 sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,

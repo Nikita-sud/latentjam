@@ -27,10 +27,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -237,6 +240,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var historySummary by remember { mutableStateOf<String?>(null) }
         val now by playback.state.collectAsState()
         val accent = rememberTrackAccent(now.track)
+        val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
         LaunchedEffect(Unit) { tracks = library.tracks() }
 
@@ -495,8 +499,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             color = MaterialTheme.colorScheme.surfaceContainer,
                         ) {
                             Box(modifier = Modifier.fillMaxSize()) {
+                                // The lists run to the bottom edge of an edge-to-edge window, so
+                                // the navigation bar is theirs to clear — nothing below them does
+                                // it. The pill adds its own height on top of that when it is up; it
+                                // sits ON the content rather than beside it, so the two add.
                                 val listPadding = PaddingValues(
-                                    bottom = if (now.track != null) 104.dp else 12.dp,
+                                    bottom = navBottom +
+                                        if (now.track != null) MINI_PLAYER_HEIGHT else 12.dp,
                                 )
                                 when {
                                     catalog == null -> Box(
@@ -924,6 +933,15 @@ private const val DIAGNOSTICS_SAMPLE = 24
 
 /** Duration of the mini-player ↔ now-playing morph. */
 private const val MORPH_MILLIS = 340
+
+/**
+ * The pill's own height, above whatever navigation-bar inset it is sitting on.
+ *
+ * Lists add this to the inset so their last row clears the pill instead of hiding under it. A
+ * constant rather than a measurement: the pill is a fixed piece of furniture, and measuring it
+ * would make every list's padding depend on a layout pass it does not otherwise wait for.
+ */
+private val MINI_PLAYER_HEIGHT = 76.dp
 
 // A selection is assembled in a click handler, which is not composition — so these resolve their
 // strings through the suspending resource API and are called from a coroutine. The alternative,
