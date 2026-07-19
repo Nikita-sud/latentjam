@@ -65,6 +65,18 @@ internal class AndroidPlaybackController(
     private val controllerMutex = Mutex()
     private var controller: MediaController? = null
 
+    /**
+     * Serialises SMART appends.
+     *
+     * [appendSmartNextIfNeeded] decides whether to append by reading the player, then SUSPENDS in
+     * the chooser (the engine plans on its own dispatcher) before it writes. Two invocations that
+     * overlap across that suspension both read the pre-append queue, both conclude a track is
+     * needed, and both append — which is where consecutive duplicates came from. There is always a
+     * second invocation available to overlap: [next] calls this directly while the resulting
+     * `onMediaItemTransition` launches another on [mainScope].
+     */
+    private val appendMutex = Mutex()
+
     /** Full candidate pool for SMART selection, keyed for O(1) descriptor lookup. */
     private var pool: List<TrackDescriptor> = emptyList()
     private val poolById = mutableMapOf<String, TrackDescriptor>()
@@ -208,8 +220,15 @@ internal class AndroidPlaybackController(
         mode
     }
 
-    /** Main-thread only. Keeps SMART one track ahead of the playhead. */
-    private suspend fun appendSmartNextIfNeeded() {
+    /**
+     * Main-thread only. Keeps SMART one track ahead of the playhead.
+     *
+     * Serialised: the decision below and the append that follows it must be one atomic step, or
+     * concurrent callers duplicate each other's work. See [appendMutex].
+     */
+    private suspend fun appendSmartNextIfNeeded() = appendMutex.withLock { appendSmartNext() }
+
+    private suspend fun appendSmartNext() {
         val player = controller ?: return
         if (mode != ShuffleMode.SMART) return
         if (player.mediaItemCount == 0) return
