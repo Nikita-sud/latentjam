@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,6 +49,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_clear
@@ -81,6 +83,8 @@ internal fun SearchScreen(
     onPlay: (queue: List<TrackDescriptor>, index: Int) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
     onClose: () -> Unit,
+    /** Room at the foot of the results for the mini-player floating over this screen. */
+    bottomInset: Dp = 0.dp,
 ) {
     PlatformBackHandler(enabled = true, onBack = onClose)
 
@@ -173,7 +177,9 @@ internal fun SearchScreen(
                 query.isNotBlank() && results.isEmpty() ->
                     CenteredHint(stringResource(Res.string.search_no_matches, query.trim()))
 
-                query.isNotBlank() -> LazyColumn {
+                query.isNotBlank() -> LazyColumn(
+                    contentPadding = PaddingValues(bottom = bottomInset),
+                ) {
                     itemsIndexed(results, key = { _, track -> track.id.value }) { index, track ->
                         TrackRow(
                             track = track,

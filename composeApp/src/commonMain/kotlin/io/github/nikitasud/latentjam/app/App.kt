@@ -241,6 +241,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val now by playback.state.collectAsState()
         val accent = rememberTrackAccent(now.track)
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        // The lists run to the bottom edge of an edge-to-edge window, so the navigation bar is
+        // theirs to clear — nothing below them does it. The pill adds its own height on top of
+        // that when it is up; it sits ON the content rather than beside it, so the two add.
+        val listPadding = PaddingValues(
+            bottom = navBottom + if (now.track != null) MINI_PLAYER_HEIGHT else 12.dp,
+        )
+        // Screens that already inset themselves against the navigation bar only need the pill's
+        // own height on top.
+        val floatingPlayerInset = if (now.track != null) MINI_PLAYER_HEIGHT else 0.dp
 
         LaunchedEffect(Unit) { tracks = library.tracks() }
 
@@ -417,6 +426,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     )
                 } else {
                     val animatedScope = this@AnimatedContent
+                    // Everything that is NOT the full player shares one stack, and the pill is the
+                    // last thing in it. Search and collection detail are full-screen surfaces laid
+                    // OVER the browse shell rather than pages swapped into it, so anything drawn
+                    // after them stays visible — which is how the pill reaches screens it used to
+                    // disappear behind.
+                    Box(modifier = Modifier.fillMaxSize()) {
                     Scaffold(
                         topBar = {
                             Column {
@@ -499,14 +514,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             color = MaterialTheme.colorScheme.surfaceContainer,
                         ) {
                             Box(modifier = Modifier.fillMaxSize()) {
-                                // The lists run to the bottom edge of an edge-to-edge window, so
-                                // the navigation bar is theirs to clear — nothing below them does
-                                // it. The pill adds its own height on top of that when it is up; it
-                                // sits ON the content rather than beside it, so the two add.
-                                val listPadding = PaddingValues(
-                                    bottom = navBottom +
-                                        if (now.track != null) MINI_PLAYER_HEIGHT else 12.dp,
-                                )
                                 when {
                                     catalog == null -> Box(
                                         modifier = Modifier.fillMaxSize(),
@@ -698,28 +705,56 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
                                     }
                                 }
-
-                                now.track?.let { current ->
-                                    MiniPlayerPill(
-                                        track = current,
-                                        accent = accent,
-                                        isPlaying = now.isPlaying,
-                                        progress = if (now.durationMs > 0) {
-                                            (now.positionMs.toFloat() / now.durationMs).coerceIn(0f, 1f)
-                                        } else {
-                                            0f
-                                        },
-                                        sharedScope = sharedScope,
-                                        animatedScope = animatedScope,
-                                        onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
-                                        onPrevious = { scope.launch { playback.previous() } },
-                                        onNext = { scope.launch { playback.next() } },
-                                        onOpen = { showNowPlaying = true },
-                                        modifier = Modifier.align(Alignment.BottomCenter),
-                                    )
-                                }
                             }
                         }
+                    }
+
+                    selectedCollection?.let { selection ->
+                        CollectionDetailScreen(
+                            selection = selection,
+                            currentTrackId = now.track?.id,
+                            onPlayTrack = { index ->
+                                scope.launch { playback.play(selection.tracks, index) }
+                            },
+                            onShuffle = {
+                                scope.launch { playback.play(selection.tracks.shuffled(), 0) }
+                            },
+                            onTrackMenu = { trackMenuTarget = it },
+                            onClose = { selectedCollection = null },
+                            bottomInset = floatingPlayerInset,
+                        )
+                    }
+
+                    if (showSearch) {
+                        SearchScreen(
+                            songs = catalog?.songs.orEmpty(),
+                            currentTrackId = now.track?.id,
+                            onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
+                            onTrackMenu = { trackMenuTarget = it },
+                            onClose = { showSearch = false },
+                            bottomInset = floatingPlayerInset,
+                        )
+                    }
+
+                    now.track?.let { current ->
+                        MiniPlayerPill(
+                            track = current,
+                            accent = accent,
+                            isPlaying = now.isPlaying,
+                            progress = if (now.durationMs > 0) {
+                                (now.positionMs.toFloat() / now.durationMs).coerceIn(0f, 1f)
+                            } else {
+                                0f
+                            },
+                            sharedScope = sharedScope,
+                            animatedScope = animatedScope,
+                            onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
+                            onPrevious = { scope.launch { playback.previous() } },
+                            onNext = { scope.launch { playback.next() } },
+                            onOpen = { showNowPlaying = true },
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                        )
+                    }
                     }
                 }
             }
@@ -841,27 +876,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     deleteTrack(target)
                 },
                 onDismiss = { deleteTarget = null },
-            )
-        }
-
-        selectedCollection?.let { selection ->
-            CollectionDetailScreen(
-                selection = selection,
-                currentTrackId = now.track?.id,
-                onPlayTrack = { index -> scope.launch { playback.play(selection.tracks, index) } },
-                onShuffle = { scope.launch { playback.play(selection.tracks.shuffled(), 0) } },
-                onTrackMenu = { trackMenuTarget = it },
-                onClose = { selectedCollection = null },
-            )
-        }
-
-        if (showSearch) {
-            SearchScreen(
-                songs = catalog?.songs.orEmpty(),
-                currentTrackId = now.track?.id,
-                onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
-                onTrackMenu = { trackMenuTarget = it },
-                onClose = { showSearch = false },
             )
         }
 

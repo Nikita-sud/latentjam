@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,6 +35,7 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_back
@@ -67,6 +69,8 @@ fun CollectionDetailScreen(
     onShuffle: () -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
     onClose: () -> Unit,
+    /** Room at the foot of the list for the mini-player floating over this screen. */
+    bottomInset: Dp = 0.dp,
 ) {
     PlatformBackHandler(enabled = true, onBack = onClose)
 
@@ -109,7 +113,7 @@ fun CollectionDetailScreen(
                 }
             }
 
-            LazyColumn {
+            LazyColumn(contentPadding = PaddingValues(bottom = bottomInset)) {
                 item(key = "actions") {
                     // Shuffle and play live on their own rounded surface, mirroring the Tracks tab
                     // so the same two controls sit in the same place wherever a list is shown.
