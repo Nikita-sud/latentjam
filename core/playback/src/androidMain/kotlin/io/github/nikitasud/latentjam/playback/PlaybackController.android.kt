@@ -43,12 +43,13 @@ import kotlin.coroutines.resumeWithException
  *
  * ### SMART queue strategy
  * OFF and ON map straight onto the player queue (natural order / ExoPlayer's
- * shuffle order). SMART keeps the queue linear but ALWAYS ONE TRACK AHEAD:
- * whenever the current item is the last one, the controller asks the injected
- * [NextTrackChooser] for a successor (falling back to a random unplayed
- * candidate when it abstains) and appends it. Skipping or finishing a track
- * therefore always has somewhere to go, and the played queue doubles as
- * listening history.
+ * shuffle order). SMART keeps the queue linear and holds a LOOKAHEAD of
+ * [SMART_LOOKAHEAD] tracks: whenever the queue runs shorter than that, the
+ * controller tops it back up from the injected [NextTrackChooser] (falling back
+ * to a random unplayed candidate when it abstains), continuing the walk from
+ * the tail each time. Skipping or finishing a track therefore always has
+ * somewhere to go, there is a readable queue rather than a single next-track
+ * hint, and the played queue doubles as listening history.
  *
  * All MediaController access is confined to the main thread, per Media3's
  * threading contract — every port method hops there via [Dispatchers.Main].
@@ -221,7 +222,7 @@ internal class AndroidPlaybackController(
     }
 
     /**
-     * Main-thread only. Keeps SMART one track ahead of the playhead.
+     * Main-thread only. Tops SMART back up to [SMART_LOOKAHEAD] tracks ahead of the playhead.
      *
      * Serialised: the decision below and the append that follows it must be one atomic step, or
      * concurrent callers duplicate each other's work. See [appendMutex].
@@ -232,26 +233,45 @@ internal class AndroidPlaybackController(
         val player = controller ?: return
         if (mode != ShuffleMode.SMART) return
         if (player.mediaItemCount == 0) return
-        if (player.currentMediaItemIndex < player.mediaItemCount - 1) return
 
-        val current = player.currentMediaItem?.mediaId?.let(poolById::get) ?: return
-        val currentIndex = player.currentMediaItemIndex
-        val recentIds = (maxOf(0, currentIndex - RECENT_WINDOW) until currentIndex)
-            .map { index -> TrackId(player.getMediaItemAt(index).mediaId) }
-        // Everything ALREADY in the queue is off the table, not just the recent window: a track
-        // appended twice would play twice in one sitting, and the queue list would hold two rows
-        // claiming the same identity.
-        val queued = (0 until player.mediaItemCount)
-            .mapTo(HashSet()) { index -> TrackId(player.getMediaItemAt(index).mediaId) }
-        val candidates = pool.filter { it.id !in queued }
-        if (candidates.isEmpty()) return
+        var appended = false
+        // Each pass appends exactly one item, so the shortfall shrinks by one and the loop needs at
+        // most SMART_LOOKAHEAD passes. The counter also caps it if a player ever fails to reflect an
+        // append immediately, which would otherwise spin.
+        var guard = SMART_LOOKAHEAD
+        while (
+            guard-- > 0 &&
+            player.mediaItemCount - 1 - player.currentMediaItemIndex < SMART_LOOKAHEAD
+        ) {
+            // The walk continues from the END of the queue, not from what is playing. The tail is
+            // the last thing the chain decided, so seeding with it is what lets the chooser
+            // recognise its own plan and serve the next hop from it. Passing the playing track for
+            // every append would instead look like a playhead that had jumped somewhere
+            // unpredicted, and the chooser would throw the plan away and replan from the same seed
+            // on each pass — the walk's spacing and drift rules reset every hop, and the engine
+            // would be asked to plan N chains to fill N slots.
+            val tailIndex = player.mediaItemCount - 1
+            val seed = poolById[player.getMediaItemAt(tailIndex).mediaId] ?: break
+            val recentIds = (maxOf(0, tailIndex - RECENT_WINDOW) until tailIndex)
+                .map { index -> TrackId(player.getMediaItemAt(index).mediaId) }
+            // Everything ALREADY in the queue is off the table, not just the recent window: a track
+            // appended twice would play twice in one sitting, and the queue list would hold two rows
+            // claiming the same identity.
+            val queued = (0 until player.mediaItemCount)
+                .mapTo(HashSet()) { index -> TrackId(player.getMediaItemAt(index).mediaId) }
+            val candidates = pool.filter { it.id !in queued }
+            if (candidates.isEmpty()) break
 
-        val chosen = runCatching { chooser.choose(current, recentIds, candidates) }
-            .getOrNull()
-            ?: candidates.random()
-        player.addMediaItem(chosen.toMediaItem())
-        rebuildQueueSnapshot()
-        pushState()
+            val chosen = runCatching { chooser.choose(seed, recentIds, candidates) }
+                .getOrNull()
+                ?: candidates.random()
+            player.addMediaItem(chosen.toMediaItem())
+            appended = true
+        }
+        if (appended) {
+            rebuildQueueSnapshot()
+            pushState()
+        }
     }
 
     /** Main-thread only. */
@@ -333,7 +353,16 @@ internal class AndroidPlaybackController(
         .build()
 
     private companion object {
-        /** How many previously played tracks SMART excludes from re-selection. */
+        /**
+         * How many tracks SMART keeps queued beyond the playhead.
+         *
+         * A queue you can read is the point: one track ahead is a next-track indicator, not a
+         * queue. Kept under the chooser's chain length (12 in the app graph) so a full top-up is
+         * normally served from a single plan rather than forcing an immediate replan.
+         */
+        const val SMART_LOOKAHEAD = 10
+
+        /** How many queue entries before the seed are passed to the chooser as context. */
         const val RECENT_WINDOW = 10
 
         /** Seek-bar refresh cadence while playing. */
