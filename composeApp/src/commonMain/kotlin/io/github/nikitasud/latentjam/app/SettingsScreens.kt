@@ -9,7 +9,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.indexing_notificati
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress
 import io.github.nikitasud.latentjam.library.nowMillis
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +25,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -54,7 +56,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
@@ -365,11 +371,14 @@ private fun EqualizerSettings(equalizer: EqualizerController) {
 }
 
 /**
- * A vertical band control.
+ * A vertical band fader, drawn rather than rotated.
  *
- * Compose's Slider is horizontal, so it is rotated a quarter turn. The rotation happens inside a
- * fixed-size box, because a rotated child still reports its UNROTATED size to the layout and would
- * otherwise claim a slider's width as its height.
+ * A rotated horizontal Slider was the old approach and it read as broken: Material's track fills
+ * from one end, so a band sitting at 0 dB looked half-full from the bottom, and the modern thumb
+ * and track-stop indicators became stray dots once turned on their side. An equalizer band is
+ * BIPOLAR — it boosts above 0 and cuts below it — so the only honest picture anchors the fill at
+ * the centre line and grows it up for a boost, down for a cut. That is what this draws, and the
+ * whole column is the touch target so a band is set by tapping or dragging anywhere along it.
  */
 @Composable
 private fun BandSlider(
@@ -380,32 +389,85 @@ private fun BandSlider(
     compact: Boolean,
     onChange: (Float) -> Unit,
 ) {
+    val span = (range.endInclusive - range.start).takeIf { it > 0f } ?: 1f
+    // A DrawScope cannot read the theme, so the colours are resolved here. White for the active
+    // fill and thumb, per the palette rule that emphasis comes from contrast, not hue (cyan is
+    // reserved for SMART). Everything dims together when the effect is switched off.
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val fillColor = if (enabled) Color.White else Color.White.copy(alpha = 0.25f)
+    val zeroLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    val thumbColor = if (enabled) Color.White else Color.White.copy(alpha = 0.35f)
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Bottom,
         modifier = Modifier.fillMaxHeight(),
     ) {
         Text(
             text = formatDecibels(value),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (value != 0f) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (enabled && value != 0f) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
         )
         Box(
-            modifier = Modifier.weight(1f).width(if (compact) 32.dp else 48.dp),
-            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 8.dp)
+                .width(if (compact) 28.dp else 40.dp)
+                .pointerInput(enabled, range) {
+                    if (!enabled) return@pointerInput
+                    // Tap-or-drag: the first touch sets the value, and every subsequent move
+                    // updates it, so the whole column behaves like one tall fader.
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        onChange(bandValueForY(down.position.y, size.height.toFloat(), range))
+                        down.consume()
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: break
+                            if (!change.pressed) break
+                            onChange(bandValueForY(change.position.y, size.height.toFloat(), range))
+                            change.consume()
+                        }
+                    }
+                },
         ) {
-            Slider(
-                value = value,
-                onValueChange = onChange,
-                valueRange = range,
-                enabled = enabled,
-                modifier = Modifier
-                    // Ignore the narrow column's measurement constraint before rotating; otherwise
-                    // the nominal 200 dp slider is squeezed to the column width and becomes a
-                    // tiny horizontal-looking control after rotation.
-                    .requiredWidth(200.dp)
-                    .graphicsLayer { rotationZ = -90f },
-            )
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val centreX = size.width / 2f
+                val trackWidth = 6.dp.toPx()
+                val radius = trackWidth / 2f
+                fun yFor(level: Float): Float {
+                    val fraction = ((level - range.start) / span).coerceIn(0f, 1f)
+                    return size.height * (1f - fraction)
+                }
+                val zeroY = yFor(0f)
+                val thumbY = yFor(value)
+                drawRoundRect(
+                    color = trackColor,
+                    topLeft = Offset(centreX - radius, 0f),
+                    size = Size(trackWidth, size.height),
+                    cornerRadius = CornerRadius(radius, radius),
+                )
+                val fillTop = minOf(zeroY, thumbY)
+                val fillHeight = (maxOf(zeroY, thumbY) - fillTop).coerceAtLeast(radius)
+                drawRoundRect(
+                    color = fillColor,
+                    topLeft = Offset(centreX - radius, fillTop),
+                    size = Size(trackWidth, fillHeight),
+                    cornerRadius = CornerRadius(radius, radius),
+                )
+                // The 0 dB reference, so a boost and a cut are visibly measured from the same line.
+                drawLine(
+                    color = zeroLineColor,
+                    start = Offset(centreX - 8.dp.toPx(), zeroY),
+                    end = Offset(centreX + 8.dp.toPx(), zeroY),
+                    strokeWidth = 1.5.dp.toPx(),
+                )
+                drawCircle(color = thumbColor, radius = 9.dp.toPx(), center = Offset(centreX, thumbY))
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -414,6 +476,13 @@ private fun BandSlider(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+/** Maps a vertical touch position to a band level: top of the track is the maximum boost. */
+private fun bandValueForY(y: Float, height: Float, range: ClosedFloatingPointRange<Float>): Float {
+    if (height <= 0f) return range.start
+    val fraction = (1f - (y / height)).coerceIn(0f, 1f)
+    return range.start + fraction * (range.endInclusive - range.start)
 }
 
 private fun formatFrequency(hz: Int): String =
