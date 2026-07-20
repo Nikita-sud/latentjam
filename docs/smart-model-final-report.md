@@ -241,17 +241,32 @@ evidence against a regression.
 
 The Android arm64 emulator passed an instrumentation test that loads all production graphs, decodes
 a real 10-second WAV, checks finite/unit-normal audio and text embeddings, produces a 960-d state,
-scores 100 candidates, and verifies exact masked-text fallback. The whole cold sequence took 4.944
-seconds. The iOS arm64 simulator passed the same tensor/fallback contract in 123 ms. These numbers
-are not comparable physical-phone benchmarks: Android includes file decoding, and simulator host
-execution differs substantially. Release performance still needs representative low/mid/high-tier
-phones, warm/cold runs, memory, battery, and thermal soak.
+scores 100 candidates, and verifies exact masked-text fallback. Its whole fixture sequence took
+4.944 seconds. The iOS arm64 simulator passed the same tensor/fallback contract in 123 ms. These
+aggregate times are not comparable because the Android test also creates and decodes a WAV while
+the simulator uses a different host path.
+
+A physical Samsung SM-S928B running Android 16 subsequently passed the same five-graph contract.
+One debug-build run measured 420 ms to load the audio graph, 360 ms to decode/embed one track,
+469 ms to load MiniLM, 8 ms for one metadata embedding, 205 ms to load the three predictor graphs,
+45 ms for the first state plus 100-candidate score, and **14.63 ms** mean for five warm state/score
+runs. The app itself cold-launched in 693 ms. Its loaded debug process reached 354,403 KiB PSS, so
+memory remains a meaningful optimization target even though queue-time model inference is fast.
+
+The physical first-open flow was tested without deleting the existing app: an isolated temporary
+application ID provided empty private storage and was removed afterward. It displayed the localized
+permission gate, had no history file, encoded all 869 metadata vectors locally, began acoustic
+indexing at zero, and allowed playback while the index was partial. Switching OFF → RANDOM → SMART
+created a 12-track seed-only plan; the first planned item played and no random fallback or exception
+was logged. On the existing install the acoustic index grew from 71 to 158 entries while testing,
+confirming small persisted batches. This is evidence for correctness on one high-end phone, not a
+representative indexing, memory, battery, or thermal benchmark.
 
 [ONNX Runtime's mobile guidance](https://onnxruntime.ai/docs/tutorials/mobile/) supports Android and
 iOS, recommends starting with CPU/XNNPACK, and treats NNAPI/CoreML gains as device- and graph-specific.
 That matches the implementation: one graph contract and shared Kotlin logic, with native platform
-bindings. A custom operator-reduced ORT build is the next binary-size optimization after real-device
-profiling.
+bindings. A custom operator-reduced ORT build is the next binary-size optimization after broader
+real-device profiling.
 
 ## Teacher and model candidate decision
 
@@ -293,9 +308,10 @@ satisfaction. History-aware fold MRR spans 0.05790–0.09431 and first-open fold
 is reported because there is no independent listener sample to justify one.
 
 The next evidence gate is not another foundation model. It is a blinded multi-listener evaluation,
-first-launch indexing measurements, and physical-phone profiling. Log only opt-in local or aggregate
-outcomes; never upload audio or embeddings. If 256-d is revisited, require it to match the 960
-contract on end-to-end MRR and tail-session performance, not just component cosine.
+complete first-launch indexing measurements, and profiling across low-, mid- and high-tier physical
+phones. Log only opt-in local or aggregate outcomes; never upload audio or embeddings. If 256-d is
+revisited, require it to match the 960 contract on end-to-end MRR and tail-session performance, not
+just component cosine.
 
 Reproducible inputs and summaries are in
 [`tools/convert_audio_encoder_fp16.py`](../tools/convert_audio_encoder_fp16.py) (production export

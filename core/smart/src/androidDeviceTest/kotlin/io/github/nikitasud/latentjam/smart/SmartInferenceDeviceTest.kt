@@ -44,8 +44,11 @@ class SmartInferenceDeviceTest {
                 modelVersion = "device-smoke",
             ),
         )
+        val audioLoadStarted = System.nanoTime()
         audio.loadModel().getOrThrow()
+        val audioLoadMs = elapsedMs(audioLoadStarted)
         val wave = writeSineWave(File(testContext.cacheDir, "smart-smoke.wav"))
+        val audioEmbedStarted = System.nanoTime()
         val embedding = audio.embed(
             TrackDescriptor(
                 id = TrackId("smoke"),
@@ -53,19 +56,27 @@ class SmartInferenceDeviceTest {
                 audioUri = Uri.fromFile(wave).toString(),
             ),
         ).getOrThrow()
+        val audioEmbedMs = elapsedMs(audioEmbedStarted)
         assertEquals(960, embedding.size)
         assertTrue(embedding.all(Float::isFinite))
         assertTrue(norm(embedding) in 0.99f..1.01f)
 
         val text = OnnxTextEncoder(context)
+        val textLoadStarted = System.nanoTime()
         text.load().getOrThrow()
+        val textLoadMs = elapsedMs(textLoadStarted)
+        val textEmbedStarted = System.nanoTime()
         val textEmbedding = requireNotNull(text.encode("Soul; Example Artist; 1972"))
+        val textEmbedMs = elapsedMs(textEmbedStarted)
         assertEquals(384, textEmbedding.size)
         assertTrue(textEmbedding.all(Float::isFinite))
         assertTrue(norm(textEmbedding) in 0.99f..1.01f)
 
         val predictor = OnnxPredictorRuntime(context)
+        val predictorLoadStarted = System.nanoTime()
         predictor.load().getOrThrow()
+        val predictorLoadMs = elapsedMs(predictorLoadStarted)
+        val stateScoreStarted = System.nanoTime()
         val state = predictor.encodeState(
             historySmall = FloatArray(4 * 961),
             historyMedium = FloatArray(960),
@@ -83,6 +94,7 @@ class SmartInferenceDeviceTest {
             textCandidates = FloatArray(100 * 384),
             textMask = FloatArray(100),
         )
+        val stateScoreMs = elapsedMs(stateScoreStarted)
         val maskedNoise = predictor.score(
             state = state,
             candidates = FloatArray(100 * 960),
@@ -95,9 +107,35 @@ class SmartInferenceDeviceTest {
         assertArrayEquals("masked text must be an exact audio fallback", missing, maskedNoise, 0f)
 
         val elapsedMs = (System.nanoTime() - started) / 1_000_000
+        val warmStarted = System.nanoTime()
+        repeat(WARM_STATE_SCORE_REPEATS) {
+            val warmState = predictor.encodeState(
+                historySmall = FloatArray(4 * 961),
+                historyMedium = FloatArray(960),
+                historyLarge = FloatArray(960),
+                timeFeatures = FloatArray(5),
+                sessionFeatures = FloatArray(5),
+            )
+            val warmScores = predictor.score(
+                state = warmState,
+                candidates = FloatArray(100 * 960),
+                textState = FloatArray(384),
+                textCandidates = FloatArray(100 * 384),
+                textMask = FloatArray(100),
+            )
+            assertTrue(warmScores.all(Float::isFinite))
+        }
+        val warmStateScoreUs = (System.nanoTime() - warmStarted) /
+            WARM_STATE_SCORE_REPEATS / 1_000
         println(
             "SMART_DEVICE_SMOKE ok audio=960 text=384 state=960 scores=100 " +
                 "missing_text_exact=true elapsed_ms=$elapsedMs",
+        )
+        println(
+            "SMART_DEVICE_TIMING audio_load_ms=$audioLoadMs audio_embed_ms=$audioEmbedMs " +
+                "text_load_ms=$textLoadMs text_embed_ms=$textEmbedMs " +
+                "predictor_load_ms=$predictorLoadMs first_state_score_ms=$stateScoreMs " +
+                "warm_state_score_us=$warmStateScoreUs repeats=$WARM_STATE_SCORE_REPEATS",
         )
         predictor.close()
         text.close()
@@ -143,7 +181,11 @@ class SmartInferenceDeviceTest {
     private fun norm(values: FloatArray): Float =
         sqrt(values.sumOf { it.toDouble() * it }).toFloat()
 
+    private fun elapsedMs(started: Long): Long =
+        (System.nanoTime() - started) / 1_000_000
+
     private companion object {
         const val APP_PACKAGE = "io.github.nikitasud.latentjam.kmp"
+        const val WARM_STATE_SCORE_REPEATS = 5
     }
 }

@@ -183,7 +183,35 @@
     "android_graph_contract": "audio=960 text=384 state=960 scores=100 missing_text_exact=true",
     "ios_simulator_whole_cold_sequence_ms": 123,
     "ios_graph_contract": "audio=960 text=384 state=960 scores=100 missing_text_exact=true",
-    "note": "Whole smoke sequence includes loading and is not a physical-phone latency benchmark"
+    "physical_android": {
+      "device": "Samsung SM-S928B",
+      "os": "Android 16",
+      "abi": "arm64-v8a",
+      "build": "debug",
+      "app_cold_launch_ms": 693,
+      "audio_graph_load_ms": 420,
+      "single_track_audio_embed_ms": 360,
+      "text_graph_load_ms": 469,
+      "single_metadata_embed_ms": 8,
+      "predictor_graphs_load_ms": 205,
+      "first_state_and_100_candidate_score_ms": 45,
+      "warm_state_and_100_candidate_score_us": 14630,
+      "warm_repeats": 5,
+      "debug_app_pss_kib": 354403,
+      "fresh_install": {
+        "separate_empty_app_storage": true,
+        "localized_permission_gate_passed": true,
+        "history_file_absent_before_playback": true,
+        "metadata_vectors_encoded_locally": 869,
+        "initial_audio_index_count": 0,
+        "partial_audio_index_did_not_block_playback": true,
+        "seed_only_smart_plan_length": 12,
+        "first_planned_item_played": true,
+        "random_fallback_logged": false
+      },
+      "note": "One plugged-in high-end phone and one debug run; PSS includes the UI and debug runtime. The isolated QA package was removed after testing."
+    },
+    "note": "Emulator/simulator whole-sequence times include different fixture and host overhead and are not comparable with the physical per-stage measurements."
   },
   "asset_sha256": {
     "mnv4_audio.onnx": "507626838393bb9132714fdb6740707a21f38bf56befa3dd826e91f420ef9b53",
