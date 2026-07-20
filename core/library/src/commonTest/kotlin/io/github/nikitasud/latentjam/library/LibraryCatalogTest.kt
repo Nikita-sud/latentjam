@@ -59,6 +59,31 @@ internal class LibraryCatalogTest {
     }
 
     @Test
+    fun perTrackArtworkCacheUrisDoNotDuplicateOneArtistsAlbum() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", title = "A", artist = "GSPD", album = "Leningrad Electroclub", artworkUri = "file://art-1"),
+                track("2", title = "B", artist = "GSPD", album = "Leningrad Electroclub", artworkUri = "file://art-2"),
+            ),
+        )
+
+        assertEquals(1, catalog.albums.size)
+        assertContentEquals(listOf("A", "B"), catalog.albums.single().tracks.map { it.title })
+    }
+
+    @Test
+    fun invisibleFormattingAndWhitespaceDoNotDuplicateAnAlbum() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", artist = "Artist", album = "My  Album"),
+                track("2", artist = "Artist", album = " My\u200B Album "),
+            ),
+        )
+
+        assertEquals(1, catalog.albums.size)
+    }
+
+    @Test
     fun artistsCarryTrackAndAlbumCounts() {
         val catalog = LibraryCatalog.build(
             listOf(

@@ -9,11 +9,10 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 /**
  * An album as grouped from track metadata.
  *
- * @property key Stable grouping key. The artwork URI doubles as an album-id
- *   proxy when present (it is derived from MediaStore's ALBUM_ID on Android),
- *   which keeps two same-named albums by different artists apart; the
- *   `album::artist` fallback covers artwork-less tracks. A first-class album
- *   entity arrives with the own-scanner roadmap item.
+ * @property key Stable grouping key derived from normalized album metadata.
+ *   Artwork is used only to disambiguate same-named albums by different
+ *   artists. This matters on iOS, where extracted artwork has historically
+ *   had a per-track file URI even when every track belongs to one album.
  */
 public data class AlbumGroup(
     public val key: String,
@@ -62,7 +61,7 @@ public data class LibraryCatalog(
 
         public fun build(tracks: List<TrackDescriptor>): LibraryCatalog {
             val albums = tracks
-                .groupBy { track -> track.artworkUri ?: "${track.album}::${track.artist}" }
+                .albumGroups()
                 .map { (key, grouped) ->
                     AlbumGroup(
                         key = key,
@@ -120,5 +119,51 @@ public data class LibraryCatalog(
         }
 
         private const val DEFAULT_FOLDER = "Music"
+
+        /**
+         * Builds album groups without treating a cache-file URI as album identity.
+         *
+         * One artist + one normalized title is unambiguously one album even if
+         * each file exposes a different extracted-art URI. If the same title is
+         * owned by multiple artists, shared artwork still joins compilations;
+         * otherwise artwork/artist separates genuinely different releases.
+         */
+        private fun List<TrackDescriptor>.albumGroups(): Map<String, List<TrackDescriptor>> =
+            groupBy { it.album.normalizedKey() }
+                .flatMap { (albumKey, sameTitle) ->
+                    if (albumKey == null) {
+                        sameTitle.groupBy { track ->
+                            track.artworkUri ?: "unknown::${track.artist.normalizedKey()}"
+                        }.entries
+                    } else {
+                        val artists = sameTitle.mapNotNull { it.artist.normalizedKey() }.toSet()
+                        val artwork = sameTitle.mapNotNull { it.artworkUri }.toSet()
+                        when {
+                            artists.size <= 1 -> listOf(
+                                object : Map.Entry<String, List<TrackDescriptor>> {
+                                    override val key = "album::$albumKey::${artists.firstOrNull()}"
+                                    override val value = sameTitle
+                                },
+                            )
+                            artwork.size == 1 -> listOf(
+                                object : Map.Entry<String, List<TrackDescriptor>> {
+                                    override val key = "album::$albumKey::${artwork.first()}"
+                                    override val value = sameTitle
+                                },
+                            )
+                            else -> sameTitle.groupBy { track ->
+                                "album::$albumKey::${track.artworkUri ?: track.artist.normalizedKey()}"
+                            }.entries
+                        }
+                    }
+                }
+                .associate { it.key to it.value }
+
+        private fun String?.normalizedKey(): String? = this
+            ?.filterNot { it == '\u200B' || it == '\u200C' || it == '\u200D' || it == '\uFEFF' }
+            ?.trim()
+            ?.replace(Regex("\\s+"), " ")
+            ?.lowercase()
+            ?.takeIf { it.isNotEmpty() }
     }
 }

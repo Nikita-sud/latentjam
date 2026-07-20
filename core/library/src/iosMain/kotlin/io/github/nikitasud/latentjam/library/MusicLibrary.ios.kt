@@ -295,7 +295,7 @@ internal class IosMusicLibrary : MusicLibrary {
             // An indefinite or unreadable CMTime comes back NaN rather than throwing.
             durationMs = seconds.takeIf { !it.isNaN() && it > 0 }?.times(1000)?.toLong(),
             audioUri = url.absoluteString,
-            artworkUri = artwork?.let { cacheArtwork(it, relativePath, sizeBytes) },
+            artworkUri = artwork?.let(::cacheArtwork),
             addedAtMs = addedAtMs,
             folderPath = relativePath.substringBeforeLast('/', "").ifBlank { "Imported" },
             year = (asset.firstString(YEAR_IDENTIFIERS) ?: asset.rawString("DATE", "YEAR") ?: created)
@@ -342,12 +342,19 @@ internal class IosMusicLibrary : MusicLibrary {
     /**
      * Writes embedded cover art out to a file Coil can load.
      *
-     * Keyed by path and size so that re-importing a different file under the
-     * same name cannot serve the previous file's artwork.
+     * Keyed by the artwork bytes, rather than the track path. Tracks from one
+     * album normally embed the same image; sharing one cache URI lets the
+     * common catalogue recognize that album and avoids dozens of duplicate
+     * cache files. A changed cover naturally gets a different key.
      */
-    private fun cacheArtwork(data: NSData, relativePath: String, sizeBytes: Long): String? {
+    private fun cacheArtwork(data: NSData): String? {
         val caches = IosPaths.caches() ?: return null
-        val key = "${relativePath.hashCode().toUInt().toString(16)}-$sizeBytes"
+        var hash = 0xcbf29ce484222325uL
+        data.toByteArray().forEach { byte ->
+            hash = hash xor byte.toUByte().toULong()
+            hash *= 0x100000001b3uL
+        }
+        val key = "${hash.toString(16)}-${data.length}"
         val target = IosPaths.child(caches, "artwork-$key.img")
         if (!NSFileManager.defaultManager.fileExistsAtPath(target)) {
             if (!data.writeToFile(target, true)) return null
