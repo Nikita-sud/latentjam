@@ -621,7 +621,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 }
                             }
                         },
-                        snackbarHost = { SnackbarHost(snackbar) },
                         containerColor = MaterialTheme.colorScheme.surface,
                     ) { padding ->
                         // One full-bleed surface: it runs to the bottom edge so the
@@ -922,6 +921,21 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 }
             }
         }
+            // One host above both AnimatedContent branches: collection/search surfaces and the
+            // full player otherwise cover the Scaffold-owned host, making Undo technically exist
+            // but impossible to see or tap.
+            SnackbarHost(
+                hostState = snackbar,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        bottom = if (!showNowPlaying && now.track != null) {
+                            MINI_PLAYER_HEIGHT + navBottom
+                        } else {
+                            navBottom
+                        },
+                    ),
+            )
         }
 
         trackMenuTarget?.let { target ->
@@ -942,7 +956,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         hasHiddenTracks = true
                         val collectionAfterHide = collectionBeforeHide?.let { selection ->
                             val remaining = selection.tracks.filterNot { it.id == target.id }
-                            selection.copy(tracks = remaining).takeIf { remaining.isNotEmpty() }
+                            selection.copy(
+                                subtitle = trackCountLabel(remaining.size),
+                                tracks = remaining,
+                            ).takeIf { remaining.isNotEmpty() }
                         }
                         selectedCollection = collectionAfterHide
                         val result = snackbar.showSnackbar(
