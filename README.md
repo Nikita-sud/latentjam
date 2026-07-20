@@ -1,106 +1,153 @@
-# LatentJam
+<p align="center">
+  <img src="branding/logo.svg" width="120" alt="LatentJam logo">
+</p>
 
-A local music player that understands what your library sounds like.
+<h1 align="center">LatentJam</h1>
 
-No account, no catalogue, no network. LatentJam reads the music already on your device and runs a
-small neural recommender on it — entirely on the phone — so shuffle can follow a thread instead of
-throwing dice, and a "For You" page can surface the records you own and forgot.
+<p align="center">
+  <b>A local music player that understands what your library <i>sounds</i> like.</b><br>
+  On-device neural recommendation for the music you already own — no account, no catalogue, no network.
+</p>
 
-Kotlin Multiplatform · Compose Multiplatform · Apache-2.0
+<p align="center">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-8E24AA.svg?style=flat-square"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/platform-Android%20%7C%20iOS-1450A8?style=flat-square">
+  <img alt="Kotlin Multiplatform" src="https://img.shields.io/badge/Kotlin%20Multiplatform-7F52FF?style=flat-square&logo=kotlin&logoColor=white">
+  <img alt="Compose Multiplatform" src="https://img.shields.io/badge/Compose%20Multiplatform-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white">
+  <img alt="On-device" src="https://img.shields.io/badge/inference-100%25%20on--device-00897B?style=flat-square">
+  <img alt="Status" src="https://img.shields.io/badge/status-experimental-E65100?style=flat-square">
+</p>
+
+<p align="center">
+  <a href="#why-it-exists">Why</a> ·
+  <a href="#how-the-recommender-works">How it works</a> ·
+  <a href="#building">Build</a> ·
+  <a href="ROADMAP.md">Roadmap</a> ·
+  <a href="docs/model-selection.md">Model notes</a> ·
+  <a href="#licence">Licence</a>
+</p>
 
 ---
 
+Shuffle on a local player is a dice roll. Streaming services solved sequencing — but only for their
+own catalogue, and only by shipping your listening to a server. **LatentJam does it for the music
+already on your phone, and it never leaves.** Every track is embedded from its audio *and* its tags
+by compact ONNX models running on the device itself, so shuffle can follow a thread and a *For You*
+page can resurface the records you own and forgot.
+
+One engine. Two platforms. Nothing in the cloud.
+
 ## Why it exists
 
-Shuffle on a local player is random. Streaming services solved the sequencing problem, but only for
-their own catalogue, and only by sending your listening to a server.
+Your library is full of music a good DJ would sequence beautifully and that random shuffle butchers.
+The obvious fix — a recommendation model — normally means a catalogue you don't own and a server that
+watches what you play.
 
-LatentJam does it for music you already own. Every track is embedded twice — once from its audio,
-once from its tags — and compact ONNX models decide what should follow what. All of it runs
-locally. Nothing about your listening leaves the device, because there is nowhere for it to go.
+LatentJam takes the opposite bet: the model is small enough to run on the phone, so the catalogue
+*is* your library and the "server" is your pocket. There is no account to make and no listening to
+upload, because there is nowhere for it to go.
 
 ## What it does
 
-**SMART shuffle.** Not "nearest neighbour" repeated. Picking a track plans a *walk*: a scoring chain
-balances the model's vote against local coherence, gravity back toward the track you actually chose,
-and pool-relative semantic scores that keep niche corners of a library intact — the case where a
-Moldovan estradá seed used to collapse into whatever the model found generically popular. Metadata
-rules then space out artists, suppress duplicate titles, and damp the dense cinematic/anime cluster
-that otherwise leaks into everything.
+🎧 &nbsp;**SMART shuffle** — not "nearest neighbour" on repeat. Picking a track plans a *walk*: a
+scoring chain balances the model's vote against local coherence, keeps gravity toward the track you
+actually chose, and applies pool-relative semantic scores so niche corners of a library stay intact
+instead of collapsing into whatever the model finds generically popular. Metadata rules then space
+out artists, suppress duplicate titles, and damp the dense cinematic/anime cluster that otherwise
+leaks into everything.
 
-**For You.** Rediscovery, not discovery — you already own everything here. A hero card offers one
-confident play (something you were interrupted mid-way through, a favourite gone quiet, something
-never heard), and the rows surface what browsing cannot: proven favourites untouched for 90+ days,
-tracks SMART found that you then listened all the way through, records you own and never opened.
-When several dormant favourites share a playlist, the playlist is offered instead of its tracks —
-the unit in which music was loved is not always the track.
+✨ &nbsp;**For You** — rediscovery, not discovery; you already own everything here. A hero card offers
+one confident play — something you were interrupted mid-way through, a favourite gone quiet, a record
+never heard — and the rows surface what browsing can't: proven favourites untouched for 90+ days,
+tracks SMART found that you then played all the way through, albums you own and never opened. When
+several dormant favourites share a playlist, the *playlist* is offered — the unit in which music was
+loved is not always the track.
 
-**The rest of a real player.** Media3 playback with a proper media session, queue, playlists,
-album/artist/genre browsing, search with a fast scroller, a system equalizer, ID3 tag editing, and a
-settings screen that says honestly what the recommender knows about your library.
+🔎 &nbsp;**Search that knows its aliases** — a local CC0 MusicBrainz index resolves artist aliases,
+transliterations and band-member names entirely on device, so a query and a tag that spell an artist
+differently still match.
 
-**17 languages**, including Russian, Romanian, Arabic (RTL) and CJK, with correct plural forms.
+🎚️ &nbsp;**A real player underneath** — Media3 playback with a proper media session, queue,
+playlists, album/artist/genre browsing, a fast-scrolling search, a system equalizer, ID3 tag editing,
+and a settings screen that says honestly what the recommender knows about your library.
+
+🌍 &nbsp;**17 languages** — including Russian, Romanian, Arabic (RTL) and CJK, with correct plural
+forms.
 
 ## How the recommender works
 
 Two signals per track, both computed on the device:
 
 | Signal | Dimensions | Where it comes from |
-|---|---|---|
-| Audio embedding | 960 | MobileNetV4-Conv-M encoder over the waveform |
-| Metadata embedding | 384 | Int8 MiniLM over trusted `genre; artist; year` tags |
+|---|---:|---|
+| **Audio embedding** | 960 | MobileNetV4-Conv-M encoder over the raw waveform |
+| **Metadata embedding** | 384 | Int8 MiniLM over trusted `genre; artist; year` tags |
 
-Retrieval round-robins separate anchor-audio, session-audio and seed-text rankings into a candidate
-pool, so there is no hand-tuned numeric weight between embedding spaces. A 960-d GRU state encoder
-over the last four plays, completion/skip signals, and 30/365-day local taste centroids feeds a
-frozen scorer over 100 candidates. A 253 KB
-learned MiniLM residual conditions those logits when trusted text exists; no manually chosen
-text/audio score weight is involved. Missing text is an exact audio-only fallback. Track titles are
-deliberately excluded from the embedding, so a filename such as `Hard Techno Mix` cannot inject a
-genre claim. The chain then applies local audio coherence, seed gravity and metadata safety rules.
+Retrieval round-robins separate anchor-audio, session-audio and seed-text rankings into a single
+candidate pool, so there is no hand-tuned numeric weight between the embedding spaces. A 960-d GRU
+state encoder — reading your last four plays, completion/skip signals, and 30- and 365-day taste
+centroids — feeds a frozen scorer over 100 candidates, and a 253 KB learned MiniLM residual
+conditions those logits when trusted text exists. Missing text falls back to an exact audio-only
+path. Track *titles* are deliberately excluded from the embedding, so a filename like
+`Hard Techno Mix` can't inject a genre claim.
 
-The app ships five ONNX graphs: audio and metadata encoders run once while tracks are indexed; state,
-acoustic scorer and text residual run while a SMART queue is built. The complete model/vocabulary
-bundle is about 57.3 MiB on both Android and iOS. There is no precomputed per-track descriptor
-catalogue: imported tracks get the same fully local path as every other track.
+Five ONNX graphs ship in-tree: the audio and metadata encoders run once while tracks are indexed;
+the state encoder, acoustic scorer and text residual run while a queue is built. The full
+model + vocabulary bundle is **≈57 MiB on both Android and iOS**. There is no precomputed per-track
+catalogue — an imported track gets exactly the same fully-local path as everything else.
 
-On first launch, the app creates the audio index progressively in small persisted batches and embeds
-the selected seed on demand; playback abstains rather than silently replacing SMART with randomness
-until candidates are ready. A person with no history gets an explicitly trained seed-only state,
-not a zero vector. On iOS, the device Music library and app-owned Files imports are merged. Protected
-Music downloads remain playable and use local metadata/text recommendations; owned items that expose
-an asset URL also receive waveform embeddings.
-As private listening accumulates, SMART uses it as runtime context without training on the phone or
-uploading it. Both platforms persist that history locally across launches.
+On first launch the audio index builds progressively in small persisted batches; until candidates are
+ready, playback *abstains* rather than quietly falling back to random. A listener with no history gets
+an explicitly-trained seed-only state, not a zero vector. As private listening accumulates, SMART uses
+it as runtime context — **without training on the phone or uploading it** — and both platforms persist
+that history locally across launches.
+
+## One engine, two platforms
+
+The intelligence lives in shared Kotlin; each platform supplies only the native seams.
+
+| | Android | iOS |
+|---|:---:|:---:|
+| SMART recommendation engine | ✓ | ✓ |
+| On-device ONNX inference | ✓ ORT (JNI) | ✓ ORT (native C API, Swift host) |
+| Audio decode for indexing | MediaCodec | AVAudioFile / AVAudioConverter |
+| Library source | MediaStore | Files import · Music library |
+| Media3 / AVPlayer playback | ✓ | ✓ |
+| Index persistence across launches | ✓ | ✓ |
+| System equalizer | ✓ | ✓ (AVAudioEngine graph, imported files) |
+| ID3 tag editing | ✓ | — not yet |
 
 ## Building
 
 ```bash
+# Android
 ./gradlew :androidApp:assembleDebug
+
+# iOS (from the Xcode workspace, after one pod install)
+cd iosApp && pod install
+xcodebuild -workspace iosApp.xcworkspace -scheme iosApp -sdk iphonesimulator build
 ```
 
-Requires JDK 17+ and the Android SDK. The first build downloads a large Kotlin/Native toolchain.
-
-SMART ONNX inference and playback are implemented on Android and iOS; the iOS shell uses the same
-graph contracts through ONNX Runtime's native C API. iOS intentionally keeps tag writing disabled
-for Music-library items because the system exposes them read-only; the equalizer remains Android-only.
+Requires **JDK 17+** and the Android SDK; the first build pulls a large Kotlin/Native toolchain. iOS
+brings ONNX Runtime in through CocoaPods (`onnxruntime-c`) and reaches it from Kotlin through the
+Swift host.
 
 ## Layout
 
 ```
-core/smart      similarity engine, SMART chain, ONNX runtimes, tokenizer
-core/library    MediaStore scanning, playlists, catalog grouping, ID3 tag writing
-core/playback   Media3 playback, queue, equalizer
+core/smart      similarity engine, SMART chain, ONNX runtimes, tokenizer, MusicBrainz index
+core/library    library scanning, playlists, catalog grouping, ID3 tag writing
+core/playback   Media3 / AVPlayer playback, queue, equalizer
 core/history    listening events and aggregates
-composeApp      all UI, shared by both platforms
-androidApp      packaging shell (see below)
-iosApp          Xcode project
+composeApp      all UI, shared verbatim by both platforms
+androidApp      packaging shell — contains no Kotlin
+iosApp          Xcode project + thin Swift host
 tools/          one-off scripts, not on any build path
 ```
 
-`androidApp` contains no Kotlin. AGP 9 ships no Compose Multiplatform *application* plugin, and
-`com.android.application` cannot be combined with the KMP plugin — so the UI lives in `composeApp`
-as a library and `androidApp` exists only to package it.
+`androidApp` holds no Kotlin on purpose: AGP 9 ships no Compose Multiplatform *application* plugin and
+`com.android.application` can't combine with the KMP plugin, so the UI lives in `composeApp` as a
+library and `androidApp` exists only to package it.
 
 ## Testing
 
@@ -110,31 +157,41 @@ as a library and `androidApp` exists only to package it.
           :composeApp:testAndroidHostTest
 ```
 
-Two suites are worth knowing about, because they check what unit tests usually miss:
+Two suites check what unit tests usually miss:
 
-- **SMART parity** replays the reference implementation's own recorded model outputs through this
-  port and asserts the resulting queues match exactly. It needs an ~8 MB fixture that is not
-  committed — set `SMART_PARITY_FIXTURE` to a directory produced by
-  `tools/export_parity_fixture.py`, or the test skips.
-- **ID3 real files** runs the tag writer against actual music, checking that every frame survives an
-  edit and the audio stream stays byte-identical. Set `ID3_REAL_FILES` to a directory of `.mp3`s, or
-  it skips. Synthetic fixtures only prove a codec matches one reading of the spec; real files prove
-  it matches what encoders actually emit.
+- **SMART parity** replays the reference implementation's own recorded model outputs through this port
+  and asserts the resulting queues match *exactly*. It needs an ~8 MB fixture (not committed) — point
+  `SMART_PARITY_FIXTURE` at a directory from `tools/export_parity_fixture.py`, or it skips.
+- **ID3 real files** runs the tag writer against real music, checking every frame survives an edit and
+  the audio stream stays byte-identical. Point `ID3_REAL_FILES` at a folder of `.mp3`s, or it skips —
+  synthetic fixtures only prove the codec matches one reading of the spec; real files prove it matches
+  what encoders actually emit.
 
-See [ROADMAP.md](ROADMAP.md) for what is done and what is not, and
+See [ROADMAP.md](ROADMAP.md) for what's done and what isn't, and
 [docs/for-you-ux.md](docs/for-you-ux.md) for the research behind the For You design.
+
+## Credits
+
+Built on the shoulders of:
+
+- **[ONNX Runtime](https://onnxruntime.ai/)** — on-device inference on both platforms
+- **[MobileNetV4](https://arxiv.org/abs/2404.10518)** and **[MiniLM](https://arxiv.org/abs/2002.10957)** — the encoder architectures behind the audio and text embeddings
+- **[MusicBrainz](https://musicbrainz.org/)** — the CC0 artist-alias data behind smart search
+- **[Compose Multiplatform](https://www.jetbrains.com/compose-multiplatform/)**, **[Koin](https://insert-koin.io/)**, **[Coil](https://coil-kt.github.io/coil/)**, **[Media3](https://developer.android.com/media/media3)**
 
 ## Licence
 
-Apache-2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+**Apache-2.0** — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-This tree shares no code and no git history with LatentJam's earlier incarnation, which was a fork of
-[Auxio](https://github.com/oxygencobalt/Auxio) and is licensed GPL-3.0. This branch descends from its
-own parentless root commit and was written from scratch against a new architecture. Nothing may be
-copied across that boundary in either direction. The earlier work remains available under GPL-3.0 on
-its own branch.
+This tree shares no code and no git history with LatentJam's earlier incarnation, which was a
+GPL-3.0 fork of [Auxio](https://github.com/oxygencobalt/Auxio). This branch descends from its own
+parentless root commit and was written from scratch against a new architecture; nothing may be copied
+across that boundary in either direction. The earlier work remains available under GPL-3.0 in its own
+repository.
 
 Bundled models under `androidApp/src/main/assets/ml/` are covered by permissive licences documented
-in [LICENSE-MODEL.txt](androidApp/src/main/assets/ml/LICENSE-MODEL.txt). The selected architecture,
+in [LICENSE-MODEL.txt](androidApp/src/main/assets/ml/LICENSE-MODEL.txt). The architecture selection,
 benchmarks, rejected candidates and next compression target are in
 [docs/model-selection.md](docs/model-selection.md).
+
+<p align="center"><sub>Everything runs on your device. Your taste stays there.</sub></p>
