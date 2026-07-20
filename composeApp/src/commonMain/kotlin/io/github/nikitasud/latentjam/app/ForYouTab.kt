@@ -4,7 +4,11 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,9 +34,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -264,16 +271,37 @@ private fun ForYouKicker.text(): String = when (this) {
  * keep a common baseline whatever the title length — ragged card heights were a recurring complaint
  * in the previous implementation, and a fixed slot is the fix rather than ellipsizing after layout.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ForYouCardItem(
     card: ForYouCard,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
+    // The whole card is the touch target, but the press ripple is shown only on the cover — a
+    // default clickable would paint the entire column, text and all, with a grey rectangle on
+    // every tap. The interaction source is shared so the cover lights up while the column
+    // handles the gesture. combinedClickable also finally wires the long-press: the old
+    // clickable() dropped onLongClick, so opening a card's menu never worked.
+    val interaction = remember { MutableInteractionSource() }
     Column(
-        modifier = Modifier.width(140.dp).clickable(onClick = onClick),
+        modifier = Modifier
+            .width(140.dp)
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
     ) {
-        Artwork(uri = card.track.artworkUri, size = 140.dp, cornerRadius = 12.dp)
+        Artwork(
+            uri = card.track.artworkUri,
+            size = 140.dp,
+            cornerRadius = 12.dp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .indication(interaction, ripple()),
+        )
         Text(
             text = card.collection?.title
                 ?: card.track.title
