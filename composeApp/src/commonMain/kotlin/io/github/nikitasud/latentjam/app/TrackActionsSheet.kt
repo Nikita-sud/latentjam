@@ -71,6 +71,7 @@ internal fun TrackActionsSheet(
     onGoToAlbum: () -> Unit,
     onGoToArtist: () -> Unit,
     onInfo: () -> Unit,
+    canDelete: Boolean,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -132,12 +133,14 @@ internal fun TrackActionsSheet(
                 Icons.Rounded.Info,
                 stringResource(Res.string.action_information),
             ) { onDismiss(); onInfo() }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            SheetAction(
-                icon = Icons.Rounded.DeleteOutline,
-                label = stringResource(Res.string.action_delete_from_device),
-                tint = MaterialTheme.colorScheme.error,
-            ) { onDismiss(); onDelete() }
+            if (canDelete) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                SheetAction(
+                    icon = Icons.Rounded.DeleteOutline,
+                    label = stringResource(Res.string.action_delete_from_device),
+                    tint = MaterialTheme.colorScheme.error,
+                ) { onDismiss(); onDelete() }
+            }
         }
     }
 }

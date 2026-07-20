@@ -869,6 +869,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onGoToAlbum = { showAlbumOf(target) },
                 onGoToArtist = { showArtistOf(target) },
                 onInfo = { infoTarget = target },
+                canDelete = target.audioUri != null &&
+                    !target.id.value.startsWith("ios-media:"),
                 onDelete = { deleteTarget = target },
                 onDismiss = { trackMenuTarget = null },
             )
