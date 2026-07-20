@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -239,8 +241,8 @@ private fun SettingsRoot(settings: AppSettings, onOpen: (SettingsPage) -> Unit) 
 // ------------------------------------------------------------------ equalizer
 
 /**
- * Bands, frequencies and presets all come from the device, so this screen draws whatever the
- * platform reports rather than a fixed five-band picture that might not match what is being changed.
+ * Draws the bands, frequencies, and presets reported by the active audio effect, so every control
+ * corresponds to a filter that the platform playback graph actually owns.
  */
 @Composable
 private fun EqualizerSettings(equalizer: EqualizerController) {
@@ -314,8 +316,12 @@ private fun EqualizerSettings(equalizer: EqualizerController) {
         item {
             SettingsSection(stringResource(Res.string.equalizer_bands)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(260.dp).padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     state.bands.forEach { band ->
                         BandSlider(
@@ -626,4 +632,3 @@ private fun StatRow(label: String, value: String) {
         Text(text = value, style = MaterialTheme.typography.bodyMedium)
     }
 }
-

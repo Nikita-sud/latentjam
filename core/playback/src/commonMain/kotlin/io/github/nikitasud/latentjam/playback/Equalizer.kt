@@ -21,8 +21,7 @@ public data class EqualizerBand(
 )
 
 /**
- * A named factory curve, as reported by the platform effect. Contents vary by device — this is not a
- * fixed list the app invents.
+ * A named curve offered by the active platform audio effect.
  */
 public data class EqualizerPreset(public val index: Int, public val name: String)
 
@@ -49,11 +48,11 @@ public data class EqualizerState(
 }
 
 /**
- * The system equalizer attached to this app's audio output.
+ * The equalizer attached to this app's audio output.
  *
- * Bands, their frequencies and the preset list all come FROM the platform rather than being chosen
- * here: the effect is implemented by the device, and a five-band UI drawn over a device that offers
- * ten would be lying about what it controls.
+ * The state describes the actual effect graph: Android reports the device effect's bands and iOS
+ * reports the bands in LatentJam's AVAudioEngine graph. The UI therefore controls exactly the
+ * filters through which app-owned playback is routed.
  *
  * Settings persist and are re-applied whenever the audio session is rebuilt, so an equalizer set
  * once survives the service being restarted.

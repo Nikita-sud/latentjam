@@ -25,20 +25,6 @@ import org.koin.dsl.module
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.setActive
-import platform.AVFoundation.AVPlayer
-import platform.AVFoundation.AVPlayerItem
-import platform.AVFoundation.AVPlayerItemDidPlayToEndTimeNotification
-import platform.AVFoundation.AVPlayerTimeControlStatusPaused
-import platform.AVFoundation.currentItem
-import platform.AVFoundation.currentTime
-import platform.AVFoundation.duration
-import platform.AVFoundation.pause
-import platform.AVFoundation.play
-import platform.AVFoundation.replaceCurrentItemWithPlayerItem
-import platform.AVFoundation.seekToTime
-import platform.AVFoundation.timeControlStatus
-import platform.CoreMedia.CMTimeGetSeconds
-import platform.CoreMedia.CMTimeMakeWithSeconds
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSNumber
 import platform.Foundation.NSOperationQueue
@@ -59,20 +45,14 @@ import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusCommandFailed
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
-import platform.darwin.NSObjectProtocol
 
 /**
- * iOS [PlaybackController] over a single [AVPlayer].
+ * iOS [PlaybackController] over an app-owned [IosAudioEngine] for imported files and Apple's
+ * [MPMusicPlayerController] for protected Music-library items.
  *
- * ### Why not AVQueuePlayer
- * `AVQueuePlayer` consumes its items as it advances — a played item is gone
- * from `items()`. This port's contract is the opposite: [NowPlaying.queue] is
- * the whole queue with [NowPlaying.queueIndex] pointing into it, so the part
- * already played stays visible and doubles as listening history, and
- * [playAt] can jump anywhere in it. Owning the list here and driving one
- * player by swapping its current item models that directly. The cost is no
- * preroll of the next item, so tracks are not gapless; that is worth
- * revisiting for albums, not for shuffle.
+ * The queue is owned here rather than by an AVQueuePlayer: [NowPlaying.queue] is the whole queue,
+ * including played entries, and [playAt] may jump anywhere in it. The player node is rescheduled
+ * for the selected file while this controller preserves queue/history semantics.
  *
  * ### SMART queue strategy
  * Deliberately identical to the Android controller: hold [SMART_LOOKAHEAD]
@@ -84,13 +64,12 @@ import platform.darwin.NSObjectProtocol
 @OptIn(ExperimentalForeignApi::class)
 internal class IosPlaybackController(
     private val chooser: NextTrackChooser,
+    private val audioEngine: IosAudioEngine,
 ) : PlaybackController {
 
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val mutableState = MutableStateFlow(NowPlaying())
     override val state: StateFlow<NowPlaying> = mutableState.asStateFlow()
-
-    private val player = AVPlayer()
 
     /** Plays Music.app library items, including protected on-device downloads. */
     private val mediaPlayer = MPMusicPlayerController.applicationMusicPlayer
@@ -123,8 +102,6 @@ internal class IosPlaybackController(
      * Scoped to the current item, so a notification can only ever refer to the
      * track that actually finished — no stale end-of-item can double-advance.
      */
-    private var endOfItemObserver: NSObjectProtocol? = null
-
     /** Last values pushed to the lock screen, to keep the ticker off that path. */
     private var lastInfoTrackId: String? = null
     private var lastInfoPlaying: Boolean? = null
@@ -174,8 +151,7 @@ internal class IosPlaybackController(
             pauseActiveBackend()
             playing = false
         } else {
-            playActiveBackend()
-            playing = true
+            playing = playActiveBackend()
         }
         updateTicker()
         pushState()
@@ -356,24 +332,12 @@ internal class IosPlaybackController(
             return loadMediaLibraryItem(track, autoPlay)
         }
         val url = track.audioUri?.let { NSURL.URLWithString(it) } ?: return false
-        val item = AVPlayerItem(url)
 
         mediaItemStarted = false
         mediaPlayer.stop()
         activeBackend = PlaybackBackend.FILE
-
-        endOfItemObserver?.let { NSNotificationCenter.defaultCenter.removeObserver(it) }
-        endOfItemObserver = NSNotificationCenter.defaultCenter.addObserverForName(
-            AVPlayerItemDidPlayToEndTimeNotification,
-            item,
-            NSOperationQueue.mainQueue,
-        ) { _ -> mainScope.launch { onItemEnded() } }
-
-        player.replaceCurrentItemWithPlayerItem(item)
-        if (autoPlay) {
-            player.play()
-            playing = true
-        }
+        if (!audioEngine.load(url, autoPlay) { mainScope.launch { onItemEnded() } }) return false
+        playing = autoPlay
         updateTicker()
         return true
     }
@@ -383,9 +347,7 @@ internal class IosPlaybackController(
         val persistentId = track.id.value.removePrefix(MEDIA_ID_PREFIX)
         val item = resolveMediaItem(persistentId) ?: return false
 
-        endOfItemObserver?.let { NSNotificationCenter.defaultCenter.removeObserver(it) }
-        endOfItemObserver = null
-        player.pause()
+        audioEngine.stop()
         mediaItemStarted = false
         mediaPlayer.stop()
         mediaPlayer.setQueueWithItemCollection(MPMediaItemCollection(items = listOf(item)))
@@ -411,8 +373,7 @@ internal class IosPlaybackController(
     private fun onItemEnded() {
         if (repeat == RepeatMode.ONE) {
             seekActiveBackend(0L)
-            playActiveBackend()
-            playing = true
+            playing = playActiveBackend()
             pushState()
             return
         }
@@ -467,26 +428,24 @@ internal class IosPlaybackController(
 
     private fun pauseActiveBackend() {
         when (activeBackend) {
-            PlaybackBackend.FILE -> player.pause()
+            PlaybackBackend.FILE -> audioEngine.pause()
             PlaybackBackend.MEDIA_LIBRARY -> mediaPlayer.pause()
         }
     }
 
-    private fun playActiveBackend() {
+    private fun playActiveBackend(): Boolean =
         when (activeBackend) {
-            PlaybackBackend.FILE -> player.play()
+            PlaybackBackend.FILE -> audioEngine.play()
             PlaybackBackend.MEDIA_LIBRARY -> {
                 mediaItemStarted = true
                 mediaPlayer.play()
+                true
             }
         }
-    }
 
     private fun seekActiveBackend(positionMs: Long) {
         when (activeBackend) {
-            PlaybackBackend.FILE -> player.seekToTime(
-                CMTimeMakeWithSeconds(positionMs / 1000.0, PREFERRED_TIMESCALE),
-            )
+            PlaybackBackend.FILE -> audioEngine.seekTo(positionMs)
             PlaybackBackend.MEDIA_LIBRARY -> {
                 mediaPlayer.currentPlaybackTime = positionMs / 1000.0
             }
@@ -557,7 +516,7 @@ internal class IosPlaybackController(
      */
     private fun reconcilePlayingState() {
         val backendPaused = when (activeBackend) {
-            PlaybackBackend.FILE -> player.timeControlStatus == AVPlayerTimeControlStatusPaused
+            PlaybackBackend.FILE -> !audioEngine.playing
             PlaybackBackend.MEDIA_LIBRARY ->
                 mediaPlayer.playbackState == MPMusicPlaybackState.MPMusicPlaybackStatePaused ||
                     mediaPlayer.playbackState == MPMusicPlaybackState.MPMusicPlaybackStateInterrupted
@@ -579,8 +538,7 @@ internal class IosPlaybackController(
         if (activeBackend == PlaybackBackend.MEDIA_LIBRARY) {
             return (mediaPlayer.currentPlaybackTime * 1000.0).toLong().coerceAtLeast(0L)
         }
-        val seconds = CMTimeGetSeconds(player.currentTime())
-        return if (seconds.isNaN()) 0L else (seconds * 1000).toLong().coerceAtLeast(0L)
+        return audioEngine.positionMs()
     }
 
     @OptIn(ExperimentalForeignApi::class)
@@ -591,9 +549,7 @@ internal class IosPlaybackController(
                 ?.times(1000.0)
                 ?.toLong()
         }
-        val item = player.currentItem ?: return null
-        val seconds = CMTimeGetSeconds(item.duration())
-        return if (seconds.isNaN() || seconds <= 0) null else (seconds * 1000).toLong()
+        return audioEngine.durationMs()
     }
 
     private fun pushState() {
@@ -662,13 +618,11 @@ internal class IosPlaybackController(
         /** Past this point, "previous" restarts the track instead of stepping back. */
         const val RESTART_THRESHOLD_MS = 3_000L
 
-        /** CMTime ticks per second; 600 is the conventional audio/video base. */
-        const val PREFERRED_TIMESCALE = 600
     }
 
     private enum class PlaybackBackend { FILE, MEDIA_LIBRARY }
 }
 
 public actual fun playbackModule(): Module = module {
-    single<PlaybackController> { IosPlaybackController(chooser = get()) }
+    single<PlaybackController> { IosPlaybackController(chooser = get(), audioEngine = get()) }
 }
