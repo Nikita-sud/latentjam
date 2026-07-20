@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -79,7 +81,15 @@ internal fun TrackActionsSheet(
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.navigationBarsPadding()) {
+        // The complete action set is taller than compact phones (and grows further with large
+        // accessibility text). Let the sheet and this content negotiate nested scrolling so the
+        // non-destructive visibility action and delete confirmation can never be stranded below
+        // the viewport.
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding(),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
