@@ -125,9 +125,18 @@ internal class IosMusicLibrary : MusicLibrary {
 
     /** Converts the Music.app library into the same descriptors used by app-owned files. */
     @OptIn(ExperimentalForeignApi::class)
-    private fun scanDeviceLibrary(): List<TrackDescriptor> =
-        MPMediaQuery.songsQuery().items.orEmpty()
+    private fun scanDeviceLibrary(): List<TrackDescriptor> {
+        val songs = MPMediaQuery.songsQuery().items.orEmpty()
             .mapNotNull { it as? MPMediaItem }
+        // Some locally synced libraries contain audio whose media-type tag does not satisfy the
+        // `songs()` convenience predicate. Apple's documented unqualified query matches the whole
+        // media library, so merge it as a compatibility fallback and deduplicate by persistent ID.
+        val allMedia = MPMediaQuery(filterPredicates = null).items.orEmpty()
+            .mapNotNull { it as? MPMediaItem }
+        val items = (songs + allMedia).distinctBy { it.persistentID }
+        // Counts are useful for physical-device diagnosis without exposing private titles.
+        println("IOS_LIBRARY: songs=${songs.size}, allMedia=${allMedia.size}, unique=${items.size}")
+        return items
             .map { item ->
                 val persistentId = item.persistentID.toString()
                 TrackDescriptor(
@@ -148,6 +157,7 @@ internal class IosMusicLibrary : MusicLibrary {
                     year = null,
                 )
             }
+    }
 
     @OptIn(ExperimentalForeignApi::class)
     private fun scan(documents: String): List<TrackDescriptor> {
