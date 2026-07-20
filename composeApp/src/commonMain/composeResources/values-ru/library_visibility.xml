@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">Убрать из LatentJam</string>
+    <string name="action_undo">Отменить</string>
+    <string name="action_restore_hidden_tracks">Вернуть скрытые треки</string>
+    <string name="snack_removed_from_latentjam">Убрано из LatentJam. Файл на телефоне сохранён.</string>
+    <string name="snack_hidden_tracks_restored">Скрытые треки снова видны.</string>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_folders">Папки</string>
+    <string name="folder_content_description">Папка с музыкой</string>
+</resources>

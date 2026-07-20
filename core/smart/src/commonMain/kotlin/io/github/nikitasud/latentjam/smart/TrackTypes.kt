@@ -39,6 +39,9 @@ public value class TrackId(public val value: String)
  *   for UI and media-notification display. The engine ignores it.
  * @property addedAtMs When the track appeared in the device library (epoch
  *   ms), for recency sorting. The engine ignores it.
+ * @property folderPath User-facing source folder, relative to shared storage
+ *   when the platform exposes one. The engine ignores it; the library browser
+ *   uses it to keep Downloads, Music, Telegram, and imported files separate.
  */
 public data class TrackDescriptor(
     public val id: TrackId,
@@ -50,6 +53,7 @@ public data class TrackDescriptor(
     public val audioUri: String? = null,
     public val artworkUri: String? = null,
     public val addedAtMs: Long? = null,
+    public val folderPath: String? = null,
     /** Release year. Feeds the chain's era penalty, so a missing value simply costs that signal. */
     public val year: Int? = null,
     /** Loudness in `[0, 1]`, or null when unmeasured. Feeds the chain's energy-smoothness term. */

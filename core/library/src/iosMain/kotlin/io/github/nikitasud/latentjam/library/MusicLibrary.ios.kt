@@ -78,6 +78,9 @@ internal class IosMusicLibrary : MusicLibrary {
     /** Prevents concurrent first screens from presenting the privacy prompt more than once. */
     private val authorizationMutex = Mutex()
 
+    /** Serializes the small app-only visibility file. */
+    private val visibilityMutex = Mutex()
+
     /** Relative path → last scan result, reused while size and mtime agree. */
     private val cache = mutableMapOf<String, CachedTrack>()
 
@@ -88,6 +91,7 @@ internal class IosMusicLibrary : MusicLibrary {
     )
 
     override suspend fun tracks(): List<TrackDescriptor> {
+        val hidden = hiddenTrackIds()
         val canReadDeviceLibrary = mediaLibraryAuthorized()
         val device = if (canReadDeviceLibrary) {
             // MediaPlayer's controller is explicitly main-thread-only. Keeping its query here as
@@ -101,8 +105,50 @@ internal class IosMusicLibrary : MusicLibrary {
         }
         return (documents + device)
             .distinctBy { it.id }
+            .filterNot { it.id.value in hidden }
             .sortedBy { it.title?.lowercase() ?: "" }
     }
+
+    override suspend fun hide(trackId: TrackId): Unit = withContext(Dispatchers.Default) {
+        visibilityMutex.withLock {
+            val hidden = readHiddenTrackIds().toMutableSet()
+            if (hidden.add(trackId.value)) writeHiddenTrackIds(hidden)
+        }
+    }
+
+    override suspend fun unhide(trackId: TrackId): Unit = withContext(Dispatchers.Default) {
+        visibilityMutex.withLock {
+            val hidden = readHiddenTrackIds().toMutableSet()
+            if (hidden.remove(trackId.value)) writeHiddenTrackIds(hidden)
+        }
+    }
+
+    override suspend fun hasHiddenTracks(): Boolean = withContext(Dispatchers.Default) {
+        visibilityMutex.withLock { readHiddenTrackIds().isNotEmpty() }
+    }
+
+    override suspend fun unhideAll(): Unit = withContext(Dispatchers.Default) {
+        visibilityMutex.withLock { writeHiddenTrackIds(emptySet()) }
+    }
+
+    private suspend fun hiddenTrackIds(): Set<String> = withContext(Dispatchers.Default) {
+        visibilityMutex.withLock { readHiddenTrackIds() }
+    }
+
+    private fun readHiddenTrackIds(): Set<String> = hiddenTrackPath()
+        ?.let(::readLinesOrEmpty)
+        .orEmpty()
+        .mapNotNull(::decodeHexString)
+        .toSet()
+
+    private fun writeHiddenTrackIds(ids: Set<String>) {
+        hiddenTrackPath()?.let { path ->
+            writeText(path, ids.sorted().joinToString("\n", transform = String::encodeHexString))
+        }
+    }
+
+    private fun hiddenTrackPath(): String? =
+        IosPaths.appSupport()?.let { IosPaths.child(it, HIDDEN_FILE_NAME) }
 
     /** Requests the system privacy grant once, on the main thread as UIKit expects. */
     private suspend fun mediaLibraryAuthorized(): Boolean = authorizationMutex.withLock {
@@ -148,6 +194,7 @@ internal class IosMusicLibrary : MusicLibrary {
                     audioUri = item.assetURL?.absoluteString,
                     artworkUri = null,
                     addedAtMs = null,
+                    folderPath = "Music",
                     year = null,
                 )
             }
@@ -250,6 +297,7 @@ internal class IosMusicLibrary : MusicLibrary {
             audioUri = url.absoluteString,
             artworkUri = artwork?.let { cacheArtwork(it, relativePath, sizeBytes) },
             addedAtMs = addedAtMs,
+            folderPath = relativePath.substringBeforeLast('/', "").ifBlank { "Imported" },
             year = (asset.firstString(YEAR_IDENTIFIERS) ?: asset.rawString("DATE", "YEAR") ?: created)
                 ?.let(::parseYear),
         )
@@ -352,6 +400,7 @@ internal class IosMusicLibrary : MusicLibrary {
 
         /** Namespace shared with the iOS playback controller. */
         const val MEDIA_ID_PREFIX = "ios-media:"
+        const val HIDDEN_FILE_NAME = "hidden_tracks.txt"
 
         /** Untagged clips below this are overwhelmingly alerts/effects, not library tracks. */
         const val MIN_UNTAGGED_MUSIC_DURATION_MS = 30_000L
@@ -360,7 +409,22 @@ internal class IosMusicLibrary : MusicLibrary {
             "alarms", "notifications", "recordings", "ringtones", "sfx", "sound effects",
             "voice memos",
         )
+
     }
+}
+
+/** Newline-safe storage for arbitrary relative paths and MediaPlayer IDs. */
+private fun String.encodeHexString(): String = encodeToByteArray().joinToString("") { byte ->
+    (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+}
+
+private fun decodeHexString(value: String): String? {
+    if (value.length % 2 != 0) return null
+    return runCatching {
+        ByteArray(value.length / 2) { index ->
+            value.substring(index * 2, index * 2 + 2).toInt(16).toByte()
+        }.decodeToString()
+    }.getOrNull()
 }
 
 /** Whole-file rewrite; playlists are few and short. */

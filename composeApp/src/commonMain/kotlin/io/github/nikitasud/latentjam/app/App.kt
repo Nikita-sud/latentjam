@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -51,6 +52,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
@@ -75,6 +77,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -111,6 +114,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_play_all
 import io.github.nikitasud.latentjam.app.generated.resources.action_previous
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
 import io.github.nikitasud.latentjam.app.generated.resources.action_rescan_library
+import io.github.nikitasud.latentjam.app.generated.resources.action_restore_hidden_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.action_undo
 import io.github.nikitasud.latentjam.app.generated.resources.action_shuffle_all
 import io.github.nikitasud.latentjam.app.generated.resources.cd_more_options
 import io.github.nikitasud.latentjam.app.generated.resources.cd_search_library
@@ -143,6 +148,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.library_import_hint
 import io.github.nikitasud.latentjam.app.generated.resources.library_import_none
 import io.github.nikitasud.latentjam.app.generated.resources.library_import_partial
 import io.github.nikitasud.latentjam.app.generated.resources.library_imported
+import io.github.nikitasud.latentjam.app.generated.resources.folder_content_description
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_rename_title
 import io.github.nikitasud.latentjam.app.generated.resources.settings_title
@@ -150,10 +156,13 @@ import io.github.nikitasud.latentjam.app.generated.resources.snack_added_to_play
 import io.github.nikitasud.latentjam.app.generated.resources.snack_playlist_created
 import io.github.nikitasud.latentjam.app.generated.resources.snack_playlist_deleted
 import io.github.nikitasud.latentjam.app.generated.resources.snack_track_deleted
+import io.github.nikitasud.latentjam.app.generated.resources.snack_removed_from_latentjam
+import io.github.nikitasud.latentjam.app.generated.resources.snack_hidden_tracks_restored
 import io.github.nikitasud.latentjam.app.generated.resources.sort_recently_added
 import io.github.nikitasud.latentjam.app.generated.resources.tab_albums
 import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
 import io.github.nikitasud.latentjam.app.generated.resources.tab_for_you
+import io.github.nikitasud.latentjam.app.generated.resources.tab_folders
 import io.github.nikitasud.latentjam.app.generated.resources.tab_genres
 import io.github.nikitasud.latentjam.app.generated.resources.tab_playlists
 import io.github.nikitasud.latentjam.app.generated.resources.tab_tracks
@@ -165,6 +174,7 @@ import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.AlbumGroup
 import io.github.nikitasud.latentjam.library.ArtistGroup
 import io.github.nikitasud.latentjam.library.AutoPlaylists
+import io.github.nikitasud.latentjam.library.FolderGroup
 import io.github.nikitasud.latentjam.library.GenreGroup
 import io.github.nikitasud.latentjam.library.LibraryCatalog
 import io.github.nikitasud.latentjam.library.MusicLibrary
@@ -243,6 +253,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var showSearch by remember { mutableStateOf(false) }
         var trackMenuTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
         var deleteTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
+        var hasHiddenTracks by remember { mutableStateOf(false) }
         var indexSummary by remember { mutableStateOf<String?>(null) }
         var indexFailureDetails by remember { mutableStateOf<List<String>>(emptyList()) }
         var historySummary by remember { mutableStateOf<String?>(null) }
@@ -280,7 +291,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
-        LaunchedEffect(Unit) { tracks = library.tracks() }
+        LaunchedEffect(Unit) {
+            tracks = library.tracks()
+            hasHiddenTracks = library.hasHiddenTracks()
+        }
 
         // Arm SMART in the background as soon as the library is known: load the models, restore the
         // persisted index, and backfill any missing metadata-text vectors. All idempotent. Doing it
@@ -555,6 +569,30 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     },
                                                 )
                                             }
+                                            if (hasHiddenTracks) {
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            stringResource(
+                                                                Res.string.action_restore_hidden_tracks,
+                                                            ),
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        dismiss()
+                                                        scope.launch {
+                                                            library.unhideAll()
+                                                            tracks = library.tracks()
+                                                            hasHiddenTracks = false
+                                                            snackbar.showSnackbar(
+                                                                getString(
+                                                                    Res.string.snack_hidden_tracks_restored,
+                                                                ),
+                                                            )
+                                                        }
+                                                    },
+                                                )
+                                            }
                                             DropdownMenuItem(
                                                 text = { Text(stringResource(Res.string.settings_title)) },
                                                 onClick = {
@@ -778,7 +816,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             }
                                         }
 
-                                        else -> LazyColumn(
+                                        GENRES_TAB -> LazyColumn(
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = listPadding,
                                         ) {
@@ -796,6 +834,26 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 ) {
                                                     scope.launch {
                                                         selectedCollection = genre.toSelection()
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        FOLDERS_TAB -> LazyColumn(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentPadding = listPadding,
+                                        ) {
+                                            items(catalog.folders, key = { it.path }) { folder ->
+                                                FolderRow(
+                                                    folder = folder,
+                                                    subtitle = pluralStringResource(
+                                                        Res.plurals.count_tracks,
+                                                        folder.tracks.size,
+                                                        folder.tracks.size,
+                                                    ),
+                                                ) {
+                                                    scope.launch {
+                                                        selectedCollection = folder.toSelection()
                                                     }
                                                 }
                                             }
@@ -869,6 +927,34 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onGoToAlbum = { showAlbumOf(target) },
                 onGoToArtist = { showArtistOf(target) },
                 onInfo = { infoTarget = target },
+                onHide = {
+                    scope.launch {
+                        val collectionBeforeHide = selectedCollection
+                        library.hide(target.id)
+                        tracks = library.tracks()
+                        hasHiddenTracks = true
+                        val collectionAfterHide = collectionBeforeHide?.let { selection ->
+                            val remaining = selection.tracks.filterNot { it.id == target.id }
+                            selection.copy(tracks = remaining).takeIf { remaining.isNotEmpty() }
+                        }
+                        selectedCollection = collectionAfterHide
+                        val result = snackbar.showSnackbar(
+                            message = getString(Res.string.snack_removed_from_latentjam),
+                            actionLabel = getString(Res.string.action_undo),
+                            withDismissAction = true,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            library.unhide(target.id)
+                            tracks = library.tracks()
+                            hasHiddenTracks = library.hasHiddenTracks()
+                            // Do not reopen a detail page the listener closed while the snackbar
+                            // was visible; restore only the collection state this action changed.
+                            if (selectedCollection === collectionAfterHide) {
+                                selectedCollection = collectionBeforeHide
+                            }
+                        }
+                    }
+                },
                 canDelete = target.audioUri != null &&
                     !target.id.value.startsWith("ios-media:"),
                 onDelete = { deleteTarget = target },
@@ -1033,12 +1119,15 @@ private val BROWSE_TABS: List<StringResource> = listOf(
     Res.string.tab_albums,
     Res.string.tab_artists,
     Res.string.tab_genres,
+    Res.string.tab_folders,
 )
 
 /** Playlists lead the carousel, but the app opens on Tracks. */
 private const val FOR_YOU_TAB = 0
 private const val PLAYLISTS_TAB = 1
 private const val TRACKS_TAB = 2
+private const val GENRES_TAB = 5
+private const val FOLDERS_TAB = 6
 
 /** Persist-and-report granularity for library indexing. */
 private const val RECENT_EVENTS_FOR_YOU = 500
@@ -1089,6 +1178,13 @@ private suspend fun ArtistGroup.toSelection() = CollectionSelection(
 private suspend fun GenreGroup.toSelection() = CollectionSelection(
     title = name ?: getString(Res.string.track_unknown_genre),
     subtitle = trackCountLabel(tracks.size),
+    artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
+    tracks = tracks,
+)
+
+private suspend fun FolderGroup.toSelection() = CollectionSelection(
+    title = name,
+    subtitle = path + SUBTITLE_SEPARATOR + trackCountLabel(tracks.size),
     artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
     tracks = tracks,
 )
@@ -1393,6 +1489,53 @@ private fun GroupRow(title: String, subtitle: String, artworkUri: String?, onCli
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+/** Folder rows use a stable folder glyph; an arbitrary first cover would misrepresent the source. */
+@Composable
+private fun FolderRow(folder: FolderGroup, subtitle: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Folder,
+                contentDescription = stringResource(Res.string.folder_content_description),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = folder.name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = folder.path,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

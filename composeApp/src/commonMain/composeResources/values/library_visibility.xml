@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">Remove from LatentJam</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_restore_hidden_tracks">Restore hidden tracks</string>
+    <string name="snack_removed_from_latentjam">Removed from LatentJam. The phone file was kept.</string>
+    <string name="snack_hidden_tracks_restored">Hidden tracks are visible again.</string>
+</resources>

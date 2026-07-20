@@ -10,6 +10,8 @@ import android.provider.MediaStore
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -30,8 +32,12 @@ internal class MediaStoreMusicLibrary(
     private val context: Context,
 ) : MusicLibrary {
 
+    private val visibilityMutex = Mutex()
+    private val hiddenFile = java.io.File(context.filesDir, HIDDEN_FILE_NAME)
+
     override suspend fun tracks(): List<TrackDescriptor> = withContext(Dispatchers.IO) {
         val tracks = mutableListOf<TrackDescriptor>()
+        val hidden = visibilityMutex.withLock { readHiddenIds() }
         // GENRE joined into the audio table only since API 30.
         val genreSupported = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R
         val projection = buildList {
@@ -43,6 +49,12 @@ internal class MediaStoreMusicLibrary(
             add(MediaStore.Audio.Media.DURATION)
             add(MediaStore.Audio.Media.DATE_ADDED)
             add(MediaStore.Audio.Media.YEAR)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                add(MediaStore.Audio.Media.RELATIVE_PATH)
+            } else {
+                @Suppress("DEPRECATION")
+                add(MediaStore.Audio.Media.DATA)
+            }
             if (genreSupported) add(MediaStore.Audio.Media.GENRE)
         }.toTypedArray()
         context.contentResolver.query(
@@ -60,9 +72,16 @@ internal class MediaStoreMusicLibrary(
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val addedColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
             val yearColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+            val folderColumn = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+            } else {
+                @Suppress("DEPRECATION")
+                cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+            }
             val genreColumn = if (genreSupported) cursor.getColumnIndex(MediaStore.Audio.Media.GENRE) else -1
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
+                if (id.toString() in hidden) continue
                 val albumId = cursor.getLong(albumIdColumn)
                 tracks += TrackDescriptor(
                     id = TrackId(id.toString()),
@@ -79,6 +98,7 @@ internal class MediaStoreMusicLibrary(
                     },
                     // MediaStore stores DATE_ADDED in epoch seconds.
                     addedAtMs = cursor.getLong(addedColumn).takeIf { it > 0 }?.times(1000),
+                    folderPath = cursor.getString(folderColumn)?.toFolderPath(),
                     year = cursor.getInt(yearColumn).takeIf { it > 0 },
                 )
             }
@@ -86,13 +106,55 @@ internal class MediaStoreMusicLibrary(
         tracks
     }
 
+    override suspend fun hide(trackId: TrackId): Unit = withContext(Dispatchers.IO) {
+        visibilityMutex.withLock {
+            val hidden = readHiddenIds().toMutableSet()
+            if (hidden.add(trackId.value)) writeHiddenIds(hidden)
+        }
+    }
+
+    override suspend fun unhide(trackId: TrackId): Unit = withContext(Dispatchers.IO) {
+        visibilityMutex.withLock {
+            val hidden = readHiddenIds().toMutableSet()
+            if (hidden.remove(trackId.value)) writeHiddenIds(hidden)
+        }
+    }
+
+    override suspend fun hasHiddenTracks(): Boolean = withContext(Dispatchers.IO) {
+        visibilityMutex.withLock { readHiddenIds().isNotEmpty() }
+    }
+
+    override suspend fun unhideAll(): Unit = withContext(Dispatchers.IO) {
+        visibilityMutex.withLock { writeHiddenIds(emptySet()) }
+    }
+
+    private fun readHiddenIds(): Set<String> =
+        if (hiddenFile.exists()) hiddenFile.readLines().filter(String::isNotBlank).toSet()
+        else emptySet()
+
+    private fun writeHiddenIds(ids: Set<String>) {
+        hiddenFile.writeText(ids.sorted().joinToString("\n"))
+    }
+
     /** MediaStore reports missing tags as the literal string "<unknown>". */
     private fun String?.knownOrNull(): String? =
         this?.takeIf { it.isNotBlank() && it != MediaStore.UNKNOWN_STRING }
 
+    private fun String.toFolderPath(): String? {
+        val normalized = replace('\\', '/').trimEnd('/')
+        val folder = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            normalized
+        } else {
+            normalized.substringBeforeLast('/', "")
+                .substringAfterLast("/storage/emulated/0/", missingDelimiterValue = normalized)
+        }
+        return folder.takeIf(String::isNotBlank)
+    }
+
     private companion object {
         /** Base of the classic per-album artwork content URIs. */
         val ALBUM_ART_URI: android.net.Uri = android.net.Uri.parse("content://media/external/audio/albumart")
+        const val HIDDEN_FILE_NAME = "hidden_tracks.txt"
     }
 }
 

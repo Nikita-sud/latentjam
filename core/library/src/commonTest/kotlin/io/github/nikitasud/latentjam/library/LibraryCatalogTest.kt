@@ -20,6 +20,7 @@ internal class LibraryCatalogTest {
         album: String? = null,
         genre: String? = null,
         artworkUri: String? = null,
+        folderPath: String? = null,
     ) = TrackDescriptor(
         id = TrackId(id),
         title = title,
@@ -27,6 +28,7 @@ internal class LibraryCatalogTest {
         album = album,
         genre = genre,
         artworkUri = artworkUri,
+        folderPath = folderPath,
     )
 
     @Test
@@ -81,5 +83,26 @@ internal class LibraryCatalogTest {
         assertEquals(listOf("Ambient", "Rock", null), catalog.genres.map { it.name })
         assertNull(catalog.genres.last().name)
         assertEquals(1, catalog.genres.last().tracks.size)
+    }
+
+    @Test
+    fun foldersUseTheFullPathAsIdentityAndTheLastSegmentAsLabel() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", title = "B", folderPath = "Music/Telegram"),
+                track("2", title = "A", folderPath = "Downloads/Telegram"),
+                track("3", title = "C", folderPath = null),
+            ),
+        )
+
+        assertEquals(listOf("Music", "Telegram", "Telegram"), catalog.folders.map { it.name })
+        assertEquals(
+            listOf("Music", "Downloads/Telegram", "Music/Telegram"),
+            catalog.folders.map { it.path },
+        )
+        assertContentEquals(
+            listOf("A"),
+            catalog.folders.first { it.path == "Downloads/Telegram" }.tracks.map { it.title },
+        )
     }
 }

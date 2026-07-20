@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -46,6 +47,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_go_to_artist
 import io.github.nikitasud.latentjam.app.generated.resources.action_information
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_play_next
+import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_latentjam
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message_generic
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_title
@@ -71,6 +73,7 @@ internal fun TrackActionsSheet(
     onGoToAlbum: () -> Unit,
     onGoToArtist: () -> Unit,
     onInfo: () -> Unit,
+    onHide: () -> Unit,
     canDelete: Boolean,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
@@ -133,6 +136,10 @@ internal fun TrackActionsSheet(
                 Icons.Rounded.Info,
                 stringResource(Res.string.action_information),
             ) { onDismiss(); onInfo() }
+            SheetAction(
+                Icons.Rounded.VisibilityOff,
+                stringResource(Res.string.action_remove_from_latentjam),
+            ) { onDismiss(); onHide() }
             if (canDelete) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 SheetAction(

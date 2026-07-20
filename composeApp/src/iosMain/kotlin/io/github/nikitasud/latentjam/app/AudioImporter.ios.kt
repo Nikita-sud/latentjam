@@ -82,7 +82,14 @@ private fun copyIntoDocuments(urls: List<NSURL>): AudioImportResult {
         true,
     ).firstOrNull() as? String ?: return AudioImportResult(0, 0, urls.size)
     val manager = NSFileManager.defaultManager
-    val destinationDirectory = NSURL.fileURLWithPath(documents, isDirectory = true)
+    val destinationPath = "$documents/$IMPORTED_DIRECTORY"
+    manager.createDirectoryAtPath(
+        destinationPath,
+        withIntermediateDirectories = true,
+        attributes = null,
+        error = null,
+    )
+    val destinationDirectory = NSURL.fileURLWithPath(destinationPath, isDirectory = true)
     var imported = 0
     var skipped = 0
     var failed = 0
@@ -109,3 +116,5 @@ private fun copyIntoDocuments(urls: List<NSURL>): AudioImportResult {
     }
     return AudioImportResult(imported, skipped, failed)
 }
+
+private const val IMPORTED_DIRECTORY = "Imported"

@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.library
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import org.koin.core.module.Module
 
 /**
@@ -27,6 +28,18 @@ public interface MusicLibrary {
      * return an empty list rather than throwing.
      */
     public suspend fun tracks(): List<TrackDescriptor>
+
+    /** Hides [trackId] in LatentJam without modifying the source file on the device. */
+    public suspend fun hide(trackId: TrackId)
+
+    /** Makes a previously hidden track visible again. */
+    public suspend fun unhide(trackId: TrackId)
+
+    /** Whether the app-only hidden list contains at least one track. */
+    public suspend fun hasHiddenTracks(): Boolean
+
+    /** Restores every app-hidden track without modifying any source files. */
+    public suspend fun unhideAll()
 }
 
 /**

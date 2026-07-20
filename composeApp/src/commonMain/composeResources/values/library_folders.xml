@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_folders">Folders</string>
+    <string name="folder_content_description">Music folder</string>
+</resources>

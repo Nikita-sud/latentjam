@@ -36,11 +36,18 @@ public data class GenreGroup(
     public val tracks: List<TrackDescriptor>,
 )
 
+/** A storage/source folder. [path] is the stable grouping key; [name] is its last segment. */
+public data class FolderGroup(
+    public val path: String,
+    public val name: String,
+    public val tracks: List<TrackDescriptor>,
+)
+
 /**
  * The whole library, grouped for browsing. Pure derivation from the flat
  * track list — no platform types, trivially testable.
  *
- * Sorting: albums by title, artists/genres by name (case-insensitive),
+ * Sorting: albums by title, artists/genres/folders by name (case-insensitive),
  * unknown (null) buckets last; an album's tracks by title until real track
  * numbers arrive with the own scanner.
  */
@@ -49,6 +56,7 @@ public data class LibraryCatalog(
     public val albums: List<AlbumGroup>,
     public val artists: List<ArtistGroup>,
     public val genres: List<GenreGroup>,
+    public val folders: List<FolderGroup>,
 ) {
     public companion object {
 
@@ -91,12 +99,26 @@ public data class LibraryCatalog(
                 }
                 .sortedBy { it.name?.lowercase() ?: "￿" }
 
+            val folders = tracks
+                .groupBy { it.folderPath?.trim('/') ?: DEFAULT_FOLDER }
+                .map { (path, grouped) ->
+                    FolderGroup(
+                        path = path,
+                        name = path.substringAfterLast('/'),
+                        tracks = grouped.sortedBy { it.title?.lowercase() ?: "￿" },
+                    )
+                }
+                .sortedWith(compareBy<FolderGroup> { it.name.lowercase() }.thenBy { it.path.lowercase() })
+
             return LibraryCatalog(
                 songs = tracks,
                 albums = albums,
                 artists = artists,
                 genres = genres,
+                folders = folders,
             )
         }
+
+        private const val DEFAULT_FOLDER = "Music"
     }
 }
