@@ -262,6 +262,18 @@ was logged. On the existing install the acoustic index grew from 71 to 158 entri
 confirming small persisted batches. This is evidence for correctness on one high-end phone, not a
 representative indexing, memory, battery, or thermal benchmark.
 
+A physical iPhone 15 Pro Max running iOS 26.5 also passed the packaged-app path. Music-library
+authorization completed, Files imports were copied into the app container, playback worked, and an
+eight-track acoustic index persisted across rebuild/install and relaunch: the subsequent launch
+reported `Ready(indexedCount=8)` and encoded zero replacement vectors. The device's MediaPlayer
+library itself returned zero songs because these files came from Files/Downloads rather than the
+synced Apple Music library; the importer is therefore a required iOS source, not a fallback error.
+The same revision passed an iOS Simulator first-permission launch and a UI regression in which the
+track list was jumped to the R section, the full player was opened and closed, and the exact R-section
+position was retained. The raised queue panel and persistent mini-player rendered correctly. A
+representative physical-iPhone indexing/thermal benchmark still needs a larger locally imported
+library; eight tracks establish persistence and correctness, not performance at scale.
+
 [ONNX Runtime's mobile guidance](https://onnxruntime.ai/docs/tutorials/mobile/) supports Android and
 iOS, recommends starting with CPU/XNNPACK, and treats NNAPI/CoreML gains as device- and graph-specific.
 That matches the implementation: one graph contract and shared Kotlin logic, with native platform
