@@ -1,0 +1,20 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LatentJam logo">
+    <title>LatentJam</title>
+    <rect width="100" height="100" rx="20" fill="#212121"/>
+
+    <defs>
+        <linearGradient id="grad1" x1="20" y1="20" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#8E24AA"/>
+            <stop offset="1" stop-color="#00ACC1"/>
+        </linearGradient>
+    </defs>
+
+    <circle cx="30" cy="30" r="6" fill="url(#grad1)"/>
+    <circle cx="70" cy="50" r="6" fill="url(#grad1)"/>
+    <circle cx="45" cy="75" r="6" fill="url(#grad1)"/>
+
+    <path d="M30 30 C 50 30, 50 50, 70 50" stroke="url(#grad1)" stroke-width="4" stroke-linecap="round"/>
+    <path d="M70 50 C 70 70, 60 75, 45 75" stroke="url(#grad1)" stroke-width="4" stroke-linecap="round"/>
+
+    <path d="M30 30 V 75 H 45" stroke="url(#grad1)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+</svg>
