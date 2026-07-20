@@ -19,8 +19,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -319,9 +317,8 @@ private fun EqualizerSettings(equalizer: EqualizerController) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(260.dp)
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
                     state.bands.forEach { band ->
                         BandSlider(
@@ -329,6 +326,7 @@ private fun EqualizerSettings(equalizer: EqualizerController) {
                             value = band.levelMillibels.toFloat(),
                             range = state.minLevelMillibels.toFloat()..state.maxLevelMillibels.toFloat(),
                             enabled = state.enabled,
+                            compact = state.bands.size > 6,
                             onChange = { scope.launch { equalizer.setBandLevel(band.index, it.toInt()) } },
                         )
                     }
@@ -373,6 +371,7 @@ private fun BandSlider(
     value: Float,
     range: ClosedFloatingPointRange<Float>,
     enabled: Boolean,
+    compact: Boolean,
     onChange: (Float) -> Unit,
 ) {
     Column(
@@ -386,7 +385,7 @@ private fun BandSlider(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Box(
-            modifier = Modifier.weight(1f).width(48.dp),
+            modifier = Modifier.weight(1f).width(if (compact) 32.dp else 48.dp),
             contentAlignment = Alignment.Center,
         ) {
             Slider(
