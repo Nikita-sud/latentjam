@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.playback
 
 import android.content.Context
+import android.media.AudioManager
 import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
 import android.content.SharedPreferences
@@ -33,15 +34,41 @@ internal class AndroidEqualizerController(context: Context) : EqualizerControlle
     private val mutableState = MutableStateFlow(EqualizerState())
     override val state: StateFlow<EqualizerState> = mutableState.asStateFlow()
 
+    private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
 
     init {
         // Follows the player's session for the app's lifetime: the service can be torn down and
-        // rebuilt underneath us, and each new session needs the stored curve applied again.
+        // rebuilt underneath us, and each new session needs the stored curve applied again. When
+        // the session goes away, fall back to a probe rather than nothing, so the screen stays a
+        // working equalizer instead of claiming the device has none.
         AudioSessionRegistry.observe { sessionId ->
-            if (sessionId == null) release() else attachTo(sessionId)
+            if (sessionId == null) attachToProbe() else attachTo(sessionId)
         }
+        // observe() only replays a session that already exists, so with nothing playing the effect
+        // would never attach and the screen would wrongly read "no equalizer". Attach a probe up
+        // front so the controls are usable before the first track — the curve is persisted and
+        // re-applied to the real player session the moment playback starts.
+        if (equalizer == null) attachToProbe()
+    }
+
+    /**
+     * Attaches to a throwaway session so capabilities can be read and the curve pre-configured
+     * without anything playing.
+     *
+     * A generated session id backs a real [Equalizer] the framework will happily create; it just
+     * carries no audio. That is enough to render the device's actual bands and presets and to hold
+     * the user's edits, all of which persist and transfer to the player session on [attachTo].
+     */
+    private fun attachToProbe() {
+        val probeSession = runCatching { audioManager.generateAudioSessionId() }.getOrNull()
+        if (probeSession == null || probeSession <= 0) {
+            release()
+            mutableState.value = EqualizerState(available = false)
+            return
+        }
+        attachTo(probeSession)
     }
 
     /**
