@@ -128,15 +128,9 @@ internal class IosMusicLibrary : MusicLibrary {
     private fun scanDeviceLibrary(): List<TrackDescriptor> {
         val songs = MPMediaQuery.songsQuery().items.orEmpty()
             .mapNotNull { it as? MPMediaItem }
-        // Some locally synced libraries contain audio whose media-type tag does not satisfy the
-        // `songs()` convenience predicate. Apple's documented unqualified query matches the whole
-        // media library, so merge it as a compatibility fallback and deduplicate by persistent ID.
-        val allMedia = MPMediaQuery(filterPredicates = null).items.orEmpty()
-            .mapNotNull { it as? MPMediaItem }
-        val items = (songs + allMedia).distinctBy { it.persistentID }
         // Counts are useful for physical-device diagnosis without exposing private titles.
-        println("IOS_LIBRARY: songs=${songs.size}, allMedia=${allMedia.size}, unique=${items.size}")
-        return items
+        println("IOS_LIBRARY: songs=${songs.size}")
+        return songs.distinctBy { it.persistentID }
             .map { item ->
                 val persistentId = item.persistentID.toString()
                 TrackDescriptor(
@@ -189,7 +183,7 @@ internal class IosMusicLibrary : MusicLibrary {
             live += relativePath
             val cached = cache[relativePath]
             if (cached != null && cached.sizeBytes == sizeBytes && cached.modifiedAtMs == modifiedAtMs) {
-                found += cached.descriptor
+                if (cached.descriptor.isLikelyMusic(relativePath)) found += cached.descriptor
                 continue
             }
 
@@ -202,7 +196,7 @@ internal class IosMusicLibrary : MusicLibrary {
                 addedAtMs = addedAtMs,
             )
             cache[relativePath] = CachedTrack(modifiedAtMs, sizeBytes, descriptor)
-            found += descriptor
+            if (descriptor.isLikelyMusic(relativePath)) found += descriptor
         }
 
         // Drop entries for files the user has since deleted, so the cache cannot
@@ -315,6 +309,20 @@ internal class IosMusicLibrary : MusicLibrary {
 
     private fun String?.knownOrNull(): String? = this?.takeIf { it.isNotBlank() }
 
+    /**
+     * Files.app exposes every audio-shaped download, including notification clips and effects.
+     * Keep explicitly tagged music regardless of length; otherwise require a song-like duration
+     * and reject the conventional non-music folders. This mirrors Android's `IS_MUSIC` boundary
+     * without pretending iOS file providers supply an equivalent media classification.
+     */
+    private fun TrackDescriptor.isLikelyMusic(relativePath: String): Boolean {
+        val normalized = "/${relativePath.lowercase().replace('\\', '/')}"
+        if (NON_MUSIC_PATH_SEGMENTS.any { segment -> "/$segment/" in normalized }) return false
+        val explicitlyTagged = !album.isNullOrBlank() || !genre.isNullOrBlank()
+        if (explicitlyTagged) return true
+        return durationMs?.let { it >= MIN_UNTAGGED_MUSIC_DURATION_MS } == true
+    }
+
     private companion object {
         /**
          * Container extensions AVFoundation can decode on iOS.
@@ -344,6 +352,14 @@ internal class IosMusicLibrary : MusicLibrary {
 
         /** Namespace shared with the iOS playback controller. */
         const val MEDIA_ID_PREFIX = "ios-media:"
+
+        /** Untagged clips below this are overwhelmingly alerts/effects, not library tracks. */
+        const val MIN_UNTAGGED_MUSIC_DURATION_MS = 30_000L
+
+        val NON_MUSIC_PATH_SEGMENTS = setOf(
+            "alarms", "notifications", "recordings", "ringtones", "sfx", "sound effects",
+            "voice memos",
+        )
     }
 }
 
