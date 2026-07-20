@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -394,7 +395,10 @@ private fun BandSlider(
                 valueRange = range,
                 enabled = enabled,
                 modifier = Modifier
-                    .width(200.dp)
+                    // Ignore the narrow column's measurement constraint before rotating; otherwise
+                    // the nominal 200 dp slider is squeezed to the column width and becomes a
+                    // tiny horizontal-looking control after rotation.
+                    .requiredWidth(200.dp)
                     .graphicsLayer { rotationZ = -90f },
             )
         }
