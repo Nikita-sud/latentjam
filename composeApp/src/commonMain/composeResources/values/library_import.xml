@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">Import music</string>
+    <string name="library_import_hint">Choose audio files from Downloads or another Files folder.</string>
+    <plurals name="library_imported">
+        <item quantity="one">Imported %1$d track</item>
+        <item quantity="other">Imported %1$d tracks</item>
+    </plurals>
+    <string name="library_import_none">No new tracks were imported.</string>
+    <string name="library_import_partial">%1$d imported, %2$d skipped, %3$d failed</string>
+</resources>

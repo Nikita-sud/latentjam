@@ -138,6 +138,11 @@ import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_discover
 import io.github.nikitasud.latentjam.app.generated.resources.info_artist
 import io.github.nikitasud.latentjam.app.generated.resources.info_title
 import io.github.nikitasud.latentjam.app.generated.resources.library_empty
+import io.github.nikitasud.latentjam.app.generated.resources.library_import_action
+import io.github.nikitasud.latentjam.app.generated.resources.library_import_hint
+import io.github.nikitasud.latentjam.app.generated.resources.library_import_none
+import io.github.nikitasud.latentjam.app.generated.resources.library_import_partial
+import io.github.nikitasud.latentjam.app.generated.resources.library_imported
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_rename_title
 import io.github.nikitasud.latentjam.app.generated.resources.settings_title
@@ -253,6 +258,27 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // Screens that already inset themselves against the navigation bar only need the pill's
         // own height on top.
         val floatingPlayerInset = if (now.track != null) MINI_PLAYER_HEIGHT else 0.dp
+
+        val importAudio = rememberAudioImporter { result ->
+            scope.launch {
+                tracks = library.tracks()
+                val message = when {
+                    result.failed > 0 || result.skipped > 0 -> getString(
+                        Res.string.library_import_partial,
+                        result.imported,
+                        result.skipped,
+                        result.failed,
+                    )
+                    result.imported > 0 -> getPluralString(
+                        Res.plurals.library_imported,
+                        result.imported,
+                        result.imported,
+                    )
+                    else -> getString(Res.string.library_import_none)
+                }
+                snackbar.showSnackbar(message)
+            }
+        }
 
         LaunchedEffect(Unit) { tracks = library.tracks() }
 
@@ -514,6 +540,21 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     scope.launch { tracks = library.tracks() }
                                                 },
                                             )
+                                            if (audioImportAvailable) {
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            stringResource(
+                                                                Res.string.library_import_action,
+                                                            ),
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        dismiss()
+                                                        importAudio()
+                                                    },
+                                                )
+                                            }
                                             DropdownMenuItem(
                                                 text = { Text(stringResource(Res.string.settings_title)) },
                                                 onClick = {
@@ -556,10 +597,30 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         contentAlignment = Alignment.Center,
                                     ) { CircularProgressIndicator() }
 
-                                    catalog.songs.isEmpty() -> Box(
+                                    catalog.songs.isEmpty() -> Column(
                                         modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center,
-                                    ) { Text(stringResource(Res.string.library_empty)) }
+                                        verticalArrangement = Arrangement.Center,
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        Text(stringResource(Res.string.library_empty))
+                                        if (audioImportAvailable) {
+                                            Text(
+                                                text = stringResource(Res.string.library_import_hint),
+                                                modifier = Modifier.padding(
+                                                    start = 32.dp,
+                                                    top = 8.dp,
+                                                    end = 32.dp,
+                                                ),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                            Button(
+                                                onClick = importAudio,
+                                                modifier = Modifier.padding(top = 20.dp),
+                                            ) {
+                                                Text(stringResource(Res.string.library_import_action))
+                                            }
+                                        }
+                                    }
 
                                     // Pages follow the finger. The carousel strip above reads the
                                     // same pager position, so label and content move together
