@@ -5,7 +5,6 @@
 package io.github.nikitasud.latentjam.smart.di
 
 import io.github.nikitasud.latentjam.smart.DefaultSimilarityEngine
-import io.github.nikitasud.latentjam.smart.DescriptorSource
 import io.github.nikitasud.latentjam.smart.InMemoryVectorIndex
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.IndexStore
@@ -108,7 +107,6 @@ public val smartEngineModule: Module = module {
             textEncoder = getOrNull<TextEncoder>(),
             textIndex = get<VectorIndex>(smartTextIndexQualifier),
             textStore = get<IndexStore>(smartTextIndexQualifier),
-            descriptorSource = getOrNull<DescriptorSource>(),
             clock = getOrNull<SmartClock>() ?: SmartClock,
         )
     }

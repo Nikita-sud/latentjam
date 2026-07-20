@@ -88,7 +88,7 @@ object AppGraph {
                                 modelLocator = "ml/mnv4_audio.onnx",
                                 // Must match assets/ml/embedding_version.txt;
                                 // keys the persisted index snapshot.
-                                modelVersion = "mnv4-conv-m-distill-mw-ep4+v3",
+                                modelVersion = "mnv4-conv-m-distill-mw-ep4-dsp32-fp16-v4",
                             )
                         }
                         // The single point where playback meets the engine.

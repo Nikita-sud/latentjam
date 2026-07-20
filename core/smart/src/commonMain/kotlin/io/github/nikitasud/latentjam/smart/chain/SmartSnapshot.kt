@@ -12,6 +12,7 @@ internal data class SmartTrack(
     val id: TrackId,
     val audio: FloatArray,
     val text: FloatArray? = null,
+    /** Optional second semantic space for experiments and recorded parity fixtures. */
     val descriptor: FloatArray? = null,
     val energy: Float = Float.NaN,
     val meta: TrackMeta,

@@ -16,7 +16,7 @@ Shuffle on a local player is random. Streaming services solved the sequencing pr
 their own catalogue, and only by sending your listening to a server.
 
 LatentJam does it for music you already own. Every track is embedded twice — once from its audio,
-once from its tags — and a pair of small ONNX models decides what should follow what. All of it runs
+once from its tags — and compact ONNX models decide what should follow what. All of it runs
 locally. Nothing about your listening leaves the device, because there is nowhere for it to go.
 
 ## What it does
@@ -43,17 +43,18 @@ settings screen that says honestly what the recommender knows about your library
 
 ## How the recommender works
 
-Three signals per track:
+Two signals per track, both computed on the device:
 
 | Signal | Dimensions | Where it comes from |
 |---|---|---|
-| Audio embedding | 960 | MobileNetV4-family encoder over the waveform, on device |
-| Metadata embedding | 384 | MiniLM over `genre; artist; title; year`, on device |
-| Semantic descriptor | 768 | Computed offline, shipped as an asset |
+| Audio embedding | 960 | Mixed-precision MobileNetV4-family encoder over the waveform |
+| Metadata embedding | 384 | Int8 MiniLM over `genre; artist; title; year` |
 
 Retrieval fuses raw audio and text cosines into a candidate pool. A two-stage predictor — a state
 encoder over recent plays, then a scorer over the pool — ranks it. The chain re-weights that with
-centered-space cosines, seed gravity, semantic z-scores and metadata multipliers.
+centered-space cosines, seed gravity, metadata-text z-scores and metadata multipliers. There is no
+precomputed per-track descriptor catalogue: imported tracks get the same fully local path as every
+other track.
 
 The predictor is deliberately **objective** rather than personalised: it models *what goes together*,
 not *what you like*. That was measured rather than assumed — a personalised variant scored worse on
@@ -120,5 +121,7 @@ own parentless root commit and was written from scratch against a new architectu
 copied across that boundary in either direction. The earlier work remains available under GPL-3.0 on
 its own branch.
 
-Bundled models under `androidApp/src/main/assets/ml/` are covered by
-[LICENSE-MODEL.txt](androidApp/src/main/assets/ml/LICENSE-MODEL.txt).
+Bundled models under `androidApp/src/main/assets/ml/` are covered by permissive licences documented
+in [LICENSE-MODEL.txt](androidApp/src/main/assets/ml/LICENSE-MODEL.txt). The selected architecture,
+benchmarks, rejected candidates and next compression target are in
+[docs/model-selection.md](docs/model-selection.md).

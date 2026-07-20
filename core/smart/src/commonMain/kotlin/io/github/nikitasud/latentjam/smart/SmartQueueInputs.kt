@@ -11,15 +11,6 @@ import org.koin.core.module.Module
 internal const val TEXT_INDEX_VERSION: String = "minilm-l6-v2-int8"
 
 /**
- * Supplies the packed semantic-descriptor asset. A seam rather than a direct asset read so the
- * chain's inputs stay platform-agnostic and tests can hand over bytes directly.
- */
-public interface DescriptorSource {
-    /** @return the packed asset, or null when it is not bundled on this platform. */
-    public suspend fun read(): ByteArray?
-}
-
-/**
  * Wall-clock reading for the predictor's time features.
  *
  * The encoder was trained with hour-of-day and day-of-week inputs, so the same seed can lead
@@ -35,6 +26,6 @@ public interface SmartClock {
 }
 
 /**
- * Koin bindings for the chain's platform inputs: the descriptor asset and the clock.
+ * Koin bindings for the chain's platform clock.
  */
 public expect fun smartChainInputsModule(): Module

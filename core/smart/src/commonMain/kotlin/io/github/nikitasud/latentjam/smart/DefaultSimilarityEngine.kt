@@ -5,7 +5,6 @@
 package io.github.nikitasud.latentjam.smart
 
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
-import io.github.nikitasud.latentjam.smart.chain.SemanticDescriptorStore
 import io.github.nikitasud.latentjam.smart.chain.SmartChain
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
 import io.github.nikitasud.latentjam.smart.chain.SmartTrack
@@ -49,11 +48,8 @@ internal class DefaultSimilarityEngine(
     private val textEncoder: TextEncoder? = null,
     private val textIndex: VectorIndex? = null,
     private val textStore: IndexStore? = null,
-    private val descriptorSource: DescriptorSource? = null,
     private val clock: SmartClock = SmartClock.Unknown,
 ) : SimilarityEngine {
-
-    private var descriptors: SemanticDescriptorStore? = null
 
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow<EngineState>(EngineState.Uninitialized)
@@ -68,18 +64,13 @@ internal class DefaultSimilarityEngine(
             backend.loadModel().fold(
                 onSuccess = {
                     restorePersistedIndex()
-                    // The chain's models are best-effort: a missing predictor or descriptor asset
-                    // costs queue quality, not the ability to shuffle, so none of this can fail
-                    // initialization.
+                    // The chain's models are best-effort: a missing predictor or text encoder costs
+                    // queue quality, not the ability to shuffle, so none of this can fail startup.
                     predictor?.let { runCatching { it.load() } }
                     textEncoder?.let { runCatching { it.load() } }
                     if (textIndex != null && textIndex.size == 0) {
                         runCatching { textStore?.load(TEXT_INDEX_VERSION) }.getOrNull()
                             ?.forEach { (id, vector) -> runCatching { textIndex.upsert(id, vector) } }
-                    }
-                    if (descriptors == null) {
-                        descriptors = runCatching { descriptorSource?.read() }.getOrNull()
-                            ?.let(SemanticDescriptorStore::parse)
                     }
                     mutableState.value = EngineState.Ready(indexedCount = index.size)
                     Result.success(Unit)
@@ -214,7 +205,6 @@ internal class DefaultSimilarityEngine(
                     id = track.id,
                     audio = audio,
                     text = textIndex?.vector(track.id),
-                    descriptor = descriptors?.lookup(track.artist, track.title),
                     energy = track.energy ?: Float.NaN,
                     meta = TrackMeta(
                         title = track.title,

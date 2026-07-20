@@ -104,7 +104,7 @@ since day one and read by nothing. **No other player can show this row**, and it
 
 ### 5.4 Worlds
 
-Clusters of the library in semantic-descriptor space — the one section that works with **zero
+Clusters of the library in the on-device metadata-embedding space — the one section that works with **zero
 listening history**, and the only component immune to feedback-loop collapse. It should therefore be
 the day-one surface.
 

@@ -1,9 +1,46 @@
-The model weights in this directory (mnv4_audio.onnx and associated version
-stamps) are NOT covered by the Apache-2.0 license of this repository.
+LatentJam bundled model licences
+================================
 
-They are proprietary artifacts of the LatentJam Project
-(mnv4-conv-m-distill-mw student encoder), all rights reserved, distributed
-with this application for its exclusive use. The student network architecture
-derives from EfficientAT (MIT License, Copyright (c) 2022 Florian Schmid).
+The LatentJam-produced weights below are licensed under the Apache License,
+Version 2.0, included in the repository root:
 
-The Apache-2.0 license of this repository applies to the source code only.
+  mnv4_audio.onnx
+  predictor_state.onnx
+  predictor_scorer_n100.onnx
+
+Copyright (c) 2026 LatentJam Project
+
+mnv4_audio.onnx is a MobileNetV4-Conv-M student distilled from EfficientAT
+MN10. The student implementation used PyTorch Image Models (timm), licensed
+Apache-2.0. EfficientAT code and published weights are licensed MIT:
+
+  Copyright (c) 2022 Florian Schmid
+  https://github.com/fschmid56/EfficientAT
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+The text encoder and vocabulary are an ONNX/int8 export of
+sentence-transformers/all-MiniLM-L6-v2, licensed Apache-2.0:
+
+  text_encoder_minilm.onnx
+  text_vocab.txt
+  https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
+
+No non-commercial model weights and no offline per-track descriptor table are
+included in the application.

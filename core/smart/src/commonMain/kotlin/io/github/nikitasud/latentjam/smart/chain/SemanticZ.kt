@@ -10,7 +10,7 @@ import kotlin.math.sqrt
  * Pool-relative semantic similarity z-scores for the SMART chain.
  *
  * Why z-scores rather than raw cosines: for a niche seed (Moldovan estradá, anime) the true
- * in-cluster candidates are semantic OUTLIERS within the retrieved pool — their descriptor
+ * in-cluster candidates are semantic OUTLIERS within the retrieved pool — their metadata-text
  * similarity to the seed sits 2–3σ above the pool mean — while the audio scorer confidently demotes
  * them, scoring the whole niche near its tanh floor because it was trained mostly on the big
  * clusters. A raw cosine term small enough not to disturb those big clusters is far too small to
@@ -84,13 +84,10 @@ internal object SemanticZ {
     }
 
     /**
-     * Availability-weighted combination of the two semantic spaces (offline nomic descriptors and
-     * on-device MiniLM metadata text): per candidate, the mean of the z-scores from the spaces
-     * where both reference and candidate have a vector; 0 when neither applies.
-     *
-     * Averaging beats either alone — descriptors separate Moldovan estradá but see through the
-     * "anime" label to per-track mood, while metadata text groups anime OSTs but is noisy on
-     * Romanian titles.
+     * Availability-weighted combination for an optional auxiliary semantic space and the
+     * on-device metadata-text space. Production currently supplies metadata text only; retaining
+     * this pure operation keeps recorded research fixtures reproducible without shipping their
+     * per-track data.
      */
     fun combine(zA: FloatArray?, zB: FloatArray?, size: Int): FloatArray =
         FloatArray(size) { k ->
@@ -103,4 +100,5 @@ internal object SemanticZ {
                 else -> 0f
             }
         }
+
 }

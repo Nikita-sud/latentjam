@@ -13,8 +13,8 @@ import org.koin.dsl.module
  * iOS [TextEncoder] — not yet wired to a native inference engine.
  *
  * [encode] returns null, which callers already handle as "no text vector for this track": retrieval
- * falls back to audio-only cosines and the chain's semantic term leans on descriptors alone. The
- * tokenizer it would need is already common code; only the ONNX session is missing.
+ * falls back to audio-only cosines and omits the metadata semantic term. The tokenizer it would
+ * need is already common code; only the ONNX session is missing.
  */
 internal class UnavailableTextEncoder : TextEncoder {
 

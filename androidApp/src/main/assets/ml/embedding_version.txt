@@ -1,1 +1,1 @@
-mnv4-conv-m-distill-mw-ep4+v3
+mnv4-conv-m-distill-mw-ep4-dsp32-fp16-v4
