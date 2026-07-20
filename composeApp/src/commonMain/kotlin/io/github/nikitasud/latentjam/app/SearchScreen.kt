@@ -121,6 +121,7 @@ internal fun SearchScreen(
         semantic = emptyList()
         val needle = query.trim()
         if (needle.length < MIN_SEMANTIC_QUERY_CHARS) return@LaunchedEffect
+        if (!supportsSemanticSearch(needle)) return@LaunchedEffect
         delay(SEMANTIC_DEBOUNCE_MS)
         val started = TimeSource.Monotonic.markNow()
         semantic = AppGraph.engine.semanticSearch(needle, SEMANTIC_CANDIDATE_LIMIT)
@@ -327,9 +328,14 @@ internal fun hybridSearch(
 
     val byId = songs.associateBy { it.id }
     val used = lexical.mapTo(HashSet()) { it.track.id }
-    val bestSemantic = semantic.firstOrNull()?.score ?: Float.NEGATIVE_INFINITY
+    // The shipped all-MiniLM vocabulary is bert-base-uncased. A Cyrillic word becomes [UNK], so
+    // all such queries collapse to nearly the same vector and produce plausible-looking nonsense.
+    // Local lexical/word-family matching still works for every script; cosine expansion is enabled
+    // only for queries this model can actually represent.
+    val trustedSemantic = semantic.takeIf { supportsSemanticSearch(needle) }.orEmpty()
+    val bestSemantic = trustedSemantic.firstOrNull()?.score ?: Float.NEGATIVE_INFINITY
     val semanticFloor = maxOf(MIN_SEMANTIC_SCORE, bestSemantic - MAX_SEMANTIC_GAP)
-    val expanded = semantic.asSequence()
+    val expanded = trustedSemantic.asSequence()
         .takeWhile { it.score >= semanticFloor }
         .mapNotNull { byId[it.trackId] }
         .filter { used.add(it.id) }
@@ -338,19 +344,81 @@ internal fun hybridSearch(
     return (lexical.asSequence().map { it.track } + expanded).take(SEARCH_RESULT_LIMIT).toList()
 }
 
-/** 0 exact, 1 prefix, 2 token-prefix, 3 substring. Null means cosine must find it. */
+/** 0 exact, 1 prefix, 2 token-prefix, 3 word-family/typo, 4 substring. */
 private fun TrackDescriptor.lexicalRank(needle: String): Int? {
-    val fields = listOfNotNull(title, artist, album).map { it.trim() }
-    if (fields.any { it.equals(needle, ignoreCase = true) }) return 0
-    if (fields.any { it.startsWith(needle, ignoreCase = true) }) return 1
+    val normalizedNeedle = normalizeSearchText(needle)
+    val fields = listOfNotNull(title, artist, album).map(::normalizeSearchText)
+    if (fields.any { it == normalizedNeedle }) return 0
+    if (fields.any { it.startsWith(normalizedNeedle) }) return 1
     if (fields.any { field ->
-            field.split(' ', '-', '_', '.', ',', ';', '(', ')')
-                .any { it.startsWith(needle, ignoreCase = true) }
+            searchTokens(field).any { it.startsWith(normalizedNeedle) }
         }
     ) return 2
-    if (fields.any { it.contains(needle, ignoreCase = true) }) return 3
+    val queryTokens = searchTokens(normalizedNeedle)
+    if (queryTokens.isNotEmpty() && fields.any { field ->
+            val fieldTokens = searchTokens(field)
+            queryTokens.all { queryToken ->
+                fieldTokens.any { fieldToken -> relatedSearchTokens(queryToken, fieldToken) }
+            }
+        }
+    ) return 3
+    if (fields.any { it.contains(normalizedNeedle) }) return 4
     return null
 }
+
+private fun normalizeSearchText(value: String): String = buildString(value.length) {
+    value.lowercase().forEach { character ->
+        when {
+            character == 'ё' -> append('е') // Russian ё/e are routinely mixed in tags.
+            character.isLetterOrDigit() -> append(character)
+            else -> append(' ')
+        }
+    }
+}.trim().replace(Regex("\\s+"), " ")
+
+private fun searchTokens(value: String): List<String> =
+    value.split(' ').filter { it.isNotBlank() }
+
+private fun relatedSearchTokens(left: String, right: String): Boolean {
+    if (left == right || left.startsWith(right) || right.startsWith(left)) return true
+    val leftConcept = searchConcept(left)
+    if (leftConcept != null && leftConcept == searchConcept(right)) return true
+    if (left.length < 4 || right.length < 4 || left.first() != right.first()) return false
+    val allowedEdits = if (maxOf(left.length, right.length) >= 8) 2 else 1
+    return editDistanceAtMost(left, right, allowedEdits)
+}
+
+/** Small deterministic word families cover derivations that edit-distance cannot (not a model). */
+private fun searchConcept(token: String): String? = when {
+    token.startsWith("девуш") || token.startsWith("девоч") || token.startsWith("девч") ->
+        "girl"
+    else -> null
+}
+
+private fun editDistanceAtMost(left: String, right: String, limit: Int): Boolean {
+    if (kotlin.math.abs(left.length - right.length) > limit) return false
+    var previous = IntArray(right.length + 1) { it }
+    for (leftIndex in left.indices) {
+        val current = IntArray(right.length + 1)
+        current[0] = leftIndex + 1
+        var rowMinimum = current[0]
+        for (rightIndex in right.indices) {
+            current[rightIndex + 1] = minOf(
+                current[rightIndex] + 1,
+                previous[rightIndex + 1] + 1,
+                previous[rightIndex] + if (left[leftIndex] == right[rightIndex]) 0 else 1,
+            )
+            rowMinimum = minOf(rowMinimum, current[rightIndex + 1])
+        }
+        if (rowMinimum > limit) return false
+        previous = current
+    }
+    return previous[right.length] <= limit
+}
+
+/** all-MiniLM-L6-v2's bundled BERT vocabulary cannot represent Cyrillic as words. */
+private fun supportsSemanticSearch(query: String): Boolean =
+    query.none { it.isLetter() && it !in 'a'..'z' && it !in 'A'..'Z' }
 
 private data class RankedTrack(
     val track: TrackDescriptor,

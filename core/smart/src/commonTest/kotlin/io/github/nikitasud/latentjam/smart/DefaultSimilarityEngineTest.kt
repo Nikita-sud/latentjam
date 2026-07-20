@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
@@ -278,6 +279,21 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun synchronizeLibraryPrunesStalePersistedFingerprintsAndUpdatesState() = runTest {
+        val harness = Harness()
+        harness.registerTriangle()
+        harness.engine.initialize()
+        harness.engine.indexLibrary(listOf(seed, near, far))
+
+        val removed = harness.engine.synchronizeLibrary(listOf(seed, near))
+
+        assertEquals(1, removed)
+        assertEquals(null, harness.engine.embedding(far.id))
+        assertEquals(EngineState.Ready(indexedCount = 2), harness.engine.state.value)
+        assertEquals(setOf(seed.id, near.id), harness.store.snapshots["test-model"]?.keys)
+    }
+
+    @Test
     fun semanticSearchEncodesTheQueryAgainstTheStoredTextIndex() = runTest {
         val textEncoder = FakeTextEncoder()
         val engine = DefaultSimilarityEngine(
@@ -299,6 +315,108 @@ internal class DefaultSimilarityEngineTest {
 
         assertEquals(rock.id, results.first().trackId)
         assertTrue(results.first().score > results.last().score)
+    }
+
+    @Test
+    fun `57 track library uses the zero padded learned scorer`() = runTest {
+        val predictor = CountingPredictor()
+        val tracks = smartLibrary(57)
+        val backend = FakeEmbeddingBackend(
+            tracks.associateTo(mutableMapOf()) { track ->
+                track.id to FloatArray(PredictorRuntime.STATE_DIM).also { vector ->
+                    vector[track.id.value.removePrefix("smart-").toInt()] = 1f
+                }
+            },
+        )
+        val engine = DefaultSimilarityEngine(
+            backend = backend,
+            index = InMemoryVectorIndex(PredictorRuntime.STATE_DIM),
+            store = FakeIndexStore(),
+            config = SmartEngineConfig(
+                embeddingDim = PredictorRuntime.STATE_DIM,
+                modelVersion = "short-pool-test",
+            ),
+            dispatcher = Dispatchers.Default.limitedParallelism(1, "short-pool-test"),
+            predictor = predictor,
+        )
+        engine.initialize()
+        engine.indexLibrary(tracks)
+
+        val queue = engine.smartQueue(tracks.first(), tracks.drop(1), length = 5)
+
+        assertEquals(5, queue.size)
+        assertTrue(predictor.scoreCalls > 0, "57 local tracks must reach the trained scorer")
+    }
+
+    @Test
+    fun `tiny audio corpus keeps the honest metadata fallback`() = runTest {
+        val predictor = CountingPredictor()
+        val tracks = smartLibrary(23)
+        val backend = FakeEmbeddingBackend(
+            tracks.associateTo(mutableMapOf()) { track ->
+                track.id to FloatArray(PredictorRuntime.STATE_DIM).also { vector ->
+                    vector[track.id.value.removePrefix("smart-").toInt()] = 1f
+                }
+            },
+        )
+        val engine = DefaultSimilarityEngine(
+            backend = backend,
+            index = InMemoryVectorIndex(PredictorRuntime.STATE_DIM),
+            store = FakeIndexStore(),
+            config = SmartEngineConfig(
+                embeddingDim = PredictorRuntime.STATE_DIM,
+                modelVersion = "tiny-pool-test",
+            ),
+            dispatcher = Dispatchers.Default.limitedParallelism(1, "tiny-pool-test"),
+            predictor = predictor,
+        )
+        engine.initialize()
+        engine.indexLibrary(tracks)
+
+        val queue = engine.smartQueue(tracks.first(), tracks.drop(1), length = 5)
+
+        assertTrue(queue.isEmpty(), "this harness deliberately has no metadata encoder")
+        assertEquals(0, predictor.scoreCalls)
+    }
+
+    private fun smartLibrary(size: Int): List<TrackDescriptor> = (0 until size).map { row ->
+        TrackDescriptor(
+            id = TrackId("smart-$row"),
+            title = "Track $row",
+            artist = "Artist $row",
+            genre = if (row % 2 == 0) "Rock" else "Electronic",
+        )
+    }
+
+    private class CountingPredictor : PredictorRuntime {
+        var scoreCalls = 0
+
+        override suspend fun load(): Result<Unit> = Result.success(Unit)
+
+        override fun encodeState(
+            historySmall: FloatArray,
+            historyMedium: FloatArray,
+            historyLarge: FloatArray,
+            timeFeatures: FloatArray,
+            sessionFeatures: FloatArray,
+        ): FloatArray = historySmall.copyOfRange(
+            (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM,
+            (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM +
+                PredictorRuntime.STATE_DIM,
+        )
+
+        override fun score(
+            state: FloatArray,
+            candidates: FloatArray,
+            textState: FloatArray,
+            textCandidates: FloatArray,
+            textMask: FloatArray,
+        ): FloatArray {
+            scoreCalls++
+            return FloatArray(PredictorRuntime.POOL_SIZE)
+        }
+
+        override fun close(): Unit = Unit
     }
 
     private class FakeTextEncoder : TextEncoder {

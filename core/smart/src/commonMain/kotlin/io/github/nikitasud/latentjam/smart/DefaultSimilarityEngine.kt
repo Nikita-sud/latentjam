@@ -57,6 +57,8 @@ internal class DefaultSimilarityEngine(
     private val knownTracks = LinkedHashMap<TrackId, TrackDescriptor>()
     private var indexRevision = 0L
     private var snapshotCache: SnapshotCache? = null
+    private var predictorLoaded = false
+    private var textEncoderLoaded = false
 
     override val state: StateFlow<EngineState> = mutableState.asStateFlow()
 
@@ -70,13 +72,22 @@ internal class DefaultSimilarityEngine(
                     restorePersistedIndex()
                     // The chain's models are best-effort: a missing predictor or text encoder costs
                     // queue quality, not the ability to shuffle, so none of this can fail startup.
-                    predictor?.let { runCatching { it.load() } }
-                    textEncoder?.let { runCatching { it.load() } }
+                    predictorLoaded = predictor?.let {
+                        runCatching { it.load().getOrThrow() }.isSuccess
+                    } ?: false
+                    textEncoderLoaded = textEncoder?.let {
+                        runCatching { it.load().getOrThrow() }.isSuccess
+                    } ?: false
                     if (textIndex != null && textIndex.size == 0) {
                         runCatching { textStore?.load(TEXT_INDEX_VERSION) }.getOrNull()
                             ?.forEach { (id, vector) -> runCatching { textIndex.upsert(id, vector) } }
                     }
                     mutableState.value = EngineState.Ready(indexedCount = index.size)
+                    println(
+                        "SMART: models audio=ready, " +
+                            "scorer=${if (predictorLoaded) "ready" else "unavailable"}, " +
+                            "text=${if (textEncoderLoaded) "ready" else "unavailable"}",
+                    )
                     Result.success(Unit)
                 },
                 onFailure = { throwable ->
@@ -135,6 +146,34 @@ internal class DefaultSimilarityEngine(
             )
         }
     }
+
+    override suspend fun synchronizeLibrary(library: List<TrackDescriptor>): Int =
+        withContext(dispatcher) {
+            mutex.withLock {
+                if (mutableState.value !is EngineState.Ready) return@withLock 0
+                val liveIds = library.mapTo(HashSet(library.size)) { it.id }
+                val staleAudio = index.entries().keys.filterNot(liveIds::contains)
+                val staleText = textIndex?.entries()?.keys?.filterNot(liveIds::contains).orEmpty()
+
+                staleAudio.forEach(index::remove)
+                staleText.forEach { textIndex?.remove(it) }
+                knownTracks.keys.retainAll(liveIds)
+
+                if (staleAudio.isNotEmpty()) {
+                    runCatching { store.save(config.modelVersion, index.entries()) }
+                }
+                if (staleText.isNotEmpty() && textIndex != null) {
+                    runCatching { textStore?.save(TEXT_INDEX_VERSION, textIndex.entries()) }
+                }
+                if (staleAudio.isNotEmpty() || staleText.isNotEmpty()) {
+                    indexRevision++
+                    snapshotCache = null
+                }
+                rememberTracks(library)
+                mutableState.value = EngineState.Ready(indexedCount = index.size)
+                staleAudio.size
+            }
+        }
 
     override suspend fun nextTrack(context: ListeningContext): NextTrackResult = withContext(dispatcher) {
         mutex.withLock {
@@ -234,10 +273,17 @@ internal class DefaultSimilarityEngine(
                 mutableState.value = EngineState.Ready(indexedCount = index.size)
             }
 
-            // A 100-candidate scorer is not meaningful over the first handful of indexed files.
-            // Use the complete metadata index immediately, then promote to the trained audio path
-            // once it has a minimally representative local corpus.
-            if (index.size < MIN_AUDIO_CORPUS) {
+            // The scorer graph has 100 slots but deliberately supports a shorter, zero-padded
+            // pool. Promote once there is both a useful minimum and good coverage of this library;
+            // a fixed 64-track gate incorrectly kept a 57-track phone on metadata forever.
+            val eligibleIds = library.mapTo(LinkedHashSet()) { it.id }.apply { add(seed.id) }
+            val indexedEligible = eligibleIds.count { it in index }
+            val requiredAudio = requiredAudioCorpus(eligibleIds.size)
+            if (indexedEligible < requiredAudio) {
+                println(
+                    "SMART: queue=metadata indexed=$indexedEligible/${eligibleIds.size}, " +
+                        "required=$requiredAudio",
+                )
                 return@withLock metadataFallback(seed, library, length, history)
             }
 
@@ -246,11 +292,16 @@ internal class DefaultSimilarityEngine(
             // the queue must not repeat. The chain excludes it from its own output regardless.
             val snapshot = snapshotFor(history)
                 ?: return@withLock metadataFallback(seed, library, length, history)
-            val eligibleIds = library.mapTo(HashSet()) { it.id }
             val eligibleRows = BooleanArray(snapshot.size) { row ->
                 snapshot.tracks[row].id in eligibleIds
             }
-            val chain = SmartChain(snapshot, predictor, eligibleRows).build(
+            val livePredictor = predictor.takeIf { predictorLoaded }
+            println(
+                "SMART: queue=${if (livePredictor != null) "audio-scorer" else "audio-geometry"} " +
+                    "indexed=$indexedEligible/${eligibleIds.size}, required=$requiredAudio, " +
+                    "text=${if (textEncoderLoaded) "ready" else "unavailable"}",
+            )
+            val chain = SmartChain(snapshot, livePredictor, eligibleRows).build(
                 seedId = seed.id,
                 length = length,
                 timeFeatures = clock.timeFeatures(),
@@ -265,10 +316,14 @@ internal class DefaultSimilarityEngine(
         withContext(dispatcher) {
             mutex.withLock {
                 backend.close()
+                predictor?.close()
+                textEncoder?.close()
                 index.clear()
                 knownTracks.clear()
                 snapshotCache = null
                 indexRevision++
+                predictorLoaded = false
+                textEncoderLoaded = false
                 mutableState.value = EngineState.Uninitialized
             }
         }
@@ -397,7 +452,16 @@ internal class DefaultSimilarityEngine(
             ?: EngineError.BackendFailure(message ?: "Unknown backend failure", this)
 
     private companion object {
-        /** Below this, the metadata-only full-library path is more honest than a tiny audio pool. */
+        /** Maximum warm-up requirement for large libraries. */
         const val MIN_AUDIO_CORPUS = 64
+
+        /** Below this, the metadata-only full-library path is more honest than a tiny audio pool. */
+        const val MIN_AUDIO_CORPUS_FLOOR = 24
+
+        /** Small libraries promote only when at least 80% of their tracks have usable audio. */
+        fun requiredAudioCorpus(librarySize: Int): Int {
+            val coverageTarget = (librarySize * 4 + 4) / 5
+            return maxOf(MIN_AUDIO_CORPUS_FLOOR, coverageTarget).coerceAtMost(MIN_AUDIO_CORPUS)
+        }
     }
 }

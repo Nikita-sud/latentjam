@@ -58,6 +58,18 @@ public interface SimilarityEngine {
     public suspend fun initialize(): Result<Unit>
 
     /**
+     * Reconciles both persisted indexes with the complete, currently visible library.
+     *
+     * Call this after a library scan and before indexing chunks. Tracks that were deleted or
+     * hidden must not remain recommendation candidates or inflate [EngineState.Ready.indexedCount].
+     * The argument is intentionally the complete library; a partial batch would make pruning
+     * ambiguous.
+     *
+     * @return number of stale audio fingerprints removed
+     */
+    public suspend fun synchronizeLibrary(library: List<TrackDescriptor>): Int
+
+    /**
      * Embeds and indexes the given tracks, replacing any previous vector for
      * the same [TrackId] (upsert semantics). Requires [EngineState.Ready].
      *

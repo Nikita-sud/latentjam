@@ -52,6 +52,9 @@ public interface VectorIndex {
      */
     public fun entries(): Map<TrackId, FloatArray>
 
+    /** Removes [id], returning true only when a vector was present. */
+    public fun remove(id: TrackId): Boolean
+
     /**
      * The `k` most cosine-similar stored vectors to [query], best first,
      * skipping every id in [exclude]. The query does not need to be

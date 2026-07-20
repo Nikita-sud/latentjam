@@ -339,28 +339,32 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // subset. SMART is a library journey, so keep its candidate universe independent of
             // whichever small list happened to contain the track the listener tapped.
             playback.setSmartLibrary(loaded)
-            AppGraph.appScope.launch {
-                engine.initialize()
-                var added = 0
-                loaded.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
-                    added += engine.ensureMetadataVectors(chunk)
-                }
-                println("SMART: ready (${engine.state.value}); encoded $added metadata vectors")
-                metadataVectorsReady = true
-
-                // Build the acoustic index progressively on a background dispatcher from the very
-                // first launch. Each tiny batch is persisted and releases the engine lock, so a
-                // SMART press can use the portion that is ready; playback itself never waits for
-                // the whole library and metadata supplies an honest cold-start path.
-                val failures = LinkedHashMap<TrackId, EngineError>()
-                loaded.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
-                    failures.putAll(engine.indexLibrary(chunk).errors)
-                }
-                indexFailureDetails = failures.map { (id, error) ->
-                    indexFailureLine(loaded.firstOrNull { it.id == id }, id, error)
-                }
-                println("SMART: progressive local index complete (${engine.state.value})")
+            engine.initialize()
+            val pruned = engine.synchronizeLibrary(loaded)
+            var added = 0
+            loaded.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
+                added += engine.ensureMetadataVectors(chunk)
             }
+            println(
+                "SMART: ready (${engine.state.value}); pruned $pruned stale fingerprints; " +
+                    "encoded $added metadata vectors",
+            )
+            metadataVectorsReady = true
+
+            // Build the acoustic index progressively on a background dispatcher from the very
+            // first launch. Each tiny batch is persisted and releases the engine lock, so a
+            // SMART press can use the portion that is ready; playback itself never waits for
+            // the whole library and metadata supplies an honest cold-start path. Keeping this
+            // work in the keyed effect cancels an obsolete scan when the library changes, so a
+            // deleted track cannot be reinserted by an older background job after reconciliation.
+            val failures = LinkedHashMap<TrackId, EngineError>()
+            loaded.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
+                failures.putAll(engine.indexLibrary(chunk).errors)
+            }
+            indexFailureDetails = failures.map { (id, error) ->
+                indexFailureLine(loaded.firstOrNull { it.id == id }, id, error)
+            }
+            println("SMART: progressive local index complete (${engine.state.value})")
         }
 
         // The regions the library falls into. Clustered over the METADATA-TEXT index rather than

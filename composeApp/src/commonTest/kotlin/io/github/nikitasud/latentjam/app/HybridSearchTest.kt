@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 class HybridSearchTest {
 
@@ -54,6 +55,38 @@ class HybridSearchTest {
         )
 
         assertEquals(listOf(semantic.id), result.map { it.id })
+    }
+
+    @Test
+    fun `Cyrillic word family matches title and rejects unrepresentable cosine hits`() {
+        val girl = track(
+            id = "girl",
+            title = "О том, как девочка Алёна стала женщиной",
+            artist = "GSPD",
+        )
+        val kino = track("kino", "Перемен", "КИНО")
+
+        val result = hybridSearch(
+            songs = listOf(kino, girl),
+            query = "девушки",
+            semantic = listOf(ScoredTrack(kino.id, 0.99f)),
+        )
+
+        assertEquals(listOf(girl.id), result.map { it.id })
+        assertFalse(result.any { it.id == kino.id })
+    }
+
+    @Test
+    fun `Cyrillic query without a lexical match returns no random semantic result`() {
+        val kino = track("kino", "Перемен", "КИНО")
+
+        val result = hybridSearch(
+            songs = listOf(kino),
+            query = "девушки",
+            semantic = listOf(ScoredTrack(kino.id, 0.99f)),
+        )
+
+        assertEquals(emptyList(), result)
     }
 
     private fun track(id: String, title: String, artist: String) = TrackDescriptor(
