@@ -11,14 +11,16 @@ import kotlin.math.abs
  * Metadata-derived multipliers applied on top of the learned scores.
  *
  * Everything here is a multiplier around 1.0, combined into the chain score in log space so a
- * neutral verdict is exactly zero and a strong veto (same album) reads as a large negative.
+ * neutral verdict is exactly zero. Same-album proximity is only softly diversified: one familiar
+ * neighbour is useful context, while the chain's artist-spacing rule prevents an album dump.
  */
 internal object MetadataRerank {
 
     const val SAME_GENRE_BONUS = 1.20f
+    const val SAME_ARTIST_BONUS = 1.12f
     const val CROSS_GENRE_MALUS = 0.90f
     const val CROSS_LANGUAGE_PENALTY = 0.75f
-    const val SAME_ALBUM_PENALTY = 1.0f
+    const val SAME_ALBUM_PENALTY = 0.15f
     const val ERA_DECADE_PENALTY = 0.04f
 
     /**
@@ -87,6 +89,16 @@ internal object MetadataRerank {
         var multiplier = 1.0f
         if (!anchor.album.isNullOrEmpty() && anchor.album == candidate.album) {
             multiplier -= SAME_ALBUM_PENALTY
+        }
+        val anchorArtist = anchor.artist?.trim()
+        val candidateArtist = candidate.artist?.trim()
+        if (!anchorArtist.isNullOrEmpty() &&
+            !candidateArtist.isNullOrEmpty() &&
+            anchorArtist.equals(candidateArtist, ignoreCase = true)
+        ) {
+            // Only one such neighbour can appear before artist spacing activates, so this modest
+            // confidence signal improves the first hop without turning SMART into "play artist".
+            multiplier *= SAME_ARTIST_BONUS
         }
         val anchorGenre = normalizeGenre(anchor.genre)
         val candidateGenre = normalizeGenre(candidate.genre)

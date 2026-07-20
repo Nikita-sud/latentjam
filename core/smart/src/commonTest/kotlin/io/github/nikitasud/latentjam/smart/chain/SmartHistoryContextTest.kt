@@ -62,6 +62,30 @@ internal class SmartHistoryContextTest {
     }
 
     @Test
+    fun `seed may lead into one same-artist neighbour before artist spacing applies`() {
+        val tracks = listOf(
+            relatedTrack(0, artist = "Band", first = 1f),
+            relatedTrack(1, artist = "Band", first = 0.99f, second = 0.10f),
+            relatedTrack(2, artist = "Band", first = 0.98f, second = -0.12f),
+            relatedTrack(3, artist = "Other A", first = -0.2f, second = 1f),
+            relatedTrack(4, artist = "Other B", first = -0.3f, second = -1f),
+        )
+        val snapshot = requireNotNull(SmartSnapshot.build(tracks))
+
+        val result = SmartChain(snapshot, runtime = null).build(
+            seedId = TrackId("0"),
+            length = 2,
+            timeFeatures = FloatArray(5),
+        )
+
+        assertEquals("Band", snapshot.tracks[result.rows.first()].meta.artist)
+        assertTrue(
+            snapshot.tracks[result.rows[1]].meta.artist != "Band",
+            "the related first hop must not turn into an uninterrupted artist run",
+        )
+    }
+
+    @Test
     fun `real local history feeds short medium long session and text inputs`() {
         val snapshot = requireNotNull(SmartSnapshot.build((0 until 5).map(::track)))
         val runtime = CapturingRuntime()
@@ -115,6 +139,27 @@ internal class SmartHistoryContextTest {
             album = null,
             genre = null,
             year = null,
+        ),
+    )
+
+    private fun relatedTrack(
+        row: Int,
+        artist: String,
+        first: Float,
+        second: Float = 0f,
+    ): SmartTrack = SmartTrack(
+        id = TrackId(row.toString()),
+        audio = FloatArray(PredictorRuntime.STATE_DIM).also {
+            it[0] = first
+            it[1] = second
+            it[row + 2] = 0.01f
+        },
+        meta = TrackMeta(
+            title = "related$row",
+            artist = artist,
+            album = if (artist == "Band") "Album" else null,
+            genre = "Rock",
+            year = 1990,
         ),
     )
 

@@ -144,7 +144,10 @@ internal class SmartChain(
         val recency = RecencyRerank(historyEvents)
         var seedFamilyPicks = 0
         val recentArtists = ArrayDeque<String>()
-        recentArtists.addLast(snapshot.tracks[seedRow].meta.artistKey)
+        // The listener's seed is allowed to lead into one closely related track by the same
+        // artist. Once such a track is picked it enters this window normally, preventing an
+        // artist/album dump while avoiding the old behaviour where the best neighbour was
+        // forbidden merely because the user started from it.
         val seenTitles = HashSet<String>()
         seenTitles.add(snapshot.tracks[seedRow].meta.normalizedTitle)
         val artistPlays = HashMap<String, Int>()

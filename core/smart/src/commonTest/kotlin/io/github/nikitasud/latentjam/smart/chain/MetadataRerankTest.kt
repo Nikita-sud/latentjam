@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart.chain
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class MetadataRerankTest {
 
@@ -56,6 +57,27 @@ class MetadataRerankTest {
             MetadataRerank.seedIntentMultiplier(
                 seedGenre, poolSupport = 12, seedFamilyPicks = 0, candidate = candidate,
             ),
+        )
+    }
+
+    @Test
+    fun `same album is diversified softly instead of vetoed`() {
+        val seed = TrackMeta("Seed", "Artist", "Album", "Rock", 1990)
+        val neighbour = TrackMeta("Neighbour", "Artist", "Album", "Rock", 1990)
+
+        val multiplier = MetadataRerank.adjustMultiplier(seed, neighbour)
+
+        assertTrue(multiplier > 0.5f, "a genuine same-album neighbour must remain competitive")
+    }
+
+    @Test
+    fun `same artist is a modest first-hop confidence signal`() {
+        val seed = TrackMeta("Seed", "Band", "First", null, null)
+        val neighbour = TrackMeta("Neighbour", "band", "Second", null, null)
+
+        assertEquals(
+            MetadataRerank.SAME_ARTIST_BONUS,
+            MetadataRerank.adjustMultiplier(seed, neighbour),
         )
     }
 
