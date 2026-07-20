@@ -33,6 +33,9 @@ indexed. Queue construction runs the state graph, frozen acoustic scorer, and re
 progressively builds the local index on first launch, embeds the selected seed on demand, and keeps
 playback's metadata-only cold-start queue until audio candidates are ready. All inference, history, and stored
 embeddings remain on the device; iOS and Android both persist private history across launches.
+On iOS, Music-library items without a raw asset URL are indexed through the same trusted metadata
+encoder and played by `MPMusicPlayerController`; only waveform-dependent audio embeddings are
+omitted. This is an explicit capability mask, not an empty-library or random-fallback path.
 
 ## Metadata contract
 

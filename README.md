@@ -66,7 +66,10 @@ catalogue: imported tracks get the same fully local path as every other track.
 
 On first launch, the app creates the audio index progressively in small persisted batches and embeds
 the selected seed on demand; playback abstains rather than silently replacing SMART with randomness
-are ready. A person with no history gets an explicitly trained seed-only state, not a zero vector.
+until candidates are ready. A person with no history gets an explicitly trained seed-only state,
+not a zero vector. On iOS, the device Music library and app-owned Files imports are merged. Protected
+Music downloads remain playable and use local metadata/text recommendations; owned items that expose
+an asset URL also receive waveform embeddings.
 As private listening accumulates, SMART uses it as runtime context without training on the phone or
 uploading it. Both platforms persist that history locally across launches.
 
@@ -78,9 +81,9 @@ uploading it. Both platforms persist that history locally across launches.
 
 Requires JDK 17+ and the Android SDK. The first build downloads a large Kotlin/Native toolchain.
 
-Android is the complete player target. SMART ONNX inference is implemented and simulator-tested on
-both Android and iOS; the iOS shell uses the same graph contracts through ONNX Runtime's native C
-API. iOS library access, playback, tag writing and the equalizer are still incomplete.
+SMART ONNX inference and playback are implemented on Android and iOS; the iOS shell uses the same
+graph contracts through ONNX Runtime's native C API. iOS intentionally keeps tag writing disabled
+for Music-library items because the system exposes them read-only; the equalizer remains Android-only.
 
 ## Layout
 

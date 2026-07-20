@@ -48,6 +48,11 @@ import platform.MediaPlayer.MPMediaItemPropertyAlbumTitle
 import platform.MediaPlayer.MPMediaItemPropertyArtist
 import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
 import platform.MediaPlayer.MPMediaItemPropertyTitle
+import platform.MediaPlayer.MPMediaItemCollection
+import platform.MediaPlayer.MPMediaQuery
+import platform.MediaPlayer.MPMusicPlaybackState
+import platform.MediaPlayer.MPMusicPlayerController
+import platform.MediaPlayer.MPMusicPlayerControllerPlaybackStateDidChangeNotification
 import platform.MediaPlayer.MPNowPlayingInfoCenter
 import platform.MediaPlayer.MPNowPlayingInfoPropertyElapsedPlaybackTime
 import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
@@ -87,6 +92,16 @@ internal class IosPlaybackController(
 
     private val player = AVPlayer()
 
+    /** Plays Music.app library items, including protected on-device downloads. */
+    private val mediaPlayer = MPMusicPlayerController.applicationMusicPlayer
+
+    private var activeBackend: PlaybackBackend = PlaybackBackend.FILE
+
+    /** True only after this controller asked the MediaPlayer backend to start. */
+    private var mediaItemStarted: Boolean = false
+
+    private val mediaItemsById = mutableMapOf<String, platform.MediaPlayer.MPMediaItem>()
+
     /** Immutable snapshots: the UI holds these across ticker emissions. */
     private var queue: List<TrackDescriptor> = emptyList()
     private var queueIndex: Int = -1
@@ -116,6 +131,7 @@ internal class IosPlaybackController(
 
     init {
         configureAudioSession()
+        wireMediaPlayer()
         wireRemoteCommands()
     }
 
@@ -155,10 +171,10 @@ internal class IosPlaybackController(
     override suspend fun togglePlayPause(): Unit = withContext(Dispatchers.Main) {
         if (queue.isEmpty()) return@withContext
         if (playing) {
-            player.pause()
+            pauseActiveBackend()
             playing = false
         } else {
-            player.play()
+            playActiveBackend()
             playing = true
         }
         updateTicker()
@@ -175,7 +191,7 @@ internal class IosPlaybackController(
         if (queue.isEmpty()) return@withContext
         // Player-standard: restart the track unless you are already at its start.
         if (positionMs() > RESTART_THRESHOLD_MS || queueIndex <= 0) {
-            player.seekToTime(CMTimeMakeWithSeconds(0.0, PREFERRED_TIMESCALE))
+            seekActiveBackend(0L)
             invalidateNowPlayingInfo()
         } else {
             queueIndex -= 1
@@ -185,7 +201,7 @@ internal class IosPlaybackController(
     }
 
     override suspend fun seekTo(positionMs: Long): Unit = withContext(Dispatchers.Main) {
-        player.seekToTime(CMTimeMakeWithSeconds(positionMs / 1000.0, PREFERRED_TIMESCALE))
+        seekActiveBackend(positionMs)
         // iOS extrapolates the lock-screen position from the playback rate, so a
         // seek it was not told about leaves the lock screen counting from the old
         // position for the rest of the track.
@@ -324,7 +340,7 @@ internal class IosPlaybackController(
             }
             candidate += 1
         }
-        player.pause()
+        pauseActiveBackend()
         playing = false
         updateTicker()
         pushState()
@@ -336,8 +352,15 @@ internal class IosPlaybackController(
      */
     private fun loadCurrentItem(autoPlay: Boolean): Boolean {
         val track = queue.getOrNull(queueIndex) ?: return false
+        if (track.id.value.startsWith(MEDIA_ID_PREFIX)) {
+            return loadMediaLibraryItem(track, autoPlay)
+        }
         val url = track.audioUri?.let { NSURL.URLWithString(it) } ?: return false
         val item = AVPlayerItem(url)
+
+        mediaItemStarted = false
+        mediaPlayer.stop()
+        activeBackend = PlaybackBackend.FILE
 
         endOfItemObserver?.let { NSNotificationCenter.defaultCenter.removeObserver(it) }
         endOfItemObserver = NSNotificationCenter.defaultCenter.addObserverForName(
@@ -355,10 +378,40 @@ internal class IosPlaybackController(
         return true
     }
 
+    /** Resolves a persistent Music-library ID and cues it in Apple's local player. */
+    private fun loadMediaLibraryItem(track: TrackDescriptor, autoPlay: Boolean): Boolean {
+        val persistentId = track.id.value.removePrefix(MEDIA_ID_PREFIX)
+        val item = resolveMediaItem(persistentId) ?: return false
+
+        endOfItemObserver?.let { NSNotificationCenter.defaultCenter.removeObserver(it) }
+        endOfItemObserver = null
+        player.pause()
+        mediaItemStarted = false
+        mediaPlayer.stop()
+        mediaPlayer.setQueueWithItemCollection(MPMediaItemCollection(items = listOf(item)))
+        activeBackend = PlaybackBackend.MEDIA_LIBRARY
+        if (autoPlay) {
+            mediaItemStarted = true
+            mediaPlayer.play()
+            playing = true
+        }
+        updateTicker()
+        return true
+    }
+
+    /** Refreshes on a miss so additions to Music.app work without restarting LatentJam. */
+    private fun resolveMediaItem(persistentId: String): platform.MediaPlayer.MPMediaItem? {
+        mediaItemsById[persistentId]?.let { return it }
+        MPMediaQuery.songsQuery().items.orEmpty()
+            .mapNotNull { it as? platform.MediaPlayer.MPMediaItem }
+            .forEach { mediaItemsById[it.persistentID.toString()] = it }
+        return mediaItemsById[persistentId]
+    }
+
     private fun onItemEnded() {
         if (repeat == RepeatMode.ONE) {
-            player.seekToTime(CMTimeMakeWithSeconds(0.0, PREFERRED_TIMESCALE))
-            player.play()
+            seekActiveBackend(0L)
+            playActiveBackend()
             playing = true
             pushState()
             return
@@ -376,6 +429,68 @@ internal class IosPlaybackController(
         // ring/silent switch — without it the app is silent in the user's pocket.
         session.setCategory(AVAudioSessionCategoryPlayback, null)
         session.setActive(true, null)
+    }
+
+    /** Bridges natural completion from the MediaPlayer backend into the shared queue. */
+    private fun wireMediaPlayer() {
+        mediaPlayer.beginGeneratingPlaybackNotifications()
+        NSNotificationCenter.defaultCenter.addObserverForName(
+            MPMusicPlayerControllerPlaybackStateDidChangeNotification,
+            mediaPlayer,
+            NSOperationQueue.mainQueue,
+        ) { _ ->
+            mainScope.launch {
+                if (activeBackend != PlaybackBackend.MEDIA_LIBRARY) return@launch
+                when (mediaPlayer.playbackState) {
+                    MPMusicPlaybackState.MPMusicPlaybackStatePlaying -> {
+                        mediaItemStarted = true
+                        playing = true
+                        updateTicker()
+                        pushState()
+                    }
+                    MPMusicPlaybackState.MPMusicPlaybackStatePaused,
+                    MPMusicPlaybackState.MPMusicPlaybackStateInterrupted,
+                    -> {
+                        playing = false
+                        updateTicker()
+                        pushState()
+                    }
+                    MPMusicPlaybackState.MPMusicPlaybackStateStopped -> if (mediaItemStarted) {
+                        mediaItemStarted = false
+                        onItemEnded()
+                    }
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    private fun pauseActiveBackend() {
+        when (activeBackend) {
+            PlaybackBackend.FILE -> player.pause()
+            PlaybackBackend.MEDIA_LIBRARY -> mediaPlayer.pause()
+        }
+    }
+
+    private fun playActiveBackend() {
+        when (activeBackend) {
+            PlaybackBackend.FILE -> player.play()
+            PlaybackBackend.MEDIA_LIBRARY -> {
+                mediaItemStarted = true
+                mediaPlayer.play()
+            }
+        }
+    }
+
+    private fun seekActiveBackend(positionMs: Long) {
+        when (activeBackend) {
+            PlaybackBackend.FILE -> player.seekToTime(
+                CMTimeMakeWithSeconds(positionMs / 1000.0, PREFERRED_TIMESCALE),
+            )
+            PlaybackBackend.MEDIA_LIBRARY -> {
+                mediaPlayer.currentPlaybackTime = positionMs / 1000.0
+            }
+        }
     }
 
     private fun wireRemoteCommands() {
@@ -441,7 +556,13 @@ internal class IosPlaybackController(
      * button on every track change.
      */
     private fun reconcilePlayingState() {
-        if (playing && player.timeControlStatus == AVPlayerTimeControlStatusPaused) {
+        val backendPaused = when (activeBackend) {
+            PlaybackBackend.FILE -> player.timeControlStatus == AVPlayerTimeControlStatusPaused
+            PlaybackBackend.MEDIA_LIBRARY ->
+                mediaPlayer.playbackState == MPMusicPlaybackState.MPMusicPlaybackStatePaused ||
+                    mediaPlayer.playbackState == MPMusicPlaybackState.MPMusicPlaybackStateInterrupted
+        }
+        if (playing && backendPaused) {
             playing = false
             updateTicker()
         }
@@ -455,12 +576,21 @@ internal class IosPlaybackController(
 
     @OptIn(ExperimentalForeignApi::class)
     private fun positionMs(): Long {
+        if (activeBackend == PlaybackBackend.MEDIA_LIBRARY) {
+            return (mediaPlayer.currentPlaybackTime * 1000.0).toLong().coerceAtLeast(0L)
+        }
         val seconds = CMTimeGetSeconds(player.currentTime())
         return if (seconds.isNaN()) 0L else (seconds * 1000).toLong().coerceAtLeast(0L)
     }
 
     @OptIn(ExperimentalForeignApi::class)
     private fun durationMs(): Long? {
+        if (activeBackend == PlaybackBackend.MEDIA_LIBRARY) {
+            return mediaPlayer.nowPlayingItem?.playbackDuration
+                ?.takeIf { it.isFinite() && it > 0.0 }
+                ?.times(1000.0)
+                ?.toLong()
+        }
         val item = player.currentItem ?: return null
         val seconds = CMTimeGetSeconds(item.duration())
         return if (seconds.isNaN() || seconds <= 0) null else (seconds * 1000).toLong()
@@ -488,6 +618,9 @@ internal class IosPlaybackController(
      * every ticker emission would be twice-a-second work for no visible gain.
      */
     private fun publishNowPlayingInfo(track: TrackDescriptor?) {
+        // MediaPlayer owns its lock-screen payload. Publishing AVPlayer-style metadata on top of
+        // it can briefly replace Apple's artwork and duration with stale values during a change.
+        if (activeBackend == PlaybackBackend.MEDIA_LIBRARY) return
         val trackId = track?.id?.value
         if (trackId == lastInfoTrackId && playing == lastInfoPlaying) return
         lastInfoTrackId = trackId
@@ -512,6 +645,7 @@ internal class IosPlaybackController(
     }
 
     private companion object {
+        const val MEDIA_ID_PREFIX = "ios-media:"
         /**
          * How many tracks SMART keeps queued beyond the playhead. Matches the
          * Android controller so both platforms show a queue you can read rather
@@ -531,6 +665,8 @@ internal class IosPlaybackController(
         /** CMTime ticks per second; 600 is the conventional audio/video base. */
         const val PREFERRED_TIMESCALE = 600
     }
+
+    private enum class PlaybackBackend { FILE, MEDIA_LIBRARY }
 }
 
 public actual fun playbackModule(): Module = module {

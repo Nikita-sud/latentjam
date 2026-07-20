@@ -50,6 +50,10 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 
+	<!-- Device-only access: enumerate and play the user's existing Music library. -->
+	<key>NSAppleMusicUsageDescription</key>
+	<string>LatentJam uses your on-device music library to organize tracks and make private recommendations locally.</string>
+
 	<!-- Keep playing once the screen locks, like any music player should. -->
 	<key>UIBackgroundModes</key>
 	<array>

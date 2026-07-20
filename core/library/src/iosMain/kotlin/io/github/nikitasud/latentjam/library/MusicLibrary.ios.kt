@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -45,18 +46,23 @@ import platform.Foundation.NSFileSize
 import platform.Foundation.NSNumber
 import platform.Foundation.timeIntervalSince1970
 import platform.Foundation.writeToFile
+import platform.MediaPlayer.MPMediaItem
+import platform.MediaPlayer.MPMediaLibrary
+import platform.MediaPlayer.MPMediaLibraryAuthorizationStatusAuthorized
+import platform.MediaPlayer.MPMediaLibraryAuthorizationStatusDenied
+import platform.MediaPlayer.MPMediaLibraryAuthorizationStatusRestricted
+import platform.MediaPlayer.MPMediaQuery
+import kotlin.coroutines.resume
 
 /**
- * [MusicLibrary] over the app's own Documents folder.
+ * [MusicLibrary] over both the device Music library and the app's Documents folder.
  *
- * ### Why files and not MPMediaQuery
- * The device's Apple Music library is reachable through `MPMediaQuery`, but
- * anything bought or streamed from Apple Music is FairPlay-protected and will
- * not hand over raw samples. SMART's audio encoder has to decode a waveform to
- * embed a track, so a DRM-backed source would silently degrade the whole
- * feature to metadata-only. Files the user owns keep every feature working,
- * and `UIFileSharingEnabled` makes "drop music into LatentJam" a normal
- * Files.app drag.
+ * `MPMediaQuery` is the first-open path an iPhone user expects: downloaded and
+ * synced Music.app tracks are already on the device. FairPlay items do not hand
+ * raw samples to the audio encoder, so they use the on-device metadata/text
+ * path while remaining playable through `MPMusicPlayerController`. Owned files
+ * with an asset URL, and files copied into LatentJam through Files.app, retain
+ * full waveform embeddings.
  *
  * ### Identity
  * [TrackId] is the path RELATIVE to Documents, never the absolute one: iOS
@@ -64,10 +70,13 @@ import platform.Foundation.writeToFile
  * across reinstalls and some OS updates, so absolute paths would orphan every
  * history row and index entry the first time that happened.
  */
-internal class DocumentsMusicLibrary : MusicLibrary {
+internal class IosMusicLibrary : MusicLibrary {
 
     /** Guards [cache] — [tracks] may be called from several screens at once. */
     private val scanMutex = Mutex()
+
+    /** Prevents concurrent first screens from presenting the privacy prompt more than once. */
+    private val authorizationMutex = Mutex()
 
     /** Relative path → last scan result, reused while size and mtime agree. */
     private val cache = mutableMapOf<String, CachedTrack>()
@@ -78,10 +87,67 @@ internal class DocumentsMusicLibrary : MusicLibrary {
         val descriptor: TrackDescriptor,
     )
 
-    override suspend fun tracks(): List<TrackDescriptor> = withContext(Dispatchers.Default) {
-        val documents = IosPaths.documents() ?: return@withContext emptyList()
-        scanMutex.withLock { scan(documents) }
+    override suspend fun tracks(): List<TrackDescriptor> {
+        val canReadDeviceLibrary = mediaLibraryAuthorized()
+        val device = if (canReadDeviceLibrary) {
+            // MediaPlayer's controller is explicitly main-thread-only. Keeping its query here as
+            // well avoids relying on undocumented cross-thread behavior of the returned items.
+            withContext(Dispatchers.Main) { scanDeviceLibrary() }
+        } else {
+            emptyList()
+        }
+        val documents = withContext(Dispatchers.Default) {
+            scanMutex.withLock { IosPaths.documents()?.let(::scan).orEmpty() }
+        }
+        return (documents + device)
+            .distinctBy { it.id }
+            .sortedBy { it.title?.lowercase() ?: "" }
     }
+
+    /** Requests the system privacy grant once, on the main thread as UIKit expects. */
+    private suspend fun mediaLibraryAuthorized(): Boolean = authorizationMutex.withLock {
+        withContext(Dispatchers.Main) {
+            when (val current = MPMediaLibrary.authorizationStatus()) {
+                MPMediaLibraryAuthorizationStatusAuthorized -> true
+                MPMediaLibraryAuthorizationStatusDenied,
+                MPMediaLibraryAuthorizationStatusRestricted,
+                -> false
+                else -> suspendCancellableCoroutine { continuation ->
+                    MPMediaLibrary.requestAuthorization { status ->
+                        if (continuation.isActive) {
+                            continuation.resume(status == MPMediaLibraryAuthorizationStatusAuthorized)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Converts the Music.app library into the same descriptors used by app-owned files. */
+    @OptIn(ExperimentalForeignApi::class)
+    private fun scanDeviceLibrary(): List<TrackDescriptor> =
+        MPMediaQuery.songsQuery().items.orEmpty()
+            .mapNotNull { it as? MPMediaItem }
+            .map { item ->
+                val persistentId = item.persistentID.toString()
+                TrackDescriptor(
+                    id = TrackId("$MEDIA_ID_PREFIX$persistentId"),
+                    title = item.title.knownOrNull() ?: "Unknown title",
+                    artist = item.artist.knownOrNull(),
+                    album = item.albumTitle.knownOrNull(),
+                    genre = item.genre.knownOrNull()?.let(::cleanGenre),
+                    durationMs = item.playbackDuration
+                        .takeIf { it.isFinite() && it > 0.0 }
+                        ?.times(1000.0)
+                        ?.toLong(),
+                    // Protected downloads intentionally leave this null. The text encoder still
+                    // indexes them, and the playback controller resolves the persistent ID.
+                    audioUri = item.assetURL?.absoluteString,
+                    artworkUri = null,
+                    addedAtMs = null,
+                    year = null,
+                )
+            }
 
     @OptIn(ExperimentalForeignApi::class)
     private fun scan(documents: String): List<TrackDescriptor> {
@@ -265,6 +331,9 @@ internal class DocumentsMusicLibrary : MusicLibrary {
             AVMetadataIdentifierID3MetadataYear,
             AVMetadataIdentifieriTunesMetadataReleaseDate,
         )
+
+        /** Namespace shared with the iOS playback controller. */
+        const val MEDIA_ID_PREFIX = "ios-media:"
     }
 }
 
@@ -288,7 +357,7 @@ internal class FilePlaylistStore : PlaylistStore {
 }
 
 public actual fun musicLibraryModule(): Module = module {
-    single<MusicLibrary> { DocumentsMusicLibrary() }
+    single<MusicLibrary> { IosMusicLibrary() }
     single<PlaylistStore> { FilePlaylistStore() }
     single<Playlists> { DefaultPlaylists(store = get()) }
 }
