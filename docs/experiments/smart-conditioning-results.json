@@ -1,0 +1,195 @@
+{
+  "experiment": "smart-conditioning-final-v8-mixed-context",
+  "decision_date": "2026-07-20",
+  "seed": 19,
+  "dataset": {
+    "database_rows": 862,
+    "usable_library_tracks": 860,
+    "listening_events": 3960,
+    "sessions": 145,
+    "positive_next_track_examples": 1519,
+    "mixed_context_training_examples": 3038,
+    "folds": 4,
+    "split_unit": "session"
+  },
+  "metric_definition": {
+    "mrr_end_to_end": "reciprocal rank multiplied by candidate-pool hit; missed targets contribute zero",
+    "recall_at_k_end_to_end": "target is retrieved into the real phone pool and ranked in the first k",
+    "selection_metric": "mrr_end_to_end on held-out sessions"
+  },
+  "compression_256": {
+    "pca_fit_tracks": 7994,
+    "pca_eval_tracks": 566,
+    "pca_explained_variance": 0.9892290234565735,
+    "pca_neighbor_overlap_at_10": 0.8151943462897526,
+    "native_student_validation_tracks": 800,
+    "native_student_genre_precision_at_10": 0.641125,
+    "teacher_genre_precision_at_10": 0.634625,
+    "native_student_target_cosine": 0.985466718673706,
+    "state_teacher_cosine_mean": 0.9973928332328796,
+    "state_teacher_cosine_min": 0.977341890335083,
+    "scorer_teacher_top1_agreement": 0.8086802480070859,
+    "scorer_choice_in_teacher_top3": 0.979185119574845,
+    "scorer_squashed_mad": 0.05927856266498566
+  },
+  "strict_256_phone_contract": {
+    "pool": "256-d state/audio + trusted seed-text round-robin, 100 candidates",
+    "pool_recall": 0.500987491770902,
+    "audio_only": {
+      "mrr_end_to_end": 0.024885551937745182,
+      "recall_at_1_end_to_end": 0.0032916392363396972,
+      "recall_at_5_end_to_end": 0.02040816326530612,
+      "recall_at_10_end_to_end": 0.05464121132323897,
+      "recall_at_20_end_to_end": 0.10994075049374588
+    },
+    "trusted_text": {
+      "mrr_end_to_end": 0.0440115016134648,
+      "recall_at_1_end_to_end": 0.013166556945358789,
+      "recall_at_5_end_to_end": 0.05332455562870309,
+      "recall_at_10_end_to_end": 0.09743252139565503,
+      "recall_at_20_end_to_end": 0.1672152732060566,
+      "top1_vs_audio": 0.65174456879526
+    },
+    "deployed_960_teacher_on_same_pool": {
+      "mrr_end_to_end": 0.06578511517468481,
+      "recall_at_1_end_to_end": 0.02040816326530612,
+      "recall_at_5_end_to_end": 0.08755760368663594,
+      "recall_at_10_end_to_end": 0.16063199473337722,
+      "recall_at_20_end_to_end": 0.2468729427254773
+    },
+    "counterfactuals": {
+      "missing_text_mrr_end_to_end": 0.024885551937745182,
+      "missing_text_top1_vs_audio": 1.0,
+      "title_genre_injection_mrr_end_to_end": 0.0440115016134648,
+      "title_genre_injection_top1_vs_correct": 1.0,
+      "wrong_genre_mrr_end_to_end": 0.02500135343532324,
+      "wrong_genre_top1_vs_audio": 0.9447004608294931,
+      "naive_full_metadata_correct_mrr_end_to_end": 0.047909480394111324,
+      "naive_title_poison_mrr_end_to_end": 0.03735971693784604,
+      "naive_title_poison_top1_vs_correct": 0.8439763001974984,
+      "robust_full_metadata_correct_mrr_end_to_end": 0.044715611742963374,
+      "robust_title_poison_mrr_end_to_end": 0.039380021801521704,
+      "robust_title_poison_top1_vs_correct": 0.8169848584595129
+    },
+    "decision": "reject_for_production: trusted text recovers much of the 256-d loss but remains 33.1% below the 960 teacher in end-to-end MRR"
+  },
+  "selected_960_phone_contract": {
+    "pool": "960-d state/audio + trusted seed-text round-robin, 100 candidates; evaluated with real history and exact first-open state",
+    "architecture": "local 4-play GRU + 30/365-day taste centroids + frozen 960-d acoustic scorer + learned bounded 384-d MiniLM residual",
+    "trusted_metadata": "genre; artist; year",
+    "title_included": false,
+    "residual_cap": 0.75,
+    "training_contexts": "each transition appears once with observed history and once with the exact first-open state; session-grouped folds keep both copies together",
+    "audio_only": {
+      "pool_recall": 0.5306122448979592,
+      "mrr_end_to_end": 0.06214700255285525,
+      "recall_at_1_end_to_end": 0.018433179723502304,
+      "recall_at_5_end_to_end": 0.08163265306122448,
+      "recall_at_10_end_to_end": 0.14944042132982224,
+      "recall_at_20_end_to_end": 0.23568136932192232
+    },
+    "trusted_text": {
+      "pool_recall": 0.5306122448979592,
+      "mrr_end_to_end": 0.08555368829031514,
+      "recall_at_1_end_to_end": 0.038841342988808425,
+      "recall_at_5_end_to_end": 0.12047399605003292,
+      "recall_at_10_end_to_end": 0.1869651086240948,
+      "recall_at_20_end_to_end": 0.27123107307439104,
+      "top1_vs_audio": 0.4410796576695194,
+      "fold_mrr_end_to_end": [
+        0.09391052765029932,
+        0.09431044395628535,
+        0.09165547339636677,
+        0.05790091663514553
+      ]
+    },
+    "first_open_cold_start": {
+      "audio_only": {
+        "pool_recall": 0.5266622778143516,
+        "mrr_end_to_end": 0.061986958858103125,
+        "recall_at_1_end_to_end": 0.02106649111257406,
+        "recall_at_5_end_to_end": 0.08821593153390389,
+        "recall_at_10_end_to_end": 0.14285714285714285,
+        "recall_at_20_end_to_end": 0.23304805793285055
+      },
+      "trusted_text": {
+        "pool_recall": 0.5266622778143516,
+        "mrr_end_to_end": 0.07836606660498395,
+        "recall_at_1_end_to_end": 0.03225806451612903,
+        "recall_at_5_end_to_end": 0.10730743910467412,
+        "recall_at_10_end_to_end": 0.17709019091507572,
+        "recall_at_20_end_to_end": 0.2567478604344964,
+        "top1_vs_audio": 0.6129032258064516,
+        "fold_mrr_end_to_end": [
+          0.08655012403923654,
+          0.07631178569588887,
+          0.08287446300765546,
+          0.06786750240497005
+        ]
+      }
+    },
+    "counterfactuals": {
+      "missing_text_mrr_end_to_end": 0.06214700255285525,
+      "missing_text_top1_vs_audio": 1.0,
+      "missing_text_max_abs_logit_delta": 0.0,
+      "title_genre_injection_mrr_end_to_end": 0.08555368829031514,
+      "title_genre_injection_top1_vs_correct": 1.0,
+      "wrong_genre_mrr_end_to_end": 0.06539368103561777,
+      "wrong_genre_top1_vs_audio": 0.8940092165898618,
+      "first_open_missing_text_mrr_end_to_end": 0.061986958858103125,
+      "first_open_missing_text_top1_vs_audio": 1.0,
+      "first_open_title_genre_injection_mrr_end_to_end": 0.07836606660498395,
+      "first_open_title_genre_injection_top1_vs_correct": 1.0,
+      "first_open_wrong_genre_mrr_end_to_end": 0.060908632002603255,
+      "first_open_wrong_genre_top1_vs_audio": 0.8847926267281107
+    },
+    "relative_change_vs_audio_only": {
+      "mrr_end_to_end": 0.376634186299698,
+      "recall_at_10_end_to_end": 0.25110132158590304,
+      "recall_at_20_end_to_end": 0.15083798882681565
+    },
+    "first_open_relative_change_vs_audio_only": {
+      "mrr_end_to_end": 0.26423473660604824,
+      "recall_at_10_end_to_end": 0.23963133640552998,
+      "recall_at_20_end_to_end": 0.10169491525423724
+    },
+    "residual_onnx_bytes": 253566,
+    "decision": "ship"
+  },
+  "audio_fp16_export": {
+    "real_audio_tracks": 72,
+    "fp32_bytes": 43429465,
+    "fp16_bytes": 21939891,
+    "non_silent_embedding_cosine_min": 0.9999861717224121,
+    "centered_genre_purity_at_10_fp32": 0.4507936507936508,
+    "centered_genre_purity_at_10_fp16": 0.4507936507936508,
+    "centered_genre_mrr_fp32": 0.7159080926830567,
+    "centered_genre_mrr_fp16": 0.7350050054160967,
+    "note": "RunPod timing is not a phone latency estimate"
+  },
+  "bundle": {
+    "physical_onnx_graphs": 5,
+    "audio_bytes": 21939891,
+    "text_encoder_bytes": 22972370,
+    "state_bytes": 11917220,
+    "acoustic_scorer_bytes": 2728912,
+    "text_residual_bytes": 253566,
+    "vocabulary_bytes": 231508,
+    "total_bytes": 60043467,
+    "total_mib": 57.26191234588623
+  },
+  "mobile_smoke": {
+    "android_emulator_whole_cold_sequence_ms": 4944,
+    "android_graph_contract": "audio=960 text=384 state=960 scores=100 missing_text_exact=true",
+    "ios_simulator_whole_cold_sequence_ms": 123,
+    "ios_graph_contract": "audio=960 text=384 state=960 scores=100 missing_text_exact=true",
+    "note": "Whole smoke sequence includes loading and is not a physical-phone latency benchmark"
+  },
+  "asset_sha256": {
+    "mnv4_audio.onnx": "507626838393bb9132714fdb6740707a21f38bf56befa3dd826e91f420ef9b53",
+    "predictor_state.onnx": "13c5f87437e57b52ceb455f7e75f9ab841aa3ca6fe987507974a30657122b1e7",
+    "predictor_scorer_n100.onnx": "adaa42bc3bd4b535d4ad2a49a348f3a5d9b41048c092650fedbd9fcc2a7457a6",
+    "predictor_text_residual_n100_960.onnx": "e02f2bc70576ce23ce8fb763c662922af5bed8d065c303937ec1b4b8b11d9080",
+    "text_encoder_minilm.onnx": "afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1"
+  }
+}

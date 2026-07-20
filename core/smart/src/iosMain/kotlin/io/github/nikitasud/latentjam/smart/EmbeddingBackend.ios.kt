@@ -7,36 +7,38 @@ package io.github.nikitasud.latentjam.smart
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
-/**
- * iOS [EmbeddingBackend] — currently a STUB that reports
- * [EngineError.ModelUnavailable] for every operation, so the app degrades
- * gracefully (smart shuffle falls back to random) until the real runtime lands.
- *
- * ### Where the real implementation goes (TODO)
- * Mirror of the Android backend's fixed model contract
- * (`waveform [1, 320000]` = 10 s mono 32 kHz → `embedding [1, 960]`,
- * L2-normalized in-graph):
- * 1. **ONNX Runtime (C/Objective-C API via cinterop)** — same `.onnx` asset as
- *    Android; Core ML execution provider for ANE offload, CPU fallback.
- * 2. Audio decode via `AVAudioFile`/`AVAssetReader` at 32 kHz mono; the same
- *    three deterministic windows (20 % / 50 % / 80 %), sum + L2-normalize.
- * Every native error maps to
- * `Result.failure(SmartEngineException(EngineError.BackendFailure(...)))`.
- */
+/** iOS audio backend backed by the ONNX Runtime provider installed by the Swift host. */
 internal class IosEmbeddingBackend(
-    @Suppress("unused") // Consumed by the real implementation (model location, dim checks).
     private val config: SmartEngineConfig,
 ) : EmbeddingBackend {
 
-    override suspend fun loadModel(): Result<Unit> =
-        Result.failure(SmartEngineException(EngineError.ModelUnavailable))
-
-    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> =
-        Result.failure(SmartEngineException(EngineError.ModelUnavailable))
-
-    override fun close() {
-        // Nothing to release in the stub. Real implementation: release the ORT session / MLModel.
+    override suspend fun loadModel(): Result<Unit> {
+        val provider = IosInferenceRegistry.current()
+            ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        val error = provider.loadAudio()
+        return if (error == null) Result.success(Unit) else backendFailure(error)
     }
+
+    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+        val provider = IosInferenceRegistry.current()
+            ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        val uri = descriptor.audioUri
+            ?: return backendFailure("No audioUri for ${descriptor.id.value}")
+        val output = provider.embedAudio(uri, descriptor.durationMs ?: -1L, config.embeddingDim)
+            ?: return backendFailure("Could not decode or embed ${descriptor.id.value}")
+        if (output.size != config.embeddingDim || !output.all(Float::isFinite)) {
+            return backendFailure(
+                "Model produced an invalid embedding (size=${output.size}, " +
+                    "expected=${config.embeddingDim})",
+            )
+        }
+        return Result.success(output)
+    }
+
+    override fun close(): Unit = Unit
+
+    private fun <T> backendFailure(message: String): Result<T> =
+        Result.failure(SmartEngineException(EngineError.BackendFailure(message)))
 }
 
 public actual fun smartEngineBackendModule(): Module = module {

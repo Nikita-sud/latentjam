@@ -18,7 +18,7 @@ import kotlin.test.assertTrue
  *
  * The fixture holds the library matrices plus, per seed, the state vectors and candidate logits the
  * reference's own ONNX sessions produced at each hop. Feeding those back in isolates everything
- * this module actually owns — pool construction, semantic z-scores, metadata multipliers, the
+ * this module actually owns — pool construction, geometric terms, metadata multipliers, the
  * skip/exclude rules and the selection loop — from the two graphs, which are the same files on both
  * sides. A drift of one constant or one filter shows up as a different chain.
  *
@@ -58,7 +58,10 @@ class SmartChainParityTest {
         val tracks = (0 until n).map { row ->
             SmartTrack(
                 id = TrackId(row.toString()),
-                audio = audio.copyOfRange(row * 960, (row + 1) * 960),
+                audio = audio.copyOfRange(
+                    row * PredictorRuntime.STATE_DIM,
+                    (row + 1) * PredictorRuntime.STATE_DIM,
+                ),
                 text = if (hasText[row]) text.copyOfRange(row * 384, (row + 1) * 384) else null,
                 descriptor = if (hasDescriptor[row]) {
                     descriptor.copyOfRange(row * 768, (row + 1) * 768)
@@ -129,8 +132,8 @@ class SmartChainParityTest {
             sessionFeatures: FloatArray,
         ): FloatArray {
             val dim = PredictorRuntime.STATE_DIM
-            // The reference derives both slow-taste inputs from the newest history token; if the
-            // port ever stops doing that, the replayed states would silently stop applying.
+            // This recorded fixture exercises the cold/no-history contract, where both slow-taste
+            // inputs equal the newest (seed) token. History-aware inputs have a separate test.
             val newest = historySmall.copyOfRange(
                 (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM,
                 (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM + dim,
@@ -141,7 +144,13 @@ class SmartChainParityTest {
             return states.copyOfRange(at * dim, (at + 1) * dim)
         }
 
-        override fun score(state: FloatArray, candidates: FloatArray): FloatArray {
+        override fun score(
+            state: FloatArray,
+            candidates: FloatArray,
+            textState: FloatArray,
+            textCandidates: FloatArray,
+            textMask: FloatArray,
+        ): FloatArray {
             val at = scoreCalls++
             val size = PredictorRuntime.POOL_SIZE
             return logits.copyOfRange(at * size, (at + 1) * size)

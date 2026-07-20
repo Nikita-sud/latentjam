@@ -2,115 +2,94 @@
 
 Decision date: 2026-07-20
 
+## Decision
+
+Ship the 960-dimensional acoustic stack plus a 253 KB learned optional-text residual trained on both
+real-history and exact first-open contexts. Do not ship
+the 256-dimensional stack yet: on the exact 256 phone candidate pool its text-conditioned
+end-to-end MRR is 0.04401, versus 0.06579 for the frozen 960 scorer on the same candidates.
+
+The final 960 session-grouped evaluation improves history-aware end-to-end MRR from 0.06215 to
+0.08555 (+37.7%) and first-open MRR from 0.06199 to 0.07837 (+26.4%). Missing text is an exact
+fallback in both modes; genre words injected into titles are an exact no-op because titles are not
+embedded.
+
+Full methods, counterfactuals, limitations, teacher research, and mobile results are in
+[`smart-model-final-report.md`](smart-model-final-report.md).
+
 ## Shipped bundle
 
-LatentJam should ship **four ONNX files serving three logical roles**:
+| File | Contract | Bytes |
+|---|---:|---:|
+| `mnv4_audio.onnx` | 10 s mono 32 kHz → 960-d | 21,939,891 |
+| `text_encoder_minilm.onnx` | tokens → 384-d | 22,972,370 |
+| `predictor_state.onnx` | recent 960-d history → 960-d state | 11,917,220 |
+| `predictor_scorer_n100.onnx` | state + 100 audio candidates → logits | 2,728,912 |
+| `predictor_text_residual_n100_960.onnx` | base logits + optional text → logits | 253,566 |
+| `text_vocab.txt` | WordPiece vocabulary | 231,508 |
 
-| Role | File | Contract | Size |
-|---|---|---:|---:|
-| Audio encoder | `mnv4_audio.onnx` | 10 s mono at 32 kHz → 960-d | 24.18 MB |
-| Metadata encoder | `text_encoder_minilm.onnx` | WordPiece tokens → 384-d | 22.97 MB |
-| Session encoder | `predictor_state.onnx` | recent 960-d history → 960-d state | 11.92 MB |
-| Candidate scorer | `predictor_scorer_n100.onnx` | state + 100 candidates → 100 scores | 2.73 MB |
+Total: **60,043,467 bytes (57.3 MiB)** per platform. Audio and text graphs run while tracks are
+indexed. Queue construction runs the state graph, frozen acoustic scorer, and residual. The app
+progressively builds the local index on first launch, embeds the selected seed on demand, and keeps
+playback's immediate random fallback until candidates are ready. All inference, history, and stored
+embeddings remain on the device; iOS and Android both persist private history across launches.
 
-The text vocabulary adds 0.23 MB. The ONNX bundle is 61.79 MB; including the vocabulary it is
-62.03 MB. The previous bundle was 86.24 MB including its 4.96 MB static descriptor table. This
-change removes 24.21 MB (28.1%).
+## Metadata contract
 
-Four files are intentional. Audio and metadata are indexed at different times and have different
-input pipelines. The state encoder and scorer are one logical recommender split into two graphs so
-the state is computed once while the fixed candidate pool is rescored at each hop. Merging them
-would make deployment less flexible without removing a meaningful amount of work.
+Embed `genre; artist; year`, dropping blank fields. Never put title or filename text into the trusted
+channel. Candidate retrieval interleaves anchor-audio, state-audio, and seed-text rankings instead
+of using a hand-tuned cross-modal weight. The learned residual is bounded to ±0.75 and its mask makes
+missing text bit-exact acoustic-only output.
 
-## Audio encoder decision
+## SMART behavior
 
-The selected encoder is the existing MobileNetV4-Conv-M student of EfficientAT MN10. Its fixed
-STFT/mel tensors remain FP32; learned backbone and projection tensors are FP16. Input/output stay
-FP32, so this is a drop-in replacement for the persisted 960-d contract.
+Use a two-stage local system, not a single nearest-neighbour call: round-robin multi-channel
+retrieval, learned candidate reranking, then list-level coherence/diversity rules. The state combines
+the last four plays with completion/skip signals and 30/365-day taste centroids. Empty history maps
+to an explicitly tested seed-only state, not zeros. With only 1,519 positives from one listener, the
+small GRU is a safer production choice than SASRec/BERT4Rec; the next evidence target is candidate
+pool recall (currently 53%), followed by contrastive sequence training after multi-listener data.
 
-72-track curated retrieval benchmark, library-mean-centred space:
+Research basis and rejected alternatives are detailed in the full report.
 
-| Candidate | Size | Language purity@5 | Genre purity@5 | Artist MRR | Decision |
-|---|---:|---:|---:|---:|---|
-| Existing MNv4 960 FP32 | 43.43 MB | 0.6056 | 0.5397 | 0.6457 | baseline |
-| **MNv4 960 mixed precision** | **24.18 MB** | **0.5861** | **0.5238** | **0.6600** | **ship** |
-| MNv4 256 full-head FP16 | 19.75 MB | 0.5889 | 0.5429 | 0.6712 | next contract, not drop-in |
+## Encoder status
 
-The 256-d model is the best endpoint, but it cannot be shipped honestly until the session encoder,
-candidate scorer, persisted index and parity fixtures are retrained/migrated to 256 dimensions.
-Projecting only the audio output would put the predictor outside its training distribution. The
-backbone dominates file size, so the immediate model saving is only 4.43 MB; the larger 256-d win is
-smaller recommender graphs and 73% less per-track audio-index storage.
+MNv4 is the best encoder actually verified here, not a claim that a generic MNv4 is optimal for the
+product. The LatentJam-specific recommendation architecture is already custom, but the waveform
+trunk is still the incumbent. The next controlled experiment is a small UIB/Mobile-MQA audio trunk
+trained end to end with relational teacher distillation, rhythm/harmonic auxiliary heads, and the
+exact next-track candidate-pool loss. Compare native 256-, 384- and 512-d heads; the earlier failure
+only rejects post-hoc 256-d compression. The concrete `LJ-Audio-S` contract and promotion gates are
+in the full report.
 
-The old phone-side research measured the 960-d student at about 7 ms with Qualcomm QNN, versus
-393 ms for its MN10 teacher. The Apache clean-room app currently uses ONNX Runtime CPU and has no
-QNN execution-provider binding yet. RunPod timings are useful for regression checks, not phone
-latency claims; a real-device QNN/thermal gate remains required before advertising a latency.
+## Teacher policy
 
-## Why the descriptor table was removed
+Use large models offline only and promote them by the held-out next-track target:
 
-`semantic_descriptors.bin` encoded descriptions generated for one library on a Mac. It could not
-represent a newly imported track and therefore made behaviour depend on whether a song happened to
-exist in that private catalogue. A curated audit also found free-form audio-LLM descriptions
-hallucinating geography, era and scene (for example Romanian estradă described as Bollywood or
-Italian folk). Incidental clustering gains on one library do not make that a general model.
+- EfficientAT MN10: primary permissive acoustic teacher.
+- Beat This and Basic Pitch: confidence-masked rhythm and pitch auxiliaries.
+- Whisper: vocals/speech/language auxiliary only when confidence is high.
+- Qwen2-Audio: Apache-2.0 offline structured labels or pairwise judgements; never a phone model or
+  free-form descriptor source.
+- MERT and MuQ published weights: excluded because their CC-BY-NC-4.0 terms do not fit the intended
+  permissive release pipeline.
 
-The production chain now uses the int8 MiniLM embedding generated from
-`genre; artist; title; year` on the device for every track. On the 18-anchor chain harness,
-descriptor-free MiniLM at the existing 1× previous/2× seed z-weights retained essentially the same
-exact-genre coherence as the combined table (0.6806 versus 0.6852). Raising its global weight fixed
-more Romanian anchors but caused R&B→phonk and Russian-rap→generic-Russian collapse, so the weights
-were not increased.
-
-## Teacher candidates
-
-Teachers run only during training or evaluation. No teacher, track, prompt or generated descriptor
-is needed by the app.
-
-| Candidate | Best use | Result / constraint |
-|---|---|---|
-| **EfficientAT MN10** | primary acoustic teacher | Best tested target; current MNv4 student reaches 92% of its playlist purity. EfficientAT is MIT. |
-| Beat This | beat/downbeat auxiliary targets | MIT code and weights; useful for rhythm, not a universal embedding. |
-| Spotify Basic Pitch | pitch/chroma/melody auxiliary targets | Apache-2.0; useful for harmonic structure, not a universal embedding. |
-| Whisper | vocals, speech/language confidence | Useful only when speech is confidently present; silence/instrumentals must be masked. |
-| Qwen2-Audio | structured offline tags or pairwise judgements | Apache-2.0, but free-form descriptions failed the factual audit. Never use unverified prose as a feature. |
-| MERT-v1-95M/330M | music SSL comparison | Both tested below the current encoder; published weights are CC-BY-NC-4.0. Exclude from an Apache/permissive release pipeline. |
-| MuQ-large-msd | music SSL comparison | Tested below the current encoder; weights are CC-BY-NC-4.0. Exclude. |
-
-Relevant upstream licences: [EfficientAT](https://github.com/fschmid56/EfficientAT),
+References checked on 2026-07-20:
+[EfficientAT](https://github.com/fschmid56/EfficientAT),
 [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2),
 [Beat This](https://github.com/CPJKU/beat_this),
 [Basic Pitch](https://github.com/spotify/basic-pitch),
 [Qwen2-Audio](https://huggingface.co/Qwen/Qwen2-Audio-7B-Instruct),
-[MERT](https://huggingface.co/m-a-p/MERT-v1-330M), and
-[MuQ](https://huggingface.co/OpenMuQ/MuQ-large-msd-iter).
+[MERT](https://huggingface.co/m-a-p/MERT-v1-330M),
+[MuQ](https://huggingface.co/OpenMuQ/MuQ-large-msd-iter), and
+[ONNX Runtime mobile](https://onnxruntime.ai/docs/tutorials/mobile/).
 
-## Recommended next training target
-
-Keep three logical roles, but move the complete learned audio/recommender contract to 256-d:
-
-1. Use MN10 as the main acoustic teacher.
-2. Add confidence-masked Beat This and Basic Pitch auxiliary losses; use Whisper only on detected
-   vocals. Use Qwen2-Audio only for schema-constrained labels or pairwise rankings that pass an
-   agreement/abstention gate.
-3. Fine-tune the 256-d MNv4 head with neighbour-preservation and session-ranking losses, not PCA
-   alone.
-4. Distil new 256-d GRU state and scorer graphs from the existing recommender, then fine-tune on
-   real/synthetic sessions.
-5. Accept only after full-chain parity, cold-start/niche suites, and real-phone CPU/QNN latency,
-   memory and thermal tests.
-
-That is the likely 45–50 MB total bundle. Shipping an on-phone LLM, MERT or MuQ would be slower,
-larger and no better on the measured recommendation target.
-
-## Reproducibility
-
-The mixed-precision export is reproducible with `tools/convert_audio_encoder_fp16.py`. Selected
-asset SHA-256 values:
+## Asset hashes
 
 ```text
-0223fd2d7a1e30f2dc0172dbb6141ce395d990f559b4d6a756492be669253dcc  mnv4_audio.onnx
+507626838393bb9132714fdb6740707a21f38bf56befa3dd826e91f420ef9b53  mnv4_audio.onnx
 13c5f87437e57b52ceb455f7e75f9ab841aa3ca6fe987507974a30657122b1e7  predictor_state.onnx
 adaa42bc3bd4b535d4ad2a49a348f3a5d9b41048c092650fedbd9fcc2a7457a6  predictor_scorer_n100.onnx
+e02f2bc70576ce23ce8fb763c662922af5bed8d065c303937ec1b4b8b11d9080  predictor_text_residual_n100_960.onnx
 afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1  text_encoder_minilm.onnx
 ```

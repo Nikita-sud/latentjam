@@ -6,13 +6,22 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		ECA65FB27941ECBD5FA0CBBF /* Pods_iosApp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8EE024B886A1D07239B952AC /* Pods_iosApp.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
-		A10000050000000000000001 /* LatentJam.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "LatentJam.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2E3E183F6F8A11C29B972FA0 /* Pods-iosApp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-iosApp.release.xcconfig"; path = "Target Support Files/Pods-iosApp/Pods-iosApp.release.xcconfig"; sourceTree = "<group>"; };
+		7C1276B5C959FF878A60E69A /* Pods-iosApp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-iosApp.debug.xcconfig"; path = "Target Support Files/Pods-iosApp/Pods-iosApp.debug.xcconfig"; sourceTree = "<group>"; };
+		8EE024B886A1D07239B952AC /* Pods_iosApp.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_iosApp.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000050000000000000001 /* LatentJam.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LatentJam.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10000010000000000000001 /* iosApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			explicitFileTypes = {
 			};
 			explicitFolders = (
@@ -27,17 +36,30 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ECA65FB27941ECBD5FA0CBBF /* Pods_iosApp.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		49D1203DD83711D8ECE73D4A /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				7C1276B5C959FF878A60E69A /* Pods-iosApp.debug.xcconfig */,
+				2E3E183F6F8A11C29B972FA0 /* Pods-iosApp.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
 		A10000030000000000000001 = {
 			isa = PBXGroup;
 			children = (
 				A10000010000000000000001 /* iosApp */,
 				A10000040000000000000001 /* Products */,
+				49D1203DD83711D8ECE73D4A /* Pods */,
+				A630CAAEEBDDA65B3F35C412 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -49,6 +71,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		A630CAAEEBDDA65B3F35C412 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8EE024B886A1D07239B952AC /* Pods_iosApp.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -56,6 +86,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = A10000070000000000000001 /* Build configuration list for PBXNativeTarget "iosApp" */;
 			buildPhases = (
+				B51AC39F98DC076AD82E53C0 /* [CP] Check Pods Manifest.lock */,
 				A10000080000000000000001 /* Compile Kotlin Framework */,
 				A10000090000000000000001 /* Sources */,
 				A10000020000000000000001 /* Frameworks */,
@@ -137,6 +168,28 @@
 			shellPath = /bin/sh;
 			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set\"\n  exit 0\nfi\n# Xcode build phases run with a minimal PATH; make the Homebrew JDK visible to gradlew.\nexport PATH=\"$PATH:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@21/bin\"\ncd \"$SRCROOT/..\"\n./gradlew --no-daemon :composeApp:embedAndSignAppleFrameworkForXcode\n";
 		};
+		B51AC39F98DC076AD82E53C0 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-iosApp-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -168,7 +221,7 @@
 					"DEBUG=1",
 					"$(inherited)",
 				);
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -190,7 +243,7 @@
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -201,6 +254,7 @@
 		};
 		A100000F0000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7C1276B5C959FF878A60E69A /* Pods-iosApp.debug.xcconfig */;
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD)";
 				"ARCHS[sdk=iphonesimulator*]" = arm64;
@@ -224,9 +278,10 @@
 					"-framework",
 					ComposeApp,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "io.github.nikitasud.latentjam.kmp";
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.nikitasud.latentjam.kmp;
 				PRODUCT_NAME = LatentJam;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = iosApp/BridgingHeader.h;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -234,6 +289,7 @@
 		};
 		A10000100000000000000001 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 2E3E183F6F8A11C29B972FA0 /* Pods-iosApp.release.xcconfig */;
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD)";
 				"ARCHS[sdk=iphonesimulator*]" = arm64;
@@ -257,9 +313,10 @@
 					"-framework",
 					ComposeApp,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "io.github.nikitasud.latentjam.kmp";
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.nikitasud.latentjam.kmp;
 				PRODUCT_NAME = LatentJam;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = iosApp/BridgingHeader.h;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};

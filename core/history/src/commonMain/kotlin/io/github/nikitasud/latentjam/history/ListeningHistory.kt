@@ -28,8 +28,7 @@ public interface ListeningHistory {
 
 /**
  * Append-only line store behind [ListeningHistory] — file-backed on Android,
- * in-memory on iOS until its real store lands. Called only under the
- * history's own mutex.
+ * private persistent storage on iOS. Called only under the history's own mutex.
  */
 public interface HistoryStore {
     public suspend fun append(line: String)

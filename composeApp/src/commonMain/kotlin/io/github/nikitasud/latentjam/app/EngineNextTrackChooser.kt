@@ -4,8 +4,11 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.ListeningHistory
+import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
+import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.sync.Mutex
@@ -29,6 +32,7 @@ import kotlinx.coroutines.sync.withLock
  */
 class EngineNextTrackChooser(
     private val engine: SimilarityEngine,
+    private val history: ListeningHistory,
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
@@ -45,7 +49,14 @@ class EngineNextTrackChooser(
             planned.clear()
         }
         if (planned.isEmpty()) {
-            planned = ArrayDeque(engine.smartQueue(current, candidates, CHAIN_LENGTH))
+            planned = ArrayDeque(
+                engine.smartQueue(
+                    current,
+                    candidates,
+                    CHAIN_LENGTH,
+                    smartHistoryFor(history, current),
+                ),
+            )
             println("SMART: planned ${planned.size} tracks from ${current.title ?: current.id.value}")
         }
 
@@ -72,3 +83,39 @@ class EngineNextTrackChooser(
         const val CHAIN_LENGTH = 12
     }
 }
+
+/** Projects the private append-only history log into SMART's model-only value type. */
+internal suspend fun smartHistoryFor(
+    history: ListeningHistory,
+    current: TrackDescriptor,
+): List<SmartHistoryEvent> {
+    val observed = history.recentEvents(SMART_HISTORY_LIMIT).asReversed().map { event ->
+        val fraction = event.trackDurationMs
+            ?.takeIf { it > 0 }
+            ?.let { (event.playedMs.toDouble() / it).toFloat().coerceIn(0f, 1f) }
+            ?: when {
+                event.completed -> 1f
+                event.skipped -> 0f
+                else -> 0.5f
+            }
+        SmartHistoryEvent(
+            trackId = event.trackId,
+            startedAtMs = event.startedAtMs,
+            playedFraction = fraction,
+            completed = event.completed,
+            skipped = event.skipped,
+        )
+    }
+    // The history recorder emits only when playback leaves a track. Queue planning happens while
+    // [current] is still playing, so add it as the latest positive intent explicitly.
+    val now = maxOf(epochMillis(), (observed.lastOrNull()?.startedAtMs ?: Long.MIN_VALUE) + 1)
+    return observed + SmartHistoryEvent(
+        trackId = current.id,
+        startedAtMs = now,
+        playedFraction = 1f,
+        completed = true,
+        skipped = false,
+    )
+}
+
+private const val SMART_HISTORY_LIMIT = 10_000

@@ -128,6 +128,8 @@ public interface SimilarityEngine {
         seed: TrackDescriptor,
         library: List<TrackDescriptor>,
         length: Int,
+        /** Oldest-first, device-local observations; empty preserves the exact cold-start path. */
+        history: List<SmartHistoryEvent> = emptyList(),
     ): List<TrackId>
 
     /**

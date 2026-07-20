@@ -75,3 +75,18 @@ public data class ListeningContext(
     public val recentTrackIds: List<TrackId> = emptyList(),
     public val excludedTrackIds: Set<TrackId> = emptySet(),
 )
+
+/**
+ * One local listening observation supplied to SMART queue planning.
+ *
+ * This deliberately mirrors only the signals the models consume; it is not a persistence or
+ * playback type. Events stay on the device and should be ordered oldest first. [playedFraction]
+ * is clamped by the engine, so callers may pass a best estimate when duration metadata is absent.
+ */
+public data class SmartHistoryEvent(
+    public val trackId: TrackId,
+    public val startedAtMs: Long,
+    public val playedFraction: Float,
+    public val completed: Boolean,
+    public val skipped: Boolean,
+)

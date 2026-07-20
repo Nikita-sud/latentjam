@@ -47,19 +47,28 @@ Two signals per track, both computed on the device:
 
 | Signal | Dimensions | Where it comes from |
 |---|---|---|
-| Audio embedding | 960 | Mixed-precision MobileNetV4-family encoder over the waveform |
-| Metadata embedding | 384 | Int8 MiniLM over `genre; artist; title; year` |
+| Audio embedding | 960 | MobileNetV4-Conv-M encoder over the waveform |
+| Metadata embedding | 384 | Int8 MiniLM over trusted `genre; artist; year` tags |
 
-Retrieval fuses raw audio and text cosines into a candidate pool. A two-stage predictor — a state
-encoder over recent plays, then a scorer over the pool — ranks it. The chain re-weights that with
-centered-space cosines, seed gravity, metadata-text z-scores and metadata multipliers. There is no
-precomputed per-track descriptor catalogue: imported tracks get the same fully local path as every
-other track.
+Retrieval round-robins separate anchor-audio, session-audio and seed-text rankings into a candidate
+pool, so there is no hand-tuned numeric weight between embedding spaces. A 960-d GRU state encoder
+over the last four plays, completion/skip signals, and 30/365-day local taste centroids feeds a
+frozen scorer over 100 candidates. A 253 KB
+learned MiniLM residual conditions those logits when trusted text exists; no manually chosen
+text/audio score weight is involved. Missing text is an exact audio-only fallback. Track titles are
+deliberately excluded from the embedding, so a filename such as `Hard Techno Mix` cannot inject a
+genre claim. The chain then applies local audio coherence, seed gravity and metadata safety rules.
 
-The predictor is deliberately **objective** rather than personalised: it models *what goes together*,
-not *what you like*. That was measured rather than assumed — a personalised variant scored worse on
-the target that matters, predicting the next track in the listener's own playlists. Personal signal
-is used where it belongs, choosing what to surface on For You; the model decides what follows it.
+The app ships five ONNX graphs: audio and metadata encoders run once while tracks are indexed; state,
+acoustic scorer and text residual run while a SMART queue is built. The complete model/vocabulary
+bundle is about 57.3 MiB on both Android and iOS. There is no precomputed per-track descriptor
+catalogue: imported tracks get the same fully local path as every other track.
+
+On first launch, the app creates the audio index progressively in small persisted batches and embeds
+the selected seed on demand; playback retains an immediate random fallback until enough candidates
+are ready. A person with no history gets an explicitly trained seed-only state, not a zero vector.
+As private listening accumulates, SMART uses it as runtime context without training on the phone or
+uploading it. Both platforms persist that history locally across launches.
 
 ## Building
 
@@ -69,8 +78,9 @@ is used where it belongs, choosing what to surface on For You; the model decides
 
 Requires JDK 17+ and the Android SDK. The first build downloads a large Kotlin/Native toolchain.
 
-Android is the complete target. The shared modules compile for iOS and the `expect`/`actual` seams
-are in place, but playback, the ONNX runtimes and the equalizer have no iOS implementation yet.
+Android is the complete player target. SMART ONNX inference is implemented and simulator-tested on
+both Android and iOS; the iOS shell uses the same graph contracts through ONNX Runtime's native C
+API. iOS library access, playback, tag writing and the equalizer are still incomplete.
 
 ## Layout
 

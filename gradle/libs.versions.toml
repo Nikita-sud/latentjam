@@ -12,6 +12,9 @@ coil = "3.4.0"
 # Full AAR, NOT the reduced "ORT Mobile" build — the reduced build silently
 # strips operators audio models need (research-repo finding).
 onnxruntime = "1.26.0"
+androidxTest = "1.7.0"
+junit4 = "4.13.2"
+androidxAnnotation = "1.10.0"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
@@ -19,6 +22,10 @@ androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", versi
 androidx-media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android", version.ref = "onnxruntime" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTest" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTest" }
+junit4 = { module = "junit:junit", version.ref = "junit4" }
+androidx-annotation = { module = "androidx.annotation:annotation-jvm", version.ref = "androidxAnnotation" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }

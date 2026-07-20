@@ -5,7 +5,9 @@
 package io.github.nikitasud.latentjam.smart.chain
 
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.sqrt
 import kotlin.math.tanh
@@ -23,14 +25,8 @@ internal object ChainConfig {
     /** Pull toward the seed for the whole walk, so one off-genre hop can't capture the chain. */
     const val CHAIN_SEED_GRAVITY = 2.5f
 
-    const val SEM_CHAIN_SEED_GRAVITY = 2.0f
-    const val SEM_CHAIN_PREV_BLEND = 1.0f
-
     const val HUB_CHAIN_DAMP = 0.6f
     const val HUB_PENALTY_BETA = 1.0f
-
-    /** α weights AUDIO in the fused retrieval pool. */
-    const val FUSED_TEXT_ALPHA = 0.4f
 
     const val CHAIN_ARTIST_SPACING = 3
     const val CHAIN_ARTIST_QUEUE_CAP = 3
@@ -60,9 +56,9 @@ internal data class ChainResult(val rows: List<Int>, val pool: List<Int>) {
  * The shape of the score is the whole design. The learned scorer is squashed into a bounded band
  * because raw logits span ±5 while the cosine terms are bounded by ~±3 — unbounded, the model's
  * taste vote simply outshouted the user's explicit choice. Around it sit local coherence (toward
- * the previous pick), seed gravity (toward the original pick, for the whole walk), the pool-relative
- * semantic z-terms that keep niche clusters intact, and metadata multipliers applied in log space
- * so a neutral verdict contributes exactly zero.
+ * the previous pick), seed gravity (toward the original pick, for the whole walk), and metadata
+ * multipliers applied in log space so a neutral verdict contributes exactly zero. Text is optional
+ * scorer conditioning; it is not added again through a hand-tuned score weight.
  *
  * The runtime is optional: without it the chain still walks on its geometric terms alone, which is
  * how iOS and any pre-download state behave.
@@ -70,7 +66,13 @@ internal data class ChainResult(val rows: List<Int>, val pool: List<Int>) {
 internal class SmartChain(
     private val snapshot: SmartSnapshot,
     private val runtime: PredictorRuntime?,
+    /** Rows allowed in the output; history-only rows may inform state without becoming candidates. */
+    private val eligibleRows: BooleanArray = BooleanArray(snapshot.size) { true },
 ) {
+
+    init {
+        require(eligibleRows.size == snapshot.size) { "eligible row mask must match snapshot" }
+    }
 
     /**
      * @param seedId the track the user picked
@@ -82,6 +84,7 @@ internal class SmartChain(
         length: Int,
         timeFeatures: FloatArray,
         sessionFeatures: FloatArray = PredictorRuntime.SESSION_FEATURES_COLD,
+        historyEvents: List<SmartHistoryEvent> = emptyList(),
     ): ChainResult {
         val seedRow = snapshot.rowOf(seedId)
         if (seedRow < 0 || length <= 0) return ChainResult.EMPTY
@@ -89,19 +92,15 @@ internal class SmartChain(
         val dim = PredictorRuntime.STATE_DIM
         val tokenDim = PredictorRuntime.TOKEN_DIM
 
-        // Cold start: training replicated the most recent track into every history slot when a
-        // session held one event. Leaving the other slots at zero is far outside that distribution
-        // and collapses the encoder onto popularity priors regardless of the seed.
-        val history = FloatArray(PredictorRuntime.CONTEXT_K * tokenDim)
-        for (k in 0 until PredictorRuntime.CONTEXT_K) {
-            val offset = k * tokenDim
-            snapshot.rawAudio.copyInto(history, offset, seedRow * dim, (seedRow + 1) * dim)
-            history[offset + dim] = 1f
-        }
+        val context = prepareContext(seedRow, historyEvents, sessionFeatures)
+        val history = context.history
+        val medium = context.medium
+        val large = context.large
+        val liveSessionFeatures = context.session
 
         var live = runtime != null
         var state = if (live) {
-            runCatching { encode(history, timeFeatures, sessionFeatures) }
+            runCatching { encode(history, medium, large, timeFeatures, liveSessionFeatures) }
                 .onFailure { live = false }
                 .getOrDefault(FloatArray(0))
         } else {
@@ -110,17 +109,28 @@ internal class SmartChain(
 
         val pool = buildPool(seedRow, state)
         if (pool.isEmpty()) return ChainResult.EMPTY
-        val poolRows = pool.toIntArray()
-
         // Short pools stay zero-padded: the scorer graph has the pool size baked in.
         val candidates = FloatArray(PredictorRuntime.POOL_SIZE * dim)
+        val textCandidates = FloatArray(PredictorRuntime.POOL_SIZE * SmartSnapshot.TEXT_DIM)
+        val textMask = FloatArray(PredictorRuntime.POOL_SIZE)
         for (i in pool.indices) {
             if (i >= PredictorRuntime.POOL_SIZE) break
             snapshot.rawAudio.copyInto(candidates, i * dim, pool[i] * dim, (pool[i] + 1) * dim)
+            val rawText = snapshot.rawText
+            if (rawText != null && snapshot.hasText?.get(pool[i]) == true) {
+                rawText.copyInto(
+                    textCandidates,
+                    i * SmartSnapshot.TEXT_DIM,
+                    pool[i] * SmartSnapshot.TEXT_DIM,
+                    (pool[i] + 1) * SmartSnapshot.TEXT_DIM,
+                )
+                textMask[i] = 1f
+            }
         }
 
-        // The seed term is fixed for the walk; the prev term is recomputed each hop.
-        val zSeed = semanticZ(seedRow, poolRows)
+        val textHistory = context.textRows
+        val textWeights = context.textWeights
+        var textState = textState(textHistory, textWeights)
         val noLogits = FloatArray(PredictorRuntime.POOL_SIZE)
 
         val chain = ArrayList<Int>(length)
@@ -134,13 +144,14 @@ internal class SmartChain(
 
         while (chain.size < length) {
             val logits = if (live) {
-                runCatching { runtime!!.score(state, candidates) }
+                runCatching {
+                    runtime!!.score(state, candidates, textState, textCandidates, textMask)
+                }
                     .onFailure { live = false }
                     .getOrDefault(noLogits)
             } else {
                 noLogits
             }
-            val zPrev = semanticZ(anchorRow, poolRows)
             val anchorMeta = snapshot.tracks[anchorRow].meta
 
             var bestIndex = -1
@@ -156,9 +167,6 @@ internal class SmartChain(
                 var score = ChainConfig.SCORER_SQUASH * tanh(logits[i] / ChainConfig.SCORER_TEMP)
                 score += ChainConfig.COSINE_BLEND_WEIGHT * snapshot.centeredCosine(anchorRow, row)
                 score += ChainConfig.CHAIN_SEED_GRAVITY * snapshot.centeredCosine(seedRow, row)
-                score += ChainConfig.SEM_CHAIN_SEED_GRAVITY * zSeed[i] +
-                    ChainConfig.SEM_CHAIN_PREV_BLEND * zPrev[i]
-
                 var multiplier = MetadataRerank.adjustMultiplier(anchorMeta, meta)
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)
                 // The raw-cosine pool carries no CSLS correction, so the dense cinematic/game/anime
@@ -196,38 +204,183 @@ internal class SmartChain(
             val offset = (PredictorRuntime.CONTEXT_K - 1) * tokenDim
             snapshot.rawAudio.copyInto(history, offset, pickedRow * dim, (pickedRow + 1) * dim)
             history[offset + dim] = 1f
-            state = runCatching { encode(history, timeFeatures, sessionFeatures) }
+            textHistory.copyInto(textHistory, 0, 1, PredictorRuntime.CONTEXT_K)
+            textHistory[PredictorRuntime.CONTEXT_K - 1] = pickedRow
+            textWeights.copyInto(textWeights, 0, 1, PredictorRuntime.CONTEXT_K)
+            textWeights[PredictorRuntime.CONTEXT_K - 1] = 1f
+            textState = textState(textHistory, textWeights)
+            state = runCatching {
+                encode(history, medium, large, timeFeatures, liveSessionFeatures)
+            }
                 .onFailure { live = false }
                 .getOrDefault(state)
         }
         return ChainResult(chain, pool)
     }
 
-    /**
-     * Medium- and long-term taste both read the NEWEST history slot.
-     *
-     * At cold start every slot holds the seed, so all three inputs agree; from the first hop on they
-     * track the walk. Substituting the seed there instead would pin the encoder to the starting
-     * track and flatten the state's contribution across the rest of the chain.
-     */
     private fun encode(
         history: FloatArray,
+        medium: FloatArray,
+        large: FloatArray,
         timeFeatures: FloatArray,
         sessionFeatures: FloatArray,
-    ): FloatArray {
-        val dim = PredictorRuntime.STATE_DIM
-        val newest = (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM
-        val recent = history.copyOfRange(newest, newest + dim)
-        return runtime!!.encodeState(history, recent, recent, timeFeatures, sessionFeatures)
-    }
+    ): FloatArray = runtime!!.encodeState(history, medium, large, timeFeatures, sessionFeatures)
 
     /**
-     * Candidate generation: interleave two rankings, anchor first.
+     * Reconstructs exactly the model inputs that are available privately on the phone: the current
+     * session, 30/365-day taste centroids, completion/skip signals, and trusted metadata text. A
+     * truly empty history takes the separately validated cold-start path.
+     */
+    private fun prepareContext(
+        seedRow: Int,
+        events: List<SmartHistoryEvent>,
+        coldSession: FloatArray,
+    ): PreparedContext {
+        val known = events.mapNotNull { event ->
+            snapshot.rowOf(event.trackId).takeIf { it >= 0 }?.let { row ->
+                ContextEvent(
+                    row = row,
+                    timestamp = event.startedAtMs,
+                    played = event.playedFraction.coerceIn(0f, 1f),
+                    skipped = event.skipped,
+                )
+            }
+        }.sortedBy { it.timestamp }
+        if (known.isEmpty()) return coldContext(seedRow, coldSession)
+
+        // A caller supplying history should include the current seed. Keep the engine robust if it
+        // does not: append the seed without inventing a wall-clock gap or a negative preference.
+        val aligned = if (known.last().row == seedRow) known else known + ContextEvent(
+            row = seedRow,
+            timestamp = known.last().timestamp + 1,
+            played = 1f,
+            skipped = false,
+        )
+        var sessionStart = aligned.lastIndex
+        while (sessionStart > 0) {
+            val gap = aligned[sessionStart].timestamp - aligned[sessionStart - 1].timestamp
+            if (gap < 0 || gap > SESSION_GAP_MS) break
+            sessionStart--
+        }
+        val sessionEvents = aligned.subList(sessionStart, aligned.size)
+        val recent = sessionEvents.takeLast(PredictorRuntime.CONTEXT_K)
+        val padded = ArrayList<ContextEvent>(PredictorRuntime.CONTEXT_K)
+        repeat(PredictorRuntime.CONTEXT_K - recent.size) { padded += recent.first() }
+        padded += recent
+
+        val history = FloatArray(PredictorRuntime.CONTEXT_K * PredictorRuntime.TOKEN_DIM)
+        val textRows = IntArray(PredictorRuntime.CONTEXT_K)
+        val textWeights = FloatArray(PredictorRuntime.CONTEXT_K)
+        for (i in padded.indices) {
+            val event = padded[i]
+            snapshot.rawAudio.copyInto(
+                history,
+                i * PredictorRuntime.TOKEN_DIM,
+                event.row * PredictorRuntime.STATE_DIM,
+                (event.row + 1) * PredictorRuntime.STATE_DIM,
+            )
+            history[i * PredictorRuntime.TOKEN_DIM + PredictorRuntime.STATE_DIM] = event.played
+            textRows[i] = event.row
+            textWeights[i] = event.played.coerceAtLeast(0.05f)
+        }
+
+        val window = sessionEvents.takeLast(10)
+        val meanPlayed = window.sumOf { it.played.toDouble() }.toFloat() / window.size
+        val completionRate = window.count { it.played >= 0.8f }.toFloat() / window.size
+        val elapsedMinutes = ((aligned.last().timestamp - sessionEvents.first().timestamp)
+            .coerceAtLeast(0L) / 60_000f).coerceAtLeast(0.5f)
+        val session = floatArrayOf(
+            ln(sessionEvents.size + 1f),
+            if (sessionEvents.last().skipped) 1f else 0f,
+            ln(elapsedMinutes + 1f),
+            completionRate,
+            meanPlayed,
+        )
+        return PreparedContext(
+            history = history,
+            medium = tasteCentroid(aligned, seedRow, MEDIUM_HALF_LIFE_DAYS),
+            large = tasteCentroid(aligned, seedRow, LARGE_HALF_LIFE_DAYS),
+            session = session,
+            textRows = textRows,
+            textWeights = textWeights,
+        )
+    }
+
+    private fun coldContext(seedRow: Int, session: FloatArray): PreparedContext {
+        val history = FloatArray(PredictorRuntime.CONTEXT_K * PredictorRuntime.TOKEN_DIM)
+        for (k in 0 until PredictorRuntime.CONTEXT_K) {
+            val offset = k * PredictorRuntime.TOKEN_DIM
+            snapshot.rawAudio.copyInto(
+                history,
+                offset,
+                seedRow * PredictorRuntime.STATE_DIM,
+                (seedRow + 1) * PredictorRuntime.STATE_DIM,
+            )
+            history[offset + PredictorRuntime.STATE_DIM] = 1f
+        }
+        val seed = snapshot.rawAudio.copyOfRange(
+            seedRow * PredictorRuntime.STATE_DIM,
+            (seedRow + 1) * PredictorRuntime.STATE_DIM,
+        )
+        return PreparedContext(
+            history = history,
+            medium = seed.copyOf(),
+            large = seed.copyOf(),
+            session = session,
+            textRows = IntArray(PredictorRuntime.CONTEXT_K) { seedRow },
+            textWeights = FloatArray(PredictorRuntime.CONTEXT_K) { 1f },
+        )
+    }
+
+    private fun tasteCentroid(
+        events: List<ContextEvent>,
+        seedRow: Int,
+        halfLifeDays: Float,
+    ): FloatArray {
+        val centroid = FloatArray(PredictorRuntime.STATE_DIM)
+        val newest = events.last().timestamp
+        var totalWeight = 0.0
+        for (event in events) {
+            val reward = ((event.played - 0.2f) / 0.6f).coerceIn(0f, 1f)
+            if (reward <= 0f) continue
+            val ageDays = (newest - event.timestamp).coerceAtLeast(0L) / MILLIS_PER_DAY
+            val weight = reward * exp(-ageDays * LN_2 / halfLifeDays)
+            val base = event.row * PredictorRuntime.STATE_DIM
+            for (d in centroid.indices) centroid[d] += snapshot.rawAudio[base + d] * weight.toFloat()
+            totalWeight += weight
+        }
+        if (totalWeight <= 1e-9) {
+            return snapshot.rawAudio.copyOfRange(
+                seedRow * PredictorRuntime.STATE_DIM,
+                (seedRow + 1) * PredictorRuntime.STATE_DIM,
+            )
+        }
+        return normalized(centroid, PredictorRuntime.STATE_DIM)
+    }
+
+    private data class ContextEvent(
+        val row: Int,
+        val timestamp: Long,
+        val played: Float,
+        val skipped: Boolean,
+    )
+
+    private data class PreparedContext(
+        val history: FloatArray,
+        val medium: FloatArray,
+        val large: FloatArray,
+        val session: FloatArray,
+        val textRows: IntArray,
+        val textWeights: FloatArray,
+    )
+
+    /**
+     * Candidate generation: interleave three rankings, anchor first.
      *
      * The anchor ranking is centered cosine to the seed minus the hub penalty (what sounds like the
-     * pick, with hubs suppressed). The state ranking fuses audio and metadata-text cosine against
-     * the encoded state (what fits the session). Interleaving keeps both channels represented
-     * instead of letting whichever is better calibrated dominate.
+     * pick, with hubs suppressed). State-audio and seed-text are separate rankings. Round-robin
+     * interleaving gives each channel representation without a hand-tuned cross-modal weight; the
+     * scorer learns how much optional text should affect ordering.
      */
     private fun buildPool(seedRow: Int, state: FloatArray): List<Int> {
         val n = snapshot.size
@@ -238,9 +391,9 @@ internal class SmartChain(
         }
 
         val stateScores = FloatArray(n)
+        val textScores = FloatArray(n) { Float.NEGATIVE_INFINITY }
         if (state.size >= dim) {
             val query = normalized(state, dim)
-            // Retrieval fuses RAW cosines; the centered space is the chain's, not the pool's.
             val textDim = SmartSnapshot.TEXT_DIM
             val rawText = snapshot.rawText
             val seedText = if (rawText != null && snapshot.hasText?.get(seedRow) == true) {
@@ -252,13 +405,12 @@ internal class SmartChain(
                 var audio = 0f
                 val base = row * dim
                 for (d in 0 until dim) audio += snapshot.rawAudio[base + d] * query[d]
-                stateScores[row] = if (seedText != null && snapshot.hasText?.get(row) == true) {
+                stateScores[row] = audio
+                if (seedText != null && snapshot.hasText?.get(row) == true) {
                     var text = 0f
                     val textBase = row * textDim
                     for (d in 0 until textDim) text += rawText!![textBase + d] * seedText[d]
-                    ChainConfig.FUSED_TEXT_ALPHA * audio + (1f - ChainConfig.FUSED_TEXT_ALPHA) * text
-                } else {
-                    audio
+                    textScores[row] = text
                 }
             }
         } else {
@@ -267,27 +419,37 @@ internal class SmartChain(
 
         val anchorOrder = order(anchorScores, seedRow)
         val stateOrder = order(stateScores, seedRow)
+        val textOrder = textScores.indices
+            .filter { it != seedRow && eligibleRows[it] && textScores[it].isFinite() }
+            .sortedByDescending { textScores[it] }
+            .toIntArray()
         val pool = ArrayList<Int>(PredictorRuntime.POOL_SIZE)
         val seen = HashSet<Int>()
         var i = 0
         while (pool.size < PredictorRuntime.POOL_SIZE && i < anchorOrder.size) {
             if (seen.add(anchorOrder[i])) pool.add(anchorOrder[i])
             if (pool.size < PredictorRuntime.POOL_SIZE && seen.add(stateOrder[i])) pool.add(stateOrder[i])
+            if (pool.size < PredictorRuntime.POOL_SIZE && i < textOrder.size && seen.add(textOrder[i])) {
+                pool.add(textOrder[i])
+            }
             i++
         }
         return pool
     }
 
-    private fun semanticZ(refRow: Int, poolRows: IntArray): FloatArray {
-        val zDescriptor = SemanticZ.poolZ(
-            snapshot.centeredDescriptor, snapshot.hasDescriptor,
-            SmartSnapshot.DESCRIPTOR_DIM, refRow, poolRows,
-        )
-        val zText = SemanticZ.poolZ(
-            snapshot.centeredText, snapshot.hasText,
-            SmartSnapshot.TEXT_DIM, refRow, poolRows,
-        )
-        return SemanticZ.combine(zDescriptor, zText, poolRows.size)
+    private fun textState(rows: IntArray, weights: FloatArray): FloatArray {
+        val output = FloatArray(SmartSnapshot.TEXT_DIM)
+        val rawText = snapshot.rawText ?: return output
+        var totalWeight = 0f
+        for (i in rows.indices) {
+            val row = rows[i]
+            if (snapshot.hasText?.get(row) != true) continue
+            val base = row * SmartSnapshot.TEXT_DIM
+            val weight = weights[i]
+            for (d in output.indices) output[d] += rawText[base + d] * weight
+            totalWeight += weight
+        }
+        return if (totalWeight > 0f) normalized(output, SmartSnapshot.TEXT_DIM) else output
     }
 
     /**
@@ -304,7 +466,7 @@ internal class SmartChain(
     }
 
     private fun order(scores: FloatArray, exclude: Int): IntArray =
-        scores.indices.filter { it != exclude }
+        scores.indices.filter { it != exclude && eligibleRows[it] }
             .sortedByDescending { scores[it] }
             .toIntArray()
 
@@ -313,5 +475,13 @@ internal class SmartChain(
         for (i in 0 until dim) sumSq += v[i].toDouble() * v[i]
         val scale = 1f / sqrt(sumSq).toFloat().coerceAtLeast(1e-9f)
         return FloatArray(dim) { v[it] * scale }
+    }
+
+    private companion object {
+        const val SESSION_GAP_MS = 30L * 60L * 1_000L
+        const val MEDIUM_HALF_LIFE_DAYS = 30f
+        const val LARGE_HALF_LIFE_DAYS = 365f
+        const val MILLIS_PER_DAY = 86_400_000.0
+        const val LN_2 = 0.6931471805599453
     }
 }

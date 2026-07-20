@@ -191,14 +191,25 @@ internal class DefaultSimilarityEngine(
         seed: TrackDescriptor,
         library: List<TrackDescriptor>,
         length: Int,
+        history: List<SmartHistoryEvent>,
     ): List<TrackId> = withContext(dispatcher) {
         mutex.withLock {
-            if (mutableState.value !is EngineState.Ready || index.size == 0) return@withLock emptyList()
+            if (mutableState.value !is EngineState.Ready) return@withLock emptyList()
+
+            // First-launch indexing is progressive. Whichever track the listener actually picked
+            // must still be a valid anchor even when its background batch has not reached it yet.
+            if (index.vector(seed.id) == null) {
+                val vector = backend.embed(seed).getOrNull() ?: return@withLock emptyList()
+                if (validateAndUpsert(seed.id, vector) != null) return@withLock emptyList()
+                runCatching { store.save(config.modelVersion, index.entries()) }
+                mutableState.value = EngineState.Ready(indexedCount = index.size)
+            }
 
             // The seed anchors every distance the walk measures, so it must be in the snapshot even
             // when the caller left it out — and callers reasonably do, since it is the one track
             // the queue must not repeat. The chain excludes it from its own output regardless.
             val corpus = if (library.any { it.id == seed.id }) library else library + seed
+            val corpusIds = corpus.mapTo(HashSet()) { it.id }
             val tracks = corpus.mapNotNull { track ->
                 val audio = index.vector(track.id) ?: return@mapNotNull null
                 SmartTrack(
@@ -214,12 +225,36 @@ internal class DefaultSimilarityEngine(
                         year = track.year,
                     ),
                 )
-            }
+            } + history.asSequence()
+                .map { it.trackId }
+                .distinct()
+                .filter { it !in corpusIds }
+                .mapNotNull { id ->
+                    val audio = index.vector(id) ?: return@mapNotNull null
+                    SmartTrack(
+                        id = id,
+                        audio = audio,
+                        text = textIndex?.vector(id),
+                        meta = TrackMeta(
+                            title = null,
+                            artist = null,
+                            album = null,
+                            genre = null,
+                            year = null,
+                        ),
+                    )
+                }
+                .toList()
             val snapshot = SmartSnapshot.build(tracks) ?: return@withLock emptyList()
-            val chain = SmartChain(snapshot, predictor).build(
+            val eligibleIds = library.mapTo(HashSet()) { it.id }
+            val eligibleRows = BooleanArray(snapshot.size) { row ->
+                snapshot.tracks[row].id in eligibleIds
+            }
+            val chain = SmartChain(snapshot, predictor, eligibleRows).build(
                 seedId = seed.id,
                 length = length,
                 timeFeatures = clock.timeFeatures(),
+                historyEvents = history,
             )
             chain.rows.map { snapshot.tracks[it].id }
         }

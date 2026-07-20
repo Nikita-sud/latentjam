@@ -8,7 +8,7 @@ import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import org.koin.core.module.Module
 
 /** Persisted text-index key. Bumping it invalidates cached metadata vectors. */
-internal const val TEXT_INDEX_VERSION: String = "minilm-l6-v2-int8"
+internal const val TEXT_INDEX_VERSION: String = "minilm-l6-v2-int8-trusted-v1"
 
 /**
  * Wall-clock reading for the predictor's time features.

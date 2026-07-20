@@ -7,13 +7,13 @@ package io.github.nikitasud.latentjam.smart.text
 import org.koin.core.module.Module
 
 /**
- * The metadata half of fused retrieval: `all-MiniLM-L6-v2` over a track's tags, giving a 384-d
- * sentence vector alongside the audio embedding.
+ * Optional scorer conditioning: `all-MiniLM-L6-v2` over trusted track tags, giving a 384-d
+ * sentence vector alongside the 960-d audio embedding.
  *
  * This runs entirely on the phone — no LLM, no network — so an imported track is self-contained the
- * moment it is scanned. Fusing it into candidate generation roughly doubled pool recall over
- * audio-only in offline evaluation, because tags carry what audio cannot: language, era, and the
- * difference between two songs that merely sound alike.
+ * moment it is scanned. Candidate retrieval interleaves audio and text rankings without a numeric
+ * cross-modal weight; the scorer's learned, bounded branch decides how much metadata should affect
+ * ordering. A missing vector is an exact audio-only fallback.
  *
  * Pipeline, matching sentence-transformers: WordPiece tokenize → transformer forward → mean-pool
  * over tokens → L2-normalise.
@@ -36,7 +36,7 @@ public interface TextEncoder {
         public const val TEXT_DIM: Int = 384
 
         /**
-         * The string the encoder embeds: `"genre; artist; title; year"`, blanks dropped.
+         * The trusted string the encoder embeds: `"genre; artist; year"`, blanks dropped.
          *
          * Field order and separator are part of the model contract, not a formatting choice — the
          * measured retrieval win is specific to this arrangement, and vectors built any other way
@@ -50,7 +50,6 @@ public interface TextEncoder {
         ): String = listOfNotNull(
             genre?.takeIf { it.isNotBlank() },
             artist?.takeIf { it.isNotBlank() },
-            title?.takeIf { it.isNotBlank() },
             year?.takeIf { it > 0 }?.toString(),
         ).joinToString("; ")
     }

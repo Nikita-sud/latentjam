@@ -8,3 +8,5 @@ local.properties
 .DS_Store
 xcuserdata/
 third_party/
+tools/research/output/
+iosApp/Pods/

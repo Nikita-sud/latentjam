@@ -79,20 +79,21 @@ object AppGraph {
                     appSettingsModule(),
                     listeningHistoryModule(),
                     module {
-                        // Production model contract (mnv4-conv-m-distill-mw):
-                        // 960-dim embeddings, asset-shipped ONNX. Last-wins
-                        // override of the library default.
+                        // Production contract: FP16 MNv4 audio + 960-d SMART state/acoustic scorer
+                        // plus learned optional text, fully local.
                         single {
                             SmartEngineConfig(
                                 embeddingDim = 960,
                                 modelLocator = "ml/mnv4_audio.onnx",
                                 // Must match assets/ml/embedding_version.txt;
                                 // keys the persisted index snapshot.
-                                modelVersion = "mnv4-conv-m-distill-mw-ep4-dsp32-fp16-v4",
+                                modelVersion = "mnv4-960-allfp16-v5",
                             )
                         }
                         // The single point where playback meets the engine.
-                        single<NextTrackChooser> { EngineNextTrackChooser(engine = get()) }
+                        single<NextTrackChooser> {
+                            EngineNextTrackChooser(engine = get(), history = get())
+                        }
                     },
                 )
             }

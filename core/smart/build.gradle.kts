@@ -19,6 +19,10 @@ kotlin {
         // Host tests are OPT-IN on com.android.kotlin.multiplatform.library.
         // Without this block, commonTest silently never runs on the JVM.
         withHostTest {}
+        withDeviceTest {
+            applicationId = "io.github.nikitasud.latentjam.smart.test"
+            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        }
     }
 
     // ONNX Runtime ships one static slice per platform; each iOS target binds the
@@ -59,6 +63,12 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.onnxruntime.android)
+        }
+        getByName("androidDeviceTest").dependencies {
+            implementation(libs.androidx.annotation)
+            implementation(libs.androidx.test.core)
+            implementation(libs.androidx.test.runner)
+            implementation(libs.junit4)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

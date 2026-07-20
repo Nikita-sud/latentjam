@@ -20,7 +20,7 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 
 /**
- * Android [EmbeddingBackend]: ONNX Runtime over the proprietary MNv4 audio
+ * Android [EmbeddingBackend]: ONNX Runtime over LatentJam's MNv4 audio
  * encoder (`mnv4-conv-m-distill-mw`, an EfficientAT-family student).
  *
  * ### Model contract (fixed by the research-side export; do not drift)
@@ -96,7 +96,9 @@ internal class OnnxEmbeddingBackend(
             if (windows == 0) {
                 return backendFailure("Could not decode any audio window for ${descriptor.id.value}")
             }
-            l2NormalizeInPlace(pooled)
+            if (!l2NormalizeInPlace(pooled)) {
+                return backendFailure("Model produced a non-finite or zero-norm embedding")
+            }
             dumpDebugEmbedding(descriptor, pooled)
             Result.success(pooled)
         } catch (cancellation: CancellationException) {
@@ -137,11 +139,16 @@ internal class OnnxEmbeddingBackend(
         return WINDOW_POSITIONS.map { fraction -> (span * fraction).toLong() }
     }
 
-    private fun l2NormalizeInPlace(vector: FloatArray) {
+    private fun l2NormalizeInPlace(vector: FloatArray): Boolean {
         var sumOfSquares = 0f
-        for (component in vector) sumOfSquares += component * component
+        for (component in vector) {
+            if (!component.isFinite()) return false
+            sumOfSquares += component * component
+        }
         val norm = sqrt(sumOfSquares)
-        if (norm > 0f) for (i in vector.indices) vector[i] /= norm
+        if (!norm.isFinite() || norm <= 0f) return false
+        for (i in vector.indices) vector[i] /= norm
+        return true
     }
 
     private fun dumpDebugEmbedding(descriptor: TrackDescriptor, embedding: FloatArray) {

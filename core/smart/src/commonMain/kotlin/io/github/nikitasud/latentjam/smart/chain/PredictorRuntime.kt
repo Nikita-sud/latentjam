@@ -28,7 +28,10 @@ import org.koin.core.module.Module
  * - output `[1, 960]`
  *
  * Scorer:
- * - `state` `[1, 960]`, `candidates` `[1, 100, 960]` → output `[1, 100]` raw logits
+ * - frozen acoustic scorer: `state` `[1, 960]`, `candidates` `[1, 100, 960]`
+ * - learned residual: the acoustic `base_scores` plus the same audio tensors, optional
+ *   `text_state` `[1, 384]`, `text_candidates` `[1, 100, 384]`, and `text_mask` `[1, 100]`
+ *   → output `[1, 100]` conditioned raw logits
  *
  * Both take audio embeddings in their RAW (uncentered, unit-norm) form — the centered space is the
  * chain's own construction and the models never saw it.
@@ -59,7 +62,13 @@ public interface PredictorRuntime {
      * @param candidates [POOL_SIZE] × [STATE_DIM], flattened; short pools are zero-padded
      * @return [POOL_SIZE] raw logits
      */
-    public fun score(state: FloatArray, candidates: FloatArray): FloatArray
+    public fun score(
+        state: FloatArray,
+        candidates: FloatArray,
+        textState: FloatArray,
+        textCandidates: FloatArray,
+        textMask: FloatArray,
+    ): FloatArray
 
     /** Releases native resources. Idempotent. */
     public fun close()
@@ -71,8 +80,8 @@ public interface PredictorRuntime {
         public const val POOL_SIZE: Int = 100
 
         /**
-         * Cold-start session features: `[ln(position + 1), skipRate, ln(elapsedMinutes + 1),
-         * completedCount, meanPlayedPct]` for a session holding exactly the seed — second track,
+         * Cold-start session features: `[ln(position + 1), previousSkipped,
+         * ln(elapsedMinutes + 1), completionRate, meanPlayedPct]` for a session holding exactly the seed — second track,
          * nothing skipped, ~30 s elapsed, one clean completion.
          *
          * Zeroing these instead would put the encoder far outside its training distribution, where

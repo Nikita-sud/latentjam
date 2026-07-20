@@ -5,27 +5,64 @@
 package io.github.nikitasud.latentjam.smart.text
 
 import io.github.nikitasud.latentjam.smart.EngineError
+import io.github.nikitasud.latentjam.smart.IosInferenceRegistry
 import io.github.nikitasud.latentjam.smart.SmartEngineException
+import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.readBytes
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import platform.Foundation.NSBundle
+import platform.Foundation.NSFileManager
 
-/**
- * iOS [TextEncoder] — not yet wired to a native inference engine.
- *
- * [encode] returns null, which callers already handle as "no text vector for this track": retrieval
- * falls back to audio-only cosines and omits the metadata semantic term. The tokenizer it would
- * need is already common code; only the ONNX session is missing.
- */
-internal class UnavailableTextEncoder : TextEncoder {
+/** iOS MiniLM encoder: common WordPiece tokenizer, native ONNX Runtime transformer. */
+@OptIn(ExperimentalForeignApi::class)
+internal class IosTextEncoder : TextEncoder {
 
-    override suspend fun load(): Result<Unit> =
-        Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+    private var tokenizer: BertWordPieceTokenizer? = null
 
-    override fun encode(metadata: String): FloatArray? = null
+    override suspend fun load(): Result<Unit> {
+        val provider = IosInferenceRegistry.current()
+            ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        return try {
+            val path = NSBundle.mainBundle.pathForResource(
+                name = "text_vocab", ofType = "txt", inDirectory = "ml",
+            ) ?: NSBundle.mainBundle.pathForResource(
+                name = "text_vocab", ofType = "txt",
+            ) ?: return failure("Bundled MiniLM vocabulary is missing")
+            val data = NSFileManager.defaultManager.contentsAtPath(path)
+                ?: return failure("Bundled MiniLM vocabulary is unreadable")
+            val pointer = data.bytes?.reinterpret<ByteVar>()
+                ?: return failure("Bundled MiniLM vocabulary is empty")
+            val text = pointer.readBytes(data.length.toInt()).decodeToString()
+            tokenizer = BertWordPieceTokenizer(
+                BertWordPieceTokenizer.parseVocab(text.lineSequence()),
+            )
+            val error = provider.loadText()
+            if (error == null) Result.success(Unit) else failure(error)
+        } catch (t: Throwable) {
+            tokenizer = null
+            failure("Failed to load MiniLM: ${t.message}")
+        }
+    }
 
-    override fun close() = Unit
+    override fun encode(metadata: String): FloatArray? {
+        if (metadata.isBlank()) return null
+        val provider = IosInferenceRegistry.current() ?: return null
+        val ids = (tokenizer ?: return null).encode(metadata)
+        return provider.encodeText(LongArray(ids.size) { ids[it].toLong() })
+            ?.takeIf { it.size == TextEncoder.TEXT_DIM && it.all(Float::isFinite) }
+    }
+
+    override fun close(): Unit {
+        tokenizer = null
+    }
+
+    private fun <T> failure(message: String): Result<T> =
+        Result.failure(SmartEngineException(EngineError.BackendFailure(message)))
 }
 
 public actual fun smartTextEncoderModule(): Module = module {
-    single<TextEncoder> { UnavailableTextEncoder() }
+    single<TextEncoder> { IosTextEncoder() }
 }

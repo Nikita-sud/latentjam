@@ -2,6 +2,12 @@
 
 One-off scripts. Not part of the app, not shipped, not on any build path.
 
+## convert_audio_encoder_fp16.py
+
+Converts an FP32 waveform encoder to FP16 weights while retaining FP32 inputs and outputs. By
+default its fixed STFT/mel front end remains FP32. Pass `--include-frontend` to reproduce the smaller
+production 960-d export selected after the 72-real-clip regression check.
+
 ## migrate_legacy_playlists.py
 
 Carries playlists over from the legacy GPL-3 LatentJam app into this one.

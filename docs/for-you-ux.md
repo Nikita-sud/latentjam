@@ -27,16 +27,17 @@ Any collapse is self-inflicted by the ranker.
 
 ## 2. The architectural split
 
-The predictor was deliberately made **objective** — "what goes together" — not personalised, and the
-measurements back that: the personalised model scored *worse* on the playlist target (r@1 0.105 vs
-0.158). A For You page is personal by definition. These do not conflict; they divide:
+The content scorer still answers **"what goes together"**, while SMART now conditions that score on
+private session and long-term listening context. A For You page has a different job: choosing a
+legible reason to start. These components divide cleanly:
 
 - **Personal signal chooses the seed** — what you neglected, what you played to death last winter,
   what you added and never opened. Mostly counting, no model needed.
-- **The objective engine builds the journey** — once a seed exists, SMART sequences it.
+- **The context-aware engine builds the journey** — once a seed exists, SMART sequences it using
+  audio, trusted metadata, recent completion/skips, and local taste centroids.
 
-This keeps the model doing the one thing it was measured to be good at, and puts the personal part
-where it is cheap and legible.
+This keeps the surface-level reason cheap and legible while the queue can adapt without uploading or
+exposing the listening log.
 
 ## 3. Evidence that should shape the layout
 

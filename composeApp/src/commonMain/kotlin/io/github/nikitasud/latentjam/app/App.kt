@@ -287,9 +287,21 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             val loaded = tracks ?: return@LaunchedEffect
             AppGraph.appScope.launch {
                 engine.initialize()
-                val added = engine.ensureMetadataVectors(loaded)
+                var added = 0
+                loaded.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
+                    added += engine.ensureMetadataVectors(chunk)
+                }
                 println("SMART: ready (${engine.state.value}); encoded $added metadata vectors")
                 metadataVectorsReady = true
+
+                // Build the acoustic index progressively on a background dispatcher from the very
+                // first launch. Each tiny batch is persisted and releases the engine lock, so a
+                // SMART press can use the portion that is ready; playback itself never waits for
+                // the whole library and still has its random fallback.
+                loaded.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
+                    engine.indexLibrary(chunk)
+                }
+                println("SMART: progressive local index complete (${engine.state.value})")
             }
         }
 
@@ -551,6 +563,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                         hero.track,
                                                         catalog.songs,
                                                         SMART_HERO_LENGTH,
+                                                        smartHistoryFor(AppGraph.history, hero.track),
                                                     )
                                                     val byId = catalog.songs.associateBy { it.id }
                                                     val tail = queue.mapNotNull(byId::get)
@@ -795,7 +808,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         // The same track the card showed, so the journey starts from the record
                         // the listener was looking at when they chose this.
                         val songs = catalog?.songs.orEmpty()
-                        val queue = engine.smartQueue(target.track, songs, SMART_HERO_LENGTH)
+                        val queue = engine.smartQueue(
+                            target.track,
+                            songs,
+                            SMART_HERO_LENGTH,
+                            smartHistoryFor(AppGraph.history, target.track),
+                        )
                         val byId = songs.associateBy { it.id }
                         playback.play(listOf(target.track) + queue.mapNotNull(byId::get), 0)
                     }

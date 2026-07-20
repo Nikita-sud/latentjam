@@ -42,8 +42,8 @@ internal class SmartSnapshot private constructor(
     val centeredDescriptor: FloatArray?,
     val hasDescriptor: BooleanArray?,
     /**
-     * Unit-normalised but UNCENTERED text rows. Retrieval fuses raw cosines; only the chain's
-     * semantic z-terms work in the centered space. Keeping both is deliberate, not redundant.
+     * Unit-normalised but UNCENTERED text rows. Candidate generation ranks this space separately;
+     * the learned scorer receives it as optional conditioning.
      */
     val rawText: FloatArray?,
 ) {
