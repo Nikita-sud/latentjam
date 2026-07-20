@@ -42,6 +42,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -92,7 +93,10 @@ internal fun SearchScreen(
     PlatformBackHandler(enabled = true, onBack = onClose)
 
     val scope = rememberCoroutineScope()
-    var query by remember { mutableStateOf("") }
+    // Search lives inside the browse stack, which leaves composition during the player morph.
+    // Save the text alongside its result-list scroll position so returning never becomes a new
+    // search session merely because the listener checked Now Playing.
+    var query by rememberSaveable { mutableStateOf("") }
     var recent by remember { mutableStateOf<List<String>>(emptyList()) }
     var semantic by remember(songs) { mutableStateOf<List<ScoredTrack>>(emptyList()) }
     val results = remember(songs, query, semantic) {

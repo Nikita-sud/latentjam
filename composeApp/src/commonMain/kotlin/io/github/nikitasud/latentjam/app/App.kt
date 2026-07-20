@@ -92,6 +92,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -269,6 +270,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // Screens that already inset themselves against the navigation bar only need the pill's
         // own height on top.
         val floatingPlayerInset = if (now.track != null) MINI_PLAYER_HEIGHT else 0.dp
+        // AnimatedContent removes the browse branch after the player finishes opening. Keep a
+        // dedicated saveable bucket for that branch so every LazyColumn/Grid/Row returns to its
+        // exact item and pixel offset when the player closes, across every tab and detail screen.
+        val browseStateHolder = rememberSaveableStateHolder()
 
         val importAudio = rememberAudioImporter { result ->
             scope.launch {
@@ -501,13 +506,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         onClose = { showNowPlaying = false },
                     )
                 } else {
-                    val animatedScope = this@AnimatedContent
-                    // Everything that is NOT the full player shares one stack, and the pill is the
-                    // last thing in it. Search and collection detail are full-screen surfaces laid
-                    // OVER the browse shell rather than pages swapped into it, so anything drawn
-                    // after them stays visible — which is how the pill reaches screens it used to
-                    // disappear behind.
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    browseStateHolder.SaveableStateProvider(BROWSE_SHELL_STATE_KEY) {
+                        val animatedScope = this@AnimatedContent
+                        // Everything that is NOT the full player shares one stack, and the pill is the
+                        // last thing in it. Search and collection detail are full-screen surfaces laid
+                        // OVER the browse shell rather than pages swapped into it, so anything drawn
+                        // after them stays visible — which is how the pill reaches screens it used to
+                        // disappear behind.
+                        Box(modifier = Modifier.fillMaxSize()) {
                     Scaffold(
                         topBar = {
                             Column {
@@ -911,6 +917,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             modifier = Modifier.align(Alignment.BottomCenter),
                         )
                     }
+                        }
                     }
                 }
             }
@@ -1145,6 +1152,9 @@ private const val DIAGNOSTICS_FAILURE_LIMIT = 5
 
 /** Duration of the mini-player ↔ now-playing morph. */
 private const val MORPH_MILLIS = 340
+
+/** Stable saveable-state bucket for the browse stack while the full player owns the screen. */
+private const val BROWSE_SHELL_STATE_KEY = "browse-shell"
 
 /**
  * The pill's own height, above whatever navigation-bar inset it is sitting on.
