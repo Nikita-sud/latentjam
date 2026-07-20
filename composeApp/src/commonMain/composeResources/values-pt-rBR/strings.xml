@@ -72,9 +72,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Ouça algumas músicas e esta página vai se encher de coisas que valem a pena revisitar.</string>
     <string name="foryou_section_continue">Ainda inacabadas</string>
-    <string name="foryou_section_worth_revisiting">Vale a pena revisitar</string>
-    <string name="foryou_section_found_by_smart">Encontradas pelo SMART</string>
-    <string name="foryou_section_worlds">Mundos</string>
+    <string name="foryou_section_worth_revisiting">Há tempos sem ouvir</string>
+    <string name="foryou_section_worlds">Seus mixes</string>
+    <string name="foryou_mix_discovery">Mix de descobertas</string>
     <string name="foryou_section_never_played">Nunca reproduzidas</string>
     <!-- As duas coisas que dá para fazer com um mundo, oferecidas em vez de adivinhadas. -->
     <string name="foryou_world_open">Ver as faixas</string>

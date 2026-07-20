@@ -31,7 +31,7 @@ Full methods, counterfactuals, limitations, teacher research, and mobile results
 Total: **60,043,467 bytes (57.3 MiB)** per platform. Audio and text graphs run while tracks are
 indexed. Queue construction runs the state graph, frozen acoustic scorer, and residual. The app
 progressively builds the local index on first launch, embeds the selected seed on demand, and keeps
-playback's immediate random fallback until candidates are ready. All inference, history, and stored
+playback's metadata-only cold-start queue until audio candidates are ready. All inference, history, and stored
 embeddings remain on the device; iOS and Android both persist private history across launches.
 
 ## Metadata contract

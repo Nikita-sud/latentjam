@@ -1,0 +1,283 @@
+{
+  "tracks": 860,
+  "positive_examples": 1519,
+  "candidate_pool": "production 3-lane round-robin with deterministic 64-row hub reference",
+  "minimum_same_family_support": 6,
+  "title_contract": "titles are not read by the seed-intent guard",
+  "modes": {
+    "full": {
+      "pool_recall": 0.533245556287031,
+      "penalties": {
+        "1.0": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.13276599960060403,
+            "recall_at_1_end_to_end": 0.07504937458854509,
+            "recall_at_5_end_to_end": 0.18104015799868334,
+            "top1_same_seed_family": 0.66711140760507,
+            "same_family_target_mrr": 0.26423646215276547,
+            "cross_family_target_mrr": 0.0626091062454936,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.13276599960060403,
+            "recall_at_1_end_to_end": 0.07504937458854509,
+            "recall_at_5_end_to_end": 0.18104015799868334,
+            "top1_same_seed_family": 0.66711140760507,
+            "same_family_target_mrr": 0.26423646215276547,
+            "cross_family_target_mrr": 0.0626091062454936,
+            "guard_activation_rate": 0.238973008558262,
+            "known_seed_examples": 1499
+          }
+        },
+        "0.9": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.13366105204369472,
+            "recall_at_1_end_to_end": 0.07702435813034891,
+            "recall_at_5_end_to_end": 0.18104015799868334,
+            "top1_same_seed_family": 0.695130086724483,
+            "same_family_target_mrr": 0.2699479858729187,
+            "cross_family_target_mrr": 0.06097166119477444,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.13257822691917,
+            "recall_at_1_end_to_end": 0.07504937458854509,
+            "recall_at_5_end_to_end": 0.18104015799868334,
+            "top1_same_seed_family": 0.6664442961974649,
+            "same_family_target_mrr": 0.26442501090762544,
+            "cross_family_target_mrr": 0.06221820470787056,
+            "guard_activation_rate": 0.238973008558262,
+            "known_seed_examples": 1499
+          }
+        },
+        "0.8": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.1336103253712911,
+            "recall_at_1_end_to_end": 0.07702435813034891,
+            "recall_at_5_end_to_end": 0.18301514154048718,
+            "top1_same_seed_family": 0.7131420947298199,
+            "same_family_target_mrr": 0.27274937967649954,
+            "cross_family_target_mrr": 0.05940943956269326,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.13231979254698464,
+            "recall_at_1_end_to_end": 0.07504937458854509,
+            "recall_at_5_end_to_end": 0.17972350230414746,
+            "top1_same_seed_family": 0.6637758505670447,
+            "same_family_target_mrr": 0.26417978248038204,
+            "cross_family_target_mrr": 0.06194750240418659,
+            "guard_activation_rate": 0.238973008558262,
+            "known_seed_examples": 1499
+          }
+        },
+        "0.75": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.13324791101488123,
+            "recall_at_1_end_to_end": 0.07636603028308098,
+            "recall_at_5_end_to_end": 0.18499012508229098,
+            "top1_same_seed_family": 0.7278185456971314,
+            "same_family_target_mrr": 0.27516680535848065,
+            "cross_family_target_mrr": 0.05756744840316796,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.131999739132717,
+            "recall_at_1_end_to_end": 0.07439104674127715,
+            "recall_at_5_end_to_end": 0.17972350230414746,
+            "top1_same_seed_family": 0.6617745163442295,
+            "same_family_target_mrr": 0.2641857332775615,
+            "cross_family_target_mrr": 0.06144826811846348,
+            "guard_activation_rate": 0.238973008558262,
+            "known_seed_examples": 1499
+          }
+        },
+        "0.7": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.13257940647136537,
+            "recall_at_1_end_to_end": 0.07570770243581304,
+            "recall_at_5_end_to_end": 0.18499012508229098,
+            "top1_same_seed_family": 0.7418278852568378,
+            "same_family_target_mrr": 0.27657171061933167,
+            "cross_family_target_mrr": 0.05578724000318607,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.13128867175859515,
+            "recall_at_1_end_to_end": 0.07307439104674128,
+            "recall_at_5_end_to_end": 0.17972350230414746,
+            "top1_same_seed_family": 0.6584389593062041,
+            "same_family_target_mrr": 0.2621717533999798,
+            "cross_family_target_mrr": 0.061412700991089794,
+            "guard_activation_rate": 0.238973008558262,
+            "known_seed_examples": 1499
+          }
+        },
+        "0.6": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.1318544826602533,
+            "recall_at_1_end_to_end": 0.07504937458854509,
+            "recall_at_5_end_to_end": 0.18301514154048718,
+            "top1_same_seed_family": 0.7631754503002002,
+            "same_family_target_mrr": 0.27993648105719754,
+            "cross_family_target_mrr": 0.05288165313958232,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.13045009882312025,
+            "recall_at_1_end_to_end": 0.07175773535220539,
+            "recall_at_5_end_to_end": 0.17972350230414746,
+            "top1_same_seed_family": 0.6537691794529686,
+            "same_family_target_mrr": 0.26192490361567994,
+            "cross_family_target_mrr": 0.06024364257176857,
+            "guard_activation_rate": 0.238973008558262,
+            "known_seed_examples": 1499
+          }
+        }
+      }
+    },
+    "cold": {
+      "pool_recall": 0.5339038841342989,
+      "penalties": {
+        "1.0": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.1143475627647969,
+            "recall_at_1_end_to_end": 0.05859117840684661,
+            "recall_at_5_end_to_end": 0.15602369980250164,
+            "top1_same_seed_family": 0.6984656437625083,
+            "same_family_target_mrr": 0.23154583198325676,
+            "cross_family_target_mrr": 0.052385210880767884,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.1143475627647969,
+            "recall_at_1_end_to_end": 0.05859117840684661,
+            "recall_at_5_end_to_end": 0.15602369980250164,
+            "top1_same_seed_family": 0.6984656437625083,
+            "same_family_target_mrr": 0.23154583198325676,
+            "cross_family_target_mrr": 0.052385210880767884,
+            "guard_activation_rate": 0.22580645161290322,
+            "known_seed_examples": 1499
+          }
+        },
+        "0.9": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.11388503824875915,
+            "recall_at_1_end_to_end": 0.05793285055957867,
+            "recall_at_5_end_to_end": 0.15997366688610928,
+            "top1_same_seed_family": 0.7064709806537692,
+            "same_family_target_mrr": 0.23346822116099714,
+            "cross_family_target_mrr": 0.05065021626535095,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.1138865572343814,
+            "recall_at_1_end_to_end": 0.05793285055957867,
+            "recall_at_5_end_to_end": 0.15602369980250164,
+            "top1_same_seed_family": 0.6971314209472982,
+            "same_family_target_mrr": 0.2305491548810786,
+            "cross_family_target_mrr": 0.052198484365797826,
+            "guard_activation_rate": 0.22580645161290322,
+            "known_seed_examples": 1499
+          }
+        },
+        "0.8": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.11375453846577058,
+            "recall_at_1_end_to_end": 0.05793285055957867,
+            "recall_at_5_end_to_end": 0.16129032258064516,
+            "top1_same_seed_family": 0.7284856571047365,
+            "same_family_target_mrr": 0.2367793243463769,
+            "cross_family_target_mrr": 0.0486944083841553,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.11365536774695073,
+            "recall_at_1_end_to_end": 0.05727452271231073,
+            "recall_at_5_end_to_end": 0.15602369980250164,
+            "top1_same_seed_family": 0.6964643095396932,
+            "same_family_target_mrr": 0.2304922115337526,
+            "cross_family_target_mrr": 0.05187029739218048,
+            "guard_activation_rate": 0.22580645161290322,
+            "known_seed_examples": 1499
+          }
+        },
+        "0.75": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.11261172196659637,
+            "recall_at_1_end_to_end": 0.055299539170506916,
+            "recall_at_5_end_to_end": 0.1619486504279131,
+            "top1_same_seed_family": 0.7431621080720481,
+            "same_family_target_mrr": 0.2376428409577163,
+            "cross_family_target_mrr": 0.04646573146218515,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.11351269657682792,
+            "recall_at_1_end_to_end": 0.05727452271231073,
+            "recall_at_5_end_to_end": 0.1553653719552337,
+            "top1_same_seed_family": 0.695130086724483,
+            "same_family_target_mrr": 0.2305029910987007,
+            "cross_family_target_mrr": 0.051643448308890026,
+            "guard_activation_rate": 0.22580645161290322,
+            "known_seed_examples": 1499
+          }
+        },
+        "0.7": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.11251364859897124,
+            "recall_at_1_end_to_end": 0.055299539170506916,
+            "recall_at_5_end_to_end": 0.16260697827518103,
+            "top1_same_seed_family": 0.7545030020013342,
+            "same_family_target_mrr": 0.23861761026516448,
+            "cross_family_target_mrr": 0.04579748787444211,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.11328644999137069,
+            "recall_at_1_end_to_end": 0.05727452271231073,
+            "recall_at_5_end_to_end": 0.1553653719552337,
+            "top1_same_seed_family": 0.694462975316878,
+            "same_family_target_mrr": 0.23051803326928028,
+            "cross_family_target_mrr": 0.05128479989068563,
+            "guard_activation_rate": 0.22580645161290322,
+            "known_seed_examples": 1499
+          }
+        },
+        "0.6": {
+          "correct_metadata": {
+            "mrr_end_to_end": 0.11310069845593254,
+            "recall_at_1_end_to_end": 0.05595786701777485,
+            "recall_at_5_end_to_end": 0.16326530612244897,
+            "top1_same_seed_family": 0.7678452301534356,
+            "same_family_target_mrr": 0.2420501381559854,
+            "cross_family_target_mrr": 0.0448895764023892,
+            "guard_activation_rate": 0.8676761026991442,
+            "known_seed_examples": 1499
+          },
+          "seed_genre_corrupted_only": {
+            "mrr_end_to_end": 0.11314282094869194,
+            "recall_at_1_end_to_end": 0.05727452271231073,
+            "recall_at_5_end_to_end": 0.1553653719552337,
+            "top1_same_seed_family": 0.6917945296864576,
+            "same_family_target_mrr": 0.2302391137499519,
+            "cross_family_target_mrr": 0.05120988837507584,
+            "guard_activation_rate": 0.22580645161290322,
+            "known_seed_examples": 1499
+          }
+        }
+      }
+    }
+  }
+}

@@ -31,15 +31,23 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
             var used = 0
             for start in starts {
                 guard let waveform = try decodeWindow(url: url, startMs: start) else { continue }
-                let embedding = try audio.run(
-                    floats: [("waveform", waveform, [1, 320_000])],
-                    int64s: [], output: "embedding", outputCount: Int(outputDim)
-                )
+                guard let embedding = try stableAudioEmbedding(
+                    audio, waveform: waveform, outputDim: Int(outputDim)
+                ) else { continue }
                 for index in pooled.indices { pooled[index] += embedding[index] }
                 used += 1
             }
+            if used == 0, durationMs > 10_000,
+               let waveform = try decodeWindow(url: url, startMs: 0),
+               let embedding = try stableAudioEmbedding(
+                   audio, waveform: waveform, outputDim: Int(outputDim)
+               ) {
+                for index in pooled.indices { pooled[index] += embedding[index] }
+                used = 1
+            }
             guard used > 0 else { return nil }
             normalize(&pooled)
+            guard isUsable(pooled) else { return nil }
             return KotlinFloatArray(pooled)
         } catch { return nil }
     }
@@ -233,9 +241,15 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
     private func decodeWindow(url: URL, startMs: Int64) throws -> [Float]? {
         let file = try AVAudioFile(forReading: url)
         let inputFormat = file.processingFormat
-        file.framePosition = AVAudioFramePosition(
-            Double(startMs) * inputFormat.sampleRate / 1_000
+        let requestedFrame = AVAudioFramePosition(
+            Double(max(0, startMs)) * inputFormat.sampleRate / 1_000
         )
+        // AVAudioFile throws an Objective-C NSException (not a Swift Error) when
+        // framePosition is outside the real stream. Imported metadata can overstate
+        // duration, especially for damaged VBR files, so reject that window before
+        // touching the exception-raising setter. Other valid windows can still be used.
+        guard requestedFrame < file.length else { return nil }
+        file.framePosition = requestedFrame
         let inputFrames = AVAudioFrameCount((10 * inputFormat.sampleRate).rounded(.up))
         guard let input = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: inputFrames) else {
             return nil
@@ -270,7 +284,44 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         waveform.withUnsafeMutableBufferPointer { destination in
             destination.baseAddress?.update(from: channel, count: count)
         }
+        // AVAudioConverter can also produce finite overshoot. Keep the shared waveform contract
+        // identical to Android before running the FP16-weight audio graph.
+        for index in 0..<count {
+            let sample = waveform[index]
+            waveform[index] = sample.isFinite ? min(1, max(-1, sample)) : 0
+        }
         return waveform
+    }
+
+    private func stableAudioEmbedding(
+        _ model: OrtModel,
+        waveform original: [Float],
+        outputDim: Int
+    ) throws -> [Float]? {
+        var waveform = original
+        var appliedGain: Float = 1
+        for targetGain: Float in [1, 0.5, 0.25] {
+            let scale = targetGain / appliedGain
+            if scale != 1 {
+                for index in waveform.indices { waveform[index] *= scale }
+            }
+            appliedGain = targetGain
+            let embedding = try model.run(
+                floats: [("waveform", waveform, [1, 320_000])],
+                int64s: [], output: "embedding", outputCount: outputDim
+            )
+            if isUsable(embedding) { return embedding }
+        }
+        return nil
+    }
+
+    private func isUsable(_ values: [Float]) -> Bool {
+        var normSquared: Double = 0
+        for value in values {
+            guard value.isFinite else { return false }
+            normSquared += Double(value * value)
+        }
+        return normSquared.isFinite && normSquared > 1e-12
     }
 
     private func normalize(_ values: inout [Float]) {

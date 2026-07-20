@@ -69,9 +69,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Putar beberapa lagu dan halaman ini akan terisi hal-hal yang layak didengar lagi.</string>
     <string name="foryou_section_continue">Belum selesai</string>
-    <string name="foryou_section_worth_revisiting">Layak didengar lagi</string>
-    <string name="foryou_section_found_by_smart">Ditemukan SMART</string>
-    <string name="foryou_section_worlds">Dunia</string>
+    <string name="foryou_section_worth_revisiting">Sudah lama tidak diputar</string>
+    <string name="foryou_section_worlds">Mix Anda</string>
+    <string name="foryou_mix_discovery">Mix penemuan</string>
     <string name="foryou_section_never_played">Belum pernah diputar</string>
     <!-- Dua hal yang bisa dilakukan dengan sebuah dunia, ditawarkan alih-alih ditebak. -->
     <string name="foryou_world_open">Tampilkan lagu</string>

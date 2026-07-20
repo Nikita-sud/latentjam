@@ -91,8 +91,9 @@ internal class IosPlaybackController(
     private var queue: List<TrackDescriptor> = emptyList()
     private var queueIndex: Int = -1
 
-    /** Full candidate pool for SMART selection. */
+    /** The source list for OFF/ON and the complete library for SMART are intentionally separate. */
     private var pool: List<TrackDescriptor> = emptyList()
+    private var smartLibrary: List<TrackDescriptor> = emptyList()
 
     private var mode: ShuffleMode = ShuffleMode.OFF
     private var repeat: RepeatMode = RepeatMode.OFF
@@ -117,6 +118,11 @@ internal class IosPlaybackController(
         configureAudioSession()
         wireRemoteCommands()
     }
+
+    override suspend fun setSmartLibrary(tracks: List<TrackDescriptor>): Unit =
+        withContext(Dispatchers.Main) {
+            smartLibrary = tracks.distinctBy { it.id }
+        }
 
     override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int): Unit =
         withContext(Dispatchers.Main) {
@@ -280,12 +286,14 @@ internal class IosPlaybackController(
             // a track appended twice would play twice in one sitting, and the queue
             // would show two rows claiming the same identity.
             val queued = queue.mapTo(HashSet()) { it.id }
-            val candidates = pool.filter { it.id !in queued }
+            val candidates = (smartLibrary.ifEmpty { pool }).filter { it.id !in queued }
             if (candidates.isEmpty()) break
 
             val chosen = runCatching { chooser.choose(seed, recentIds, candidates) }
                 .getOrNull()
-                ?: candidates.random()
+                // SMART must never present a random row as a recommendation. If neither local
+                // model path can answer yet, leave the queue short and retry later.
+                ?: break
             queue = queue + chosen
             appended = true
         }

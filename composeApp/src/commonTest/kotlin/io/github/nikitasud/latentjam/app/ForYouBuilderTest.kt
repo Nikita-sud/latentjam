@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldNameSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -53,19 +54,31 @@ class ForYouBuilderTest {
 
     @Test
     fun `a loved track gone quiet is worth revisiting`() {
-        // Two, because the hero claims the strongest candidate before the rows are built.
-        val best = track("1")
-        val second = track("2", artist = "B")
+        // Four, because the hero claims the strongest candidate and the shelf needs three more to
+        // establish a pattern rather than making a row from one isolated record.
+        val tracks = (1..4).map { track("$it", artist = "Artist$it") }
         val result = sections(
-            library = listOf(best, second),
-            stats = mapOf(
-                best.id to stats(plays = 10, last = now - 120 * day),
-                second.id to stats(plays = 6, last = now - 120 * day),
-            ),
+            library = tracks,
+            stats = tracks.mapIndexed { index, descriptor ->
+                descriptor.id to stats(plays = 10 - index, last = now - 120 * day)
+            }.toMap(),
         )
         val section = result.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
-        assertEquals(listOf(second.id), section.cards.map { it.track.id })
-        assertEquals(ForYouCaption.PlayedBefore(6), section.cards.first().caption)
+        assertEquals(tracks.drop(1).map { it.id }, section.cards.map { it.track.id })
+        assertEquals(ForYouCaption.PlayedBefore(9), section.cards.first().caption)
+    }
+
+    @Test
+    fun `worth revisiting waits for enough dormant evidence`() {
+        val tracks = (1..3).map { track("$it", artist = "Artist$it") }
+        val result = sections(
+            library = tracks,
+            stats = tracks.associate { it.id to stats(plays = 8, last = now - 120 * day) },
+        )
+
+        // The hero may confidently resurface one track, but two remaining records are not enough
+        // to manufacture a whole shelf.
+        assertTrue(result.none { it.kind == ForYouSectionKind.WORTH_REVISITING })
     }
 
     @Test
@@ -127,32 +140,6 @@ class ForYouBuilderTest {
     }
 
     @Test
-    fun `found by SMART only counts tracks played through in SMART mode`() {
-        // Five: the hero claims one before the rows are built, and the row needs three to appear.
-        val library = (1..5).map { track("$it", artist = "Artist$it") }
-        val events = library.mapIndexed { index, descriptor ->
-            ListenEvent(
-                trackId = descriptor.id,
-                startedAtMs = now - index * day,
-                playedMs = 1000,
-                trackDurationMs = 1000,
-                // Only the first three qualify: the last was completed under ordinary shuffle.
-                completed = true,
-                skipped = false,
-                shuffleMode = if (index < 4) "SMART" else "ON",
-            )
-        }
-        // The hero takes one track first, so assert on which tracks qualify rather than a raw count.
-        val result = page(library = library, events = events)
-        val found = result.sections
-            .first { it.kind == ForYouSectionKind.FOUND_BY_SMART }
-            .cards.map { it.track.id }
-        val smartIds = library.take(4).map { it.id }
-        assertTrue(found.all { it in smartIds }, "only SMART-completed tracks may appear: $found")
-        assertTrue(library[4].id !in found, "a track completed under ordinary shuffle must not appear")
-    }
-
-    @Test
     fun `an empty history yields only what needs no history`() {
         val library = listOf(track("1"), track("2", artist = "B"))
         val result = sections(library = library)
@@ -169,7 +156,7 @@ class ForYouBuilderTest {
                     trackId = abandoned.id,
                     startedAtMs = now - day,
                     playedMs = 90_000,
-                    trackDurationMs = 240_000,
+                    trackDurationMs = 600_000,
                     completed = false,
                     skipped = false,
                 ),
@@ -193,6 +180,26 @@ class ForYouBuilderTest {
                     trackDurationMs = 240_000,
                     completed = false,
                     skipped = true,
+                ),
+            ),
+        )
+        assertTrue(result.sections.none { it.kind == ForYouSectionKind.CONTINUE })
+        assertEquals(null, result.hero?.resumeAtMs)
+    }
+
+    @Test
+    fun `an ordinary song restarts instead of becoming continue listening`() {
+        val song = track("1")
+        val result = page(
+            library = listOf(song),
+            events = listOf(
+                ListenEvent(
+                    trackId = song.id,
+                    startedAtMs = now - day,
+                    playedMs = 90_000,
+                    trackDurationMs = 240_000,
+                    completed = false,
+                    skipped = false,
                 ),
             ),
         )
@@ -239,6 +246,18 @@ class ForYouBuilderTest {
             .cards.map { it.track.id }
         // Whatever the hero claimed, what remains is still ordered newest first.
         assertEquals(row.sortedByDescending { id -> listOf(old, middle, new).first { it.id == id }.addedAtMs }, row)
+    }
+
+    @Test
+    fun `first open hero is the newest unheard track`() {
+        val old = track("1", artist = "A", added = 100)
+        val newest = track("2", artist = "B", added = 900)
+        val middle = track("3", artist = "C", added = 500)
+
+        val result = page(library = listOf(old, middle, newest))
+
+        assertEquals(newest.id, result.hero?.track?.id)
+        assertEquals(ForYouKicker.NeverPlayed, result.hero?.kicker)
     }
 
     @Test
@@ -305,6 +324,43 @@ class ForYouBuilderTest {
     }
 
     @Test
+    fun `a large region becomes a focused mix rather than a hundred track dump`() {
+        val members = (1..120).map { track("$it", artist = "Artist$it") }
+        val result = ForYouBuilder.build(
+            library = members,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = listOf(LibraryWorld("Focused", members)),
+        )
+
+        val card = result.sections.first { it.kind == ForYouSectionKind.WORLDS }.cards.single()
+        assertEquals(ForYouBuilder.MIX_TRACK_LIMIT, card.collection?.tracks?.size)
+        assertEquals(ForYouCaption.TrackCount(ForYouBuilder.MIX_TRACK_LIMIT), card.caption)
+    }
+
+    @Test
+    fun `generic mix labels are localized and numbered without borrowing a track title`() {
+        val first = (1..6).map { track("a$it", artist = "Artist A$it") }
+        val second = (1..6).map { track("b$it", artist = "Artist B$it") }
+        val result = ForYouBuilder.build(
+            library = first + second,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = listOf(
+                LibraryWorld("ignored title", first, LibraryWorldNameSource.GENERIC),
+                LibraryWorld("another ignored title", second, LibraryWorldNameSource.GENERIC),
+            ),
+            discoveryMixLabel = "Микс открытий",
+        )
+
+        val names = result.sections.first { it.kind == ForYouSectionKind.WORLDS }
+            .cards.mapNotNull { it.collection?.title }
+        assertEquals(listOf("Микс открытий 1", "Микс открытий 2"), names)
+    }
+
+    @Test
     fun `the world the listener actually lives in comes first`() {
         val quiet = (1..5).map { track("q$it", artist = "Quiet$it") }
         val loved = (1..5).map { track("l$it", artist = "Loved$it") }
@@ -357,6 +413,30 @@ class ForYouBuilderTest {
         // plays another is the smallest possible way to look broken.
         assertEquals(card.track.id, card.collection?.tracks?.first()?.id)
         assertEquals(members.size, card.collection?.tracks?.size)
+    }
+
+    @Test
+    fun `a mix prefers an unheard central track over one played this week`() {
+        val hero = track("hero", artist = "Hero")
+        val recent = track("recent", artist = "Recent")
+        val unheard = track("unheard", artist = "Unheard")
+        val older = track("older", artist = "Older")
+        val world = listOf(recent, unheard, older)
+        val result = ForYouBuilder.build(
+            library = listOf(hero) + world,
+            stats = mapOf(
+                hero.id to stats(plays = 20, last = now - 200 * day),
+                recent.id to stats(plays = 8, last = now - day),
+            ),
+            recentEvents = emptyList(),
+            nowMs = now,
+            excluded = setOf(older.id),
+            worlds = listOf(LibraryWorld("Focused mix", world)),
+        )
+
+        val card = result.sections.first { it.kind == ForYouSectionKind.WORLDS }.cards.single()
+        assertEquals(unheard.id, card.track.id)
+        assertEquals(unheard.id, card.collection?.tracks?.first()?.id)
     }
 
     @Test

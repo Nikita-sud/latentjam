@@ -68,9 +68,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Ascultă câteva piese și pagina asta se va umple cu lucruri la care merită să revii.</string>
     <string name="foryou_section_continue">Neterminate</string>
-    <string name="foryou_section_worth_revisiting">Merită reascultate</string>
-    <string name="foryou_section_found_by_smart">Găsite de SMART</string>
-    <string name="foryou_section_worlds">Lumi</string>
+    <string name="foryou_section_worth_revisiting">Neascultate de mult</string>
+    <string name="foryou_section_worlds">Mixurile tale</string>
+    <string name="foryou_mix_discovery">Mix de descoperire</string>
     <string name="foryou_section_never_played">Neascultate încă</string>
     <!-- Cele două lucruri de făcut cu o lume, oferite în loc de ghicite. -->
     <string name="foryou_world_open">Arată piesele</string>

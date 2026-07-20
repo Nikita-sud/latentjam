@@ -13,6 +13,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.TimeSource
 
 /**
  * Adapts the similarity engine into the playback layer's [NextTrackChooser] port — the ONLY place
@@ -27,8 +28,8 @@ import kotlinx.coroutines.sync.withLock
  * playback lands somewhere the plan did not predict (the user skipped, or picked a track by hand) —
  * that track becomes the seed of the next chain, which is what the user just asked for.
  *
- * Abstains (returns null, letting the controller fall back to a random pick) whenever the engine
- * cannot plan — not indexed yet, models unavailable — so SMART is always safe to leave switched on.
+ * Abstains when neither the audio nor trusted-metadata path can plan. The controller leaves the
+ * queue short in that case; it never disguises a random pick as SMART.
  */
 class EngineNextTrackChooser(
     private val engine: SimilarityEngine,
@@ -49,6 +50,7 @@ class EngineNextTrackChooser(
             planned.clear()
         }
         if (planned.isEmpty()) {
+            val started = TimeSource.Monotonic.markNow()
             planned = ArrayDeque(
                 engine.smartQueue(
                     current,
@@ -57,7 +59,10 @@ class EngineNextTrackChooser(
                     smartHistoryFor(history, current),
                 ),
             )
-            println("SMART: planned ${planned.size} tracks from ${current.title ?: current.id.value}")
+            println(
+                "SMART: planned ${planned.size} tracks from " +
+                    "${current.title ?: current.id.value} in ${started.elapsedNow().inWholeMilliseconds} ms",
+            )
         }
 
         // A planned track can vanish from the candidate pool (played meanwhile, or removed).
@@ -70,7 +75,7 @@ class EngineNextTrackChooser(
             }
         }
         expectedNext = null
-        println("SMART: no plan available — random fallback")
+        println("SMART: no local plan available — waiting for index")
         null
     }
 

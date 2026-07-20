@@ -60,8 +60,11 @@ import io.github.nikitasud.latentjam.app.generated.resources.search_hint_count
 import io.github.nikitasud.latentjam.app.generated.resources.search_no_matches
 import io.github.nikitasud.latentjam.app.generated.resources.search_placeholder
 import io.github.nikitasud.latentjam.app.generated.resources.search_recent_title
+import io.github.nikitasud.latentjam.smart.ScoredTrack
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlin.time.TimeSource
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -91,9 +94,10 @@ internal fun SearchScreen(
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var recent by remember { mutableStateOf<List<String>>(emptyList()) }
-    val results = remember(songs, query) {
+    var semantic by remember(songs) { mutableStateOf<List<ScoredTrack>>(emptyList()) }
+    val results = remember(songs, query, semantic) {
         val needle = query.trim()
-        if (needle.isBlank()) emptyList() else songs.filter { it.matches(needle) }
+        if (needle.isBlank()) emptyList() else hybridSearch(songs, needle, semantic)
     }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -105,6 +109,21 @@ internal fun SearchScreen(
     LaunchedEffect(Unit) {
         refreshRecent()
         focusRequester.requestFocus()
+    }
+
+    // MiniLM inference is local and fast, but still unnecessary on every keypress. Exact metadata
+    // matches update immediately above; semantic expansion follows after the user pauses typing.
+    LaunchedEffect(songs, query) {
+        semantic = emptyList()
+        val needle = query.trim()
+        if (needle.length < MIN_SEMANTIC_QUERY_CHARS) return@LaunchedEffect
+        delay(SEMANTIC_DEBOUNCE_MS)
+        val started = TimeSource.Monotonic.markNow()
+        semantic = AppGraph.engine.semanticSearch(needle, SEMANTIC_CANDIDATE_LIMIT)
+        println(
+            "SMART search: ${semantic.size} local candidates in " +
+                "${started.elapsedNow().inWholeMilliseconds} ms",
+        )
     }
 
     fun remember(queryToKeep: String) {
@@ -290,7 +309,55 @@ private fun CenteredHint(text: String) {
     }
 }
 
-private fun TrackDescriptor.matches(needle: String): Boolean =
-    title?.contains(needle, ignoreCase = true) == true ||
-        artist?.contains(needle, ignoreCase = true) == true ||
-        album?.contains(needle, ignoreCase = true) == true
+/** Exact search stays authoritative; cosine hits only expand it when the model is confident. */
+internal fun hybridSearch(
+    songs: List<TrackDescriptor>,
+    query: String,
+    semantic: List<ScoredTrack>,
+): List<TrackDescriptor> {
+    val needle = query.trim()
+    if (needle.isEmpty()) return emptyList()
+    val lexical = songs.mapIndexedNotNull { index, track ->
+        track.lexicalRank(needle)?.let { rank -> RankedTrack(track, rank, index) }
+    }.sortedWith(compareBy<RankedTrack> { it.rank }.thenBy { it.libraryOrder })
+
+    val byId = songs.associateBy { it.id }
+    val used = lexical.mapTo(HashSet()) { it.track.id }
+    val bestSemantic = semantic.firstOrNull()?.score ?: Float.NEGATIVE_INFINITY
+    val semanticFloor = maxOf(MIN_SEMANTIC_SCORE, bestSemantic - MAX_SEMANTIC_GAP)
+    val expanded = semantic.asSequence()
+        .takeWhile { it.score >= semanticFloor }
+        .mapNotNull { byId[it.trackId] }
+        .filter { used.add(it.id) }
+        .take(SEMANTIC_RESULT_LIMIT)
+
+    return (lexical.asSequence().map { it.track } + expanded).take(SEARCH_RESULT_LIMIT).toList()
+}
+
+/** 0 exact, 1 prefix, 2 token-prefix, 3 substring. Null means cosine must find it. */
+private fun TrackDescriptor.lexicalRank(needle: String): Int? {
+    val fields = listOfNotNull(title, artist, album).map { it.trim() }
+    if (fields.any { it.equals(needle, ignoreCase = true) }) return 0
+    if (fields.any { it.startsWith(needle, ignoreCase = true) }) return 1
+    if (fields.any { field ->
+            field.split(' ', '-', '_', '.', ',', ';', '(', ')')
+                .any { it.startsWith(needle, ignoreCase = true) }
+        }
+    ) return 2
+    if (fields.any { it.contains(needle, ignoreCase = true) }) return 3
+    return null
+}
+
+private data class RankedTrack(
+    val track: TrackDescriptor,
+    val rank: Int,
+    val libraryOrder: Int,
+)
+
+private const val MIN_SEMANTIC_QUERY_CHARS = 2
+private const val SEMANTIC_DEBOUNCE_MS = 180L
+private const val SEMANTIC_CANDIDATE_LIMIT = 64
+private const val SEMANTIC_RESULT_LIMIT = 24
+private const val SEARCH_RESULT_LIMIT = 80
+private const val MIN_SEMANTIC_SCORE = 0.35f
+private const val MAX_SEMANTIC_GAP = 0.18f

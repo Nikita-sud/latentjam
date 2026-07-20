@@ -75,6 +75,31 @@ internal class OnnxEmbeddingBackend(
             val uri = Uri.parse(audioUri)
             val pooled = FloatArray(config.embeddingDim)
             var windows = 0
+            var lastModelFailure: String? = null
+
+            fun inferStable(waveform: FloatArray, startMs: Long): FloatArray? {
+                var appliedGain = 1f
+                for (targetGain in INFERENCE_GAINS) {
+                    val scale = targetGain / appliedGain
+                    if (scale != 1f) {
+                        for (index in waveform.indices) waveform[index] *= scale
+                    }
+                    appliedGain = targetGain
+                    val embedding = runWindow(activeSession, waveform)
+                    if (embedding.size != config.embeddingDim) {
+                        lastModelFailure =
+                            "Model produced ${embedding.size}-dim embedding, expected " +
+                            config.embeddingDim
+                        return null
+                    }
+                    if (isUsableEmbedding(embedding)) return embedding
+                }
+                lastModelFailure =
+                    "Model produced a non-finite or zero-norm embedding at ${startMs}ms " +
+                    waveformSummary(waveform, appliedGain)
+                return null
+            }
+
             for (startMs in windowStartsMs(descriptor.durationMs)) {
                 currentCoroutineContext().ensureActive()
                 val waveform = decoder.decodeWindowMono(
@@ -83,18 +108,35 @@ internal class OnnxEmbeddingBackend(
                     targetSampleRate = SAMPLE_RATE,
                     targetSamples = WINDOW_SAMPLES,
                 ) ?: continue
-                val embedding = runWindow(activeSession, waveform)
-                if (embedding.size != config.embeddingDim) {
-                    return backendFailure(
-                        "Model produced ${embedding.size}-dim embedding, " +
-                            "expected ${config.embeddingDim}",
-                    )
-                }
+                val embedding = inferStable(waveform, startMs) ?: continue
                 for (i in pooled.indices) pooled[i] += embedding[i]
                 windows++
             }
+            // Several otherwise playable MP3/M4A files on real devices reject random access even
+            // though decoding from the head works. Retry the beginning only after every preferred
+            // 20/50/80% crop failed; successful tracks keep the original three-window contract and
+            // pay no extra inference cost.
+            if (windows == 0 && descriptor.durationMs?.let { it > WINDOW_MS } == true) {
+                decoder.decodeWindowMono(
+                    uri = uri,
+                    startMs = 0L,
+                    targetSampleRate = SAMPLE_RATE,
+                    targetSamples = WINDOW_SAMPLES,
+                )?.let { waveform ->
+                    val embedding = inferStable(waveform, 0L)
+                    if (embedding != null) {
+                        for (i in pooled.indices) pooled[i] += embedding[i]
+                        windows++
+                    }
+                }
+            }
             if (windows == 0) {
-                return backendFailure("Could not decode any audio window for ${descriptor.id.value}")
+                return backendFailure(
+                    lastModelFailure ?: (
+                        "Could not decode any audio window for ${descriptor.id.value}: " +
+                            (decoder.lastFailure ?: "unknown decoder failure")
+                        ),
+                )
             }
             if (!l2NormalizeInPlace(pooled)) {
                 return backendFailure("Model produced a non-finite or zero-norm embedding")
@@ -151,6 +193,31 @@ internal class OnnxEmbeddingBackend(
         return true
     }
 
+    private fun isUsableEmbedding(vector: FloatArray): Boolean {
+        var sumOfSquares = 0f
+        for (component in vector) {
+            if (!component.isFinite()) return false
+            sumOfSquares += component * component
+        }
+        return sumOfSquares.isFinite() && sumOfSquares > 0f
+    }
+
+    private fun waveformSummary(waveform: FloatArray, appliedGain: Float): String {
+        var peak = 0f
+        var sumOfSquares = 0.0
+        var nonZero = 0
+        for (sample in waveform) {
+            val absolute = kotlin.math.abs(sample)
+            if (absolute > peak) peak = absolute
+            sumOfSquares += sample.toDouble() * sample
+            if (absolute > 1e-6f) nonZero++
+        }
+        val rms = sqrt(sumOfSquares / waveform.size).toFloat()
+        // Report the original-scale signal even though the array currently holds the last retry.
+        val inverse = 1f / appliedGain
+        return "(peak=${peak * inverse}, rms=${rms * inverse}, nonZero=$nonZero)"
+    }
+
     private fun dumpDebugEmbedding(descriptor: TrackDescriptor, embedding: FloatArray) {
         runCatching {
             File(context.filesDir, DEBUG_DUMP_FILE)
@@ -171,6 +238,7 @@ internal class OnnxEmbeddingBackend(
         const val DEFAULT_ASSET_PATH = "ml/mnv4_audio.onnx"
         const val DEBUG_DUMP_FILE = "debug_last_embedding.txt"
         val WINDOW_POSITIONS = listOf(0.2, 0.5, 0.8)
+        val INFERENCE_GAINS = listOf(1f, 0.5f, 0.25f)
     }
 }
 

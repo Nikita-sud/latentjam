@@ -16,9 +16,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,6 +45,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -97,6 +96,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -134,6 +134,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_title
 import io.github.nikitasud.latentjam.app.generated.resources.engine_error_backend
 import io.github.nikitasud.latentjam.app.generated.resources.engine_error_model_unavailable
 import io.github.nikitasud.latentjam.app.generated.resources.engine_error_not_indexed
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_discovery
 import io.github.nikitasud.latentjam.app.generated.resources.info_artist
 import io.github.nikitasud.latentjam.app.generated.resources.info_title
 import io.github.nikitasud.latentjam.app.generated.resources.library_empty
@@ -176,9 +177,10 @@ import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorlds
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlin.math.abs
-import kotlin.math.roundToInt
-import kotlin.math.floor
 import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.roundToInt
+import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -237,6 +239,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var trackMenuTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
         var deleteTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
         var indexSummary by remember { mutableStateOf<String?>(null) }
+        var indexFailureDetails by remember { mutableStateOf<List<String>>(emptyList()) }
         var historySummary by remember { mutableStateOf<String?>(null) }
         val now by playback.state.collectAsState()
         val accent = rememberTrackAccent(now.track)
@@ -262,8 +265,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var builtWorlds by remember { mutableStateOf<List<LibraryWorld>?>(null) }
         var metadataVectorsReady by remember { mutableStateOf(false) }
         var worldTarget by remember { mutableStateOf<ForYouCard?>(null) }
+        val discoveryMixLabel = stringResource(Res.string.foryou_mix_discovery)
 
-        LaunchedEffect(tracks, selectedTab == FOR_YOU_TAB, worlds) {
+        LaunchedEffect(tracks, selectedTab == FOR_YOU_TAB, worlds, discoveryMixLabel) {
             val loaded = tracks ?: return@LaunchedEffect
             if (selectedTab != FOR_YOU_TAB) return@LaunchedEffect
             // Built once, and again only when the worlds arrive — the text index fills in the
@@ -280,11 +284,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 excluded = setOfNotNull(now.track?.id),
                 playlists = playlists,
                 worlds = worlds,
+                discoveryMixLabel = discoveryMixLabel,
             )
         }
 
         LaunchedEffect(tracks) {
             val loaded = tracks ?: return@LaunchedEffect
+            // Search, playlists, and collection screens often start playback from a filtered
+            // subset. SMART is a library journey, so keep its candidate universe independent of
+            // whichever small list happened to contain the track the listener tapped.
+            playback.setSmartLibrary(loaded)
             AppGraph.appScope.launch {
                 engine.initialize()
                 var added = 0
@@ -297,9 +306,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 // Build the acoustic index progressively on a background dispatcher from the very
                 // first launch. Each tiny batch is persisted and releases the engine lock, so a
                 // SMART press can use the portion that is ready; playback itself never waits for
-                // the whole library and still has its random fallback.
+                // the whole library and metadata supplies an honest cold-start path.
+                val failures = LinkedHashMap<TrackId, EngineError>()
                 loaded.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
-                    engine.indexLibrary(chunk)
+                    failures.putAll(engine.indexLibrary(chunk).errors)
+                }
+                indexFailureDetails = failures.map { (id, error) ->
+                    indexFailureLine(loaded.firstOrNull { it.id == id }, id, error)
                 }
                 println("SMART: progressive local index complete (${engine.state.value})")
             }
@@ -315,7 +328,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             val vectors = engine.metadataVectors()
             if (vectors.isEmpty()) return@LaunchedEffect
             worlds = withContext(Dispatchers.Default) {
-                LibraryWorlds.discover(loaded, vectors, TextEncoder.TEXT_DIM)
+                val started = TimeSource.Monotonic.markNow()
+                LibraryWorlds.discover(loaded, vectors, TextEncoder.TEXT_DIM).also { mixes ->
+                    println(
+                        "SMART: built ${mixes.size} local mixes in " +
+                            "${started.elapsedNow().inWholeMilliseconds} ms",
+                    )
+                }
             }
         }
         val catalog = remember(tracks) { tracks?.let { LibraryCatalog.build(it) } }
@@ -379,11 +398,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 var indexed = 0
                 var skipped = 0
                 var failed = 0
+                val failures = LinkedHashMap<TrackId, EngineError>()
                 selection.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
                     val report = engine.indexLibrary(chunk)
                     indexed += report.indexed
                     skipped += report.skipped
                     failed += report.failed
+                    failures.putAll(report.errors)
                     val done = indexed + skipped + failed
                     indexSummary = getString(
                         Res.string.diagnostics_indexing,
@@ -396,6 +417,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 }
                 indexSummary =
                     getString(Res.string.diagnostics_indexed_report, indexed, skipped, failed)
+                indexFailureDetails = failures.map { (id, error) ->
+                    indexFailureLine(selection.firstOrNull { it.id == id }, id, error)
+                }
             }
         }
 
@@ -922,6 +946,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 engine = engine,
                 trackCount = tracks?.size,
                 indexSummary = indexSummary,
+                indexFailureDetails = indexFailureDetails,
                 historySummary = historySummary,
                 onRescan = { scope.launch { tracks = library.tracks() } },
                 onIndexSample = {
@@ -962,6 +987,9 @@ private const val INDEX_CHUNK_SIZE = 8
 
 /** How many tracks the diagnostics dialog indexes as a sample. */
 private const val DIAGNOSTICS_SAMPLE = 24
+
+/** Keep the technical failure list readable inside the compact diagnostics dialog. */
+private const val DIAGNOSTICS_FAILURE_LIMIT = 5
 
 /** Duration of the mini-player ↔ now-playing morph. */
 private const val MORPH_MILLIS = 340
@@ -1031,7 +1059,6 @@ private fun artistSubtitle(tracks: Int, albums: Int): String =
 private fun BrowseCarousel(pagerState: PagerState, onSelect: (Int) -> Unit) {
     val listState = rememberLazyListState()
     val density = LocalDensity.current
-    val selectedTab = pagerState.currentPage
 
     BoxWithConstraints(
         modifier = Modifier
@@ -1048,10 +1075,21 @@ private fun BrowseCarousel(pagerState: PagerState, onSelect: (Int) -> Unit) {
             return (item.offset + item.size / 2f) - centre
         }
 
+        suspend fun centerTab(index: Int) {
+            // A fast multi-page swipe can put both interpolation endpoints outside LazyRow's
+            // composed window. Bring the destination into the layout first, then centre it in the
+            // same pass. The old code stopped after scrollToItem(), so no pager state changed to
+            // trigger a second pass and the strip could remain permanently one page behind.
+            if (offsetFromCentre(index) == null) listState.scrollToItem(index)
+            val delta = offsetFromCentre(index) ?: return
+            if (abs(delta) > 0.5f) listState.scrollBy(delta)
+        }
+
         // Track the pager CONTINUOUSLY rather than jumping once a swipe settles: the strip is the
         // same gesture seen from a different angle, so it should move with the finger. Between two
         // labels the centre is interpolated, because labels are only as wide as their text and the
-        // step between them is uneven.
+        // step between them is uneven. The pager is the sole scroll owner; this avoids two
+        // independent horizontal gestures racing to select different pages.
         LaunchedEffect(pagerState, sidePadding) {
             snapshotFlow { pagerState.currentPage + pagerState.currentPageOffsetFraction }
                 .collect { position ->
@@ -1064,9 +1102,8 @@ private fun BrowseCarousel(pagerState: PagerState, onSelect: (Int) -> Unit) {
                             lowerOffset + (upperOffset - lowerOffset) * (position - lower)
                         lowerOffset != null -> lowerOffset
                         upperOffset != null -> upperOffset
-                        // Neither neighbour is on screen — a jump, not a swipe.
                         else -> {
-                            listState.scrollToItem(position.roundToInt())
+                            centerTab(position.roundToInt().coerceIn(BROWSE_TABS.indices))
                             null
                         }
                     }
@@ -1075,28 +1112,18 @@ private fun BrowseCarousel(pagerState: PagerState, onSelect: (Int) -> Unit) {
                 }
         }
 
-        // Settle on whatever ended up nearest the middle. Only when the strip itself was dragged —
-        // while the pager is moving it is the one in charge, and both correcting at once fights.
-        LaunchedEffect(listState.isScrollInProgress) {
-            if (!listState.isScrollInProgress && !pagerState.isScrollInProgress) {
-                val info = listState.layoutInfo
-                val centre = (info.viewportStartOffset + info.viewportEndOffset) / 2f
-                val nearest = info.visibleItemsInfo.minByOrNull { item ->
-                    abs((item.offset + item.size / 2f) - centre)
-                } ?: return@LaunchedEffect
-                if (nearest.index != selectedTab) {
-                    onSelect(nearest.index)
-                } else {
-                    val delta = (nearest.offset + nearest.size / 2f) - centre
-                    if (abs(delta) > 1f) listState.animateScrollBy(delta)
-                }
-            }
+        // Continuous pager updates can be conflated during a fling. SettledPage is an independent
+        // final-state signal, so this makes exact centring an invariant even after interrupted,
+        // reversed, or multi-page gestures.
+        LaunchedEffect(pagerState.settledPage, sidePadding) {
+            centerTab(pagerState.settledPage)
         }
 
         LazyRow(
             state = listState,
             contentPadding = PaddingValues(horizontal = sidePadding),
             verticalAlignment = Alignment.CenterVertically,
+            userScrollEnabled = false,
             modifier = Modifier.fillMaxWidth().height(52.dp),
         ) {
             itemsIndexed(BROWSE_TABS) { index, title ->
@@ -1109,10 +1136,11 @@ private fun BrowseCarousel(pagerState: PagerState, onSelect: (Int) -> Unit) {
                     maxLines = 1,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { onSelect(index) }
+                        .selectable(
+                            selected = index == pagerState.settledPage,
+                            role = Role.Tab,
+                            onClick = { onSelect(index) },
+                        )
                         .padding(horizontal = 14.dp)
                         .graphicsLayer {
                             val scale = 1f - 0.26f * distance
@@ -1425,6 +1453,7 @@ private fun DiagnosticsDialog(
     engine: SimilarityEngine,
     trackCount: Int?,
     indexSummary: String?,
+    indexFailureDetails: List<String>,
     historySummary: String?,
     onRescan: () -> Unit,
     onIndexSample: () -> Unit,
@@ -1445,6 +1474,17 @@ private fun DiagnosticsDialog(
                 Text(stringResource(Res.string.diagnostics_library, counted))
                 historySummary?.let { Text(it) }
                 indexSummary?.let { Text(it) }
+                if (indexFailureDetails.isNotEmpty()) {
+                    Text(
+                        indexFailureDetails.take(DIAGNOSTICS_FAILURE_LIMIT).joinToString("\n") +
+                            if (indexFailureDetails.size > DIAGNOSTICS_FAILURE_LIMIT) {
+                                "\n+${indexFailureDetails.size - DIAGNOSTICS_FAILURE_LIMIT}"
+                            } else {
+                                ""
+                            },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = onIndexSample) {
                         Text(stringResource(Res.string.diagnostics_index_batch, DIAGNOSTICS_SAMPLE))
@@ -1462,6 +1502,20 @@ private fun DiagnosticsDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_close)) }
         },
     )
+}
+
+private fun indexFailureLine(
+    track: TrackDescriptor?,
+    id: TrackId,
+    error: EngineError,
+): String {
+    val label = track?.title?.takeIf(String::isNotBlank) ?: id.value
+    val reason = when (error) {
+        is EngineError.BackendFailure -> error.message
+        EngineError.ModelUnavailable -> "model unavailable"
+        EngineError.NotIndexed -> "not indexed"
+    }
+    return "$label — $reason"
 }
 
 @Composable

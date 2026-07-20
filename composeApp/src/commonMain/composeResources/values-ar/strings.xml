@@ -78,9 +78,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">شغّل بضعة مقاطع وستمتلئ هذه الصفحة بما يستحق العودة إليه.</string>
     <string name="foryou_section_continue">لم تكتمل بعد</string>
-    <string name="foryou_section_worth_revisiting">يستحق الاستماع مجددًا</string>
-    <string name="foryou_section_found_by_smart">اكتشفها SMART</string>
-    <string name="foryou_section_worlds">عوالم</string>
+    <string name="foryou_section_worth_revisiting">لم تسمعها منذ فترة</string>
+    <string name="foryou_section_worlds">مزيجاتك</string>
+    <string name="foryou_mix_discovery">مزيج اكتشاف</string>
     <string name="foryou_section_never_played">لم تُشغَّل قط</string>
     <!-- الشيئان اللذان يمكن فعلهما بعالم، معروضان بدل تخمينهما. -->
     <string name="foryou_world_open">عرض المقاطع</string>

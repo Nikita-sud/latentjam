@@ -129,7 +129,7 @@ internal class SmartSnapshot private constructor(
                 tracks = usable,
                 rawAudio = raw,
                 centeredAudio = centered,
-                hubPenalty = computeHubPenalty(centered, n),
+                hubPenalty = computeHubPenalty(centered, usable),
                 centeredText = text,
                 hasText = hasText,
                 centeredDescriptor = descriptor,
@@ -144,15 +144,27 @@ internal class SmartSnapshot private constructor(
          * high here and get pushed down in retrieval, which stops them acting as everyone's
          * neighbour.
          */
-        private fun computeHubPenalty(centered: FloatArray, n: Int): FloatArray {
+        private fun computeHubPenalty(
+            centered: FloatArray,
+            tracks: List<SmartTrack>,
+        ): FloatArray {
+            val n = tracks.size
             val penalty = FloatArray(n)
-            val k = HUB_TOPK.coerceAtMost(n - 1)
+            // Exact CSLS is O(N²·D). Rebuilding it for an 860-track phone library meant roughly
+            // 700 million scalar products before the first queue could appear. A deterministic
+            // 64-track density reference preserves held-out pool recall and acoustic-scorer MRR
+            // while bounding this work at O(N·64·D). For small libraries the reference is the
+            // whole corpus, so existing exact behaviour and fixtures stay unchanged.
+            val references = tracks.indices
+                .sortedBy { stableIdHash(tracks[it].id.value) }
+                .take(HUB_REFERENCE_CAP)
+            val k = HUB_TOPK.coerceAtMost(references.size - 1)
             if (k <= 0) return penalty
             val top = FloatArray(k)
             for (i in 0 until n) {
                 top.fill(-2f)
                 val baseI = i * AUDIO_DIM
-                for (j in 0 until n) {
+                for (j in references) {
                     if (j == i) continue
                     var dot = 0f
                     val baseJ = j * AUDIO_DIM
@@ -177,6 +189,19 @@ internal class SmartSnapshot private constructor(
             for (i in 0 until n) penalty[i] -= mean
             return penalty
         }
+
+        /** Stable across Android/iOS and independent of insertion order. */
+        private fun stableIdHash(value: String): ULong {
+            var hash = 0xcbf29ce484222325uL
+            for (byte in value.encodeToByteArray()) {
+                hash = hash xor byte.toUByte().toULong()
+                hash *= 0x100000001b3uL
+            }
+            return hash
+        }
+
+        /** Selected by the reproducible 1,519-example benchmark in docs/experiments. */
+        internal const val HUB_REFERENCE_CAP = 64
 
         /**
          * Centered + renormalised copy of an optional space, computed over the rows that HAVE a

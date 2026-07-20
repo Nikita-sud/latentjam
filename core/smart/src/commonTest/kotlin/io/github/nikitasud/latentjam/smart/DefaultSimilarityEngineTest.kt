@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -274,5 +275,44 @@ internal class DefaultSimilarityEngineTest {
 
         assertEquals(1, harness.store.saveCalls)
         assertEquals(3, harness.store.snapshots["test-model"]?.size)
+    }
+
+    @Test
+    fun semanticSearchEncodesTheQueryAgainstTheStoredTextIndex() = runTest {
+        val textEncoder = FakeTextEncoder()
+        val engine = DefaultSimilarityEngine(
+            backend = FakeEmbeddingBackend(),
+            index = InMemoryVectorIndex(dim = 3),
+            store = FakeIndexStore(),
+            config = SmartEngineConfig(embeddingDim = 3, modelVersion = "semantic-test"),
+            dispatcher = Dispatchers.Default.limitedParallelism(1, "semantic-test-engine"),
+            textEncoder = textEncoder,
+            textIndex = InMemoryVectorIndex(dim = TextEncoder.TEXT_DIM),
+            textStore = FakeIndexStore(),
+        )
+        val rock = TrackDescriptor(TrackId("rock"), genre = "Rock", artist = "Band")
+        val dance = TrackDescriptor(TrackId("dance"), genre = "Dance", artist = "DJ")
+        engine.initialize()
+        engine.ensureMetadataVectors(listOf(dance, rock))
+
+        val results = engine.semanticSearch("guitars", limit = 2)
+
+        assertEquals(rock.id, results.first().trackId)
+        assertTrue(results.first().score > results.last().score)
+    }
+
+    private class FakeTextEncoder : TextEncoder {
+        override suspend fun load(): Result<Unit> = Result.success(Unit)
+
+        override fun encode(metadata: String): FloatArray = FloatArray(TextEncoder.TEXT_DIM).also { vector ->
+            when {
+                metadata.contains("Rock", ignoreCase = true) ||
+                    metadata.equals("guitars", ignoreCase = true) -> vector[0] = 1f
+                metadata.contains("Dance", ignoreCase = true) -> vector[1] = 1f
+                else -> vector[2] = 1f
+            }
+        }
+
+        override fun close(): Unit = Unit
     }
 }

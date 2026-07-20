@@ -70,8 +70,8 @@ These came out of real use and are more valuable than any paper here.
 
 ## 5. What to build
 
-Four sections. Ordered prediction → memory. Each hides entirely when empty rather than rendering a
-header over nothing.
+Four possible sections, ordered by evidence. Each hides entirely when empty rather than rendering
+a header over nothing; a first-time user still gets the hero, local mixes, and unplayed music.
 
 ### 5.1 Hero — one confident play
 
@@ -82,14 +82,17 @@ Rules: no claim in the copy that the content does not support. Degrade to less t
 hedge. Icon-only play control at fixed size — text buttons in a constrained row clip under
 translation and large font scales, which bit the legacy build three separate times.
 
-### 5.2 Worth revisiting
+### 5.2 Haven't heard in a while
 
 Dormant favourites — the section with the strongest evidence behind it and the least competition
 from ordinary browsing.
 
-- Candidates: high completions, **quiet ≥ 60–90 days**. The legacy 30-day threshold is too short —
-  30 days is a normal gap in rotation, so the row surfaces things that do not feel absent, which is
-  how the shelf loses credibility. Plexamp uses six months plus a 100-play floor.
+- Candidates: at least three plays, completions at least equal to skips, and **quiet ≥ 90 days**.
+  The legacy 30-day threshold is too short — 30 days is a normal gap in rotation, so the row
+  surfaces things that do not feel absent, which is how the shelf loses credibility.
+- The entire row stays hidden until at least **three tracks** qualify. One isolated old play-count
+  record is not enough evidence to present a personalized shelf. A collapsed album or playlist may
+  represent those three tracks as one card.
 - Playlists and albums are first-class here: a dormant playlist outranks weakly-loved loose tracks.
   Use a higher completion threshold for parents (a handful of finishes across a big playlist is not
   a habit).
@@ -97,20 +100,28 @@ from ordinary browsing.
 - **Anchor rows on a named entity** where possible (Roon's pattern) — the row then explains itself
   without a separate explanation string.
 
-### 5.3 Found by SMART
+### 5.3 Your mixes
 
-Tracks SMART surfaced that you then listened through. `ListenEvent.shuffleMode` has been recorded
-since day one and read by nothing. **No other player can show this row**, and it directly answers
-"is this thing any good?" — which makes it the best argument for the whole feature.
+Clusters of the library in the on-device metadata-embedding space — the one section that works with
+**zero listening history**, and the only component immune to feedback-loop collapse. It is the
+day-one personalized surface.
 
-### 5.4 Worlds
+The number of mixes adapts to library size (roughly one per 60 tracks, bounded to 8–16), while each
+surfaced mix is capped at 50 tracks. Names are generated locally from evidence the contents support:
+genre and decade, dominant artist, or a localized neutral "Discovery mix" label. Track titles and
+filenames never vote as genres or become the theme of a heterogeneous mix. Covers and the start of
+each mix prefer unheard or long-quiet tracks without discarding cluster centrality.
 
-Clusters of the library in the on-device metadata-embedding space — the one section that works with **zero
-listening history**, and the only component immune to feedback-loop collapse. It should therefore be
-the day-one surface.
+### 5.4 Never played
 
-Because labels are barely read, the medoid's cover does the work; the name is secondary. Order
-worlds by how much the user actually lives in them. Keep clustering deterministic and cached.
+Owned music with no local listen record, newest first. This is useful on day one and gradually
+retires itself as the listener explores the library.
+
+### Removed: Found by SMART
+
+The old row merely repeated recent SMART completions. That rewards the recommender for its own
+exposure and spends scarce For You space on memory rather than a new decision. SMART-origin events
+remain useful as private training/context signals, but are not a separate shelf.
 
 ## 6. Data reality
 
@@ -118,23 +129,24 @@ From an audit of the current modules:
 
 **Free today** — pure reads of data already collected:
 - Continue listening — `recentEvents` + `completed == false`, and `playedMs` gives the resume point
-- Worth revisiting — `TrackStats.plays` / `completions` / `lastPlayedAtMs` (all computed, all
-  currently unused by the UI)
+- Haven't heard in a while — `TrackStats.plays` / `completions` / `skips` / `lastPlayedAtMs`
 - Rediscovery (never played) — library minus `stats().keys`
-- Found by SMART — `ListenEvent.shuffleMode`
+- Recency suppression — recent `ListenEvent`s softly penalize both full SMART and cold-start queues
 
-**Modest work:**
-- Similar-to-recent — `smartQueue(seed, library, n)` is already public. Ships today against the
-  **text** index, which is warm for the whole library at first launch.
-- Genre worlds — needs `MetadataRerank.normalizeGenre` / `isHubGenre` made public, or reimplemented.
+**Implemented local model work:**
+- Hybrid search keeps lexical title/artist/album matches authoritative, then expands the result with
+  cosine similarity from the metadata-text index after a 180 ms debounce.
+- Mix discovery clusters the complete metadata-text index, which is available before audio indexing
+  finishes.
+- SMART uses the full audio/scorer path when ready and a trusted genre/artist/year fallback on a
+  genuinely cold index. Neither path falls back to a random queue.
 
 **Blocked:**
 - Time-of-day and day-of-week — the data is in `startedAtMs`, but **there is no local-time
   conversion anywhere in shared code**. Needs kotlinx-datetime or an expect/actual
   `localHourAndDay(epochMs)`. Do **not** use `(ms / 3_600_000) % 24` — wrong for every non-UTC user.
-- Embedding worlds — no clustering code exists, and the **audio index is cold** on a fresh install
-  (only the Diagnostics dialog fills it). Run over the text index, or wait for background indexing.
-- `energy` is never populated by anything, so that chain term is currently inert.
+- Rich mood/instrument search — current text vectors know trusted metadata, not free-form acoustic
+  captions. A future student encoder can improve this without changing the search contract.
 
 **Two fixes to fold in regardless:**
 - `HistorySessionTracker.flush()` is never called — every session's last track is lost.
@@ -166,17 +178,18 @@ From an audit of the current modules:
    overlapping pools, the same album will otherwise appear three times.
 3. **Exclude what is currently playing or already queued.**
 4. **Calibrate the whole page** against the user's own genre distribution.
-5. **Per-section empty states, never a global one.** Progressive unlock as thresholds are met.
+5. **Hide weak sections.** Progressive unlock as evidence thresholds are met; in particular the
+   dormant-favourites row needs at least three qualifying tracks.
 6. **Instrument coverage.** Track what fraction of the library For You has surfaced over 30/90 days.
    Under ~30% means collapse — and you will not see it from the UI alone.
 
-## 9. Open decisions
+## 9. Deliberate model boundary
 
-- **Where it lives.** A sixth carousel tab, or the landing surface? There is no bottom nav.
-- **Favourites.** Several strong patterns (notably "liked tracks you have least recently played",
-  which structurally cannot go stale) need a favourites concept that does not exist yet.
-- **Time-of-day.** Worth the kotlinx-datetime dependency? It unlocks two sections and the hero's
-  best framing.
+Do not ship a generative language model only to decorate eight mix titles. Even a small generator
+adds a tokenizer, runtime, tens of megabytes, latency, localization gaps, and hallucination risk.
+Evidence-derived names are instant, deterministic, inspectable, and work offline on first launch.
+An LLM remains useful as an offline teacher for naming-rule or encoder training data; it should not
+see the user's private library at runtime.
 
 ## Sources
 

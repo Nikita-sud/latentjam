@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldNameSource
 
 /**
  * Which row this is.
@@ -24,9 +25,6 @@ enum class ForYouSectionKind {
 
     /** Proven favourites gone quiet. */
     WORTH_REVISITING,
-
-    /** Tracks SMART surfaced that the listener then played through. */
-    FOUND_BY_SMART,
 
     /**
      * Regions the library falls into, found in embedding space rather than in the tags.
@@ -148,6 +146,9 @@ object ForYouBuilder {
     /** Below this, a play is an accident or an audition, not a listen. */
     const val MIN_PLAYS_TO_COUNT = 3
 
+    /** A personalized shelf needs a pattern, not one isolated old play-count record. */
+    const val MIN_REVISIT_TRACKS = 3
+
     /**
      * How long a track must be untouched to count as forgotten.
      *
@@ -161,6 +162,9 @@ object ForYouBuilder {
 
     /** One artist cannot own a row. A crude calibration, but the one that matters most. */
     const val MAX_PER_ARTIST = 2
+
+    /** A mix is a decision-sized playlist, not every track assigned to an embedding cluster. */
+    const val MIX_TRACK_LIMIT = 50
 
     /**
      * How many dormant tracks a playlist or album needs before it is offered as a whole.
@@ -176,6 +180,9 @@ object ForYouBuilder {
      */
     const val MIN_RESUME_MS = 45_000L
 
+    /** Normal songs restart cleanly; resuming is useful for mixes, sets and other long recordings. */
+    const val MIN_RESUMABLE_DURATION_MS = 8L * 60 * 1000
+
     fun build(
         library: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats>,
@@ -184,23 +191,23 @@ object ForYouBuilder {
         excluded: Set<TrackId> = emptySet(),
         playlists: List<Playlist> = emptyList(),
         worlds: List<LibraryWorld> = emptyList(),
+        discoveryMixLabel: String = "Discovery mix",
     ): ForYouPage {
         val byId = library.associateBy { it.id }
         // Accumulates across the page, so a track shown once is not shown again further down.
         val used = HashSet<TrackId>(excluded)
 
-        val hero = hero(byId, stats, recentEvents, nowMs)
+        val hero = hero(byId, stats, recentEvents, nowMs, excluded)
         hero?.let { used.add(it.track.id) }
 
         val sections = mutableListOf<ForYouSection>()
         continueListening(byId, recentEvents, used)?.let(sections::add)
         worthRevisiting(byId, stats, nowMs, used, playlists)?.let(sections::add)
-        foundBySmart(byId, recentEvents, used)?.let(sections::add)
         // Above "never played" and below the history rows on purpose. With nothing logged the rows
         // above are all empty and this becomes the first thing on the page — which is what it is
         // for. Once there IS history, rows built from it have the better claim on the top of a
         // surface where the first two get read and the rest largely do not.
-        worlds(worlds, stats, used)?.let(sections::add)
+        worlds(worlds, stats, nowMs, used, discoveryMixLabel)?.let(sections::add)
         neverPlayed(library, stats, used)?.let(sections::add)
 
         return ForYouPage(hero, sections)
@@ -218,13 +225,15 @@ object ForYouBuilder {
         stats: Map<TrackId, TrackStats>,
         recentEvents: List<ListenEvent>,
         nowMs: Long,
+        excluded: Set<TrackId>,
     ): ForYouHero? {
-        interrupted(byId, recentEvents)?.let { (track, at) ->
+        interrupted(byId, recentEvents, excluded)?.let { (track, at) ->
             return ForYouHero(track, ForYouKicker.Resume, at)
         }
         val revisit = stats.entries
-            .filter { (_, stat) ->
-                stat.plays >= MIN_PLAYS_TO_COUNT &&
+            .filter { (id, stat) ->
+                id !in excluded &&
+                    stat.plays >= MIN_PLAYS_TO_COUNT &&
                     stat.lastPlayedAtMs > 0 &&
                     nowMs - stat.lastPlayedAtMs >= QUIET_MS &&
                     stat.completions >= stat.skips
@@ -234,7 +243,9 @@ object ForYouBuilder {
             byId[id]?.let { return ForYouHero(it, ForYouKicker.PlayedTimes(stat.plays)) }
         }
         return byId.values
-            .firstOrNull { (stats[it.id]?.plays ?: 0) == 0 }
+            .filter { (stats[it.id]?.plays ?: 0) == 0 }
+            .filter { it.id !in excluded }
+            .maxByOrNull { it.addedAtMs ?: Long.MIN_VALUE }
             ?.let { ForYouHero(it, ForYouKicker.NeverPlayed) }
     }
 
@@ -242,13 +253,16 @@ object ForYouBuilder {
     private fun interrupted(
         byId: Map<TrackId, TrackDescriptor>,
         recentEvents: List<ListenEvent>,
+        excluded: Set<TrackId>,
     ): Pair<TrackDescriptor, Long>? =
         recentEvents
             .firstOrNull { event ->
                 !event.completed &&
                     event.playedMs >= MIN_RESUME_MS &&
+                    (event.trackDurationMs ?: 0) >= MIN_RESUMABLE_DURATION_MS &&
                     // Guard against a stale position past the end of a since-replaced file.
                     (event.trackDurationMs ?: 0) > event.playedMs &&
+                    event.trackId !in excluded &&
                     byId.containsKey(event.trackId)
             }
             ?.let { event -> byId.getValue(event.trackId) to event.playedMs }
@@ -267,6 +281,7 @@ object ForYouBuilder {
                 .filter { event ->
                     !event.completed &&
                         event.playedMs >= MIN_RESUME_MS &&
+                        (event.trackDurationMs ?: 0) >= MIN_RESUMABLE_DURATION_MS &&
                         (event.trackDurationMs ?: 0) > event.playedMs &&
                         event.trackId !in used
                 }
@@ -307,6 +322,7 @@ object ForYouBuilder {
             }
 
         val dormant = candidates.map { it.first }
+        if (dormant.size < MIN_REVISIT_TRACKS) return null
         val statOf = candidates.associate { it.first.id to it.second }
 
         // Groups first, so the tracks they absorb never also appear as singles below them.
@@ -380,31 +396,6 @@ object ForYouBuilder {
     }
 
     /**
-     * Tracks SMART surfaced that the listener then played through.
-     *
-     * The shuffle mode at the time of each play has been recorded since the beginning and read by
-     * nothing. It answers "is this thing any good?" with the listener's own behaviour, which no
-     * amount of confidence scoring can.
-     */
-    private fun foundBySmart(
-        byId: Map<TrackId, TrackDescriptor>,
-        recentEvents: List<ListenEvent>,
-        used: MutableSet<TrackId>,
-    ): ForYouSection? {
-        val picked = capPerArtist(
-            recentEvents
-                .filter { it.shuffleMode == "SMART" && it.completed && it.trackId !in used }
-                .distinctBy { it.trackId }
-                .mapNotNull { byId[it.trackId] },
-        )
-        if (picked.size < 3) return null
-        return ForYouSection(
-            kind = ForYouSectionKind.FOUND_BY_SMART,
-            cards = picked.map { ForYouCard(it) }.onEach { used.add(it.track.id) },
-        )
-    }
-
-    /**
      * The library's own regions, ordered by how much of the listener's time is actually spent in
      * each.
      *
@@ -421,24 +412,49 @@ object ForYouBuilder {
     private fun worlds(
         worlds: List<LibraryWorld>,
         stats: Map<TrackId, TrackStats>,
+        nowMs: Long,
         used: MutableSet<TrackId>,
+        discoveryMixLabel: String,
     ): ForYouSection? {
         if (worlds.isEmpty()) return null
-        val cards = worlds
-            .sortedByDescending { world -> world.tracks.sumOf { stats[it.id]?.plays ?: 0 } }
+        val sorted = worlds.sortedByDescending { world ->
+            world.tracks.sumOf { stats[it.id]?.plays ?: 0 }
+        }
+        val genericCount = sorted.count { it.nameSource == LibraryWorldNameSource.GENERIC }
+        var genericIndex = 0
+        val cards = sorted
             .mapNotNull { world ->
-                // Center-outward, so this is still the most central member — just the most central
-                // one the page has not already spent. Taking it from the ordering rather than
-                // recomputing it is what keeps the cover and the seed the same track.
-                val cover = world.tracks.firstOrNull { it.id !in used } ?: return@mapNotNull null
+                // Freshness is a tier, centrality the tie-break. A mix therefore starts with an
+                // unheard or long-quiet representative when one exists, without promoting a far
+                // edge of the cluster over everything in its tier.
+                val ordered = world.tracks.withIndex()
+                    .sortedWith(
+                        compareBy<IndexedValue<TrackDescriptor>> {
+                            freshnessTier(stats[it.value.id], nowMs)
+                        }.thenBy { it.index },
+                    )
+                    .map { it.value }
+                // Keep the generated claim and its art in agreement. For a genre/decade mix, for
+                // example, a fresh cover from another family is not a valid substitute.
+                val cover = ordered.firstOrNull { it.id !in used && world.supportsName(it) }
+                    ?: ordered.firstOrNull { it.id !in used }
+                    ?: return@mapNotNull null
+                val mixTracks = (listOf(cover) + ordered.filterNot { it.id == cover.id })
+                    .take(MIX_TRACK_LIMIT)
+                val title = if (world.nameSource == LibraryWorldNameSource.GENERIC) {
+                    genericIndex++
+                    if (genericCount == 1) discoveryMixLabel else "$discoveryMixLabel $genericIndex"
+                } else {
+                    world.name
+                }
                 ForYouCard(
                     track = cover,
-                    caption = ForYouCaption.TrackCount(world.tracks.size),
+                    caption = ForYouCaption.TrackCount(mixTracks.size),
                     collection = ForYouCollection(
-                        title = world.name,
+                        title = title,
                         // The cover leads the list too. A card that shows one record and starts on
                         // another is the smallest possible way to look broken.
-                        tracks = listOf(cover) + world.tracks.filterNot { it.id == cover.id },
+                        tracks = mixTracks,
                     ),
                 )
             }
@@ -448,6 +464,16 @@ object ForYouBuilder {
             kind = ForYouSectionKind.WORLDS,
             cards = cards.onEach { used.add(it.track.id) },
         )
+    }
+
+    /** Lower is fresher. Unknown stats are unplayed, so first launch naturally fills tier zero. */
+    private fun freshnessTier(stat: TrackStats?, nowMs: Long): Int = when {
+        stat == null || stat.plays == 0 -> 0
+        stat.lastPlayedAtMs <= 0L -> 1
+        nowMs - stat.lastPlayedAtMs >= QUIET_MS -> 1
+        nowMs - stat.lastPlayedAtMs >= 30L * 24 * 60 * 60 * 1000 -> 2
+        nowMs - stat.lastPlayedAtMs >= 7L * 24 * 60 * 60 * 1000 -> 3
+        else -> 4
     }
 
     /**

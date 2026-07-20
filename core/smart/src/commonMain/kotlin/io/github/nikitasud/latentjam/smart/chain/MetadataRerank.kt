@@ -22,6 +22,22 @@ internal object MetadataRerank {
     const val ERA_DECADE_PENALTY = 0.04f
 
     /**
+     * A listener who explicitly starts from one track expects the beginning of the queue to sound
+     * like that choice. The learned scorer and audio geometry remain primary; this is only a soft
+     * penalty, and only when the retrieved pool contains enough independent evidence that the
+     * seed's genre tag is credible. Once four seed-family tracks have been selected, the guard
+     * releases and the walk may explore normally.
+     *
+     * 0.80 was selected on 1,519 real positive next-track examples: it increased same-family top-1
+     * continuity by roughly four points, slightly improved full-history MRR, and changed cold-start
+     * MRR by about -0.5%. With deliberately corrupted seed genres, the support gate activated on
+     * only ~23% of examples and kept incremental MRR loss below 0.7%.
+     */
+    const val SEED_CROSS_GENRE_PENALTY = 0.80f
+    const val SEED_GENRE_MIN_POOL_SUPPORT = 6
+    const val SEED_GENRE_PREFIX_TARGET = 4
+
+    /**
      * Script-based language detection: Cyrillic → ru, CJK → ja, everything else → en.
      *
      * Deliberately NOT smarter. A diacritic-based Romanian rule was measured and rejected: it split
@@ -84,6 +100,27 @@ internal object MetadataRerank {
             multiplier *= 1f - ERA_DECADE_PENALTY * abs(anchorYear - candidateYear) / 10f
         }
         return multiplier
+    }
+
+    /** Number of retrieved candidates that corroborate the seed's coarse genre family. */
+    fun seedGenreSupport(seedGenre: String?, candidates: Iterable<TrackMeta>): Int {
+        if (seedGenre == null) return 0
+        return candidates.count { normalizeGenre(it.genre) == seedGenre }
+    }
+
+    /**
+     * Seed-intent multiplier for one candidate. Missing tags stay neutral; titles are never read.
+     */
+    fun seedIntentMultiplier(
+        seedGenre: String?,
+        poolSupport: Int,
+        seedFamilyPicks: Int,
+        candidate: TrackMeta,
+    ): Float {
+        if (seedGenre == null || poolSupport < SEED_GENRE_MIN_POOL_SUPPORT) return 1f
+        if (seedFamilyPicks >= SEED_GENRE_PREFIX_TARGET) return 1f
+        val candidateGenre = normalizeGenre(candidate.genre) ?: return 1f
+        return if (candidateGenre == seedGenre) 1f else SEED_CROSS_GENRE_PENALTY
     }
 }
 

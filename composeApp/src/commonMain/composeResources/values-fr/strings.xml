@@ -77,9 +77,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Écoutez quelques morceaux et cette page se remplira de choses qui méritent qu'on y revienne.</string>
     <string name="foryou_section_continue">Pas encore terminés</string>
-    <string name="foryou_section_worth_revisiting">À réécouter</string>
-    <string name="foryou_section_found_by_smart">Trouvés par SMART</string>
-    <string name="foryou_section_worlds">Univers</string>
+    <string name="foryou_section_worth_revisiting">Pas écoutés depuis longtemps</string>
+    <string name="foryou_section_worlds">Vos mixes</string>
+    <string name="foryou_mix_discovery">Mix découverte</string>
     <string name="foryou_section_never_played">Jamais écoutés</string>
     <!-- Les deux choses possibles avec un univers, proposées plutôt que devinées. -->
     <string name="foryou_world_open">Voir les morceaux</string>

@@ -63,9 +63,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">몇 곡만 들어 보면 다시 듣고 싶은 것들이 이 페이지에 쌓입니다.</string>
     <string name="foryou_section_continue">아직 못 들은 곡</string>
-    <string name="foryou_section_worth_revisiting">다시 들어볼 만한 곡</string>
-    <string name="foryou_section_found_by_smart">SMART가 찾은 곡</string>
-    <string name="foryou_section_worlds">월드</string>
+    <string name="foryou_section_worth_revisiting">오랫동안 듣지 않은 곡</string>
+    <string name="foryou_section_worlds">나만의 믹스</string>
+    <string name="foryou_mix_discovery">발견 믹스</string>
     <string name="foryou_section_never_played">한 번도 안 들은 곡</string>
     <!-- 월드로 할 수 있는 두 가지. 추측하지 않고 물어본다. -->
     <string name="foryou_world_open">트랙 보기</string>

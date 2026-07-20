@@ -11,14 +11,15 @@ import io.github.nikitasud.latentjam.smart.TrackId
 /**
  * A region of the library, with something to call it.
  *
- * @property name drawn from the members themselves — a genre they mostly share, an artist who
- *   mostly wrote them, or the name of the track at the centre. Never invented, and never a claim
- *   the contents do not support.
+ * @property name generated locally from evidence in the members — a genre (optionally sharpened
+ *   by a shared decade), an artist mix, or a neutral discovery label. No filename text is treated
+ *   as a genre and no network model is involved.
  * @property tracks members, medoid first.
  */
 public data class LibraryWorld(
     public val name: String,
     public val tracks: List<TrackDescriptor>,
+    public val nameSource: LibraryWorldNameSource = LibraryWorldNameSource.GENRE,
 ) {
     init {
         require(tracks.isNotEmpty()) { "A world with no tracks is not a world" }
@@ -26,6 +27,27 @@ public data class LibraryWorld(
 
     /** The most central track: what the card shows, and what SMART is seeded from. */
     public val representative: TrackDescriptor get() = tracks.first()
+
+    /** Whether [track] can replace the medoid as a fresher cover without contradicting the name. */
+    public fun supportsName(track: TrackDescriptor): Boolean = when (nameSource) {
+        LibraryWorldNameSource.GENRE -> {
+            val sameGenre = Genres.normalize(track.genre) == Genres.normalize(representative.genre)
+            val representativeDecade = representative.year?.takeIf { it in 1900..2099 }?.let { it / 10 * 10 }
+            val nameClaimsDecade = representativeDecade != null && name.endsWith("${representativeDecade}s")
+            sameGenre && (!nameClaimsDecade || track.year?.let { it / 10 * 10 } == representativeDecade)
+        }
+        LibraryWorldNameSource.ARTIST ->
+            track.artist?.trim()?.takeIf(String::isNotEmpty) ==
+                representative.artist?.trim()?.takeIf(String::isNotEmpty)
+        LibraryWorldNameSource.GENERIC -> true
+    }
+}
+
+/** Which member fact produced [LibraryWorld.name], used to keep a fresh cover truthful. */
+public enum class LibraryWorldNameSource {
+    GENRE,
+    ARTIST,
+    GENERIC,
 }
 
 /**
@@ -41,6 +63,10 @@ public data class LibraryWorld(
  * that is missing for almost everybody.
  */
 public object LibraryWorlds {
+
+    /** Large libraries need more focused mixes; small ones keep enough cards to offer variety. */
+    public const val TARGET_TRACKS_PER_MIX: Int = 60
+    public const val MAX_MIXES: Int = 16
 
     /**
      * How much of a cluster a genre or artist must cover before the cluster is named after it.
@@ -63,7 +89,20 @@ public object LibraryWorlds {
         library: List<TrackDescriptor>,
         vectors: Map<TrackId, FloatArray>,
         dim: Int,
-        k: Int = TrackClustering.DEFAULT_K,
+    ): List<LibraryWorld> = discover(
+        library = library,
+        vectors = vectors,
+        dim = dim,
+        k = recommendedK(library.size),
+        minSize = TrackClustering.MIN_CLUSTER_SIZE,
+    )
+
+    /** Explicit-k overload for experiments and deterministic fixtures. */
+    public fun discover(
+        library: List<TrackDescriptor>,
+        vectors: Map<TrackId, FloatArray>,
+        dim: Int,
+        k: Int,
         minSize: Int = TrackClustering.MIN_CLUSTER_SIZE,
     ): List<LibraryWorld> {
         if (library.isEmpty() || vectors.isEmpty()) return emptyList()
@@ -73,14 +112,17 @@ public object LibraryWorlds {
             .mapNotNull { cluster ->
                 val tracks = cluster.members.mapNotNull(byId::get)
                 if (tracks.isEmpty()) return@mapNotNull null
-                name(tracks)?.let { name -> LibraryWorld(name, tracks) }
+                name(tracks)?.let { label -> LibraryWorld(label.text, tracks, label.source) }
             }
     }
 
+    internal fun recommendedK(trackCount: Int): Int =
+        ((trackCount + TARGET_TRACKS_PER_MIX - 1) / TARGET_TRACKS_PER_MIX)
+            .coerceIn(TrackClustering.DEFAULT_K, MAX_MIXES)
+
     /**
      * Names a cluster after the strongest claim its contents support, in descending order of how
-     * much that claim says: a shared genre, then a shared artist, then simply the track at the
-     * centre.
+     * much that claim says: a shared genre, then a shared artist, then a neutral discovery mix.
      *
      * **Every claim must also describe the medoid.** The leftmost cover of a row is looked at some
      * four times as often as its words are read, so the cover is what the row actually says — and a
@@ -88,11 +130,11 @@ public object LibraryWorlds {
      * been burned once by a row that announced one genre and showed another; the guard is that the
      * plurality genre and the genre of the track on the cover have to be the same thing.
      *
-     * Falling all the way through is not a failure. "The world around this song" is an honest
-     * description of a region that has no other name, and it is the one label that can never
-     * disagree with the cover, because it *is* the cover.
+     * Falling all the way through is not a failure. A neutral discovery label is honest about an
+     * embedding region that lacks enough shared metadata. Naming it after its medoid is not: that
+     * makes one ordinary song title look like the theme of the whole mix.
      */
-    private fun name(tracks: List<TrackDescriptor>): String? {
+    private fun name(tracks: List<TrackDescriptor>): WorldName? {
         val medoid = tracks.first()
 
         val family = Genres.normalize(medoid.genre)
@@ -101,16 +143,33 @@ public object LibraryWorlds {
             // splitting a rap region three ways and losing to nothing. Spelled by the medoid,
             // because the medoid is the cover: the words a listener reads are then literally the
             // genre of the record they are looking at, and the two cannot drift apart.
-            return medoid.genre?.trim()?.takeIf(String::isNotEmpty) ?: family
+            val genre = medoid.genre?.trim()?.takeIf(String::isNotEmpty) ?: family
+            val medoidDecade = medoid.year?.takeIf { it in 1900..2099 }?.let(::decade)
+            val sharedDecade = strongest(tracks) { track ->
+                track.year?.takeIf { it in 1900..2099 }?.let(::decade)
+            }
+            val text = if (medoidDecade != null && sharedDecade == medoidDecade) {
+                "$genre • ${medoidDecade}s"
+            } else {
+                genre
+            }
+            return WorldName(text, LibraryWorldNameSource.GENRE)
         }
 
         val artist = medoid.artist?.trim()?.takeIf(String::isNotEmpty)
         if (artist != null && strongest(tracks) { it.artist?.trim()?.takeIf(String::isNotEmpty) } == artist) {
-            return artist
+            return WorldName("$artist • Mix", LibraryWorldNameSource.ARTIST)
         }
 
-        return medoid.title?.trim()?.takeIf(String::isNotEmpty)
+        return WorldName("Discovery mix", LibraryWorldNameSource.GENERIC)
     }
+
+    private fun decade(year: Int): Int = year / 10 * 10
+
+    private data class WorldName(
+        val text: String,
+        val source: LibraryWorldNameSource,
+    )
 
     /**
      * The value [select] returns for the largest share of [tracks], provided that share reaches

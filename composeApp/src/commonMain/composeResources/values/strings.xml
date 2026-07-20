@@ -75,9 +75,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Play a few tracks and this page will fill up with things worth returning to.</string>
     <string name="foryou_section_continue">Still unfinished</string>
-    <string name="foryou_section_worth_revisiting">Worth revisiting</string>
-    <string name="foryou_section_found_by_smart">Found by SMART</string>
-    <string name="foryou_section_worlds">Worlds</string>
+    <string name="foryou_section_worth_revisiting">Haven’t heard in a while</string>
+    <string name="foryou_section_worlds">Your mixes</string>
+    <string name="foryou_mix_discovery">Discovery mix</string>
     <string name="foryou_section_never_played">Never played</string>
     <!-- The two things to do with a world, offered rather than guessed at. -->
     <string name="foryou_world_open">Show the tracks</string>

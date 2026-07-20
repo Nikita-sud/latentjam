@@ -63,9 +63,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">何曲か再生すると、また聴きたくなるものがここに集まります。</string>
     <string name="foryou_section_continue">聴きかけ</string>
-    <string name="foryou_section_worth_revisiting">もう一度聴きたい</string>
-    <string name="foryou_section_found_by_smart">SMART が見つけた曲</string>
-    <string name="foryou_section_worlds">ワールド</string>
+    <string name="foryou_section_worth_revisiting">しばらく聴いていない曲</string>
+    <string name="foryou_section_worlds">あなたのミックス</string>
+    <string name="foryou_mix_discovery">ディスカバリーミックス</string>
     <string name="foryou_section_never_played">未再生</string>
     <!-- ワールドでできる 2 つのこと。推測せずに選ばせる。 -->
     <string name="foryou_world_open">曲を表示</string>

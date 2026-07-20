@@ -25,34 +25,12 @@ kotlin {
         }
     }
 
-    // ONNX Runtime ships one static slice per platform; each iOS target binds the
-    // matching one. The framework is fetched by tools/fetch_onnxruntime.sh rather
-    // than vendored — see that script for why, and for the version pinning rule.
-    val ortRoot = rootProject.file("third_party/onnxruntime")
-    // Absent on a fresh clone until tools/fetch_onnxruntime.sh has run. Skipping the
-    // binding rather than failing keeps `git clone && ./gradlew build` working for
-    // anyone who does not need the iOS inference path.
-    val ortPresent = File(ortRoot, "Headers/onnxruntime_c_api.h").exists()
-    listOf(
-        iosArm64() to "ios-arm64",
-        // iosX64 (Intel simulators) deliberately omitted; add the one-liner if ever needed.
-        iosSimulatorArm64() to "ios-arm64_x86_64-simulator",
-    ).forEach { (target, slice) ->
-        if (!ortPresent) return@forEach
-        target.compilations.getByName("main").cinterops.create("onnxruntime") {
-            defFile(project.file("src/nativeInterop/cinterop/onnxruntime.def"))
-            includeDirs(File(ortRoot, "Headers"))
-        }
-        // The Kotlin framework is static, so these symbols are resolved when Xcode
-        // links the app rather than here; the search path still has to be declared
-        // for the compiler to accept the references.
-        target.binaries.all {
-            linkerOpts(
-                "-F", File(ortRoot, "onnxruntime.xcframework/$slice").absolutePath,
-                "-framework", "onnxruntime",
-            )
-        }
-    }
+    // iOS inference is injected by the application shell through IosInferenceProvider.
+    // The shell owns the CocoaPods ONNX Runtime framework, so :core:smart must not
+    // bind or link a second native runtime into the static Kotlin framework.
+    iosArm64()
+    // iosX64 (Intel simulators) deliberately omitted; add it if Intel hosts return.
+    iosSimulatorArm64()
 
     sourceSets {
         commonMain.dependencies {

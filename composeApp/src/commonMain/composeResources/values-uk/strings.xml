@@ -73,9 +73,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Послухайте кілька треків — і тут з'явиться те, до чого варто повернутися.</string>
     <string name="foryou_section_continue">Недослухане</string>
-    <string name="foryou_section_worth_revisiting">Варто повернутися</string>
-    <string name="foryou_section_found_by_smart">Знайдено SMART</string>
-    <string name="foryou_section_worlds">Світи</string>
+    <string name="foryou_section_worth_revisiting">Давно не слухали</string>
+    <string name="foryou_section_worlds">Ваші мікси</string>
+    <string name="foryou_mix_discovery">Мікс відкриттів</string>
     <string name="foryou_section_never_played">Ще не слухали</string>
     <!-- Дві дії для світу — запропоновані, а не вгадані. -->
     <string name="foryou_world_open">Показати треки</string>

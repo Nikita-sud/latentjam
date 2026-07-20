@@ -65,9 +65,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Birkaç parça çal, bu sayfa geri dönmeye değer şeylerle dolsun.</string>
     <string name="foryou_section_continue">Yarım kalanlar</string>
-    <string name="foryou_section_worth_revisiting">Yeniden dinlemeye değer</string>
-    <string name="foryou_section_found_by_smart">SMART'ın buldukları</string>
-    <string name="foryou_section_worlds">Dünyalar</string>
+    <string name="foryou_section_worth_revisiting">Uzun süredir dinlemediklerin</string>
+    <string name="foryou_section_worlds">Mixlerin</string>
+    <string name="foryou_mix_discovery">Keşif mixi</string>
     <string name="foryou_section_never_played">Hiç çalınmadı</string>
     <!-- Bir dünyayla yapılabilecek iki şey; tahmin edilmek yerine sorulur. -->
     <string name="foryou_world_open">Parçaları göster</string>

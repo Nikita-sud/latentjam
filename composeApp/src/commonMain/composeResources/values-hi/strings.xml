@@ -65,9 +65,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">कुछ गाने चलाएं और यह पेज उन चीज़ों से भर जाएगा जिन पर लौटना बनता है.</string>
     <string name="foryou_section_continue">अब तक अधूरे</string>
-    <string name="foryou_section_worth_revisiting">दोबारा सुनने लायक</string>
-    <string name="foryou_section_found_by_smart">SMART ने खोजे</string>
-    <string name="foryou_section_worlds">दुनिया</string>
+    <string name="foryou_section_worth_revisiting">काफ़ी समय से नहीं सुने</string>
+    <string name="foryou_section_worlds">आपके मिक्स</string>
+    <string name="foryou_mix_discovery">डिस्कवरी मिक्स</string>
     <string name="foryou_section_never_played">कभी नहीं चलाए</string>
     <!-- एक दुनिया के साथ करने योग्य दो काम — अनुमान लगाने के बजाय पूछे गए। -->
     <string name="foryou_world_open">ट्रैक दिखाएँ</string>

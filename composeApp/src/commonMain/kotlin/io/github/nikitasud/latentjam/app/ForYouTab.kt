@@ -45,7 +45,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_never
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_played_times
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_resume
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_continue
-import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_found_by_smart
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_never_played
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_worlds
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_worth_revisiting
@@ -147,7 +146,6 @@ private fun ForYouSectionKind.title(): String = stringResource(
     when (this) {
         ForYouSectionKind.CONTINUE -> Res.string.foryou_section_continue
         ForYouSectionKind.WORTH_REVISITING -> Res.string.foryou_section_worth_revisiting
-        ForYouSectionKind.FOUND_BY_SMART -> Res.string.foryou_section_found_by_smart
         ForYouSectionKind.WORLDS -> Res.string.foryou_section_worlds
         ForYouSectionKind.NEVER_PLAYED -> Res.string.foryou_section_never_played
     },

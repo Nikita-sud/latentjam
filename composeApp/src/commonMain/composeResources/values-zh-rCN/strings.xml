@@ -63,9 +63,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">先听几首歌，这里就会出现值得再听的内容。</string>
     <string name="foryou_section_continue">还没听完</string>
-    <string name="foryou_section_worth_revisiting">值得再听</string>
-    <string name="foryou_section_found_by_smart">SMART 发现</string>
-    <string name="foryou_section_worlds">音乐世界</string>
+    <string name="foryou_section_worth_revisiting">很久没听</string>
+    <string name="foryou_section_worlds">你的混合歌单</string>
+    <string name="foryou_mix_discovery">探索混合歌单</string>
     <string name="foryou_section_never_played">从未播放</string>
     <!-- 对一个世界能做的两件事，交给用户选择而不是替他决定。 -->
     <string name="foryou_world_open">显示曲目</string>

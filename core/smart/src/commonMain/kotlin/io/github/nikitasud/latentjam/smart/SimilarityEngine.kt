@@ -114,6 +114,16 @@ public interface SimilarityEngine {
     public suspend fun metadataVectors(): Map<TrackId, FloatArray>
 
     /**
+     * Finds tracks whose trusted metadata embedding is closest to free-form [query] text.
+     *
+     * Intended as the semantic half of a hybrid search: callers keep exact title/artist/album
+     * matching first, then use these hits to expand intent queries such as "90s dance". The same
+     * small on-device text encoder and precomputed index used by SMART are reused; no audio decode,
+     * network request, or additional model is involved.
+     */
+    public suspend fun semanticSearch(query: String, limit: Int = 50): List<ScoredTrack>
+
+    /**
      * Builds a SMART queue: a coherent walk of up to [length] tracks starting from [seed].
      *
      * This is not [nextTrack] repeated. The walk carries state — how far it has drifted from the

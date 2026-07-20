@@ -45,8 +45,7 @@ import kotlin.coroutines.resumeWithException
  * OFF and ON map straight onto the player queue (natural order / ExoPlayer's
  * shuffle order). SMART keeps the queue linear and holds a LOOKAHEAD of
  * [SMART_LOOKAHEAD] tracks: whenever the queue runs shorter than that, the
- * controller tops it back up from the injected [NextTrackChooser] (falling back
- * to a random unplayed candidate when it abstains), continuing the walk from
+ * controller tops it back up from the injected [NextTrackChooser], continuing the walk from
  * the tail each time. Skipping or finishing a track therefore always has
  * somewhere to go, there is a readable queue rather than a single next-track
  * hint, and the played queue doubles as listening history.
@@ -78,8 +77,9 @@ internal class AndroidPlaybackController(
      */
     private val appendMutex = Mutex()
 
-    /** Full candidate pool for SMART selection, keyed for O(1) descriptor lookup. */
+    /** The source list for OFF/ON and the complete library for SMART are intentionally separate. */
     private var pool: List<TrackDescriptor> = emptyList()
+    private var smartLibrary: List<TrackDescriptor> = emptyList()
     private val poolById = mutableMapOf<String, TrackDescriptor>()
     private var mode: ShuffleMode = ShuffleMode.OFF
 
@@ -108,11 +108,18 @@ internal class AndroidPlaybackController(
         override fun onPlaybackStateChanged(playbackState: Int) = pushState()
     }
 
+    override suspend fun setSmartLibrary(tracks: List<TrackDescriptor>): Unit =
+        withContext(Dispatchers.Main) {
+            smartLibrary = tracks.distinctBy { it.id }
+            tracks.forEach { poolById[it.id.value] = it }
+        }
+
     override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int): Unit =
         withContext(Dispatchers.Main) {
             if (tracks.isEmpty()) return@withContext
             pool = tracks
             poolById.clear()
+            smartLibrary.forEach { poolById[it.id.value] = it }
             tracks.forEach { poolById[it.id.value] = it }
 
             val player = controller()
@@ -259,12 +266,15 @@ internal class AndroidPlaybackController(
             // claiming the same identity.
             val queued = (0 until player.mediaItemCount)
                 .mapTo(HashSet()) { index -> TrackId(player.getMediaItemAt(index).mediaId) }
-            val candidates = pool.filter { it.id !in queued }
+            val candidates = (smartLibrary.ifEmpty { pool }).filter { it.id !in queued }
             if (candidates.isEmpty()) break
 
             val chosen = runCatching { chooser.choose(seed, recentIds, candidates) }
                 .getOrNull()
-                ?: candidates.random()
+                // SMART must never present a random row as a recommendation. If neither the
+                // acoustic nor metadata path can answer yet, keep the honest short queue and let
+                // the next index update / transition retry.
+                ?: break
             player.addMediaItem(chosen.toMediaItem())
             appended = true
         }

@@ -72,9 +72,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Ascolta qualche brano e questa pagina si riempirà di cose su cui vale la pena tornare.</string>
     <string name="foryou_section_continue">Ancora da finire</string>
-    <string name="foryou_section_worth_revisiting">Vale la pena riascoltarli</string>
-    <string name="foryou_section_found_by_smart">Trovati da SMART</string>
-    <string name="foryou_section_worlds">Mondi</string>
+    <string name="foryou_section_worth_revisiting">Non li ascolti da tempo</string>
+    <string name="foryou_section_worlds">I tuoi mix</string>
+    <string name="foryou_mix_discovery">Mix scoperta</string>
     <string name="foryou_section_never_played">Mai ascoltati</string>
     <!-- Le due cose che si possono fare con un mondo, proposte anziché indovinate. -->
     <string name="foryou_world_open">Mostra i brani</string>

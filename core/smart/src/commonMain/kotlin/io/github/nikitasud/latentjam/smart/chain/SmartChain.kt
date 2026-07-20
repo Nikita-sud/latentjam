@@ -136,6 +136,13 @@ internal class SmartChain(
         val chain = ArrayList<Int>(length)
         val used = HashSet<Int>()
         var anchorRow = seedRow
+        val seedGenre = MetadataRerank.normalizeGenre(snapshot.tracks[seedRow].meta.genre)
+        val seedGenreSupport = MetadataRerank.seedGenreSupport(
+            seedGenre,
+            pool.asSequence().map { snapshot.tracks[it].meta }.asIterable(),
+        )
+        val recency = RecencyRerank(historyEvents)
+        var seedFamilyPicks = 0
         val recentArtists = ArrayDeque<String>()
         recentArtists.addLast(snapshot.tracks[seedRow].meta.artistKey)
         val seenTitles = HashSet<String>()
@@ -169,6 +176,15 @@ internal class SmartChain(
                 score += ChainConfig.CHAIN_SEED_GRAVITY * snapshot.centeredCosine(seedRow, row)
                 var multiplier = MetadataRerank.adjustMultiplier(anchorMeta, meta)
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)
+                multiplier *= MetadataRerank.seedIntentMultiplier(
+                    seedGenre = seedGenre,
+                    poolSupport = seedGenreSupport,
+                    seedFamilyPicks = seedFamilyPicks,
+                    candidate = meta,
+                )
+                // Novelty is intentionally a prior, not an exclusion. A track heard this session
+                // needs a much stronger fit to repeat, then regains a neutral score over 90 days.
+                multiplier *= recency.multiplier(snapshot.tracks[row].id)
                 // The raw-cosine pool carries no CSLS correction, so the dense cinematic/game/anime
                 // cluster leaks into chains from sparse seeds unless damped here.
                 if (meta.isHub && !anchorMeta.isHub) {
@@ -190,6 +206,7 @@ internal class SmartChain(
             chain.add(pickedRow)
             used.add(bestIndex)
             val pickedMeta = snapshot.tracks[pickedRow].meta
+            if (MetadataRerank.normalizeGenre(pickedMeta.genre) == seedGenre) seedFamilyPicks++
             seenTitles.add(pickedMeta.normalizedTitle)
             artistPlays[pickedMeta.artistKey] = (artistPlays[pickedMeta.artistKey] ?: 0) + 1
             recentArtists.addLast(pickedMeta.artistKey)

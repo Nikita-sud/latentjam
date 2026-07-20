@@ -61,7 +61,7 @@ frozen acoustic graph and a replaceable text residual.
 
 All inputs, events, embeddings, and scores remain on the phone. First launch progressively creates
 and persists the audio index in eight-track batches; the selected seed is embedded on demand if its
-batch has not arrived yet. Playback never waits for the whole library and retains a random fallback
+batch has not arrived yet. Playback never waits for the whole library and uses a metadata-only fallback
 until enough local candidates exist. The RunPod was used only for offline training and evaluation.
 
 ## Is MNv4 the final encoder architecture?
@@ -130,7 +130,7 @@ The final design is deliberately a small hybrid, not a phone-sized imitation of 
    trusted seed metadata;
 2. rerank them with the acoustic scorer plus the bounded optional-text residual;
 3. build the slate sequentially with seed gravity, local coherence, energy smoothing, artist spacing,
-   duplicate-title suppression, hub correction, and a hard random fallback.
+   duplicate-title suppression, hub correction, and explicit abstention when neither model path has evidence.
 
 This matches the established retrieval/ranking split described in the production
 [YouTube recommender paper](https://research.google/pubs/deep-neural-networks-for-youtube-recommendations/).

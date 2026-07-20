@@ -60,6 +60,13 @@ class LibraryWorldsTest {
         LibraryWorlds.discover(tracks, vectors, dim, k = k, minSize = minSize)
 
     @Test
+    fun `large libraries get more focused mixes without bloating the shelf`() {
+        assertEquals(8, LibraryWorlds.recommendedK(209))
+        assertEquals(15, LibraryWorlds.recommendedK(870))
+        assertEquals(16, LibraryWorlds.recommendedK(5_000))
+    }
+
+    @Test
     fun `a world is named after the genre its members share`() {
         val library = corpus {
             repeat(10) { add("rap$it", angle = 0.3, genre = "Hip-Hop", artist = "Artist$it") }
@@ -102,7 +109,7 @@ class LibraryWorldsTest {
         // what the row actually says. Announcing a genre the art contradicts is the one failure
         // this surface has already paid for.
         assertTrue(world.name != "Hard Rock", "the label contradicted the cover")
-        assertEquals("Drift", world.name)
+        assertEquals("Discovery mix", world.name)
     }
 
     @Test
@@ -122,17 +129,35 @@ class LibraryWorldsTest {
             repeat(3) { add("guest$it", angle = 0.3, artist = "Guest$it", genre = null) }
         }
         val world = library.discover(k = 1).single()
-        assertEquals("The Same Band", world.name)
+        assertEquals("The Same Band • Mix", world.name)
     }
 
     @Test
-    fun `with nothing shared a world is named after the track at its centre`() {
+    fun `with nothing shared a world gets a neutral discovery label`() {
         val library = corpus {
             repeat(12) { add("t$it", angle = 0.3, title = "Song $it", artist = "Artist$it", genre = null) }
         }
         val world = library.discover(k = 1).single()
-        // Named after the medoid, so the words and the cover are the same track by construction.
-        assertEquals(world.representative.title, world.name)
+        assertEquals("Discovery mix", world.name)
+    }
+
+    @Test
+    fun `a supported decade sharpens a genre mix name`() {
+        val tracks = (0 until 12).map { index ->
+            TrackDescriptor(
+                id = TrackId("disco$index"),
+                title = "Song $index",
+                artist = "Artist $index",
+                genre = "Disco",
+                year = 1970 + index % 8,
+            )
+        }
+        val vectors = tracks.associate { it.id to vector(0.3) }
+
+        val world = LibraryWorlds.discover(tracks, vectors, dim, k = 1).single()
+
+        assertEquals("Disco • 1970s", world.name)
+        assertTrue(world.tracks.all(world::supportsName))
     }
 
     @Test
@@ -149,11 +174,11 @@ class LibraryWorldsTest {
     }
 
     @Test
-    fun `a world nothing can be named after is not offered`() {
+    fun `a metadata sparse embedding region can still be offered without a false claim`() {
         val library = corpus {
             repeat(12) { add("t$it", angle = 0.3, title = null, artist = null, genre = null) }
         }
-        assertTrue(library.discover(k = 1).isEmpty(), "an unnameable region became a card")
+        assertEquals("Discovery mix", library.discover(k = 1).single().name)
     }
 
     @Test

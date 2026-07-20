@@ -12,9 +12,9 @@ import org.koin.core.module.Module
 /**
  * The three shuffle positions — LatentJam's signature control.
  *
- * [SMART] delegates next-track choice to a [NextTrackChooser] (backed by the
- * similarity engine in the app graph) and falls back to random when the
- * chooser abstains, so the mode is usable even before the model ships.
+ * [SMART] delegates next-track choice to a [NextTrackChooser] backed by the
+ * local similarity engine. If the chooser cannot answer yet, SMART abstains
+ * rather than presenting a random track as a recommendation.
  */
 public enum class ShuffleMode { OFF, ON, SMART }
 
@@ -49,8 +49,8 @@ public data class NowPlaying(
  *
  * Kept as a port so :core:playback never depends on the similarity engine —
  * the app graph adapts [io.github.nikitasud.latentjam.smart.SimilarityEngine]
- * into this shape. Return `null` to abstain; the controller then falls back
- * to a random candidate.
+ * into this shape. Return `null` to abstain; the controller keeps the queue
+ * short and retries when more local index data is available.
  */
 public fun interface NextTrackChooser {
     public suspend fun choose(
@@ -74,9 +74,18 @@ public interface PlaybackController {
     public val state: StateFlow<NowPlaying>
 
     /**
+     * Supplies the complete on-device library SMART may recommend from.
+     *
+     * This is deliberately separate from [play]: a tap in Search can start from a one-result
+     * filtered list, while SMART must still see the whole library. Implementations retain only
+     * descriptors; audio and model inference remain inside the local similarity engine.
+     */
+    public suspend fun setSmartLibrary(tracks: List<TrackDescriptor>)
+
+    /**
      * Replaces the queue with [tracks] and starts playing the one at
-     * [startIndex]. The list also becomes the candidate pool for
-     * [ShuffleMode.SMART] selection.
+     * [startIndex]. The list remains the natural OFF/ON playback source; SMART draws from the
+     * complete library supplied by [setSmartLibrary].
      */
     public suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int)
 

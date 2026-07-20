@@ -73,9 +73,9 @@
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Posłuchaj kilku utworów, a ta strona zapełni się rzeczami, do których warto wrócić.</string>
     <string name="foryou_section_continue">Niedokończone</string>
-    <string name="foryou_section_worth_revisiting">Warto wrócić</string>
-    <string name="foryou_section_found_by_smart">Znalezione przez SMART</string>
-    <string name="foryou_section_worlds">Światy</string>
+    <string name="foryou_section_worth_revisiting">Dawno niesłuchane</string>
+    <string name="foryou_section_worlds">Twoje miksy</string>
+    <string name="foryou_mix_discovery">Miks odkryć</string>
     <string name="foryou_section_never_played">Nigdy nieodtwarzane</string>
     <!-- Dwie rzeczy, które można zrobić ze światem — zaproponowane, nie zgadywane. -->
     <string name="foryou_world_open">Pokaż utwory</string>

@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.chain.MetadataFallbackQueue
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.chain.SmartChain
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
@@ -53,6 +54,9 @@ internal class DefaultSimilarityEngine(
 
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow<EngineState>(EngineState.Uninitialized)
+    private val knownTracks = LinkedHashMap<TrackId, TrackDescriptor>()
+    private var indexRevision = 0L
+    private var snapshotCache: SnapshotCache? = null
 
     override val state: StateFlow<EngineState> = mutableState.asStateFlow()
 
@@ -86,6 +90,7 @@ internal class DefaultSimilarityEngine(
 
     override suspend fun indexLibrary(tracks: List<TrackDescriptor>): IndexReport = withContext(dispatcher) {
         mutex.withLock {
+            rememberTracks(tracks)
             if (mutableState.value !is EngineState.Ready) {
                 return@withLock IndexReport(
                     indexed = 0,
@@ -174,6 +179,7 @@ internal class DefaultSimilarityEngine(
         withContext(dispatcher) {
             mutex.withLock {
                 if (mutableState.value !is EngineState.Ready) return@withLock 0
+                rememberTracks(library)
                 var added = 0
                 for (track in library) if (indexTextVector(track)) added++
                 if (added > 0 && textIndex != null) {
@@ -187,6 +193,21 @@ internal class DefaultSimilarityEngine(
         mutex.withLock { textIndex?.entries().orEmpty() }
     }
 
+    override suspend fun semanticSearch(query: String, limit: Int): List<ScoredTrack> =
+        withContext(dispatcher) {
+            mutex.withLock {
+                if (limit <= 0 || query.isBlank() || mutableState.value !is EngineState.Ready) {
+                    return@withLock emptyList()
+                }
+                val encoder = textEncoder ?: return@withLock emptyList()
+                val target = textIndex ?: return@withLock emptyList()
+                val vector = runCatching { encoder.encode(query.trim()) }.getOrNull()
+                    ?.takeIf { it.size == TextEncoder.TEXT_DIM && it.all(Float::isFinite) }
+                    ?: return@withLock emptyList()
+                target.nearest(vector, limit)
+            }
+        }
+
     override suspend fun smartQueue(
         seed: TrackDescriptor,
         library: List<TrackDescriptor>,
@@ -195,57 +216,36 @@ internal class DefaultSimilarityEngine(
     ): List<TrackId> = withContext(dispatcher) {
         mutex.withLock {
             if (mutableState.value !is EngineState.Ready) return@withLock emptyList()
+            rememberTracks(library)
+            rememberTracks(listOf(seed))
+            // Metadata is cheap enough to create on demand and gives first launch an honest local
+            // result while the acoustic index is still cold.
+            indexTextVector(seed)
 
             // First-launch indexing is progressive. Whichever track the listener actually picked
             // must still be a valid anchor even when its background batch has not reached it yet.
             if (index.vector(seed.id) == null) {
-                val vector = backend.embed(seed).getOrNull() ?: return@withLock emptyList()
-                if (validateAndUpsert(seed.id, vector) != null) return@withLock emptyList()
+                val vector = backend.embed(seed).getOrNull()
+                    ?: return@withLock metadataFallback(seed, library, length, history)
+                if (validateAndUpsert(seed.id, vector) != null) {
+                    return@withLock metadataFallback(seed, library, length, history)
+                }
                 runCatching { store.save(config.modelVersion, index.entries()) }
                 mutableState.value = EngineState.Ready(indexedCount = index.size)
+            }
+
+            // A 100-candidate scorer is not meaningful over the first handful of indexed files.
+            // Use the complete metadata index immediately, then promote to the trained audio path
+            // once it has a minimally representative local corpus.
+            if (index.size < MIN_AUDIO_CORPUS) {
+                return@withLock metadataFallback(seed, library, length, history)
             }
 
             // The seed anchors every distance the walk measures, so it must be in the snapshot even
             // when the caller left it out — and callers reasonably do, since it is the one track
             // the queue must not repeat. The chain excludes it from its own output regardless.
-            val corpus = if (library.any { it.id == seed.id }) library else library + seed
-            val corpusIds = corpus.mapTo(HashSet()) { it.id }
-            val tracks = corpus.mapNotNull { track ->
-                val audio = index.vector(track.id) ?: return@mapNotNull null
-                SmartTrack(
-                    id = track.id,
-                    audio = audio,
-                    text = textIndex?.vector(track.id),
-                    energy = track.energy ?: Float.NaN,
-                    meta = TrackMeta(
-                        title = track.title,
-                        artist = track.artist,
-                        album = track.album,
-                        genre = track.genre,
-                        year = track.year,
-                    ),
-                )
-            } + history.asSequence()
-                .map { it.trackId }
-                .distinct()
-                .filter { it !in corpusIds }
-                .mapNotNull { id ->
-                    val audio = index.vector(id) ?: return@mapNotNull null
-                    SmartTrack(
-                        id = id,
-                        audio = audio,
-                        text = textIndex?.vector(id),
-                        meta = TrackMeta(
-                            title = null,
-                            artist = null,
-                            album = null,
-                            genre = null,
-                            year = null,
-                        ),
-                    )
-                }
-                .toList()
-            val snapshot = SmartSnapshot.build(tracks) ?: return@withLock emptyList()
+            val snapshot = snapshotFor(history)
+                ?: return@withLock metadataFallback(seed, library, length, history)
             val eligibleIds = library.mapTo(HashSet()) { it.id }
             val eligibleRows = BooleanArray(snapshot.size) { row ->
                 snapshot.tracks[row].id in eligibleIds
@@ -257,6 +257,7 @@ internal class DefaultSimilarityEngine(
                 historyEvents = history,
             )
             chain.rows.map { snapshot.tracks[it].id }
+                .ifEmpty { metadataFallback(seed, library, length, history) }
         }
     }
 
@@ -265,6 +266,9 @@ internal class DefaultSimilarityEngine(
             mutex.withLock {
                 backend.close()
                 index.clear()
+                knownTracks.clear()
+                snapshotCache = null
+                indexRevision++
                 mutableState.value = EngineState.Uninitialized
             }
         }
@@ -281,6 +285,7 @@ internal class DefaultSimilarityEngine(
         for ((id, vector) in persisted) {
             runCatching { index.upsert(id, vector) }
         }
+        if (persisted.isNotEmpty()) indexRevision++
     }
 
     /**
@@ -298,7 +303,12 @@ internal class DefaultSimilarityEngine(
         if (metadata.isBlank()) return false
         val vector = runCatching { encoder.encode(metadata) }.getOrNull() ?: return false
         if (vector.size != TextEncoder.TEXT_DIM) return false
-        return runCatching { target.upsert(track.id, vector) }.isSuccess
+        return runCatching { target.upsert(track.id, vector) }
+            .onSuccess {
+                indexRevision++
+                snapshotCache = null
+            }
+            .isSuccess
     }
 
     /** Returns `null` on success, or the typed rejection reason. */
@@ -309,11 +319,85 @@ internal class DefaultSimilarityEngine(
                     "expected ${config.embeddingDim}",
             )
         }
+        var normSquared = 0.0
+        for (component in vector) {
+            if (!component.isFinite()) {
+                return EngineError.BackendFailure(
+                    "Backend produced a non-finite embedding for ${id.value}",
+                )
+            }
+            normSquared += component.toDouble() * component
+        }
+        if (!normSquared.isFinite() || normSquared <= 1e-12) {
+            return EngineError.BackendFailure(
+                "Backend produced a zero-norm embedding for ${id.value}",
+            )
+        }
         index.upsert(id, vector)
+        indexRevision++
+        snapshotCache = null
         return null
     }
+
+    private fun rememberTracks(tracks: List<TrackDescriptor>) {
+        for (track in tracks) {
+            if (knownTracks[track.id] != track) {
+                knownTracks[track.id] = track
+                indexRevision++
+                snapshotCache = null
+            }
+        }
+    }
+
+    private fun snapshotFor(history: List<SmartHistoryEvent>): SmartSnapshot? {
+        snapshotCache?.takeIf { it.revision == indexRevision }?.let { return it.snapshot }
+
+        val rows = knownTracks.values.mapNotNull { track ->
+            val audio = index.vector(track.id) ?: return@mapNotNull null
+            track.toSmartTrack(audio)
+        }.toMutableList()
+        val knownIds = rows.mapTo(HashSet()) { it.id }
+        for (id in history.asSequence().map { it.trackId }.distinct()) {
+            if (id in knownIds) continue
+            val audio = index.vector(id) ?: continue
+            rows += SmartTrack(
+                id = id,
+                audio = audio,
+                text = textIndex?.vector(id),
+                meta = TrackMeta(null, null, null, null, null),
+            )
+        }
+        val snapshot = SmartSnapshot.build(rows) ?: return null
+        snapshotCache = SnapshotCache(indexRevision, snapshot)
+        return snapshot
+    }
+
+    private fun TrackDescriptor.toSmartTrack(audio: FloatArray): SmartTrack = SmartTrack(
+        id = id,
+        audio = audio,
+        text = textIndex?.vector(id),
+        energy = energy ?: Float.NaN,
+        meta = TrackMeta(title, artist, album, genre, year),
+    )
+
+    private fun metadataFallback(
+        seed: TrackDescriptor,
+        library: List<TrackDescriptor>,
+        length: Int,
+        history: List<SmartHistoryEvent>,
+    ): List<TrackId> = MetadataFallbackQueue.build(seed, library, length, textIndex, history)
+
+    private data class SnapshotCache(
+        val revision: Long,
+        val snapshot: SmartSnapshot,
+    )
 
     private fun Throwable.toEngineError(): EngineError =
         (this as? SmartEngineException)?.error
             ?: EngineError.BackendFailure(message ?: "Unknown backend failure", this)
+
+    private companion object {
+        /** Below this, the metadata-only full-library path is more honest than a tiny audio pool. */
+        const val MIN_AUDIO_CORPUS = 64
+    }
 }

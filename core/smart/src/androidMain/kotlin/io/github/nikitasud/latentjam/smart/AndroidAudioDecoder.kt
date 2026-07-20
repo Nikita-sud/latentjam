@@ -27,6 +27,10 @@ import android.net.Uri
  */
 internal class AndroidAudioDecoder(private val context: Context) {
 
+    /** Diagnostic for the most recent null result; embedding calls are serialized by the engine. */
+    var lastFailure: String? = null
+        private set
+
     /**
      * Returns exactly [targetSamples] mono float samples in `[-1, 1]` at
      * [targetSampleRate], starting near [startMs]; `null` if the track can't
@@ -38,16 +42,17 @@ internal class AndroidAudioDecoder(private val context: Context) {
         targetSampleRate: Int,
         targetSamples: Int,
     ): FloatArray? {
+        lastFailure = null
         val extractor = MediaExtractor()
         return try {
             extractor.setDataSource(context, uri, null)
             val trackIndex = (0 until extractor.trackCount).firstOrNull { index ->
                 extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
                     ?.startsWith("audio/") == true
-            } ?: return null
+            } ?: return failed("No audio stream")
             extractor.selectTrack(trackIndex)
             val inputFormat = extractor.getTrackFormat(trackIndex)
-            val mime = inputFormat.getString(MediaFormat.KEY_MIME) ?: return null
+            val mime = inputFormat.getString(MediaFormat.KEY_MIME) ?: return failed("Missing audio MIME")
             if (startMs > 0) {
                 extractor.seekTo(startMs * 1000L, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
             }
@@ -56,15 +61,27 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 codec.configure(inputFormat, null, null, 0)
                 codec.start()
                 decodeLoop(codec, extractor, targetSampleRate, targetSamples)
+                    ?: failed("Decoder produced no PCM at ${startMs}ms ($mime)")
             } finally {
                 runCatching { codec.stop() }
                 codec.release()
             }
-        } catch (_: Exception) {
-            null
+        } catch (error: Exception) {
+            failed(
+                buildString {
+                    append(error.javaClass.simpleName)
+                    error.message?.takeIf(String::isNotBlank)?.let { append(": ").append(it) }
+                    append(" at ").append(startMs).append("ms")
+                },
+            )
         } finally {
             extractor.release()
         }
+    }
+
+    private fun failed(reason: String): FloatArray? {
+        lastFailure = reason
+        return null
     }
 
     private fun decodeLoop(
@@ -172,7 +189,11 @@ internal class AndroidAudioDecoder(private val context: Context) {
             for (channel in 0 until channels) {
                 sum += floats.get(frame * channels + channel)
             }
-            mono[frame] = sum / channels
+            // Float decoders may legally overshoot full scale. The graph's trained contract is
+            // strictly finite [-1, 1]; feeding hot samples into FP16 weights can overflow the
+            // whole embedding to NaN/zero (observed on slowed/ultra-slowed files on Samsung).
+            val sample = sum / channels
+            mono[frame] = if (sample.isFinite()) sample.coerceIn(-1f, 1f) else 0f
         }
         return mono
     }

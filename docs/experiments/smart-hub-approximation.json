@@ -1,0 +1,53 @@
+{
+  "tracks": 860,
+  "examples": 1519,
+  "exact": {
+    "hub_ms": 6.437500007450581,
+    "target_pool_recall": 0.5635286372613562,
+    "acoustic_scorer_mrr_end_to_end": 0.06362344324588776,
+    "pool_overlap": 1.0,
+    "head_34_overlap": 1.0
+  },
+  "approximations": {
+    "32": {
+      "hub_ms": 3.1450000242330134,
+      "hub_correlation": 0.2999612612021271,
+      "target_pool_recall": 0.5720868992758393,
+      "acoustic_scorer_mrr_end_to_end": 0.06402580440044403,
+      "pool_overlap": 0.9086965108624094,
+      "head_34_overlap": 0.8666692483444991
+    },
+    "64": {
+      "hub_ms": 2.806167001836002,
+      "hub_correlation": 0.6980224462773337,
+      "target_pool_recall": 0.5661619486504279,
+      "acoustic_scorer_mrr_end_to_end": 0.06383056193590164,
+      "pool_overlap": 0.9235615536537195,
+      "head_34_overlap": 0.8852766913216902
+    },
+    "96": {
+      "hub_ms": 5.663749994710088,
+      "hub_correlation": 0.805021284125935,
+      "target_pool_recall": 0.5674786043449638,
+      "acoustic_scorer_mrr_end_to_end": 0.06377819925546646,
+      "pool_overlap": 0.9369651086240948,
+      "head_34_overlap": 0.9004763195600822
+    },
+    "128": {
+      "hub_ms": 4.210666986182332,
+      "hub_correlation": 0.852808424140593,
+      "target_pool_recall": 0.5707702435813035,
+      "acoustic_scorer_mrr_end_to_end": 0.06382985413074493,
+      "pool_overlap": 0.9439104674127715,
+      "head_34_overlap": 0.9056267668357666
+    },
+    "192": {
+      "hub_ms": 15.890249982476234,
+      "hub_correlation": 0.9174128635037301,
+      "target_pool_recall": 0.5661619486504279,
+      "acoustic_scorer_mrr_end_to_end": 0.06371661275625229,
+      "pool_overlap": 0.953877551020408,
+      "head_34_overlap": 0.9195871897145956
+    }
+  }
+}

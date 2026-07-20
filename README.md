@@ -65,7 +65,7 @@ bundle is about 57.3 MiB on both Android and iOS. There is no precomputed per-tr
 catalogue: imported tracks get the same fully local path as every other track.
 
 On first launch, the app creates the audio index progressively in small persisted batches and embeds
-the selected seed on demand; playback retains an immediate random fallback until enough candidates
+the selected seed on demand; playback abstains rather than silently replacing SMART with randomness
 are ready. A person with no history gets an explicitly trained seed-only state, not a zero vector.
 As private listening accumulates, SMART uses it as runtime context without training on the phone or
 uploading it. Both platforms persist that history locally across launches.
