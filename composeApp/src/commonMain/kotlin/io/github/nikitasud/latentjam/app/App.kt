@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1390,6 +1391,13 @@ private fun BrowseCarousel(pagerState: PagerState, onSelect: (Int) -> Unit) {
                     modifier = Modifier
                         .selectable(
                             selected = index == pagerState.settledPage,
+                            // No ripple: the default selectable paints a grey rectangle around the
+                            // tab's box on every tap, which sat unclipped over the scaled text and
+                            // looked like a glitch. This carousel already answers a tap by scaling
+                            // the chosen tab up and dimming the rest, so that animation is the
+                            // feedback and the rectangle was only noise.
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
                             role = Role.Tab,
                             onClick = { onSelect(index) },
                         )
