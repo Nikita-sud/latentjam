@@ -279,6 +279,17 @@ internal class IosMusicLibrary : MusicLibrary {
                 AVMetadataCommonKeyArtwork -> artwork = item.dataValue
             }
         }
+        // AVFoundation assigns FLAC's vorb/METADATA_BLOCK_PICTURE the common artwork key, but
+        // does not include it in commonMetadata. Its dataValue is the raw JPEG/PNG payload, so a
+        // second pass over the complete metadata list recovers FLAC/OGG covers without a decoder.
+        if (artwork == null) {
+            asset.metadata.forEach { raw ->
+                val item = raw as? AVMetadataItem ?: return@forEach
+                if (item.commonKey == AVMetadataCommonKeyArtwork) {
+                    item.dataValue?.let { artwork = it }
+                }
+            }
+        }
 
         val seconds = CMTimeGetSeconds(asset.duration)
         return TrackDescriptor(
