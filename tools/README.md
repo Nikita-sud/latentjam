@@ -10,11 +10,11 @@ production 960-d export selected after the 72-real-clip regression check.
 
 ## migrate_legacy_playlists.py
 
-Carries playlists over from the legacy GPL-3 LatentJam app into this one.
+Carries playlists over from an earlier LatentJam build into this one.
 
-It reads only files the legacy app itself **wrote** — its Room database and
-its own `music_graph_debug.dot` dump — and never its source. That matters:
-the licence boundary is about code, and your playlists are your data.
+It reads only files that build itself **wrote** — its Room database and
+its own `music_graph_debug.dot` dump — never its source. Your playlists are
+your data.
 
 The chain is:
 

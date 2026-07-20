@@ -183,12 +183,6 @@ Built on the shoulders of:
 
 **Apache-2.0** — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-This tree shares no code and no git history with LatentJam's earlier incarnation, which was a
-GPL-3.0 fork of [Auxio](https://github.com/oxygencobalt/Auxio). This branch descends from its own
-parentless root commit and was written from scratch against a new architecture; nothing may be copied
-across that boundary in either direction. The earlier work remains available under GPL-3.0 in its own
-repository.
-
 Bundled models under `androidApp/src/main/assets/ml/` are covered by permissive licences documented
 in [LICENSE-MODEL.txt](androidApp/src/main/assets/ml/LICENSE-MODEL.txt). The architecture selection,
 benchmarks, rejected candidates and next compression target are in

@@ -17,10 +17,9 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        // ".kmp" suffix lets this build coexist on-device with the legacy
-        // GPL app during development (the same trick the legacy fork used to
-        // coexist with upstream Auxio). Drop the suffix when this app
-        // replaces the legacy one.
+        // ".kmp" suffix lets this build coexist on-device with another
+        // LatentJam build during development. Drop the suffix when this
+        // becomes the only one.
         applicationId = "io.github.nikitasud.latentjam.kmp"
         minSdk = 24
         targetSdk = 36

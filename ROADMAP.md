@@ -1,16 +1,15 @@
 # Roadmap — feature parity and beyond
 
-Goal: LatentJam looking and working like the original Auxio-based app — under
-Apache-2.0, and where possible better.
+Goal: LatentJam looking and working like a full-featured local music player —
+under Apache-2.0, and where possible better.
 
-**Ground rule (applies to every line below):** parity means re-implementing
-*functionality*. Feature sets and standard music-player behavior are not
-copyrightable; Auxio's code, layouts, strings, and assets are — nothing is
-ever copied, ported-by-diff, or opened-for-reference from the GPL branches.
-LatentJam's own features (SMART, For You, …) are re-authored fresh against
-the new architecture, spec-first from the project's own design documents.
+**Ground rule (applies to every line below):** standard music-player behavior
+is not copyrightable, but code, layouts, strings, and assets are. Every feature
+here — the baseline player and LatentJam's own (SMART, For You, …) alike — is
+original work, authored fresh against this architecture, spec-first from the
+project's own design documents.
 
-## Core player (Auxio-functionality parity)
+## Core player (baseline parity)
 
 | Feature | Status |
 |---|---|
