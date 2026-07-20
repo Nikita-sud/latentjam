@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -43,4 +44,8 @@ internal class IosEmbeddingBackend(
 
 public actual fun smartEngineBackendModule(): Module = module {
     single<EmbeddingBackend> { IosEmbeddingBackend(config = get()) }
+    single<IndexStore> { IosFileIndexStore(fileName = "smart_index.bin") }
+    single<IndexStore>(smartTextIndexQualifier) {
+        IosFileIndexStore(fileName = "smart_text_index.bin")
+    }
 }
