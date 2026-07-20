@@ -134,6 +134,9 @@ import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_index_a
 import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_index_batch
 import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_indexed_report
 import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_indexing
+import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress
+import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
+import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_title
 import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_library
 import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_rescan
 import io.github.nikitasud.latentjam.app.generated.resources.diagnostics_title
@@ -178,6 +181,7 @@ import io.github.nikitasud.latentjam.library.AutoPlaylists
 import io.github.nikitasud.latentjam.library.FolderGroup
 import io.github.nikitasud.latentjam.library.GenreGroup
 import io.github.nikitasud.latentjam.library.LibraryCatalog
+import io.github.nikitasud.latentjam.library.nowMillis
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.library.SongSort
@@ -365,6 +369,34 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 indexFailureLine(loaded.firstOrNull { it.id == id }, id, error)
             }
             println("SMART: progressive local index complete (${engine.state.value})")
+
+            // Opt-in physical-device audit. It exercises the exact production queue path against
+            // the phone's own library and history, but is dormant during every normal launch.
+            smartQualityDiagnosticSeeds().forEach { query ->
+                val seed = loaded.firstOrNull { track ->
+                    track.title.orEmpty().contains(query, ignoreCase = true) ||
+                        "${track.artist.orEmpty()} - ${track.title.orEmpty()}"
+                            .contains(query, ignoreCase = true)
+                }
+                if (seed == null) {
+                    println("[SMART_QUALITY] missing seed=$query")
+                } else {
+                    val queue = engine.smartQueue(
+                        seed,
+                        loaded,
+                        SMART_HERO_LENGTH,
+                        smartHistoryFor(AppGraph.history, seed),
+                    )
+                    val byId = loaded.associateBy { it.id }
+                    val recommendations = queue.mapNotNull(byId::get).joinToString(" | ") { track ->
+                        "${track.artist.orEmpty()} — ${track.title.orEmpty()}"
+                    }
+                    println(
+                        "[SMART_QUALITY] seed=${seed.artist.orEmpty()} — ${seed.title.orEmpty()} " +
+                            "queue=$recommendations",
+                    )
+                }
+            }
         }
 
         // The regions the library falls into. Clustered over the METADATA-TEXT index rather than
@@ -448,21 +480,51 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 var skipped = 0
                 var failed = 0
                 val failures = LinkedHashMap<TrackId, EngineError>()
-                selection.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
-                    val report = engine.indexLibrary(chunk)
-                    indexed += report.indexed
-                    skipped += report.skipped
-                    failed += report.failed
-                    failures.putAll(report.errors)
-                    val done = indexed + skipped + failed
-                    indexSummary = getString(
-                        Res.string.diagnostics_indexing,
-                        done,
-                        selection.size,
-                        indexed,
-                        skipped,
-                        failed,
-                    )
+                val notifier = AppGraph.indexingNotifier
+                val eta = IndexingEta(nowMillis())
+                val notificationTitle = getString(Res.string.indexing_notification_title)
+                // finally, not just the happy path: a cancelled scope or a failing
+                // engine would otherwise leave the app pinned in the foreground with
+                // a progress bar that never moves again.
+                try {
+                    selection.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
+                        val report = engine.indexLibrary(chunk)
+                        indexed += report.indexed
+                        skipped += report.skipped
+                        failed += report.failed
+                        failures.putAll(report.errors)
+                        val done = indexed + skipped + failed
+                        indexSummary = getString(
+                            Res.string.diagnostics_indexing,
+                            done,
+                            selection.size,
+                            indexed,
+                            skipped,
+                            failed,
+                        )
+                        val remaining = eta.remainingMs(done, selection.size, nowMillis())
+                        notifier.show(
+                            title = notificationTitle,
+                            text = if (remaining == null) {
+                                getString(
+                                    Res.string.indexing_notification_progress,
+                                    done,
+                                    selection.size,
+                                )
+                            } else {
+                                getString(
+                                    Res.string.indexing_notification_progress_eta,
+                                    done,
+                                    selection.size,
+                                    IndexingEta.minutesFrom(remaining),
+                                )
+                            },
+                            done = done,
+                            total = selection.size,
+                        )
+                    }
+                } finally {
+                    notifier.finish()
                 }
                 indexSummary =
                     getString(Res.string.diagnostics_indexed_report, indexed, skipped, failed)

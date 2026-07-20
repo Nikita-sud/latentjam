@@ -23,6 +23,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,6 +59,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             var granted by remember { mutableStateOf(hasAudioPermission()) }
             if (granted) {
+                NotificationPermissionRequest()
                 App(
                     engine = AppGraph.engine,
                     library = AppGraph.library,
@@ -66,6 +69,30 @@ class MainActivity : ComponentActivity() {
                 AudioPermissionGate(onGranted = { granted = true })
             }
         }
+    }
+}
+
+/**
+ * Asks once for notification permission, and gates nothing on the answer.
+ *
+ * Analysis progress is the only thing this app notifies about, so a refusal
+ * costs visibility and nothing else — blocking the library behind it, the way
+ * the audio permission legitimately is blocked, would be extortion for a
+ * progress bar. Asked here rather than at the moment analysis starts because a
+ * permission dialog landing on top of a screen the user just tapped a button on
+ * reads as a failure of that button.
+ */
+@Composable
+private fun NotificationPermissionRequest() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* Declining is a valid answer; there is nothing to fall back to. */ }
+    LaunchedEffect(Unit) {
+        val already = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!already) launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 }
 

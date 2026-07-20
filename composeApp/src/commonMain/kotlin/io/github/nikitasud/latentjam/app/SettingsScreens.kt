@@ -4,6 +4,11 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import org.jetbrains.compose.resources.getString
+import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_title
+import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
+import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress
+import io.github.nikitasud.latentjam.library.nowMillis
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -511,10 +516,41 @@ private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDes
                             AppGraph.appScope.launch {
                                 var indexedNow = 0
                                 var failed = 0
-                                tracks.chunked(INDEX_BATCH).forEach { chunk ->
-                                    val report = engine.indexLibrary(chunk)
-                                    indexedNow += report.indexed
-                                    failed += report.failed
+                                var seen = 0
+                                val notifier = AppGraph.indexingNotifier
+                                val eta = IndexingEta(nowMillis())
+                                val notificationTitle =
+                                    getString(Res.string.indexing_notification_title)
+                                try {
+                                    tracks.chunked(INDEX_BATCH).forEach { chunk ->
+                                        val report = engine.indexLibrary(chunk)
+                                        indexedNow += report.indexed
+                                        failed += report.failed
+                                        seen += chunk.size
+                                        val remaining =
+                                            eta.remainingMs(seen, tracks.size, nowMillis())
+                                        notifier.show(
+                                            title = notificationTitle,
+                                            text = if (remaining == null) {
+                                                getString(
+                                                    Res.string.indexing_notification_progress,
+                                                    seen,
+                                                    tracks.size,
+                                                )
+                                            } else {
+                                                getString(
+                                                    Res.string.indexing_notification_progress_eta,
+                                                    seen,
+                                                    tracks.size,
+                                                    IndexingEta.minutesFrom(remaining),
+                                                )
+                                            },
+                                            done = seen,
+                                            total = tracks.size,
+                                        )
+                                    }
+                                } finally {
+                                    notifier.finish()
                                 }
                                 outcome = AnalysisOutcome.Everything(indexedNow, failed)
                                 busy = false

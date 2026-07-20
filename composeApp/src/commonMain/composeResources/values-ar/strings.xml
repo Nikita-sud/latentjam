@@ -272,4 +272,7 @@
     <string name="engine_error_not_indexed">لم تتم فهرسة المكتبة بعد.</string>
     <string name="engine_error_backend">فشل محرك المعالجة: %1$s</string>
 
+    <string name="indexing_notification_title">جارٍ تحليل موسيقاك</string>
+    <string name="indexing_notification_progress">%1$d من %2$d</string>
+    <string name="indexing_notification_progress_eta">%1$d من %2$d · نحو %3$d د متبقية</string>
 </resources>

@@ -246,4 +246,7 @@
     <string name="engine_error_not_indexed">A biblioteca ainda não foi indexada.</string>
     <string name="engine_error_backend">Falha no motor: %1$s</string>
 
+    <string name="indexing_notification_title">Analisando suas músicas</string>
+    <string name="indexing_notification_progress">%1$d de %2$d</string>
+    <string name="indexing_notification_progress_eta">%1$d de %2$d · cerca de %3$d min restantes</string>
 </resources>

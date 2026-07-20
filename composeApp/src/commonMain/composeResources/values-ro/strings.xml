@@ -234,4 +234,7 @@
     <string name="engine_error_not_indexed">Biblioteca nu este încă indexată.</string>
     <string name="engine_error_backend">Motorul a eșuat: %1$s</string>
 
+    <string name="indexing_notification_title">Se analizează muzica ta</string>
+    <string name="indexing_notification_progress">%1$d din %2$d</string>
+    <string name="indexing_notification_progress_eta">%1$d din %2$d · aproximativ %3$d min rămase</string>
 </resources>

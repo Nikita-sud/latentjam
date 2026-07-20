@@ -251,4 +251,7 @@
     <string name="engine_error_not_indexed">La bibliothèque n'est pas encore indexée.</string>
     <string name="engine_error_backend">Échec du moteur : %1$s</string>
 
+    <string name="indexing_notification_title">Analyse de votre musique</string>
+    <string name="indexing_notification_progress">%1$d sur %2$d</string>
+    <string name="indexing_notification_progress_eta">%1$d sur %2$d · environ %3$d min restantes</string>
 </resources>

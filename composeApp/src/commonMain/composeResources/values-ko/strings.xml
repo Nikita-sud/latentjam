@@ -232,4 +232,7 @@
     <string name="engine_error_not_indexed">라이브러리가 아직 색인되지 않았습니다.</string>
     <string name="engine_error_backend">엔진 백엔드 실패: %1$s</string>
 
+    <string name="indexing_notification_title">음악 분석 중</string>
+    <string name="indexing_notification_progress">%2$d개 중 %1$d개</string>
+    <string name="indexing_notification_progress_eta">%2$d개 중 %1$d개 · 약 %3$d분 남음</string>
 </resources>

@@ -257,4 +257,7 @@
     <string name="engine_error_not_indexed">Бібліотеку ще не проіндексовано.</string>
     <string name="engine_error_backend">Збій рушія: %1$s</string>
 
+    <string name="indexing_notification_title">Аналіз музики</string>
+    <string name="indexing_notification_progress">%1$d з %2$d</string>
+    <string name="indexing_notification_progress_eta">%1$d з %2$d · залишилося близько %3$d хв</string>
 </resources>

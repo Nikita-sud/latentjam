@@ -238,4 +238,7 @@
     <string name="engine_error_not_indexed">Pustaka belum diindeks.</string>
     <string name="engine_error_backend">Backend mesin gagal: %1$s</string>
 
+    <string name="indexing_notification_title">Menganalisis musik Anda</string>
+    <string name="indexing_notification_progress">%1$d dari %2$d</string>
+    <string name="indexing_notification_progress_eta">%1$d dari %2$d · sekitar %3$d mnt lagi</string>
 </resources>

@@ -14,6 +14,9 @@
     <!-- Background playback via the Media3 session service. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Library analysis runs for minutes; dataSync rather than mediaPlayback
+         because it is unrelated to whether anything is playing. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Attaching the system equalizer effect to our audio session. -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -47,5 +50,12 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
+
+        <!-- Class compiled in :composeApp (androidMain); keeps the process alive
+             while the library is analysed so the progress it reports is true. -->
+        <service
+            android:name="io.github.nikitasud.latentjam.app.IndexingService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

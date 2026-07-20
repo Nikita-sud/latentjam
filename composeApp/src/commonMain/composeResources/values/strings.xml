@@ -260,4 +260,10 @@
     <!-- %1$s is a technical failure message from the engine backend -->
     <string name="engine_error_backend">Engine backend failed: %1$s</string>
 
+    <!-- Notification shown while the library is being analysed. -->
+    <string name="indexing_notification_title">Analysing your music</string>
+    <!-- %1$d tracks done out of %2$d -->
+    <string name="indexing_notification_progress">%1$d of %2$d</string>
+    <!-- %1$d done, %2$d total, %3$d minutes left -->
+    <string name="indexing_notification_progress_eta">%1$d of %2$d · about %3$d min left</string>
 </resources>

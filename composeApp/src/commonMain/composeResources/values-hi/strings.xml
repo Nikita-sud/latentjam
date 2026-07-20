@@ -239,4 +239,7 @@
     <string name="engine_error_not_indexed">लाइब्रेरी अभी इंडेक्स नहीं हुई.</string>
     <string name="engine_error_backend">इंजन बैकएंड विफल: %1$s</string>
 
+    <string name="indexing_notification_title">आपके संगीत का विश्लेषण हो रहा है</string>
+    <string name="indexing_notification_progress">%1$d में से %2$d</string>
+    <string name="indexing_notification_progress_eta">%1$d में से %2$d · लगभग %3$d मिनट शेष</string>
 </resources>

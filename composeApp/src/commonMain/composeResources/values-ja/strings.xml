@@ -232,4 +232,7 @@
     <string name="engine_error_not_indexed">ライブラリはまだインデックスされていません。</string>
     <string name="engine_error_backend">エンジンのバックエンドで失敗しました: %1$s</string>
 
+    <string name="indexing_notification_title">音楽を解析中</string>
+    <string name="indexing_notification_progress">%2$d曲中%1$d曲</string>
+    <string name="indexing_notification_progress_eta">%2$d曲中%1$d曲 · 残り約%3$d分</string>
 </resources>
