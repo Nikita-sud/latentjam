@@ -64,6 +64,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.search_recent_title
 import io.github.nikitasud.latentjam.smart.ScoredTrack
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
 import kotlin.time.TimeSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -99,9 +100,11 @@ internal fun SearchScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var recent by remember { mutableStateOf<List<String>>(emptyList()) }
     var semantic by remember(songs) { mutableStateOf<List<ScoredTrack>>(emptyList()) }
-    val results = remember(songs, query, semantic) {
+    val entityResolver = AppGraph.musicEntities
+    val results = remember(songs, query, semantic, entityResolver) {
         val needle = query.trim()
-        if (needle.isBlank()) emptyList() else hybridSearch(songs, needle, semantic)
+        if (needle.isBlank()) emptyList()
+        else hybridSearch(songs, needle, semantic, entityResolver)
     }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -115,13 +118,12 @@ internal fun SearchScreen(
         focusRequester.requestFocus()
     }
 
-    // MiniLM inference is local and fast, but still unnecessary on every keypress. Exact metadata
+    // Encoder inference is local and fast, but still unnecessary on every keypress. Exact metadata
     // matches update immediately above; semantic expansion follows after the user pauses typing.
     LaunchedEffect(songs, query) {
         semantic = emptyList()
         val needle = query.trim()
         if (needle.length < MIN_SEMANTIC_QUERY_CHARS) return@LaunchedEffect
-        if (!supportsSemanticSearch(needle)) return@LaunchedEffect
         delay(SEMANTIC_DEBOUNCE_MS)
         val started = TimeSource.Monotonic.markNow()
         semantic = AppGraph.engine.semanticSearch(needle, SEMANTIC_CANDIDATE_LIMIT)
@@ -319,6 +321,7 @@ internal fun hybridSearch(
     songs: List<TrackDescriptor>,
     query: String,
     semantic: List<ScoredTrack>,
+    entityResolver: MusicEntityResolver? = null,
 ): List<TrackDescriptor> {
     val needle = query.trim()
     if (needle.isEmpty()) return emptyList()
@@ -328,26 +331,30 @@ internal fun hybridSearch(
 
     val byId = songs.associateBy { it.id }
     val used = lexical.mapTo(HashSet()) { it.track.id }
-    // The shipped all-MiniLM vocabulary is bert-base-uncased. A Cyrillic word becomes [UNK], so
-    // all such queries collapse to nearly the same vector and produce plausible-looking nonsense.
-    // Local lexical/word-family matching still works for every script; cosine expansion is enabled
-    // only for queries this model can actually represent.
-    val trustedSemantic = semantic.takeIf { supportsSemanticSearch(needle) }.orEmpty()
-    val bestSemantic = trustedSemantic.firstOrNull()?.score ?: Float.NEGATIVE_INFINITY
+    val entities = entityResolver?.let { resolver ->
+        songs.asSequence()
+            .filter { it.id !in used && resolver.matches(needle, it.artist) }
+            .onEach { used += it.id }
+    }.orEmpty()
+    val bestSemantic = semantic.firstOrNull()?.score ?: Float.NEGATIVE_INFINITY
     val semanticFloor = maxOf(MIN_SEMANTIC_SCORE, bestSemantic - MAX_SEMANTIC_GAP)
-    val expanded = trustedSemantic.asSequence()
+    val expanded = semantic.asSequence()
         .takeWhile { it.score >= semanticFloor }
         .mapNotNull { byId[it.trackId] }
         .filter { used.add(it.id) }
         .take(SEMANTIC_RESULT_LIMIT)
 
-    return (lexical.asSequence().map { it.track } + expanded).take(SEARCH_RESULT_LIMIT).toList()
+    return (lexical.asSequence().map { it.track } + entities + expanded)
+        .take(SEARCH_RESULT_LIMIT)
+        .toList()
 }
 
 /** 0 exact, 1 prefix, 2 token-prefix, 3 word-family/typo, 4 substring. */
 private fun TrackDescriptor.lexicalRank(needle: String): Int? {
     val normalizedNeedle = normalizeSearchText(needle)
-    val fields = listOfNotNull(title, artist, album).map(::normalizeSearchText)
+    val fields = buildList {
+        listOfNotNull(title, artist, album, genre).mapTo(this, ::normalizeSearchText)
+    }
     if (fields.any { it == normalizedNeedle }) return 0
     if (fields.any { it.startsWith(normalizedNeedle) }) return 1
     if (fields.any { field ->
@@ -381,18 +388,9 @@ private fun searchTokens(value: String): List<String> =
 
 private fun relatedSearchTokens(left: String, right: String): Boolean {
     if (left == right || left.startsWith(right) || right.startsWith(left)) return true
-    val leftConcept = searchConcept(left)
-    if (leftConcept != null && leftConcept == searchConcept(right)) return true
     if (left.length < 4 || right.length < 4 || left.first() != right.first()) return false
     val allowedEdits = if (maxOf(left.length, right.length) >= 8) 2 else 1
     return editDistanceAtMost(left, right, allowedEdits)
-}
-
-/** Small deterministic word families cover derivations that edit-distance cannot (not a model). */
-private fun searchConcept(token: String): String? = when {
-    token.startsWith("девуш") || token.startsWith("девоч") || token.startsWith("девч") ->
-        "girl"
-    else -> null
 }
 
 private fun editDistanceAtMost(left: String, right: String, limit: Int): Boolean {
@@ -415,10 +413,6 @@ private fun editDistanceAtMost(left: String, right: String, limit: Int): Boolean
     }
     return previous[right.length] <= limit
 }
-
-/** all-MiniLM-L6-v2's bundled BERT vocabulary cannot represent Cyrillic as words. */
-private fun supportsSemanticSearch(query: String): Boolean =
-    query.none { it.isLetter() && it !in 'a'..'z' && it !in 'A'..'Z' }
 
 private data class RankedTrack(
     val track: TrackDescriptor,

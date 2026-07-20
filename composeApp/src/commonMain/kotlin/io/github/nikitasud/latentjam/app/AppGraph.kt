@@ -22,9 +22,11 @@ import io.github.nikitasud.latentjam.smart.chain.smartPredictorModule
 import io.github.nikitasud.latentjam.smart.smartChainInputsModule
 import io.github.nikitasud.latentjam.smart.smartEngineBackendModule
 import io.github.nikitasud.latentjam.smart.text.smartTextEncoderModule
+import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
 import org.koin.core.module.Module
@@ -77,6 +79,7 @@ object AppGraph {
                     playbackModule(),
                     equalizerModule(),
                     appSettingsModule(),
+                    indexingNotifierModule(),
                     listeningHistoryModule(),
                     module {
                         // Production contract: FP16 MNv4 audio + 960-d SMART state/acoustic scorer
@@ -99,6 +102,7 @@ object AppGraph {
             }
             // History observes playback for the app's whole lifetime.
             appScope.launchPlaybackHistoryRecorder(playback, history)
+            appScope.launch { musicEntities.preload() }
         }
     }
 
@@ -112,6 +116,10 @@ object AppGraph {
 
     /** Previously searched queries. */
     val recentSearches: RecentSearches
+        get() = koin.get()
+
+    /** CC0 aliases and artist/group relationships, loaded in the background and queried locally. */
+    val musicEntities: MusicEntityResolver
         get() = koin.get()
 
     /** The user's playlists. */
@@ -132,6 +140,10 @@ object AppGraph {
 
     /** The playback controller (media-session-backed on Android). */
     val playback: PlaybackController
+        get() = koin.get()
+
+    /** Reports long-running library analysis to the platform's notification surface. */
+    val indexingNotifier: IndexingNotifier
         get() = koin.get()
 
     private val koin: Koin

@@ -58,7 +58,7 @@ class HybridSearchTest {
     }
 
     @Test
-    fun `Cyrillic word family matches title and rejects unrepresentable cosine hits`() {
+    fun `multilingual semantic result expands Cyrillic morphology without a word rule`() {
         val girl = track(
             id = "girl",
             title = "О том, как девочка Алёна стала женщиной",
@@ -69,7 +69,10 @@ class HybridSearchTest {
         val result = hybridSearch(
             songs = listOf(kino, girl),
             query = "девушки",
-            semantic = listOf(ScoredTrack(kino.id, 0.99f)),
+            semantic = listOf(
+                ScoredTrack(girl.id, 0.82f),
+                ScoredTrack(kino.id, 0.50f),
+            ),
         )
 
         assertEquals(listOf(girl.id), result.map { it.id })
@@ -77,21 +80,38 @@ class HybridSearchTest {
     }
 
     @Test
-    fun `Cyrillic query without a lexical match returns no random semantic result`() {
+    fun `Cyrillic query without evidence returns no script based guess`() {
         val kino = track("kino", "Перемен", "КИНО")
 
         val result = hybridSearch(
             songs = listOf(kino),
             query = "девушки",
-            semantic = listOf(ScoredTrack(kino.id, 0.99f)),
+            semantic = emptyList(),
         )
 
         assertEquals(emptyList(), result)
     }
 
-    private fun track(id: String, title: String, artist: String) = TrackDescriptor(
+    @Test
+    fun `script alone never implies a language or genre`() {
+        val kino = track("kino", "Группа крови", "КИНО", genre = "Post-Punk")
+        val ukrainian = track("uk", "Пісня", "Український гурт", genre = "Pop")
+
+        assertEquals(
+            emptyList(),
+            hybridSearch(listOf(ukrainian, kino), "русский", semantic = emptyList()),
+        )
+    }
+
+    private fun track(
+        id: String,
+        title: String,
+        artist: String,
+        genre: String? = null,
+    ) = TrackDescriptor(
         id = TrackId(id),
         title = title,
         artist = artist,
+        genre = genre,
     )
 }

@@ -123,4 +123,12 @@ internal class OnnxTextEncoder(
 
 public actual fun smartTextEncoderModule(): Module = module {
     single<TextEncoder> { OnnxTextEncoder(get<Context>()) }
+    single {
+        val context = get<Context>()
+        MusicEntityResolver {
+            runCatching { context.assets.open(MUSIC_ENTITY_ASSET).use { it.readBytes() } }.getOrNull()
+        }
+    }
 }
+
+private const val MUSIC_ENTITY_ASSET = "ml/music_entities_250k.bin"

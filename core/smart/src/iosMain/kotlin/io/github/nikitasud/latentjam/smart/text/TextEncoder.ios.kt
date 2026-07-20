@@ -63,6 +63,19 @@ internal class IosTextEncoder : TextEncoder {
         Result.failure(SmartEngineException(EngineError.BackendFailure(message)))
 }
 
+@OptIn(ExperimentalForeignApi::class)
 public actual fun smartTextEncoderModule(): Module = module {
     single<TextEncoder> { IosTextEncoder() }
+    single {
+        MusicEntityResolver {
+            val path = NSBundle.mainBundle.pathForResource(
+                name = "music_entities_250k", ofType = "bin", inDirectory = "ml",
+            ) ?: NSBundle.mainBundle.pathForResource(
+                name = "music_entities_250k", ofType = "bin",
+            )
+            val data = path?.let { NSFileManager.defaultManager.contentsAtPath(it) }
+            val pointer = data?.bytes?.reinterpret<ByteVar>()
+            if (pointer == null) null else pointer.readBytes(data.length.toInt())
+        }
+    }
 }
