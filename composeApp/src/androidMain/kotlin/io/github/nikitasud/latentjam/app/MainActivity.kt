@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
 /**
  * Asks once for notification permission, and gates nothing on the answer.
  *
- * Analysis progress is the only thing this app notifies about, so a refusal
+ * Analysis progress and playback controls use notifications, but a refusal
  * costs visibility and nothing else — blocking the library behind it, the way
  * the audio permission legitimately is blocked, would be extortion for a
  * progress bar. Asked here rather than at the moment analysis starts because a

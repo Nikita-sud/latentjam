@@ -264,6 +264,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var indexFailureDetails by remember { mutableStateOf<List<String>>(emptyList()) }
         var historySummary by remember { mutableStateOf<String?>(null) }
         val now by playback.state.collectAsState()
+        val automaticIndexing by AppGraph.automaticIndexing.collectAsState()
         val accent = rememberTrackAccent(now.track)
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         // The lists run to the bottom edge of an edge-to-edge window, so the navigation bar is
@@ -344,31 +345,40 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // subset. SMART is a library journey, so keep its candidate universe independent of
             // whichever small list happened to contain the track the listener tapped.
             playback.setSmartLibrary(loaded)
-            engine.initialize()
-            val pruned = engine.synchronizeLibrary(loaded)
-            var added = 0
-            loaded.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
-                added += engine.ensureMetadataVectors(chunk)
+            metadataVectorsReady =
+                automaticIndexing.trackIds == loaded.map(TrackDescriptor::id) &&
+                    automaticIndexing.metadataReady
+            val notificationTitle = getString(Res.string.indexing_notification_title)
+            AppGraph.ensureAutomaticIndexing(
+                tracks = loaded,
+                notificationTitle = notificationTitle,
+            ) { done, total, etaMinutes ->
+                if (etaMinutes == null) {
+                    getString(Res.string.indexing_notification_progress, done, total)
+                } else {
+                    getString(
+                        Res.string.indexing_notification_progress_eta,
+                        done,
+                        total,
+                        etaMinutes,
+                    )
+                }
             }
-            println(
-                "SMART: ready (${engine.state.value}); pruned $pruned stale fingerprints; " +
-                    "encoded $added metadata vectors",
-            )
-            metadataVectorsReady = true
+        }
 
-            // Build the acoustic index progressively on a background dispatcher from the very
-            // first launch. Each tiny batch is persisted and releases the engine lock, so a
-            // SMART press can use the portion that is ready; playback itself never waits for
-            // the whole library and metadata supplies an honest cold-start path. Keeping this
-            // work in the keyed effect cancels an obsolete scan when the library changes, so a
-            // deleted track cannot be reinserted by an older background job after reconciliation.
-            val failures = LinkedHashMap<TrackId, EngineError>()
-            loaded.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
-                failures.putAll(engine.indexLibrary(chunk).errors)
+        // The UI observes the app-lifetime worker; it does not own it. Recreating MainActivity
+        // therefore reconnects to the same scan instead of starting a duplicate or cancelling it.
+        LaunchedEffect(tracks, automaticIndexing) {
+            val loaded = tracks ?: return@LaunchedEffect
+            if (automaticIndexing.trackIds != loaded.map(TrackDescriptor::id)) {
+                return@LaunchedEffect
             }
-            indexFailureDetails = failures.map { (id, error) ->
+            metadataVectorsReady = automaticIndexing.metadataReady
+            indexFailureDetails = automaticIndexing.failures.map { (id, error) ->
                 indexFailureLine(loaded.firstOrNull { it.id == id }, id, error)
             }
+            if (!automaticIndexing.complete) return@LaunchedEffect
+
             println("SMART: progressive local index complete (${engine.state.value})")
 
             // Opt-in physical-device audit. It exercises the exact production queue path against
@@ -488,6 +498,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 // engine would otherwise leave the app pinned in the foreground with
                 // a progress bar that never moves again.
                 try {
+                    notifier.show(
+                        title = notificationTitle,
+                        text = getString(
+                            Res.string.indexing_notification_progress,
+                            0,
+                            selection.size,
+                        ),
+                        done = 0,
+                        total = selection.size,
+                    )
                     selection.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
                         val report = engine.indexLibrary(chunk)
                         indexed += report.indexed

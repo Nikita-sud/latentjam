@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.playback
 
+import android.app.PendingIntent
+import android.content.Intent
 import android.media.AudioManager
 import androidx.media3.common.AudioAttributes
 import androidx.media3.exoplayer.ExoPlayer
@@ -41,7 +43,9 @@ public class PlaybackService : MediaSessionService() {
         // Announced rather than injected: this service is built by the system and cannot see
         // the app's scoped Koin graph. Whoever owns the equalizer picks the session up from here.
         AudioSessionRegistry.publish(audioSessionId)
-        mediaSession = MediaSession.Builder(this, player).build()
+        val sessionBuilder = MediaSession.Builder(this, player)
+        appLaunchPendingIntent()?.let(sessionBuilder::setSessionActivity)
+        mediaSession = sessionBuilder.build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
@@ -54,5 +58,27 @@ public class PlaybackService : MediaSessionService() {
         }
         mediaSession = null
         super.onDestroy()
+    }
+
+    /**
+     * Explicitly owns the media-notification body tap.
+     *
+     * Media3 can infer this for some manifest/task combinations, but that inference is not stable
+     * across OEM System UI implementations. Supplying the launch PendingIntent makes the mini
+     * player return to the existing LatentJam task everywhere and avoids a second activity.
+     */
+    private fun appLaunchPendingIntent(): PendingIntent? {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName) ?: return null
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(
+            this,
+            MEDIA_NOTIFICATION_REQUEST_CODE,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private companion object {
+        const val MEDIA_NOTIFICATION_REQUEST_CODE = 4202
     }
 }

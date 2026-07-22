@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -15,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Android [IndexingNotifier], backed by a foreground service.
@@ -32,19 +34,33 @@ import org.koin.dsl.module
  */
 internal class AndroidIndexingNotifier(private val context: Context) : IndexingNotifier {
 
+    private val serviceStarted = AtomicBoolean(false)
+
     override fun show(title: String, text: String, done: Int, total: Int) {
-        ContextCompat.startForegroundService(
-            context,
-            Intent(context, IndexingService::class.java).apply {
-                putExtra(IndexingService.EXTRA_TITLE, title)
-                putExtra(IndexingService.EXTRA_TEXT, text)
-                putExtra(IndexingService.EXTRA_DONE, done)
-                putExtra(IndexingService.EXTRA_TOTAL, total)
-            },
-        )
+        val intent = Intent(context, IndexingService::class.java).apply {
+            putExtra(IndexingService.EXTRA_TITLE, title)
+            putExtra(IndexingService.EXTRA_TEXT, text)
+            putExtra(IndexingService.EXTRA_DONE, done)
+            putExtra(IndexingService.EXTRA_TOTAL, total)
+        }
+        val firstStart = serviceStarted.compareAndSet(false, true)
+        try {
+            if (firstStart) {
+                ContextCompat.startForegroundService(context, intent)
+            } else {
+                // Once foreground, ordinary start commands are sufficient to update it. Repeating
+                // startForegroundService from a backgrounded app is rejected on recent Android
+                // versions even when the service is already alive.
+                context.startService(intent)
+            }
+        } catch (failure: RuntimeException) {
+            if (firstStart) serviceStarted.set(false)
+            throw failure
+        }
     }
 
     override fun finish() {
+        serviceStarted.set(false)
         context.stopService(Intent(context, IndexingService::class.java))
     }
 }
@@ -72,6 +88,9 @@ class IndexingService : Service() {
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle(title)
             .setContentText(text)
+            // The progress row itself is useful navigation: one tap returns to the existing app
+            // task instead of opening a duplicate Activity.
+            .setContentIntent(appLaunchPendingIntent())
             // Determinate: the whole point is that the user can see how much is
             // left, and an indeterminate spinner answers none of the questions
             // they walked away wondering about.
@@ -125,6 +144,17 @@ class IndexingService : Service() {
         const val EXTRA_TOTAL = "total"
         private const val CHANNEL_ID = "library_analysis"
         private const val NOTIFICATION_ID = 4201
+    }
+
+    private fun appLaunchPendingIntent(): PendingIntent? {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName) ?: return null
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(
+            this,
+            NOTIFICATION_ID,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 }
 

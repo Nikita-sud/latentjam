@@ -507,6 +507,7 @@ private fun formatDecibels(millibels: Float): String {
 @Composable
 private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDescriptor>) {
     val state by engine.state.collectAsState()
+    val automaticIndexing by AppGraph.automaticIndexing.collectAsState()
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     // The counts, not a finished sentence: formatting happens in the composition
@@ -562,23 +563,51 @@ private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDes
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     OutlinedButton(
-                        enabled = !busy && total > 0,
+                        enabled = !busy && !automaticIndexing.running && total > 0,
                         onClick = {
                             busy = true
                             outcome = null
                             AppGraph.appScope.launch {
-                                val report = engine.indexLibrary(tracks.take(INDEX_BATCH))
-                                outcome = AnalysisOutcome.Batch(
-                                    indexed = report.indexed,
-                                    skipped = report.skipped,
-                                    failed = report.failed,
-                                )
-                                busy = false
+                                val batch = tracks.take(INDEX_BATCH)
+                                val notifier = AppGraph.indexingNotifier
+                                val notificationTitle =
+                                    getString(Res.string.indexing_notification_title)
+                                try {
+                                    notifier.show(
+                                        title = notificationTitle,
+                                        text = getString(
+                                            Res.string.indexing_notification_progress,
+                                            0,
+                                            batch.size,
+                                        ),
+                                        done = 0,
+                                        total = batch.size,
+                                    )
+                                    val report = engine.indexLibrary(batch)
+                                    notifier.show(
+                                        title = notificationTitle,
+                                        text = getString(
+                                            Res.string.indexing_notification_progress,
+                                            batch.size,
+                                            batch.size,
+                                        ),
+                                        done = batch.size,
+                                        total = batch.size,
+                                    )
+                                    outcome = AnalysisOutcome.Batch(
+                                        indexed = report.indexed,
+                                        skipped = report.skipped,
+                                        failed = report.failed,
+                                    )
+                                } finally {
+                                    notifier.finish()
+                                    busy = false
+                                }
                             }
                         },
                     ) { Text(stringResource(Res.string.intelligence_analyse_batch, INDEX_BATCH)) }
                     OutlinedButton(
-                        enabled = !busy && total > 0,
+                        enabled = !busy && !automaticIndexing.running && total > 0,
                         onClick = {
                             busy = true
                             outcome = null
@@ -591,6 +620,16 @@ private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDes
                                 val notificationTitle =
                                     getString(Res.string.indexing_notification_title)
                                 try {
+                                    notifier.show(
+                                        title = notificationTitle,
+                                        text = getString(
+                                            Res.string.indexing_notification_progress,
+                                            0,
+                                            tracks.size,
+                                        ),
+                                        done = 0,
+                                        total = tracks.size,
+                                    )
                                     tracks.chunked(INDEX_BATCH).forEach { chunk ->
                                         val report = engine.indexLibrary(chunk)
                                         indexedNow += report.indexed
@@ -626,7 +665,7 @@ private fun IntelligenceSettings(engine: SimilarityEngine, tracks: List<TrackDes
                             }
                         },
                     ) { Text(stringResource(Res.string.intelligence_analyse_all)) }
-                    if (busy) {
+                    if (busy || automaticIndexing.running) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp))
                     }
                 }
