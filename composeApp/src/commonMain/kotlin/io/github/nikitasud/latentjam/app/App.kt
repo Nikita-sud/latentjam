@@ -1863,7 +1863,9 @@ private fun MiniPlayerProgress(
         progress = { progress },
         modifier = modifier,
         color = accent.onContainer.copy(alpha = 0.9f),
-        trackColor = accent.onContainer.copy(alpha = 0.2f),
+        // The remaining-track rail read as a detached grey strip whenever playback was paused.
+        // Keep only the completed segment; the mini-player surface itself is sufficient context.
+        trackColor = Color.Transparent,
         drawStopIndicator = {},
     )
 }
