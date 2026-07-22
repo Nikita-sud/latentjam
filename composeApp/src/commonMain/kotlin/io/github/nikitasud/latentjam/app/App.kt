@@ -72,7 +72,6 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -1303,10 +1302,6 @@ private const val DIAGNOSTICS_FAILURE_LIMIT = 5
 /** Duration of the mini-player ↔ now-playing morph. */
 private const val MORPH_MILLIS = 340
 
-// The full player owns the precise seek bar. The browse pill is only a glanceable hint; redrawing
-// a 1440p Compose window twice per second for a two-pixel line made active scrolling visibly hitch.
-private const val MINI_PLAYER_PROGRESS_STEP_MS = 5_000L
-
 /** Stable saveable-state bucket for the browse stack while the full player owns the screen. */
 private const val BROWSE_SHELL_STATE_KEY = "browse-shell"
 
@@ -1815,59 +1810,8 @@ private fun MiniPlayerPill(
                     )
                 }
             }
-            // Hairline progress along the pill's inner edge — status without
-            // giving the bar a band of its own.
-            MiniPlayerProgress(
-                playback = playback,
-                accent = accent,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 20.dp, vertical = 4.dp)
-                    .fillMaxWidth()
-                    .height(2.dp)
-                    .clip(CircleShape),
-            )
         }
     }
-}
-
-/** The only browse-tree composable that observes the 500 ms playhead ticker. */
-@Composable
-private fun MiniPlayerProgress(
-    playback: PlaybackController,
-    accent: TrackAccent,
-    modifier: Modifier = Modifier,
-) {
-    val progress by remember(playback) {
-        playback.state.map { now ->
-            if (now.durationMs > 0) {
-                val coarsePosition =
-                    now.positionMs / MINI_PLAYER_PROGRESS_STEP_MS * MINI_PLAYER_PROGRESS_STEP_MS
-                (coarsePosition.toFloat() / now.durationMs).coerceIn(0f, 1f)
-            } else {
-                0f
-            }
-        }.distinctUntilChanged()
-    }.collectAsState(
-        playback.state.value.let { now ->
-            if (now.durationMs > 0) {
-                val coarsePosition =
-                    now.positionMs / MINI_PLAYER_PROGRESS_STEP_MS * MINI_PLAYER_PROGRESS_STEP_MS
-                (coarsePosition.toFloat() / now.durationMs).coerceIn(0f, 1f)
-            } else {
-                0f
-            }
-        },
-    )
-    LinearProgressIndicator(
-        progress = { progress },
-        modifier = modifier,
-        color = accent.onContainer.copy(alpha = 0.9f),
-        // The remaining-track rail read as a detached grey strip whenever playback was paused.
-        // Keep only the completed segment; the mini-player surface itself is sufficient context.
-        trackColor = Color.Transparent,
-        drawStopIndicator = {},
-    )
 }
 
 @Composable
