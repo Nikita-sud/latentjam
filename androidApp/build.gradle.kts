@@ -26,6 +26,19 @@ android {
         versionCode = 1
         versionName = "0.1.0"
     }
+
+    buildTypes {
+        release {
+            // Compose, Media3 and the local model pipeline all benefit from ahead-of-time R8
+            // optimization. Debug remains intentionally untouched for useful stack traces.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+        }
+    }
 }
 
 dependencies {

@@ -10,7 +10,6 @@ import ai.onnxruntime.OrtSession
 import android.content.Context
 import android.net.Uri
 import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
-import java.io.File
 import java.nio.FloatBuffer
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.sqrt
@@ -35,11 +34,9 @@ import org.koin.dsl.module
  * direction to mean-then-normalize). Deterministic windows make embeddings
  * reproducible across re-indexing runs.
  *
- * The last computed embedding is dumped to `files/debug_last_embedding.txt`
- * for the Mac-side equivalence gate (adb `run-as` pull in debug builds).
- *
- * Threading: the engine serializes all calls on its single-parallelism
- * dispatcher, so one ORT session with default options is safe.
+ * Threading: the engine serializes calls on a low-priority worker and the ORT session is explicitly
+ * single-threaded. ORT's default native pool otherwise occupies several cores even though the
+ * calling coroutine has parallelism one, starving UI rendering during first-run indexing.
  */
 internal class OnnxEmbeddingBackend(
     private val context: Context,
@@ -54,7 +51,12 @@ internal class OnnxEmbeddingBackend(
         return try {
             val assetPath = config.modelLocator ?: DEFAULT_ASSET_PATH
             val modelBytes = context.assets.open(assetPath).use { it.readBytes() }
-            session = OrtEnvironment.getEnvironment().createSession(modelBytes)
+            session = OrtSession.SessionOptions().use { options ->
+                options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
+                options.setIntraOpNumThreads(1)
+                options.setInterOpNumThreads(1)
+                OrtEnvironment.getEnvironment().createSession(modelBytes, options)
+            }
             Result.success(Unit)
         } catch (t: Throwable) {
             Result.failure(
@@ -141,7 +143,6 @@ internal class OnnxEmbeddingBackend(
             if (!l2NormalizeInPlace(pooled)) {
                 return backendFailure("Model produced a non-finite or zero-norm embedding")
             }
-            dumpDebugEmbedding(descriptor, pooled)
             Result.success(pooled)
         } catch (cancellation: CancellationException) {
             throw cancellation
@@ -218,13 +219,6 @@ internal class OnnxEmbeddingBackend(
         return "(peak=${peak * inverse}, rms=${rms * inverse}, nonZero=$nonZero)"
     }
 
-    private fun dumpDebugEmbedding(descriptor: TrackDescriptor, embedding: FloatArray) {
-        runCatching {
-            File(context.filesDir, DEBUG_DUMP_FILE)
-                .writeText("${descriptor.id.value}\n${embedding.joinToString(",")}\n")
-        }
-    }
-
     private fun backendFailure(message: String): Result<FloatArray> =
         Result.failure(SmartEngineException(EngineError.BackendFailure(message)))
 
@@ -236,7 +230,6 @@ internal class OnnxEmbeddingBackend(
         const val WINDOW_MS = WINDOW_SAMPLES * 1000L / SAMPLE_RATE
         const val INPUT_NAME = "waveform"
         const val DEFAULT_ASSET_PATH = "ml/mnv4_audio.onnx"
-        const val DEBUG_DUMP_FILE = "debug_last_embedding.txt"
         val WINDOW_POSITIONS = listOf(0.2, 0.5, 0.8)
         val INFERENCE_GAINS = listOf(1f, 0.5f, 0.25f)
     }

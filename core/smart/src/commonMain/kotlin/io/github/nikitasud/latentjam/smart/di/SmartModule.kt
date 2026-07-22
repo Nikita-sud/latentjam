@@ -15,7 +15,6 @@ import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.VectorIndex
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import org.koin.core.module.Module
 import org.koin.core.qualifier.StringQualifier
 import org.koin.core.qualifier.named
@@ -58,15 +57,13 @@ public val smartTextIndexQualifier: StringQualifier = named("smart-text-index")
  * ### Threading guarantee
  * The engine singleton is created lazily (Koin `single` default) — resolving
  * it is cheap and allocation-only, safe even on the main thread. All heavy
- * work happens inside its suspend functions, which the engine confines to
- * `Dispatchers.Default.limitedParallelism(1)`:
+ * work happens inside its suspend functions, which the engine confines to a
+ * platform-owned single-parallelism background dispatcher:
  * - background: never the UI thread, so the Compose UI cannot be blocked;
  * - parallelism 1: serializes native tensor operations, which keeps the
  *   future ONNX/Core ML session usage trivially safe.
- * Note `limitedParallelism` guarantees SERIALIZATION, not thread affinity —
- * consecutive tasks may hop between Default-pool threads. If a future backend
- * requires same-thread access (some native runtimes do), swap this binding to
- * a `newSingleThreadContext("smart-engine")`.
+ * Android gives that worker OS background priority, so a library scan cannot
+ * compete equally with rendering merely because both are native work.
  *
  * ### Lifecycle
  * The singleton lives as long as the Koin application. The graph owner is
@@ -78,7 +75,7 @@ public val smartEngineModule: Module = module {
     single { SmartEngineConfig() }
 
     single<CoroutineDispatcher>(smartEngineDispatcherQualifier) {
-        Dispatchers.Default.limitedParallelism(1, "smart-engine")
+        createPlatformSmartEngineDispatcher()
     }
 
     single<VectorIndex> {
@@ -111,3 +108,6 @@ public val smartEngineModule: Module = module {
         )
     }
 }
+
+/** Platform scheduling policy for long-running local inference. */
+internal expect fun createPlatformSmartEngineDispatcher(): CoroutineDispatcher

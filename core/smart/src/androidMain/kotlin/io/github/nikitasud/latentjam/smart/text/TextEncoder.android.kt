@@ -41,9 +41,13 @@ internal class OnnxTextEncoder(
             tokenizer = openVocab().bufferedReader(Charsets.UTF_8).useLines {
                 BertWordPieceTokenizer(BertWordPieceTokenizer.parseVocab(it))
             }
-            val options = OrtSession.SessionOptions().apply { setIntraOpNumThreads(2) }
-            session = OrtEnvironment.getEnvironment()
-                .createSession(openModel().use { it.readBytes() }, options)
+            session = OrtSession.SessionOptions().use { options ->
+                options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
+                options.setIntraOpNumThreads(1)
+                options.setInterOpNumThreads(1)
+                OrtEnvironment.getEnvironment()
+                    .createSession(openModel().use { it.readBytes() }, options)
+            }
             Result.success(Unit)
         } catch (t: Throwable) {
             close()

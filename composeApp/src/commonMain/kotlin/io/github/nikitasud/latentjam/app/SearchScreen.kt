@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -66,8 +67,12 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
 import kotlin.time.TimeSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -100,11 +105,42 @@ internal fun SearchScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var recent by remember { mutableStateOf<List<String>>(emptyList()) }
     var semantic by remember(songs) { mutableStateOf<List<ScoredTrack>>(emptyList()) }
+    var semanticQuery by remember(songs) { mutableStateOf("") }
+    var searchIndex by remember(songs) { mutableStateOf<SearchIndex?>(null) }
+    var results by remember(songs) { mutableStateOf<List<TrackDescriptor>>(emptyList()) }
+    var resultQuery by remember(songs) { mutableStateOf("") }
+    var isSearching by remember(songs) { mutableStateOf(false) }
     val entityResolver = AppGraph.musicEntities
-    val results = remember(songs, query, semantic, entityResolver) {
+
+    // Normalize/tokenize the library once, off the UI thread. The old path rebuilt all fields,
+    // tokens and edit-distance inputs synchronously in composition for every typed character.
+    LaunchedEffect(songs) {
+        searchIndex = withContext(Dispatchers.Default) { SearchIndex.build(songs) }
+    }
+    LaunchedEffect(searchIndex, query, semantic, semanticQuery, entityResolver) {
         val needle = query.trim()
-        if (needle.isBlank()) emptyList()
-        else hybridSearch(songs, needle, semantic, entityResolver)
+        val index = searchIndex
+        if (needle.isBlank()) {
+            isSearching = false
+            results = emptyList()
+            resultQuery = needle
+        } else if (index == null) {
+            isSearching = true
+            results = emptyList()
+            resultQuery = ""
+        } else {
+            isSearching = true
+            val matchingSemantic = semantic.takeIf { semanticQuery == needle }.orEmpty()
+            val calculated = withContext(Dispatchers.Default) {
+                val context = currentCoroutineContext()
+                hybridSearch(index, needle, matchingSemantic, entityResolver) {
+                    context.ensureActive()
+                }
+            }
+            results = calculated
+            resultQuery = needle
+            isSearching = false
+        }
     }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -122,11 +158,13 @@ internal fun SearchScreen(
     // matches update immediately above; semantic expansion follows after the user pauses typing.
     LaunchedEffect(songs, query) {
         semantic = emptyList()
+        semanticQuery = ""
         val needle = query.trim()
         if (needle.length < MIN_SEMANTIC_QUERY_CHARS) return@LaunchedEffect
         delay(SEMANTIC_DEBOUNCE_MS)
         val started = TimeSource.Monotonic.markNow()
         semantic = AppGraph.engine.semanticSearch(needle, SEMANTIC_CANDIDATE_LIMIT)
+        semanticQuery = needle
         println(
             "SMART search: ${semantic.size} local candidates in " +
                 "${started.elapsedNow().inWholeMilliseconds} ms",
@@ -199,7 +237,11 @@ internal fun SearchScreen(
                 )
             }
 
+            val trimmedQuery = query.trim()
             when {
+                query.isNotBlank() && (isSearching || resultQuery != trimmedQuery) ->
+                    SearchLoading()
+
                 query.isNotBlank() && results.isEmpty() ->
                     CenteredHint(stringResource(Res.string.search_no_matches, query.trim()))
 
@@ -316,31 +358,57 @@ private fun CenteredHint(text: String) {
     }
 }
 
+@Composable
+private fun SearchLoading() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
+}
+
 /** Exact search stays authoritative; cosine hits only expand it when the model is confident. */
 internal fun hybridSearch(
     songs: List<TrackDescriptor>,
     query: String,
     semantic: List<ScoredTrack>,
     entityResolver: MusicEntityResolver? = null,
+): List<TrackDescriptor> = hybridSearch(
+    index = SearchIndex.build(songs),
+    query = query,
+    semantic = semantic,
+    entityResolver = entityResolver,
+)
+
+private fun hybridSearch(
+    index: SearchIndex,
+    query: String,
+    semantic: List<ScoredTrack>,
+    entityResolver: MusicEntityResolver?,
+    checkCancelled: () -> Unit = {},
 ): List<TrackDescriptor> {
     val needle = query.trim()
-    if (needle.isEmpty()) return emptyList()
-    val lexical = songs.mapIndexedNotNull { index, track ->
-        track.lexicalRank(needle)?.let { rank -> RankedTrack(track, rank, index) }
+    val normalizedNeedle = normalizeSearchText(needle)
+    if (normalizedNeedle.isEmpty()) return emptyList()
+    val queryTokens = searchTokens(normalizedNeedle)
+    val lexical = index.documents.mapIndexedNotNull { documentIndex, document ->
+        if (documentIndex % CANCELLATION_CHECK_INTERVAL == 0) checkCancelled()
+        document.lexicalRank(normalizedNeedle, queryTokens)?.let { rank ->
+            RankedTrack(document.track, rank, document.libraryOrder)
+        }
     }.sortedWith(compareBy<RankedTrack> { it.rank }.thenBy { it.libraryOrder })
 
-    val byId = songs.associateBy { it.id }
     val used = lexical.mapTo(HashSet()) { it.track.id }
     val entities = entityResolver?.let { resolver ->
-        songs.asSequence()
+        index.songs.asSequence()
+            .onEach { checkCancelled() }
             .filter { it.id !in used && resolver.matches(needle, it.artist) }
             .onEach { used += it.id }
     }.orEmpty()
     val bestSemantic = semantic.firstOrNull()?.score ?: Float.NEGATIVE_INFINITY
     val semanticFloor = maxOf(MIN_SEMANTIC_SCORE, bestSemantic - MAX_SEMANTIC_GAP)
     val expanded = semantic.asSequence()
+        .onEach { checkCancelled() }
         .takeWhile { it.score >= semanticFloor }
-        .mapNotNull { byId[it.trackId] }
+        .mapNotNull { index.byId[it.trackId] }
         .filter { used.add(it.id) }
         .take(SEMANTIC_RESULT_LIMIT)
 
@@ -350,22 +418,19 @@ internal fun hybridSearch(
 }
 
 /** 0 exact, 1 prefix, 2 token-prefix, 3 word-family/typo, 4 substring. */
-private fun TrackDescriptor.lexicalRank(needle: String): Int? {
-    val normalizedNeedle = normalizeSearchText(needle)
-    val fields = buildList {
-        listOfNotNull(title, artist, album, genre).mapTo(this, ::normalizeSearchText)
-    }
+private fun SearchDocument.lexicalRank(
+    normalizedNeedle: String,
+    queryTokens: List<String>,
+): Int? {
     if (fields.any { it == normalizedNeedle }) return 0
     if (fields.any { it.startsWith(normalizedNeedle) }) return 1
-    if (fields.any { field ->
-            searchTokens(field).any { it.startsWith(normalizedNeedle) }
+    if (fieldTokens.any { tokens ->
+            tokens.any { it.startsWith(normalizedNeedle) }
         }
     ) return 2
-    val queryTokens = searchTokens(normalizedNeedle)
-    if (queryTokens.isNotEmpty() && fields.any { field ->
-            val fieldTokens = searchTokens(field)
+    if (queryTokens.isNotEmpty() && fieldTokens.any { tokens ->
             queryTokens.all { queryToken ->
-                fieldTokens.any { fieldToken -> relatedSearchTokens(queryToken, fieldToken) }
+                tokens.any { fieldToken -> relatedSearchTokens(queryToken, fieldToken) }
             }
         }
     ) return 3
@@ -374,14 +439,22 @@ private fun TrackDescriptor.lexicalRank(needle: String): Int? {
 }
 
 private fun normalizeSearchText(value: String): String = buildString(value.length) {
-    value.lowercase().forEach { character ->
+    var previousSpace = true
+    value.lowercase().forEach { original ->
+        val character = if (original == 'ё') 'е' else original
         when {
-            character == 'ё' -> append('е') // Russian ё/e are routinely mixed in tags.
-            character.isLetterOrDigit() -> append(character)
-            else -> append(' ')
+            character.isLetterOrDigit() -> {
+                append(character)
+                previousSpace = false
+            }
+            !previousSpace -> {
+                append(' ')
+                previousSpace = true
+            }
         }
     }
-}.trim().replace(Regex("\\s+"), " ")
+    if (isNotEmpty() && last() == ' ') setLength(length - 1)
+}
 
 private fun searchTokens(value: String): List<String> =
     value.split(' ').filter { it.isNotBlank() }
@@ -420,10 +493,40 @@ private data class RankedTrack(
     val libraryOrder: Int,
 )
 
+private data class SearchDocument(
+    val track: TrackDescriptor,
+    val fields: List<String>,
+    val fieldTokens: List<List<String>>,
+    val libraryOrder: Int,
+)
+
+private class SearchIndex private constructor(
+    val songs: List<TrackDescriptor>,
+    val documents: List<SearchDocument>,
+    val byId: Map<TrackId, TrackDescriptor>,
+) {
+    companion object {
+        fun build(songs: List<TrackDescriptor>): SearchIndex {
+            val documents = songs.mapIndexed { index, track ->
+                val fields = listOfNotNull(track.title, track.artist, track.album, track.genre)
+                    .map(::normalizeSearchText)
+                SearchDocument(
+                    track = track,
+                    fields = fields,
+                    fieldTokens = fields.map(::searchTokens),
+                    libraryOrder = index,
+                )
+            }
+            return SearchIndex(songs, documents, songs.associateBy { it.id })
+        }
+    }
+}
+
 private const val MIN_SEMANTIC_QUERY_CHARS = 2
 private const val SEMANTIC_DEBOUNCE_MS = 180L
 private const val SEMANTIC_CANDIDATE_LIMIT = 64
 private const val SEMANTIC_RESULT_LIMIT = 24
 private const val SEARCH_RESULT_LIMIT = 80
+private const val CANCELLATION_CHECK_INTERVAL = 32
 private const val MIN_SEMANTIC_SCORE = 0.35f
 private const val MAX_SEMANTIC_GAP = 0.18f

@@ -30,6 +30,9 @@ import platform.Foundation.dataWithContentsOfURL
 import platform.UIKit.UIImage
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 /**
  * Decodes the cached embedded cover and runs the same small colour histogram
@@ -40,7 +43,24 @@ import kotlin.math.min
 actual fun rememberArtworkColor(uri: String?): Color? {
     var color by remember(uri) { mutableStateOf<Color?>(null) }
     LaunchedEffect(uri) {
-        color = uri?.let { withContext(Dispatchers.Default) { sampleArtwork(it) } }
+        color = uri?.let { artworkUri ->
+            val cached = artworkColorCache[artworkUri]?.takeIf { entry ->
+                entry.value != null || entry.storedAt.elapsedNow() < NEGATIVE_CACHE_TTL
+            }
+            if (cached != null) {
+                cached.value
+            } else {
+                withContext(Dispatchers.Default) { sampleArtwork(artworkUri) }.also { sampled ->
+                    if (artworkColorCache.size >= ARTWORK_COLOR_CACHE_SIZE) {
+                        artworkColorCache.keys.firstOrNull()?.let(artworkColorCache::remove)
+                    }
+                    artworkColorCache[artworkUri] = CachedArtworkColor(
+                        value = sampled,
+                        storedAt = TimeSource.Monotonic.markNow(),
+                    )
+                }
+            }
+        }
     }
     return color
 }
@@ -112,3 +132,9 @@ private fun dominantAccent(image: CGImageRef): Color? {
         blue = sum[2] / count / 255f,
     )
 }
+
+private data class CachedArtworkColor(val value: Color?, val storedAt: TimeMark)
+
+private val artworkColorCache = LinkedHashMap<String, CachedArtworkColor>()
+private const val ARTWORK_COLOR_CACHE_SIZE = 64
+private val NEGATIVE_CACHE_TTL = 30.seconds

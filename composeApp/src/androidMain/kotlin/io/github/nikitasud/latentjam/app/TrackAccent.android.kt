@@ -18,6 +18,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -36,13 +39,45 @@ actual fun rememberArtworkColor(uri: String?): Color? {
     val context = LocalContext.current
     var color by remember(uri) { mutableStateOf<Color?>(null) }
     LaunchedEffect(uri) {
-        color = uri?.let { withContext(Dispatchers.IO) { sampleArtwork(context, it) } }
+        color = uri?.let { artworkUri ->
+            val cached = artworkColorCache[artworkUri]?.takeIf { entry ->
+                entry.value != null || entry.storedAt.elapsedNow() < NEGATIVE_CACHE_TTL
+            }
+            if (cached != null) {
+                cached.value
+            } else {
+                withContext(Dispatchers.IO) {
+                    sampleArtwork(context, artworkUri)
+                }.also { sampled ->
+                    if (artworkColorCache.size >= ARTWORK_COLOR_CACHE_SIZE) {
+                        artworkColorCache.keys.firstOrNull()?.let(artworkColorCache::remove)
+                    }
+                    artworkColorCache[artworkUri] = CachedArtworkColor(
+                        value = sampled,
+                        storedAt = TimeSource.Monotonic.markNow(),
+                    )
+                }
+            }
+        }
     }
     return color
 }
 
 private fun sampleArtwork(context: Context, uri: String): Color? = runCatching {
-    val options = BitmapFactory.Options().apply { inSampleSize = 8 }
+    val parsed = Uri.parse(uri)
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(parsed).use { stream ->
+        BitmapFactory.decodeStream(stream, null, bounds)
+    }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    while (
+        bounds.outWidth / (sample * 2) >= ARTWORK_SAMPLE_SIDE ||
+        bounds.outHeight / (sample * 2) >= ARTWORK_SAMPLE_SIDE
+    ) {
+        sample *= 2
+    }
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
     val bitmap = context.contentResolver.openInputStream(Uri.parse(uri)).use { stream ->
         BitmapFactory.decodeStream(stream, null, options)
     } ?: return null
@@ -98,3 +133,11 @@ private fun dominantAccent(bitmap: Bitmap): Color? {
         blue = sum[2] / count / 255f,
     )
 }
+
+private data class CachedArtworkColor(val value: Color?, val storedAt: TimeMark)
+
+/** Includes negative results so missing MediaStore album-art rows are not decoded repeatedly. */
+private val artworkColorCache = LinkedHashMap<String, CachedArtworkColor>()
+private const val ARTWORK_COLOR_CACHE_SIZE = 64
+private const val ARTWORK_SAMPLE_SIDE = 96
+private val NEGATIVE_CACHE_TTL = 30.seconds

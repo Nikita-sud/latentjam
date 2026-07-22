@@ -14,7 +14,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -178,6 +177,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.AlbumGroup
 import io.github.nikitasud.latentjam.library.ArtistGroup
+import io.github.nikitasud.latentjam.library.AutoPlaylist
 import io.github.nikitasud.latentjam.library.AutoPlaylists
 import io.github.nikitasud.latentjam.library.FolderGroup
 import io.github.nikitasud.latentjam.library.GenreGroup
@@ -203,6 +203,9 @@ import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
@@ -263,19 +266,23 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var indexSummary by remember { mutableStateOf<String?>(null) }
         var indexFailureDetails by remember { mutableStateOf<List<String>>(emptyList()) }
         var historySummary by remember { mutableStateOf<String?>(null) }
-        val now by playback.state.collectAsState()
-        val automaticIndexing by AppGraph.automaticIndexing.collectAsState()
-        val accent = rememberTrackAccent(now.track)
+        // The player emits position twice per second. The browse shell only needs to know when the
+        // TRACK changes; collecting the complete snapshot here used to invalidate this entire
+        // pager and every visible list for each seek-bar tick.
+        val currentTrack by remember(playback) {
+            playback.state.map { it.track }.distinctUntilChanged()
+        }.collectAsState(playback.state.value.track)
+        val accent = rememberTrackAccent(currentTrack)
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         // The lists run to the bottom edge of an edge-to-edge window, so the navigation bar is
         // theirs to clear — nothing below them does it. The pill adds its own height on top of
         // that when it is up; it sits ON the content rather than beside it, so the two add.
         val listPadding = PaddingValues(
-            bottom = navBottom + if (now.track != null) MINI_PLAYER_HEIGHT else 12.dp,
+            bottom = navBottom + if (currentTrack != null) MINI_PLAYER_HEIGHT else 12.dp,
         )
         // Screens that already inset themselves against the navigation bar only need the pill's
         // own height on top.
-        val floatingPlayerInset = if (now.track != null) MINI_PLAYER_HEIGHT else 0.dp
+        val floatingPlayerInset = if (currentTrack != null) MINI_PLAYER_HEIGHT else 0.dp
         // AnimatedContent removes the browse branch after the player finishes opening. Keep a
         // dedicated saveable bucket for that branch so every LazyColumn/Grid/Row returns to its
         // exact item and pixel offset when the player closes, across every tab and detail screen.
@@ -326,17 +333,26 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // rebuilt on a mere return to the tab: a page that regroups itself while being read is
             // indistinguishable from a broken one.
             if (!forYou.isEmpty && builtWorlds == worlds) return@LaunchedEffect
-            builtWorlds = worlds
-            forYou = ForYouBuilder.build(
-                library = loaded,
-                stats = AppGraph.history.stats(),
-                recentEvents = AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU),
-                nowMs = epochMillis(),
-                excluded = setOfNotNull(now.track?.id),
-                playlists = playlists,
-                worlds = worlds,
-                discoveryMixLabel = discoveryMixLabel,
-            )
+            val requestedWorlds = worlds
+            val stats = AppGraph.history.stats()
+            val recentEvents = AppGraph.history.recentEvents(RECENT_EVENTS_FOR_YOU)
+            val excluded = setOfNotNull(currentTrack?.id)
+            val rebuiltPage = withContext(Dispatchers.Default) {
+                ForYouBuilder.build(
+                    library = loaded,
+                    stats = stats,
+                    recentEvents = recentEvents,
+                    nowMs = epochMillis(),
+                    excluded = excluded,
+                    playlists = playlists,
+                    worlds = requestedWorlds,
+                    discoveryMixLabel = discoveryMixLabel,
+                )
+            }
+            // Commit the page and its input key together. If this effect is cancelled while the
+            // background build runs, neither value advances and the next visit retries normally.
+            forYou = rebuiltPage
+            builtWorlds = requestedWorlds
         }
 
         LaunchedEffect(tracks) {
@@ -345,9 +361,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // subset. SMART is a library journey, so keep its candidate universe independent of
             // whichever small list happened to contain the track the listener tapped.
             playback.setSmartLibrary(loaded)
+            val indexing = AppGraph.automaticIndexing.value
             metadataVectorsReady =
-                automaticIndexing.trackIds == loaded.map(TrackDescriptor::id) &&
-                    automaticIndexing.metadataReady
+                indexing.trackIds == loaded.map(TrackDescriptor::id) && indexing.metadataReady
             val notificationTitle = getString(Res.string.indexing_notification_title)
             AppGraph.ensureAutomaticIndexing(
                 tracks = loaded,
@@ -368,44 +384,48 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         // The UI observes the app-lifetime worker; it does not own it. Recreating MainActivity
         // therefore reconnects to the same scan instead of starting a duplicate or cancelling it.
-        LaunchedEffect(tracks, automaticIndexing) {
+        LaunchedEffect(tracks) {
             val loaded = tracks ?: return@LaunchedEffect
-            if (automaticIndexing.trackIds != loaded.map(TrackDescriptor::id)) {
-                return@LaunchedEffect
-            }
-            metadataVectorsReady = automaticIndexing.metadataReady
-            indexFailureDetails = automaticIndexing.failures.map { (id, error) ->
-                indexFailureLine(loaded.firstOrNull { it.id == id }, id, error)
-            }
-            if (!automaticIndexing.complete) return@LaunchedEffect
-
-            println("SMART: progressive local index complete (${engine.state.value})")
-
-            // Opt-in physical-device audit. It exercises the exact production queue path against
-            // the phone's own library and history, but is dormant during every normal launch.
-            smartQualityDiagnosticSeeds().forEach { query ->
-                val seed = loaded.firstOrNull { track ->
-                    track.title.orEmpty().contains(query, ignoreCase = true) ||
-                        "${track.artist.orEmpty()} - ${track.title.orEmpty()}"
-                            .contains(query, ignoreCase = true)
+            val trackIds = loaded.map(TrackDescriptor::id)
+            AppGraph.automaticIndexing.collect { indexing ->
+                if (indexing.trackIds != trackIds) return@collect
+                if (metadataVectorsReady != indexing.metadataReady) {
+                    metadataVectorsReady = indexing.metadataReady
                 }
-                if (seed == null) {
-                    println("[SMART_QUALITY] missing seed=$query")
-                } else {
-                    val queue = engine.smartQueue(
-                        seed,
-                        loaded,
-                        SMART_HERO_LENGTH,
-                        smartHistoryFor(AppGraph.history, seed),
-                    )
-                    val byId = loaded.associateBy { it.id }
-                    val recommendations = queue.mapNotNull(byId::get).joinToString(" | ") { track ->
-                        "${track.artist.orEmpty()} — ${track.title.orEmpty()}"
+                // Failure formatting and the opt-in quality audit are only useful once the run is
+                // complete. Keeping per-batch progress out of Compose avoids a second source of
+                // whole-shell invalidation while the background worker is busy.
+                if (!indexing.complete) return@collect
+                indexFailureDetails = indexing.failures.map { (id, error) ->
+                    indexFailureLine(loaded.firstOrNull { it.id == id }, id, error)
+                }
+                println("SMART: progressive local index complete (${engine.state.value})")
+
+                smartQualityDiagnosticSeeds().forEach { query ->
+                    val seed = loaded.firstOrNull { track ->
+                        track.title.orEmpty().contains(query, ignoreCase = true) ||
+                            "${track.artist.orEmpty()} - ${track.title.orEmpty()}"
+                                .contains(query, ignoreCase = true)
                     }
-                    println(
-                        "[SMART_QUALITY] seed=${seed.artist.orEmpty()} — ${seed.title.orEmpty()} " +
-                            "queue=$recommendations",
-                    )
+                    if (seed == null) {
+                        println("[SMART_QUALITY] missing seed=$query")
+                    } else {
+                        val queue = engine.smartQueue(
+                            seed,
+                            loaded,
+                            SMART_HERO_LENGTH,
+                            smartHistoryFor(AppGraph.history, seed),
+                        )
+                        val byId = loaded.associateBy { it.id }
+                        val recommendations = queue.mapNotNull(byId::get)
+                            .joinToString(" | ") { track ->
+                                "${track.artist.orEmpty()} — ${track.title.orEmpty()}"
+                            }
+                        println(
+                            "[SMART_QUALITY] seed=${seed.artist.orEmpty()} — " +
+                                "${seed.title.orEmpty()} queue=$recommendations",
+                        )
+                    }
                 }
             }
         }
@@ -429,7 +449,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 }
             }
         }
-        val catalog = remember(tracks) { tracks?.let { LibraryCatalog.build(it) } }
+        var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
+        LaunchedEffect(tracks) {
+            val loaded = tracks
+            // Do not leave a deleted/rescanned library interactive while its replacement is being
+            // built. A tap on a stale row could otherwise address a track that no longer exists.
+            catalog = null
+            if (loaded != null) {
+                catalog = withContext(Dispatchers.Default) { LibraryCatalog.build(loaded) }
+            }
+        }
         val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
 
         suspend fun refreshPlaylists() {
@@ -444,8 +473,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // the user comes back to the tab rather than only at startup.
         LaunchedEffect(selectedTab) { if (selectedTab == PLAYLISTS_TAB) refreshPlaylists() }
 
-        val autoPlaylists = remember(catalog, playCounts, lastPlayedAt) {
-            catalog?.let { AutoPlaylists.build(it.songs, playCounts, lastPlayedAt) }.orEmpty()
+        var autoPlaylists by remember { mutableStateOf<List<AutoPlaylist>>(emptyList()) }
+        LaunchedEffect(catalog, playCounts, lastPlayedAt) {
+            val songs = catalog?.songs
+            autoPlaylists = if (songs == null) {
+                emptyList()
+            } else {
+                withContext(Dispatchers.Default) {
+                    AutoPlaylists.build(songs, playCounts, lastPlayedAt)
+                }
+            }
         }
 
         fun tracksOf(playlist: Playlist): List<TrackDescriptor> =
@@ -708,26 +745,39 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 }
                             }
                         },
-                        containerColor = MaterialTheme.colorScheme.surface,
+                        // The root floor already paints the window. Leaving Scaffold transparent
+                        // avoids a second full-screen fill underneath every page.
+                        containerColor = Color.Transparent,
+                        // A transparent container has no inferable Material content colour.
+                        contentColor = MaterialTheme.colorScheme.onSurface,
                     ) { padding ->
+                        // Snapshot the asynchronously-built catalog once for this
+                        // composition. Delegated state cannot be smart-cast after a
+                        // null check because it may change between reads.
+                        val visibleCatalog = catalog
                         // One full-bleed surface: it runs to the bottom edge so the
                         // mini-player floats ON the content rather than sitting on a
                         // separate band of background.
-                        Surface(
+                        // A background shape is enough here. Material Surface also clips every
+                        // descendant to this screen-sized rounded path, which is expensive on
+                        // high-resolution devices while a list is moving.
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(top = padding.calculateTopPadding()),
-                            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainer,
+                                .padding(top = padding.calculateTopPadding())
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceContainer,
+                                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                                ),
                         ) {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 when {
-                                    catalog == null -> Box(
+                                    visibleCatalog == null -> Box(
                                         modifier = Modifier.fillMaxSize(),
                                         contentAlignment = Alignment.Center,
                                     ) { CircularProgressIndicator() }
 
-                                    catalog.songs.isEmpty() -> Column(
+                                    visibleCatalog.songs.isEmpty() -> Column(
                                         modifier = Modifier.fillMaxSize(),
                                         verticalArrangement = Arrangement.Center,
                                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -758,9 +808,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     else -> HorizontalPager(
                                         state = pagerState,
                                         modifier = Modifier.fillMaxSize(),
-                                        // Neighbours stay composed, so a swipe reveals a built list
-                                        // instead of an empty page filling in mid-gesture.
-                                        beyondViewportPageCount = 1,
+                                        // Compose the destination as the gesture reaches it. Keeping
+                                        // both neighbours alive eagerly built album grids and loaded
+                                        // their covers while the user was merely scrolling Tracks.
+                                        beyondViewportPageCount = 0,
                                         key = { page -> page },
                                     ) { tab ->
                                         when (tab) {
@@ -776,11 +827,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     // what follows it.
                                                     val queue = engine.smartQueue(
                                                         hero.track,
-                                                        catalog.songs,
+                                                        visibleCatalog.songs,
                                                         SMART_HERO_LENGTH,
                                                         smartHistoryFor(AppGraph.history, hero.track),
                                                     )
-                                                    val byId = catalog.songs.associateBy { it.id }
+                                                    val byId = visibleCatalog.songs.associateBy { it.id }
                                                     val tail = queue.mapNotNull(byId::get)
                                                     playback.play(listOf(hero.track) + tail, 0)
                                                     hero.resumeAtMs?.let { playback.seekTo(it) }
@@ -843,22 +894,22 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 onSortChange = { songSort = it },
                                                 onShuffleAll = {
                                                     scope.launch {
-                                                        playback.play(catalog.songs.shuffled(), 0)
+                                                        playback.play(visibleCatalog.songs.shuffled(), 0)
                                                     }
                                                 },
                                                 onPlayAll = {
                                                     scope.launch {
                                                         playback.play(
-                                                            SongSorting.sort(catalog.songs, songSort),
+                                                            SongSorting.sort(visibleCatalog.songs, songSort),
                                                             0,
                                                         )
                                                     }
                                                 },
                                             )
                                             SectionedSongsList(
-                                                songs = catalog.songs,
+                                                songs = visibleCatalog.songs,
                                                 sort = songSort,
-                                                currentTrackId = now.track?.id,
+                                                currentTrackId = currentTrack?.id,
                                                 contentPadding = listPadding,
                                                 onPlay = { queue, index ->
                                                     scope.launch { playback.play(queue, index) }
@@ -877,7 +928,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 bottom = listPadding.calculateBottomPadding(),
                                             ),
                                         ) {
-                                            items(catalog.albums, key = { it.key }) { album ->
+                                            items(visibleCatalog.albums, key = { it.key }) { album ->
                                                 AlbumCard(album) {
                                                     scope.launch {
                                                         selectedCollection = album.toSelection()
@@ -890,7 +941,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = listPadding,
                                         ) {
-                                            items(catalog.artists, key = { it.name ?: "?" }) { artist ->
+                                            items(visibleCatalog.artists, key = { it.name ?: "?" }) { artist ->
                                                 GroupRow(
                                                     title = artist.name
                                                         ?: stringResource(Res.string.track_unknown_artist),
@@ -912,7 +963,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = listPadding,
                                         ) {
-                                            items(catalog.genres, key = { it.name ?: "?" }) { genre ->
+                                            items(visibleCatalog.genres, key = { it.name ?: "?" }) { genre ->
                                                 GroupRow(
                                                     title = genre.name
                                                         ?: stringResource(Res.string.track_unknown_genre),
@@ -935,7 +986,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = listPadding,
                                         ) {
-                                            items(catalog.folders, key = { it.path }) { folder ->
+                                            items(visibleCatalog.folders, key = { it.path }) { folder ->
                                                 FolderRow(
                                                     folder = folder,
                                                     subtitle = pluralStringResource(
@@ -960,7 +1011,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     selectedCollection?.let { selection ->
                         CollectionDetailScreen(
                             selection = selection,
-                            currentTrackId = now.track?.id,
+                            currentTrackId = currentTrack?.id,
                             onPlayTrack = { index ->
                                 scope.launch { playback.play(selection.tracks, index) }
                             },
@@ -976,7 +1027,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     if (showSearch) {
                         SearchScreen(
                             songs = catalog?.songs.orEmpty(),
-                            currentTrackId = now.track?.id,
+                            currentTrackId = currentTrack?.id,
                             onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
                             onTrackMenu = { trackMenuTarget = it },
                             onClose = { showSearch = false },
@@ -984,16 +1035,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         )
                     }
 
-                    now.track?.let { current ->
+                    currentTrack?.let { current ->
                         MiniPlayerPill(
                             track = current,
                             accent = accent,
-                            isPlaying = now.isPlaying,
-                            progress = if (now.durationMs > 0) {
-                                (now.positionMs.toFloat() / now.durationMs).coerceIn(0f, 1f)
-                            } else {
-                                0f
-                            },
+                            playback = playback,
                             sharedScope = sharedScope,
                             animatedScope = animatedScope,
                             onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
@@ -1016,7 +1062,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(
-                        bottom = if (!showNowPlaying && now.track != null) {
+                        bottom = if (!showNowPlaying && currentTrack != null) {
                             MINI_PLAYER_HEIGHT + navBottom
                         } else {
                             navBottom
@@ -1257,6 +1303,10 @@ private const val DIAGNOSTICS_FAILURE_LIMIT = 5
 /** Duration of the mini-player ↔ now-playing morph. */
 private const val MORPH_MILLIS = 340
 
+// The full player owns the precise seek bar. The browse pill is only a glanceable hint; redrawing
+// a 1440p Compose window twice per second for a two-pixel line made active scrolling visibly hitch.
+private const val MINI_PLAYER_PROGRESS_STEP_MS = 5_000L
+
 /** Stable saveable-state bucket for the browse stack while the full player owns the screen. */
 private const val BROWSE_SHELL_STATE_KEY = "browse-shell"
 
@@ -1400,8 +1450,6 @@ private fun BrowseCarousel(pagerState: PagerState, onSelect: (Int) -> Unit) {
             modifier = Modifier.fillMaxWidth().height(52.dp),
         ) {
             itemsIndexed(BROWSE_TABS) { index, title ->
-                val distance = (offsetFromCentre(index)?.let { abs(it) / falloffPx } ?: 1f)
-                    .coerceIn(0f, 1f)
                 Text(
                     text = stringResource(title),
                     style = MaterialTheme.typography.titleLarge,
@@ -1423,6 +1471,12 @@ private fun BrowseCarousel(pagerState: PagerState, onSelect: (Int) -> Unit) {
                         )
                         .padding(horizontal = 14.dp)
                         .graphicsLayer {
+                            // layoutInfo changes every time the driven strip moves. Reading it in
+                            // this layer block invalidates only the layer; the old composition-time
+                            // read rebuilt every visible Text on every pager frame.
+                            val distance = (
+                                offsetFromCentre(index)?.let { abs(it) / falloffPx } ?: 1f
+                                ).coerceIn(0f, 1f)
                             val scale = 1f - 0.26f * distance
                             scaleX = scale
                             scaleY = scale
@@ -1673,8 +1727,7 @@ private fun FolderRow(folder: FolderGroup, subtitle: String, onClick: () -> Unit
 private fun MiniPlayerPill(
     track: TrackDescriptor,
     accent: TrackAccent,
-    isPlaying: Boolean,
-    progress: Float,
+    playback: PlaybackController,
     sharedScope: SharedTransitionScope,
     animatedScope: AnimatedVisibilityScope,
     onTogglePlayPause: () -> Unit,
@@ -1683,6 +1736,9 @@ private fun MiniPlayerPill(
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isPlaying by remember(playback) {
+        playback.state.map { it.isPlaying }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.isPlaying)
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -1698,7 +1754,9 @@ private fun MiniPlayerPill(
         shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
         color = accent.container,
         contentColor = accent.onContainer,
-        shadowElevation = 8.dp,
+        // A full-width blurred shadow is redrawn while the list moves underneath it. The strong
+        // accent fill already separates the transport from the content without that GPU cost.
+        shadowElevation = 0.dp,
     ) {
         Box(modifier = Modifier.navigationBarsPadding()) {
             Row(
@@ -1724,7 +1782,7 @@ private fun MiniPlayerPill(
                         text = track.title ?: stringResource(Res.string.track_untitled),
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
-                        modifier = Modifier.basicMarquee(),
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = track.artist ?: stringResource(Res.string.track_unknown_artist),
@@ -1759,20 +1817,55 @@ private fun MiniPlayerPill(
             }
             // Hairline progress along the pill's inner edge — status without
             // giving the bar a band of its own.
-            LinearProgressIndicator(
-                progress = { progress },
+            MiniPlayerProgress(
+                playback = playback,
+                accent = accent,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = 20.dp, vertical = 4.dp)
                     .fillMaxWidth()
                     .height(2.dp)
                     .clip(CircleShape),
-                color = accent.onContainer.copy(alpha = 0.9f),
-                trackColor = accent.onContainer.copy(alpha = 0.2f),
-                drawStopIndicator = {},
             )
         }
     }
+}
+
+/** The only browse-tree composable that observes the 500 ms playhead ticker. */
+@Composable
+private fun MiniPlayerProgress(
+    playback: PlaybackController,
+    accent: TrackAccent,
+    modifier: Modifier = Modifier,
+) {
+    val progress by remember(playback) {
+        playback.state.map { now ->
+            if (now.durationMs > 0) {
+                val coarsePosition =
+                    now.positionMs / MINI_PLAYER_PROGRESS_STEP_MS * MINI_PLAYER_PROGRESS_STEP_MS
+                (coarsePosition.toFloat() / now.durationMs).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+        }.distinctUntilChanged()
+    }.collectAsState(
+        playback.state.value.let { now ->
+            if (now.durationMs > 0) {
+                val coarsePosition =
+                    now.positionMs / MINI_PLAYER_PROGRESS_STEP_MS * MINI_PLAYER_PROGRESS_STEP_MS
+                (coarsePosition.toFloat() / now.durationMs).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+        },
+    )
+    LinearProgressIndicator(
+        progress = { progress },
+        modifier = modifier,
+        color = accent.onContainer.copy(alpha = 0.9f),
+        trackColor = accent.onContainer.copy(alpha = 0.2f),
+        drawStopIndicator = {},
+    )
 }
 
 @Composable

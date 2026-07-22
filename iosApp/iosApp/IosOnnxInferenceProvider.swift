@@ -369,7 +369,10 @@ private final class OrtRuntime {
         var options: OpaquePointer?
         try Self.check(api, api.pointee.CreateSessionOptions(&options))
         defer { api.pointee.ReleaseSessionOptions(options) }
-        try Self.check(api, api.pointee.SetIntraOpNumThreads(options, 2))
+        // Indexing is intentionally background work. One sequential worker keeps ONNX from
+        // occupying the cores Core Animation needs while the listener browses the library.
+        try Self.check(api, api.pointee.SetIntraOpNumThreads(options, 1))
+        try Self.check(api, api.pointee.SetInterOpNumThreads(options, 1))
         var session: OpaquePointer?
         try path.withCString {
             try Self.check(api, api.pointee.CreateSession(environment, $0, options, &session))

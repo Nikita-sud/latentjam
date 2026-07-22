@@ -26,6 +26,7 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -59,8 +60,9 @@ import kotlin.coroutines.resumeWithException
  * somewhere to go, there is a readable queue rather than a single next-track
  * hint, and the played queue doubles as listening history.
  *
- * All MediaController access is confined to the main thread, per Media3's
- * threading contract — every port method hops there via [Dispatchers.Main].
+ * All MediaController access is confined to the main thread, per Media3's threading contract.
+ * Immutable queue metadata and MediaItems are prepared on a worker first, so tapping a track in a
+ * large library does not make the UI thread construct hundreds of objects before playback starts.
  */
 internal class AndroidPlaybackController(
     private val context: Context,
@@ -74,6 +76,12 @@ internal class AndroidPlaybackController(
 
     private val controllerMutex = Mutex()
     private var controller: MediaController? = null
+
+    /** The newest tap wins even when an older, larger queue takes longer to prepare. */
+    private val playRequestGeneration = AtomicLong()
+
+    /** Main-thread-owned identity of the queue used to reject stale SMART inference results. */
+    private var queueGeneration = 0L
 
     /**
      * Serialises SMART appends.
@@ -90,7 +98,8 @@ internal class AndroidPlaybackController(
     /** The source list for OFF/ON and the complete library for SMART are intentionally separate. */
     private var pool: List<TrackDescriptor> = emptyList()
     private var smartLibrary: List<TrackDescriptor> = emptyList()
-    private val poolById = mutableMapOf<String, TrackDescriptor>()
+    private var poolById: Map<String, TrackDescriptor> = emptyMap()
+    private var smartById: Map<String, TrackDescriptor> = emptyMap()
     private var mode: ShuffleMode = ShuffleMode.OFF
 
     /** Rebuilt only when the queue actually changes; shared by ticker emissions. */
@@ -153,36 +162,87 @@ internal class AndroidPlaybackController(
         }
     }
 
-    override suspend fun setSmartLibrary(tracks: List<TrackDescriptor>): Unit =
-        withContext(Dispatchers.Main) {
-            smartLibrary = tracks.distinctBy { it.id }
-            tracks.forEach { poolById[it.id.value] = it }
-        }
-
-    override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int): Unit =
-        withContext(Dispatchers.Main) {
-            if (tracks.isEmpty()) return@withContext
-            pool = tracks
-            poolById.clear()
-            smartLibrary.forEach { poolById[it.id.value] = it }
-            tracks.forEach { poolById[it.id.value] = it }
-
-            val player = controller()
-            if (mode == ShuffleMode.SMART) {
-                // SMART owns its queue: start from the tapped track alone and
-                // let the chooser build the path forward.
-                player.setMediaItems(listOf(tracks[startIndex].toMediaItem()))
-            } else {
-                player.setMediaItems(tracks.map { it.toMediaItem() }, startIndex, 0L)
-                player.shuffleModeEnabled = mode == ShuffleMode.ON
+    override suspend fun setSmartLibrary(tracks: List<TrackDescriptor>) {
+        val prepared = withContext(Dispatchers.Default) {
+            tracks.distinctBy { it.id }.let { distinct ->
+                distinct to distinct.associateBy { it.id.value }
             }
-            player.prepare()
-            player.play()
-            rebuildQueueSnapshot()
-            pushState()
-            decorateCoverlessTrack(player.currentMediaItem)
-            appendSmartNextIfNeeded()
         }
+        withContext(Dispatchers.Main.immediate) {
+            smartLibrary = prepared.first
+            smartById = prepared.second
+            queueGeneration++
+        }
+    }
+
+    override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int) {
+        if (tracks.isEmpty()) return
+        val requestGeneration = playRequestGeneration.incrementAndGet()
+        val modeAtRequest = withContext(Dispatchers.Main.immediate) { mode }
+        var prepared = withContext(Dispatchers.Default) {
+            preparePlayback(
+                tracks = tracks,
+                startIndex = startIndex,
+                includeFullQueue = modeAtRequest != ShuffleMode.SMART,
+            )
+        }
+
+        while (playRequestGeneration.get() == requestGeneration) {
+            var needsFullQueue = false
+            val committed = withContext(Dispatchers.Main.immediate) {
+                if (playRequestGeneration.get() != requestGeneration) return@withContext false
+                val player = controller()
+                // Building the controller can suspend. A newer tap may have arrived meanwhile.
+                if (playRequestGeneration.get() != requestGeneration) return@withContext false
+
+                val currentMode = mode
+                val fullQueue = prepared.fullQueue
+                if (currentMode != ShuffleMode.SMART && fullQueue == null) {
+                    // Shuffle mode changed while the selected SMART item was being prepared. Finish
+                    // constructing the natural queue on the worker, then revalidate once more.
+                    needsFullQueue = true
+                    return@withContext false
+                }
+
+                pool = prepared.tracks
+                poolById = prepared.byId
+                queueGeneration++
+                val committedQueueGeneration = queueGeneration
+
+                if (currentMode == ShuffleMode.SMART) {
+                    // SMART owns its queue: start from the tapped track alone and let the chooser
+                    // build the path forward. Do not construct hundreds of unused MediaItems.
+                    player.setMediaItems(listOf(prepared.selectedItem))
+                } else {
+                    player.setMediaItems(fullQueue!!, prepared.startIndex, 0L)
+                    player.shuffleModeEnabled = currentMode == ShuffleMode.ON
+                }
+                player.prepare()
+                player.play()
+                rebuildQueueSnapshot()
+                pushState()
+
+                // Artwork and SMART lookahead may suspend behind I/O/inference. Playback is already
+                // running, so keep them out of this method's critical path and reject their work if
+                // another request replaces the queue first.
+                val currentItem = player.currentMediaItem
+                mainScope.launch {
+                    decorateCoverlessTrack(currentItem)
+                    if (
+                        playRequestGeneration.get() == requestGeneration &&
+                        queueGeneration == committedQueueGeneration
+                    ) {
+                        appendSmartNextIfNeeded()
+                    }
+                }
+                true
+            }
+            if (committed || !needsFullQueue) return
+            prepared = withContext(Dispatchers.Default) {
+                prepared.copy(fullQueue = prepared.tracks.map { it.toMediaItem() })
+            }
+        }
+    }
 
     override suspend fun togglePlayPause(): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
@@ -192,9 +252,16 @@ internal class AndroidPlaybackController(
 
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
-        appendSmartNextIfNeeded()
-        player.seekToNextMediaItem()
-        pushState()
+        if (player.hasNextMediaItem()) {
+            player.seekToNextMediaItem()
+            pushState()
+            // Prediction must not delay a skip when a playable item is already queued.
+            mainScope.launch { appendSmartNextIfNeeded() }
+        } else {
+            appendSmartNextIfNeeded()
+            if (player.hasNextMediaItem()) player.seekToNextMediaItem()
+            pushState()
+        }
     }
 
     override suspend fun previous(): Unit = withContext(Dispatchers.Main) {
@@ -234,7 +301,8 @@ internal class AndroidPlaybackController(
 
     override suspend fun playNext(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
-        poolById[track.id.value] = track
+        queueGeneration++
+        poolById = poolById + (track.id.value to track)
         val insertAt = (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
         player.addMediaItem(insertAt, track.toMediaItem())
         rebuildQueueSnapshot()
@@ -243,7 +311,8 @@ internal class AndroidPlaybackController(
 
     override suspend fun addToQueue(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
-        poolById[track.id.value] = track
+        queueGeneration++
+        poolById = poolById + (track.id.value to track)
         player.addMediaItem(track.toMediaItem())
         rebuildQueueSnapshot()
         pushState()
@@ -269,6 +338,7 @@ internal class AndroidPlaybackController(
             pushState()
             return
         }
+        queueGeneration++
         mode = nextMode
         controller?.let { player ->
             when (mode) {
@@ -318,7 +388,10 @@ internal class AndroidPlaybackController(
             // on each pass — the walk's spacing and drift rules reset every hop, and the engine
             // would be asked to plan N chains to fill N slots.
             val tailIndex = player.mediaItemCount - 1
-            val seed = poolById[player.getMediaItemAt(tailIndex).mediaId] ?: break
+            val tailId = player.getMediaItemAt(tailIndex).mediaId
+            val seed = trackById(tailId) ?: break
+            val expectedGeneration = queueGeneration
+            val expectedItemCount = player.mediaItemCount
             val recentIds = (maxOf(0, tailIndex - RECENT_WINDOW) until tailIndex)
                 .map { index -> TrackId(player.getMediaItemAt(index).mediaId) }
             // Everything ALREADY in the queue is off the table, not just the recent window: a track
@@ -335,7 +408,24 @@ internal class AndroidPlaybackController(
                 // acoustic nor metadata path can answer yet, keep the honest short queue and let
                 // the next index update / transition retry.
                 ?: break
+
+            // The chooser suspends for local inference. A new play request, mode change, manual
+            // queue edit, or library replacement may have happened while it was working. Never add
+            // a recommendation planned for that obsolete queue to the one now on screen.
+            if (
+                controller !== player ||
+                mode != ShuffleMode.SMART ||
+                queueGeneration != expectedGeneration ||
+                player.mediaItemCount != expectedItemCount ||
+                player.getMediaItemAt(player.mediaItemCount - 1).mediaId != tailId
+            ) {
+                break
+            }
+            if ((0 until player.mediaItemCount).any { player.getMediaItemAt(it).mediaId == chosen.id.value }) {
+                break
+            }
             player.addMediaItem(chosen.toMediaItem())
+            queueGeneration++
             appended = true
         }
         if (appended) {
@@ -348,9 +438,11 @@ internal class AndroidPlaybackController(
     private fun rebuildQueueSnapshot() {
         val player = controller ?: return
         cachedQueue = (0 until player.mediaItemCount).mapNotNull { itemIndex ->
-            poolById[player.getMediaItemAt(itemIndex).mediaId]
+            trackById(player.getMediaItemAt(itemIndex).mediaId)
         }
     }
+
+    private fun trackById(id: String): TrackDescriptor? = poolById[id] ?: smartById[id]
 
     /** Coarse position refresh while playing; idle otherwise. */
     private fun updateTicker(isPlaying: Boolean) {
@@ -372,7 +464,7 @@ internal class AndroidPlaybackController(
     private fun pushState() {
         val player = controller
         val duration = player?.duration?.takeIf { it != C.TIME_UNSET && it > 0 }
-        val track = player?.currentMediaItem?.mediaId?.let(poolById::get)
+        val track = player?.currentMediaItem?.mediaId?.let(::trackById)
         mutableState.value = NowPlaying(
             track = track,
             isPlaying = player?.isPlaying == true,
@@ -395,7 +487,7 @@ internal class AndroidPlaybackController(
     private suspend fun decorateCoverlessTrack(candidate: MediaItem?) {
         val mediaItem = candidate ?: return
         val id = mediaItem.mediaId
-        val track = poolById[id] ?: return
+        val track = trackById(id) ?: return
         if (
             mediaItem.mediaMetadata.artworkData != null ||
             !fallbackArtworkInFlight.add(id)
@@ -502,6 +594,31 @@ internal class AndroidPlaybackController(
                 .build(),
         )
         .build()
+
+    private fun preparePlayback(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        includeFullQueue: Boolean,
+    ): PreparedPlayback {
+        val stableTracks = tracks.toList()
+        val safeStartIndex = startIndex.coerceIn(stableTracks.indices)
+        val fullQueue = if (includeFullQueue) stableTracks.map { it.toMediaItem() } else null
+        return PreparedPlayback(
+            tracks = stableTracks,
+            byId = stableTracks.associateBy { it.id.value },
+            startIndex = safeStartIndex,
+            selectedItem = fullQueue?.get(safeStartIndex) ?: stableTracks[safeStartIndex].toMediaItem(),
+            fullQueue = fullQueue,
+        )
+    }
+
+    private data class PreparedPlayback(
+        val tracks: List<TrackDescriptor>,
+        val byId: Map<String, TrackDescriptor>,
+        val startIndex: Int,
+        val selectedItem: MediaItem,
+        val fullQueue: List<MediaItem>?,
+    )
 
     private fun Int.toLatentJamRepeatMode(): RepeatMode = when (this) {
         Player.REPEAT_MODE_ALL -> RepeatMode.ALL

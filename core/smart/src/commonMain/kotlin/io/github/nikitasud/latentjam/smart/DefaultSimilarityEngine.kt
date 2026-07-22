@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 
 /**
  * The one production [SimilarityEngine]: orchestrates a platform
@@ -121,6 +122,9 @@ internal class DefaultSimilarityEngine(
                     },
                     onFailure = { throwable -> errors[track.id] = throwable.toEngineError() },
                 )
+                // Let foreground dispatchers run between independent tracks. Native inference is
+                // still serialized, but indexing no longer behaves like one unbroken CPU task.
+                yield()
             }
             // Text is encoded here rather than at query time: MiniLM costs milliseconds per track,
             // but a whole library of it would stall the first SMART press for seconds.
@@ -130,6 +134,7 @@ internal class DefaultSimilarityEngine(
             var textIndexed = 0
             for (track in tracks) {
                 if (indexTextVector(track)) textIndexed++
+                yield()
             }
             if (indexed > 0) {
                 runCatching { store.save(config.modelVersion, index.entries()) }
@@ -220,7 +225,10 @@ internal class DefaultSimilarityEngine(
                 if (mutableState.value !is EngineState.Ready) return@withLock 0
                 rememberTracks(library)
                 var added = 0
-                for (track in library) if (indexTextVector(track)) added++
+                for (track in library) {
+                    if (indexTextVector(track)) added++
+                    yield()
+                }
                 if (added > 0 && textIndex != null) {
                     runCatching { textStore?.save(TEXT_INDEX_VERSION, textIndex.entries()) }
                 }

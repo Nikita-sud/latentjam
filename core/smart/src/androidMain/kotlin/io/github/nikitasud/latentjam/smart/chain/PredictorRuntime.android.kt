@@ -39,15 +39,23 @@ internal class OnnxPredictorRuntime(
         }
         return try {
             val environment = OrtEnvironment.getEnvironment()
-            stateSession = environment.createSession(
-                context.assets.open(stateAsset).use { it.readBytes() },
-            )
-            scorerSession = environment.createSession(
-                context.assets.open(scorerAsset).use { it.readBytes() },
-            )
-            residualSession = environment.createSession(
-                context.assets.open(residualAsset).use { it.readBytes() },
-            )
+            OrtSession.SessionOptions().use { options ->
+                options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
+                options.setIntraOpNumThreads(1)
+                options.setInterOpNumThreads(1)
+                stateSession = environment.createSession(
+                    context.assets.open(stateAsset).use { it.readBytes() },
+                    options,
+                )
+                scorerSession = environment.createSession(
+                    context.assets.open(scorerAsset).use { it.readBytes() },
+                    options,
+                )
+                residualSession = environment.createSession(
+                    context.assets.open(residualAsset).use { it.readBytes() },
+                    options,
+                )
+            }
             Result.success(Unit)
         } catch (t: Throwable) {
             close()

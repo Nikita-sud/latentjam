@@ -32,6 +32,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -117,7 +118,6 @@ object AppGraph {
             }
             // History observes playback for the app's whole lifetime.
             appScope.launchPlaybackHistoryRecorder(playback, history)
-            appScope.launch { musicEntities.preload() }
         }
     }
 
@@ -212,7 +212,8 @@ object AppGraph {
                 engine.initialize()
                 engine.synchronizeLibrary(tracks)
                 tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
-                    engine.ensureMetadataVectors(chunk)
+                    val added = engine.ensureMetadataVectors(chunk)
+                    if (added > 0) delay(AUTOMATIC_INDEX_YIELD_MS)
                 }
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                     metadataReady = true,
@@ -220,7 +221,8 @@ object AppGraph {
 
                 var done = 0
                 tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
-                    failures.putAll(engine.indexLibrary(chunk).errors)
+                    val report = engine.indexLibrary(chunk)
+                    failures.putAll(report.errors)
                     done += chunk.size
                     val remaining = eta.remainingMs(done, total, nowMillis())
                     notifier.show(
@@ -237,6 +239,12 @@ object AppGraph {
                         done = done,
                         failures = failures.toMap(),
                     )
+                    // A short scheduling gap also gives thermal management a chance to settle;
+                    // 75 ms per checkpoint is invisible beside audio inference but materially
+                    // improves gesture latency on mid-range phones.
+                    if (report.indexed > 0 || report.failed > 0) {
+                        delay(AUTOMATIC_INDEX_YIELD_MS)
+                    }
                 }
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                     running = false,
@@ -273,4 +281,7 @@ data class AutomaticIndexingState(
     val failures: Map<TrackId, EngineError> = emptyMap(),
 )
 
+// The engine serialises a batch under its model/index lock. Eight bounds how long an interactive
+// SMART/search request can wait behind first-run indexing while retaining frequent checkpoints.
 private const val AUTOMATIC_INDEX_CHUNK_SIZE = 8
+private const val AUTOMATIC_INDEX_YIELD_MS = 75L

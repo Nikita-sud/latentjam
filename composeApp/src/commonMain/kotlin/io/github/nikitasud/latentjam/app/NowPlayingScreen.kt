@@ -76,6 +76,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -104,6 +106,8 @@ import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -130,11 +134,13 @@ fun NowPlayingScreen(
     onTrackMenu: (TrackDescriptor) -> Unit,
     onClose: () -> Unit,
 ) {
-    val now by playback.state.collectAsState()
+    // Position is intentionally projected out. It changes twice per second, while artwork, queue,
+    // sheet and transport controls normally do not; rebuilding this whole screen for each tick was
+    // the largest steady-state source of Compose work during playback.
+    val now by remember(playback) {
+        playback.state.map { it.copy(positionMs = 0L) }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.copy(positionMs = 0L))
     val scope = rememberCoroutineScope()
-    // Local value while the thumb is being dragged, so the ticker doesn't
-    // fight the user's finger; committed to the player on release.
-    var dragPositionMs by remember { mutableStateOf<Long?>(null) }
     val sheetState = rememberBottomSheetScaffoldState()
     PlatformBackHandler(enabled = true, onBack = onClose)
 
@@ -280,37 +286,7 @@ fun NowPlayingScreen(
 
                         Spacer(modifier = Modifier.weight(1f))
 
-                        val duration = now.durationMs.coerceAtLeast(1)
-                        val sliderPosition = (dragPositionMs ?: now.positionMs).coerceIn(0, duration)
-                        Slider(
-                            value = sliderPosition.toFloat(),
-                            onValueChange = { dragPositionMs = it.toLong() },
-                            onValueChangeFinished = {
-                                dragPositionMs?.let { target ->
-                                    scope.launch { playback.seekTo(target) }
-                                }
-                                dragPositionMs = null
-                            },
-                            valueRange = 0f..duration.toFloat(),
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.onSurface,
-                                activeTrackColor = MaterialTheme.colorScheme.onSurface,
-                            ),
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(
-                                text = formatDuration(sliderPosition),
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                            Text(
-                                text = formatDuration(now.durationMs),
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        }
+                        PlaybackSeekBar(playback = playback, durationMs = now.durationMs)
 
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -370,6 +346,41 @@ fun NowPlayingScreen(
                 }
             }
         }
+    }
+}
+
+/** The only expanded-player subtree that observes the coarse position ticker. */
+@Composable
+private fun PlaybackSeekBar(playback: PlaybackController, durationMs: Long) {
+    val positionMs by remember(playback) {
+        playback.state.map { it.positionMs }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.positionMs)
+    val scope = rememberCoroutineScope()
+    // Local value while the thumb is being dragged, so the ticker does not fight the finger.
+    var dragPositionMs by remember { mutableStateOf<Long?>(null) }
+    val duration = durationMs.coerceAtLeast(1)
+    val sliderPosition = (dragPositionMs ?: positionMs).coerceIn(0, duration)
+
+    Slider(
+        value = sliderPosition.toFloat(),
+        onValueChange = { dragPositionMs = it.toLong() },
+        onValueChangeFinished = {
+            dragPositionMs?.let { target -> scope.launch { playback.seekTo(target) } }
+            dragPositionMs = null
+        },
+        valueRange = 0f..duration.toFloat(),
+        modifier = Modifier.fillMaxWidth(),
+        colors = SliderDefaults.colors(
+            thumbColor = MaterialTheme.colorScheme.onSurface,
+            activeTrackColor = MaterialTheme.colorScheme.onSurface,
+        ),
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(text = formatDuration(sliderPosition), style = MaterialTheme.typography.labelSmall)
+        Text(text = formatDuration(durationMs), style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -544,31 +555,49 @@ private fun QueueRow(
  */
 @Composable
 private fun PlayingBars(isPlaying: Boolean, tint: Color) {
-    val transition = rememberInfiniteTransition(label = "playing-bars")
     Row(
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.Bottom,
         modifier = Modifier.height(18.dp),
     ) {
-        // Staggered periods, so the bars never move as one block.
-        listOf(620, 430, 780).forEachIndexed { index, period ->
-            val fraction by transition.animateFloat(
-                initialValue = 0.35f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(period, easing = FastOutSlowInEasing),
-                    repeatMode = AnimationRepeatMode.Reverse,
-                    initialStartOffset = StartOffset(index * 130),
-                ),
-                label = "bar$index",
-            )
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .fillMaxHeight(if (isPlaying) fraction else 0.45f)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(tint),
-            )
+        if (!isPlaying) {
+            repeat(3) {
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .fillMaxHeight(0.45f)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(tint),
+                )
+            }
+        } else {
+            val transition = rememberInfiniteTransition(label = "playing-bars")
+            // Staggered periods, so the bars never move as one block. The animated value is read
+            // by the graphics layer rather than composition/layout, reducing this to a cheap draw
+            // update instead of three remeasurements per frame.
+            listOf(620, 430, 780).forEachIndexed { index, period ->
+                val fraction by transition.animateFloat(
+                    initialValue = 0.35f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(period, easing = FastOutSlowInEasing),
+                        repeatMode = AnimationRepeatMode.Reverse,
+                        initialStartOffset = StartOffset(index * 130),
+                    ),
+                    label = "bar$index",
+                )
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .fillMaxHeight()
+                        .graphicsLayer {
+                            transformOrigin = TransformOrigin(0.5f, 1f)
+                            scaleY = fraction
+                        }
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(tint),
+                )
+            }
         }
     }
 }
