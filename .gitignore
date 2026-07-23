@@ -10,3 +10,10 @@ xcuserdata/
 third_party/
 tools/research/output/
 iosApp/Pods/
+
+# Python
+__pycache__/
+*.pyc
+
+# Research outputs (regenerable)
+tools/research/results/
