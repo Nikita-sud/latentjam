@@ -32,6 +32,11 @@
     <string name="action_create">Crear</string>
     <string name="action_play_all">Reproducir todo</string>
     <string name="action_shuffle_all">Reproducir todo al azar</string>
+    <string name="action_share">Compartir</string>
+    <string name="action_select_all">Seleccionar todo</string>
+    <string name="action_deselect_all">Anular selección</string>
+    <string name="selection_count">Seleccionadas: %1$d</string>
+    <string name="action_add">Añadir</string>
     <string name="cd_more_options">Más opciones</string>
     <string name="cd_search_library">Buscar en la biblioteca</string>
 
@@ -65,7 +70,7 @@
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">No se encontró música en este dispositivo.</string>
-    <string name="action_rescan_library">Volver a analizar la biblioteca</string>
+    <string name="action_rescan_library">Actualizar biblioteca</string>
     <string name="sort_recently_added">Añadidas recientemente</string>
     <string name="snack_track_deleted">Canción eliminada</string>
 
@@ -143,6 +148,7 @@
     <string name="action_go_to_artist">Ir al artista</string>
     <string name="action_information">Información</string>
     <string name="action_delete_from_device">Eliminar del dispositivo</string>
+    <string name="dialog_delete_tracks_message">Las pistas seleccionadas (%1$d) se eliminarán de este dispositivo. Esta acción no se puede deshacer.</string>
     <string name="dialog_delete_track_title">¿Eliminar esta canción?</string>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">«%1$s» se eliminará de este dispositivo. Esta acción no se puede deshacer.</string>
@@ -176,10 +182,9 @@
     <string name="settings_section_playback">Reproducción</string>
     <string name="settings_equalizer">Ecualizador</string>
     <string name="settings_equalizer_subtitle">Control de tono para la salida de audio de este dispositivo</string>
-    <string name="settings_intelligence">Inteligencia</string>
+    <string name="settings_intelligence">Motor SMART</string>
     <string name="settings_smart_engine">Motor SMART</string>
     <string name="settings_smart_engine_subtitle">Lo que el modelo del dispositivo sabe sobre tu biblioteca</string>
-    <string name="settings_section_about">Acerca de</string>
     <string name="settings_about_body">LatentJam — un reproductor de música local con un recomendador que funciona en el propio dispositivo. Nada de lo que escuchas sale de aquí.</string>
 
     <!-- ========================================================== equalizer -->
@@ -197,18 +202,6 @@
     <string name="intelligence_fingerprints">Huellas sonoras</string>
     <!-- %1$d tracks analysed out of %2$d in the library -->
     <string name="intelligence_indexed_of">%1$d de %2$d</string>
-    <string name="intelligence_fingerprint_note">Las canciones sin huella se pueden reproducir igualmente, pero SMART no las elegirá ni las usará para valorar qué encaja.</string>
-    <string name="intelligence_section_analysis">Análisis</string>
-    <string name="intelligence_analysis_note">Escuchar una canción por primera vez no la analiza. Las huellas se calculan por lotes y el trabajo se reanuda donde se quedó.</string>
-    <!-- %1$d is the batch size -->
-    <string name="intelligence_analyse_batch">Analizar %1$d</string>
-    <string name="intelligence_analyse_all">Analizarlo todo</string>
-    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
-    <string name="intelligence_analysed_batch_report">Analizadas: %1$d, omitidas: %2$d, fallidas: %3$d.</string>
-    <!-- %1$d analysed, %2$d failed -->
-    <string name="intelligence_analysed_all_report">Analizadas: %1$d, fallidas: %2$d.</string>
-    <string name="intelligence_section_privacy">Privacidad</string>
-    <string name="intelligence_privacy_body">Todos los modelos se ejecutan en este dispositivo. Tu biblioteca, tu historial de escucha y todo lo que se deriva de ellos se quedan aquí — no hay cuenta ni se sube nada.</string>
     <string name="engine_state_not_started">Sin iniciar</string>
     <string name="engine_state_starting">Iniciando…</string>
     <string name="engine_state_ready">Listo</string>
@@ -218,35 +211,192 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam necesita acceso a tu música para explorar la biblioteca.</string>
     <string name="permission_grant">Conceder acceso</string>
+    <string name="permission_audio_settings_rationale">El acceso a la música está bloqueado. Abre los ajustes del sistema y permite a LatentJam acceder a música y audio.</string>
+    <string name="permission_open_settings">Abrir ajustes</string>
+    <string name="permission_notifications_title">¿Mostrar el progreso del análisis?</string>
+    <string name="permission_notifications_rationale">SMART analiza tu biblioteca en este dispositivo. Permite las notificaciones para ver el progreso y volver a LatentJam mientras trabaja. El análisis continúa si eliges «Ahora no».</string>
+    <string name="permission_not_now">Ahora no</string>
+    <string name="permission_continue">Continuar</string>
 
-    <!-- ======================================================= diagnostics -->
-    <string name="diagnostics_title">Diagnóstico</string>
-    <string name="diagnostics_library">Biblioteca: %1$s</string>
-    <string name="diagnostics_index_batch">Indexar %1$d</string>
-    <string name="diagnostics_index_all">Indexar todo</string>
-    <string name="diagnostics_rescan">Volver a analizar</string>
-    <string name="diagnostics_indexing">Indexando… %1$d/%2$d (ok %3$d, omitidas %4$d, fallidas %5$d)</string>
-    <string name="diagnostics_indexed_report">Listo — %1$d indexadas, %2$d omitidas, %3$d fallidas.</string>
-    <string name="diagnostics_history_empty">Historial: aún no hay reproducciones.</string>
-    <plurals name="diagnostics_history_listens">
-        <item quantity="one">Historial: %1$d reproducción.</item>
-        <item quantity="other">Historial: %1$d reproducciones.</item>
-    </plurals>
-    <string name="diagnostics_history_top">Más escuchada: %1$s (%2$d×).</string>
-    <string name="diagnostics_engine">Motor de similitud</string>
-    <string name="diagnostics_engine_uninitialized">Aún no se ha inicializado.</string>
-    <plurals name="diagnostics_engine_ready">
-        <item quantity="one">Listo — %1$d canción indexada.</item>
-        <item quantity="other">Listo — %1$d canciones indexadas.</item>
-    </plurals>
-    <string name="diagnostics_engine_retry">Reintentar la inicialización</string>
-    <string name="diagnostics_engine_initialize">Inicializar el motor</string>
 
-    <string name="engine_error_model_unavailable">El modelo de similitud aún no está incluido — la reproducción aleatoria inteligente está desactivada en esta versión.</string>
+    <string name="engine_error_model_unavailable">SMART no pudo cargar los modelos incluidos. Reintenta la configuración; si continúa, reinstala la app o informa del problema.</string>
     <string name="engine_error_not_indexed">La biblioteca aún no está indexada.</string>
-    <string name="engine_error_backend">Fallo del motor: %1$s</string>
+    <string name="engine_error_audio_unavailable">No se pudo leer o decodificar esta pista. Comprueba que el archivo siga disponible y vuelve a intentarlo.</string>
+    <string name="engine_error_backend">SMART encontró un error interno. Reintenta la configuración; si continúa, informa del problema.</string>
 
     <string name="indexing_notification_title">Analizando tu música</string>
     <string name="indexing_notification_progress">%1$d de %2$d</string>
     <string name="indexing_notification_progress_eta">%1$d de %2$d · quedan unos %3$d min</string>
+    <!-- =================================================== expanded settings -->
+    <string name="settings_appearance">Apariencia</string>
+    <string name="settings_appearance_subtitle">Tema, colores del reproductor y página inicial</string>
+    <string name="settings_library">Biblioteca</string>
+    <string name="settings_library_subtitle">Actualiza, importa y gestiona canciones ocultas</string>
+    <string name="settings_playback">Reproducción</string>
+    <string name="settings_playback_subtitle">Ecualizador y controles de audio</string>
+    <string name="settings_privacy">Privacidad y datos</string>
+    <string name="settings_privacy_subtitle">Historial de escucha y búsquedas recientes</string>
+    <string name="settings_about">Acerca de LatentJam</string>
+    <string name="settings_about_subtitle">Licencia, código fuente y ayuda</string>
+    <string name="settings_section_library">Biblioteca</string>
+    <string name="settings_section_navigation">Navegación</string>
+    <string name="settings_section_privacy">Datos en el dispositivo</string>
+    <string name="settings_track_colors">Colores del reproductor</string>
+    <string name="settings_color_dynamic">Carátula</string>
+    <string name="settings_color_dynamic_body">Usa colores de la carátula y recurre a SMART si no están disponibles.</string>
+    <string name="settings_color_smart">SMART</string>
+    <string name="settings_color_smart_body">Usa colores derivados de la huella sonora de cada canción.</string>
+    <string name="settings_color_theme">Tema</string>
+    <string name="settings_color_theme_body">Usa el tema de la aplicación en vez de colores específicos para cada canción.</string>
+    <string name="settings_start_page">Página inicial</string>
+    <string name="settings_start_page_body">Se usará la próxima vez que abras LatentJam.</string>
+    <string name="settings_library_count">Canciones en la biblioteca</string>
+    <string name="settings_library_refresh">Actualizar biblioteca</string>
+    <string name="settings_library_refresh_body">Busca música nueva y elimina las entradas de archivos que ya no están disponibles.</string>
+    <string name="settings_library_import">Importar música</string>
+    <string name="settings_library_import_body">Elige archivos de audio para copiarlos en LatentJam.</string>
+    <string name="settings_library_restore">Restaurar canciones ocultas</string>
+    <string name="settings_library_restore_body">Devuelve a la biblioteca todas las canciones eliminadas de LatentJam. Los archivos del dispositivo no se modifican.</string>
+    <string name="settings_equalizer_unavailable">No disponible para esta salida de audio</string>
+    <string name="equalizer_unavailable_body">La salida de audio actual no ofrece a LatentJam acceso a un ecualizador. Prueba otra salida. La reproducción seguirá funcionando con normalidad.</string>
+    <string name="equalizer_bass_value">%1$d\u0025</string>
+    <string name="equalizer_preset_flat">Plano</string>
+    <string name="equalizer_preset_bass">Graves</string>
+    <string name="equalizer_preset_treble">Agudos</string>
+    <string name="equalizer_preset_vocal">Vocal</string>
+    <string name="equalizer_preset_electronic">Electrónica</string>
+    <string name="intelligence_syncing">Sincronizando la biblioteca…</string>
+    <string name="intelligence_analysis_progress">%1$d de %2$d canciones analizadas</string>
+    <string name="intelligence_analysis_failed">No se pudieron analizar: %1$d</string>
+    <string name="intelligence_failures_more">Y %1$d más</string>
+    <string name="intelligence_retry">Reintentar la configuración de SMART</string>
+    <string name="intelligence_section_recommendations">Recomendaciones</string>
+    <string name="intelligence_queue_length">Tamaño de la cola SMART</string>
+    <string name="intelligence_queue_length_body">Elige cuántas canciones añade SMART al crear una cola.</string>
+    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
+    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
+    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
+    <string name="foryou_mix_sound_effects">Sound effects</string>
+    <string name="foryou_mix_spoken_audio">Spoken audio</string>
+    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_how_it_works">SMART compara las huellas sonoras en este dispositivo y combina la similitud musical con tu historial de escucha. Funciona sin cuenta ni conexión a internet.</string>
+    <string name="privacy_local_body">Tu biblioteca, historial de escucha y datos de SMART permanecen en este dispositivo. LatentJam no usa cuentas ni envía estos datos a ningún servidor.</string>
+    <string name="privacy_save_history_body">Guarda las reproducciones y los saltos en este dispositivo para Para ti y las recomendaciones SMART.</string>
+    <string name="privacy_remember_searches_body">Guarda las búsquedas en este dispositivo para mostrarlas cuando el campo de búsqueda esté vacío.</string>
+    <string name="privacy_disable_history_body">Dejarás de guardar la actividad de escucha nueva. ¿Qué quieres hacer con el historial que ya está en este dispositivo?</string>
+    <string name="privacy_disable_searches_body">Dejarás de guardar búsquedas nuevas. ¿Qué quieres hacer con las búsquedas que ya están en este dispositivo?</string>
+    <string name="privacy_keep_existing">Conservar lo existente</string>
+    <string name="privacy_delete_existing">Eliminar lo existente</string>
+    <string name="privacy_setting_save_failed">No se pudo guardar este ajuste de privacidad. Inténtalo de nuevo.</string>
+    <string name="privacy_data_clear_failed">No se pudieron borrar estos datos del dispositivo. Inténtalo de nuevo.</string>
+    <string name="privacy_clear_history">Borrar historial de escucha</string>
+    <string name="privacy_clear_history_body">Elimina los datos de reproducción y omisiones usados para personalizar las recomendaciones.</string>
+    <string name="privacy_clear_history_confirm">¿Borrar todo el historial de escucha? Las recomendaciones volverán a aprender tus gustos.</string>
+    <string name="privacy_history_empty">No hay historial de escucha</string>
+    <plurals name="privacy_history_listens">
+        <item quantity="one">%1$d escucha</item>
+        <item quantity="other">%1$d escuchas</item>
+    </plurals>
+    <string name="privacy_recent_searches">Búsquedas recientes</string>
+    <string name="privacy_clear_searches">Borrar búsquedas recientes</string>
+    <string name="privacy_clear_searches_body">Elimina las consultas que aparecen cuando la búsqueda está vacía.</string>
+    <string name="privacy_clear_searches_confirm">¿Borrar todas las búsquedas recientes?</string>
+    <string name="settings_license">Licencia</string>
+    <string name="settings_license_body">LatentJam es software libre con licencia Apache 2.0.</string>
+    <string name="settings_open_source">Código fuente</string>
+    <string name="settings_open_source_body">Ver el proyecto en GitHub</string>
+    <string name="settings_report_issue">Informar de un problema</string>
+    <string name="settings_section_preferences">Preferencias</string>
+    <string name="settings_section_music">Música</string>
+    <string name="settings_section_data_support">Datos y ayuda</string>
+    <string name="privacy_listening_history">Historial de escucha</string>
+    <string name="settings_version">Versión</string>
+    <string name="settings_library_loading">Cargando biblioteca…</string>
+    <string name="settings_library_refreshing">Actualizando…</string>
+    <string name="snack_library_refreshed">Biblioteca actualizada</string>
+    <string name="action_exclude_track_from_smart">No recomendar esta canción</string>
+    <string name="action_exclude_artist_from_smart">No recomendar este artista</string>
+    <string name="action_include_track_in_smart">Volver a recomendar esta canción</string>
+    <string name="action_include_artist_in_smart">Volver a recomendar este artista</string>
+    <string name="snack_track_excluded_from_smart">Canción eliminada de las recomendaciones SMART</string>
+    <string name="snack_artist_excluded_from_smart">Artista eliminado de las recomendaciones SMART</string>
+    <string name="snack_track_included_in_smart">Canción restaurada en las recomendaciones SMART</string>
+    <string name="snack_artist_included_in_smart">Artista restaurado en las recomendaciones SMART</string>
+    <string name="snack_smart_exclusion_failed">No se pudieron actualizar las recomendaciones SMART. Inténtalo de nuevo.</string>
+    <string name="action_retry">Intentar de nuevo</string>
+
+    <string name="settings_language">Idioma</string>
+    <string name="settings_language_body">LatentJam usa el idioma del sistema o el configurado para la app. Cámbialo en los ajustes del sistema.</string>
+    <string name="settings_audio_access">Acceso a la música</string>
+    <string name="settings_audio_access_allowed">Permitido</string>
+    <string name="settings_audio_access_blocked">Bloqueado</string>
+    <string name="settings_audio_access_not_requested">No solicitado</string>
+    <string name="settings_audio_access_not_required">No necesario</string>
+    <string name="settings_sources">Fuentes de música</string>
+    <string name="settings_sources_body">Elige qué carpetas o colecciones del dispositivo aparecen en LatentJam. Los archivos del dispositivo no cambian.</string>
+    <string name="settings_sources_empty">No se encontraron fuentes de música que se puedan gestionar.</string>
+    <string name="settings_source_unnamed">Música del dispositivo</string>
+    <string name="settings_source_music_library">Biblioteca musical</string>
+    <string name="settings_hidden_tracks">Canciones ocultas</string>
+    <string name="settings_hidden_tracks_body">Canciones ocultas solo en LatentJam. Restaura cualquier canción sin modificar su archivo.</string>
+    <string name="settings_hidden_tracks_empty">No hay canciones ocultas en LatentJam.</string>
+    <string name="settings_restore">Restaurar</string>
+    <string name="settings_restore_all">Restaurar todo</string>
+    <string name="settings_library_manage_failed">No se pudo actualizar la biblioteca. Inténtalo de nuevo.</string>
+
+    <string name="settings_licenses">Licencias de código abierto</string>
+    <string name="settings_licenses_body">Avisos de LatentJam, los modelos incluidos y el software de terceros</string>
+    <string name="settings_license_models">Modelos de audio y SMART</string>
+    <string name="settings_license_models_body">Los pesos de audio MobileNetV4 y del predictor SMART creados por LatentJam tienen licencia Apache-2.0. El modelo alumno usa timm (Apache-2.0) y se destiló de EfficientAT (MIT, copyright © 2022 Florian Schmid).</string>
+    <string name="settings_license_text_model">Modelo de texto MiniLM</string>
+    <string name="settings_license_text_model_body">La exportación ONNX y el vocabulario incluidos de sentence-transformers/all-MiniLM-L6-v2 tienen licencia Apache-2.0.</string>
+    <string name="settings_license_runtime">ONNX Runtime</string>
+    <string name="settings_license_runtime_body">La inferencia de modelos en el dispositivo usa Microsoft ONNX Runtime con licencia MIT. Copyright © Microsoft Corporation.</string>
+    <string name="settings_license_aliases">Datos de MusicBrainz</string>
+    <string name="settings_license_aliases_body">Los datos incluidos para buscar alias de artistas se derivan de MusicBrainz y se ofrecen bajo CC0.</string>
+    <string name="settings_license_libraries">Bibliotecas de terceros</string>
+    <string name="settings_license_libraries_body">LatentJam usa Kotlin, corrutinas, Compose Multiplatform, AndroidX Media3, Koin y Coil con licencias permisivas Apache-2.0 o MIT. Los avisos completos se incluyen con la distribución del código fuente.</string>
+
+    <string name="sleep_timer">Temporizador de sueño</string>
+    <string name="sleep_timer_off">Desactivado</string>
+    <plurals name="sleep_timer_minutes">
+        <item quantity="one">%1$d minuto</item>
+        <item quantity="other">%1$d minutos</item>
+    </plurals>
+    <string name="sleep_timer_end_of_track">Al final de la canción actual</string>
+    <string name="sleep_timer_active_minutes">Quedan %1$d min</string>
+    <string name="sleep_timer_active_end_of_track">Se detiene después de esta canción</string>
+
+    <string name="intelligence_problems">Problemas de análisis</string>
+    <string name="intelligence_problems_body">Canciones que SMART no pudo analizar. Tu música se puede seguir reproduciendo.</string>
+    <string name="intelligence_no_problems">No hay problemas de análisis</string>
+    <string name="intelligence_manage_exclusions">Exclusiones de recomendaciones</string>
+    <string name="intelligence_manage_exclusions_body">Canciones y artistas que SMART nunca debe recomendar</string>
+    <string name="intelligence_exclusions_empty">No hay exclusiones de recomendaciones</string>
+    <string name="intelligence_excluded_tracks">Canciones excluidas</string>
+    <string name="intelligence_excluded_artists">Artistas excluidos</string>
+    <string name="intelligence_rebuild">Reconstruir el análisis SMART</string>
+    <string name="intelligence_rebuild_body">Elimina las huellas locales y vuelve a analizar la biblioteca visible.</string>
+    <string name="intelligence_rebuild_confirm">¿Reconstruir todo el análisis SMART? Los archivos de música, las listas y el historial de escucha no cambiarán.</string>
+    <string name="intelligence_how_title">Cómo funciona SMART</string>
+    <string name="intelligence_notifications">Notificaciones de análisis</string>
+    <string name="intelligence_notifications_body">Mostrar el progreso de indexación fuera de LatentJam</string>
+    <string name="intelligence_exclusions_clear">Borrar todas las exclusiones</string>
+
+    <string name="settings_backup">Copia de seguridad local</string>
+    <string name="settings_backup_body">Exporta o restaura listas, preferencias, historial, canciones ocultas y exclusiones de SMART. No se incluyen los archivos de música ni los datos de los modelos.</string>
+    <string name="backup_export">Exportar copia</string>
+    <string name="backup_import">Importar copia</string>
+    <string name="backup_import_title">Restaurar copia local</string>
+    <string name="backup_import_body">Elige cómo combinar los datos importados con los que ya existen en este dispositivo.</string>
+    <string name="backup_merge">Combinar</string>
+    <string name="backup_replace">Reemplazar</string>
+    <string name="backup_replace_warning">¿Reemplazar los datos seleccionados de la app por esta copia? Los archivos de música nunca se modificarán.</string>
+    <string name="backup_export_success">Copia exportada</string>
+    <string name="backup_import_success">Copia restaurada</string>
+    <string name="backup_import_success_unmatched">Copia restaurada; no se pudieron asociar %1$d referencias de canciones en este dispositivo.</string>
+    <string name="backup_import_partial">Se restauraron algunos datos antes de que ocurriera un error.</string>
+    <string name="backup_failed">No se pudo completar la operación de copia de seguridad.</string>
+    <string name="backup_invalid">Esta no es una copia de seguridad válida de LatentJam.</string>
+    <string name="backup_destination_warning">La copia contiene datos privados de la aplicación. Un destino en la nube o de terceros elegido en el selector del sistema puede sincronizarlos.</string>
 </resources>

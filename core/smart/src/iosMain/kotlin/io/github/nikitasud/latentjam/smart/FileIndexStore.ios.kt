@@ -9,7 +9,7 @@ import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import platform.Foundation.NSApplicationSupportDirectory
+import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSData
 import platform.Foundation.NSFileHandle
 import platform.Foundation.NSFileManager
@@ -60,7 +60,9 @@ internal class IosFileIndexStore(
 @OptIn(ExperimentalForeignApi::class)
 private fun indexPath(fileName: String): String? {
     val directory = NSSearchPathForDirectoriesInDomains(
-        NSApplicationSupportDirectory,
+        // The index is fully regenerable, can be large, and contains listening-derived vectors.
+        // Caches is excluded from iCloud/device backup by the OS and may safely be purged.
+        NSCachesDirectory,
         NSUserDomainMask,
         true,
     ).firstOrNull() as? String ?: return null

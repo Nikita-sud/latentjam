@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.playback
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,9 +30,25 @@ import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSNumber
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSURL
+import platform.CoreGraphics.CGContextAddLineToPoint
+import platform.CoreGraphics.CGContextBeginPath
+import platform.CoreGraphics.CGContextFillRect
+import platform.CoreGraphics.CGContextMoveToPoint
+import platform.CoreGraphics.CGContextSetFillColorWithColor
+import platform.CoreGraphics.CGContextSetLineCap
+import platform.CoreGraphics.CGContextSetLineWidth
+import platform.CoreGraphics.CGContextSetStrokeColorWithColor
+import platform.CoreGraphics.CGContextStrokePath
+import platform.CoreGraphics.CGLineCap
+import platform.CoreGraphics.CGRectMake
+import platform.CoreGraphics.CGSizeMake
 import platform.MediaPlayer.MPChangePlaybackPositionCommandEvent
+import platform.MediaPlayer.MPChangeRepeatModeCommandEvent
+import platform.MediaPlayer.MPChangeShuffleModeCommandEvent
+import platform.MediaPlayer.MPMediaItemArtwork
 import platform.MediaPlayer.MPMediaItemPropertyAlbumTitle
 import platform.MediaPlayer.MPMediaItemPropertyArtist
+import platform.MediaPlayer.MPMediaItemPropertyArtwork
 import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
 import platform.MediaPlayer.MPMediaItemPropertyTitle
 import platform.MediaPlayer.MPMediaItemCollection
@@ -45,6 +62,15 @@ import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusCommandFailed
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
+import platform.MediaPlayer.MPRepeatType
+import platform.MediaPlayer.MPShuffleType
+import platform.UIKit.UIColor
+import platform.UIKit.UIImage
+import platform.UIKit.UIGraphicsBeginImageContextWithOptions
+import platform.UIKit.UIGraphicsEndImageContext
+import platform.UIKit.UIGraphicsGetCurrentContext
+import platform.UIKit.UIGraphicsGetImageFromCurrentImageContext
+import kotlin.math.pow
 
 /**
  * iOS [PlaybackController] over an app-owned [IosAudioEngine] for imported files and Apple's
@@ -55,7 +81,7 @@ import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
  * for the selected file while this controller preserves queue/history semantics.
  *
  * ### SMART queue strategy
- * Deliberately identical to the Android controller: hold [SMART_LOOKAHEAD]
+ * Deliberately identical to the Android controller: hold the configured number of
  * tracks beyond the playhead, and top up by seeding the chooser from the
  * QUEUE TAIL rather than the playing track. Seeding from the playing track
  * would look to the chooser like a playhead that had jumped somewhere it had
@@ -65,6 +91,7 @@ import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 internal class IosPlaybackController(
     private val chooser: NextTrackChooser,
     private val audioEngine: IosAudioEngine,
+    private val engine: SimilarityEngine,
 ) : PlaybackController {
 
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -88,6 +115,8 @@ internal class IosPlaybackController(
     /** The source list for OFF/ON and the complete library for SMART are intentionally separate. */
     private var pool: List<TrackDescriptor> = emptyList()
     private var smartLibrary: List<TrackDescriptor> = emptyList()
+    private var smartLibrarySupplied: Boolean = false
+    private var smartLookahead: Int = DEFAULT_SMART_LOOKAHEAD
 
     private var mode: ShuffleMode = ShuffleMode.OFF
     private var repeat: RepeatMode = RepeatMode.OFF
@@ -106,6 +135,13 @@ internal class IosPlaybackController(
     private var lastInfoTrackId: String? = null
     private var lastInfoPlaying: Boolean? = null
 
+    /** Bounded to tracks that have actually reached the playhead. */
+    private val realArtworkIds = mutableSetOf<String>()
+    private val latentArtworkIds = mutableSetOf<String>()
+    private val fallbackArtworkInFlight = mutableSetOf<String>()
+    private val artworkCache = mutableMapOf<String, UIImage>()
+    private val artworkOrder = ArrayDeque<String>()
+
     init {
         configureAudioSession()
         wireMediaPlayer()
@@ -115,7 +151,22 @@ internal class IosPlaybackController(
     override suspend fun setSmartLibrary(tracks: List<TrackDescriptor>): Unit =
         withContext(Dispatchers.Main) {
             smartLibrary = tracks.distinctBy { it.id }
+            smartLibrarySupplied = true
+            if (mode == ShuffleMode.SMART && queue.isNotEmpty()) {
+                queue = retainEligibleSmartTail(
+                    queue = queue,
+                    currentIndex = queueIndex,
+                    eligibleIds = smartLibrary.mapTo(HashSet()) { it.id },
+                )
+                pushState()
+                appendSmartNextIfNeeded()
+            }
         }
+
+    override suspend fun setSmartQueueLength(length: Int): Unit = withContext(Dispatchers.Main) {
+        smartLookahead = length.coerceIn(1, MAX_SMART_LOOKAHEAD)
+        appendSmartNextIfNeeded()
+    }
 
     override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int): Unit =
         withContext(Dispatchers.Main) {
@@ -157,6 +208,14 @@ internal class IosPlaybackController(
         pushState()
     }
 
+    override suspend fun pause(): Unit = withContext(Dispatchers.Main) {
+        if (queue.isEmpty() || !playing) return@withContext
+        pauseActiveBackend()
+        playing = false
+        updateTicker()
+        pushState()
+    }
+
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
         if (queue.isEmpty()) return@withContext
         appendSmartNextIfNeeded()
@@ -194,13 +253,24 @@ internal class IosPlaybackController(
     }
 
     override suspend fun cycleRepeatMode(): RepeatMode = withContext(Dispatchers.Main) {
-        repeat = when (repeat) {
-            RepeatMode.OFF -> RepeatMode.ALL
-            RepeatMode.ALL -> RepeatMode.ONE
-            RepeatMode.ONE -> RepeatMode.OFF
+        applyRepeatMode(
+            when (repeat) {
+                RepeatMode.OFF -> RepeatMode.ALL
+                RepeatMode.ALL -> RepeatMode.ONE
+                RepeatMode.ONE -> RepeatMode.OFF
+            },
+        )
+    }
+
+    private fun applyRepeatMode(requested: RepeatMode): RepeatMode {
+        if (repeat == requested) {
+            syncRemotePlaybackModes()
+            return repeat
         }
+        repeat = requested
+        syncRemotePlaybackModes()
         pushState()
-        repeat
+        return repeat
     }
 
     override suspend fun playNext(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
@@ -232,11 +302,21 @@ internal class IosPlaybackController(
     }
 
     override suspend fun cycleShuffleMode(): ShuffleMode = withContext(Dispatchers.Main) {
-        mode = when (mode) {
-            ShuffleMode.OFF -> ShuffleMode.ON
-            ShuffleMode.ON -> ShuffleMode.SMART
-            ShuffleMode.SMART -> ShuffleMode.OFF
+        applyShuffleMode(
+            when (mode) {
+                ShuffleMode.OFF -> ShuffleMode.ON
+                ShuffleMode.ON -> ShuffleMode.SMART
+                ShuffleMode.SMART -> ShuffleMode.OFF
+            },
+        )
+    }
+
+    private suspend fun applyShuffleMode(requested: ShuffleMode): ShuffleMode {
+        if (mode == requested) {
+            syncRemotePlaybackModes()
+            return mode
         }
+        mode = requested
         val current = queue.getOrNull(queueIndex)
         when (mode) {
             ShuffleMode.OFF -> if (current != null && pool.isNotEmpty()) {
@@ -254,8 +334,9 @@ internal class IosPlaybackController(
                 appendSmartNextIfNeeded()
             }
         }
+        syncRemotePlaybackModes()
         pushState()
-        mode
+        return mode
     }
 
     /** Main-thread only. Serialised — see [appendMutex]. */
@@ -267,9 +348,9 @@ internal class IosPlaybackController(
 
         var appended = false
         // Each pass appends exactly one item, so the shortfall shrinks by one and at
-        // most SMART_LOOKAHEAD passes are ever needed; the counter caps it regardless.
-        var guard = SMART_LOOKAHEAD
-        while (guard-- > 0 && queue.size - 1 - queueIndex < SMART_LOOKAHEAD) {
+        // most [smartLookahead] passes are ever needed; the counter caps it regardless.
+        var guard = smartLookahead
+        while (guard-- > 0 && queue.size - 1 - queueIndex < smartLookahead) {
             val tailIndex = queue.lastIndex
             val seed = queue[tailIndex]
             val recentIds = (maxOf(0, tailIndex - RECENT_WINDOW) until tailIndex)
@@ -278,7 +359,11 @@ internal class IosPlaybackController(
             // a track appended twice would play twice in one sitting, and the queue
             // would show two rows claiming the same identity.
             val queued = queue.mapTo(HashSet()) { it.id }
-            val candidates = (smartLibrary.ifEmpty { pool }).filter { it.id !in queued }
+            val candidates = smartCandidatePool(
+                eligibleLibrary = smartLibrary,
+                fallbackPool = pool,
+                eligibleLibrarySupplied = smartLibrarySupplied,
+            ).filter { it.id !in queued }
             if (candidates.isEmpty()) break
 
             val chosen = runCatching { chooser.choose(seed, recentIds, candidates) }
@@ -328,15 +413,20 @@ internal class IosPlaybackController(
      */
     private fun loadCurrentItem(autoPlay: Boolean): Boolean {
         val track = queue.getOrNull(queueIndex) ?: return false
-        if (track.id.value.startsWith(MEDIA_ID_PREFIX)) {
+        val isMediaLibraryItem = track.id.value.startsWith(MEDIA_ID_PREFIX)
+        if (isMediaLibraryItem && track.audioUri == null) {
             return loadMediaLibraryItem(track, autoPlay)
         }
-        val url = track.audioUri?.let { NSURL.URLWithString(it) } ?: return false
+        val url = track.audioUri?.let { NSURL.URLWithString(it) }
+            ?: return if (isMediaLibraryItem) loadMediaLibraryItem(track, autoPlay) else false
 
         mediaItemStarted = false
         mediaPlayer.stop()
         activeBackend = PlaybackBackend.FILE
-        if (!audioEngine.load(url, autoPlay) { mainScope.launch { onItemEnded() } }) return false
+        if (!audioEngine.load(url, autoPlay) { mainScope.launch { onItemEnded() } }) {
+            return if (isMediaLibraryItem) loadMediaLibraryItem(track, autoPlay) else false
+        }
+        audioEngine.setOutputSupportsEqualizer(true)
         playing = autoPlay
         updateTicker()
         return true
@@ -348,6 +438,7 @@ internal class IosPlaybackController(
         val item = resolveMediaItem(persistentId) ?: return false
 
         audioEngine.stop()
+        audioEngine.setOutputSupportsEqualizer(false)
         mediaItemStarted = false
         mediaPlayer.stop()
         mediaPlayer.setQueueWithItemCollection(MPMediaItemCollection(items = listOf(item)))
@@ -483,6 +574,67 @@ internal class IosPlaybackController(
                 MPRemoteCommandHandlerStatusSuccess
             }
         }
+        center.changeRepeatModeCommand.addTargetWithHandler { event ->
+            val change = event as? MPChangeRepeatModeCommandEvent
+            val requested = change?.repeatType?.toLatentJamRepeatMode()
+            if (requested == null) {
+                MPRemoteCommandHandlerStatusCommandFailed
+            } else {
+                mainScope.launch { applyRepeatMode(requested) }
+                MPRemoteCommandHandlerStatusSuccess
+            }
+        }
+        center.changeShuffleModeCommand.addTargetWithHandler { event ->
+            val change = event as? MPChangeShuffleModeCommandEvent
+            val requested = change?.shuffleType?.toLatentJamShuffleMode()
+            if (requested == null) {
+                MPRemoteCommandHandlerStatusCommandFailed
+            } else {
+                mainScope.launch { applyShuffleMode(requested) }
+                MPRemoteCommandHandlerStatusSuccess
+            }
+        }
+        center.changeRepeatModeCommand.enabled = true
+        center.changeShuffleModeCommand.enabled = true
+        syncRemotePlaybackModes()
+    }
+
+    /**
+     * MPRemoteCommandCenter has only off/items shuffle states. SMART therefore advertises as
+     * shuffled, remains SMART while the system leaves shuffle enabled, and turns off when the
+     * system asks for off. Selecting shuffle from off starts ordinary random shuffle; SMART still
+     * remains an explicit LatentJam choice because iOS has no third standard shuffle value.
+     */
+    private fun syncRemotePlaybackModes() {
+        val center = MPRemoteCommandCenter.sharedCommandCenter()
+        center.changeRepeatModeCommand.currentRepeatType = repeat.toPlatformRepeatType()
+        center.changeShuffleModeCommand.currentShuffleType = mode.toPlatformShuffleType()
+    }
+
+    private fun MPRepeatType.toLatentJamRepeatMode(): RepeatMode = when (this) {
+        MPRepeatType.MPRepeatTypeOff -> RepeatMode.OFF
+        MPRepeatType.MPRepeatTypeAll -> RepeatMode.ALL
+        MPRepeatType.MPRepeatTypeOne -> RepeatMode.ONE
+    }
+
+    private fun RepeatMode.toPlatformRepeatType(): MPRepeatType = when (this) {
+        RepeatMode.OFF -> MPRepeatType.MPRepeatTypeOff
+        RepeatMode.ALL -> MPRepeatType.MPRepeatTypeAll
+        RepeatMode.ONE -> MPRepeatType.MPRepeatTypeOne
+    }
+
+    private fun MPShuffleType.toLatentJamShuffleMode(): ShuffleMode = when (this) {
+        MPShuffleType.MPShuffleTypeOff -> ShuffleMode.OFF
+        MPShuffleType.MPShuffleTypeItems,
+        MPShuffleType.MPShuffleTypeCollections,
+        -> if (mode == ShuffleMode.SMART) ShuffleMode.SMART else ShuffleMode.ON
+    }
+
+    private fun ShuffleMode.toPlatformShuffleType(): MPShuffleType = when (this) {
+        ShuffleMode.OFF -> MPShuffleType.MPShuffleTypeOff
+        ShuffleMode.ON,
+        ShuffleMode.SMART,
+        -> MPShuffleType.MPShuffleTypeItems
     }
 
     /** Coarse position refresh while playing; idle otherwise. */
@@ -590,6 +742,7 @@ internal class IosPlaybackController(
         track.title?.let { info[MPMediaItemPropertyTitle] = it }
         track.artist?.let { info[MPMediaItemPropertyArtist] = it }
         track.album?.let { info[MPMediaItemPropertyAlbumTitle] = it }
+        nowPlayingArtwork(track)?.let { info[MPMediaItemPropertyArtwork] = it }
         (durationMs() ?: track.durationMs)?.let {
             info[MPMediaItemPropertyPlaybackDuration] = NSNumber(double = it / 1000.0)
         }
@@ -600,14 +753,120 @@ internal class IosPlaybackController(
         MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = info
     }
 
+    /** Real embedded art first; otherwise publish the same identity/latent colour idea as Android. */
+    private fun nowPlayingArtwork(track: TrackDescriptor): MPMediaItemArtwork? {
+        val id = track.id.value
+        val image = artworkCache[id]
+            ?: loadArtwork(track.artworkUri)?.also { loaded ->
+                cacheArtwork(id, loaded, real = true)
+            }
+            ?: renderFallbackArtwork(identityTrackColorSeed(id).toArgb())?.also { fallback ->
+                cacheArtwork(id, fallback)
+            }
+            ?: return null
+
+        if (id !in realArtworkIds && id !in latentArtworkIds) requestLatentArtwork(track)
+        return MPMediaItemArtwork(boundsSize = image.size) { _ -> image }
+    }
+
+    /** iOS library artwork cache URIs are local file URLs; never perform network I/O here. */
+    private fun loadArtwork(uri: String?): UIImage? {
+        val url = uri?.let(NSURL::URLWithString) ?: return null
+        if (!url.isFileURL()) return null
+        val path = url.path ?: return null
+        return UIImage.imageWithContentsOfFile(path)
+    }
+
+    /** Upgrades an identity cover when its local fingerprint becomes available. */
+    private fun requestLatentArtwork(track: TrackDescriptor) {
+        val id = track.id.value
+        if (!fallbackArtworkInFlight.add(id)) return
+        mainScope.launch {
+            try {
+                val embedding = runCatching { engine.embedding(track.id) }.getOrNull() ?: return@launch
+                val image = renderFallbackArtwork(latentTrackColorSeed(embedding).toArgb())
+                    ?: return@launch
+                cacheArtwork(id, image, latent = true)
+                if (queue.getOrNull(queueIndex)?.id == track.id) {
+                    invalidateNowPlayingInfo()
+                    pushState()
+                }
+            } finally {
+                fallbackArtworkInFlight.remove(id)
+            }
+        }
+    }
+
+    private fun cacheArtwork(
+        id: String,
+        image: UIImage,
+        real: Boolean = false,
+        latent: Boolean = false,
+    ) {
+        if (id !in artworkCache) {
+            if (artworkOrder.size >= MAX_ARTWORK_CACHE) {
+                val evicted = artworkOrder.removeFirst()
+                artworkCache.remove(evicted)
+                realArtworkIds.remove(evicted)
+                latentArtworkIds.remove(evicted)
+            }
+            artworkOrder.addLast(id)
+        }
+        artworkCache[id] = image
+        if (real) realArtworkIds += id
+        if (latent) latentArtworkIds += id
+    }
+
+    /** A small local cover is enough for System UI to derive a stable player colour. */
+    private fun renderFallbackArtwork(argb: Int): UIImage? {
+        val size = FALLBACK_ARTWORK_SIZE
+        UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), true, 0.0)
+        try {
+            val context = UIGraphicsGetCurrentContext() ?: return null
+            val red = ((argb ushr 16) and 0xFF) / 255.0
+            val green = ((argb ushr 8) and 0xFF) / 255.0
+            val blue = (argb and 0xFF) / 255.0
+            val background = UIColor(red = red, green = green, blue = blue, alpha = 1.0)
+            CGContextSetFillColorWithColor(context, background.CGColor)
+            CGContextFillRect(context, CGRectMake(0.0, 0.0, size, size))
+
+            val mark = if (relativeLuminance(red, green, blue) > 0.48) {
+                UIColor.blackColor.colorWithAlphaComponent(0.74)
+            } else {
+                UIColor.whiteColor.colorWithAlphaComponent(0.82)
+            }
+            CGContextSetStrokeColorWithColor(context, mark.CGColor)
+            CGContextSetLineWidth(context, size * 0.055)
+            CGContextSetLineCap(context, CGLineCap.kCGLineCapRound)
+            val center = size / 2.0
+            val spacing = size * 0.13
+            val heights = doubleArrayOf(0.20, 0.40, 0.62, 0.40, 0.20)
+            heights.forEachIndexed { index, height ->
+                val x = center + (index - 2) * spacing
+                val half = size * height / 2.0
+                CGContextBeginPath(context)
+                CGContextMoveToPoint(context, x, center - half)
+                CGContextAddLineToPoint(context, x, center + half)
+                CGContextStrokePath(context)
+            }
+            return UIGraphicsGetImageFromCurrentImageContext()
+        } finally {
+            UIGraphicsEndImageContext()
+        }
+    }
+
+    private fun relativeLuminance(red: Double, green: Double, blue: Double): Double {
+        fun channel(value: Double): Double =
+            if (value <= 0.04045) value / 12.92 else ((value + 0.055) / 1.055).pow(2.4)
+        return 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
+    }
+
     private companion object {
         const val MEDIA_ID_PREFIX = "ios-media:"
-        /**
-         * How many tracks SMART keeps queued beyond the playhead. Matches the
-         * Android controller so both platforms show a queue you can read rather
-         * than a single next-track hint.
-         */
-        const val SMART_LOOKAHEAD = 10
+        const val DEFAULT_SMART_LOOKAHEAD = 20
+        const val MAX_SMART_LOOKAHEAD = 100
+        const val MAX_ARTWORK_CACHE = 32
+        const val FALLBACK_ARTWORK_SIZE = 96.0
 
         /** How many queue entries before the seed are passed to the chooser. */
         const val RECENT_WINDOW = 10
@@ -624,5 +883,7 @@ internal class IosPlaybackController(
 }
 
 public actual fun playbackModule(): Module = module {
-    single<PlaybackController> { IosPlaybackController(chooser = get(), audioEngine = get()) }
+    single<PlaybackController> {
+        IosPlaybackController(chooser = get(), audioEngine = get(), engine = get())
+    }
 }

@@ -25,6 +25,8 @@ import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSString
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.NSUserDomainMask
+import platform.Foundation.NSURL
+import platform.Foundation.NSURLIsExcludedFromBackupKey
 import platform.Foundation.closeFile
 import platform.Foundation.dataWithBytes
 import platform.Foundation.fileHandleForWritingAtPath
@@ -55,6 +57,11 @@ private fun appSupportFile(name: String): String? {
     if (!manager.fileExistsAtPath(base)) {
         manager.createDirectoryAtPath(base, true, null, null)
     }
+    // History, searches and SMART exclusions are local-only. The explicit in-app backup flow is
+    // the only path that should copy them off this device.
+    val excluded = NSURL.fileURLWithPath(base, isDirectory = true)
+        .setResourceValue(true, NSURLIsExcludedFromBackupKey, null)
+    if (!excluded) return null
     return if (base.endsWith("/")) base + name else "$base/$name"
 }
 
@@ -77,7 +84,9 @@ private fun readLines(path: String): List<String> {
 }
 
 private fun writeText(path: String, text: String) {
-    text.encodeToByteArray().toNSData().writeToFile(path, true)
+    check(text.encodeToByteArray().toNSData().writeToFile(path, true)) {
+        "Could not write private history data"
+    }
 }
 
 /**
@@ -108,11 +117,18 @@ internal class FileHistoryStore : HistoryStore {
         appSupportFile(FILE_NAME)?.let(::readLines) ?: emptyList()
     }
 
+    override suspend fun replaceAll(lines: List<String>): Unit = withContext(Dispatchers.Default) {
+        val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
+        writeText(path, lines.joinToString(separator = "\n", postfix = if (lines.isEmpty()) "" else "\n"))
+    }
+
     @OptIn(ExperimentalForeignApi::class)
     override suspend fun clear(): Unit = withContext(Dispatchers.Default) {
-        val path = appSupportFile(FILE_NAME) ?: return@withContext
-        NSFileManager.defaultManager.removeItemAtPath(path, null)
-        Unit
+        val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
+        val manager = NSFileManager.defaultManager
+        check(!manager.fileExistsAtPath(path) || manager.removeItemAtPath(path, null)) {
+            "Could not clear listening history"
+        }
     }
 
     private companion object {
@@ -128,12 +144,27 @@ internal class FileRecentSearchStore : RecentSearchStore {
     }
 
     override suspend fun write(queries: List<String>): Unit = withContext(Dispatchers.Default) {
-        appSupportFile(FILE_NAME)?.let { writeText(it, queries.joinToString("\n")) }
-        Unit
+        val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
+        writeText(path, queries.joinToString("\n"))
     }
 
     private companion object {
         const val FILE_NAME = "recent_searches.txt"
+    }
+}
+
+internal class FileSmartExclusionStore : SmartExclusionStore {
+    override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
+        appSupportFile(FILE_NAME)?.let(::readLines) ?: emptyList()
+    }
+
+    override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.Default) {
+        val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
+        writeText(path, lines.joinToString("\n"))
+    }
+
+    private companion object {
+        const val FILE_NAME = "smart_exclusions.txt"
     }
 }
 
@@ -142,6 +173,8 @@ public actual fun listeningHistoryModule(): Module = module {
     single<ListeningHistory> { DefaultListeningHistory(store = get()) }
     single<RecentSearchStore> { FileRecentSearchStore() }
     single<RecentSearches> { DefaultRecentSearches(store = get()) }
+    single<SmartExclusionStore> { FileSmartExclusionStore() }
+    single { SmartExclusions(store = get()) }
 }
 
 public actual fun epochMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()

@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -102,6 +103,24 @@ public interface SimilarityEngine {
     public suspend fun embedding(trackId: TrackId): FloatArray?
 
     /**
+     * Builds the strongest covered, one-shot vector space for library-level My Mixes.
+     *
+     * The engine reads its audio and metadata indexes under one lock and writes directly into one
+     * owned row matrix. This avoids exposing mutable index state and avoids materializing two full
+     * defensive snapshots beside the fused output on large libraries.
+     */
+    public suspend fun libraryMixVectors(ids: List<TrackId>): LibraryVectorSpace?
+
+    /**
+     * Builds mix vectors and batches the corresponding audio fingerprints through the universal
+     * semantic head under the same engine lock.
+     *
+     * The semantics map may be sparse when audio is unavailable or the optional head cannot run;
+     * clustering remains usable through [LibraryMixFeatures.vectorSpace].
+     */
+    public suspend fun libraryMixFeatures(ids: List<TrackId>): LibraryMixFeatures?
+
+    /**
      * Encodes any missing metadata-text vectors for [library], and persists them.
      *
      * Cheap and idempotent — tracks that already have one are skipped — but not free on a cold
@@ -153,6 +172,12 @@ public interface SimilarityEngine {
         /** Oldest-first, device-local observations; empty preserves the exact cold-start path. */
         history: List<SmartHistoryEvent> = emptyList(),
     ): List<TrackId>
+
+    /**
+     * Deletes audio and metadata vectors from memory and durable storage without unloading models.
+     * The next automatic indexing pass can rebuild them from the still-local library.
+     */
+    public suspend fun clearAnalysis()
 
     /**
      * Releases the model and clears the index, returning the engine to

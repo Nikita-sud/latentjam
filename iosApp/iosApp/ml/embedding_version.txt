@@ -1,1 +1,1 @@
-mnv4-960-allfp16-v5
+mnv4-960-retrieval-distill-v1

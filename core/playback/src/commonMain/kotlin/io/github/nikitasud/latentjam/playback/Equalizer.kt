@@ -23,7 +23,15 @@ public data class EqualizerBand(
 /**
  * A named curve offered by the active platform audio effect.
  */
-public data class EqualizerPreset(public val index: Int, public val name: String)
+public data class EqualizerPreset(
+    public val index: Int,
+    public val name: String,
+    /** Stable identity for app-owned curves; platform-provided presets leave this null. */
+    public val kind: EqualizerPresetKind? = null,
+)
+
+/** The five portable curves LatentJam owns and can therefore localize. */
+public enum class EqualizerPresetKind { FLAT, BASS, TREBLE, VOCAL, ELECTRONIC }
 
 /**
  * @param available false when the device has no usable equalizer effect, or the platform refused to
@@ -42,10 +50,7 @@ public data class EqualizerState(
     public val maxLevelMillibels: Int = 1500,
     public val bassBoostStrength: Int = 0,
     public val bassBoostSupported: Boolean = false,
-) {
-    public val unavailableReason: String?
-        get() = if (available) null else "This device does not offer a system equalizer."
-}
+)
 
 /**
  * The equalizer attached to this app's audio output.

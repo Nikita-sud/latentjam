@@ -10,6 +10,7 @@ import Foundation
 final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
     private let runtime = OrtRuntime()
     private var audio: OrtModel?
+    private var semantic: OrtModel?
     private var text: OrtModel?
     private var state: OrtModel?
     private var scorer: OrtModel?
@@ -49,6 +50,41 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
             normalize(&pooled)
             guard isUsable(pooled) else { return nil }
             return KotlinFloatArray(pooled)
+        } catch { return nil }
+    }
+
+    func loadSemantic() -> String? {
+        do {
+            if semantic == nil {
+                semantic = try runtime.loadModel(named: "universal_semantic_head")
+            }
+            return nil
+        } catch { return error.localizedDescription }
+    }
+
+    func classifySemantics(
+        embeddings: KotlinFloatArray,
+        batchSize: Int32,
+        inputDim: Int32,
+        outputDim: Int32
+    ) -> KotlinFloatArray? {
+        guard batchSize > 0, inputDim > 0, outputDim > 0,
+              loadSemantic() == nil, let semantic else { return nil }
+        let values = embeddings.swiftArray
+        guard values.count == Int(batchSize * inputDim) else { return nil }
+        do {
+            return KotlinFloatArray(try semantic.run(
+                floats: [
+                    (
+                        "embedding",
+                        values,
+                        [Int64(batchSize), Int64(inputDim)]
+                    ),
+                ],
+                int64s: [],
+                output: "semantic_scores",
+                outputCount: Int(batchSize * outputDim)
+            ))
         } catch { return nil }
     }
 
@@ -151,6 +187,7 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
 
     func close() {
         audio = nil
+        semantic = nil
         text = nil
         state = nil
         scorer = nil

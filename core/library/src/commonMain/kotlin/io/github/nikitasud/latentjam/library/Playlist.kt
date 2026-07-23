@@ -27,6 +27,9 @@ public interface Playlists {
     public suspend fun delete(id: String)
     public suspend fun addTracks(id: String, trackIds: List<TrackId>)
     public suspend fun removeTrack(id: String, trackId: TrackId)
+
+    /** Replaces all user playlists in one durable write, primarily for local backup restore. */
+    public suspend fun replaceAll(playlists: List<Playlist>)
 }
 
 /** Whole-list storage; playlists are few and small. */
@@ -105,6 +108,17 @@ public class DefaultPlaylists(
         }
     }
 
+    override suspend fun replaceAll(playlists: List<Playlist>): Unit = mutex.withLock {
+        ensureLoaded()
+        val replacement = playlists.map { it.normalizedForRestore() }
+        require(replacement.map(Playlist::id).toSet().size == replacement.size) {
+            "Playlist ids must be unique"
+        }
+        store.write(replacement.map(PlaylistSerializer::serialize))
+        this.playlists.clear()
+        this.playlists += replacement
+    }
+
     private suspend fun ensureLoaded() {
         if (loaded) return
         runCatching { store.read() }
@@ -116,6 +130,14 @@ public class DefaultPlaylists(
 
     private suspend fun persist() {
         runCatching { store.write(playlists.map(PlaylistSerializer::serialize)) }
+    }
+
+    private fun Playlist.normalizedForRestore(): Playlist {
+        require(id.isNotBlank()) { "Playlist id cannot be blank" }
+        return copy(
+            name = name.trim().ifEmpty { "Untitled playlist" },
+            trackIds = trackIds.filter(String::isNotBlank).distinct(),
+        )
     }
 }
 

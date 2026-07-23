@@ -11,13 +11,24 @@ Version 2.0, included in the repository root:
 
 Copyright (c) 2026 LatentJam Project
 
-mnv4_audio.onnx is a 960-dimensional MobileNetV4-Conv-M student distilled from
-EfficientAT MN10. predictor_text_residual_n100_960.onnx is the LatentJam-trained
-optional metadata branch selected by session-grouped cross-validation. It adds
-a bounded learned residual to predictor_scorer_n100.onnx and is an exact no-op
-when metadata is missing. The student implementation used PyTorch Image Models
-(timm), licensed Apache-2.0. EfficientAT code and published weights are licensed
-MIT:
+mnv4_audio.onnx is a 960-dimensional MobileNetV4-Conv-M student initialized
+from the previous EfficientAT MN10 distillation, then retrieval-distilled with
+MN10 preservation, EfficientAT DyMN20 relational supervision, and public
+playlist-transition supervision. This experimental weight file has not yet
+passed the training-data rights review required for a public release.
+universal_semantic_head.onnx is a compact 27-label routing head over those
+960-dimensional embeddings. It preserves the calibrated FMA genre branch and
+the EfficientAT MN10 hidden projection while pruning the AudioSet teacher from
+527 outputs to the 59 source concepts needed for genre, mood, energy, speech,
+sound effects, novelty-proxy, and instrumental scores. Its FMA-derived branch
+has not passed the source-audio rights review required for public
+redistribution. The novelty output is only a weak acoustic proxy and the app
+requires metadata corroboration before naming a meme/viral mix.
+predictor_text_residual_n100_960.onnx is the LatentJam-trained optional metadata
+branch selected by session-grouped cross-validation. It adds a bounded learned
+residual to predictor_scorer_n100.onnx and is an exact no-op when metadata is
+missing. The student implementation used PyTorch Image Models (timm), licensed
+Apache-2.0. EfficientAT code and published weights are licensed MIT:
 
   Copyright (c) 2022 Florian Schmid
   https://github.com/fschmid56/EfficientAT

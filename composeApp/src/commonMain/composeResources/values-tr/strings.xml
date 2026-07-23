@@ -25,6 +25,11 @@
     <string name="action_create">Oluştur</string>
     <string name="action_play_all">Tümünü çal</string>
     <string name="action_shuffle_all">Tümünü karışık çal</string>
+    <string name="action_share">Paylaş</string>
+    <string name="action_select_all">Tümünü seç</string>
+    <string name="action_deselect_all">Tümünün seçimini kaldır</string>
+    <string name="selection_count">Seçildi: %1$d</string>
+    <string name="action_add">Ekle</string>
     <string name="cd_more_options">Diğer seçenekler</string>
     <string name="cd_search_library">Kitaplıkta ara</string>
 
@@ -58,7 +63,7 @@
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">Bu cihazda müzik bulunamadı.</string>
-    <string name="action_rescan_library">Kitaplığı yeniden tara</string>
+    <string name="action_rescan_library">Kitaplığı yenile</string>
     <string name="sort_recently_added">Son eklenenler</string>
     <string name="snack_track_deleted">Parça silindi</string>
 
@@ -136,6 +141,7 @@
     <string name="action_go_to_artist">Sanatçıya git</string>
     <string name="action_information">Bilgi</string>
     <string name="action_delete_from_device">Cihazdan sil</string>
+    <string name="dialog_delete_tracks_message">Seçilen %1$d parça bu cihazdan kaldırılacak. Bu işlem geri alınamaz.</string>
     <string name="dialog_delete_track_title">Bu parça silinsin mi?</string>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">"%1$s" bu cihazdan kaldırılacak. Bu işlem geri alınamaz.</string>
@@ -169,10 +175,9 @@
     <string name="settings_section_playback">Oynatma</string>
     <string name="settings_equalizer">Ekolayzır</string>
     <string name="settings_equalizer_subtitle">Bu cihazın ses çıkışı için ton denetimleri</string>
-    <string name="settings_intelligence">Akıllı özellikler</string>
+    <string name="settings_intelligence">SMART motoru</string>
     <string name="settings_smart_engine">SMART motoru</string>
     <string name="settings_smart_engine_subtitle">Cihazdaki modelin kitaplığınız hakkında bildikleri</string>
-    <string name="settings_section_about">Hakkında</string>
     <string name="settings_about_body">LatentJam — cihaz üzerinde çalışan bir öneri motoruna sahip yerel müzik çalar. Ne dinlediğinize dair hiçbir şey bu cihazdan dışarı çıkmaz.</string>
 
     <!-- ========================================================== equalizer -->
@@ -190,18 +195,6 @@
     <string name="intelligence_fingerprints">Ses parmak izleri</string>
     <!-- %1$d tracks analysed out of %2$d in the library -->
     <string name="intelligence_indexed_of">%2$d parçadan %1$d tanesi</string>
-    <string name="intelligence_fingerprint_note">Parmak izi olmayan parçalar yine de çalınabilir ama SMART onları seçmez ve neyin uyduğuna karar verirken kullanmaz.</string>
-    <string name="intelligence_section_analysis">Analiz</string>
-    <string name="intelligence_analysis_note">Bir parçayı ilk kez dinlemek onu analiz etmez. Parmak izleri gruplar hâlinde hesaplanır ve işlem kaldığı yerden devam eder.</string>
-    <!-- %1$d is the batch size -->
-    <string name="intelligence_analyse_batch">%1$d parça analiz et</string>
-    <string name="intelligence_analyse_all">Tümünü analiz et</string>
-    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
-    <string name="intelligence_analysed_batch_report">%1$d parça analiz edildi, %2$d parça atlandı, %3$d parça başarısız oldu.</string>
-    <!-- %1$d analysed, %2$d failed -->
-    <string name="intelligence_analysed_all_report">%1$d parça analiz edildi, %2$d parça başarısız oldu.</string>
-    <string name="intelligence_section_privacy">Gizlilik</string>
-    <string name="intelligence_privacy_body">Bütün modeller bu cihazda çalışır. Kitaplığınız, dinleme geçmişiniz ve bunlardan türetilen her şey burada kalır — ne hesap var ne de yükleme.</string>
     <string name="engine_state_not_started">Başlatılmadı</string>
     <string name="engine_state_starting">Başlatılıyor…</string>
     <string name="engine_state_ready">Hazır</string>
@@ -211,35 +204,192 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam'in kitaplığınızı tarayabilmesi için müziğinize erişmesi gerekiyor.</string>
     <string name="permission_grant">Erişim izni ver</string>
+    <string name="permission_audio_settings_rationale">Müzik erişimi engellendi. Sistem ayarlarını açın ve LatentJam’in müzik ile ses dosyalarına erişmesine izin verin.</string>
+    <string name="permission_open_settings">Ayarları aç</string>
+    <string name="permission_notifications_title">Analiz ilerlemesi gösterilsin mi?</string>
+    <string name="permission_notifications_rationale">SMART, kitaplığınızı bu cihazda analiz eder. İlerlemeyi görmek ve çalışma sürerken LatentJam’e dönmek için bildirimlere izin verin. “Şimdi değil”i seçerseniz analiz devam eder.</string>
+    <string name="permission_not_now">Şimdi değil</string>
+    <string name="permission_continue">Devam</string>
 
-    <!-- ======================================================= diagnostics -->
-    <string name="diagnostics_title">Tanılama</string>
-    <string name="diagnostics_library">Kitaplık: %1$s</string>
-    <string name="diagnostics_index_batch">%1$d parçayı dizine ekle</string>
-    <string name="diagnostics_index_all">Tümünü dizine ekle</string>
-    <string name="diagnostics_rescan">Yeniden tara</string>
-    <string name="diagnostics_indexing">Dizine ekleniyor… %1$d/%2$d (tamam %3$d, atlanan %4$d, hatalı %5$d)</string>
-    <string name="diagnostics_indexed_report">Bitti — %1$d eklendi, %2$d atlandı, %3$d başarısız.</string>
-    <string name="diagnostics_history_empty">Geçmiş: henüz kayıtlı dinleme yok.</string>
-    <plurals name="diagnostics_history_listens">
-        <item quantity="one">Geçmiş: %1$d dinleme.</item>
-        <item quantity="other">Geçmiş: %1$d dinleme.</item>
-    </plurals>
-    <string name="diagnostics_history_top">En çok dinlenen: %1$s (%2$d×).</string>
-    <string name="diagnostics_engine">Benzerlik motoru</string>
-    <string name="diagnostics_engine_uninitialized">Henüz başlatılmadı.</string>
-    <plurals name="diagnostics_engine_ready">
-        <item quantity="one">Hazır — %1$d parça dizine eklendi.</item>
-        <item quantity="other">Hazır — %1$d parça dizine eklendi.</item>
-    </plurals>
-    <string name="diagnostics_engine_retry">Başlatmayı yeniden dene</string>
-    <string name="diagnostics_engine_initialize">Motoru başlat</string>
 
-    <string name="engine_error_model_unavailable">Benzerlik modeli henüz pakete eklenmedi — bu sürümde akıllı karışık çalma devre dışı.</string>
+    <string name="engine_error_model_unavailable">SMART paketli modelleri yükleyemedi. Kurulumu yeniden deneyin; sorun sürerse uygulamayı yeniden kurun veya bildirin.</string>
     <string name="engine_error_not_indexed">Kitaplık henüz dizine eklenmedi.</string>
-    <string name="engine_error_backend">Motor arka ucu başarısız oldu: %1$s</string>
+    <string name="engine_error_audio_unavailable">Bu parça okunamadı veya çözülemedi. Dosyanın hâlâ kullanılabilir olduğunu kontrol edip yeniden deneyin.</string>
+    <string name="engine_error_backend">SMART dahili bir hatayla karşılaştı. Kurulumu yeniden deneyin; sürerse sorunu bildirin.</string>
 
     <string name="indexing_notification_title">Müziğiniz analiz ediliyor</string>
     <string name="indexing_notification_progress">%1$d / %2$d</string>
     <string name="indexing_notification_progress_eta">%1$d / %2$d · yaklaşık %3$d dk kaldı</string>
+    <!-- =================================================== expanded settings -->
+    <string name="settings_appearance">Görünüm</string>
+    <string name="settings_appearance_subtitle">Tema, oynatıcı renkleri ve başlangıç sayfası</string>
+    <string name="settings_library">Kitaplık</string>
+    <string name="settings_library_subtitle">Yenileme, içe aktarma ve gizli parçalar</string>
+    <string name="settings_playback">Oynatma</string>
+    <string name="settings_playback_subtitle">Ekolayzır ve ses kontrolleri</string>
+    <string name="settings_privacy">Gizlilik ve veriler</string>
+    <string name="settings_privacy_subtitle">Dinleme geçmişi ve son aramalar</string>
+    <string name="settings_about">LatentJam hakkında</string>
+    <string name="settings_about_subtitle">Lisans, kaynak kodu ve destek</string>
+    <string name="settings_section_library">Kitaplık</string>
+    <string name="settings_section_navigation">Gezinme</string>
+    <string name="settings_section_privacy">Cihazdaki veriler</string>
+    <string name="settings_track_colors">Oynatıcı renkleri</string>
+    <string name="settings_color_dynamic">Kapak</string>
+    <string name="settings_color_dynamic_body">Kapaktan alınan renkleri, gerekirse SMART renklerini kullan.</string>
+    <string name="settings_color_smart">SMART</string>
+    <string name="settings_color_smart_body">Her parçanın ses parmak izinden türetilen renkleri kullan.</string>
+    <string name="settings_color_theme">Tema</string>
+    <string name="settings_color_theme_body">Parçaya özel renkler yerine uygulama temasını kullan.</string>
+    <string name="settings_start_page">Başlangıç sayfası</string>
+    <string name="settings_start_page_body">LatentJam bir sonraki açılışında kullanılır.</string>
+    <string name="settings_library_count">Kitaplıktaki parçalar</string>
+    <string name="settings_library_refresh">Kitaplığı yenile</string>
+    <string name="settings_library_refresh_body">Yeni eklenen müzikleri bul ve artık kullanılamayan dosyaların kayıtlarını kaldır.</string>
+    <string name="settings_library_import">Müzik içe aktar</string>
+    <string name="settings_library_import_body">LatentJam’e kopyalanacak ses dosyalarını seç.</string>
+    <string name="settings_library_restore">Gizli parçaları geri getir</string>
+    <string name="settings_library_restore_body">LatentJam’den kaldırılan tüm parçaları kitaplığa geri getir. Cihazdaki dosyalar değişmez.</string>
+    <string name="settings_equalizer_unavailable">Bu ses çıkışı için kullanılamıyor</string>
+    <string name="equalizer_unavailable_body">Geçerli ses çıkışı LatentJam’e bir ekolayzır sunmuyor. Başka bir çıkış deneyin. Oynatma normal şekilde çalışmaya devam eder.</string>
+    <string name="equalizer_bass_value">%1$d\u0025</string>
+    <string name="equalizer_preset_flat">Düz</string>
+    <string name="equalizer_preset_bass">Bas</string>
+    <string name="equalizer_preset_treble">Tiz</string>
+    <string name="equalizer_preset_vocal">Vokal</string>
+    <string name="equalizer_preset_electronic">Elektronik</string>
+    <string name="intelligence_syncing">Kitaplık eşitleniyor…</string>
+    <string name="intelligence_analysis_progress">%2$d parçadan %1$d tanesi analiz edildi</string>
+    <string name="intelligence_analysis_failed">Analiz edilemedi: %1$d</string>
+    <string name="intelligence_failures_more">Ve %1$d tane daha</string>
+    <string name="intelligence_retry">SMART kurulumunu yeniden dene</string>
+    <string name="intelligence_section_recommendations">Öneriler</string>
+    <string name="intelligence_queue_length">SMART kuyruk uzunluğu</string>
+    <string name="intelligence_queue_length_body">SMART’ın kuyruk oluştururken kaç parça ekleyeceğini seç.</string>
+    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
+    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
+    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
+    <string name="foryou_mix_sound_effects">Sound effects</string>
+    <string name="foryou_mix_spoken_audio">Spoken audio</string>
+    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_how_it_works">SMART bu cihazdaki ses parmak izlerini karşılaştırır, ardından müzikal benzerliği dinleme geçmişinle birleştirir. Hesap veya internet bağlantısı olmadan çalışır.</string>
+    <string name="privacy_local_body">Kitaplığın, dinleme geçmişin ve SMART verilerin bu cihazda kalır. LatentJam hesap kullanmaz ve bu verileri bir sunucuya göndermez.</string>
+    <string name="privacy_save_history_body">Çalma ve atlamaları Sizin İçin ve SMART önerileri için bu cihazda saklayın.</string>
+    <string name="privacy_remember_searches_body">Arama alanı boşken göstermek için aramaları bu cihazda saklayın.</string>
+    <string name="privacy_disable_history_body">Yeni dinleme etkinliği kaydedilmesin. Bu cihazda zaten bulunan geçmişe ne yapılsın?</string>
+    <string name="privacy_disable_searches_body">Yeni aramalar kaydedilmesin. Bu cihazda zaten bulunan aramalara ne yapılsın?</string>
+    <string name="privacy_keep_existing">Mevcut olanları koru</string>
+    <string name="privacy_delete_existing">Mevcut olanları sil</string>
+    <string name="privacy_setting_save_failed">Bu gizlilik ayarı kaydedilemedi. Tekrar deneyin.</string>
+    <string name="privacy_data_clear_failed">Cihazdaki bu veriler temizlenemedi. Tekrar deneyin.</string>
+    <string name="privacy_clear_history">Dinleme geçmişini temizle</string>
+    <string name="privacy_clear_history_body">Önerileri kişiselleştirmek için kullanılan oynatma ve atlama verilerini kaldır.</string>
+    <string name="privacy_clear_history_confirm">Tüm dinleme geçmişi temizlensin mi? Öneriler zevkini baştan öğrenmeye başlayacak.</string>
+    <string name="privacy_history_empty">Dinleme geçmişi yok</string>
+    <plurals name="privacy_history_listens">
+        <item quantity="one">%1$d dinleme</item>
+        <item quantity="other">%1$d dinleme</item>
+    </plurals>
+    <string name="privacy_recent_searches">Son aramalar</string>
+    <string name="privacy_clear_searches">Son aramaları temizle</string>
+    <string name="privacy_clear_searches_body">Arama boşken gösterilen sorguları kaldır.</string>
+    <string name="privacy_clear_searches_confirm">Tüm son aramalar temizlensin mi?</string>
+    <string name="settings_license">Lisans</string>
+    <string name="settings_license_body">LatentJam, Apache License 2.0 ile lisanslanan özgür yazılımdır.</string>
+    <string name="settings_open_source">Kaynak kodu</string>
+    <string name="settings_open_source_body">Projeyi GitHub’da görüntüle</string>
+    <string name="settings_report_issue">Sorun bildir</string>
+    <string name="settings_section_preferences">Tercihler</string>
+    <string name="settings_section_music">Müzik</string>
+    <string name="settings_section_data_support">Veriler ve destek</string>
+    <string name="privacy_listening_history">Dinleme geçmişi</string>
+    <string name="settings_version">Sürüm</string>
+    <string name="settings_library_loading">Kitaplık yükleniyor…</string>
+    <string name="settings_library_refreshing">Yenileniyor…</string>
+    <string name="snack_library_refreshed">Kitaplık yenilendi</string>
+    <string name="action_exclude_track_from_smart">Bu parçayı önerme</string>
+    <string name="action_exclude_artist_from_smart">Bu sanatçıyı önerme</string>
+    <string name="action_include_track_in_smart">Bu parçayı yeniden öner</string>
+    <string name="action_include_artist_in_smart">Bu sanatçıyı yeniden öner</string>
+    <string name="snack_track_excluded_from_smart">Parça SMART önerilerinden kaldırıldı</string>
+    <string name="snack_artist_excluded_from_smart">Sanatçı SMART önerilerinden kaldırıldı</string>
+    <string name="snack_track_included_in_smart">Parça SMART önerilerine geri eklendi</string>
+    <string name="snack_artist_included_in_smart">Sanatçı SMART önerilerine geri eklendi</string>
+    <string name="snack_smart_exclusion_failed">SMART önerileri güncellenemedi. Yeniden deneyin.</string>
+    <string name="action_retry">Yeniden dene</string>
+
+    <string name="settings_language">Dil</string>
+    <string name="settings_language_body">LatentJam sistem dilini veya uygulama için seçilen dili kullanır. Sistem ayarlarından değiştirin.</string>
+    <string name="settings_audio_access">Müzik erişimi</string>
+    <string name="settings_audio_access_allowed">İzin verildi</string>
+    <string name="settings_audio_access_blocked">Engellendi</string>
+    <string name="settings_audio_access_not_requested">İstenmedi</string>
+    <string name="settings_audio_access_not_required">Gerekli değil</string>
+    <string name="settings_sources">Müzik kaynakları</string>
+    <string name="settings_sources_body">LatentJam’de görünecek klasörleri veya cihaz koleksiyonlarını seçin. Cihazdaki dosyalar değişmez.</string>
+    <string name="settings_sources_empty">Yönetilebilir müzik kaynağı bulunamadı.</string>
+    <string name="settings_source_unnamed">Cihaz müziği</string>
+    <string name="settings_source_music_library">Müzik arşivi</string>
+    <string name="settings_hidden_tracks">Gizli parçalar</string>
+    <string name="settings_hidden_tracks_body">Yalnızca LatentJam’de gizlenen parçalar. Dosyayı değiştirmeden istediğiniz parçayı geri yükleyin.</string>
+    <string name="settings_hidden_tracks_empty">LatentJam’de gizli parça yok.</string>
+    <string name="settings_restore">Geri yükle</string>
+    <string name="settings_restore_all">Tümünü geri yükle</string>
+    <string name="settings_library_manage_failed">Arşiv güncellenemedi. Yeniden deneyin.</string>
+
+    <string name="settings_licenses">Açık kaynak lisansları</string>
+    <string name="settings_licenses_body">LatentJam, paketli modeller ve üçüncü taraf yazılımlara ait bildirimler</string>
+    <string name="settings_license_models">Ses ve SMART modelleri</string>
+    <string name="settings_license_models_body">LatentJam’in ürettiği MobileNetV4 ses ve SMART tahmin ağırlıkları Apache-2.0 lisanslıdır. Öğrenci model timm (Apache-2.0) kullanır ve EfficientAT’den damıtılmıştır (MIT, telif hakkı © 2022 Florian Schmid).</string>
+    <string name="settings_license_text_model">MiniLM metin modeli</string>
+    <string name="settings_license_text_model_body">Paketli sentence-transformers/all-MiniLM-L6-v2 ONNX dışa aktarımı ve sözlüğü Apache-2.0 lisanslıdır.</string>
+    <string name="settings_license_runtime">ONNX Runtime</string>
+    <string name="settings_license_runtime_body">Cihazdaki model çıkarımı, MIT Lisansı altındaki Microsoft ONNX Runtime’ı kullanır. Telif hakkı © Microsoft Corporation.</string>
+    <string name="settings_license_aliases">MusicBrainz verileri</string>
+    <string name="settings_license_aliases_body">Paketli sanatçı diğer ad arama verileri MusicBrainz’den türetilmiş ve CC0 kapsamında sunulmuştur.</string>
+    <string name="settings_license_libraries">Üçüncü taraf kitaplıklar</string>
+    <string name="settings_license_libraries_body">LatentJam; Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin ve Coil’i izin verici Apache-2.0 veya MIT lisanslarıyla kullanır. Tam bildirimler kaynak dağıtımına dahildir.</string>
+
+    <string name="sleep_timer">Uyku zamanlayıcısı</string>
+    <string name="sleep_timer_off">Kapalı</string>
+    <plurals name="sleep_timer_minutes">
+        <item quantity="one">%1$d dakika</item>
+        <item quantity="other">%1$d dakika</item>
+    </plurals>
+    <string name="sleep_timer_end_of_track">Geçerli parçanın sonu</string>
+    <string name="sleep_timer_active_minutes">%1$d dk kaldı</string>
+    <string name="sleep_timer_active_end_of_track">Bu parçadan sonra durur</string>
+
+    <string name="intelligence_problems">Analiz sorunları</string>
+    <string name="intelligence_problems_body">SMART’ın analiz edemediği parçalar. Müziğiniz oynatılabilir durumda kalır.</string>
+    <string name="intelligence_no_problems">Analiz sorunu yok</string>
+    <string name="intelligence_manage_exclusions">Öneri hariç tutmaları</string>
+    <string name="intelligence_manage_exclusions_body">SMART’ın hiçbir zaman önermemesi gereken parçalar ve sanatçılar</string>
+    <string name="intelligence_exclusions_empty">Öneri hariç tutması yok</string>
+    <string name="intelligence_excluded_tracks">Hariç tutulan parçalar</string>
+    <string name="intelligence_excluded_artists">Hariç tutulan sanatçılar</string>
+    <string name="intelligence_rebuild">SMART analizini yeniden oluştur</string>
+    <string name="intelligence_rebuild_body">Yerel parmak izlerini silip görünür arşivi yeniden analiz edin.</string>
+    <string name="intelligence_rebuild_confirm">Tüm SMART analizi yeniden oluşturulsun mu? Müzik dosyaları, çalma listeleri ve dinleme geçmişi değişmez.</string>
+    <string name="intelligence_how_title">SMART nasıl çalışır</string>
+    <string name="intelligence_notifications">Analiz bildirimleri</string>
+    <string name="intelligence_notifications_body">Dizinleme ilerlemesini LatentJam dışında göster</string>
+    <string name="intelligence_exclusions_clear">Tüm hariç tutmaları temizle</string>
+
+    <string name="settings_backup">Yerel yedek</string>
+    <string name="settings_backup_body">Çalma listelerini, tercihleri, geçmişi, gizli parçaları ve SMART hariç tutmalarını dışa aktarın veya geri yükleyin. Müzik dosyaları ve model verileri dahil değildir.</string>
+    <string name="backup_export">Yedeği dışa aktar</string>
+    <string name="backup_import">Yedeği içe aktar</string>
+    <string name="backup_import_title">Yerel yedeği geri yükle</string>
+    <string name="backup_import_body">İçe aktarılan verilerin bu cihazdaki verilerle nasıl birleştirileceğini seçin.</string>
+    <string name="backup_merge">Birleştir</string>
+    <string name="backup_replace">Değiştir</string>
+    <string name="backup_replace_warning">Seçilen uygulama verileri bu yedekle değiştirilsin mi? Müzik dosyaları hiçbir zaman değiştirilmez.</string>
+    <string name="backup_export_success">Yedek dışa aktarıldı</string>
+    <string name="backup_import_success">Yedek geri yüklendi</string>
+    <string name="backup_import_success_unmatched">Yedek geri yüklendi; bu cihazda %1$d parça başvurusu eşleştirilemedi.</string>
+    <string name="backup_import_partial">Hata oluşmadan önce bazı veriler geri yüklendi.</string>
+    <string name="backup_failed">Yedekleme işlemi tamamlanamadı.</string>
+    <string name="backup_invalid">Bu geçerli bir LatentJam yedeği değil.</string>
+    <string name="backup_destination_warning">Yedek, özel uygulama verileri içerir. Sistem seçicisinde belirlenen bulut veya üçüncü taraf hedefi bu verileri eşitleyebilir.</string>
 </resources>

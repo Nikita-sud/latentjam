@@ -30,6 +30,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
@@ -79,63 +80,80 @@ import org.jetbrains.compose.resources.stringResource
 fun ForYouTab(
     page: ForYouPage,
     contentPadding: PaddingValues,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
     onPlay: (List<TrackDescriptor>, Int) -> Unit,
     onPlayHero: (ForYouHero) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
     onOpenWorld: (ForYouCard) -> Unit = {},
 ) {
-    if (page.isEmpty) {
-        Box(
-            modifier = Modifier.fillMaxSize().padding(32.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = stringResource(Res.string.foryou_empty),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        return
-    }
-
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
-        page.hero?.let { hero ->
-            item(key = "hero") { HeroCard(hero, onPlay = { onPlayHero(hero) }) }
-        }
-        items(page.sections, key = { it.kind.name }) { section ->
-            Text(
-                text = section.kind.title(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 10.dp),
-            )
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(horizontal = 20.dp),
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        if (page.isEmpty) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(32.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                items(section.cards, key = { it.track.id.value }) { card ->
-                    ForYouCardItem(
-                        card = card,
-                        onClick = {
-                            when {
-                                // A world is a hundred-odd tracks, and there are two reasonable
-                                // things to do with one. Guessing which was the previous build's
-                                // mistake: it played immediately, and the tap that meant "show me
-                                // this" was indistinguishable from the tap that meant "play it".
-                                section.kind == ForYouSectionKind.WORLDS -> onOpenWorld(card)
-                                // A collection card plays its own contents; a track card plays the
-                                // row from that point, so the rest of the shelf stays available.
-                                card.collection != null -> onPlay(card.collection.tracks, 0)
-                                else -> {
-                                    val tracks = section.cards
-                                        .filter { it.collection == null }
-                                        .map { it.track }
-                                    onPlay(tracks, tracks.indexOfFirst { it.id == card.track.id })
-                                }
-                            }
-                        },
-                        onLongClick = { onTrackMenu(card.track) },
+                Text(
+                    text = stringResource(Res.string.foryou_empty),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
+                page.hero?.let { hero ->
+                    item(key = "hero") { HeroCard(hero, onPlay = { onPlayHero(hero) }) }
+                }
+                items(page.sections, key = { it.kind.name }) { section ->
+                    Text(
+                        text = section.kind.title(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(
+                            start = 20.dp,
+                            end = 20.dp,
+                            top = 20.dp,
+                            bottom = 10.dp,
+                        ),
                     )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp),
+                    ) {
+                        items(section.cards, key = { it.track.id.value }) { card ->
+                            ForYouCardItem(
+                                card = card,
+                                onClick = {
+                                    when {
+                                        // A world is a hundred-odd tracks, and there are two
+                                        // reasonable things to do with one. Guessing which was the
+                                        // previous build's mistake: it played immediately, and the
+                                        // tap that meant "show me this" was indistinguishable from
+                                        // the tap that meant "play it".
+                                        section.kind == ForYouSectionKind.WORLDS -> onOpenWorld(card)
+                                        // A collection card plays its own contents; a track card
+                                        // plays the row from that point, so the rest of the shelf
+                                        // stays available.
+                                        card.collection != null -> onPlay(card.collection.tracks, 0)
+                                        else -> {
+                                            val tracks = section.cards
+                                                .filter { it.collection == null }
+                                                .map { it.track }
+                                            onPlay(
+                                                tracks,
+                                                tracks.indexOfFirst { it.id == card.track.id },
+                                            )
+                                        }
+                                    }
+                                },
+                                onLongClick = { onTrackMenu(card.track) },
+                            )
+                        }
+                    }
                 }
             }
         }

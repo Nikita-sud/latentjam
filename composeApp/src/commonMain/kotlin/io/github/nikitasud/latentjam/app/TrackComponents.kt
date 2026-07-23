@@ -5,7 +5,8 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +30,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -74,21 +83,60 @@ internal fun Artwork(
  * Standard track row: artwork, title/artist, and either a duration or an
  * overflow button that raises the track-actions sheet.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun TrackRow(
     track: TrackDescriptor,
     isCurrent: Boolean,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    /** `null` outside selection mode; otherwise whether this row is selected. */
+    selectionState: Boolean? = null,
     onMenu: (() -> Unit)? = null,
 ) {
+    val haptics = LocalHapticFeedback.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(
+                if (selectionState != null) {
+                    Modifier.semantics {
+                        selected = selectionState
+                        role = Role.Checkbox
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick?.let { longClick ->
+                    {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        longClick()
+                    }
+                },
+            )
             .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (selectionState != null) {
+            Icon(
+                imageVector = if (selectionState) {
+                    Icons.Rounded.CheckCircle
+                } else {
+                    Icons.Rounded.RadioButtonUnchecked
+                },
+                contentDescription = null,
+                tint = if (selectionState) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.size(28.dp),
+            )
+        }
         Artwork(uri = track.artworkUri, size = 48.dp)
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -106,7 +154,7 @@ internal fun TrackRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (onMenu != null) {
+        if (selectionState == null && onMenu != null) {
             val title = track.title
             val menuDescription = if (title != null) {
                 stringResource(Res.string.cd_track_options_for, title)

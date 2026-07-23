@@ -9,8 +9,10 @@ import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 internal class DefaultSimilarityEngineTest {
@@ -112,6 +114,21 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(2, report.indexed)
         assertEquals(1, report.failed)
         assertIs<EngineError.BackendFailure>(report.errors[far.id])
+    }
+
+    @Test
+    fun libraryMixMatrixCannotMutateTheLiveIndex() = runTest {
+        val harness = Harness()
+        harness.registerTriangle()
+        harness.engine.initialize()
+        harness.engine.indexLibrary(listOf(seed, near))
+
+        val space = assertNotNull(harness.engine.libraryMixVectors(listOf(seed.id, near.id)))
+        val detached = assertNotNull(space.vector(seed.id))
+        assertContentEquals(floatArrayOf(1f, 0f, 0f), detached)
+        detached[0] = 0f
+
+        assertContentEquals(floatArrayOf(1f, 0f, 0f), harness.engine.embedding(seed.id))
     }
 
     // ----------------------------------------------------------------- nextTrack
@@ -251,6 +268,22 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun clearAnalysisDeletesMemoryAndPersistedSnapshotWithoutUnloadingModel() = runTest {
+        val harness = Harness()
+        harness.registerTriangle()
+        harness.engine.initialize()
+        harness.engine.indexLibrary(listOf(seed, near))
+        assertTrue(harness.store.snapshots.isNotEmpty())
+
+        harness.engine.clearAnalysis()
+
+        assertEquals(EngineState.Ready(indexedCount = 0), harness.engine.state.value)
+        assertEquals(null, harness.engine.embedding(seed.id))
+        assertTrue(harness.store.snapshots.isEmpty())
+        assertEquals(1, harness.backend.loadModelCalls, "clearing analysis must not reload the model")
+    }
+
+    @Test
     fun indexLibrarySkipsAlreadyIndexedTracks() = runTest {
         val harness = Harness()
         harness.registerTriangle()
@@ -315,6 +348,51 @@ internal class DefaultSimilarityEngineTest {
 
         assertEquals(rock.id, results.first().trackId)
         assertTrue(results.first().score > results.last().score)
+    }
+
+    @Test
+    fun synchronizeLibraryReencodesChangedMetadataForSemanticSearch() = runTest {
+        val textEncoder = FakeTextEncoder()
+        val engine = DefaultSimilarityEngine(
+            backend = FakeEmbeddingBackend(),
+            index = InMemoryVectorIndex(dim = 3),
+            store = FakeIndexStore(),
+            config = SmartEngineConfig(embeddingDim = 3, modelVersion = "metadata-refresh-test"),
+            dispatcher = Dispatchers.Default.limitedParallelism(1, "metadata-refresh-engine"),
+            textEncoder = textEncoder,
+            textIndex = InMemoryVectorIndex(dim = TextEncoder.TEXT_DIM),
+            textStore = FakeIndexStore(),
+        )
+        val original = TrackDescriptor(TrackId("same-id"), genre = "Dance", artist = "DJ")
+        val edited = original.copy(genre = "Rock", artist = "Band")
+        engine.initialize()
+        engine.ensureMetadataVectors(listOf(original))
+        val scoreBefore = engine.semanticSearch("guitars", limit = 1).single().score
+
+        engine.synchronizeLibrary(listOf(edited))
+        engine.ensureMetadataVectors(listOf(edited))
+        val scoreAfter = engine.semanticSearch("guitars", limit = 1).single().score
+
+        assertTrue(scoreBefore < 0.1f)
+        assertTrue(scoreAfter > 0.99f)
+    }
+
+    @Test
+    fun synchronizeLibraryReembedsChangedAudioSourceWithTheSameId() = runTest {
+        val harness = Harness()
+        harness.registerTriangle()
+        val original = seed.copy(audioUri = "file:///old", durationMs = 1_000)
+        val replaced = original.copy(audioUri = "file:///new", durationMs = 2_000)
+        harness.engine.initialize()
+        harness.engine.indexLibrary(listOf(original))
+        val callsBefore = harness.backend.embedCalls
+
+        val removed = harness.engine.synchronizeLibrary(listOf(replaced))
+        val report = harness.engine.indexLibrary(listOf(replaced))
+
+        assertEquals(1, removed)
+        assertEquals(1, report.indexed)
+        assertEquals(callsBefore + 1, harness.backend.embedCalls)
     }
 
     @Test

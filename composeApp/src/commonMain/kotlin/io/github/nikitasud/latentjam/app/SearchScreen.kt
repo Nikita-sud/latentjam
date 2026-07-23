@@ -38,6 +38,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -111,6 +112,7 @@ internal fun SearchScreen(
     var resultQuery by remember(songs) { mutableStateOf("") }
     var isSearching by remember(songs) { mutableStateOf(false) }
     val entityResolver = AppGraph.musicEntities
+    val rememberSearches by AppGraph.settings.rememberSearches.collectAsState()
 
     // Normalize/tokenize the library once, off the UI thread. The old path rebuilt all fields,
     // tokens and edit-distance inputs synchronously in composition for every typed character.
@@ -172,6 +174,7 @@ internal fun SearchScreen(
     }
 
     fun remember(queryToKeep: String) {
+        if (!rememberSearches) return
         scope.launch {
             AppGraph.recentSearches.record(queryToKeep)
             refreshRecent()

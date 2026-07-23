@@ -25,6 +25,11 @@
     <string name="action_create">创建</string>
     <string name="action_play_all">播放全部</string>
     <string name="action_shuffle_all">随机播放全部</string>
+    <string name="action_share">分享</string>
+    <string name="action_select_all">全选</string>
+    <string name="action_deselect_all">取消全选</string>
+    <string name="selection_count">已选择：%1$d</string>
+    <string name="action_add">添加</string>
     <string name="cd_more_options">更多选项</string>
     <string name="cd_search_library">搜索音乐库</string>
 
@@ -56,7 +61,7 @@
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">此设备上未找到音乐。</string>
-    <string name="action_rescan_library">重新扫描音乐库</string>
+    <string name="action_rescan_library">刷新音乐库</string>
     <string name="sort_recently_added">最近添加</string>
     <string name="snack_track_deleted">已删除歌曲</string>
 
@@ -131,6 +136,7 @@
     <string name="action_go_to_artist">转到艺人</string>
     <string name="action_information">详细信息</string>
     <string name="action_delete_from_device">从设备中删除</string>
+    <string name="dialog_delete_tracks_message">将从此设备删除所选的 %1$d 首歌曲。此操作无法撤销。</string>
     <string name="dialog_delete_track_title">要删除这首歌曲吗？</string>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">“%1$s”将从这台设备上移除，此操作无法撤销。</string>
@@ -164,10 +170,9 @@
     <string name="settings_section_playback">播放</string>
     <string name="settings_equalizer">均衡器</string>
     <string name="settings_equalizer_subtitle">调节这台设备音频输出的音色</string>
-    <string name="settings_intelligence">智能</string>
+    <string name="settings_intelligence">SMART 引擎</string>
     <string name="settings_smart_engine">SMART 引擎</string>
     <string name="settings_smart_engine_subtitle">设备端模型对你音乐库的了解</string>
-    <string name="settings_section_about">关于</string>
     <string name="settings_about_body">LatentJam 是一款内置设备端推荐引擎的本地音乐播放器。你的收听记录不会离开这台设备。</string>
 
     <!-- ========================================================== equalizer -->
@@ -185,18 +190,6 @@
     <string name="intelligence_fingerprints">声音指纹</string>
     <!-- %1$d tracks analysed out of %2$d in the library -->
     <string name="intelligence_indexed_of">%2$d 首中的 %1$d 首</string>
-    <string name="intelligence_fingerprint_note">没有指纹的歌曲仍然可以播放，但 SMART 不会挑选它们，也不会用它们来判断什么歌更合适。</string>
-    <string name="intelligence_section_analysis">分析</string>
-    <string name="intelligence_analysis_note">第一次听某首歌并不会分析它。指纹是分批计算的，中断后会从上次的位置继续。</string>
-    <!-- %1$d is the batch size -->
-    <string name="intelligence_analyse_batch">分析 %1$d 首</string>
-    <string name="intelligence_analyse_all">分析全部</string>
-    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
-    <string name="intelligence_analysed_batch_report">已分析 %1$d 首，跳过 %2$d 首，失败 %3$d 首。</string>
-    <!-- %1$d analysed, %2$d failed -->
-    <string name="intelligence_analysed_all_report">已分析 %1$d 首，失败 %2$d 首。</string>
-    <string name="intelligence_section_privacy">隐私</string>
-    <string name="intelligence_privacy_body">所有模型都在这台设备上运行。你的音乐库、收听记录以及由此得出的一切都留在本机：没有账号，也不会上传。</string>
     <string name="engine_state_not_started">未启动</string>
     <string name="engine_state_starting">正在启动…</string>
     <string name="engine_state_ready">已就绪</string>
@@ -206,33 +199,191 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam 需要访问你的音乐才能扫描音乐库。</string>
     <string name="permission_grant">授予访问权限</string>
+    <string name="permission_audio_settings_rationale">音乐访问权限已被阻止。请打开系统设置，允许 LatentJam 访问音乐和音频文件。</string>
+    <string name="permission_open_settings">打开设置</string>
+    <string name="permission_notifications_title">显示分析进度？</string>
+    <string name="permission_notifications_rationale">SMART 会在此设备上分析你的音乐库。允许通知即可查看进度，并在分析时返回 LatentJam。选择“暂不”后分析仍会继续。</string>
+    <string name="permission_not_now">暂不</string>
+    <string name="permission_continue">继续</string>
 
-    <!-- ======================================================= diagnostics -->
-    <string name="diagnostics_title">诊断</string>
-    <string name="diagnostics_library">音乐库：%1$s</string>
-    <string name="diagnostics_index_batch">索引 %1$d 首</string>
-    <string name="diagnostics_index_all">索引全部</string>
-    <string name="diagnostics_rescan">重新扫描</string>
-    <string name="diagnostics_indexing">正在索引… %1$d/%2$d（成功 %3$d，跳过 %4$d，失败 %5$d）</string>
-    <string name="diagnostics_indexed_report">完成 — 已索引 %1$d，跳过 %2$d，失败 %3$d。</string>
-    <string name="diagnostics_history_empty">历史记录：尚无播放记录。</string>
-    <plurals name="diagnostics_history_listens">
-        <item quantity="other">历史记录：%1$d 次播放。</item>
-    </plurals>
-    <string name="diagnostics_history_top">最常播放：%1$s（%2$d×）。</string>
-    <string name="diagnostics_engine">相似度引擎</string>
-    <string name="diagnostics_engine_uninitialized">尚未初始化。</string>
-    <plurals name="diagnostics_engine_ready">
-        <item quantity="other">已就绪 — 已索引 %1$d 首歌曲。</item>
-    </plurals>
-    <string name="diagnostics_engine_retry">重试初始化</string>
-    <string name="diagnostics_engine_initialize">初始化引擎</string>
 
-    <string name="engine_error_model_unavailable">相似度模型尚未打包 — 此版本已停用智能随机播放。</string>
+    <string name="engine_error_model_unavailable">SMART 无法加载内置模型。请重试设置；若问题持续，请重新安装应用或报告问题。</string>
     <string name="engine_error_not_indexed">音乐库尚未索引。</string>
-    <string name="engine_error_backend">引擎后端失败：%1$s</string>
+    <string name="engine_error_audio_unavailable">无法读取或解码此曲目。请确认文件仍可用，然后重试。</string>
+    <string name="engine_error_backend">SMART 遇到内部错误。请重试设置；若问题持续，请报告问题。</string>
 
     <string name="indexing_notification_title">正在分析你的音乐</string>
     <string name="indexing_notification_progress">%1$d / %2$d</string>
     <string name="indexing_notification_progress_eta">%1$d / %2$d · 约剩 %3$d 分钟</string>
+    <!-- =================================================== expanded settings -->
+    <string name="settings_appearance">外观</string>
+    <string name="settings_appearance_subtitle">主题、播放器颜色和启动页面</string>
+    <string name="settings_library">音乐库</string>
+    <string name="settings_library_subtitle">刷新、导入和管理隐藏歌曲</string>
+    <string name="settings_playback">播放</string>
+    <string name="settings_playback_subtitle">均衡器和音频控制</string>
+    <string name="settings_privacy">隐私与数据</string>
+    <string name="settings_privacy_subtitle">收听历史和最近搜索</string>
+    <string name="settings_about">关于 LatentJam</string>
+    <string name="settings_about_subtitle">许可证、源代码和支持</string>
+    <string name="settings_section_library">音乐库</string>
+    <string name="settings_section_navigation">导航</string>
+    <string name="settings_section_privacy">设备上的数据</string>
+    <string name="settings_track_colors">播放器颜色</string>
+    <string name="settings_color_dynamic">封面</string>
+    <string name="settings_color_dynamic_body">使用从封面提取的颜色，无法提取时使用 SMART 颜色。</string>
+    <string name="settings_color_smart">SMART</string>
+    <string name="settings_color_smart_body">使用由每首歌曲的声音指纹生成的颜色。</string>
+    <string name="settings_color_theme">主题</string>
+    <string name="settings_color_theme_body">使用应用主题，而不是每首歌曲的专属颜色。</string>
+    <string name="settings_start_page">启动页面</string>
+    <string name="settings_start_page_body">下次打开 LatentJam 时生效。</string>
+    <string name="settings_library_count">音乐库中的歌曲</string>
+    <string name="settings_library_refresh">刷新音乐库</string>
+    <string name="settings_library_refresh_body">查找新添加的音乐，并移除已无法使用的文件条目。</string>
+    <string name="settings_library_import">导入音乐</string>
+    <string name="settings_library_import_body">选择要复制到 LatentJam 的音频文件。</string>
+    <string name="settings_library_restore">恢复隐藏歌曲</string>
+    <string name="settings_library_restore_body">将从 LatentJam 移除的所有歌曲重新显示在音乐库中。设备上的文件不会改变。</string>
+    <string name="settings_equalizer_unavailable">此音频输出不支持均衡器</string>
+    <string name="equalizer_unavailable_body">当前音频输出未向 LatentJam 提供均衡器。请尝试其他输出。音乐仍可正常播放。</string>
+    <string name="equalizer_bass_value">%1$d\u0025</string>
+    <string name="equalizer_preset_flat">平直</string>
+    <string name="equalizer_preset_bass">低音</string>
+    <string name="equalizer_preset_treble">高音</string>
+    <string name="equalizer_preset_vocal">人声</string>
+    <string name="equalizer_preset_electronic">电子乐</string>
+    <string name="intelligence_syncing">正在同步音乐库…</string>
+    <string name="intelligence_analysis_progress">已分析 %2$d 首中的 %1$d 首</string>
+    <string name="intelligence_analysis_failed">无法分析：%1$d</string>
+    <string name="intelligence_failures_more">另有 %1$d 首</string>
+    <string name="intelligence_retry">重试 SMART 设置</string>
+    <string name="intelligence_section_recommendations">推荐</string>
+    <string name="intelligence_queue_length">SMART 队列长度</string>
+    <string name="intelligence_queue_length_body">选择 SMART 创建队列时添加的歌曲数量。</string>
+    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
+    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
+    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
+    <string name="foryou_mix_sound_effects">Sound effects</string>
+    <string name="foryou_mix_spoken_audio">Spoken audio</string>
+    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_how_it_works">SMART 会在本设备上比较声音指纹，再将音乐相似度与收听历史相结合。无需账号或互联网连接。</string>
+    <string name="privacy_local_body">您的音乐库、收听历史和 SMART 数据都保留在本设备上。LatentJam 无需账号，也不会将这些数据发送到服务器。</string>
+    <string name="privacy_save_history_body">在此设备上保存播放和跳过记录，用于“为你推荐”和 SMART 推荐。</string>
+    <string name="privacy_remember_searches_body">在此设备上保存搜索记录，以便在搜索框为空时显示。</string>
+    <string name="privacy_disable_history_body">停止保存新的收听活动。如何处理此设备上已有的历史记录？</string>
+    <string name="privacy_disable_searches_body">停止保存新的搜索。如何处理此设备上已有的搜索记录？</string>
+    <string name="privacy_keep_existing">保留现有数据</string>
+    <string name="privacy_delete_existing">删除现有数据</string>
+    <string name="privacy_setting_save_failed">无法保存此隐私设置。请重试。</string>
+    <string name="privacy_data_clear_failed">无法清除此设备上的数据。请重试。</string>
+    <string name="privacy_clear_history">清除收听历史</string>
+    <string name="privacy_clear_history_body">删除用于个性化推荐的播放和跳过数据。</string>
+    <string name="privacy_clear_history_confirm">清除全部收听历史？推荐将重新学习您的喜好。</string>
+    <string name="privacy_history_empty">暂无收听历史</string>
+    <plurals name="privacy_history_listens">
+        <item quantity="other">收听 %1$d 次</item>
+    </plurals>
+    <string name="privacy_recent_searches">最近搜索</string>
+    <string name="privacy_clear_searches">清除最近搜索</string>
+    <string name="privacy_clear_searches_body">删除搜索框为空时显示的查询。</string>
+    <string name="privacy_clear_searches_confirm">清除全部最近搜索？</string>
+    <string name="settings_license">许可证</string>
+    <string name="settings_license_body">LatentJam 是采用 Apache License 2.0 的自由软件。</string>
+    <string name="settings_open_source">源代码</string>
+    <string name="settings_open_source_body">在 GitHub 上查看项目</string>
+    <string name="settings_report_issue">报告问题</string>
+    <string name="settings_section_preferences">偏好设置</string>
+    <string name="settings_section_music">音乐</string>
+    <string name="settings_section_data_support">数据与支持</string>
+    <string name="privacy_listening_history">收听历史</string>
+    <string name="settings_version">版本</string>
+    <string name="settings_library_loading">正在加载音乐库…</string>
+    <string name="settings_library_refreshing">正在刷新…</string>
+    <string name="snack_library_refreshed">音乐库已刷新</string>
+    <string name="action_exclude_track_from_smart">不再推荐此曲目</string>
+    <string name="action_exclude_artist_from_smart">不再推荐此艺人</string>
+    <string name="action_include_track_in_smart">重新推荐此曲目</string>
+    <string name="action_include_artist_in_smart">重新推荐此艺人</string>
+    <string name="snack_track_excluded_from_smart">已从 SMART 推荐中移除此曲目</string>
+    <string name="snack_artist_excluded_from_smart">已从 SMART 推荐中移除此艺人</string>
+    <string name="snack_track_included_in_smart">已将此曲目恢复到 SMART 推荐</string>
+    <string name="snack_artist_included_in_smart">已将此艺人恢复到 SMART 推荐</string>
+    <string name="snack_smart_exclusion_failed">无法更新 SMART 推荐。请重试。</string>
+    <string name="action_retry">重试</string>
+
+    <string name="settings_language">语言</string>
+    <string name="settings_language_body">LatentJam 使用系统语言或单独为应用选择的语言。请在系统设置中更改。</string>
+    <string name="settings_audio_access">音乐访问权限</string>
+    <string name="settings_audio_access_allowed">已允许</string>
+    <string name="settings_audio_access_blocked">已阻止</string>
+    <string name="settings_audio_access_not_requested">未请求</string>
+    <string name="settings_audio_access_not_required">无需授权</string>
+    <string name="settings_sources">音乐来源</string>
+    <string name="settings_sources_body">选择在 LatentJam 中显示的文件夹或设备音乐集合。设备上的文件不会更改。</string>
+    <string name="settings_sources_empty">未找到可管理的音乐来源。</string>
+    <string name="settings_source_unnamed">设备音乐</string>
+    <string name="settings_source_music_library">音乐资料库</string>
+    <string name="settings_hidden_tracks">隐藏的曲目</string>
+    <string name="settings_hidden_tracks_body">仅在 LatentJam 中隐藏的曲目。恢复曲目不会更改其文件。</string>
+    <string name="settings_hidden_tracks_empty">LatentJam 中没有隐藏的曲目。</string>
+    <string name="settings_restore">恢复</string>
+    <string name="settings_restore_all">全部恢复</string>
+    <string name="settings_library_manage_failed">无法更新音乐库。请重试。</string>
+
+    <string name="settings_licenses">开源许可证</string>
+    <string name="settings_licenses_body">LatentJam、内置模型和第三方软件声明</string>
+    <string name="settings_license_models">音频和 SMART 模型</string>
+    <string name="settings_license_models_body">LatentJam 生成的 MobileNetV4 音频和 SMART 预测器权重采用 Apache-2.0。学生模型使用 timm（Apache-2.0），并从 EfficientAT 蒸馏而来（MIT，版权所有 © 2022 Florian Schmid）。</string>
+    <string name="settings_license_text_model">MiniLM 文本模型</string>
+    <string name="settings_license_text_model_body">内置的 sentence-transformers/all-MiniLM-L6-v2 ONNX 导出和词表采用 Apache-2.0。</string>
+    <string name="settings_license_runtime">ONNX Runtime</string>
+    <string name="settings_license_runtime_body">设备端模型推理使用采用 MIT 许可证的 Microsoft ONNX Runtime。版权所有 © Microsoft Corporation。</string>
+    <string name="settings_license_aliases">MusicBrainz 数据</string>
+    <string name="settings_license_aliases_body">内置的艺人别名搜索数据源自 MusicBrainz，并以 CC0 提供。</string>
+    <string name="settings_license_libraries">第三方库</string>
+    <string name="settings_license_libraries_body">LatentJam 使用 Kotlin、coroutines、Compose Multiplatform、AndroidX Media3、Koin 和 Coil，均采用宽松的 Apache-2.0 或 MIT 许可证。完整声明随源代码分发。</string>
+
+    <string name="sleep_timer">睡眠定时器</string>
+    <string name="sleep_timer_off">关闭</string>
+    <plurals name="sleep_timer_minutes">
+        <item quantity="one">%1$d 分钟</item>
+        <item quantity="other">%1$d 分钟</item>
+    </plurals>
+    <string name="sleep_timer_end_of_track">当前曲目结束时</string>
+    <string name="sleep_timer_active_minutes">剩余 %1$d 分钟</string>
+    <string name="sleep_timer_active_end_of_track">播完此曲后停止</string>
+
+    <string name="intelligence_problems">分析问题</string>
+    <string name="intelligence_problems_body">SMART 无法分析的曲目。音乐仍可正常播放。</string>
+    <string name="intelligence_no_problems">没有分析问题</string>
+    <string name="intelligence_manage_exclusions">推荐排除项</string>
+    <string name="intelligence_manage_exclusions_body">SMART 永不推荐的曲目和艺人</string>
+    <string name="intelligence_exclusions_empty">没有推荐排除项</string>
+    <string name="intelligence_excluded_tracks">已排除的曲目</string>
+    <string name="intelligence_excluded_artists">已排除的艺人</string>
+    <string name="intelligence_rebuild">重建 SMART 分析</string>
+    <string name="intelligence_rebuild_body">删除本地指纹并重新分析可见音乐库。</string>
+    <string name="intelligence_rebuild_confirm">重建全部 SMART 分析？音乐文件、播放列表和收听历史不会更改。</string>
+    <string name="intelligence_how_title">SMART 的工作方式</string>
+    <string name="intelligence_notifications">分析通知</string>
+    <string name="intelligence_notifications_body">在 LatentJam 外显示索引进度</string>
+    <string name="intelligence_exclusions_clear">清除所有排除项</string>
+
+    <string name="settings_backup">本地备份</string>
+    <string name="settings_backup_body">导出或恢复播放列表、偏好设置、历史、隐藏曲目和 SMART 排除项。不包含音乐文件和模型数据。</string>
+    <string name="backup_export">导出备份</string>
+    <string name="backup_import">导入备份</string>
+    <string name="backup_import_title">恢复本地备份</string>
+    <string name="backup_import_body">选择如何将导入的数据与本设备现有数据合并。</string>
+    <string name="backup_merge">合并</string>
+    <string name="backup_replace">替换</string>
+    <string name="backup_replace_warning">用此备份替换所选应用数据？音乐文件绝不会更改。</string>
+    <string name="backup_export_success">备份已导出</string>
+    <string name="backup_import_success">备份已恢复</string>
+    <string name="backup_import_success_unmatched">备份已恢复；有 %1$d 个曲目引用无法在此设备上匹配。</string>
+    <string name="backup_import_partial">发生错误前已恢复部分数据。</string>
+    <string name="backup_failed">无法完成备份操作。</string>
+    <string name="backup_invalid">这不是有效的 LatentJam 备份。</string>
+    <string name="backup_destination_warning">备份包含私密应用数据。在系统选择器中选取的云端或第三方位置可能会同步这些数据。</string>
 </resources>

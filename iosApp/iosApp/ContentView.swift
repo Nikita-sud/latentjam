@@ -17,8 +17,19 @@ struct ComposeView: UIViewControllerRepresentable {
 }
 
 struct ContentView: View {
+    @AppStorage("theme_mode") private var themeMode = "SYSTEM"
+
+    private var selectedColorScheme: ColorScheme? {
+        switch themeMode {
+        case "LIGHT": return .light
+        case "DARK": return .dark
+        default: return nil
+        }
+    }
+
     var body: some View {
         ComposeView()
             .ignoresSafeArea(edges: .all) // Compose draws edge-to-edge and manages insets itself.
+            .preferredColorScheme(selectedColorScheme)
     }
 }

@@ -34,10 +34,22 @@ internal class MediaStoreMusicLibrary(
 
     private val visibilityMutex = Mutex()
     private val hiddenFile = java.io.File(context.filesDir, HIDDEN_FILE_NAME)
+    private val excludedSourcesFile = java.io.File(context.filesDir, EXCLUDED_SOURCES_FILE_NAME)
 
     override suspend fun tracks(): List<TrackDescriptor> = withContext(Dispatchers.IO) {
-        val tracks = mutableListOf<TrackDescriptor>()
         val hidden = visibilityMutex.withLock { readHiddenIds() }
+        val excludedSources = visibilityMutex.withLock { readExcludedSourceIds() }
+        queryTracks().filterNot { track ->
+            track.id.value in hidden || sourceId(track.folderPath) in excludedSources
+        }
+    }
+
+    override suspend fun allKnownTracks(): List<TrackDescriptor> = withContext(Dispatchers.IO) {
+        queryTracks()
+    }
+
+    private fun queryTracks(): List<TrackDescriptor> {
+        val tracks = mutableListOf<TrackDescriptor>()
         // GENRE joined into the audio table only since API 30.
         val genreSupported = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R
         val projection = buildList {
@@ -57,13 +69,21 @@ internal class MediaStoreMusicLibrary(
             }
             if (genreSupported) add(MediaStore.Audio.Media.GENRE)
         }.toTypedArray()
-        context.contentResolver.query(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            "${MediaStore.Audio.Media.IS_MUSIC} != 0",
-            null,
-            "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC",
-        )?.use { cursor ->
+        val cursor = try {
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+                null,
+                "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC",
+            )
+        } catch (_: SecurityException) {
+            // The listener may deliberately continue without MediaStore access, inspect the app,
+            // and recover later from Library settings. That is an empty device source, not a
+            // broken/infinite-loading library.
+            null
+        }
+        cursor?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
@@ -81,7 +101,6 @@ internal class MediaStoreMusicLibrary(
             val genreColumn = if (genreSupported) cursor.getColumnIndex(MediaStore.Audio.Media.GENRE) else -1
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
-                if (id.toString() in hidden) continue
                 val albumId = cursor.getLong(albumIdColumn)
                 tracks += TrackDescriptor(
                     id = TrackId(id.toString()),
@@ -103,7 +122,7 @@ internal class MediaStoreMusicLibrary(
                 )
             }
         }
-        tracks
+        return tracks
     }
 
     override suspend fun hide(trackId: TrackId): Unit = withContext(Dispatchers.IO) {
@@ -120,6 +139,16 @@ internal class MediaStoreMusicLibrary(
         }
     }
 
+    override suspend fun hiddenTracks(): List<TrackDescriptor> = withContext(Dispatchers.IO) {
+        val hidden = visibilityMutex.withLock { readHiddenIds() }
+        if (hidden.isEmpty()) emptyList()
+        else queryTracks().filter { it.id.value in hidden }
+    }
+
+    override suspend fun hiddenTrackIds(): Set<TrackId> = withContext(Dispatchers.IO) {
+        visibilityMutex.withLock { readHiddenIds().mapTo(linkedSetOf(), ::TrackId) }
+    }
+
     override suspend fun hasHiddenTracks(): Boolean = withContext(Dispatchers.IO) {
         visibilityMutex.withLock { readHiddenIds().isNotEmpty() }
     }
@@ -128,6 +157,39 @@ internal class MediaStoreMusicLibrary(
         visibilityMutex.withLock { writeHiddenIds(emptySet()) }
     }
 
+    override suspend fun replaceHidden(trackIds: Set<TrackId>): Unit = withContext(Dispatchers.IO) {
+        visibilityMutex.withLock {
+            writeHiddenIds(trackIds.mapTo(linkedSetOf(), TrackId::value))
+        }
+    }
+
+    override suspend fun sources(): List<LibrarySource> = withContext(Dispatchers.IO) {
+        val excluded = visibilityMutex.withLock { readExcludedSourceIds() }
+        queryTracks()
+            .groupBy { track -> sourceId(track.folderPath) }
+            .map { (id, sourceTracks) ->
+                LibrarySource(
+                    id = id,
+                    name = sourceTracks.firstOrNull()?.folderPath,
+                    trackCount = sourceTracks.size,
+                    enabled = id !in excluded,
+                )
+            }
+            .sortedWith(
+                compareByDescending<LibrarySource> { it.enabled }
+                    .thenBy { it.name.orEmpty().lowercase() },
+            )
+    }
+
+    override suspend fun setSourceEnabled(sourceId: String, enabled: Boolean): Unit =
+        withContext(Dispatchers.IO) {
+            visibilityMutex.withLock {
+                val excluded = readExcludedSourceIds().toMutableSet()
+                val changed = if (enabled) excluded.remove(sourceId) else excluded.add(sourceId)
+                if (changed) writeExcludedSourceIds(excluded)
+            }
+        }
+
     private fun readHiddenIds(): Set<String> =
         if (hiddenFile.exists()) hiddenFile.readLines().filter(String::isNotBlank).toSet()
         else emptySet()
@@ -135,6 +197,19 @@ internal class MediaStoreMusicLibrary(
     private fun writeHiddenIds(ids: Set<String>) {
         hiddenFile.writeText(ids.sorted().joinToString("\n"))
     }
+
+    private fun readExcludedSourceIds(): Set<String> =
+        if (excludedSourcesFile.exists()) {
+            excludedSourcesFile.readLines().filter(String::isNotBlank).toSet()
+        } else {
+            emptySet()
+        }
+
+    private fun writeExcludedSourceIds(ids: Set<String>) {
+        excludedSourcesFile.writeText(ids.sorted().joinToString("\n"))
+    }
+
+    private fun sourceId(folderPath: String?): String = SOURCE_PREFIX + folderPath.orEmpty()
 
     /** MediaStore reports missing tags as the literal string "<unknown>". */
     private fun String?.knownOrNull(): String? =
@@ -155,6 +230,8 @@ internal class MediaStoreMusicLibrary(
         /** Base of the classic per-album artwork content URIs. */
         val ALBUM_ART_URI: android.net.Uri = android.net.Uri.parse("content://media/external/audio/albumart")
         const val HIDDEN_FILE_NAME = "hidden_tracks.txt"
+        const val EXCLUDED_SOURCES_FILE_NAME = "excluded_music_sources.txt"
+        const val SOURCE_PREFIX = "folder:"
     }
 }
 

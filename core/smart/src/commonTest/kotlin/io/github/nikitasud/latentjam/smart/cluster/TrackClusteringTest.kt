@@ -75,6 +75,26 @@ class TrackClusteringTest {
     }
 
     @Test
+    fun `final centroid confidence is finite aligned and deterministic`() {
+        val (ids, vectors) = twoClouds(count = 20, spread = 0.12)
+        val first = TrackClustering.cluster(ids, vectors, dim, k = 2)
+        val again = TrackClustering.cluster(ids, vectors, dim, k = 2)
+
+        assertEquals(first, again, "confidence must be as deterministic as membership")
+        assertTrue(first.isNotEmpty())
+        first.forEach { cluster ->
+            assertEquals(cluster.members, cluster.memberships.map { it.trackId })
+            assertEquals(cluster.size, cluster.memberships.size)
+            cluster.memberships.forEach { membership ->
+                assertTrue(membership.centroidSimilarity.isFinite())
+                assertTrue(membership.assignmentMargin.isFinite())
+                assertTrue(membership.centroidSimilarity in -1.000001f..1.000001f)
+                assertTrue(membership.assignmentMargin in -2.000001f..2.000001f)
+            }
+        }
+    }
+
+    @Test
     fun `two obvious clouds come back as two clusters`() {
         val (ids, vectors) = twoClouds(count = 20)
         val clusters = TrackClustering.cluster(ids, vectors, dim, k = 2)

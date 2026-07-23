@@ -19,9 +19,19 @@ import kotlin.random.Random
  */
 public data class TrackCluster(
     public val members: List<TrackId>,
+    /**
+     * Final-centroid evidence for [members], in exactly the same order.
+     *
+     * Empty is retained as the compatibility value for callers that construct a cluster directly.
+     * Clusters returned by [TrackClustering] always carry one entry per member.
+     */
+    public val memberships: List<TrackClusterMembership> = emptyList(),
 ) {
     init {
         require(members.isNotEmpty()) { "A cluster with no members is not a cluster" }
+        require(memberships.isEmpty() || memberships.map { it.trackId } == members) {
+            "Cluster memberships must be empty or align exactly with members"
+        }
     }
 
     /** The most central member — the cluster's representative. */
@@ -29,6 +39,20 @@ public data class TrackCluster(
 
     public val size: Int get() = members.size
 }
+
+/**
+ * How confidently one track belongs to its assigned cluster.
+ *
+ * [centroidSimilarity] is cosine similarity to the centroid recomputed from the final membership.
+ * [assignmentMargin] subtracts the closest other non-empty centroid's cosine from that value. A
+ * small margin identifies a boundary track that k-means had to assign somewhere but that does not
+ * confidently belong in either resulting mix.
+ */
+public data class TrackClusterMembership(
+    public val trackId: TrackId,
+    public val centroidSimilarity: Float,
+    public val assignmentMargin: Float,
+)
 
 /**
  * Spherical k-means over track embeddings.
@@ -128,6 +152,28 @@ public object TrackClustering {
 
         val assignment = assign(rows, n, dim, k = k.coerceAtMost(n), iterations = iterations)
         return collect(rows, n, dim, assignment, usable, minSize)
+    }
+
+    /**
+     * Clusters a one-shot matrix produced by [LibraryVectorFusion] without copying it.
+     *
+     * The matrix is private and already normalized, dimension-checked, and de-duplicated. Consuming
+     * it here saves one complete 1,344-float row per track at the exact moment model snapshots and
+     * k-means would otherwise put the most pressure on a low-memory phone.
+     */
+    internal fun cluster(
+        space: LibraryVectorSpace,
+        k: Int = DEFAULT_K,
+        minSize: Int = MIN_CLUSTER_SIZE,
+        iterations: Int = DEFAULT_ITERATIONS,
+    ): List<TrackCluster> {
+        if (k <= 0 || space.size < minSize) return emptyList()
+        val rows = space.takeRows()
+        val n = space.size
+        val dim = space.dim
+        center(rows, n, dim)
+        val assignment = assign(rows, n, dim, k = k.coerceAtMost(n), iterations = iterations)
+        return collect(rows, n, dim, assignment, space.trackIds, minSize)
     }
 
     /**
@@ -286,24 +332,77 @@ public object TrackClustering {
         val buckets = LinkedHashMap<Int, MutableList<Int>>()
         for (i in 0 until n) buckets.getOrPut(assignment[i]) { mutableListOf() }.add(i)
 
+        // Recompute every non-empty final centroid before scoring any member. Rival margins must be
+        // measured against the same final assignment as own-cluster similarity; reusing the last
+        // Lloyd centroids would leave the two measurements one assignment out of step.
+        val centroidCount = (assignment.maxOrNull() ?: -1) + 1
+        val centroids = FloatArray(centroidCount * dim)
+        val counts = IntArray(centroidCount)
+        for (row in 0 until n) {
+            val cluster = assignment[row]
+            counts[cluster]++
+            val source = row * dim
+            val target = cluster * dim
+            for (d in 0 until dim) centroids[target + d] += rows[source + d]
+        }
+        for (cluster in 0 until centroidCount) {
+            if (counts[cluster] == 0) continue
+            val base = cluster * dim
+            var sumSq = 0.0
+            for (d in 0 until dim) {
+                val value = centroids[base + d] / counts[cluster]
+                centroids[base + d] = value
+                sumSq += value.toDouble() * value
+            }
+            val length = sqrt(sumSq).toFloat()
+            if (length < 1e-12f) continue
+            for (d in 0 until dim) centroids[base + d] /= length
+        }
+
         return buckets.values
             .filter { it.size >= minSize }
             .map { rowsInCluster ->
-                val centroid = FloatArray(dim)
-                for (row in rowsInCluster) {
-                    val base = row * dim
-                    for (d in 0 until dim) centroid[d] += rows[base + d]
-                }
-                val length = norm(centroid).coerceAtLeast(1e-12f)
-                for (d in 0 until dim) centroid[d] /= length
+                val cluster = assignment[rowsInCluster.first()]
                 // Descending dot is ascending distance: the medoid lands at index 0. The sort is
                 // stable, so rows equidistant from the centre keep the caller's original order.
-                rowsInCluster.sortedByDescending { row -> dot(rows, row, centroid, 0, dim) }
+                rowsInCluster
+                    .map { row ->
+                        val ownSimilarity = dot(rows, row, centroids, cluster, dim)
+                        var rivalSimilarity = Float.NEGATIVE_INFINITY
+                        for (rival in 0 until centroidCount) {
+                            if (rival == cluster || counts[rival] == 0) continue
+                            rivalSimilarity = maxOf(
+                                rivalSimilarity,
+                                dot(rows, row, centroids, rival, dim),
+                            )
+                        }
+                        val margin = if (rivalSimilarity == Float.NEGATIVE_INFINITY) {
+                            // The maximum possible cosine gap, used only for a one-cluster
+                            // experiment where there is no decision boundary to be uncertain about.
+                            2f
+                        } else {
+                            ownSimilarity - rivalSimilarity
+                        }
+                        row to TrackClusterMembership(
+                            trackId = ids[row],
+                            centroidSimilarity = ownSimilarity,
+                            assignmentMargin = margin,
+                        )
+                    }
+                    .sortedByDescending { (_, membership) -> membership.centroidSimilarity }
             }
             // Largest first is only a default; a caller who knows the listener re-ranks these by
             // how much time was actually spent in each.
-            .sortedWith(compareByDescending<List<Int>> { it.size }.thenBy { it.first() })
-            .map { rowsInCluster -> TrackCluster(rowsInCluster.map { ids[it] }) }
+            .sortedWith(
+                compareByDescending<List<Pair<Int, TrackClusterMembership>>> { it.size }
+                    .thenBy { it.first().first },
+            )
+            .map { ranked ->
+                TrackCluster(
+                    members = ranked.map { (_, membership) -> membership.trackId },
+                    memberships = ranked.map { (_, membership) -> membership },
+                )
+            }
     }
 
     private fun copyRow(from: FloatArray, fromRow: Int, into: FloatArray, intoRow: Int, dim: Int) {

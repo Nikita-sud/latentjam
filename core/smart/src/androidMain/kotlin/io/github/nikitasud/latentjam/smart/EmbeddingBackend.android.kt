@@ -45,6 +45,7 @@ internal class OnnxEmbeddingBackend(
 
     private val decoder = AndroidAudioDecoder(context)
     private var session: OrtSession? = null
+    private var semanticSession: OrtSession? = null
 
     override suspend fun loadModel(): Result<Unit> {
         if (session != null) return Result.success(Unit)
@@ -56,6 +57,19 @@ internal class OnnxEmbeddingBackend(
                 options.setIntraOpNumThreads(1)
                 options.setInterOpNumThreads(1)
                 OrtEnvironment.getEnvironment().createSession(modelBytes, options)
+            }
+            // Semantic routing improves My Mixes but is not required for audio similarity. Keep
+            // startup usable if an older/debug package is missing the optional head.
+            runCatching {
+                val semanticBytes = context.assets.open(SEMANTIC_ASSET_PATH).use { it.readBytes() }
+                semanticSession = OrtSession.SessionOptions().use { options ->
+                    options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
+                    options.setIntraOpNumThreads(1)
+                    options.setInterOpNumThreads(1)
+                    OrtEnvironment.getEnvironment().createSession(semanticBytes, options)
+                }
+            }.onFailure { failure ->
+                println("SMART: semantic head unavailable (${failure.message})")
             }
             Result.success(Unit)
         } catch (t: Throwable) {
@@ -133,11 +147,11 @@ internal class OnnxEmbeddingBackend(
                 }
             }
             if (windows == 0) {
-                return backendFailure(
-                    lastModelFailure ?: (
-                        "Could not decode any audio window for ${descriptor.id.value}: " +
-                            (decoder.lastFailure ?: "unknown decoder failure")
-                        ),
+                if (lastModelFailure != null) return backendFailure(lastModelFailure)
+                return Result.failure(
+                    SmartEngineException(
+                        EngineError.AudioUnavailable(decoder.lastFailure),
+                    ),
                 )
             }
             if (!l2NormalizeInPlace(pooled)) {
@@ -155,9 +169,53 @@ internal class OnnxEmbeddingBackend(
         }
     }
 
+    override suspend fun classify(embeddings: List<FloatArray>): Result<List<FloatArray>> {
+        if (embeddings.isEmpty()) return Result.success(emptyList())
+        val activeSession = semanticSession
+            ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        if (embeddings.any { it.size != config.embeddingDim || !it.all(Float::isFinite) }) {
+            return backendSemanticFailure("Semantic head received an invalid embedding batch")
+        }
+        return try {
+            val flattened = FloatArray(embeddings.size * config.embeddingDim)
+            for (row in embeddings.indices) {
+                embeddings[row].copyInto(
+                    destination = flattened,
+                    destinationOffset = row * config.embeddingDim,
+                )
+            }
+            val environment = OrtEnvironment.getEnvironment()
+            OnnxTensor.createTensor(
+                environment,
+                FloatBuffer.wrap(flattened),
+                longArrayOf(embeddings.size.toLong(), config.embeddingDim.toLong()),
+            ).use { tensor ->
+                activeSession.run(mapOf(SEMANTIC_INPUT_NAME to tensor)).use { output ->
+                    @Suppress("UNCHECKED_CAST")
+                    val result = output[0].value as Array<FloatArray>
+                    if (
+                        result.size != embeddings.size ||
+                        result.any { it.size != TrackSemantics.OUTPUT_SIZE }
+                    ) {
+                        return backendSemanticFailure(
+                            "Semantic head produced an unexpected output shape",
+                        )
+                    }
+                    Result.success(result.map { it.copyOf() })
+                }
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Throwable) {
+            backendSemanticFailure("Semantic classification failed: ${failure.message}", failure)
+        }
+    }
+
     override fun close() {
         runCatching { session?.close() }
+        runCatching { semanticSession?.close() }
         session = null
+        semanticSession = null
         // The process-global OrtEnvironment is deliberately left open.
     }
 
@@ -222,6 +280,13 @@ internal class OnnxEmbeddingBackend(
     private fun backendFailure(message: String): Result<FloatArray> =
         Result.failure(SmartEngineException(EngineError.BackendFailure(message)))
 
+    private fun backendSemanticFailure(
+        message: String,
+        cause: Throwable? = null,
+    ): Result<List<FloatArray>> = Result.failure(
+        SmartEngineException(EngineError.BackendFailure(message, cause)),
+    )
+
     private companion object {
         // Contract constants from the research-side export
         // (mnv4-conv-m-distill-mw): see scripts/distill/README.md there.
@@ -230,6 +295,8 @@ internal class OnnxEmbeddingBackend(
         const val WINDOW_MS = WINDOW_SAMPLES * 1000L / SAMPLE_RATE
         const val INPUT_NAME = "waveform"
         const val DEFAULT_ASSET_PATH = "ml/mnv4_audio.onnx"
+        const val SEMANTIC_ASSET_PATH = "ml/universal_semantic_head.onnx"
+        const val SEMANTIC_INPUT_NAME = "embedding"
         val WINDOW_POSITIONS = listOf(0.2, 0.5, 0.8)
         val INFERENCE_GAINS = listOf(1f, 0.5f, 0.25f)
     }

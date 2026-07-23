@@ -25,6 +25,11 @@
     <string name="action_create">Создать</string>
     <string name="action_play_all">Воспроизвести всё</string>
     <string name="action_shuffle_all">Перемешать всё</string>
+    <string name="action_share">Поделиться</string>
+    <string name="action_select_all">Выбрать все</string>
+    <string name="action_deselect_all">Снять выделение</string>
+    <string name="selection_count">Выбрано: %1$d</string>
+    <string name="action_add">Добавить</string>
     <string name="cd_more_options">Другие действия</string>
     <string name="cd_search_library">Поиск по медиатеке</string>
 
@@ -60,7 +65,7 @@
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">На этом устройстве не найдено музыки.</string>
-    <string name="action_rescan_library">Пересканировать медиатеку</string>
+    <string name="action_rescan_library">Обновить медиатеку</string>
     <string name="sort_recently_added">Недавно добавленные</string>
     <string name="snack_track_deleted">Трек удалён</string>
 
@@ -137,6 +142,7 @@
     <string name="action_go_to_artist">Перейти к исполнителю</string>
     <string name="action_information">Информация</string>
     <string name="action_delete_from_device">Удалить с устройства</string>
+    <string name="dialog_delete_tracks_message">Выбранные треки (%1$d) будут удалены с этого устройства. Это действие нельзя отменить.</string>
     <string name="dialog_delete_track_title">Удалить этот трек?</string>
     <string name="dialog_delete_track_message">«%1$s» будет удалён с этого устройства. Это действие нельзя отменить.</string>
     <string name="dialog_delete_track_message_generic">Этот трек будет удалён с этого устройства. Это действие нельзя отменить.</string>
@@ -169,10 +175,9 @@
     <string name="settings_section_playback">Воспроизведение</string>
     <string name="settings_equalizer">Эквалайзер</string>
     <string name="settings_equalizer_subtitle">Настройка звучания для аудиовыхода этого устройства</string>
-    <string name="settings_intelligence">Умные функции</string>
+    <string name="settings_intelligence">Движок SMART</string>
     <string name="settings_smart_engine">Движок SMART</string>
     <string name="settings_smart_engine_subtitle">Что модель на устройстве знает о вашей медиатеке</string>
-    <string name="settings_section_about">О приложении</string>
     <string name="settings_about_body">LatentJam — локальный музыкальный плеер с рекомендациями прямо на устройстве. Ничего о том, что вы слушаете, не покидает это устройство.</string>
 
     <!-- ========================================================== equalizer -->
@@ -189,15 +194,6 @@
     <string name="intelligence_library">Медиатека</string>
     <string name="intelligence_fingerprints">Звуковые отпечатки</string>
     <string name="intelligence_indexed_of">%1$d из %2$d</string>
-    <string name="intelligence_fingerprint_note">Треки без отпечатка можно слушать, но SMART не станет их подбирать и не будет учитывать их при оценке того, что подходит.</string>
-    <string name="intelligence_section_analysis">Анализ</string>
-    <string name="intelligence_analysis_note">Первое прослушивание трека не анализирует его. Отпечатки вычисляются пачками, и работа продолжается с того места, где остановилась.</string>
-    <string name="intelligence_analyse_batch">Проанализировать %1$d</string>
-    <string name="intelligence_analyse_all">Проанализировать всё</string>
-    <string name="intelligence_analysed_batch_report">Проанализировано: %1$d, пропущено: %2$d, с ошибкой: %3$d.</string>
-    <string name="intelligence_analysed_all_report">Проанализировано: %1$d, с ошибкой: %2$d.</string>
-    <string name="intelligence_section_privacy">Конфиденциальность</string>
-    <string name="intelligence_privacy_body">Все модели работают на этом устройстве. Ваша медиатека, история прослушиваний и всё, что из них выводится, остаются здесь — ни аккаунта, ни выгрузки на сервер.</string>
     <string name="engine_state_not_started">Не запущен</string>
     <string name="engine_state_starting">Запускается…</string>
     <string name="engine_state_ready">Готов</string>
@@ -206,39 +202,203 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">Чтобы просканировать медиатеку, приложению LatentJam нужен доступ к вашей музыке.</string>
     <string name="permission_grant">Предоставить доступ</string>
+    <string name="permission_audio_settings_rationale">Доступ к музыке заблокирован. Откройте системные настройки и разрешите LatentJam доступ к музыке и аудиофайлам.</string>
+    <string name="permission_open_settings">Открыть настройки</string>
+    <string name="permission_notifications_title">Показывать ход анализа?</string>
+    <string name="permission_notifications_rationale">SMART анализирует медиатеку на этом устройстве. Разрешите уведомления, чтобы видеть ход работы и возвращаться в LatentJam. Если выбрать «Не сейчас», анализ продолжится.</string>
+    <string name="permission_not_now">Не сейчас</string>
+    <string name="permission_continue">Продолжить</string>
 
-    <!-- ======================================================= diagnostics -->
-    <string name="diagnostics_title">Диагностика</string>
-    <string name="diagnostics_library">Медиатека: %1$s</string>
-    <string name="diagnostics_index_batch">Проиндексировать %1$d</string>
-    <string name="diagnostics_index_all">Проиндексировать всё</string>
-    <string name="diagnostics_rescan">Пересканировать</string>
-    <string name="diagnostics_indexing">Индексация… %1$d/%2$d (успешно %3$d, пропущено %4$d, ошибок %5$d)</string>
-    <string name="diagnostics_indexed_report">Готово — проиндексировано %1$d, пропущено %2$d, с ошибкой %3$d.</string>
-    <string name="diagnostics_history_empty">История: прослушиваний пока нет.</string>
-    <plurals name="diagnostics_history_listens">
-        <item quantity="one">История: %1$d прослушивание.</item>
-        <item quantity="few">История: %1$d прослушивания.</item>
-        <item quantity="many">История: %1$d прослушиваний.</item>
-        <item quantity="other">История: %1$d прослушивания.</item>
-    </plurals>
-    <string name="diagnostics_history_top">Чаще всего: %1$s (%2$d×).</string>
-    <string name="diagnostics_engine">Движок сходства</string>
-    <string name="diagnostics_engine_uninitialized">Ещё не инициализирован.</string>
-    <plurals name="diagnostics_engine_ready">
-        <item quantity="one">Готов — проиндексирован %1$d трек.</item>
-        <item quantity="few">Готов — проиндексировано %1$d трека.</item>
-        <item quantity="many">Готов — проиндексировано %1$d треков.</item>
-        <item quantity="other">Готов — проиндексировано %1$d трека.</item>
-    </plurals>
-    <string name="diagnostics_engine_retry">Повторить инициализацию</string>
-    <string name="diagnostics_engine_initialize">Инициализировать движок</string>
 
-    <string name="engine_error_model_unavailable">Модель сходства пока не включена в сборку — умное перемешивание отключено.</string>
+    <string name="engine_error_model_unavailable">SMART не удалось загрузить встроенные модели. Повторите настройку; если ошибка останется, переустановите приложение или сообщите о проблеме.</string>
     <string name="engine_error_not_indexed">Медиатека ещё не проиндексирована.</string>
-    <string name="engine_error_backend">Сбой движка: %1$s</string>
+    <string name="engine_error_audio_unavailable">Не удалось прочитать или декодировать трек. Проверьте, что файл всё ещё доступен, и повторите попытку.</string>
+    <string name="engine_error_backend">В SMART произошла внутренняя ошибка. Повторите настройку; если ошибка останется, сообщите о проблеме.</string>
 
     <string name="indexing_notification_title">Анализ музыки</string>
     <string name="indexing_notification_progress">%1$d из %2$d</string>
     <string name="indexing_notification_progress_eta">%1$d из %2$d · осталось около %3$d мин</string>
+
+    <!-- =================================================== expanded settings -->
+    <string name="settings_appearance">Внешний вид</string>
+    <string name="settings_appearance_subtitle">Тема, цвета плеера и стартовый раздел</string>
+    <string name="settings_library">Медиатека</string>
+    <string name="settings_library_subtitle">Обновление, импорт и скрытые треки</string>
+    <string name="settings_playback">Воспроизведение</string>
+    <string name="settings_playback_subtitle">Эквалайзер и настройки звука</string>
+    <string name="settings_privacy">Конфиденциальность и данные</string>
+    <string name="settings_privacy_subtitle">История прослушиваний и недавние запросы</string>
+    <string name="settings_about">О LatentJam</string>
+    <string name="settings_about_subtitle">Лицензия, исходный код и поддержка</string>
+    <string name="settings_section_library">Медиатека</string>
+    <string name="settings_section_navigation">Навигация</string>
+    <string name="settings_section_privacy">Данные на устройстве</string>
+
+    <string name="settings_track_colors">Цвета плеера</string>
+    <string name="settings_color_dynamic">Обложка</string>
+    <string name="settings_color_dynamic_body">Использовать цвета из обложки, а если их определить не удалось — цвета SMART.</string>
+    <string name="settings_color_smart">SMART</string>
+    <string name="settings_color_smart_body">Подбирать цвета по звуковому отпечатку каждого трека.</string>
+    <string name="settings_color_theme">Тема</string>
+    <string name="settings_color_theme_body">Использовать цвета темы приложения вместо цветов отдельных треков.</string>
+    <string name="settings_start_page">Стартовый раздел</string>
+    <string name="settings_start_page_body">Откроется при следующем запуске LatentJam.</string>
+
+    <string name="settings_library_count">Треков в медиатеке</string>
+    <string name="settings_library_refresh">Обновить медиатеку</string>
+    <string name="settings_library_refresh_body">Найти новую музыку и убрать записи о файлах, которые больше недоступны.</string>
+    <string name="settings_library_import">Импортировать музыку</string>
+    <string name="settings_library_import_body">Выбрать аудиофайлы и скопировать их в LatentJam.</string>
+    <string name="settings_library_restore">Восстановить скрытые треки</string>
+    <string name="settings_library_restore_body">Снова показать в медиатеке все треки, удалённые из LatentJam. Файлы на устройстве не изменятся.</string>
+
+    <string name="settings_equalizer_unavailable">Недоступен для текущего аудиовыхода</string>
+    <string name="equalizer_unavailable_body">Текущий аудиовыход не предоставляет LatentJam доступ к эквалайзеру. Попробуйте выбрать другой выход. Музыка продолжит воспроизводиться как обычно.</string>
+    <string name="equalizer_bass_value">%1$d\u0025</string>
+    <string name="equalizer_preset_flat">Ровный</string>
+    <string name="equalizer_preset_bass">Басы</string>
+    <string name="equalizer_preset_treble">Высокие частоты</string>
+    <string name="equalizer_preset_vocal">Вокал</string>
+    <string name="equalizer_preset_electronic">Электроника</string>
+
+    <string name="intelligence_syncing">Синхронизация медиатеки…</string>
+    <string name="intelligence_analysis_progress">Проанализировано %1$d из %2$d</string>
+    <string name="intelligence_analysis_failed">Не удалось проанализировать: %1$d</string>
+    <string name="intelligence_failures_more">И ещё %1$d</string>
+    <string name="intelligence_retry">Повторить настройку SMART</string>
+    <string name="intelligence_section_recommendations">Рекомендации</string>
+    <string name="intelligence_queue_length">Длина умной очереди</string>
+    <string name="intelligence_queue_length_body">Выберите, сколько треков SMART будет добавлять при создании очереди.</string>
+    <string name="intelligence_include_novelty_mixes">Показывать необычные миксы</string>
+    <string name="intelligence_include_novelty_mixes_body">Показывать в разделе «Для вас» отдельные миксы с мемами, вирусными аудиозаписями и звуковыми эффектами.</string>
+    <string name="foryou_mix_meme_viral">Мемы и вирусные аудиозаписи</string>
+    <string name="foryou_mix_sound_effects">Звуковые эффекты</string>
+    <string name="foryou_mix_spoken_audio">Разговорное аудио</string>
+    <string name="foryou_mix_instrumental">Инструментальная музыка</string>
+    <string name="intelligence_how_it_works">SMART сравнивает звуковые отпечатки прямо на устройстве, а затем сочетает музыкальное сходство с историей прослушиваний. Аккаунт и интернет не нужны.</string>
+
+    <string name="privacy_local_body">Медиатека, история прослушиваний и данные SMART остаются на этом устройстве. В LatentJam нет аккаунта, и эти данные не отправляются на сервер.</string>
+    <string name="privacy_save_history_body">Сохранять прослушивания и пропуски на этом устройстве для раздела «Для вас» и рекомендаций SMART.</string>
+    <string name="privacy_remember_searches_body">Сохранять запросы на этом устройстве, чтобы показывать их при пустом поиске.</string>
+    <string name="privacy_disable_history_body">Перестать сохранять новые прослушивания. Что сделать с историей, уже сохранённой на этом устройстве?</string>
+    <string name="privacy_disable_searches_body">Перестать сохранять новые запросы. Что сделать с запросами, уже сохранёнными на этом устройстве?</string>
+    <string name="privacy_keep_existing">Сохранить существующие</string>
+    <string name="privacy_delete_existing">Удалить существующие</string>
+    <string name="privacy_setting_save_failed">Не удалось сохранить настройку конфиденциальности. Повторите попытку.</string>
+    <string name="privacy_data_clear_failed">Не удалось удалить данные с устройства. Повторите попытку.</string>
+    <string name="privacy_clear_history">Очистить историю прослушиваний</string>
+    <string name="privacy_clear_history_body">Удалить данные о прослушиваниях и пропусках, которые используются для персонализации рекомендаций.</string>
+    <string name="privacy_clear_history_confirm">Очистить всю историю прослушиваний? Рекомендации начнут заново изучать ваши предпочтения.</string>
+    <string name="privacy_history_empty">История прослушиваний пуста</string>
+    <plurals name="privacy_history_listens">
+        <item quantity="one">%1$d прослушивание</item>
+        <item quantity="few">%1$d прослушивания</item>
+        <item quantity="many">%1$d прослушиваний</item>
+        <item quantity="other">%1$d прослушивания</item>
+    </plurals>
+    <string name="privacy_recent_searches">Недавние запросы</string>
+    <string name="privacy_clear_searches">Очистить недавние запросы</string>
+    <string name="privacy_clear_searches_body">Удалить запросы, которые показываются в пустом поиске.</string>
+    <string name="privacy_clear_searches_confirm">Очистить все недавние запросы?</string>
+
+    <string name="settings_license">Лицензия</string>
+    <string name="settings_license_body">LatentJam — бесплатное приложение с открытым исходным кодом по лицензии Apache 2.0.</string>
+    <string name="settings_open_source">Исходный код</string>
+    <string name="settings_open_source_body">Открыть проект на GitHub</string>
+    <string name="settings_report_issue">Сообщить о проблеме</string>
+    <string name="settings_section_preferences">Предпочтения</string>
+    <string name="settings_section_music">Музыка</string>
+    <string name="settings_section_data_support">Данные и поддержка</string>
+    <string name="privacy_listening_history">История прослушиваний</string>
+    <string name="settings_version">Версия</string>
+    <string name="settings_library_loading">Загрузка медиатеки…</string>
+    <string name="settings_library_refreshing">Обновление…</string>
+    <string name="snack_library_refreshed">Медиатека обновлена</string>
+    <string name="action_exclude_track_from_smart">Не рекомендовать этот трек</string>
+    <string name="action_exclude_artist_from_smart">Не рекомендовать этого исполнителя</string>
+    <string name="action_include_track_in_smart">Снова рекомендовать этот трек</string>
+    <string name="action_include_artist_in_smart">Снова рекомендовать этого исполнителя</string>
+    <string name="snack_track_excluded_from_smart">Трек исключён из рекомендаций SMART</string>
+    <string name="snack_artist_excluded_from_smart">Исполнитель исключён из рекомендаций SMART</string>
+    <string name="snack_track_included_in_smart">Трек возвращён в рекомендации SMART</string>
+    <string name="snack_artist_included_in_smart">Исполнитель возвращён в рекомендации SMART</string>
+    <string name="snack_smart_exclusion_failed">Не удалось обновить рекомендации SMART. Повторите попытку.</string>
+    <string name="action_retry">Повторить</string>
+
+    <string name="settings_language">Язык</string>
+    <string name="settings_language_body">LatentJam использует язык системы или выбранный для приложения язык. Изменить его можно в настройках системы.</string>
+    <string name="settings_audio_access">Доступ к музыке</string>
+    <string name="settings_audio_access_allowed">Разрешён</string>
+    <string name="settings_audio_access_blocked">Заблокирован</string>
+    <string name="settings_audio_access_not_requested">Не запрошен</string>
+    <string name="settings_audio_access_not_required">Не требуется</string>
+    <string name="settings_sources">Источники музыки</string>
+    <string name="settings_sources_body">Выберите папки и коллекции устройства, которые видны в LatentJam. Файлы на устройстве не изменяются.</string>
+    <string name="settings_sources_empty">Управляемые источники музыки не найдены.</string>
+    <string name="settings_source_unnamed">Музыка на устройстве</string>
+    <string name="settings_source_music_library">Медиатека</string>
+    <string name="settings_hidden_tracks">Скрытые треки</string>
+    <string name="settings_hidden_tracks_body">Треки, скрытые только в LatentJam. Любой трек можно вернуть, не изменяя его файл.</string>
+    <string name="settings_hidden_tracks_empty">В LatentJam нет скрытых треков.</string>
+    <string name="settings_restore">Восстановить</string>
+    <string name="settings_restore_all">Восстановить все</string>
+    <string name="settings_library_manage_failed">Не удалось обновить медиатеку. Повторите попытку.</string>
+
+    <string name="settings_licenses">Лицензии открытого ПО</string>
+    <string name="settings_licenses_body">Сведения о LatentJam, встроенных моделях и стороннем ПО</string>
+    <string name="settings_license_models">Аудиомодель и модели SMART</string>
+    <string name="settings_license_models_body">Созданные LatentJam веса аудиомодели MobileNetV4 и предикторов SMART распространяются по Apache-2.0. Студент использует timm (Apache-2.0) и дистиллирован из EfficientAT (MIT, © 2022 Florian Schmid).</string>
+    <string name="settings_license_text_model">Текстовая модель MiniLM</string>
+    <string name="settings_license_text_model_body">Встроенный ONNX-экспорт sentence-transformers/all-MiniLM-L6-v2 и его словарь распространяются по Apache-2.0.</string>
+    <string name="settings_license_runtime">ONNX Runtime</string>
+    <string name="settings_license_runtime_body">Для выполнения моделей на устройстве используется Microsoft ONNX Runtime по лицензии MIT. © Microsoft Corporation.</string>
+    <string name="settings_license_aliases">Данные MusicBrainz</string>
+    <string name="settings_license_aliases_body">Встроенные данные для поиска по псевдонимам исполнителей получены из MusicBrainz и предоставлены по CC0.</string>
+    <string name="settings_license_libraries">Сторонние библиотеки</string>
+    <string name="settings_license_libraries_body">LatentJam использует Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin и Coil по разрешительным лицензиям Apache-2.0 или MIT. Полные уведомления входят в исходный код.</string>
+
+    <string name="sleep_timer">Таймер сна</string>
+    <string name="sleep_timer_off">Выкл.</string>
+    <plurals name="sleep_timer_minutes">
+        <item quantity="one">%1$d минута</item>
+        <item quantity="few">%1$d минуты</item>
+        <item quantity="many">%1$d минут</item>
+        <item quantity="other">%1$d минуты</item>
+    </plurals>
+    <string name="sleep_timer_end_of_track">В конце текущего трека</string>
+    <string name="sleep_timer_active_minutes">Осталось %1$d мин</string>
+    <string name="sleep_timer_active_end_of_track">Остановится после этого трека</string>
+
+    <string name="intelligence_problems">Проблемы анализа</string>
+    <string name="intelligence_problems_body">Треки, которые SMART не удалось проанализировать. Музыку по-прежнему можно воспроизводить.</string>
+    <string name="intelligence_no_problems">Проблем анализа нет</string>
+    <string name="intelligence_manage_exclusions">Исключения из рекомендаций</string>
+    <string name="intelligence_manage_exclusions_body">Треки и исполнители, которых SMART не должен рекомендовать</string>
+    <string name="intelligence_exclusions_empty">Исключений из рекомендаций нет</string>
+    <string name="intelligence_excluded_tracks">Исключённые треки</string>
+    <string name="intelligence_excluded_artists">Исключённые исполнители</string>
+    <string name="intelligence_rebuild">Перестроить анализ SMART</string>
+    <string name="intelligence_rebuild_body">Удалить локальные отпечатки и заново проанализировать видимую медиатеку.</string>
+    <string name="intelligence_rebuild_confirm">Перестроить весь анализ SMART? Музыкальные файлы, плейлисты и история прослушивания не изменятся.</string>
+    <string name="intelligence_how_title">Как работает SMART</string>
+    <string name="intelligence_notifications">Уведомления об анализе</string>
+    <string name="intelligence_notifications_body">Показывать ход индексации вне LatentJam</string>
+    <string name="intelligence_exclusions_clear">Очистить все исключения</string>
+
+    <string name="settings_backup">Локальная резервная копия</string>
+    <string name="settings_backup_body">Экспортируйте или восстанавливайте плейлисты, настройки, историю, скрытые треки и исключения SMART. Музыкальные файлы и данные моделей не включаются.</string>
+    <string name="backup_export">Экспортировать копию</string>
+    <string name="backup_import">Импортировать копию</string>
+    <string name="backup_import_title">Восстановить локальную копию</string>
+    <string name="backup_import_body">Выберите, как объединить импортированные данные с данными на этом устройстве.</string>
+    <string name="backup_merge">Объединить</string>
+    <string name="backup_replace">Заменить</string>
+    <string name="backup_replace_warning">Заменить выбранные данные приложения этой копией? Музыкальные файлы никогда не изменяются.</string>
+    <string name="backup_export_success">Резервная копия экспортирована</string>
+    <string name="backup_import_success">Резервная копия восстановлена</string>
+    <string name="backup_import_success_unmatched">Резервная копия восстановлена; %1$d ссылок на треки не удалось сопоставить на этом устройстве.</string>
+    <string name="backup_import_partial">Часть данных была восстановлена до возникновения ошибки.</string>
+    <string name="backup_failed">Не удалось завершить операцию с резервной копией.</string>
+    <string name="backup_invalid">Это не резервная копия LatentJam.</string>
+    <string name="backup_destination_warning">Резервная копия содержит личные данные приложения. Облачное или стороннее хранилище, выбранное в системном окне, может синхронизировать их.</string>
 </resources>

@@ -90,8 +90,29 @@ internal class IosMusicLibrary : MusicLibrary {
         val descriptor: TrackDescriptor,
     )
 
+    private data class SourceSnapshot(
+        val documents: List<TrackDescriptor>,
+        val device: List<TrackDescriptor>,
+    )
+
     override suspend fun tracks(): List<TrackDescriptor> {
-        val hidden = hiddenTrackIds()
+        val hidden = hiddenTrackIdValues()
+        val excludedSources = excludedSourceIds()
+        val snapshot = sourceSnapshot()
+        val documents = snapshot.documents.filterNot { sourceId(it) in excludedSources }
+        val device = if (DEVICE_MUSIC_SOURCE_ID in excludedSources) emptyList() else snapshot.device
+        return mergeSources(documents, device)
+            .filterNot { it.id.value in hidden }
+            .sortedBy { it.title?.lowercase() ?: "" }
+    }
+
+    override suspend fun allKnownTracks(): List<TrackDescriptor> {
+        val snapshot = sourceSnapshot()
+        return mergeSources(snapshot.documents, snapshot.device)
+            .sortedBy { it.title?.lowercase() ?: "" }
+    }
+
+    private suspend fun sourceSnapshot(): SourceSnapshot {
         val canReadDeviceLibrary = mediaLibraryAuthorized()
         val device = if (canReadDeviceLibrary) {
             // MediaPlayer's controller is explicitly main-thread-only. Keeping its query here as
@@ -103,10 +124,7 @@ internal class IosMusicLibrary : MusicLibrary {
         val documents = withContext(Dispatchers.Default) {
             scanMutex.withLock { IosPaths.documents()?.let(::scan).orEmpty() }
         }
-        return (documents + device)
-            .distinctBy { it.id }
-            .filterNot { it.id.value in hidden }
-            .sortedBy { it.title?.lowercase() ?: "" }
+        return SourceSnapshot(documents = documents, device = device)
     }
 
     override suspend fun hide(trackId: TrackId): Unit = withContext(Dispatchers.Default) {
@@ -123,6 +141,19 @@ internal class IosMusicLibrary : MusicLibrary {
         }
     }
 
+    override suspend fun hiddenTracks(): List<TrackDescriptor> {
+        val hidden = hiddenTrackIdValues()
+        if (hidden.isEmpty()) return emptyList()
+        val snapshot = sourceSnapshot()
+        return mergeSources(snapshot.documents, snapshot.device)
+            .filter { it.id.value in hidden }
+            .sortedBy { it.title?.lowercase() ?: "" }
+    }
+
+    override suspend fun hiddenTrackIds(): Set<TrackId> = withContext(Dispatchers.Default) {
+        visibilityMutex.withLock { readHiddenTrackIds().mapTo(linkedSetOf(), ::TrackId) }
+    }
+
     override suspend fun hasHiddenTracks(): Boolean = withContext(Dispatchers.Default) {
         visibilityMutex.withLock { readHiddenTrackIds().isNotEmpty() }
     }
@@ -131,8 +162,58 @@ internal class IosMusicLibrary : MusicLibrary {
         visibilityMutex.withLock { writeHiddenTrackIds(emptySet()) }
     }
 
-    private suspend fun hiddenTrackIds(): Set<String> = withContext(Dispatchers.Default) {
+    override suspend fun replaceHidden(trackIds: Set<TrackId>): Unit = withContext(Dispatchers.Default) {
+        visibilityMutex.withLock {
+            writeHiddenTrackIds(trackIds.mapTo(linkedSetOf(), TrackId::value))
+        }
+    }
+
+    override suspend fun sources(): List<LibrarySource> {
+        val excluded = excludedSourceIds()
+        val snapshot = sourceSnapshot()
+        val imported = snapshot.documents
+            .groupBy(::sourceId)
+            .map { (id, tracks) ->
+                LibrarySource(
+                    id = id,
+                    name = tracks.firstOrNull()?.folderPath,
+                    trackCount = tracks.size,
+                    enabled = id !in excluded,
+                )
+            }
+        val device = if (snapshot.device.isEmpty() && !mediaLibraryAuthorizedWithoutPrompt()) {
+            emptyList()
+        } else {
+            listOf(
+                LibrarySource(
+                    id = DEVICE_MUSIC_SOURCE_ID,
+                    name = null,
+                    trackCount = snapshot.device.size,
+                    enabled = DEVICE_MUSIC_SOURCE_ID !in excluded,
+                ),
+            )
+        }
+        return (device + imported).sortedWith(
+            compareByDescending<LibrarySource> { it.enabled }
+                .thenBy { it.name.orEmpty().lowercase() },
+        )
+    }
+
+    override suspend fun setSourceEnabled(sourceId: String, enabled: Boolean): Unit =
+        withContext(Dispatchers.Default) {
+            visibilityMutex.withLock {
+                val excluded = readExcludedSourceIds().toMutableSet()
+                val changed = if (enabled) excluded.remove(sourceId) else excluded.add(sourceId)
+                if (changed) writeExcludedSourceIds(excluded)
+            }
+        }
+
+    private suspend fun hiddenTrackIdValues(): Set<String> = withContext(Dispatchers.Default) {
         visibilityMutex.withLock { readHiddenTrackIds() }
+    }
+
+    private suspend fun excludedSourceIds(): Set<String> = withContext(Dispatchers.Default) {
+        visibilityMutex.withLock { readExcludedSourceIds() }
     }
 
     private fun readHiddenTrackIds(): Set<String> = hiddenTrackPath()
@@ -149,6 +230,62 @@ internal class IosMusicLibrary : MusicLibrary {
 
     private fun hiddenTrackPath(): String? =
         IosPaths.appSupport()?.let { IosPaths.child(it, HIDDEN_FILE_NAME) }
+
+    private fun readExcludedSourceIds(): Set<String> = excludedSourcesPath()
+        ?.let(::readLinesOrEmpty)
+        .orEmpty()
+        .mapNotNull(::decodeHexString)
+        .toSet()
+
+    private fun writeExcludedSourceIds(ids: Set<String>) {
+        excludedSourcesPath()?.let { path ->
+            writeText(path, ids.sorted().joinToString("\n", transform = String::encodeHexString))
+        }
+    }
+
+    private fun excludedSourcesPath(): String? =
+        IosPaths.appSupport()?.let { IosPaths.child(it, EXCLUDED_SOURCES_FILE_NAME) }
+
+    private fun sourceId(track: TrackDescriptor): String =
+        IMPORTED_SOURCE_PREFIX + track.folderPath.orEmpty()
+
+    /**
+     * A Files import and Music.app can refer to the same recording with unrelated platform IDs.
+     * Prefer the app-owned file because it is always decodeable by SMART, and suppress only a
+     * strong metadata+duration match so remixes and alternate releases stay separate.
+     */
+    private fun mergeSources(
+        documents: List<TrackDescriptor>,
+        device: List<TrackDescriptor>,
+    ): List<TrackDescriptor> {
+        val documentsByIdentity = documents
+            .mapNotNull { track -> duplicateIdentity(track)?.let { it to track } }
+            .groupBy({ it.first }, { it.second })
+        val uniqueDevice = device.filterNot { candidate ->
+            val identity = duplicateIdentity(candidate) ?: return@filterNot false
+            documentsByIdentity[identity].orEmpty().any { document ->
+                val left = document.durationMs
+                val right = candidate.durationMs
+                left != null && right != null && kotlin.math.abs(left - right) <= DUPLICATE_DURATION_TOLERANCE_MS
+            }
+        }
+        return (documents + uniqueDevice).distinctBy { it.id }
+    }
+
+    private fun duplicateIdentity(track: TrackDescriptor): String? {
+        val title = track.title.normalizedIdentityPart() ?: return null
+        val artist = track.artist.normalizedIdentityPart() ?: return null
+        // Album is deliberately not part of identity: the same recording commonly appears under
+        // its original album in one source and a compilation/single in the other. Title + artist
+        // + a tight duration match is strong enough while still preserving named remixes.
+        return "$title\u001f$artist"
+    }
+
+    private fun String?.normalizedIdentityPart(): String? = this
+        ?.trim()
+        ?.lowercase()
+        ?.replace(Regex("\\s+"), " ")
+        ?.takeIf(String::isNotBlank)
 
     /** Requests the system privacy grant once, on the main thread as UIKit expects. */
     private suspend fun mediaLibraryAuthorized(): Boolean = authorizationMutex.withLock {
@@ -167,6 +304,10 @@ internal class IosMusicLibrary : MusicLibrary {
                 }
             }
         }
+    }
+
+    private suspend fun mediaLibraryAuthorizedWithoutPrompt(): Boolean = withContext(Dispatchers.Main) {
+        MPMediaLibrary.authorizationStatus() == MPMediaLibraryAuthorizationStatusAuthorized
     }
 
     /** Converts the Music.app library into the same descriptors used by app-owned files. */
@@ -419,6 +560,10 @@ internal class IosMusicLibrary : MusicLibrary {
         /** Namespace shared with the iOS playback controller. */
         const val MEDIA_ID_PREFIX = "ios-media:"
         const val HIDDEN_FILE_NAME = "hidden_tracks.txt"
+        const val EXCLUDED_SOURCES_FILE_NAME = "excluded_music_sources.txt"
+        const val DEVICE_MUSIC_SOURCE_ID = "ios:music"
+        const val IMPORTED_SOURCE_PREFIX = "ios:folder:"
+        const val DUPLICATE_DURATION_TOLERANCE_MS = 2_000L
 
         /** Untagged clips below this are overwhelmingly alerts/effects, not library tracks. */
         const val MIN_UNTAGGED_MUSIC_DURATION_MS = 30_000L

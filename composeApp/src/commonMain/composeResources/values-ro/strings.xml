@@ -28,6 +28,11 @@
     <string name="action_create">Creează</string>
     <string name="action_play_all">Redă tot</string>
     <string name="action_shuffle_all">Redă aleatoriu tot</string>
+    <string name="action_share">Distribuie</string>
+    <string name="action_select_all">Selectează tot</string>
+    <string name="action_deselect_all">Deselectează tot</string>
+    <string name="selection_count">Selectate: %1$d</string>
+    <string name="action_add">Adaugă</string>
     <string name="cd_more_options">Mai multe opțiuni</string>
     <string name="cd_search_library">Caută în bibliotecă</string>
 
@@ -61,7 +66,7 @@
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">Nu s-a găsit muzică pe acest dispozitiv.</string>
-    <string name="action_rescan_library">Rescanează biblioteca</string>
+    <string name="action_rescan_library">Actualizează biblioteca</string>
     <string name="sort_recently_added">Adăugate recent</string>
     <string name="snack_track_deleted">Piesă ștearsă</string>
 
@@ -135,6 +140,7 @@
     <string name="action_go_to_artist">Mergi la artist</string>
     <string name="action_information">Informații</string>
     <string name="action_delete_from_device">Șterge de pe dispozitiv</string>
+    <string name="dialog_delete_tracks_message">Piesele selectate (%1$d) vor fi șterse de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>
     <string name="dialog_delete_track_title">Ștergi această piesă?</string>
     <string name="dialog_delete_track_message">„%1$s” va fi ștearsă de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>
     <string name="dialog_delete_track_message_generic">Această piesă va fi ștearsă de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>
@@ -167,10 +173,9 @@
     <string name="settings_section_playback">Redare</string>
     <string name="settings_equalizer">Egalizator</string>
     <string name="settings_equalizer_subtitle">Reglaje de ton pentru ieșirea audio a acestui dispozitiv</string>
-    <string name="settings_intelligence">Inteligență</string>
+    <string name="settings_intelligence">Motorul SMART</string>
     <string name="settings_smart_engine">Motorul SMART</string>
     <string name="settings_smart_engine_subtitle">Ce știe despre biblioteca ta modelul de pe dispozitiv</string>
-    <string name="settings_section_about">Despre</string>
     <string name="settings_about_body">LatentJam — un player de muzică local, cu recomandări făcute chiar pe dispozitiv. Nimic din ce asculți nu părăsește acest dispozitiv.</string>
 
     <!-- ========================================================== equalizer -->
@@ -187,15 +192,6 @@
     <string name="intelligence_library">Bibliotecă</string>
     <string name="intelligence_fingerprints">Amprente sonore</string>
     <string name="intelligence_indexed_of">%1$d din %2$d</string>
-    <string name="intelligence_fingerprint_note">Piesele fără amprentă pot fi ascultate, dar SMART nu le va alege și nu le va folosi ca să judece ce se potrivește.</string>
-    <string name="intelligence_section_analysis">Analiză</string>
-    <string name="intelligence_analysis_note">Ascultarea unei piese pentru prima dată nu o analizează. Amprentele se calculează în loturi, iar munca se reia de unde a rămas.</string>
-    <string name="intelligence_analyse_batch">Analizează %1$d</string>
-    <string name="intelligence_analyse_all">Analizează tot</string>
-    <string name="intelligence_analysed_batch_report">Analizate: %1$d, sărite: %2$d, eșuate: %3$d.</string>
-    <string name="intelligence_analysed_all_report">Analizate: %1$d, eșuate: %2$d.</string>
-    <string name="intelligence_section_privacy">Confidențialitate</string>
-    <string name="intelligence_privacy_body">Toate modelele rulează pe acest dispozitiv. Biblioteca ta, istoricul ascultărilor și tot ce derivă din ele rămân aici — nu există cont și nu se încarcă nimic.</string>
     <string name="engine_state_not_started">Nepornit</string>
     <string name="engine_state_starting">Pornește…</string>
     <string name="engine_state_ready">Gata</string>
@@ -204,37 +200,194 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam are nevoie de acces la muzica ta ca să scaneze biblioteca.</string>
     <string name="permission_grant">Acordă acces</string>
+    <string name="permission_audio_settings_rationale">Accesul la muzică este blocat. Deschide setările sistemului și permite aplicației LatentJam accesul la muzică și fișiere audio.</string>
+    <string name="permission_open_settings">Deschide setările</string>
+    <string name="permission_notifications_title">Afișezi progresul analizei?</string>
+    <string name="permission_notifications_rationale">SMART îți analizează biblioteca pe acest dispozitiv. Permite notificările pentru a vedea progresul și a reveni în LatentJam în timpul analizei. Analiza continuă dacă alegi „Nu acum”.</string>
+    <string name="permission_not_now">Nu acum</string>
+    <string name="permission_continue">Continuă</string>
 
-    <!-- ======================================================= diagnostics -->
-    <string name="diagnostics_title">Diagnosticare</string>
-    <string name="diagnostics_library">Bibliotecă: %1$s</string>
-    <string name="diagnostics_index_batch">Indexează %1$d</string>
-    <string name="diagnostics_index_all">Indexează tot</string>
-    <string name="diagnostics_rescan">Rescanează</string>
-    <string name="diagnostics_indexing">Se indexează… %1$d/%2$d (reușite %3$d, sărite %4$d, eșuate %5$d)</string>
-    <string name="diagnostics_indexed_report">Gata — indexate %1$d, sărite %2$d, eșuate %3$d.</string>
-    <string name="diagnostics_history_empty">Istoric: nicio ascultare înregistrată încă.</string>
-    <plurals name="diagnostics_history_listens">
-        <item quantity="one">Istoric: %1$d ascultare.</item>
-        <item quantity="few">Istoric: %1$d ascultări.</item>
-        <item quantity="other">Istoric: %1$d de ascultări.</item>
-    </plurals>
-    <string name="diagnostics_history_top">Cea mai ascultată: %1$s (%2$d×).</string>
-    <string name="diagnostics_engine">Motor de similaritate</string>
-    <string name="diagnostics_engine_uninitialized">Neinițializat încă.</string>
-    <plurals name="diagnostics_engine_ready">
-        <item quantity="one">Gata — %1$d piesă indexată.</item>
-        <item quantity="few">Gata — %1$d piese indexate.</item>
-        <item quantity="other">Gata — %1$d de piese indexate.</item>
-    </plurals>
-    <string name="diagnostics_engine_retry">Reîncearcă inițializarea</string>
-    <string name="diagnostics_engine_initialize">Inițializează motorul</string>
 
-    <string name="engine_error_model_unavailable">Modelul de similaritate nu este încă inclus — redarea aleatorie inteligentă este dezactivată în această versiune.</string>
+    <string name="engine_error_model_unavailable">SMART nu a putut încărca modelele incluse. Reîncearcă configurarea; dacă problema persistă, reinstalează aplicația sau raporteaz-o.</string>
     <string name="engine_error_not_indexed">Biblioteca nu este încă indexată.</string>
-    <string name="engine_error_backend">Motorul a eșuat: %1$s</string>
+    <string name="engine_error_audio_unavailable">Piesa nu a putut fi citită sau decodată. Verifică dacă fișierul este încă disponibil, apoi reîncearcă.</string>
+    <string name="engine_error_backend">SMART a întâmpinat o eroare internă. Reîncearcă configurarea; dacă persistă, raportează problema.</string>
 
     <string name="indexing_notification_title">Se analizează muzica ta</string>
     <string name="indexing_notification_progress">%1$d din %2$d</string>
     <string name="indexing_notification_progress_eta">%1$d din %2$d · aproximativ %3$d min rămase</string>
+    <!-- =================================================== expanded settings -->
+    <string name="settings_appearance">Aspect</string>
+    <string name="settings_appearance_subtitle">Temă, culorile playerului și pagina de pornire</string>
+    <string name="settings_library">Bibliotecă</string>
+    <string name="settings_library_subtitle">Actualizare, import și piese ascunse</string>
+    <string name="settings_playback">Redare</string>
+    <string name="settings_playback_subtitle">Egalizator și comenzi audio</string>
+    <string name="settings_privacy">Confidențialitate și date</string>
+    <string name="settings_privacy_subtitle">Istoric de ascultare și căutări recente</string>
+    <string name="settings_about">Despre LatentJam</string>
+    <string name="settings_about_subtitle">Licență, cod sursă și asistență</string>
+    <string name="settings_section_library">Bibliotecă</string>
+    <string name="settings_section_navigation">Navigare</string>
+    <string name="settings_section_privacy">Date pe dispozitiv</string>
+    <string name="settings_track_colors">Culorile playerului</string>
+    <string name="settings_color_dynamic">Copertă</string>
+    <string name="settings_color_dynamic_body">Folosește culorile din copertă, cu SMART ca alternativă.</string>
+    <string name="settings_color_smart">SMART</string>
+    <string name="settings_color_smart_body">Folosește culori derivate din amprenta sonoră a fiecărei piese.</string>
+    <string name="settings_color_theme">Temă</string>
+    <string name="settings_color_theme_body">Folosește tema aplicației în locul culorilor specifice fiecărei piese.</string>
+    <string name="settings_start_page">Pagina de pornire</string>
+    <string name="settings_start_page_body">Va fi folosită data viitoare când deschizi LatentJam.</string>
+    <string name="settings_library_count">Piese în bibliotecă</string>
+    <string name="settings_library_refresh">Actualizează biblioteca</string>
+    <string name="settings_library_refresh_body">Găsește muzica adăugată recent și elimină intrările fișierelor care nu mai sunt disponibile.</string>
+    <string name="settings_library_import">Importă muzică</string>
+    <string name="settings_library_import_body">Alege fișiere audio pentru a le copia în LatentJam.</string>
+    <string name="settings_library_restore">Restaurează piesele ascunse</string>
+    <string name="settings_library_restore_body">Readu în bibliotecă toate piesele eliminate din LatentJam. Fișierele de pe dispozitiv rămân neschimbate.</string>
+    <string name="settings_equalizer_unavailable">Indisponibil pentru această ieșire audio</string>
+    <string name="equalizer_unavailable_body">Ieșirea audio actuală nu oferă aplicației LatentJam acces la un egalizator. Încearcă altă ieșire. Redarea funcționează în continuare normal.</string>
+    <string name="equalizer_bass_value">%1$d\u0025</string>
+    <string name="equalizer_preset_flat">Plat</string>
+    <string name="equalizer_preset_bass">Bas</string>
+    <string name="equalizer_preset_treble">Înalte</string>
+    <string name="equalizer_preset_vocal">Voce</string>
+    <string name="equalizer_preset_electronic">Electronic</string>
+    <string name="intelligence_syncing">Se sincronizează biblioteca…</string>
+    <string name="intelligence_analysis_progress">%1$d din %2$d piese analizate</string>
+    <string name="intelligence_analysis_failed">Nu s-au putut analiza: %1$d</string>
+    <string name="intelligence_failures_more">Și încă %1$d</string>
+    <string name="intelligence_retry">Reîncearcă configurarea SMART</string>
+    <string name="intelligence_section_recommendations">Recomandări</string>
+    <string name="intelligence_queue_length">Lungimea cozii SMART</string>
+    <string name="intelligence_queue_length_body">Alege câte piese adaugă SMART când creează o coadă.</string>
+    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
+    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
+    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
+    <string name="foryou_mix_sound_effects">Sound effects</string>
+    <string name="foryou_mix_spoken_audio">Spoken audio</string>
+    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_how_it_works">SMART compară amprentele sonore pe acest dispozitiv și combină asemănarea muzicală cu istoricul tău de ascultare. Funcționează fără cont sau conexiune la internet.</string>
+    <string name="privacy_local_body">Biblioteca, istoricul de ascultare și datele SMART rămân pe acest dispozitiv. LatentJam nu folosește conturi și nu trimite aceste date către un server.</string>
+    <string name="privacy_save_history_body">Reține redările și omiterile pe acest dispozitiv pentru Pentru tine și recomandările SMART.</string>
+    <string name="privacy_remember_searches_body">Salvează căutările pe acest dispozitiv pentru a le afișa când câmpul de căutare este gol.</string>
+    <string name="privacy_disable_history_body">Oprești salvarea activității noi de ascultare. Ce se întâmplă cu istoricul deja salvat pe acest dispozitiv?</string>
+    <string name="privacy_disable_searches_body">Oprești salvarea căutărilor noi. Ce se întâmplă cu căutările deja salvate pe acest dispozitiv?</string>
+    <string name="privacy_keep_existing">Păstrează datele existente</string>
+    <string name="privacy_delete_existing">Șterge datele existente</string>
+    <string name="privacy_setting_save_failed">Setarea de confidențialitate nu a putut fi salvată. Încearcă din nou.</string>
+    <string name="privacy_data_clear_failed">Datele de pe dispozitiv nu au putut fi șterse. Încearcă din nou.</string>
+    <string name="privacy_clear_history">Șterge istoricul de ascultare</string>
+    <string name="privacy_clear_history_body">Elimină datele despre redări și omiteri folosite pentru personalizarea recomandărilor.</string>
+    <string name="privacy_clear_history_confirm">Ștergi tot istoricul de ascultare? Recomandările vor începe să îți învețe din nou gusturile.</string>
+    <string name="privacy_history_empty">Nu există istoric de ascultare</string>
+    <plurals name="privacy_history_listens">
+        <item quantity="one">%1$d ascultare</item>
+        <item quantity="few">%1$d ascultări</item>
+        <item quantity="other">%1$d de ascultări</item>
+    </plurals>
+    <string name="privacy_recent_searches">Căutări recente</string>
+    <string name="privacy_clear_searches">Șterge căutările recente</string>
+    <string name="privacy_clear_searches_body">Elimină interogările afișate când căutarea este goală.</string>
+    <string name="privacy_clear_searches_confirm">Ștergi toate căutările recente?</string>
+    <string name="settings_license">Licență</string>
+    <string name="settings_license_body">LatentJam este software liber licențiat sub Apache License 2.0.</string>
+    <string name="settings_open_source">Cod sursă</string>
+    <string name="settings_open_source_body">Vezi proiectul pe GitHub</string>
+    <string name="settings_report_issue">Raportează o problemă</string>
+    <string name="settings_section_preferences">Preferințe</string>
+    <string name="settings_section_music">Muzică</string>
+    <string name="settings_section_data_support">Date și asistență</string>
+    <string name="privacy_listening_history">Istoric de ascultare</string>
+    <string name="settings_version">Versiune</string>
+    <string name="settings_library_loading">Se încarcă biblioteca…</string>
+    <string name="settings_library_refreshing">Se actualizează…</string>
+    <string name="snack_library_refreshed">Biblioteca a fost actualizată</string>
+    <string name="action_exclude_track_from_smart">Nu recomanda această piesă</string>
+    <string name="action_exclude_artist_from_smart">Nu recomanda acest artist</string>
+    <string name="action_include_track_in_smart">Recomandă din nou această piesă</string>
+    <string name="action_include_artist_in_smart">Recomandă din nou acest artist</string>
+    <string name="snack_track_excluded_from_smart">Piesa a fost eliminată din recomandările SMART</string>
+    <string name="snack_artist_excluded_from_smart">Artistul a fost eliminat din recomandările SMART</string>
+    <string name="snack_track_included_in_smart">Piesa a fost readăugată în recomandările SMART</string>
+    <string name="snack_artist_included_in_smart">Artistul a fost readăugat în recomandările SMART</string>
+    <string name="snack_smart_exclusion_failed">Recomandările SMART nu au putut fi actualizate. Încearcă din nou.</string>
+    <string name="action_retry">Încearcă din nou</string>
+
+    <string name="settings_language">Limbă</string>
+    <string name="settings_language_body">LatentJam folosește limba sistemului sau limba aleasă pentru aplicație. Schimb-o în setările sistemului.</string>
+    <string name="settings_audio_access">Acces la muzică</string>
+    <string name="settings_audio_access_allowed">Permis</string>
+    <string name="settings_audio_access_blocked">Blocat</string>
+    <string name="settings_audio_access_not_requested">Nesolicitat</string>
+    <string name="settings_audio_access_not_required">Nu este necesar</string>
+    <string name="settings_sources">Surse de muzică</string>
+    <string name="settings_sources_body">Alege folderele sau colecțiile dispozitivului afișate în LatentJam. Fișierele de pe dispozitiv nu sunt modificate.</string>
+    <string name="settings_sources_empty">Nu au fost găsite surse de muzică gestionabile.</string>
+    <string name="settings_source_unnamed">Muzică de pe dispozitiv</string>
+    <string name="settings_source_music_library">Bibliotecă muzicală</string>
+    <string name="settings_hidden_tracks">Piese ascunse</string>
+    <string name="settings_hidden_tracks_body">Piese ascunse doar în LatentJam. Restabilește orice piesă fără a-i modifica fișierul.</string>
+    <string name="settings_hidden_tracks_empty">Nu există piese ascunse în LatentJam.</string>
+    <string name="settings_restore">Restabilește</string>
+    <string name="settings_restore_all">Restabilește tot</string>
+    <string name="settings_library_manage_failed">Biblioteca nu a putut fi actualizată. Încearcă din nou.</string>
+
+    <string name="settings_licenses">Licențe open-source</string>
+    <string name="settings_licenses_body">Notificări pentru LatentJam, modelele incluse și software-ul terț</string>
+    <string name="settings_license_models">Modele audio și SMART</string>
+    <string name="settings_license_models_body">Ponderile audio MobileNetV4 și ale predictorilor SMART produse de LatentJam sunt Apache-2.0. Modelul student folosește timm (Apache-2.0) și a fost distilat din EfficientAT (MIT, copyright © 2022 Florian Schmid).</string>
+    <string name="settings_license_text_model">Model text MiniLM</string>
+    <string name="settings_license_text_model_body">Exportul ONNX și vocabularul incluse pentru sentence-transformers/all-MiniLM-L6-v2 sunt Apache-2.0.</string>
+    <string name="settings_license_runtime">ONNX Runtime</string>
+    <string name="settings_license_runtime_body">Inferența modelelor pe dispozitiv folosește Microsoft ONNX Runtime sub Licența MIT. Copyright © Microsoft Corporation.</string>
+    <string name="settings_license_aliases">Date MusicBrainz</string>
+    <string name="settings_license_aliases_body">Datele incluse pentru căutarea aliasurilor artiștilor provin din MusicBrainz și sunt oferite sub CC0.</string>
+    <string name="settings_license_libraries">Biblioteci terțe</string>
+    <string name="settings_license_libraries_body">LatentJam folosește Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin și Coil sub licențe permisive Apache-2.0 sau MIT. Notificările complete sunt incluse în distribuția sursă.</string>
+
+    <string name="sleep_timer">Temporizator de oprire</string>
+    <string name="sleep_timer_off">Oprit</string>
+    <plurals name="sleep_timer_minutes">
+        <item quantity="one">%1$d minut</item>
+        <item quantity="few">%1$d minute</item>
+        <item quantity="other">%1$d de minute</item>
+    </plurals>
+    <string name="sleep_timer_end_of_track">La sfârșitul piesei curente</string>
+    <string name="sleep_timer_active_minutes">Au rămas %1$d min</string>
+    <string name="sleep_timer_active_end_of_track">Se oprește după această piesă</string>
+
+    <string name="intelligence_problems">Probleme de analiză</string>
+    <string name="intelligence_problems_body">Piese pe care SMART nu le-a putut analiza. Muzica rămâne redabilă.</string>
+    <string name="intelligence_no_problems">Nu există probleme de analiză</string>
+    <string name="intelligence_manage_exclusions">Excluderi din recomandări</string>
+    <string name="intelligence_manage_exclusions_body">Piese și artiști pe care SMART nu trebuie să îi recomande niciodată</string>
+    <string name="intelligence_exclusions_empty">Nu există excluderi din recomandări</string>
+    <string name="intelligence_excluded_tracks">Piese excluse</string>
+    <string name="intelligence_excluded_artists">Artiști excluși</string>
+    <string name="intelligence_rebuild">Refă analiza SMART</string>
+    <string name="intelligence_rebuild_body">Șterge amprentele locale și analizează din nou biblioteca vizibilă.</string>
+    <string name="intelligence_rebuild_confirm">Refaci toată analiza SMART? Fișierele muzicale, playlisturile și istoricul de ascultare nu se modifică.</string>
+    <string name="intelligence_how_title">Cum funcționează SMART</string>
+    <string name="intelligence_notifications">Notificări de analiză</string>
+    <string name="intelligence_notifications_body">Arată progresul indexării în afara LatentJam</string>
+    <string name="intelligence_exclusions_clear">Șterge toate excluderile</string>
+
+    <string name="settings_backup">Copie de rezervă locală</string>
+    <string name="settings_backup_body">Exportă sau restabilește playlisturi, preferințe, istoric, piese ascunse și excluderi SMART. Fișierele muzicale și datele modelelor nu sunt incluse.</string>
+    <string name="backup_export">Exportă copia</string>
+    <string name="backup_import">Importă copia</string>
+    <string name="backup_import_title">Restabilește copia locală</string>
+    <string name="backup_import_body">Alege cum se combină datele importate cu cele aflate deja pe acest dispozitiv.</string>
+    <string name="backup_merge">Combină</string>
+    <string name="backup_replace">Înlocuiește</string>
+    <string name="backup_replace_warning">Înlocuiești datele selectate ale aplicației cu această copie? Fișierele muzicale nu sunt modificate niciodată.</string>
+    <string name="backup_export_success">Copia a fost exportată</string>
+    <string name="backup_import_success">Copia a fost restabilită</string>
+    <string name="backup_import_success_unmatched">Copia a fost restabilită; %1$d referințe de piese nu au putut fi asociate pe acest dispozitiv.</string>
+    <string name="backup_import_partial">Unele date au fost restabilite înainte de apariția unei erori.</string>
+    <string name="backup_failed">Operațiunea de backup nu a putut fi finalizată.</string>
+    <string name="backup_invalid">Aceasta nu este o copie LatentJam validă.</string>
+    <string name="backup_destination_warning">Copia de rezervă conține date private ale aplicației. O destinație cloud sau terță aleasă în selectorul sistemului le poate sincroniza.</string>
 </resources>

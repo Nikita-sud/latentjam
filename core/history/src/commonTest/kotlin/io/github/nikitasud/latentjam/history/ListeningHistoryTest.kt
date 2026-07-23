@@ -100,4 +100,26 @@ internal class ListeningHistoryTest {
         )
         assertNull(history.recentEvents(0).firstOrNull())
     }
+
+    @Test
+    fun clearRemovesInMemoryAndPersistedHistory() = runTest {
+        val store = FakeStore(
+            initial = listOf(
+                event("1", startedAt = 100).serialize(),
+                event("2", startedAt = 200).serialize(),
+            ),
+        )
+        val history = DefaultListeningHistory(store)
+
+        history.clear()
+
+        assertEquals(emptyMap(), history.stats())
+        assertEquals(emptyList(), history.recentEvents(10))
+        assertEquals(emptyList(), store.lines)
+
+        // A fresh instance must also observe an empty log after a process restart.
+        val reloaded = DefaultListeningHistory(store)
+        assertEquals(emptyMap(), reloaded.stats())
+        assertEquals(emptyList(), reloaded.recentEvents(10))
+    }
 }

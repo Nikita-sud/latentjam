@@ -70,6 +70,9 @@ internal fun SectionedSongsList(
     sort: SongSort,
     currentTrackId: TrackId?,
     contentPadding: PaddingValues,
+    selectedTrackIds: Set<TrackId> = emptySet(),
+    onToggleSelection: (TrackDescriptor) -> Unit = {},
+    onStartSelection: (TrackDescriptor) -> Unit = {},
     onPlay: (queue: List<TrackDescriptor>, index: Int) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
 ) {
@@ -82,17 +85,20 @@ internal fun SectionedSongsList(
     var touchY by remember { mutableStateOf(0f) }
     var railTopPx by remember { mutableStateOf(0f) }
     val showIndex = sort != SongSort.RECENT && sections.size > 1
+    val selectionMode = selectedTrackIds.isNotEmpty()
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
             // Keeps row content — especially the overflow buttons — clear of
-            // the rail so neither is hard to hit.
+            // the rail so neither is hard to hit. Keep the inset inside the
+            // scrolling content: outer padding exposed the page background as
+            // a full-width strip directly above the mini-player on Tracks only.
             contentPadding = PaddingValues(
                 end = if (showIndex) RailWidth + RailGap else 0.dp,
-                bottom = 12.dp,
+                bottom = contentPadding.calculateBottomPadding() + 12.dp,
             ),
-            modifier = Modifier.fillMaxSize().padding(contentPadding),
+            modifier = Modifier.fillMaxSize(),
         ) {
             indexed.forEach { section ->
                 if (showIndex) {
@@ -108,8 +114,18 @@ internal fun SectionedSongsList(
                     TrackRow(
                         track = track,
                         isCurrent = track.id == currentTrackId,
-                        onClick = { onPlay(displayOrder, section.firstTrackGlobalIndex + indexInSection) },
-                        onMenu = { onTrackMenu(track) },
+                        onClick = {
+                            if (selectionMode) {
+                                onToggleSelection(track)
+                            } else {
+                                onPlay(displayOrder, section.firstTrackGlobalIndex + indexInSection)
+                            }
+                        },
+                        onLongClick = {
+                            if (selectionMode) onToggleSelection(track) else onStartSelection(track)
+                        },
+                        selectionState = if (selectionMode) track.id in selectedTrackIds else null,
+                        onMenu = if (selectionMode) null else ({ onTrackMenu(track) }),
                     )
                 }
             }
@@ -122,7 +138,7 @@ internal fun SectionedSongsList(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .fillMaxHeight()
-                    .padding(contentPadding)
+                    .padding(bottom = contentPadding.calculateBottomPadding())
                     .padding(vertical = 8.dp, horizontal = 2.dp)
                     .onGloballyPositioned { railTopPx = it.positionInParent().y },
                 onSelect = { bucketIndex, y ->

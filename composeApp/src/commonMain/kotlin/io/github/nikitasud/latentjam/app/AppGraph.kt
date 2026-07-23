@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.RecentSearches
+import io.github.nikitasud.latentjam.history.SmartExclusions
 import io.github.nikitasud.latentjam.history.listeningHistoryModule
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlists
@@ -13,6 +14,7 @@ import io.github.nikitasud.latentjam.library.musicLibraryModule
 import io.github.nikitasud.latentjam.library.nowMillis
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.PlaybackController
+import io.github.nikitasud.latentjam.playback.SleepTimerController
 import io.github.nikitasud.latentjam.playback.EqualizerController
 import io.github.nikitasud.latentjam.playback.equalizerModule
 import io.github.nikitasud.latentjam.playback.playbackModule
@@ -75,7 +77,10 @@ object AppGraph {
     private val mutableAutomaticIndexing = MutableStateFlow(AutomaticIndexingState())
     val automaticIndexing: StateFlow<AutomaticIndexingState> =
         mutableAutomaticIndexing.asStateFlow()
-    private var automaticIndexingKey: List<TrackId>? = null
+    private val mutableHistoryRevision = MutableStateFlow(0L)
+    /** Advances after each accepted listening event so For You can apply feedback next time it opens. */
+    val historyRevision: StateFlow<Long> = mutableHistoryRevision.asStateFlow()
+    private var automaticIndexingKey: List<TrackDescriptor>? = null
     private var automaticIndexingJob: Job? = null
 
     /** Initializes the graph. Call once from the platform entry point. */
@@ -95,18 +100,19 @@ object AppGraph {
                     playbackModule(),
                     equalizerModule(),
                     appSettingsModule(),
+                    appPermissionsModule(),
                     indexingNotifierModule(),
                     listeningHistoryModule(),
                     module {
-                        // Production contract: FP16 MNv4 audio + 960-d SMART state/acoustic scorer
-                        // plus learned optional text, fully local.
+                        // Experimental retrieval-distilled FP16 MNv4 audio + 960-d SMART
+                        // state/acoustic scorer plus learned optional text, fully local.
                         single {
                             SmartEngineConfig(
                                 embeddingDim = 960,
                                 modelLocator = "ml/mnv4_audio.onnx",
                                 // Must match assets/ml/embedding_version.txt;
                                 // keys the persisted index snapshot.
-                                modelVersion = "mnv4-960-allfp16-v5",
+                                modelVersion = "mnv4-960-retrieval-distill-v1",
                             )
                         }
                         // The single point where playback meets the engine.
@@ -117,7 +123,12 @@ object AppGraph {
                 )
             }
             // History observes playback for the app's whole lifetime.
-            appScope.launchPlaybackHistoryRecorder(playback, history)
+            appScope.launchPlaybackHistoryRecorder(
+                playback = playback,
+                history = history,
+                enabled = settings.saveListeningHistory,
+                onRecorded = { mutableHistoryRevision.value += 1L },
+            )
         }
     }
 
@@ -131,6 +142,10 @@ object AppGraph {
 
     /** Previously searched queries. */
     val recentSearches: RecentSearches
+        get() = koin.get()
+
+    /** Tracks/artists kept in the library but explicitly excluded from SMART suggestions. */
+    val smartExclusions: SmartExclusions
         get() = koin.get()
 
     /** CC0 aliases and artist/group relationships, loaded in the background and queried locally. */
@@ -149,6 +164,10 @@ object AppGraph {
     val settings: AppSettings
         get() = koin.get()
 
+    /** Operating-system permission state plus durable recovery destinations. */
+    val permissions: AppPermissions
+        get() = koin.get()
+
     /** The system equalizer attached to our audio output. */
     val equalizer: EqualizerController
         get() = koin.get()
@@ -156,6 +175,15 @@ object AppGraph {
     /** The playback controller (media-session-backed on Android). */
     val playback: PlaybackController
         get() = koin.get()
+
+    /**
+     * One process-lifetime timer shared by every Activity/composition recreation. Keeping it here
+     * prevents a rotation, theme change, or temporary UI teardown from silently cancelling an
+     * active timer while playback itself continues in the platform media session.
+     */
+    val sleepTimer: SleepTimerController by lazy {
+        SleepTimerController(playback = playback, scope = appScope, nowMillis = ::nowMillis)
+    }
 
     /** Reports long-running library analysis to the platform's notification surface. */
     val indexingNotifier: IndexingNotifier
@@ -175,11 +203,16 @@ object AppGraph {
     fun ensureAutomaticIndexing(
         tracks: List<TrackDescriptor>,
         notificationTitle: String,
+        force: Boolean = false,
         notificationText: suspend (done: Int, total: Int, etaMinutes: Int?) -> String,
     ) {
-        val key = tracks.map(TrackDescriptor::id)
+        val key = tracks
+        val trackIds = tracks.map(TrackDescriptor::id)
         val existing = automaticIndexingJob
-        if (automaticIndexingKey == key && (existing?.isActive == true || automaticIndexing.value.complete)) {
+        if (!force &&
+            automaticIndexingKey == key &&
+            (existing?.isActive == true || automaticIndexing.value.complete)
+        ) {
             return
         }
 
@@ -193,21 +226,27 @@ object AppGraph {
             val notifier = indexingNotifier
             val failures = LinkedHashMap<TrackId, EngineError>()
             val total = tracks.size
+            val reportProgress = total > 0
             val eta = IndexingEta(nowMillis())
             mutableAutomaticIndexing.value = AutomaticIndexingState(
-                trackIds = key,
+                trackIds = trackIds,
                 running = true,
             )
             try {
                 // Promote before model loading or the first audio batch. Starting after a slow
                 // first batch leaves Android free to suspend the process during exactly the work
                 // the foreground service is meant to protect.
-                notifier.show(
-                    title = notificationTitle,
-                    text = notificationText(0, total, null),
-                    done = 0,
-                    total = total,
-                )
+                if (reportProgress) {
+                    // This signal only offers a rationale in the active UI. It never waits for or
+                    // requires permission: indexing remains fully functional after "Not now".
+                    permissions.backgroundAnalysisNeedsNotifications()
+                    notifier.show(
+                        title = notificationTitle,
+                        text = notificationText(0, total, null),
+                        done = 0,
+                        total = total,
+                    )
+                }
 
                 engine.initialize()
                 engine.synchronizeLibrary(tracks)
@@ -225,16 +264,18 @@ object AppGraph {
                     failures.putAll(report.errors)
                     done += chunk.size
                     val remaining = eta.remainingMs(done, total, nowMillis())
-                    notifier.show(
-                        title = notificationTitle,
-                        text = notificationText(
-                            done,
-                            total,
-                            remaining?.let(IndexingEta::minutesFrom),
-                        ),
-                        done = done,
-                        total = total,
-                    )
+                    if (reportProgress) {
+                        notifier.show(
+                            title = notificationTitle,
+                            text = notificationText(
+                                done,
+                                total,
+                                remaining?.let(IndexingEta::minutesFrom),
+                            ),
+                            done = done,
+                            total = total,
+                        )
+                    }
                     mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                         done = done,
                         failures = failures.toMap(),
@@ -253,7 +294,8 @@ object AppGraph {
                     failures = failures.toMap(),
                 )
             } finally {
-                notifier.finish()
+                if (reportProgress) notifier.finish()
+                permissions.cancelNotificationPrompt()
                 // Cancellation is not completion. The replacement job (or the next process
                 // launch) must be allowed to continue from the engine's persisted chunks.
                 if (!mutableAutomaticIndexing.value.complete) {

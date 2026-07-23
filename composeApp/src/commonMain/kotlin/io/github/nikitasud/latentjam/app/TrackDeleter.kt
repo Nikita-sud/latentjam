@@ -17,4 +17,4 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
  * the caller can refresh its library snapshot.
  */
 @Composable
-expect fun rememberTrackDeleter(onDeleted: () -> Unit): (TrackDescriptor) -> Unit
+expect fun rememberTrackDeleter(onDeleted: () -> Unit): (List<TrackDescriptor>) -> Unit

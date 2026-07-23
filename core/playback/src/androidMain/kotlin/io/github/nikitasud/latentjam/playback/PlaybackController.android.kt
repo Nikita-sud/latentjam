@@ -54,7 +54,7 @@ import kotlin.coroutines.resumeWithException
  * ### SMART queue strategy
  * OFF and ON map straight onto the player queue (natural order / ExoPlayer's
  * shuffle order). SMART keeps the queue linear and holds a LOOKAHEAD of
- * [SMART_LOOKAHEAD] tracks: whenever the queue runs shorter than that, the
+ * the configured number of tracks: whenever the queue runs shorter than that, the
  * controller tops it back up from the injected [NextTrackChooser], continuing the walk from
  * the tail each time. Skipping or finishing a track therefore always has
  * somewhere to go, there is a readable queue rather than a single next-track
@@ -98,6 +98,8 @@ internal class AndroidPlaybackController(
     /** The source list for OFF/ON and the complete library for SMART are intentionally separate. */
     private var pool: List<TrackDescriptor> = emptyList()
     private var smartLibrary: List<TrackDescriptor> = emptyList()
+    private var smartLibrarySupplied: Boolean = false
+    private var smartLookahead: Int = DEFAULT_SMART_LOOKAHEAD
     private var poolById: Map<String, TrackDescriptor> = emptyMap()
     private var smartById: Map<String, TrackDescriptor> = emptyMap()
     private var mode: ShuffleMode = ShuffleMode.OFF
@@ -169,9 +171,48 @@ internal class AndroidPlaybackController(
             }
         }
         withContext(Dispatchers.Main.immediate) {
+            val player = controller
+            val keepThrough = when {
+                player == null || player.mediaItemCount == 0 -> -1
+                player.currentMediaItemIndex >= 0 -> player.currentMediaItemIndex
+                else -> 0
+            }
+            // Generated tracks are normally resolved through smartById rather than the source
+            // queue's poolById. Preserve descriptors through the current item before replacing the
+            // eligible map, or excluding the playing artist would make NowPlaying disappear.
+            val retainedHistory = if (mode == ShuffleMode.SMART && player != null) {
+                (0..keepThrough)
+                    .mapNotNull { index ->
+                        val id = player.getMediaItemAt(index).mediaId
+                        trackById(id)?.let { id to it }
+                    }
+                    .toMap()
+            } else {
+                emptyMap()
+            }
             smartLibrary = prepared.first
-            smartById = prepared.second
+            smartById = prepared.second + retainedHistory
+            smartLibrarySupplied = true
             queueGeneration++
+            if (mode == ShuffleMode.SMART && player != null) {
+                // An eligibility change is stronger than a queue planned before it. Preserve what
+                // already played and the current seed, then remove newly ineligible future rows.
+                for (index in player.mediaItemCount - 1 downTo keepThrough + 1) {
+                    if (player.getMediaItemAt(index).mediaId !in prepared.second) {
+                        player.removeMediaItem(index)
+                    }
+                }
+                rebuildQueueSnapshot()
+                pushState()
+                appendSmartNextIfNeeded()
+            }
+        }
+    }
+
+    override suspend fun setSmartQueueLength(length: Int) {
+        withContext(Dispatchers.Main.immediate) {
+            smartLookahead = length.coerceIn(1, MAX_SMART_LOOKAHEAD)
+            appendSmartNextIfNeeded()
         }
     }
 
@@ -247,6 +288,12 @@ internal class AndroidPlaybackController(
     override suspend fun togglePlayPause(): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
         if (player.isPlaying) player.pause() else player.play()
+        pushState()
+    }
+
+    override suspend fun pause(): Unit = withContext(Dispatchers.Main) {
+        val player = controller ?: return@withContext
+        if (player.isPlaying) player.pause()
         pushState()
     }
 
@@ -359,7 +406,7 @@ internal class AndroidPlaybackController(
     }
 
     /**
-     * Main-thread only. Tops SMART back up to [SMART_LOOKAHEAD] tracks ahead of the playhead.
+     * Main-thread only. Tops SMART back up to [smartLookahead] tracks ahead of the playhead.
      *
      * Serialised: the decision below and the append that follows it must be one atomic step, or
      * concurrent callers duplicate each other's work. See [appendMutex].
@@ -373,12 +420,12 @@ internal class AndroidPlaybackController(
 
         var appended = false
         // Each pass appends exactly one item, so the shortfall shrinks by one and the loop needs at
-        // most SMART_LOOKAHEAD passes. The counter also caps it if a player ever fails to reflect an
+        // most [smartLookahead] passes. The counter also caps it if a player ever fails to reflect an
         // append immediately, which would otherwise spin.
-        var guard = SMART_LOOKAHEAD
+        var guard = smartLookahead
         while (
             guard-- > 0 &&
-            player.mediaItemCount - 1 - player.currentMediaItemIndex < SMART_LOOKAHEAD
+            player.mediaItemCount - 1 - player.currentMediaItemIndex < smartLookahead
         ) {
             // The walk continues from the END of the queue, not from what is playing. The tail is
             // the last thing the chain decided, so seeding with it is what lets the chooser
@@ -399,7 +446,11 @@ internal class AndroidPlaybackController(
             // claiming the same identity.
             val queued = (0 until player.mediaItemCount)
                 .mapTo(HashSet()) { index -> TrackId(player.getMediaItemAt(index).mediaId) }
-            val candidates = (smartLibrary.ifEmpty { pool }).filter { it.id !in queued }
+            val candidates = smartCandidatePool(
+                eligibleLibrary = smartLibrary,
+                fallbackPool = pool,
+                eligibleLibrarySupplied = smartLibrarySupplied,
+            ).filter { it.id !in queued }
             if (candidates.isEmpty()) break
 
             val chosen = runCatching { chooser.choose(seed, recentIds, candidates) }
@@ -693,14 +744,8 @@ internal class AndroidPlaybackController(
     }
 
     private companion object {
-        /**
-         * How many tracks SMART keeps queued beyond the playhead.
-         *
-         * A queue you can read is the point: one track ahead is a next-track indicator, not a
-         * queue. Kept under the chooser's chain length (12 in the app graph) so a full top-up is
-         * normally served from a single plan rather than forcing an immediate replan.
-         */
-        const val SMART_LOOKAHEAD = 10
+        const val DEFAULT_SMART_LOOKAHEAD = 20
+        const val MAX_SMART_LOOKAHEAD = 100
 
         /** How many queue entries before the seed are passed to the chooser as context. */
         const val RECENT_WINDOW = 10

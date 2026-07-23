@@ -49,6 +49,7 @@ internal class IosAudioEngine : EqualizerController {
     private var pausedFrame: Long = 0L
     private var completionGeneration: Long = 0L
     private var completion: (() -> Unit)? = null
+    private var outputSupportsEqualizer: Boolean = true
 
     init {
         parameters.forEachIndexed { index, band ->
@@ -89,6 +90,13 @@ internal class IosAudioEngine : EqualizerController {
         if (currentFile == null || !ensureEngineRunning()) return false
         player.play()
         return true
+    }
+
+    /** Music-library DRM playback bypasses this graph; reflect that honestly in Settings. */
+    fun setOutputSupportsEqualizer(supported: Boolean) {
+        if (outputSupportsEqualizer == supported) return
+        outputSupportsEqualizer = supported
+        publishEqualizerState()
     }
 
     fun pause() {
@@ -241,12 +249,14 @@ internal class IosAudioEngine : EqualizerController {
         val activePreset = preferences.integerForKey(KEY_PRESET).toInt()
             .takeIf { it in PRESET_CURVES.indices }
         mutableState.value = EqualizerState(
-            available = true,
+            available = outputSupportsEqualizer,
             enabled = !equalizer.bypass,
             bands = parameters.mapIndexed { index, band ->
                 EqualizerBand(index, FREQUENCIES[index], (band.gain * 100f).toInt())
             },
-            presets = PRESET_NAMES.mapIndexed(::EqualizerPreset),
+            presets = PRESET_NAMES.mapIndexed { index, name ->
+                EqualizerPreset(index, name, EqualizerPresetKind.entries[index])
+            },
             activePreset = activePreset,
             minLevelMillibels = MIN_LEVEL_MB,
             maxLevelMillibels = MAX_LEVEL_MB,

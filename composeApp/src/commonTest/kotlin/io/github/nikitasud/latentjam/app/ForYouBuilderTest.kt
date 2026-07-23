@@ -10,7 +10,9 @@ import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldContent
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldNameSource
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -147,7 +149,7 @@ class ForYouBuilderTest {
     }
 
     @Test
-    fun `an interrupted track becomes the hero, with its resume point`() {
+    fun `an interrupted track becomes the hero with its resume point`() {
         val abandoned = track("1")
         val result = page(
             library = listOf(abandoned),
@@ -208,7 +210,7 @@ class ForYouBuilderTest {
     }
 
     @Test
-    fun `the hero falls back to a forgotten favourite, then to something unheard`() {
+    fun `the hero falls back to a forgotten favourite then to something unheard`() {
         val loved = track("1")
         val withHistory = page(
             library = listOf(loved),
@@ -261,7 +263,7 @@ class ForYouBuilderTest {
     }
 
     @Test
-    fun `a dormant playlist is offered as one card, not as its tracks`() {
+    fun `a dormant playlist is offered as one card and not as its tracks`() {
         val members = (1..4).map { track("$it", artist = "Artist$it") }
         val result = page(
             library = members,
@@ -284,7 +286,7 @@ class ForYouBuilderTest {
     }
 
     @Test
-    fun `two dormant tracks are coincidence, not a playlist worth offering`() {
+    fun `two dormant tracks are coincidence and not a playlist worth offering`() {
         val members = (1..2).map { track("$it", artist = "Artist$it") }
         val result = page(
             library = members,
@@ -308,7 +310,7 @@ class ForYouBuilderTest {
     }
 
     @Test
-    fun `a world is one card, standing for the whole region`() {
+    fun `a world is one card standing for the whole region`() {
         val members = (1..12).map { track("$it", artist = "Artist$it") }
         val result = ForYouBuilder.build(
             library = members,
@@ -340,6 +342,40 @@ class ForYouBuilderTest {
     }
 
     @Test
+    fun `a genre mix balances its primary artists and keeps the cover first`() {
+        val members = listOf(
+            track("e1", artist = "Eminem"),
+            track("e2", artist = "Eminem feat. Nate Dogg"),
+            track("e3", artist = "Eminem featuring D-12"),
+            track("e4", artist = "Eminem"),
+            track("p1", artist = "2Pac"),
+            track("b1", artist = "The Notorious B.I.G."),
+            track("n1", artist = "Nas"),
+            track("j1", artist = "Jay-Z"),
+        )
+        val result = ForYouBuilder.build(
+            library = members,
+            stats = members.associate { it.id to stats(plays = 1, last = now - day) },
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = listOf(LibraryWorld("Rap", members)),
+        )
+
+        val tracks = result.sections
+            .first { it.kind == ForYouSectionKind.WORLDS }
+            .cards.single()
+            .collection
+            ?.tracks
+            .orEmpty()
+        assertEquals(members.first().id, tracks.first().id)
+        assertEquals(3, tracks.count { it.artist?.startsWith("Eminem") == true })
+        assertTrue(tracks.zipWithNext().none { (left, right) ->
+            left.artist?.startsWith("Eminem") == true &&
+                right.artist?.startsWith("Eminem") == true
+        })
+    }
+
+    @Test
     fun `generic mix labels are localized and numbered without borrowing a track title`() {
         val first = (1..6).map { track("a$it", artist = "Artist A$it") }
         val second = (1..6).map { track("b$it", artist = "Artist B$it") }
@@ -361,6 +397,80 @@ class ForYouBuilderTest {
     }
 
     @Test
+    fun `novelty and effects are hidden by default and explicit opt in reveals localized titles`() {
+        val novelty = (1..5).map { track("n$it", artist = "Creator N$it") }
+        val effects = (1..5).map { track("e$it", artist = "Creator E$it") }
+        val worlds = listOf(
+            LibraryWorld(
+                name = "Meme & Viral Audio",
+                tracks = novelty,
+                nameSource = LibraryWorldNameSource.SEMANTIC,
+                content = LibraryWorldContent.NOVELTY,
+                semanticTitle = LibraryWorldSemanticTitle.MEME_VIRAL_AUDIO,
+            ),
+            LibraryWorld(
+                name = "Sound Effects",
+                tracks = effects,
+                nameSource = LibraryWorldNameSource.SEMANTIC,
+                content = LibraryWorldContent.SOUND_EFFECTS,
+                semanticTitle = LibraryWorldSemanticTitle.SOUND_EFFECTS,
+            ),
+        )
+
+        val hidden = ForYouBuilder.build(
+            library = novelty + effects,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = worlds,
+        )
+        assertTrue(hidden.sections.none { it.kind == ForYouSectionKind.WORLDS })
+
+        val visible = ForYouBuilder.build(
+            library = novelty + effects,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = worlds,
+            includeNoveltyMixes = true,
+            semanticMixLabels = mapOf(
+                LibraryWorldSemanticTitle.MEME_VIRAL_AUDIO to "Мемы и вирусное аудио",
+                LibraryWorldSemanticTitle.SOUND_EFFECTS to "Звуковые эффекты",
+            ),
+        )
+        val titles = visible.sections
+            .single { it.kind == ForYouSectionKind.WORLDS }
+            .cards
+            .mapNotNull { it.collection?.title }
+            .toSet()
+
+        assertEquals(setOf("Мемы и вирусное аудио", "Звуковые эффекты"), titles)
+    }
+
+    @Test
+    fun `a trimmed world stays short instead of borrowing unrelated library tracks`() {
+        val confidentMembers = (1..11).map { track("core$it", artist = "Core Artist $it") }
+        val unrelated = (1..40).map { track("other$it", artist = "Other Artist $it") }
+        val result = ForYouBuilder.build(
+            library = confidentMembers + unrelated,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = listOf(LibraryWorld("Coherent core", confidentMembers)),
+        )
+
+        val card = result.sections
+            .single { it.kind == ForYouSectionKind.WORLDS }
+            .cards
+            .single()
+        val mixTracks = card.collection?.tracks.orEmpty()
+
+        assertEquals(11, mixTracks.size)
+        assertEquals(ForYouCaption.TrackCount(11), card.caption)
+        assertEquals(confidentMembers.map { it.id }.toSet(), mixTracks.map { it.id }.toSet())
+    }
+
+    @Test
     fun `the world the listener actually lives in comes first`() {
         val quiet = (1..5).map { track("q$it", artist = "Quiet$it") }
         val loved = (1..5).map { track("l$it", artist = "Loved$it") }
@@ -374,6 +484,28 @@ class ForYouBuilderTest {
         )
         val row = result.sections.first { it.kind == ForYouSectionKind.WORLDS }
         assertEquals(listOf("Loved", "Quiet"), row.cards.mapNotNull { it.collection?.title })
+    }
+
+    @Test
+    fun `a completed member leads an equally fresh skipped member`() {
+        val hero = track("hero", artist = "Hero")
+        val skipped = track("skipped", artist = "Skipped")
+        val completed = track("completed", artist = "Completed")
+        val result = ForYouBuilder.build(
+            library = listOf(hero, skipped, completed),
+            stats = mapOf(
+                hero.id to stats(plays = 20, completions = 20, last = now - 200 * day),
+                skipped.id to stats(plays = 8, completions = 0, skips = 8, last = now - day),
+                completed.id to stats(plays = 8, completions = 8, skips = 0, last = now - day),
+            ),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = listOf(LibraryWorld("Feedback", listOf(skipped, completed))),
+        )
+
+        val card = result.sections.first { it.kind == ForYouSectionKind.WORLDS }.cards.single()
+        assertEquals(completed.id, card.track.id)
+        assertEquals(completed.id, card.collection?.tracks?.first()?.id)
     }
 
     @Test
@@ -393,7 +525,7 @@ class ForYouBuilderTest {
     }
 
     @Test
-    fun `a world whose centre is already on the page shows the next track in, and starts there`() {
+    fun `a world whose centre is already on the page shows the next track in and starts there`() {
         val members = (1..6).map { track("$it", artist = "Artist$it") }
         val result = ForYouBuilder.build(
             library = members,
@@ -437,10 +569,14 @@ class ForYouBuilderTest {
         val card = result.sections.first { it.kind == ForYouSectionKind.WORLDS }.cards.single()
         assertEquals(unheard.id, card.track.id)
         assertEquals(unheard.id, card.collection?.tracks?.first()?.id)
+        assertTrue(
+            card.collection?.tracks?.none { it.id == older.id } == true,
+            "an excluded track remained playable inside the generated mix",
+        )
     }
 
     @Test
-    fun `no worlds, no row`() {
+    fun `no worlds means no row`() {
         val result = page(library = listOf(track("1"), track("2", artist = "B")))
         assertTrue(result.sections.none { it.kind == ForYouSectionKind.WORLDS })
     }

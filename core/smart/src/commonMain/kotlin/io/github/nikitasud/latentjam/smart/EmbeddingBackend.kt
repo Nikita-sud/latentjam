@@ -42,6 +42,15 @@ public interface EmbeddingBackend {
      */
     public suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray>
 
+    /**
+     * Runs the optional compact semantic head over stored audio embeddings.
+     *
+     * The default keeps alternate/test backends source-compatible and means a missing head only
+     * removes semantic routing; it never disables SMART audio similarity.
+     */
+    public suspend fun classify(embeddings: List<FloatArray>): Result<List<FloatArray>> =
+        Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+
     /** Releases all native resources held by the backend. Idempotent. */
     public fun close()
 }

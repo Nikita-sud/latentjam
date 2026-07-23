@@ -25,6 +25,16 @@ public sealed interface EngineError {
     public data object NotIndexed : EngineError
 
     /**
+     * One track's audio could not be opened or decoded on this device.
+     *
+     * [technicalDetail] is for local logs only. UI must use a localized recovery message instead
+     * of exposing codec names, file paths, or platform exception text.
+     */
+    public data class AudioUnavailable(
+        public val technicalDetail: String? = null,
+    ) : EngineError
+
+    /**
      * A platform backend failed while loading the model or running inference.
      *
      * @property message Human-readable description of what went wrong.

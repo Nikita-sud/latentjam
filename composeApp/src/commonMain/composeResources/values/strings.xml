@@ -32,6 +32,11 @@
     <string name="action_create">Create</string>
     <string name="action_play_all">Play all</string>
     <string name="action_shuffle_all">Shuffle all</string>
+    <string name="action_share">Share</string>
+    <string name="action_select_all">Select all</string>
+    <string name="action_deselect_all">Deselect all</string>
+    <string name="selection_count">Selected: %1$d</string>
+    <string name="action_add">Add</string>
     <string name="cd_more_options">More options</string>
     <!-- Content descriptions for the top bar. -->
     <string name="cd_search_library">Search library</string>
@@ -68,7 +73,7 @@
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">No music found on this device.</string>
-    <string name="action_rescan_library">Rescan library</string>
+    <string name="action_rescan_library">Refresh library</string>
     <string name="sort_recently_added">Recently added</string>
     <string name="snack_track_deleted">Track deleted</string>
 
@@ -151,7 +156,17 @@
     <string name="action_go_to_album">Go to album</string>
     <string name="action_go_to_artist">Go to artist</string>
     <string name="action_information">Information</string>
+    <string name="action_exclude_track_from_smart">Don’t recommend this track</string>
+    <string name="action_exclude_artist_from_smart">Don’t recommend this artist</string>
+    <string name="action_include_track_in_smart">Recommend this track again</string>
+    <string name="action_include_artist_in_smart">Recommend this artist again</string>
+    <string name="snack_track_excluded_from_smart">Track removed from SMART recommendations</string>
+    <string name="snack_artist_excluded_from_smart">Artist removed from SMART recommendations</string>
+    <string name="snack_track_included_in_smart">Track restored to SMART recommendations</string>
+    <string name="snack_artist_included_in_smart">Artist restored to SMART recommendations</string>
+    <string name="snack_smart_exclusion_failed">Could not update SMART recommendations. Try again.</string>
     <string name="action_delete_from_device">Delete from device</string>
+    <string name="dialog_delete_tracks_message">Selected tracks (%1$d) will be removed from this device. This cannot be undone.</string>
     <string name="dialog_delete_track_title">Delete this track?</string>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">"%1$s" will be removed from this device. This cannot be undone.</string>
@@ -185,10 +200,9 @@
     <string name="settings_section_playback">Playback</string>
     <string name="settings_equalizer">Equalizer</string>
     <string name="settings_equalizer_subtitle">Tone controls for this device’s audio output</string>
-    <string name="settings_intelligence">Intelligence</string>
+    <string name="settings_intelligence">SMART engine</string>
     <string name="settings_smart_engine">SMART engine</string>
     <string name="settings_smart_engine_subtitle">What the on-device model knows about your library</string>
-    <string name="settings_section_about">About</string>
     <string name="settings_about_body">LatentJam — a local music player with an on-device recommender. Nothing about your listening leaves this device.</string>
 
     <!-- ========================================================== equalizer -->
@@ -206,18 +220,6 @@
     <string name="intelligence_fingerprints">Sound fingerprints</string>
     <!-- %1$d tracks analysed out of %2$d in the library -->
     <string name="intelligence_indexed_of">%1$d of %2$d</string>
-    <string name="intelligence_fingerprint_note">Tracks without a fingerprint can still be played, but SMART will not pick them or use them to judge what fits.</string>
-    <string name="intelligence_section_analysis">Analysis</string>
-    <string name="intelligence_analysis_note">Listening to a track for the first time does not analyse it. Fingerprints are computed in batches, and the work resumes where it left off.</string>
-    <!-- %1$d is the batch size -->
-    <string name="intelligence_analyse_batch">Analyse %1$d</string>
-    <string name="intelligence_analyse_all">Analyse everything</string>
-    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
-    <string name="intelligence_analysed_batch_report">Analysed %1$d, skipped %2$d, failed %3$d.</string>
-    <!-- %1$d analysed, %2$d failed -->
-    <string name="intelligence_analysed_all_report">Analysed %1$d, failed %2$d.</string>
-    <string name="intelligence_section_privacy">Privacy</string>
-    <string name="intelligence_privacy_body">Every model runs on this device. Your library, your listening history and everything derived from them stay here — there is no account and no upload.</string>
     <string name="engine_state_not_started">Not started</string>
     <string name="engine_state_starting">Starting…</string>
     <string name="engine_state_ready">Ready</string>
@@ -227,38 +229,18 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">LatentJam needs access to your music to scan the library.</string>
     <string name="permission_grant">Grant access</string>
+    <string name="permission_audio_settings_rationale">Music access is blocked. Open system settings and allow Music and audio for LatentJam.</string>
+    <string name="permission_open_settings">Open settings</string>
+    <string name="permission_notifications_title">Show analysis progress?</string>
+    <string name="permission_notifications_rationale">SMART analyses your library on this device. Allow notifications to see progress and return to LatentJam while it works. Analysis continues if you choose Not now.</string>
+    <string name="permission_not_now">Not now</string>
+    <string name="permission_continue">Continue</string>
 
-    <!-- ======================================================= diagnostics -->
-    <string name="diagnostics_title">Diagnostics</string>
-    <!-- %1$s is a track count, or an ellipsis while the library is still loading -->
-    <string name="diagnostics_library">Library: %1$s</string>
-    <!-- %1$d is the batch size -->
-    <string name="diagnostics_index_batch">Index %1$d</string>
-    <string name="diagnostics_index_all">Index all</string>
-    <string name="diagnostics_rescan">Rescan</string>
-    <!-- %1$d done of %2$d, then indexed / skipped / failed -->
-    <string name="diagnostics_indexing">Indexing… %1$d/%2$d (ok %3$d, skip %4$d, fail %5$d)</string>
-    <string name="diagnostics_indexed_report">Done — indexed %1$d, skipped %2$d, failed %3$d.</string>
-    <string name="diagnostics_history_empty">History: no listens recorded yet.</string>
-    <plurals name="diagnostics_history_listens">
-        <item quantity="one">History: %1$d listen.</item>
-        <item quantity="other">History: %1$d listens.</item>
-    </plurals>
-    <!-- %1$s is a track title, %2$d how many times it was played -->
-    <string name="diagnostics_history_top">Top: %1$s (%2$d×).</string>
-    <string name="diagnostics_engine">Similarity engine</string>
-    <string name="diagnostics_engine_uninitialized">Not initialized yet.</string>
-    <plurals name="diagnostics_engine_ready">
-        <item quantity="one">Ready — %1$d track indexed.</item>
-        <item quantity="other">Ready — %1$d tracks indexed.</item>
-    </plurals>
-    <string name="diagnostics_engine_retry">Retry initialization</string>
-    <string name="diagnostics_engine_initialize">Initialize engine</string>
 
-    <string name="engine_error_model_unavailable">Similarity model isn't bundled yet — smart shuffle is disabled in this build.</string>
+    <string name="engine_error_model_unavailable">SMART could not load its bundled models. Retry setup; if the problem continues, reinstall or report it.</string>
     <string name="engine_error_not_indexed">Library not indexed yet.</string>
-    <!-- %1$s is a technical failure message from the engine backend -->
-    <string name="engine_error_backend">Engine backend failed: %1$s</string>
+    <string name="engine_error_audio_unavailable">This track could not be read or decoded. Check that the file is still available, then retry.</string>
+    <string name="engine_error_backend">SMART hit an internal error. Retry setup; if it continues, report the problem.</string>
 
     <!-- Notification shown while the library is being analysed. -->
     <string name="indexing_notification_title">Analysing your music</string>
@@ -266,4 +248,174 @@
     <string name="indexing_notification_progress">%1$d of %2$d</string>
     <!-- %1$d done, %2$d total, %3$d minutes left -->
     <string name="indexing_notification_progress_eta">%1$d of %2$d · about %3$d min left</string>
+
+    <!-- =================================================== expanded settings -->
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_appearance_subtitle">Theme, player colors and opening page</string>
+    <string name="settings_library">Library</string>
+    <string name="settings_library_subtitle">Refresh, import and manage hidden tracks</string>
+    <string name="settings_playback">Playback</string>
+    <string name="settings_playback_subtitle">Equalizer and audio controls</string>
+    <string name="settings_privacy">Privacy and data</string>
+    <string name="settings_privacy_subtitle">Listening history and recent searches</string>
+    <string name="settings_about">About LatentJam</string>
+    <string name="settings_about_subtitle">License, source code and support</string>
+    <string name="settings_section_library">Library</string>
+    <string name="settings_section_navigation">Navigation</string>
+    <string name="settings_section_privacy">On-device data</string>
+
+    <string name="settings_track_colors">Player colors</string>
+    <string name="settings_color_dynamic">Artwork</string>
+    <string name="settings_color_dynamic_body">Use colors sampled from the artwork, with a SMART fallback.</string>
+    <string name="settings_color_smart">SMART</string>
+    <string name="settings_color_smart_body">Use colors derived from each track’s sound fingerprint.</string>
+    <string name="settings_color_theme">Theme</string>
+    <string name="settings_color_theme_body">Use the app theme instead of track-specific colors.</string>
+    <string name="settings_start_page">Opening page</string>
+    <string name="settings_start_page_body">Used the next time you open LatentJam.</string>
+
+    <string name="settings_library_count">Tracks in library</string>
+    <string name="settings_library_refresh">Refresh library</string>
+    <string name="settings_library_refresh_body">Find newly added music and remove entries for files that are no longer available.</string>
+    <string name="settings_library_import">Import music</string>
+    <string name="settings_library_import_body">Choose audio files to copy into LatentJam.</string>
+    <string name="settings_library_restore">Restore hidden tracks</string>
+    <string name="settings_library_restore_body">Return every track removed from LatentJam to the library. Files on the device are unchanged.</string>
+
+    <string name="settings_equalizer_unavailable">Unavailable for this audio output</string>
+    <string name="equalizer_unavailable_body">The current audio output does not expose an equalizer to LatentJam. Try another output. Playback still works normally.</string>
+    <string name="equalizer_bass_value">%1$d\u0025</string>
+    <string name="equalizer_preset_flat">Flat</string>
+    <string name="equalizer_preset_bass">Bass</string>
+    <string name="equalizer_preset_treble">Treble</string>
+    <string name="equalizer_preset_vocal">Vocal</string>
+    <string name="equalizer_preset_electronic">Electronic</string>
+
+    <string name="intelligence_syncing">Syncing library…</string>
+    <string name="intelligence_analysis_progress">%1$d of %2$d tracks analysed</string>
+    <string name="intelligence_analysis_failed">Could not analyse: %1$d</string>
+    <string name="intelligence_failures_more">And %1$d more</string>
+    <string name="intelligence_retry">Retry SMART setup</string>
+    <string name="intelligence_section_recommendations">Recommendations</string>
+    <string name="intelligence_queue_length">SMART queue length</string>
+    <string name="intelligence_queue_length_body">Choose how many tracks SMART adds when it builds a queue.</string>
+    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
+    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
+    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
+    <string name="foryou_mix_sound_effects">Sound effects</string>
+    <string name="foryou_mix_spoken_audio">Spoken audio</string>
+    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_how_it_works">SMART compares sound fingerprints on this device, then combines musical similarity with your listening history. It works without an account or internet connection.</string>
+
+    <string name="privacy_local_body">Your library, listening history and SMART data stay on this device. LatentJam has no account and sends none of this to a server.</string>
+    <string name="privacy_save_history_body">Remember plays and skips on this device for For You and SMART recommendations.</string>
+    <string name="privacy_remember_searches_body">Save queries on this device so they appear when search is empty.</string>
+    <string name="privacy_disable_history_body">Stop saving new listening activity. What should happen to the history already on this device?</string>
+    <string name="privacy_disable_searches_body">Stop saving new queries. What should happen to the searches already on this device?</string>
+    <string name="privacy_keep_existing">Keep existing</string>
+    <string name="privacy_delete_existing">Delete existing</string>
+    <string name="privacy_setting_save_failed">Could not save this privacy setting. Try again.</string>
+    <string name="privacy_data_clear_failed">Could not clear this on-device data. Try again.</string>
+    <string name="privacy_clear_history">Clear listening history</string>
+    <string name="privacy_clear_history_body">Remove play and skip data used to personalize recommendations.</string>
+    <string name="privacy_clear_history_confirm">Clear all listening history? Recommendations will start learning your taste again.</string>
+    <string name="privacy_history_empty">No listening history</string>
+    <plurals name="privacy_history_listens">
+        <item quantity="one">%1$d listen</item>
+        <item quantity="other">%1$d listens</item>
+    </plurals>
+    <string name="privacy_recent_searches">Recent searches</string>
+    <string name="privacy_clear_searches">Clear recent searches</string>
+    <string name="privacy_clear_searches_body">Remove the queries shown when search is empty.</string>
+    <string name="privacy_clear_searches_confirm">Clear all recent searches?</string>
+
+    <string name="settings_license">License</string>
+    <string name="settings_license_body">LatentJam is free software licensed under the Apache License 2.0.</string>
+    <string name="settings_open_source">Source code</string>
+    <string name="settings_open_source_body">View the project on GitHub</string>
+    <string name="settings_report_issue">Report a problem</string>
+    <string name="settings_section_preferences">Preferences</string>
+    <string name="settings_section_music">Music</string>
+    <string name="settings_section_data_support">Data &amp; support</string>
+    <string name="privacy_listening_history">Listening history</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_library_loading">Loading library…</string>
+    <string name="settings_library_refreshing">Refreshing…</string>
+    <string name="snack_library_refreshed">Library refreshed</string>
+    <string name="action_retry">Try again</string>
+
+    <string name="settings_language">Language</string>
+    <string name="settings_language_body">LatentJam follows your system or per-app language. Change it in system settings.</string>
+    <string name="settings_audio_access">Music access</string>
+    <string name="settings_audio_access_allowed">Allowed</string>
+    <string name="settings_audio_access_blocked">Blocked</string>
+    <string name="settings_audio_access_not_requested">Not requested</string>
+    <string name="settings_audio_access_not_required">Not required</string>
+    <string name="settings_sources">Music sources</string>
+    <string name="settings_sources_body">Choose which folders or device collections appear in LatentJam. Files on the device are unchanged.</string>
+    <string name="settings_sources_empty">No manageable music sources were found.</string>
+    <string name="settings_source_unnamed">Device music</string>
+    <string name="settings_source_music_library">Music library</string>
+    <string name="settings_hidden_tracks">Hidden tracks</string>
+    <string name="settings_hidden_tracks_body">Tracks hidden only in LatentJam. Restore any track without changing its file.</string>
+    <string name="settings_hidden_tracks_empty">No tracks are hidden in LatentJam.</string>
+    <string name="settings_restore">Restore</string>
+    <string name="settings_restore_all">Restore all</string>
+    <string name="settings_library_manage_failed">Could not update the library. Try again.</string>
+
+    <string name="settings_licenses">Open-source licenses</string>
+    <string name="settings_licenses_body">Notices for LatentJam, bundled models and third-party software</string>
+    <string name="settings_license_models">Audio and SMART models</string>
+    <string name="settings_license_models_body">LatentJam-produced MobileNetV4 audio and SMART predictor weights are Apache-2.0. The student uses timm (Apache-2.0) and was distilled from EfficientAT (MIT, copyright © 2022 Florian Schmid).</string>
+    <string name="settings_license_text_model">MiniLM text model</string>
+    <string name="settings_license_text_model_body">The bundled sentence-transformers/all-MiniLM-L6-v2 ONNX export and vocabulary are Apache-2.0.</string>
+    <string name="settings_license_runtime">ONNX Runtime</string>
+    <string name="settings_license_runtime_body">On-device model inference uses Microsoft ONNX Runtime under the MIT License. Copyright © Microsoft Corporation.</string>
+    <string name="settings_license_aliases">MusicBrainz data</string>
+    <string name="settings_license_aliases_body">The bundled artist-alias search data is derived from MusicBrainz and provided under CC0.</string>
+    <string name="settings_license_libraries">Third-party libraries</string>
+    <string name="settings_license_libraries_body">LatentJam uses Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin and Coil under permissive Apache-2.0 or MIT licenses. Full notices are included with the source distribution.</string>
+
+    <string name="sleep_timer">Sleep timer</string>
+    <string name="sleep_timer_off">Off</string>
+    <plurals name="sleep_timer_minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <string name="sleep_timer_end_of_track">End of current track</string>
+    <string name="sleep_timer_active_minutes">%1$d min remaining</string>
+    <string name="sleep_timer_active_end_of_track">Stops after this track</string>
+
+    <string name="intelligence_problems">Analysis problems</string>
+    <string name="intelligence_problems_body">Tracks SMART could not analyse. Your music stays playable.</string>
+    <string name="intelligence_no_problems">No analysis problems</string>
+    <string name="intelligence_manage_exclusions">Recommendation exclusions</string>
+    <string name="intelligence_manage_exclusions_body">Tracks and artists SMART should never recommend</string>
+    <string name="intelligence_exclusions_empty">No recommendation exclusions</string>
+    <string name="intelligence_excluded_tracks">Excluded tracks</string>
+    <string name="intelligence_excluded_artists">Excluded artists</string>
+    <string name="intelligence_rebuild">Rebuild SMART analysis</string>
+    <string name="intelligence_rebuild_body">Delete local fingerprints and analyse the visible library again.</string>
+    <string name="intelligence_rebuild_confirm">Rebuild all SMART analysis? Music files, playlists and listening history are unchanged.</string>
+    <string name="intelligence_how_title">How SMART works</string>
+    <string name="intelligence_notifications">Analysis notifications</string>
+    <string name="intelligence_notifications_body">Show indexing progress outside LatentJam</string>
+    <string name="intelligence_exclusions_clear">Clear all exclusions</string>
+
+    <string name="settings_backup">Local backup</string>
+    <string name="settings_backup_body">Export or restore playlists, preferences, history, hidden tracks and SMART exclusions. Music files and model data are not included.</string>
+    <string name="backup_export">Export backup</string>
+    <string name="backup_import">Import backup</string>
+    <string name="backup_import_title">Restore local backup</string>
+    <string name="backup_import_body">Choose how imported data should be combined with data already on this device.</string>
+    <string name="backup_merge">Merge</string>
+    <string name="backup_replace">Replace</string>
+    <string name="backup_replace_warning">Replace selected app data with this backup? Music files are never changed.</string>
+    <string name="backup_export_success">Backup exported</string>
+    <string name="backup_import_success">Backup restored</string>
+    <string name="backup_import_success_unmatched">Backup restored; %1$d track references could not be matched on this device.</string>
+    <string name="backup_import_partial">Some data was restored before an error occurred.</string>
+    <string name="backup_failed">Could not complete the backup operation.</string>
+    <string name="backup_invalid">This is not a valid LatentJam backup.</string>
+    <string name="backup_destination_warning">The backup contains private app data. A cloud or third-party destination selected in the system picker may sync it.</string>
 </resources>

@@ -25,6 +25,11 @@
     <string name="action_create">作成</string>
     <string name="action_play_all">すべて再生</string>
     <string name="action_shuffle_all">すべてシャッフル再生</string>
+    <string name="action_share">共有</string>
+    <string name="action_select_all">すべて選択</string>
+    <string name="action_deselect_all">すべて選択解除</string>
+    <string name="selection_count">選択済み：%1$d</string>
+    <string name="action_add">追加</string>
     <string name="cd_more_options">その他のオプション</string>
     <string name="cd_search_library">ライブラリを検索</string>
 
@@ -56,7 +61,7 @@
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">この端末に音楽が見つかりません。</string>
-    <string name="action_rescan_library">ライブラリを再スキャン</string>
+    <string name="action_rescan_library">ライブラリを更新</string>
     <string name="sort_recently_added">最近追加した順</string>
     <string name="snack_track_deleted">曲を削除しました</string>
 
@@ -131,6 +136,7 @@
     <string name="action_go_to_artist">アーティストを表示</string>
     <string name="action_information">情報</string>
     <string name="action_delete_from_device">デバイスから削除</string>
+    <string name="dialog_delete_tracks_message">選択した%1$d曲をこのデバイスから削除します。この操作は取り消せません。</string>
     <string name="dialog_delete_track_title">この曲を削除しますか？</string>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">「%1$s」をこのデバイスから削除します。この操作は取り消せません。</string>
@@ -164,10 +170,9 @@
     <string name="settings_section_playback">再生</string>
     <string name="settings_equalizer">イコライザ</string>
     <string name="settings_equalizer_subtitle">このデバイスの音声出力の音質を調整します</string>
-    <string name="settings_intelligence">インテリジェンス</string>
+    <string name="settings_intelligence">SMARTエンジン</string>
     <string name="settings_smart_engine">SMARTエンジン</string>
     <string name="settings_smart_engine_subtitle">オンデバイスモデルがライブラリについて把握している内容</string>
-    <string name="settings_section_about">このアプリについて</string>
     <string name="settings_about_body">LatentJamは、オンデバイスのレコメンド機能を備えたローカル音楽プレーヤーです。再生履歴に関する情報がこのデバイスの外に出ることはありません。</string>
 
     <!-- ========================================================== equalizer -->
@@ -185,18 +190,6 @@
     <string name="intelligence_fingerprints">サウンド指紋</string>
     <!-- %1$d tracks analysed out of %2$d in the library -->
     <string name="intelligence_indexed_of">%2$d曲中%1$d曲</string>
-    <string name="intelligence_fingerprint_note">指紋のない曲も再生できますが、SMARTがその曲を選ぶことはなく、何が合うかを判断する材料にも使われません。</string>
-    <string name="intelligence_section_analysis">解析</string>
-    <string name="intelligence_analysis_note">曲を初めて再生しても解析は行われません。指紋はまとめて計算され、中断したところから再開されます。</string>
-    <!-- %1$d is the batch size -->
-    <string name="intelligence_analyse_batch">%1$d曲を解析</string>
-    <string name="intelligence_analyse_all">すべて解析</string>
-    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
-    <string name="intelligence_analysed_batch_report">%1$d曲を解析、%2$d曲をスキップ、%3$d曲が失敗しました。</string>
-    <!-- %1$d analysed, %2$d failed -->
-    <string name="intelligence_analysed_all_report">%1$d曲を解析、%2$d曲が失敗しました。</string>
-    <string name="intelligence_section_privacy">プライバシー</string>
-    <string name="intelligence_privacy_body">モデルはすべてこのデバイス上で動作します。ライブラリも再生履歴も、そこから導き出されたものもすべてこの端末に留まります。アカウントもアップロードもありません。</string>
     <string name="engine_state_not_started">未開始</string>
     <string name="engine_state_starting">起動中…</string>
     <string name="engine_state_ready">準備完了</string>
@@ -206,33 +199,191 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">ライブラリをスキャンするため、LatentJamは音楽へのアクセスを必要とします。</string>
     <string name="permission_grant">アクセスを許可</string>
+    <string name="permission_audio_settings_rationale">音楽へのアクセスがブロックされています。システム設定を開き、LatentJamに音楽とオーディオファイルへのアクセスを許可してください。</string>
+    <string name="permission_open_settings">設定を開く</string>
+    <string name="permission_notifications_title">解析の進行状況を表示しますか？</string>
+    <string name="permission_notifications_rationale">SMARTはこのデバイス上でライブラリを解析します。通知を許可すると、進行状況を確認し、解析中にLatentJamへ戻れます。「今はしない」を選んでも解析は続行されます。</string>
+    <string name="permission_not_now">今はしない</string>
+    <string name="permission_continue">続ける</string>
 
-    <!-- ======================================================= diagnostics -->
-    <string name="diagnostics_title">診断</string>
-    <string name="diagnostics_library">ライブラリ: %1$s</string>
-    <string name="diagnostics_index_batch">%1$d件をインデックス</string>
-    <string name="diagnostics_index_all">すべてインデックス</string>
-    <string name="diagnostics_rescan">再スキャン</string>
-    <string name="diagnostics_indexing">インデックス中… %1$d/%2$d（成功 %3$d、スキップ %4$d、失敗 %5$d）</string>
-    <string name="diagnostics_indexed_report">完了 — インデックス %1$d、スキップ %2$d、失敗 %3$d。</string>
-    <string name="diagnostics_history_empty">履歴: まだ再生記録がありません。</string>
-    <plurals name="diagnostics_history_listens">
-        <item quantity="other">履歴: %1$d回の再生。</item>
-    </plurals>
-    <string name="diagnostics_history_top">最多再生: %1$s（%2$d回）。</string>
-    <string name="diagnostics_engine">類似度エンジン</string>
-    <string name="diagnostics_engine_uninitialized">まだ初期化されていません。</string>
-    <plurals name="diagnostics_engine_ready">
-        <item quantity="other">準備完了 — %1$d曲をインデックス済み。</item>
-    </plurals>
-    <string name="diagnostics_engine_retry">初期化を再試行</string>
-    <string name="diagnostics_engine_initialize">エンジンを初期化</string>
 
-    <string name="engine_error_model_unavailable">類似度モデルはまだ同梱されていません — このビルドではスマートシャッフルは無効です。</string>
+    <string name="engine_error_model_unavailable">SMART は同梱モデルを読み込めませんでした。設定を再試行し、続く場合はアプリを再インストールするか報告してください。</string>
     <string name="engine_error_not_indexed">ライブラリはまだインデックスされていません。</string>
-    <string name="engine_error_backend">エンジンのバックエンドで失敗しました: %1$s</string>
+    <string name="engine_error_audio_unavailable">この曲を読み取りまたはデコードできませんでした。ファイルがまだ利用できることを確認して再試行してください。</string>
+    <string name="engine_error_backend">SMART で内部エラーが発生しました。設定を再試行し、続く場合は問題を報告してください。</string>
 
     <string name="indexing_notification_title">音楽を解析中</string>
     <string name="indexing_notification_progress">%2$d曲中%1$d曲</string>
     <string name="indexing_notification_progress_eta">%2$d曲中%1$d曲 · 残り約%3$d分</string>
+    <!-- =================================================== expanded settings -->
+    <string name="settings_appearance">外観</string>
+    <string name="settings_appearance_subtitle">テーマ、プレーヤーの色、開始ページ</string>
+    <string name="settings_library">ライブラリ</string>
+    <string name="settings_library_subtitle">更新、読み込み、非表示の曲を管理</string>
+    <string name="settings_playback">再生</string>
+    <string name="settings_playback_subtitle">イコライザーとオーディオ設定</string>
+    <string name="settings_privacy">プライバシーとデータ</string>
+    <string name="settings_privacy_subtitle">再生履歴と最近の検索</string>
+    <string name="settings_about">LatentJam について</string>
+    <string name="settings_about_subtitle">ライセンス、ソースコード、サポート</string>
+    <string name="settings_section_library">ライブラリ</string>
+    <string name="settings_section_navigation">ナビゲーション</string>
+    <string name="settings_section_privacy">端末上のデータ</string>
+    <string name="settings_track_colors">プレーヤーの色</string>
+    <string name="settings_color_dynamic">アートワーク</string>
+    <string name="settings_color_dynamic_body">アートワークから取得した色を使い、取得できない場合は SMART の色を使います。</string>
+    <string name="settings_color_smart">SMART</string>
+    <string name="settings_color_smart_body">各曲のサウンド指紋から生成した色を使います。</string>
+    <string name="settings_color_theme">テーマ</string>
+    <string name="settings_color_theme_body">曲ごとの色ではなくアプリのテーマを使います。</string>
+    <string name="settings_start_page">開始ページ</string>
+    <string name="settings_start_page_body">次回 LatentJam を開いたときに適用されます。</string>
+    <string name="settings_library_count">ライブラリ内の曲</string>
+    <string name="settings_library_refresh">ライブラリを更新</string>
+    <string name="settings_library_refresh_body">新しく追加された音楽を探し、利用できなくなったファイルの項目を削除します。</string>
+    <string name="settings_library_import">音楽を読み込む</string>
+    <string name="settings_library_import_body">LatentJam にコピーするオーディオファイルを選びます。</string>
+    <string name="settings_library_restore">非表示の曲を復元</string>
+    <string name="settings_library_restore_body">LatentJam から取り除いた曲をすべてライブラリに戻します。端末上のファイルは変更されません。</string>
+    <string name="settings_equalizer_unavailable">このオーディオ出力では利用できません</string>
+    <string name="equalizer_unavailable_body">現在のオーディオ出力では LatentJam からイコライザーを利用できません。別の出力をお試しください。再生は通常どおり行えます。</string>
+    <string name="equalizer_bass_value">%1$d\u0025</string>
+    <string name="equalizer_preset_flat">フラット</string>
+    <string name="equalizer_preset_bass">低音</string>
+    <string name="equalizer_preset_treble">高音</string>
+    <string name="equalizer_preset_vocal">ボーカル</string>
+    <string name="equalizer_preset_electronic">エレクトロニック</string>
+    <string name="intelligence_syncing">ライブラリを同期中…</string>
+    <string name="intelligence_analysis_progress">%2$d 曲中 %1$d 曲を解析済み</string>
+    <string name="intelligence_analysis_failed">解析できなかった曲：%1$d</string>
+    <string name="intelligence_failures_more">ほか %1$d 件</string>
+    <string name="intelligence_retry">SMART の設定を再試行</string>
+    <string name="intelligence_section_recommendations">おすすめ</string>
+    <string name="intelligence_queue_length">SMART キューの長さ</string>
+    <string name="intelligence_queue_length_body">SMART がキューを作るときに追加する曲数を選びます。</string>
+    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
+    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
+    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
+    <string name="foryou_mix_sound_effects">Sound effects</string>
+    <string name="foryou_mix_spoken_audio">Spoken audio</string>
+    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_how_it_works">SMART はこの端末上でサウンド指紋を比較し、音楽的な類似性と再生履歴を組み合わせます。アカウントやインターネット接続は必要ありません。</string>
+    <string name="privacy_local_body">ライブラリ、再生履歴、SMART データはこの端末に保存されます。LatentJam にアカウントはなく、これらのデータをサーバーへ送信しません。</string>
+    <string name="privacy_save_history_body">「おすすめ」と SMART の提案に使用するため、再生とスキップをこのデバイスに保存します。</string>
+    <string name="privacy_remember_searches_body">検索欄が空のときに表示できるよう、検索内容をこのデバイスに保存します。</string>
+    <string name="privacy_disable_history_body">新しい再生履歴の保存を停止します。このデバイスに保存済みの履歴はどうしますか？</string>
+    <string name="privacy_disable_searches_body">新しい検索履歴の保存を停止します。このデバイスに保存済みの検索はどうしますか？</string>
+    <string name="privacy_keep_existing">既存のデータを保持</string>
+    <string name="privacy_delete_existing">既存のデータを削除</string>
+    <string name="privacy_setting_save_failed">このプライバシー設定を保存できませんでした。もう一度お試しください。</string>
+    <string name="privacy_data_clear_failed">このデバイスのデータを消去できませんでした。もう一度お試しください。</string>
+    <string name="privacy_clear_history">再生履歴を消去</string>
+    <string name="privacy_clear_history_body">おすすめの調整に使われる再生とスキップのデータを削除します。</string>
+    <string name="privacy_clear_history_confirm">すべての再生履歴を消去しますか？おすすめは好みを最初から学習し直します。</string>
+    <string name="privacy_history_empty">再生履歴はありません</string>
+    <plurals name="privacy_history_listens">
+        <item quantity="other">%1$d 回再生</item>
+    </plurals>
+    <string name="privacy_recent_searches">最近の検索</string>
+    <string name="privacy_clear_searches">最近の検索を消去</string>
+    <string name="privacy_clear_searches_body">検索欄が空のときに表示される検索語を削除します。</string>
+    <string name="privacy_clear_searches_confirm">最近の検索をすべて消去しますか？</string>
+    <string name="settings_license">ライセンス</string>
+    <string name="settings_license_body">LatentJam は Apache License 2.0 で提供される自由ソフトウェアです。</string>
+    <string name="settings_open_source">ソースコード</string>
+    <string name="settings_open_source_body">GitHub でプロジェクトを見る</string>
+    <string name="settings_report_issue">問題を報告</string>
+    <string name="settings_section_preferences">環境設定</string>
+    <string name="settings_section_music">音楽</string>
+    <string name="settings_section_data_support">データとサポート</string>
+    <string name="privacy_listening_history">再生履歴</string>
+    <string name="settings_version">バージョン</string>
+    <string name="settings_library_loading">ライブラリを読み込み中…</string>
+    <string name="settings_library_refreshing">更新中…</string>
+    <string name="snack_library_refreshed">ライブラリを更新しました</string>
+    <string name="action_exclude_track_from_smart">この曲をおすすめしない</string>
+    <string name="action_exclude_artist_from_smart">このアーティストをおすすめしない</string>
+    <string name="action_include_track_in_smart">この曲を再びおすすめに含める</string>
+    <string name="action_include_artist_in_smart">このアーティストを再びおすすめに含める</string>
+    <string name="snack_track_excluded_from_smart">曲を SMART のおすすめから除外しました</string>
+    <string name="snack_artist_excluded_from_smart">アーティストを SMART のおすすめから除外しました</string>
+    <string name="snack_track_included_in_smart">曲を SMART のおすすめに戻しました</string>
+    <string name="snack_artist_included_in_smart">アーティストを SMART のおすすめに戻しました</string>
+    <string name="snack_smart_exclusion_failed">SMART のおすすめを更新できませんでした。もう一度お試しください。</string>
+    <string name="action_retry">もう一度試す</string>
+
+    <string name="settings_language">言語</string>
+    <string name="settings_language_body">LatentJam はシステムまたはアプリごとの言語設定に従います。システム設定で変更できます。</string>
+    <string name="settings_audio_access">音楽へのアクセス</string>
+    <string name="settings_audio_access_allowed">許可済み</string>
+    <string name="settings_audio_access_blocked">ブロック中</string>
+    <string name="settings_audio_access_not_requested">未要求</string>
+    <string name="settings_audio_access_not_required">不要</string>
+    <string name="settings_sources">音楽ソース</string>
+    <string name="settings_sources_body">LatentJam に表示するフォルダーや端末のコレクションを選びます。端末上のファイルは変更されません。</string>
+    <string name="settings_sources_empty">管理できる音楽ソースが見つかりませんでした。</string>
+    <string name="settings_source_unnamed">端末の音楽</string>
+    <string name="settings_source_music_library">ミュージックライブラリ</string>
+    <string name="settings_hidden_tracks">非表示の曲</string>
+    <string name="settings_hidden_tracks_body">LatentJam 内でのみ非表示にした曲です。ファイルを変更せずに個別に復元できます。</string>
+    <string name="settings_hidden_tracks_empty">LatentJam で非表示になっている曲はありません。</string>
+    <string name="settings_restore">復元</string>
+    <string name="settings_restore_all">すべて復元</string>
+    <string name="settings_library_manage_failed">ライブラリを更新できませんでした。もう一度お試しください。</string>
+
+    <string name="settings_licenses">オープンソースライセンス</string>
+    <string name="settings_licenses_body">LatentJam、同梱モデル、サードパーティ製ソフトウェアに関する表示</string>
+    <string name="settings_license_models">オーディオおよび SMART モデル</string>
+    <string name="settings_license_models_body">LatentJam が作成した MobileNetV4 オーディオモデルと SMART 予測器の重みは Apache-2.0 です。生徒モデルは timm（Apache-2.0）を使用し、EfficientAT（MIT、copyright © 2022 Florian Schmid）から蒸留されています。</string>
+    <string name="settings_license_text_model">MiniLM テキストモデル</string>
+    <string name="settings_license_text_model_body">同梱の sentence-transformers/all-MiniLM-L6-v2 ONNX エクスポートと語彙は Apache-2.0 です。</string>
+    <string name="settings_license_runtime">ONNX Runtime</string>
+    <string name="settings_license_runtime_body">端末上のモデル推論には、MIT License の Microsoft ONNX Runtime を使用しています。Copyright © Microsoft Corporation.</string>
+    <string name="settings_license_aliases">MusicBrainz データ</string>
+    <string name="settings_license_aliases_body">同梱のアーティスト別名検索データは MusicBrainz から派生し、CC0 で提供されています。</string>
+    <string name="settings_license_libraries">サードパーティ製ライブラリ</string>
+    <string name="settings_license_libraries_body">LatentJam は、寛容な Apache-2.0 または MIT ライセンスの下で Kotlin、coroutines、Compose Multiplatform、AndroidX Media3、Koin、Coil を使用しています。完全な表示はソース配布物に含まれています。</string>
+
+    <string name="sleep_timer">スリープタイマー</string>
+    <string name="sleep_timer_off">オフ</string>
+    <plurals name="sleep_timer_minutes">
+        <item quantity="one">%1$d分</item>
+        <item quantity="other">%1$d分</item>
+    </plurals>
+    <string name="sleep_timer_end_of_track">現在の曲の終了時</string>
+    <string name="sleep_timer_active_minutes">残り%1$d分</string>
+    <string name="sleep_timer_active_end_of_track">この曲の後に停止します</string>
+
+    <string name="intelligence_problems">解析の問題</string>
+    <string name="intelligence_problems_body">SMART が解析できなかった曲です。音楽は引き続き再生できます。</string>
+    <string name="intelligence_no_problems">解析の問題はありません</string>
+    <string name="intelligence_manage_exclusions">おすすめからの除外</string>
+    <string name="intelligence_manage_exclusions_body">SMART がおすすめしない曲とアーティスト</string>
+    <string name="intelligence_exclusions_empty">おすすめからの除外はありません</string>
+    <string name="intelligence_excluded_tracks">除外した曲</string>
+    <string name="intelligence_excluded_artists">除外したアーティスト</string>
+    <string name="intelligence_rebuild">SMART 解析を再構築</string>
+    <string name="intelligence_rebuild_body">ローカルのサウンド指紋を削除し、表示中のライブラリをもう一度解析します。</string>
+    <string name="intelligence_rebuild_confirm">SMART 解析をすべて再構築しますか？音楽ファイル、プレイリスト、再生履歴は変更されません。</string>
+    <string name="intelligence_how_title">SMART の仕組み</string>
+    <string name="intelligence_notifications">解析通知</string>
+    <string name="intelligence_notifications_body">LatentJam の外でもインデックス作成の進行状況を表示します</string>
+    <string name="intelligence_exclusions_clear">すべての除外を解除</string>
+
+    <string name="settings_backup">ローカルバックアップ</string>
+    <string name="settings_backup_body">プレイリスト、設定、履歴、非表示の曲、SMART の除外をエクスポートまたは復元します。音楽ファイルとモデルデータは含まれません。</string>
+    <string name="backup_export">バックアップをエクスポート</string>
+    <string name="backup_import">バックアップをインポート</string>
+    <string name="backup_import_title">ローカルバックアップを復元</string>
+    <string name="backup_import_body">インポートしたデータを、この端末にあるデータと組み合わせる方法を選びます。</string>
+    <string name="backup_merge">統合</string>
+    <string name="backup_replace">置き換え</string>
+    <string name="backup_replace_warning">選択したアプリデータをこのバックアップで置き換えますか？音楽ファイルは変更されません。</string>
+    <string name="backup_export_success">バックアップをエクスポートしました</string>
+    <string name="backup_import_success">バックアップを復元しました</string>
+    <string name="backup_import_success_unmatched">バックアップを復元しましたが、このデバイスで %1$d 件の曲参照を照合できませんでした。</string>
+    <string name="backup_import_partial">エラーが発生する前に一部のデータが復元されました。</string>
+    <string name="backup_failed">バックアップ操作を完了できませんでした。</string>
+    <string name="backup_invalid">有効な LatentJam バックアップではありません。</string>
+    <string name="backup_destination_warning">バックアップには非公開のアプリデータが含まれます。システムの選択画面で指定したクラウドまたは他社の保存先に同期される場合があります。</string>
 </resources>

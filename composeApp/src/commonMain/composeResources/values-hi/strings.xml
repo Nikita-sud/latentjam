@@ -25,6 +25,11 @@
     <string name="action_create">बनाएं</string>
     <string name="action_play_all">सभी चलाएं</string>
     <string name="action_shuffle_all">सभी शफ़ल करें</string>
+    <string name="action_share">शेयर करें</string>
+    <string name="action_select_all">सभी चुनें</string>
+    <string name="action_deselect_all">सभी का चयन हटाएँ</string>
+    <string name="selection_count">चुने गए: %1$d</string>
+    <string name="action_add">जोड़ें</string>
     <string name="cd_more_options">और विकल्प</string>
     <string name="cd_search_library">लाइब्रेरी में खोजें</string>
 
@@ -58,7 +63,7 @@
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">इस डिवाइस पर कोई संगीत नहीं मिला.</string>
-    <string name="action_rescan_library">लाइब्रेरी दोबारा स्कैन करें</string>
+    <string name="action_rescan_library">लाइब्रेरी रीफ़्रेश करें</string>
     <string name="sort_recently_added">हाल ही में जोड़े गए</string>
     <string name="snack_track_deleted">गाना मिटाया गया</string>
 
@@ -136,6 +141,7 @@
     <string name="action_go_to_artist">कलाकार पर जाएं</string>
     <string name="action_information">जानकारी</string>
     <string name="action_delete_from_device">डिवाइस से मिटाएं</string>
+    <string name="dialog_delete_tracks_message">चुने गए ट्रैक (%1$d) इस डिवाइस से हटा दिए जाएँगे। इसे पहले जैसा नहीं किया जा सकता।</string>
     <string name="dialog_delete_track_title">क्या यह गाना मिटाना है?</string>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">"%1$s" इस डिवाइस से हटा दिया जाएगा. इसे पहले जैसा नहीं किया जा सकता.</string>
@@ -169,10 +175,9 @@
     <string name="settings_section_playback">प्लेबैक</string>
     <string name="settings_equalizer">इक्वलाइज़र</string>
     <string name="settings_equalizer_subtitle">इस डिवाइस के ऑडियो आउटपुट के लिए टोन कंट्रोल</string>
-    <string name="settings_intelligence">इंटेलिजेंस</string>
+    <string name="settings_intelligence">SMART इंजन</string>
     <string name="settings_smart_engine">SMART इंजन</string>
     <string name="settings_smart_engine_subtitle">डिवाइस पर मौजूद मॉडल आपकी लाइब्रेरी के बारे में क्या जानता है</string>
-    <string name="settings_section_about">ऐप के बारे में</string>
     <string name="settings_about_body">LatentJam — डिवाइस पर ही चलने वाले सुझाव इंजन के साथ एक लोकल म्यूज़िक प्लेयर. आप क्या सुनते हैं, इससे जुड़ी कोई भी जानकारी इस डिवाइस से बाहर नहीं जाती.</string>
 
     <!-- ========================================================== equalizer -->
@@ -190,18 +195,6 @@
     <string name="intelligence_fingerprints">साउंड फ़िंगरप्रिंट</string>
     <!-- %1$d tracks analysed out of %2$d in the library -->
     <string name="intelligence_indexed_of">%2$d में से %1$d</string>
-    <string name="intelligence_fingerprint_note">जिन गानों का फ़िंगरप्रिंट नहीं है, वे फिर भी चलाए जा सकते हैं. लेकिन SMART न तो उन्हें चुनेगा और न ही यह तय करने में उनका इस्तेमाल करेगा कि कौन-सा गाना जमेगा.</string>
-    <string name="intelligence_section_analysis">विश्लेषण</string>
-    <string name="intelligence_analysis_note">किसी गाने को पहली बार सुनने से उसका विश्लेषण नहीं होता. फ़िंगरप्रिंट बैच में तैयार किए जाते हैं और काम वहीं से आगे बढ़ता है, जहां वह छूटा था.</string>
-    <!-- %1$d is the batch size -->
-    <string name="intelligence_analyse_batch">%1$d गानों का विश्लेषण करें</string>
-    <string name="intelligence_analyse_all">सभी का विश्लेषण करें</string>
-    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
-    <string name="intelligence_analysed_batch_report">%1$d का विश्लेषण हुआ, %2$d छोड़े गए, %3$d नहीं हो पाए.</string>
-    <!-- %1$d analysed, %2$d failed -->
-    <string name="intelligence_analysed_all_report">%1$d का विश्लेषण हुआ, %2$d नहीं हो पाए.</string>
-    <string name="intelligence_section_privacy">निजता</string>
-    <string name="intelligence_privacy_body">हर मॉडल इसी डिवाइस पर चलता है. आपकी लाइब्रेरी, आपका सुनने का इतिहास और इनसे बनी हर चीज़ यहीं रहती है — न कोई अकाउंट है, न कुछ अपलोड होता है.</string>
     <string name="engine_state_not_started">शुरू नहीं हुआ</string>
     <string name="engine_state_starting">शुरू हो रहा है…</string>
     <string name="engine_state_ready">तैयार</string>
@@ -211,35 +204,192 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">लाइब्रेरी स्कैन करने के लिए LatentJam को आपके संगीत का ऐक्सेस चाहिए.</string>
     <string name="permission_grant">ऐक्सेस दें</string>
+    <string name="permission_audio_settings_rationale">संगीत का ऐक्सेस ब्लॉक है। सिस्टम सेटिंग खोलें और LatentJam को संगीत और ऑडियो फ़ाइलों का ऐक्सेस दें।</string>
+    <string name="permission_open_settings">सेटिंग खोलें</string>
+    <string name="permission_notifications_title">विश्लेषण की प्रगति दिखाएँ?</string>
+    <string name="permission_notifications_rationale">SMART इस डिवाइस पर आपकी लाइब्रेरी का विश्लेषण करता है। प्रगति देखने और काम के दौरान LatentJam पर लौटने के लिए सूचनाएँ चालू करें। “अभी नहीं” चुनने पर भी विश्लेषण जारी रहेगा।</string>
+    <string name="permission_not_now">अभी नहीं</string>
+    <string name="permission_continue">जारी रखें</string>
 
-    <!-- ======================================================= diagnostics -->
-    <string name="diagnostics_title">डायग्नोस्टिक्स</string>
-    <string name="diagnostics_library">लाइब्रेरी: %1$s</string>
-    <string name="diagnostics_index_batch">%1$d को इंडेक्स करें</string>
-    <string name="diagnostics_index_all">सभी इंडेक्स करें</string>
-    <string name="diagnostics_rescan">दोबारा स्कैन करें</string>
-    <string name="diagnostics_indexing">इंडेक्स हो रहा है… %1$d/%2$d (ठीक %3$d, छोड़े %4$d, विफल %5$d)</string>
-    <string name="diagnostics_indexed_report">पूरा हुआ — %1$d इंडेक्स, %2$d छोड़े, %3$d विफल.</string>
-    <string name="diagnostics_history_empty">इतिहास: अभी कोई सुनना दर्ज नहीं है.</string>
-    <plurals name="diagnostics_history_listens">
-        <item quantity="one">इतिहास: %1$d बार सुना गया.</item>
-        <item quantity="other">इतिहास: %1$d बार सुना गया.</item>
-    </plurals>
-    <string name="diagnostics_history_top">सबसे ज़्यादा: %1$s (%2$d×).</string>
-    <string name="diagnostics_engine">समानता इंजन</string>
-    <string name="diagnostics_engine_uninitialized">अभी शुरू नहीं हुआ.</string>
-    <plurals name="diagnostics_engine_ready">
-        <item quantity="one">तैयार — %1$d गाना इंडेक्स हुआ.</item>
-        <item quantity="other">तैयार — %1$d गाने इंडेक्स हुए.</item>
-    </plurals>
-    <string name="diagnostics_engine_retry">फिर से शुरू करें</string>
-    <string name="diagnostics_engine_initialize">इंजन शुरू करें</string>
 
-    <string name="engine_error_model_unavailable">समानता मॉडल अभी शामिल नहीं है — इस बिल्ड में स्मार्ट शफ़ल बंद है.</string>
+    <string name="engine_error_model_unavailable">SMART शामिल किए गए मॉडल लोड नहीं कर सका। सेटअप फिर चलाएँ; समस्या बनी रहे तो ऐप दोबारा इंस्टॉल करें या रिपोर्ट करें।</string>
     <string name="engine_error_not_indexed">लाइब्रेरी अभी इंडेक्स नहीं हुई.</string>
-    <string name="engine_error_backend">इंजन बैकएंड विफल: %1$s</string>
+    <string name="engine_error_audio_unavailable">यह ट्रैक पढ़ा या डिकोड नहीं किया जा सका। जाँचें कि फ़ाइल अभी उपलब्ध है, फिर कोशिश करें।</string>
+    <string name="engine_error_backend">SMART में आंतरिक त्रुटि हुई। सेटअप फिर चलाएँ; समस्या बनी रहे तो रिपोर्ट करें।</string>
 
     <string name="indexing_notification_title">आपके संगीत का विश्लेषण हो रहा है</string>
     <string name="indexing_notification_progress">%1$d में से %2$d</string>
     <string name="indexing_notification_progress_eta">%1$d में से %2$d · लगभग %3$d मिनट शेष</string>
+    <!-- =================================================== expanded settings -->
+    <string name="settings_appearance">दिखावट</string>
+    <string name="settings_appearance_subtitle">थीम, प्लेयर के रंग और शुरुआती पेज</string>
+    <string name="settings_library">लाइब्रेरी</string>
+    <string name="settings_library_subtitle">रीफ़्रेश, इंपोर्ट और छिपे गानों का प्रबंधन</string>
+    <string name="settings_playback">प्लेबैक</string>
+    <string name="settings_playback_subtitle">इक्वलाइज़र और ऑडियो नियंत्रण</string>
+    <string name="settings_privacy">निजता और डेटा</string>
+    <string name="settings_privacy_subtitle">सुनने का इतिहास और हाल की खोजें</string>
+    <string name="settings_about">LatentJam के बारे में</string>
+    <string name="settings_about_subtitle">लाइसेंस, सोर्स कोड और सहायता</string>
+    <string name="settings_section_library">लाइब्रेरी</string>
+    <string name="settings_section_navigation">नेविगेशन</string>
+    <string name="settings_section_privacy">डिवाइस पर मौजूद डेटा</string>
+    <string name="settings_track_colors">प्लेयर के रंग</string>
+    <string name="settings_color_dynamic">कवर आर्ट</string>
+    <string name="settings_color_dynamic_body">कवर आर्ट से लिए रंग इस्तेमाल करें, जरूरत पर SMART रंग लगेंगे।</string>
+    <string name="settings_color_smart">SMART</string>
+    <string name="settings_color_smart_body">हर गाने की ध्वनि पहचान से निकले रंग इस्तेमाल करें।</string>
+    <string name="settings_color_theme">थीम</string>
+    <string name="settings_color_theme_body">हर गाने के अलग रंगों की जगह ऐप की थीम इस्तेमाल करें।</string>
+    <string name="settings_start_page">शुरुआती पेज</string>
+    <string name="settings_start_page_body">अगली बार LatentJam खोलने पर यह पेज दिखेगा।</string>
+    <string name="settings_library_count">लाइब्रेरी में गाने</string>
+    <string name="settings_library_refresh">लाइब्रेरी रीफ़्रेश करें</string>
+    <string name="settings_library_refresh_body">नया संगीत खोजें और अब उपलब्ध न रही फ़ाइलों की प्रविष्टियाँ हटाएँ।</string>
+    <string name="settings_library_import">संगीत इंपोर्ट करें</string>
+    <string name="settings_library_import_body">LatentJam में कॉपी करने के लिए ऑडियो फ़ाइलें चुनें।</string>
+    <string name="settings_library_restore">छिपे गाने वापस लाएँ</string>
+    <string name="settings_library_restore_body">LatentJam से हटाए गए सभी गाने फिर लाइब्रेरी में दिखाएँ। डिवाइस की फ़ाइलें नहीं बदलेंगी।</string>
+    <string name="settings_equalizer_unavailable">इस ऑडियो आउटपुट के लिए उपलब्ध नहीं</string>
+    <string name="equalizer_unavailable_body">मौजूदा ऑडियो आउटपुट LatentJam को इक्वलाइज़र उपलब्ध नहीं कराता। कोई दूसरा आउटपुट आज़माएँ। प्लेबैक सामान्य रूप से चलता रहेगा।</string>
+    <string name="equalizer_bass_value">%1$d\u0025</string>
+    <string name="equalizer_preset_flat">फ़्लैट</string>
+    <string name="equalizer_preset_bass">बास</string>
+    <string name="equalizer_preset_treble">ट्रेबल</string>
+    <string name="equalizer_preset_vocal">वोकल</string>
+    <string name="equalizer_preset_electronic">इलेक्ट्रॉनिक</string>
+    <string name="intelligence_syncing">लाइब्रेरी सिंक हो रही है…</string>
+    <string name="intelligence_analysis_progress">%2$d में से %1$d गानों का विश्लेषण हुआ</string>
+    <string name="intelligence_analysis_failed">इनका विश्लेषण नहीं हुआ: %1$d</string>
+    <string name="intelligence_failures_more">और %1$d</string>
+    <string name="intelligence_retry">SMART सेटअप फिर चलाएँ</string>
+    <string name="intelligence_section_recommendations">सुझाव</string>
+    <string name="intelligence_queue_length">SMART कतार की लंबाई</string>
+    <string name="intelligence_queue_length_body">SMART कतार बनाते समय कितने गाने जोड़े, यह चुनें।</string>
+    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
+    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
+    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
+    <string name="foryou_mix_sound_effects">Sound effects</string>
+    <string name="foryou_mix_spoken_audio">Spoken audio</string>
+    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_how_it_works">SMART इसी डिवाइस पर ध्वनि पहचान की तुलना करता है और संगीत की समानता को आपके सुनने के इतिहास से जोड़ता है। यह बिना खाते या इंटरनेट के काम करता है।</string>
+    <string name="privacy_local_body">आपकी लाइब्रेरी, सुनने का इतिहास और SMART डेटा इसी डिवाइस पर रहते हैं। LatentJam में खाता नहीं है और यह डेटा किसी सर्वर पर नहीं भेजा जाता।</string>
+    <string name="privacy_save_history_body">आपके लिए और SMART सुझावों के लिए चलाए और छोड़े गए ट्रैक इस डिवाइस पर याद रखें।</string>
+    <string name="privacy_remember_searches_body">खोज फ़ील्ड खाली होने पर दिखाने के लिए खोजें इस डिवाइस पर सहेजें।</string>
+    <string name="privacy_disable_history_body">सुनने की नई गतिविधि सहेजना बंद करें। इस डिवाइस पर पहले से मौजूद इतिहास का क्या करना है?</string>
+    <string name="privacy_disable_searches_body">नई खोजें सहेजना बंद करें। इस डिवाइस पर पहले से मौजूद खोजों का क्या करना है?</string>
+    <string name="privacy_keep_existing">मौजूदा डेटा रखें</string>
+    <string name="privacy_delete_existing">मौजूदा डेटा मिटाएँ</string>
+    <string name="privacy_setting_save_failed">यह गोपनीयता सेटिंग सहेजी नहीं जा सकी। फिर से कोशिश करें।</string>
+    <string name="privacy_data_clear_failed">डिवाइस का यह डेटा साफ़ नहीं किया जा सका। फिर से कोशिश करें।</string>
+    <string name="privacy_clear_history">सुनने का इतिहास मिटाएँ</string>
+    <string name="privacy_clear_history_body">सुझावों को निजी बनाने वाले प्ले और स्किप डेटा को हटाएँ।</string>
+    <string name="privacy_clear_history_confirm">सुनने का पूरा इतिहास मिटाएँ? सुझाव आपकी पसंद को फिर से सीखना शुरू करेंगे।</string>
+    <string name="privacy_history_empty">सुनने का कोई इतिहास नहीं</string>
+    <plurals name="privacy_history_listens">
+        <item quantity="one">%1$d बार सुना</item>
+        <item quantity="other">%1$d बार सुना</item>
+    </plurals>
+    <string name="privacy_recent_searches">हाल की खोजें</string>
+    <string name="privacy_clear_searches">हाल की खोजें मिटाएँ</string>
+    <string name="privacy_clear_searches_body">खोज खाली होने पर दिखने वाले सवाल हटाएँ।</string>
+    <string name="privacy_clear_searches_confirm">हाल की सभी खोजें मिटाएँ?</string>
+    <string name="settings_license">लाइसेंस</string>
+    <string name="settings_license_body">LatentJam Apache License 2.0 के तहत लाइसेंस प्राप्त मुक्त सॉफ़्टवेयर है।</string>
+    <string name="settings_open_source">सोर्स कोड</string>
+    <string name="settings_open_source_body">GitHub पर प्रोजेक्ट देखें</string>
+    <string name="settings_report_issue">समस्या की रिपोर्ट करें</string>
+    <string name="settings_section_preferences">प्राथमिकताएँ</string>
+    <string name="settings_section_music">संगीत</string>
+    <string name="settings_section_data_support">डेटा और सहायता</string>
+    <string name="privacy_listening_history">सुनने का इतिहास</string>
+    <string name="settings_version">वर्शन</string>
+    <string name="settings_library_loading">लाइब्रेरी लोड हो रही है…</string>
+    <string name="settings_library_refreshing">रीफ़्रेश हो रही है…</string>
+    <string name="snack_library_refreshed">लाइब्रेरी रीफ़्रेश की गई</string>
+    <string name="action_exclude_track_from_smart">इस ट्रैक का सुझाव न दें</string>
+    <string name="action_exclude_artist_from_smart">इस कलाकार का सुझाव न दें</string>
+    <string name="action_include_track_in_smart">इस ट्रैक का फिर से सुझाव दें</string>
+    <string name="action_include_artist_in_smart">इस कलाकार का फिर से सुझाव दें</string>
+    <string name="snack_track_excluded_from_smart">ट्रैक को SMART सुझावों से हटा दिया गया</string>
+    <string name="snack_artist_excluded_from_smart">कलाकार को SMART सुझावों से हटा दिया गया</string>
+    <string name="snack_track_included_in_smart">ट्रैक को SMART सुझावों में वापस जोड़ा गया</string>
+    <string name="snack_artist_included_in_smart">कलाकार को SMART सुझावों में वापस जोड़ा गया</string>
+    <string name="snack_smart_exclusion_failed">SMART सुझाव अपडेट नहीं किए जा सके। फिर से कोशिश करें।</string>
+    <string name="action_retry">फिर से कोशिश करें</string>
+
+    <string name="settings_language">भाषा</string>
+    <string name="settings_language_body">LatentJam आपके सिस्टम या ऐप के लिए चुनी गई भाषा का उपयोग करता है। इसे सिस्टम सेटिंग में बदलें।</string>
+    <string name="settings_audio_access">संगीत की पहुँच</string>
+    <string name="settings_audio_access_allowed">अनुमति है</string>
+    <string name="settings_audio_access_blocked">अवरुद्ध</string>
+    <string name="settings_audio_access_not_requested">अनुरोध नहीं किया गया</string>
+    <string name="settings_audio_access_not_required">ज़रूरी नहीं</string>
+    <string name="settings_sources">संगीत स्रोत</string>
+    <string name="settings_sources_body">चुनें कि LatentJam में कौन-से फ़ोल्डर या डिवाइस संग्रह दिखें। डिवाइस की फ़ाइलें नहीं बदलेंगी।</string>
+    <string name="settings_sources_empty">प्रबंधित किए जा सकने वाले कोई संगीत स्रोत नहीं मिले।</string>
+    <string name="settings_source_unnamed">डिवाइस का संगीत</string>
+    <string name="settings_source_music_library">संगीत लाइब्रेरी</string>
+    <string name="settings_hidden_tracks">छिपाए गए ट्रैक</string>
+    <string name="settings_hidden_tracks_body">ट्रैक केवल LatentJam में छिपाए गए हैं। फ़ाइल बदले बिना किसी भी ट्रैक को वापस लाएँ।</string>
+    <string name="settings_hidden_tracks_empty">LatentJam में कोई ट्रैक छिपा नहीं है।</string>
+    <string name="settings_restore">वापस लाएँ</string>
+    <string name="settings_restore_all">सभी वापस लाएँ</string>
+    <string name="settings_library_manage_failed">लाइब्रेरी अपडेट नहीं की जा सकी। फिर से कोशिश करें।</string>
+
+    <string name="settings_licenses">ओपन-सोर्स लाइसेंस</string>
+    <string name="settings_licenses_body">LatentJam, साथ दिए गए मॉडल और तीसरे पक्ष के सॉफ़्टवेयर की सूचनाएँ</string>
+    <string name="settings_license_models">ऑडियो और SMART मॉडल</string>
+    <string name="settings_license_models_body">LatentJam के बनाए MobileNetV4 ऑडियो और SMART प्रेडिक्टर वेट Apache-2.0 के अंतर्गत हैं। स्टूडेंट मॉडल timm (Apache-2.0) का उपयोग करता है और इसे EfficientAT (MIT, कॉपीराइट © 2022 Florian Schmid) से डिस्टिल किया गया है।</string>
+    <string name="settings_license_text_model">MiniLM टेक्स्ट मॉडल</string>
+    <string name="settings_license_text_model_body">साथ दिए गए sentence-transformers/all-MiniLM-L6-v2 ONNX एक्सपोर्ट और शब्दावली Apache-2.0 के अंतर्गत हैं।</string>
+    <string name="settings_license_runtime">ONNX Runtime</string>
+    <string name="settings_license_runtime_body">डिवाइस पर मॉडल चलाने के लिए Microsoft ONNX Runtime का उपयोग MIT लाइसेंस के अंतर्गत किया जाता है। कॉपीराइट © Microsoft Corporation.</string>
+    <string name="settings_license_aliases">MusicBrainz डेटा</string>
+    <string name="settings_license_aliases_body">साथ दिया गया कलाकार उपनाम खोज डेटा MusicBrainz से लिया गया है और CC0 के अंतर्गत उपलब्ध है।</string>
+    <string name="settings_license_libraries">तीसरे पक्ष की लाइब्रेरी</string>
+    <string name="settings_license_libraries_body">LatentJam, Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin और Coil का उपयोग उदार Apache-2.0 या MIT लाइसेंस के अंतर्गत करता है। पूरी सूचनाएँ सोर्स वितरण में शामिल हैं।</string>
+
+    <string name="sleep_timer">स्लीप टाइमर</string>
+    <string name="sleep_timer_off">बंद</string>
+    <plurals name="sleep_timer_minutes">
+        <item quantity="one">%1$d मिनट</item>
+        <item quantity="other">%1$d मिनट</item>
+    </plurals>
+    <string name="sleep_timer_end_of_track">मौजूदा ट्रैक के अंत में</string>
+    <string name="sleep_timer_active_minutes">%1$d मिनट बाकी</string>
+    <string name="sleep_timer_active_end_of_track">इस ट्रैक के बाद रुक जाएगा</string>
+
+    <string name="intelligence_problems">विश्लेषण की समस्याएँ</string>
+    <string name="intelligence_problems_body">वे ट्रैक जिनका SMART विश्लेषण नहीं कर सका। आपका संगीत फिर भी चलाया जा सकता है।</string>
+    <string name="intelligence_no_problems">विश्लेषण में कोई समस्या नहीं</string>
+    <string name="intelligence_manage_exclusions">सुझावों से बाहर रखे गए आइटम</string>
+    <string name="intelligence_manage_exclusions_body">वे ट्रैक और कलाकार जिनका SMART कभी सुझाव न दे</string>
+    <string name="intelligence_exclusions_empty">सुझावों से कुछ भी बाहर नहीं है</string>
+    <string name="intelligence_excluded_tracks">बाहर रखे गए ट्रैक</string>
+    <string name="intelligence_excluded_artists">बाहर रखे गए कलाकार</string>
+    <string name="intelligence_rebuild">SMART विश्लेषण फिर से बनाएँ</string>
+    <string name="intelligence_rebuild_body">स्थानीय फ़िंगरप्रिंट मिटाएँ और दिखाई देने वाली लाइब्रेरी का फिर से विश्लेषण करें।</string>
+    <string name="intelligence_rebuild_confirm">पूरा SMART विश्लेषण फिर से बनाएँ? संगीत फ़ाइलें, प्लेलिस्ट और सुनने का इतिहास नहीं बदलेंगे।</string>
+    <string name="intelligence_how_title">SMART कैसे काम करता है</string>
+    <string name="intelligence_notifications">विश्लेषण की सूचनाएँ</string>
+    <string name="intelligence_notifications_body">LatentJam के बाहर इंडेक्सिंग की प्रगति दिखाएँ</string>
+    <string name="intelligence_exclusions_clear">सभी अपवाद साफ़ करें</string>
+
+    <string name="settings_backup">स्थानीय बैकअप</string>
+    <string name="settings_backup_body">प्लेलिस्ट, पसंद, इतिहास, छिपाए गए ट्रैक और SMART अपवादों को निर्यात या पुनर्स्थापित करें। संगीत फ़ाइलें और मॉडल डेटा शामिल नहीं हैं।</string>
+    <string name="backup_export">बैकअप निर्यात करें</string>
+    <string name="backup_import">बैकअप आयात करें</string>
+    <string name="backup_import_title">स्थानीय बैकअप पुनर्स्थापित करें</string>
+    <string name="backup_import_body">चुनें कि आयात किए गए डेटा को इस डिवाइस के मौजूदा डेटा के साथ कैसे जोड़ा जाए।</string>
+    <string name="backup_merge">मिलाएँ</string>
+    <string name="backup_replace">बदलें</string>
+    <string name="backup_replace_warning">चुने गए ऐप डेटा को इस बैकअप से बदलें? संगीत फ़ाइलें कभी नहीं बदली जाएँगी।</string>
+    <string name="backup_export_success">बैकअप निर्यात हो गया</string>
+    <string name="backup_import_success">बैकअप पुनर्स्थापित हो गया</string>
+    <string name="backup_import_success_unmatched">बैकअप पुनर्स्थापित हो गया; इस डिवाइस पर %1$d ट्रैक संदर्भों का मिलान नहीं हो सका।</string>
+    <string name="backup_import_partial">त्रुटि आने से पहले कुछ डेटा पुनर्स्थापित हो गया था।</string>
+    <string name="backup_failed">बैकअप प्रक्रिया पूरी नहीं की जा सकी।</string>
+    <string name="backup_invalid">यह मान्य LatentJam बैकअप नहीं है।</string>
+    <string name="backup_destination_warning">बैकअप में ऐप का निजी डेटा होता है। सिस्टम पिकर में चुना गया क्लाउड या तृतीय-पक्ष स्थान इसे सिंक कर सकता है।</string>
 </resources>

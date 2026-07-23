@@ -22,6 +22,8 @@ import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.ThumbDown
+import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,17 +49,24 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_delete_from_
 import io.github.nikitasud.latentjam.app.generated.resources.action_go_to_album
 import io.github.nikitasud.latentjam.app.generated.resources.action_go_to_artist
 import io.github.nikitasud.latentjam.app.generated.resources.action_information
+import io.github.nikitasud.latentjam.app.generated.resources.action_exclude_artist_from_smart
+import io.github.nikitasud.latentjam.app.generated.resources.action_exclude_track_from_smart
+import io.github.nikitasud.latentjam.app.generated.resources.action_include_artist_in_smart
+import io.github.nikitasud.latentjam.app.generated.resources.action_include_track_in_smart
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_play_next
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_latentjam
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message_generic
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_title
+import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_tracks_message
 import io.github.nikitasud.latentjam.app.generated.resources.label_track
+import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
 
 /**
  * Track actions, raised from the bottom rather than dropped from the row —
@@ -72,9 +81,13 @@ internal fun TrackActionsSheet(
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
     onAddToPlaylist: () -> Unit,
-    onGoToAlbum: () -> Unit,
-    onGoToArtist: () -> Unit,
+    onGoToAlbum: (() -> Unit)?,
+    onGoToArtist: (() -> Unit)?,
     onInfo: () -> Unit,
+    isTrackExcludedFromSmart: Boolean,
+    isArtistExcludedFromSmart: Boolean,
+    onToggleTrackSmartExclusion: () -> Unit,
+    onToggleArtistSmartExclusion: (() -> Unit)?,
     onHide: () -> Unit,
     canDelete: Boolean,
     onDelete: () -> Unit,
@@ -134,18 +147,50 @@ internal fun TrackActionsSheet(
                 Icons.Rounded.LibraryAdd,
                 stringResource(Res.string.action_add_to_playlist),
             ) { onDismiss(); onAddToPlaylist() }
-            SheetAction(
-                Icons.Rounded.Album,
-                stringResource(Res.string.action_go_to_album),
-            ) { onDismiss(); onGoToAlbum() }
-            SheetAction(
-                Icons.Rounded.Person,
-                stringResource(Res.string.action_go_to_artist),
-            ) { onDismiss(); onGoToArtist() }
+            onGoToAlbum?.let { goToAlbum ->
+                SheetAction(
+                    Icons.Rounded.Album,
+                    stringResource(Res.string.action_go_to_album),
+                ) { onDismiss(); goToAlbum() }
+            }
+            onGoToArtist?.let { goToArtist ->
+                SheetAction(
+                    Icons.Rounded.Person,
+                    stringResource(Res.string.action_go_to_artist),
+                ) { onDismiss(); goToArtist() }
+            }
             SheetAction(
                 Icons.Rounded.Info,
                 stringResource(Res.string.action_information),
             ) { onDismiss(); onInfo() }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            // An artist-level exclusion already covers every one of their tracks. Surface its
+            // restore action first; a dormant track-specific rule appears after the artist returns.
+            if (!isArtistExcludedFromSmart) {
+                SheetAction(
+                    if (isTrackExcludedFromSmart) Icons.Rounded.ThumbUp else Icons.Rounded.ThumbDown,
+                    stringResource(
+                        if (isTrackExcludedFromSmart) {
+                            Res.string.action_include_track_in_smart
+                        } else {
+                            Res.string.action_exclude_track_from_smart
+                        },
+                    ),
+                ) { onDismiss(); onToggleTrackSmartExclusion() }
+            }
+            onToggleArtistSmartExclusion?.let { toggleArtist ->
+                SheetAction(
+                    if (isArtistExcludedFromSmart) Icons.Rounded.ThumbUp else Icons.Rounded.ThumbDown,
+                    stringResource(
+                        if (isArtistExcludedFromSmart) {
+                            Res.string.action_include_artist_in_smart
+                        } else {
+                            Res.string.action_exclude_artist_from_smart
+                        },
+                    ),
+                ) { onDismiss(); toggleArtist() }
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             SheetAction(
                 Icons.Rounded.VisibilityOff,
                 stringResource(Res.string.action_remove_from_latentjam),
@@ -181,6 +226,75 @@ internal fun DeleteTrackDialog(
                     stringResource(Res.string.dialog_delete_track_message_generic)
                 },
             )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    text = stringResource(Res.string.action_delete),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
+        },
+    )
+}
+
+/**
+ * A trash tap in multi-selection mode first distinguishes the reversible app-only action from
+ * physical file deletion. This preserves the choice the single-track sheet already exposes.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SelectionRemovalSheet(
+    count: Int,
+    canDeleteFromDevice: Boolean,
+    onHide: () -> Unit,
+    onDeleteFromDevice: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.navigationBarsPadding()) {
+            Text(
+                text = pluralStringResource(Res.plurals.count_tracks, count, count),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+            )
+            SheetAction(
+                icon = Icons.Rounded.VisibilityOff,
+                label = stringResource(Res.string.action_remove_from_latentjam),
+            ) {
+                onDismiss()
+                onHide()
+            }
+            if (canDeleteFromDevice) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                SheetAction(
+                    icon = Icons.Rounded.DeleteOutline,
+                    label = stringResource(Res.string.action_delete_from_device),
+                    tint = MaterialTheme.colorScheme.error,
+                ) {
+                    onDismiss()
+                    onDeleteFromDevice()
+                }
+            }
+        }
+    }
+}
+
+/** Confirmation for deleting multiple physical files in one platform-owned operation. */
+@Composable
+internal fun DeleteTracksDialog(
+    count: Int,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.dialog_delete_track_title)) },
+        text = {
+            Text(stringResource(Res.string.dialog_delete_tracks_message, count))
         },
         confirmButton = {
             TextButton(onClick = onConfirm) {

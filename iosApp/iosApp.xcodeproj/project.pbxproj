@@ -112,7 +112,23 @@
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				ar,
+				de,
 				en,
+				es,
+				fr,
+				hi,
+				id,
+				it,
+				ja,
+				ko,
+				pl,
+				"pt-BR",
+				ro,
+				ru,
+				tr,
+				uk,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = A10000030000000000000001;

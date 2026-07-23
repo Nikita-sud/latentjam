@@ -20,6 +20,17 @@ public interface IosInferenceProvider {
     public fun embedAudio(uri: String, durationMs: Long, outputDim: Int): FloatArray?
 
     /** Returns null on success, otherwise a human-readable local error. */
+    public fun loadSemantic(): String?
+
+    /** Batched `[batch, 960] -> [batch, 27]` universal semantic-head inference. */
+    public fun classifySemantics(
+        embeddings: FloatArray,
+        batchSize: Int,
+        inputDim: Int,
+        outputDim: Int,
+    ): FloatArray?
+
+    /** Returns null on success, otherwise a human-readable local error. */
     public fun loadText(): String?
 
     /** MiniLM token embeddings, mean-pooled and L2-normalized by the native host. */

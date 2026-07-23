@@ -24,6 +24,17 @@ public interface ListeningHistory {
 
     /** The most recent [limit] events, newest first. */
     public suspend fun recentEvents(limit: Int): List<ListenEvent>
+
+    /**
+     * Replaces the complete local log with [events], ordered oldest first.
+     *
+     * This is intentionally a bulk operation for local backup restore: implementations can write
+     * one coherent snapshot instead of exposing a half-restored history after a failed append.
+     */
+    public suspend fun replace(events: List<ListenEvent>)
+
+    /** Removes the complete local listening history. */
+    public suspend fun clear()
 }
 
 /**
@@ -33,6 +44,10 @@ public interface ListeningHistory {
 public interface HistoryStore {
     public suspend fun append(line: String)
     public suspend fun readAll(): List<String>
+    public suspend fun replaceAll(lines: List<String>) {
+        clear()
+        lines.forEach { append(it) }
+    }
     public suspend fun clear()
 }
 
@@ -75,6 +90,20 @@ public class DefaultListeningHistory(
     override suspend fun recentEvents(limit: Int): List<ListenEvent> = mutex.withLock {
         ensureLoaded()
         events.takeLast(limit.coerceAtLeast(0)).reversed()
+    }
+
+    override suspend fun replace(events: List<ListenEvent>): Unit = mutex.withLock {
+        ensureLoaded()
+        val replacement = events.toList()
+        store.replaceAll(replacement.map(ListenEvent::serialize))
+        this.events.clear()
+        this.events += replacement
+    }
+
+    override suspend fun clear(): Unit = mutex.withLock {
+        ensureLoaded()
+        store.clear()
+        events.clear()
     }
 
     private suspend fun ensureLoaded() {

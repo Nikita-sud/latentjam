@@ -10,7 +10,9 @@ import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldContent
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldNameSource
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
 
 /**
  * Which row this is.
@@ -164,7 +166,14 @@ object ForYouBuilder {
     const val MAX_PER_ARTIST = 2
 
     /** A mix is a decision-sized playlist, not every track assigned to an embedding cluster. */
-    const val MIX_TRACK_LIMIT = 50
+    const val MIX_TRACK_LIMIT = 30
+
+    /**
+     * A genre or discovery mix represents a region, not one artist's discography.
+     *
+     * Artist-labelled mixes are exempt because their title explicitly promises that artist.
+     */
+    const val MIX_MAX_PER_ARTIST = 3
 
     /**
      * How many dormant tracks a playlist or album needs before it is offered as a whole.
@@ -192,6 +201,8 @@ object ForYouBuilder {
         playlists: List<Playlist> = emptyList(),
         worlds: List<LibraryWorld> = emptyList(),
         discoveryMixLabel: String = "Discovery mix",
+        includeNoveltyMixes: Boolean = false,
+        semanticMixLabels: Map<LibraryWorldSemanticTitle, String> = emptyMap(),
     ): ForYouPage {
         val byId = library.associateBy { it.id }
         // Accumulates across the page, so a track shown once is not shown again further down.
@@ -207,7 +218,16 @@ object ForYouBuilder {
         // above are all empty and this becomes the first thing on the page — which is what it is
         // for. Once there IS history, rows built from it have the better claim on the top of a
         // surface where the first two get read and the rest largely do not.
-        worlds(worlds, stats, nowMs, used, discoveryMixLabel)?.let(sections::add)
+        worlds(
+            worlds = worlds,
+            stats = stats,
+            nowMs = nowMs,
+            used = used,
+            excluded = excluded,
+            discoveryMixLabel = discoveryMixLabel,
+            includeNoveltyMixes = includeNoveltyMixes,
+            semanticMixLabels = semanticMixLabels,
+        )?.let(sections::add)
         neverPlayed(library, stats, used)?.let(sections::add)
 
         return ForYouPage(hero, sections)
@@ -396,13 +416,11 @@ object ForYouBuilder {
     }
 
     /**
-     * The library's own regions, ordered by how much of the listener's time is actually spent in
-     * each.
+     * The library's own regions, ordered by completion/skips, freshness, and exploration.
      *
      * The worlds themselves are found without any reference to listening — that is the whole point
-     * of the row — but which of them leads is a personal question, and the answer is simply where
-     * the plays are. A listener with a large soundtrack collection they never open should not have
-     * it first.
+     * of the row — but which of them leads is a personal question. A Bayesian-smoothed mean keeps a
+     * large region or a pile of neutral starts from winning by volume alone.
      *
      * Unlike every other row here, a world does NOT consume its members. Its pool is the entire
      * library, so retiring several hundred tracks from the rows below it would starve them for the
@@ -414,38 +432,63 @@ object ForYouBuilder {
         stats: Map<TrackId, TrackStats>,
         nowMs: Long,
         used: MutableSet<TrackId>,
+        excluded: Set<TrackId>,
         discoveryMixLabel: String,
+        includeNoveltyMixes: Boolean,
+        semanticMixLabels: Map<LibraryWorldSemanticTitle, String>,
     ): ForYouSection? {
         if (worlds.isEmpty()) return null
-        val sorted = worlds.sortedByDescending { world ->
-            world.tracks.sumOf { stats[it.id]?.plays ?: 0 }
+        val visibleWorlds = worlds.filter { world ->
+            includeNoveltyMixes ||
+                world.content !in setOf(
+                    LibraryWorldContent.NOVELTY,
+                    LibraryWorldContent.SOUND_EFFECTS,
+                )
         }
+        if (visibleWorlds.isEmpty()) return null
+        val sorted = ForYouFeedbackRanker.rankWorlds(
+            worlds = visibleWorlds,
+            stats = stats,
+            nowMs = nowMs,
+            quietMs = QUIET_MS,
+            excluded = excluded,
+        )
         val genericCount = sorted.count { it.nameSource == LibraryWorldNameSource.GENERIC }
         var genericIndex = 0
         val cards = sorted
             .mapNotNull { world ->
-                // Freshness is a tier, centrality the tie-break. A mix therefore starts with an
-                // unheard or long-quiet representative when one exists, without promoting a far
-                // edge of the cluster over everything in its tier.
-                val ordered = world.tracks.withIndex()
-                    .sortedWith(
-                        compareBy<IndexedValue<TrackDescriptor>> {
-                            freshnessTier(stats[it.value.id], nowMs)
-                        }.thenBy { it.index },
-                    )
-                    .map { it.value }
+                val eligibleTracks = world.tracks.filterNot { it.id in excluded }
+                if (eligibleTracks.isEmpty()) return@mapNotNull null
+                // Feedback and freshness lead; embedding centrality remains the stable tie-break.
+                val ordered = ForYouFeedbackRanker.rankTracks(
+                    tracks = eligibleTracks,
+                    stats = stats,
+                    nowMs = nowMs,
+                    quietMs = QUIET_MS,
+                )
                 // Keep the generated claim and its art in agreement. For a genre/decade mix, for
                 // example, a fresh cover from another family is not a valid substitute.
                 val cover = ordered.firstOrNull { it.id !in used && world.supportsName(it) }
                     ?: ordered.firstOrNull { it.id !in used }
                     ?: return@mapNotNull null
-                val mixTracks = (listOf(cover) + ordered.filterNot { it.id == cover.id })
-                    .take(MIX_TRACK_LIMIT)
-                val title = if (world.nameSource == LibraryWorldNameSource.GENERIC) {
-                    genericIndex++
-                    if (genericCount == 1) discoveryMixLabel else "$discoveryMixLabel $genericIndex"
+                val ranked = listOf(cover) + ordered.filterNot { it.id == cover.id }
+                val mixTracks = if (world.nameSource == LibraryWorldNameSource.ARTIST) {
+                    ranked.take(MIX_TRACK_LIMIT)
                 } else {
-                    world.name
+                    balanceMixArtists(ranked)
+                }
+                val title = when {
+                    world.semanticTitle != null ->
+                        semanticMixLabels[world.semanticTitle] ?: world.name
+                    world.nameSource == LibraryWorldNameSource.GENERIC -> {
+                        genericIndex++
+                        if (genericCount == 1) {
+                            discoveryMixLabel
+                        } else {
+                            "$discoveryMixLabel $genericIndex"
+                        }
+                    }
+                    else -> world.name
                 }
                 ForYouCard(
                     track = cover,
@@ -464,16 +507,6 @@ object ForYouBuilder {
             kind = ForYouSectionKind.WORLDS,
             cards = cards.onEach { used.add(it.track.id) },
         )
-    }
-
-    /** Lower is fresher. Unknown stats are unplayed, so first launch naturally fills tier zero. */
-    private fun freshnessTier(stat: TrackStats?, nowMs: Long): Int = when {
-        stat == null || stat.plays == 0 -> 0
-        stat.lastPlayedAtMs <= 0L -> 1
-        nowMs - stat.lastPlayedAtMs >= QUIET_MS -> 1
-        nowMs - stat.lastPlayedAtMs >= 30L * 24 * 60 * 60 * 1000 -> 2
-        nowMs - stat.lastPlayedAtMs >= 7L * 24 * 60 * 60 * 1000 -> 3
-        else -> 4
     }
 
     /**
@@ -516,5 +549,60 @@ object ForYouBuilder {
             out.add(track)
         }
         return out
+    }
+
+    /**
+     * Keeps the cluster's centrality order while preventing one artist from occupying the front.
+     *
+     * The first eligible track remains the cover. Each next pick is the highest-ranked track from
+     * a different artist when possible, falling back to the highest-ranked eligible track only
+     * when the remaining cluster contains one artist. Featured-artist suffixes are grouped under
+     * the primary artist, so "Eminem", "Eminem feat. …", and "Eminem featuring …" share one cap.
+     */
+    private fun balanceMixArtists(tracks: List<TrackDescriptor>): List<TrackDescriptor> {
+        val remaining = tracks.toMutableList()
+        val perArtist = HashMap<String, Int>()
+        val out = ArrayList<TrackDescriptor>(minOf(MIX_TRACK_LIMIT, tracks.size))
+        var previousArtist: String? = null
+
+        while (out.size < MIX_TRACK_LIMIT && remaining.isNotEmpty()) {
+            var selected = remaining.indexOfFirst { track ->
+                val artist = primaryArtistKey(track.artist)
+                (perArtist[artist] ?: 0) < MIX_MAX_PER_ARTIST &&
+                    (out.isEmpty() || artist != previousArtist)
+            }
+            if (selected < 0) {
+                selected = remaining.indexOfFirst { track ->
+                    val artist = primaryArtistKey(track.artist)
+                    (perArtist[artist] ?: 0) < MIX_MAX_PER_ARTIST
+                }
+            }
+            if (selected < 0) break
+
+            val track = remaining.removeAt(selected)
+            val artist = primaryArtistKey(track.artist)
+            perArtist[artist] = (perArtist[artist] ?: 0) + 1
+            previousArtist = artist
+            out.add(track)
+        }
+        return out
+    }
+
+    private fun primaryArtistKey(artist: String?): String {
+        val normalized = artist?.trim()?.lowercase().orEmpty()
+        if (normalized.isEmpty()) return "<unknown>"
+        val collaborationMarkers = listOf(
+            " feat.",
+            " feat ",
+            " featuring ",
+            " ft.",
+            " ft ",
+            " with ",
+        )
+        val cut = collaborationMarkers
+            .map { marker -> normalized.indexOf(marker) }
+            .filter { it >= 0 }
+            .minOrNull()
+        return if (cut == null) normalized else normalized.substring(0, cut).trim()
     }
 }

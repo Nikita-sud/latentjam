@@ -29,6 +29,11 @@
     <string name="action_create">إنشاء</string>
     <string name="action_play_all">تشغيل الكل</string>
     <string name="action_shuffle_all">تشغيل الكل عشوائيًا</string>
+    <string name="action_share">مشاركة</string>
+    <string name="action_select_all">تحديد الكل</string>
+    <string name="action_deselect_all">إلغاء تحديد الكل</string>
+    <string name="selection_count">تم التحديد: %1$d</string>
+    <string name="action_add">إضافة</string>
     <string name="cd_more_options">خيارات أخرى</string>
     <string name="cd_search_library">البحث في المكتبة</string>
 
@@ -71,7 +76,7 @@
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">لم يتم العثور على موسيقى على هذا الجهاز.</string>
-    <string name="action_rescan_library">إعادة فحص المكتبة</string>
+    <string name="action_rescan_library">تحديث المكتبة</string>
     <string name="sort_recently_added">المضافة حديثًا</string>
     <string name="snack_track_deleted">تم حذف المقطع</string>
 
@@ -161,6 +166,7 @@
     <string name="action_go_to_artist">الانتقال إلى الفنان</string>
     <string name="action_information">معلومات</string>
     <string name="action_delete_from_device">حذف من الجهاز</string>
+    <string name="dialog_delete_tracks_message">ستتم إزالة المقاطع المحددة (%1$d) من هذا الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="dialog_delete_track_title">حذف هذا المقطع الصوتي؟</string>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">سيتم حذف «%1$s» من هذا الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>
@@ -194,10 +200,9 @@
     <string name="settings_section_playback">التشغيل</string>
     <string name="settings_equalizer">المعادل الصوتي</string>
     <string name="settings_equalizer_subtitle">التحكم في نبرة الصوت لمخرج الصوت في هذا الجهاز</string>
-    <string name="settings_intelligence">الذكاء</string>
+    <string name="settings_intelligence">محرك SMART</string>
     <string name="settings_smart_engine">محرك SMART</string>
     <string name="settings_smart_engine_subtitle">ما يعرفه النموذج العامل على الجهاز عن مكتبتك</string>
-    <string name="settings_section_about">حول التطبيق</string>
     <string name="settings_about_body">LatentJam — مشغّل موسيقى محلي مزوّد بمحرك توصيات يعمل على الجهاز. لا تغادر أي معلومات عن استماعك هذا الجهاز.</string>
 
     <!-- ========================================================== equalizer -->
@@ -215,18 +220,6 @@
     <string name="intelligence_fingerprints">البصمات الصوتية</string>
     <!-- %1$d tracks analysed out of %2$d in the library -->
     <string name="intelligence_indexed_of">%1$d من %2$d</string>
-    <string name="intelligence_fingerprint_note">يمكن تشغيل المقاطع التي بلا بصمة صوتية، لكن SMART لن يختارها ولن يعتمد عليها في تحديد ما يناسبك.</string>
-    <string name="intelligence_section_analysis">التحليل</string>
-    <string name="intelligence_analysis_note">الاستماع إلى مقطع لأول مرة لا يحلّله. تُحسب البصمات على دفعات، ويستأنف العمل من حيث توقف.</string>
-    <!-- %1$d is the batch size -->
-    <string name="intelligence_analyse_batch">تحليل %1$d</string>
-    <string name="intelligence_analyse_all">تحليل كل شيء</string>
-    <!-- %1$d analysed, %2$d skipped, %3$d failed -->
-    <string name="intelligence_analysed_batch_report">تم تحليل %1$d، وتخطي %2$d، وفشل %3$d.</string>
-    <!-- %1$d analysed, %2$d failed -->
-    <string name="intelligence_analysed_all_report">تم تحليل %1$d، وفشل %2$d.</string>
-    <string name="intelligence_section_privacy">الخصوصية</string>
-    <string name="intelligence_privacy_body">تعمل كل النماذج على هذا الجهاز. مكتبتك وسجل استماعك وكل ما يُشتق منهما يبقى هنا — لا حساب ولا رفع للبيانات.</string>
     <string name="engine_state_not_started">لم يبدأ</string>
     <string name="engine_state_starting">جارٍ البدء…</string>
     <string name="engine_state_ready">جاهز</string>
@@ -236,43 +229,196 @@
     <!-- ========================================================= permission -->
     <string name="permission_audio_rationale">يحتاج LatentJam إلى الوصول إلى موسيقاك لفحص المكتبة.</string>
     <string name="permission_grant">السماح بالوصول</string>
+    <string name="permission_audio_settings_rationale">تم حظر الوصول إلى الموسيقى. افتح إعدادات النظام واسمح لـ LatentJam بالوصول إلى الموسيقى والملفات الصوتية.</string>
+    <string name="permission_open_settings">فتح الإعدادات</string>
+    <string name="permission_notifications_title">هل تريد عرض تقدم التحليل؟</string>
+    <string name="permission_notifications_rationale">يحلل SMART مكتبتك على هذا الجهاز. اسمح بالإشعارات لرؤية التقدم والعودة إلى LatentJam أثناء العمل. يستمر التحليل إذا اخترت «ليس الآن».</string>
+    <string name="permission_not_now">ليس الآن</string>
+    <string name="permission_continue">متابعة</string>
 
-    <!-- ======================================================= diagnostics -->
-    <string name="diagnostics_title">التشخيص</string>
-    <string name="diagnostics_library">المكتبة: %1$s</string>
-    <string name="diagnostics_index_batch">فهرسة %1$d</string>
-    <string name="diagnostics_index_all">فهرسة الكل</string>
-    <string name="diagnostics_rescan">إعادة الفحص</string>
-    <string name="diagnostics_indexing">جارٍ الفهرسة… %1$d/%2$d (ناجحة %3$d، متخطاة %4$d، فاشلة %5$d)</string>
-    <string name="diagnostics_indexed_report">تم — تمت فهرسة %1$d، وتخطي %2$d، وفشل %3$d.</string>
-    <string name="diagnostics_history_empty">السجل: لا توجد عمليات تشغيل مسجلة بعد.</string>
-    <plurals name="diagnostics_history_listens">
-        <item quantity="zero">السجل: %1$d عملية تشغيل.</item>
-        <item quantity="one">السجل: %1$d عملية تشغيل.</item>
-        <item quantity="two">السجل: %1$d عمليتا تشغيل.</item>
-        <item quantity="few">السجل: %1$d عمليات تشغيل.</item>
-        <item quantity="many">السجل: %1$d عملية تشغيل.</item>
-        <item quantity="other">السجل: %1$d عملية تشغيل.</item>
-    </plurals>
-    <string name="diagnostics_history_top">الأكثر تشغيلًا: %1$s (%2$d×).</string>
-    <string name="diagnostics_engine">محرك التشابه</string>
-    <string name="diagnostics_engine_uninitialized">لم تتم التهيئة بعد.</string>
-    <plurals name="diagnostics_engine_ready">
-        <item quantity="zero">جاهز — تمت فهرسة %1$d مقطع.</item>
-        <item quantity="one">جاهز — تمت فهرسة %1$d مقطع.</item>
-        <item quantity="two">جاهز — تمت فهرسة %1$d مقطعين.</item>
-        <item quantity="few">جاهز — تمت فهرسة %1$d مقاطع.</item>
-        <item quantity="many">جاهز — تمت فهرسة %1$d مقطعًا.</item>
-        <item quantity="other">جاهز — تمت فهرسة %1$d مقطع.</item>
-    </plurals>
-    <string name="diagnostics_engine_retry">إعادة محاولة التهيئة</string>
-    <string name="diagnostics_engine_initialize">تهيئة المحرك</string>
 
-    <string name="engine_error_model_unavailable">نموذج التشابه غير مضمَّن بعد — التشغيل العشوائي الذكي معطَّل في هذه النسخة.</string>
+    <string name="engine_error_model_unavailable">تعذّر على SMART تحميل النماذج المضمّنة. أعد الإعداد؛ وإذا استمرت المشكلة، أعد تثبيت التطبيق أو أبلغ عنها.</string>
     <string name="engine_error_not_indexed">لم تتم فهرسة المكتبة بعد.</string>
-    <string name="engine_error_backend">فشل محرك المعالجة: %1$s</string>
+    <string name="engine_error_audio_unavailable">تعذّرت قراءة هذا المقطع أو فك ترميزه. تأكد من أن الملف ما زال متاحًا ثم أعد المحاولة.</string>
+    <string name="engine_error_backend">واجه SMART خطأ داخليًا. أعد الإعداد؛ وإذا استمر، فأبلغ عن المشكلة.</string>
 
     <string name="indexing_notification_title">جارٍ تحليل موسيقاك</string>
     <string name="indexing_notification_progress">%1$d من %2$d</string>
     <string name="indexing_notification_progress_eta">%1$d من %2$d · نحو %3$d د متبقية</string>
+    <!-- =================================================== expanded settings -->
+    <string name="settings_appearance">المظهر</string>
+    <string name="settings_appearance_subtitle">السمة وألوان المشغّل وصفحة البدء</string>
+    <string name="settings_library">المكتبة</string>
+    <string name="settings_library_subtitle">تحديث الموسيقى واستيرادها وإدارة المقاطع المخفية</string>
+    <string name="settings_playback">التشغيل</string>
+    <string name="settings_playback_subtitle">معادل الصوت وعناصر التحكم بالصوت</string>
+    <string name="settings_privacy">الخصوصية والبيانات</string>
+    <string name="settings_privacy_subtitle">سجل الاستماع وعمليات البحث الأخيرة</string>
+    <string name="settings_about">حول LatentJam</string>
+    <string name="settings_about_subtitle">الترخيص ورمز المصدر والدعم</string>
+    <string name="settings_section_library">المكتبة</string>
+    <string name="settings_section_navigation">التنقل</string>
+    <string name="settings_section_privacy">البيانات على الجهاز</string>
+    <string name="settings_track_colors">ألوان المشغّل</string>
+    <string name="settings_color_dynamic">صورة الغلاف</string>
+    <string name="settings_color_dynamic_body">استخدام ألوان مأخوذة من صورة الغلاف، والرجوع إلى SMART عند الحاجة.</string>
+    <string name="settings_color_smart">SMART</string>
+    <string name="settings_color_smart_body">استخدام ألوان مشتقة من البصمة الصوتية لكل مقطع.</string>
+    <string name="settings_color_theme">السمة</string>
+    <string name="settings_color_theme_body">استخدام سمة التطبيق بدلاً من ألوان خاصة بكل مقطع.</string>
+    <string name="settings_start_page">صفحة البدء</string>
+    <string name="settings_start_page_body">تُستخدم في المرة القادمة التي تفتح فيها LatentJam.</string>
+    <string name="settings_library_count">المقاطع في المكتبة</string>
+    <string name="settings_library_refresh">تحديث المكتبة</string>
+    <string name="settings_library_refresh_body">البحث عن الموسيقى المضافة حديثًا وإزالة إدخالات الملفات التي لم تعد متاحة.</string>
+    <string name="settings_library_import">استيراد الموسيقى</string>
+    <string name="settings_library_import_body">اختيار ملفات صوتية لنسخها إلى LatentJam.</string>
+    <string name="settings_library_restore">استعادة المقاطع المخفية</string>
+    <string name="settings_library_restore_body">إعادة كل المقاطع التي أُزيلت من LatentJam إلى المكتبة. لن تتغير الملفات على الجهاز.</string>
+    <string name="settings_equalizer_unavailable">غير متاح لمخرج الصوت الحالي</string>
+    <string name="equalizer_unavailable_body">لا يوفّر مخرج الصوت الحالي لـ LatentJam إمكانية الوصول إلى معادل الصوت. جرّب مخرجًا آخر. سيستمر التشغيل بشكل طبيعي.</string>
+    <string name="equalizer_bass_value">%1$d\u0025</string>
+    <string name="equalizer_preset_flat">مسطح</string>
+    <string name="equalizer_preset_bass">جهير</string>
+    <string name="equalizer_preset_treble">ترددات عالية</string>
+    <string name="equalizer_preset_vocal">غنائي</string>
+    <string name="equalizer_preset_electronic">إلكتروني</string>
+    <string name="intelligence_syncing">جارٍ مزامنة المكتبة…</string>
+    <string name="intelligence_analysis_progress">تم تحليل %1$d من أصل %2$d</string>
+    <string name="intelligence_analysis_failed">تعذر تحليل: %1$d</string>
+    <string name="intelligence_failures_more">و%1$d أخرى</string>
+    <string name="intelligence_retry">إعادة إعداد SMART</string>
+    <string name="intelligence_section_recommendations">التوصيات</string>
+    <string name="intelligence_queue_length">طول قائمة انتظار SMART</string>
+    <string name="intelligence_queue_length_body">اختر عدد المقاطع التي يضيفها SMART عند إنشاء قائمة انتظار.</string>
+    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
+    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
+    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
+    <string name="foryou_mix_sound_effects">Sound effects</string>
+    <string name="foryou_mix_spoken_audio">Spoken audio</string>
+    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_how_it_works">يقارن SMART البصمات الصوتية على هذا الجهاز، ثم يجمع بين التشابه الموسيقي وسجل استماعك. يعمل من دون حساب أو اتصال بالإنترنت.</string>
+    <string name="privacy_local_body">تبقى مكتبتك وسجل استماعك وبيانات SMART على هذا الجهاز. لا يحتاج LatentJam إلى حساب ولا يرسل أيًا منها إلى خادم.</string>
+    <string name="privacy_save_history_body">احفظ مرات التشغيل والتخطي على هذا الجهاز لاستخدامها في «لك» وتوصيات SMART.</string>
+    <string name="privacy_remember_searches_body">احفظ عمليات البحث على هذا الجهاز لعرضها عندما يكون حقل البحث فارغًا.</string>
+    <string name="privacy_disable_history_body">إيقاف حفظ نشاط الاستماع الجديد. ماذا تريد أن تفعل بالسجل المحفوظ حاليًا على هذا الجهاز؟</string>
+    <string name="privacy_disable_searches_body">إيقاف حفظ عمليات البحث الجديدة. ماذا تريد أن تفعل بعمليات البحث المحفوظة حاليًا على هذا الجهاز؟</string>
+    <string name="privacy_keep_existing">الاحتفاظ بالبيانات الحالية</string>
+    <string name="privacy_delete_existing">حذف البيانات الحالية</string>
+    <string name="privacy_setting_save_failed">تعذر حفظ إعداد الخصوصية هذا. حاول مرة أخرى.</string>
+    <string name="privacy_data_clear_failed">تعذر مسح هذه البيانات من الجهاز. حاول مرة أخرى.</string>
+    <string name="privacy_clear_history">مسح سجل الاستماع</string>
+    <string name="privacy_clear_history_body">إزالة بيانات التشغيل والتخطي المستخدمة لتخصيص التوصيات.</string>
+    <string name="privacy_clear_history_confirm">هل تريد مسح سجل الاستماع بالكامل؟ ستبدأ التوصيات في تعلم ذوقك من جديد.</string>
+    <string name="privacy_history_empty">لا يوجد سجل استماع</string>
+    <plurals name="privacy_history_listens">
+        <item quantity="zero">%1$d عملية استماع</item>
+        <item quantity="one">%1$d عملية استماع</item>
+        <item quantity="two">%1$d عمليتا استماع</item>
+        <item quantity="few">%1$d عمليات استماع</item>
+        <item quantity="many">%1$d عملية استماع</item>
+        <item quantity="other">%1$d عملية استماع</item>
+    </plurals>
+    <string name="privacy_recent_searches">عمليات البحث الأخيرة</string>
+    <string name="privacy_clear_searches">مسح عمليات البحث الأخيرة</string>
+    <string name="privacy_clear_searches_body">إزالة العبارات التي تظهر عندما يكون البحث فارغًا.</string>
+    <string name="privacy_clear_searches_confirm">هل تريد مسح كل عمليات البحث الأخيرة؟</string>
+    <string name="settings_license">الترخيص</string>
+    <string name="settings_license_body">LatentJam برنامج حر مرخّص بموجب ترخيص Apache 2.0.</string>
+    <string name="settings_open_source">رمز المصدر</string>
+    <string name="settings_open_source_body">عرض المشروع على GitHub</string>
+    <string name="settings_report_issue">الإبلاغ عن مشكلة</string>
+    <string name="settings_section_preferences">التفضيلات</string>
+    <string name="settings_section_music">الموسيقى</string>
+    <string name="settings_section_data_support">البيانات والدعم</string>
+    <string name="privacy_listening_history">سجل الاستماع</string>
+    <string name="settings_version">الإصدار</string>
+    <string name="settings_library_loading">جارٍ تحميل المكتبة…</string>
+    <string name="settings_library_refreshing">جارٍ التحديث…</string>
+    <string name="snack_library_refreshed">تم تحديث المكتبة</string>
+    <string name="action_exclude_track_from_smart">عدم اقتراح هذا المقطع</string>
+    <string name="action_exclude_artist_from_smart">عدم اقتراح هذا الفنان</string>
+    <string name="action_include_track_in_smart">اقتراح هذا المقطع مجددًا</string>
+    <string name="action_include_artist_in_smart">اقتراح هذا الفنان مجددًا</string>
+    <string name="snack_track_excluded_from_smart">تمت إزالة المقطع من توصيات SMART</string>
+    <string name="snack_artist_excluded_from_smart">تمت إزالة الفنان من توصيات SMART</string>
+    <string name="snack_track_included_in_smart">تمت إعادة المقطع إلى توصيات SMART</string>
+    <string name="snack_artist_included_in_smart">تمت إعادة الفنان إلى توصيات SMART</string>
+    <string name="snack_smart_exclusion_failed">تعذر تحديث توصيات SMART. حاول مرة أخرى.</string>
+    <string name="action_retry">إعادة المحاولة</string>
+
+    <string name="settings_language">اللغة</string>
+    <string name="settings_language_body">يتبع LatentJam لغة النظام أو اللغة المخصصة للتطبيق. غيّرها في إعدادات النظام.</string>
+    <string name="settings_audio_access">الوصول إلى الموسيقى</string>
+    <string name="settings_audio_access_allowed">مسموح</string>
+    <string name="settings_audio_access_blocked">محظور</string>
+    <string name="settings_audio_access_not_requested">لم يُطلب</string>
+    <string name="settings_audio_access_not_required">غير مطلوب</string>
+    <string name="settings_sources">مصادر الموسيقى</string>
+    <string name="settings_sources_body">اختر المجلدات أو مجموعات الجهاز التي تظهر في LatentJam. لن تتغير الملفات على الجهاز.</string>
+    <string name="settings_sources_empty">لم يتم العثور على مصادر موسيقى يمكن إدارتها.</string>
+    <string name="settings_source_unnamed">موسيقى الجهاز</string>
+    <string name="settings_source_music_library">مكتبة الموسيقى</string>
+    <string name="settings_hidden_tracks">المقاطع المخفية</string>
+    <string name="settings_hidden_tracks_body">مقاطع مخفية في LatentJam فقط. يمكنك استعادة أي مقطع من دون تغيير ملفه.</string>
+    <string name="settings_hidden_tracks_empty">لا توجد مقاطع مخفية في LatentJam.</string>
+    <string name="settings_restore">استعادة</string>
+    <string name="settings_restore_all">استعادة الكل</string>
+    <string name="settings_library_manage_failed">تعذر تحديث المكتبة. حاول مرة أخرى.</string>
+
+    <string name="settings_licenses">تراخيص المصادر المفتوحة</string>
+    <string name="settings_licenses_body">إشعارات LatentJam والنماذج المضمّنة وبرامج الجهات الخارجية</string>
+    <string name="settings_license_models">نماذج الصوت وSMART</string>
+    <string name="settings_license_models_body">أوزان الصوت MobileNetV4 ومتنبئ SMART التي أنتجها LatentJam مرخّصة وفق Apache-2.0. يستخدم النموذج الطالب timm ‏(Apache-2.0) وقد دُرّب بالتقطير من EfficientAT ‏(MIT، حقوق النشر © 2022 Florian Schmid).</string>
+    <string name="settings_license_text_model">نموذج النص MiniLM</string>
+    <string name="settings_license_text_model_body">تصدير ONNX والمفردات المضمّنة لـ sentence-transformers/all-MiniLM-L6-v2 مرخّصة وفق Apache-2.0.</string>
+    <string name="settings_license_runtime">ONNX Runtime</string>
+    <string name="settings_license_runtime_body">يستخدم استدلال النماذج على الجهاز Microsoft ONNX Runtime بموجب ترخيص MIT. حقوق النشر © Microsoft Corporation.</string>
+    <string name="settings_license_aliases">بيانات MusicBrainz</string>
+    <string name="settings_license_aliases_body">بيانات البحث المضمّنة عن الأسماء البديلة للفنانين مشتقة من MusicBrainz ومتاحة وفق CC0.</string>
+    <string name="settings_license_libraries">مكتبات الجهات الخارجية</string>
+    <string name="settings_license_libraries_body">يستخدم LatentJam كلًا من Kotlin وcoroutines وCompose Multiplatform وAndroidX Media3 وKoin وCoil بموجب تراخيص Apache-2.0 أو MIT المتساهلة. الإشعارات الكاملة مضمّنة في توزيع المصدر.</string>
+
+    <string name="sleep_timer">مؤقت النوم</string>
+    <string name="sleep_timer_off">متوقف</string>
+    <plurals name="sleep_timer_minutes">
+        <item quantity="one">%1$d دقيقة</item>
+        <item quantity="other">%1$d دقيقة</item>
+    </plurals>
+    <string name="sleep_timer_end_of_track">نهاية المقطع الحالي</string>
+    <string name="sleep_timer_active_minutes">متبقي %1$d دقيقة</string>
+    <string name="sleep_timer_active_end_of_track">يتوقف بعد هذا المقطع</string>
+
+    <string name="intelligence_problems">مشكلات التحليل</string>
+    <string name="intelligence_problems_body">مقاطع تعذر على SMART تحليلها. تظل موسيقاك قابلة للتشغيل.</string>
+    <string name="intelligence_no_problems">لا توجد مشكلات في التحليل</string>
+    <string name="intelligence_manage_exclusions">استثناءات التوصيات</string>
+    <string name="intelligence_manage_exclusions_body">المقاطع والفنانون الذين يجب ألا يقترحهم SMART مطلقًا</string>
+    <string name="intelligence_exclusions_empty">لا توجد استثناءات من التوصيات</string>
+    <string name="intelligence_excluded_tracks">المقاطع المستثناة</string>
+    <string name="intelligence_excluded_artists">الفنانون المستثنون</string>
+    <string name="intelligence_rebuild">إعادة إنشاء تحليل SMART</string>
+    <string name="intelligence_rebuild_body">احذف البصمات المحلية وحلّل المكتبة الظاهرة مجددًا.</string>
+    <string name="intelligence_rebuild_confirm">هل تريد إعادة إنشاء تحليل SMART بالكامل؟ لن تتغير ملفات الموسيقى أو قوائم التشغيل أو سجل الاستماع.</string>
+    <string name="intelligence_how_title">كيف يعمل SMART</string>
+    <string name="intelligence_notifications">إشعارات التحليل</string>
+    <string name="intelligence_notifications_body">إظهار تقدم الفهرسة خارج LatentJam</string>
+    <string name="intelligence_exclusions_clear">مسح كل الاستثناءات</string>
+
+    <string name="settings_backup">نسخة احتياطية محلية</string>
+    <string name="settings_backup_body">صدّر أو استعد قوائم التشغيل والتفضيلات والسجل والمقاطع المخفية واستثناءات SMART. لا تتضمن النسخة ملفات الموسيقى أو بيانات النماذج.</string>
+    <string name="backup_export">تصدير نسخة احتياطية</string>
+    <string name="backup_import">استيراد نسخة احتياطية</string>
+    <string name="backup_import_title">استعادة نسخة احتياطية محلية</string>
+    <string name="backup_import_body">اختر طريقة دمج البيانات المستوردة مع البيانات الموجودة على هذا الجهاز.</string>
+    <string name="backup_merge">دمج</string>
+    <string name="backup_replace">استبدال</string>
+    <string name="backup_replace_warning">هل تريد استبدال بيانات التطبيق المحددة بهذه النسخة الاحتياطية؟ لن تتغير ملفات الموسيقى مطلقًا.</string>
+    <string name="backup_export_success">تم تصدير النسخة الاحتياطية</string>
+    <string name="backup_import_success">تمت استعادة النسخة الاحتياطية</string>
+    <string name="backup_import_success_unmatched">تمت استعادة النسخة الاحتياطية؛ تعذرت مطابقة %1$d من مراجع المقاطع على هذا الجهاز.</string>
+    <string name="backup_import_partial">تمت استعادة بعض البيانات قبل حدوث خطأ.</string>
+    <string name="backup_failed">تعذر إكمال عملية النسخ الاحتياطي.</string>
+    <string name="backup_invalid">هذه ليست نسخة احتياطية صالحة من LatentJam.</string>
+    <string name="backup_destination_warning">تحتوي النسخة الاحتياطية على بيانات خاصة بالتطبيق. قد تقوم وجهة سحابية أو تابعة لطرف ثالث يتم اختيارها في منتقي النظام بمزامنتها.</string>
 </resources>

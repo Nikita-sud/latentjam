@@ -49,6 +49,7 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,6 +62,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -79,12 +81,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.action_close
 import io.github.nikitasud.latentjam.app.generated.resources.action_next
 import io.github.nikitasud.latentjam.app.generated.resources.action_pause
@@ -100,19 +104,28 @@ import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_smart
 import io.github.nikitasud.latentjam.app.generated.resources.now_playing_nothing
 import io.github.nikitasud.latentjam.app.generated.resources.queue_title
 import io.github.nikitasud.latentjam.app.generated.resources.queue_title_count
+import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer
+import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer_active_end_of_track
+import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer_active_minutes
+import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer_end_of_track
+import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer_minutes
+import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer_off
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.RepeatMode
+import io.github.nikitasud.latentjam.playback.SleepTimerState
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /** How much of the queue sheet stays visible under the player. */
 private val QueuePeekHeight = 84.dp
+private val SLEEP_TIMER_MINUTES = listOf(15, 30, 45, 60)
 
 /**
  * Full-screen now-playing view. The background carries the track's accent —
@@ -131,6 +144,10 @@ fun NowPlayingScreen(
     accent: TrackAccent,
     sharedScope: SharedTransitionScope,
     animatedScope: AnimatedVisibilityScope,
+    sleepTimerState: SleepTimerState,
+    onStartSleepTimer: (minutes: Int) -> Unit,
+    onSleepAtEndOfTrack: () -> Unit,
+    onCancelSleepTimer: () -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -142,6 +159,7 @@ fun NowPlayingScreen(
     }.collectAsState(playback.state.value.copy(positionMs = 0L))
     val scope = rememberCoroutineScope()
     val sheetState = rememberBottomSheetScaffoldState()
+    var showSleepTimer by remember { mutableStateOf(false) }
     PlatformBackHandler(enabled = true, onBack = onClose)
 
     Surface(
@@ -249,6 +267,35 @@ fun NowPlayingScreen(
                                     now.track?.let(onTrackMenu)
                                 },
                             )
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(stringResource(Res.string.sleep_timer))
+                                        when (val timer = sleepTimerState) {
+                                            SleepTimerState.Off -> Unit
+                                            is SleepTimerState.Countdown -> Text(
+                                                text = stringResource(
+                                                    Res.string.sleep_timer_active_minutes,
+                                                    timer.remainingMinutes,
+                                                ),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                            SleepTimerState.EndOfTrack -> Text(
+                                                text = stringResource(
+                                                    Res.string.sleep_timer_active_end_of_track,
+                                                ),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    dismiss()
+                                    showSleepTimer = true
+                                },
+                            )
                         }
                     }
 
@@ -347,6 +394,25 @@ fun NowPlayingScreen(
             }
         }
     }
+
+    if (showSleepTimer) {
+        SleepTimerDialog(
+            state = sleepTimerState,
+            onStart = { minutes ->
+                showSleepTimer = false
+                onStartSleepTimer(minutes)
+            },
+            onEndOfTrack = {
+                showSleepTimer = false
+                onSleepAtEndOfTrack()
+            },
+            onTurnOff = {
+                showSleepTimer = false
+                onCancelSleepTimer()
+            },
+            onDismiss = { showSleepTimer = false },
+        )
+    }
 }
 
 /** The only expanded-player subtree that observes the coarse position ticker. */
@@ -408,6 +474,64 @@ private fun LargeArtwork(uri: String?, modifier: Modifier = Modifier) {
                 contentScale = ContentScale.Crop,
             )
         }
+    }
+
+}
+
+@Composable
+private fun SleepTimerDialog(
+    state: SleepTimerState,
+    onStart: (Int) -> Unit,
+    onEndOfTrack: () -> Unit,
+    onTurnOff: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.sleep_timer)) },
+        text = {
+            Column {
+                SLEEP_TIMER_MINUTES.forEach { minutes ->
+                    SleepTimerChoice(
+                        label = pluralStringResource(
+                            Res.plurals.sleep_timer_minutes,
+                            minutes,
+                            minutes,
+                        ),
+                        onClick = { onStart(minutes) },
+                    )
+                }
+                SleepTimerChoice(
+                    label = stringResource(Res.string.sleep_timer_end_of_track),
+                    onClick = onEndOfTrack,
+                )
+                if (state !is SleepTimerState.Off) {
+                    SleepTimerChoice(
+                        label = stringResource(Res.string.sleep_timer_off),
+                        onClick = onTurnOff,
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(Res.string.action_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun SleepTimerChoice(label: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyLarge)
     }
 }
 
@@ -555,12 +679,13 @@ private fun QueueRow(
  */
 @Composable
 private fun PlayingBars(isPlaying: Boolean, tint: Color) {
+    val reduceMotion = rememberReduceMotion()
     Row(
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.Bottom,
         modifier = Modifier.height(18.dp),
     ) {
-        if (!isPlaying) {
+        if (!isPlaying || reduceMotion) {
             repeat(3) {
                 Box(
                     modifier = Modifier

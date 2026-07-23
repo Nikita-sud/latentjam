@@ -29,7 +29,7 @@ import kotlinx.coroutines.withContext
  * its own confirmation dialog.
  */
 @Composable
-actual fun rememberTrackDeleter(onDeleted: () -> Unit): (TrackDescriptor) -> Unit {
+actual fun rememberTrackDeleter(onDeleted: () -> Unit): (List<TrackDescriptor>) -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val currentOnDeleted by rememberUpdatedState(onDeleted)
@@ -40,19 +40,26 @@ actual fun rememberTrackDeleter(onDeleted: () -> Unit): (TrackDescriptor) -> Uni
         if (result.resultCode == Activity.RESULT_OK) currentOnDeleted()
     }
 
-    return { track ->
-        val uri = track.audioUri?.let(Uri::parse)
-        if (uri != null) {
+    return { tracks ->
+        val uris = tracks.mapNotNull { it.audioUri?.let(Uri::parse) }.distinct()
+        if (uris.isNotEmpty()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val request = MediaStore.createDeleteRequest(context.contentResolver, listOf(uri))
+                val request = MediaStore.createDeleteRequest(context.contentResolver, uris)
                 launcher.launch(IntentSenderRequest.Builder(request.intentSender).build())
             } else {
                 scope.launch {
-                    val deleted = withContext(Dispatchers.IO) {
-                        runCatching { context.contentResolver.delete(uri, null, null) }
-                            .getOrDefault(0) > 0
+                    val deletedAny = withContext(Dispatchers.IO) {
+                        var removed = false
+                        uris.forEach { uri ->
+                            if (runCatching { context.contentResolver.delete(uri, null, null) }
+                                    .getOrDefault(0) > 0
+                            ) {
+                                removed = true
+                            }
+                        }
+                        removed
                     }
-                    if (deleted) currentOnDeleted()
+                    if (deletedAny) currentOnDeleted()
                 }
             }
         }

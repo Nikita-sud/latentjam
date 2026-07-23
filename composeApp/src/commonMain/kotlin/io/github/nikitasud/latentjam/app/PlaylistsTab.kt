@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
+import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_delete
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_most_played
@@ -307,11 +308,11 @@ internal fun PlaylistNameDialog(
     )
 }
 
-/** Picks a destination playlist for a track, or makes a new one. */
+/** Picks a destination playlist for one or more tracks, or makes a new one. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AddToPlaylistSheet(
-    track: TrackDescriptor,
+    tracks: List<TrackDescriptor>,
     playlists: List<Playlist>,
     onAddTo: (Playlist) -> Unit,
     onCreateNew: () -> Unit,
@@ -322,9 +323,12 @@ internal fun AddToPlaylistSheet(
             // Two whole sentences rather than a fragment plus an interpolated
             // fallback noun: "track" would have had to decline with the verb in
             // half the languages this ships in.
-            val trackTitle = track.title
+            val trackTitle = tracks.singleOrNull()?.title
             Text(
-                text = if (trackTitle != null) {
+                text = if (tracks.size > 1) {
+                    stringResource(Res.string.action_add_to_playlist) + " · " +
+                        pluralStringResource(Res.plurals.count_tracks, tracks.size, tracks.size)
+                } else if (trackTitle != null) {
                     stringResource(Res.string.playlist_add_to_title, trackTitle)
                 } else {
                     stringResource(Res.string.playlist_add_to_title_generic)

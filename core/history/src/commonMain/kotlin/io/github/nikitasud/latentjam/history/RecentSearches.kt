@@ -26,6 +26,9 @@ public interface RecentSearches {
     /** Forgets all of them. */
     public suspend fun clear()
 
+    /** Replaces the local list with [queries], which must be ordered newest first. */
+    public suspend fun replace(queries: List<String>)
+
     public companion object {
         public const val DEFAULT_LIMIT: Int = 8
     }
@@ -72,8 +75,22 @@ public class DefaultRecentSearches(
 
     override suspend fun clear(): Unit = mutex.withLock {
         ensureLoaded()
+        val previous = queries.toList()
         queries.clear()
-        persist()
+        try {
+            store.write(emptyList())
+        } catch (failure: Throwable) {
+            queries += previous
+            throw failure
+        }
+    }
+
+    override suspend fun replace(queries: List<String>): Unit = mutex.withLock {
+        ensureLoaded()
+        val replacement = normalize(queries)
+        store.write(replacement)
+        this.queries.clear()
+        this.queries += replacement
     }
 
     private suspend fun ensureLoaded() {
@@ -87,5 +104,16 @@ public class DefaultRecentSearches(
 
     private suspend fun persist() {
         runCatching { store.write(queries.toList()) }
+    }
+
+    private fun normalize(values: List<String>): List<String> {
+        val result = mutableListOf<String>()
+        values.forEach { value ->
+            val trimmed = value.trim()
+            if (trimmed.isNotEmpty() && result.none { it.equals(trimmed, ignoreCase = true) }) {
+                result += trimmed
+            }
+        }
+        return result.take(cap.coerceAtLeast(0))
     }
 }

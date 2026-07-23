@@ -10,6 +10,8 @@ import io.github.nikitasud.latentjam.smart.chain.SmartChain
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
 import io.github.nikitasud.latentjam.smart.chain.SmartTrack
 import io.github.nikitasud.latentjam.smart.chain.TrackMeta
+import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorFusion
+import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,6 +62,7 @@ internal class DefaultSimilarityEngine(
     private var snapshotCache: SnapshotCache? = null
     private var predictorLoaded = false
     private var textEncoderLoaded = false
+    private val semanticCache = LinkedHashMap<TrackId, TrackSemantics>()
 
     override val state: StateFlow<EngineState> = mutableState.asStateFlow()
 
@@ -160,23 +163,46 @@ internal class DefaultSimilarityEngine(
                 val staleAudio = index.entries().keys.filterNot(liveIds::contains)
                 val staleText = textIndex?.entries()?.keys?.filterNot(liveIds::contains).orEmpty()
 
+                // Library rows keep the same id when their tags are edited. Preserve the expensive
+                // audio vector, but invalidate the cheap text vector so semantic search and SMART
+                // conditioning cannot keep using an old title, artist, genre, or year. A changed
+                // audio locator/duration is treated as replaced content and embedded again.
+                val changedText = library.mapNotNull { track ->
+                    knownTracks[track.id]
+                        ?.takeIf { previous -> !previous.hasSameTextIdentity(track) }
+                        ?.let { track.id }
+                }
+                val changedAudio = library.mapNotNull { track ->
+                    knownTracks[track.id]
+                        ?.takeIf { previous -> !previous.hasSameAudioIdentity(track) }
+                        ?.let { track.id }
+                }
+
                 staleAudio.forEach(index::remove)
                 staleText.forEach { textIndex?.remove(it) }
+                changedAudio.forEach(index::remove)
+                changedText.forEach { textIndex?.remove(it) }
+                (staleAudio + changedAudio).forEach(semanticCache::remove)
                 knownTracks.keys.retainAll(liveIds)
 
-                if (staleAudio.isNotEmpty()) {
+                if (staleAudio.isNotEmpty() || changedAudio.isNotEmpty()) {
                     runCatching { store.save(config.modelVersion, index.entries()) }
                 }
-                if (staleText.isNotEmpty() && textIndex != null) {
+                if ((staleText.isNotEmpty() || changedText.isNotEmpty()) && textIndex != null) {
                     runCatching { textStore?.save(TEXT_INDEX_VERSION, textIndex.entries()) }
                 }
-                if (staleAudio.isNotEmpty() || staleText.isNotEmpty()) {
+                if (
+                    staleAudio.isNotEmpty() ||
+                    staleText.isNotEmpty() ||
+                    changedAudio.isNotEmpty() ||
+                    changedText.isNotEmpty()
+                ) {
                     indexRevision++
                     snapshotCache = null
                 }
                 rememberTracks(library)
                 mutableState.value = EngineState.Ready(indexedCount = index.size)
-                staleAudio.size
+                (staleAudio + changedAudio).distinct().size
             }
         }
 
@@ -218,6 +244,56 @@ internal class DefaultSimilarityEngine(
     override suspend fun embedding(trackId: TrackId): FloatArray? = withContext(dispatcher) {
         mutex.withLock { index.vector(trackId) }
     }
+
+    override suspend fun libraryMixVectors(ids: List<TrackId>): LibraryVectorSpace? =
+        withContext(dispatcher) {
+            mutex.withLock {
+                if (mutableState.value !is EngineState.Ready) return@withLock null
+                LibraryVectorFusion.buildFromIndexes(
+                    ids = ids,
+                    audio = index,
+                    metadata = textIndex,
+                    audioDim = config.embeddingDim,
+                    metadataDim = TextEncoder.TEXT_DIM,
+                )
+            }
+        }
+
+    override suspend fun libraryMixFeatures(ids: List<TrackId>): LibraryMixFeatures? =
+        withContext(dispatcher) {
+            mutex.withLock {
+                if (mutableState.value !is EngineState.Ready) return@withLock null
+                val vectorSpace = LibraryVectorFusion.buildFromIndexes(
+                    ids = ids,
+                    audio = index,
+                    metadata = textIndex,
+                    audioDim = config.embeddingDim,
+                    metadataDim = TextEncoder.TEXT_DIM,
+                ) ?: return@withLock null
+                val requested = ids.distinct()
+                val missing = requested.mapNotNull { id ->
+                    if (id in semanticCache) return@mapNotNull null
+                    index.vector(id)?.let { id to it }
+                }
+                for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
+                    val outputs = backend.classify(batch.map { it.second }).getOrNull()
+                        ?.takeIf { it.size == batch.size }
+                        ?: continue
+                    for (row in batch.indices) {
+                        TrackSemantics.fromModelOutput(outputs[row])?.let { prediction ->
+                            semanticCache[batch[row].first] = prediction
+                        }
+                    }
+                    yield()
+                }
+                LibraryMixFeatures(
+                    vectorSpace = vectorSpace,
+                    semantics = requested.mapNotNull { id ->
+                        semanticCache[id]?.let { id to it }
+                    }.toMap(LinkedHashMap()),
+                )
+            }
+        }
 
     override suspend fun ensureMetadataVectors(library: List<TrackDescriptor>): Int =
         withContext(dispatcher) {
@@ -320,6 +396,24 @@ internal class DefaultSimilarityEngine(
         }
     }
 
+    override suspend fun clearAnalysis() {
+        withContext(dispatcher) {
+            mutex.withLock {
+                index.clear()
+                textIndex?.clear()
+                store.clear()
+                textStore?.clear()
+                knownTracks.clear()
+                semanticCache.clear()
+                snapshotCache = null
+                indexRevision++
+                if (mutableState.value is EngineState.Ready) {
+                    mutableState.value = EngineState.Ready(indexedCount = 0)
+                }
+            }
+        }
+    }
+
     override suspend fun release() {
         withContext(dispatcher) {
             mutex.withLock {
@@ -327,7 +421,9 @@ internal class DefaultSimilarityEngine(
                 predictor?.close()
                 textEncoder?.close()
                 index.clear()
+                textIndex?.clear()
                 knownTracks.clear()
+                semanticCache.clear()
                 snapshotCache = null
                 indexRevision++
                 predictorLoaded = false
@@ -397,6 +493,7 @@ internal class DefaultSimilarityEngine(
             )
         }
         index.upsert(id, vector)
+        semanticCache.remove(id)
         indexRevision++
         snapshotCache = null
         return null
@@ -411,6 +508,12 @@ internal class DefaultSimilarityEngine(
             }
         }
     }
+
+    private fun TrackDescriptor.hasSameTextIdentity(other: TrackDescriptor): Boolean =
+        title == other.title && artist == other.artist && genre == other.genre && year == other.year
+
+    private fun TrackDescriptor.hasSameAudioIdentity(other: TrackDescriptor): Boolean =
+        audioUri == other.audioUri && durationMs == other.durationMs
 
     private fun snapshotFor(history: List<SmartHistoryEvent>): SmartSnapshot? {
         snapshotCache?.takeIf { it.revision == indexRevision }?.let { return it.snapshot }
@@ -465,6 +568,8 @@ internal class DefaultSimilarityEngine(
 
         /** Below this, the metadata-only full-library path is more honest than a tiny audio pool. */
         const val MIN_AUDIO_CORPUS_FLOOR = 24
+
+        const val SEMANTIC_BATCH_SIZE = 128
 
         /** Small libraries promote only when at least 80% of their tracks have usable audio. */
         fun requiredAudioCorpus(librarySize: Int): Int {

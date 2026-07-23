@@ -28,8 +28,12 @@ internal class FileHistoryStore(context: Context) : HistoryStore {
         if (!file.exists()) emptyList() else file.readLines()
     }
 
+    override suspend fun replaceAll(lines: List<String>): Unit = withContext(Dispatchers.IO) {
+        file.writeText(lines.joinToString(separator = "\n", postfix = if (lines.isEmpty()) "" else "\n"))
+    }
+
     override suspend fun clear(): Unit = withContext(Dispatchers.IO) {
-        file.delete()
+        check(!file.exists() || file.delete()) { "Could not clear listening history" }
     }
 
     private companion object {
@@ -55,11 +59,29 @@ internal class FileRecentSearchStore(context: Context) : RecentSearchStore {
     }
 }
 
+internal class FileSmartExclusionStore(context: Context) : SmartExclusionStore {
+    private val file = File(context.filesDir, FILE_NAME)
+
+    override suspend fun read(): List<String> = withContext(Dispatchers.IO) {
+        if (file.exists()) file.readLines() else emptyList()
+    }
+
+    override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.IO) {
+        file.writeText(lines.joinToString("\n"))
+    }
+
+    private companion object {
+        const val FILE_NAME = "smart_exclusions.txt"
+    }
+}
+
 public actual fun listeningHistoryModule(): Module = module {
     single<HistoryStore> { FileHistoryStore(context = get()) }
     single<ListeningHistory> { DefaultListeningHistory(store = get()) }
     single<RecentSearchStore> { FileRecentSearchStore(context = get()) }
     single<RecentSearches> { DefaultRecentSearches(store = get()) }
+    single<SmartExclusionStore> { FileSmartExclusionStore(context = get()) }
+    single { SmartExclusions(store = get()) }
 }
 
 public actual fun epochMillis(): Long = System.currentTimeMillis()

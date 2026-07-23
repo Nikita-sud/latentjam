@@ -78,9 +78,18 @@ public interface PlaybackController {
      *
      * This is deliberately separate from [play]: a tap in Search can start from a one-result
      * filtered list, while SMART must still see the whole library. Implementations retain only
-     * descriptors; audio and model inference remain inside the local similarity engine.
+     * descriptors; audio and model inference remain inside the local similarity engine. An empty
+     * list is an explicit empty candidate universe, not permission to fall back to [play]'s queue.
+     * Replacing this while SMART is active removes newly ineligible tracks from the future tail but
+     * preserves playback history and the current track.
      */
     public suspend fun setSmartLibrary(tracks: List<TrackDescriptor>)
+
+    /**
+     * Sets how many SMART-selected tracks are kept ahead of the playhead.
+     * Implementations clamp invalid values and top up an active SMART queue when this grows.
+     */
+    public suspend fun setSmartQueueLength(length: Int)
 
     /**
      * Replaces the queue with [tracks] and starts playing the one at
@@ -91,6 +100,9 @@ public interface PlaybackController {
 
     /** Pauses if playing, resumes if paused. No-op with an empty queue. */
     public suspend fun togglePlayPause()
+
+    /** Pauses playback without ever starting it. No-op when already paused or the queue is empty. */
+    public suspend fun pause()
 
     /** Skips to the next track (choosing one first in [ShuffleMode.SMART] if needed). */
     public suspend fun next()

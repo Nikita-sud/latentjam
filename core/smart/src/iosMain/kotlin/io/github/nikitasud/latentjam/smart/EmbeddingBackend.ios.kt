@@ -24,9 +24,9 @@ internal class IosEmbeddingBackend(
         val provider = IosInferenceRegistry.current()
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
         val uri = descriptor.audioUri
-            ?: return backendFailure("No audioUri for ${descriptor.id.value}")
+            ?: return audioUnavailable("No audio URI")
         val output = provider.embedAudio(uri, descriptor.durationMs ?: -1L, config.embeddingDim)
-            ?: return backendFailure("Could not decode or embed ${descriptor.id.value}")
+            ?: return audioUnavailable("Could not decode or embed audio")
         if (output.size != config.embeddingDim || !output.all(Float::isFinite)) {
             return backendFailure(
                 "Model produced an invalid embedding (size=${output.size}, " +
@@ -36,10 +36,47 @@ internal class IosEmbeddingBackend(
         return Result.success(output)
     }
 
+    override suspend fun classify(embeddings: List<FloatArray>): Result<List<FloatArray>> {
+        if (embeddings.isEmpty()) return Result.success(emptyList())
+        if (embeddings.any { it.size != config.embeddingDim || !it.all(Float::isFinite) }) {
+            return backendFailure("Semantic head received an invalid embedding batch")
+        }
+        val provider = IosInferenceRegistry.current()
+            ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        provider.loadSemantic()?.let { return backendFailure(it) }
+        val flattened = FloatArray(embeddings.size * config.embeddingDim)
+        for (row in embeddings.indices) {
+            embeddings[row].copyInto(flattened, destinationOffset = row * config.embeddingDim)
+        }
+        val output = provider.classifySemantics(
+            embeddings = flattened,
+            batchSize = embeddings.size,
+            inputDim = config.embeddingDim,
+            outputDim = TrackSemantics.OUTPUT_SIZE,
+        ) ?: return backendFailure("Semantic classification failed")
+        if (
+            output.size != embeddings.size * TrackSemantics.OUTPUT_SIZE ||
+            !output.all(Float::isFinite)
+        ) {
+            return backendFailure("Semantic head produced an invalid output")
+        }
+        return Result.success(
+            List(embeddings.size) { row ->
+                output.copyOfRange(
+                    row * TrackSemantics.OUTPUT_SIZE,
+                    (row + 1) * TrackSemantics.OUTPUT_SIZE,
+                )
+            },
+        )
+    }
+
     override fun close(): Unit = Unit
 
     private fun <T> backendFailure(message: String): Result<T> =
         Result.failure(SmartEngineException(EngineError.BackendFailure(message)))
+
+    private fun <T> audioUnavailable(detail: String): Result<T> =
+        Result.failure(SmartEngineException(EngineError.AudioUnavailable(detail)))
 }
 
 public actual fun smartEngineBackendModule(): Module = module {

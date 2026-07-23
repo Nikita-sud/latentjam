@@ -21,6 +21,7 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSString
 import platform.Foundation.NSURL
+import platform.Foundation.NSURLIsExcludedFromBackupKey
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.NSUserDomainMask
 import platform.Foundation.dataWithBytes
@@ -64,6 +65,13 @@ internal object IosPaths {
         if (!manager.fileExistsAtPath(base)) {
             manager.createDirectoryAtPath(base, true, null, null)
         }
+        // This directory contains listening-derived and app-private bookkeeping. Local backup is
+        // explicit and user-controlled; silently copying these files into an OS backup would break
+        // the app's on-device-only privacy contract. Returning null is privacy-preserving if the OS
+        // refuses the exclusion flag: callers treat the private store as unavailable.
+        val excluded = NSURL.fileURLWithPath(base, isDirectory = true)
+            .setResourceValue(true, NSURLIsExcludedFromBackupKey, null)
+        if (!excluded) return null
         return base
     }
 

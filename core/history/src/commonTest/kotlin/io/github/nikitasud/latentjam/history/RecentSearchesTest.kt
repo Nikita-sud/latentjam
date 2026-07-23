@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 internal class RecentSearchesTest {
@@ -73,5 +74,19 @@ internal class RecentSearchesTest {
         searches.clear()
         assertTrue(searches.recent().isEmpty())
         assertTrue(store.queries.isEmpty())
+    }
+
+    @Test
+    fun clearKeepsInMemoryQueriesWhenPersistenceFails() = runTest {
+        val store = object : RecentSearchStore {
+            override suspend fun read(): List<String> = listOf("aria")
+            override suspend fun write(queries: List<String>) {
+                error("disk failure")
+            }
+        }
+        val searches = DefaultRecentSearches(store)
+
+        assertFailsWith<IllegalStateException> { searches.clear() }
+        assertContentEquals(listOf("aria"), searches.recent())
     }
 }

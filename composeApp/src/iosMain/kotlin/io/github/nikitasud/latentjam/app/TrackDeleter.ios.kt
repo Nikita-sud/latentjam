@@ -31,36 +31,43 @@ import platform.Foundation.NSUserDomainMask
  */
 @OptIn(ExperimentalForeignApi::class)
 @Composable
-actual fun rememberTrackDeleter(onDeleted: () -> Unit): (TrackDescriptor) -> Unit {
+actual fun rememberTrackDeleter(onDeleted: () -> Unit): (List<TrackDescriptor>) -> Unit {
     val scope = rememberCoroutineScope()
     val currentOnDeleted = rememberUpdatedState(onDeleted)
-    return { track ->
-        val relative = track.id.value
-        val safeRelative = relative.takeIf {
-            it.isNotBlank() &&
-                !it.startsWith("/") &&
-                !it.startsWith(MEDIA_ID_PREFIX) &&
-                it.split('/').none { segment -> segment == ".." }
-        }
-        if (safeRelative != null) {
+    return { tracks ->
+        val safeRelatives = tracks.mapNotNull { track ->
+            track.id.value.takeIf { relative ->
+                relative.isNotBlank() &&
+                    !relative.startsWith("/") &&
+                    !relative.startsWith(MEDIA_ID_PREFIX) &&
+                    relative.split('/').none { segment -> segment == ".." }
+            }
+        }.distinct()
+        if (safeRelatives.isNotEmpty()) {
             scope.launch {
-                val deleted = withContext(Dispatchers.Default) {
+                val deletedAny = withContext(Dispatchers.Default) {
                     val documents = NSSearchPathForDirectoriesInDomains(
                         NSDocumentDirectory,
                         NSUserDomainMask,
                         true,
                     ).firstOrNull() as? String ?: return@withContext false
-                    val path = if (documents.endsWith('/')) {
-                        documents + safeRelative
-                    } else {
-                        "$documents/$safeRelative"
+                    var removed = false
+                    safeRelatives.forEach { safeRelative ->
+                        val path = if (documents.endsWith('/')) {
+                            documents + safeRelative
+                        } else {
+                            "$documents/$safeRelative"
+                        }
+                        if (memScoped {
+                            val error = alloc<ObjCObjectVar<NSError?>>()
+                            NSFileManager.defaultManager.removeItemAtPath(path, error.ptr)
+                        }) {
+                            removed = true
+                        }
                     }
-                    memScoped {
-                        val error = alloc<ObjCObjectVar<NSError?>>()
-                        NSFileManager.defaultManager.removeItemAtPath(path, error.ptr)
-                    }
+                    removed
                 }
-                if (deleted) currentOnDeleted.value()
+                if (deletedAny) currentOnDeleted.value()
             }
         }
     }

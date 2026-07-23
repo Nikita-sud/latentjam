@@ -7,24 +7,30 @@ package io.github.nikitasud.latentjam.app
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
+import androidx.core.view.WindowCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,7 +40,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.activity.compose.rememberLauncherForActivityResult
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.permission_audio_rationale
+import io.github.nikitasud.latentjam.app.generated.resources.permission_audio_settings_rationale
+import io.github.nikitasud.latentjam.app.generated.resources.permission_continue
 import io.github.nikitasud.latentjam.app.generated.resources.permission_grant
+import io.github.nikitasud.latentjam.app.generated.resources.permission_not_now
+import io.github.nikitasud.latentjam.app.generated.resources.permission_notifications_rationale
+import io.github.nikitasud.latentjam.app.generated.resources.permission_notifications_title
+import io.github.nikitasud.latentjam.app.generated.resources.permission_open_settings
 import org.jetbrains.compose.resources.stringResource
 import org.koin.dsl.module
 
@@ -49,51 +61,110 @@ import org.koin.dsl.module
  * fully-qualified name.
  */
 class MainActivity : ComponentActivity() {
+
+    private var audioPermissionGranted by mutableStateOf(false)
+    private var audioPermissionGateDismissed by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyStoredWindowTheme()
         AppGraph.start(
             platformModule = module {
                 single<Context> { applicationContext }
             },
         )
+        audioPermissionGranted = hasAudioPermission()
+        audioPermissionGateDismissed = getSharedPreferences(
+            AUDIO_GATE_PREFERENCES,
+            Context.MODE_PRIVATE,
+        ).getBoolean(KEY_AUDIO_GATE_DISMISSED, false)
         setContent {
-            var granted by remember { mutableStateOf(hasAudioPermission()) }
-            if (granted) {
-                NotificationPermissionRequest()
+            if (audioPermissionGranted || audioPermissionGateDismissed) {
                 App(
                     engine = AppGraph.engine,
                     library = AppGraph.library,
                     playback = AppGraph.playback,
                 )
+                ContextualNotificationPermissionRequest(AppGraph.permissions)
             } else {
-                AudioPermissionGate(onGranted = { granted = true })
+                AudioPermissionGate(
+                    permissions = AppGraph.permissions,
+                    onGranted = {
+                        audioPermissionGranted = true
+                        setAudioGateDismissed(false)
+                    },
+                    onContinueWithoutAccess = { setAudioGateDismissed(true) },
+                )
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        // Returning from the system settings page is a normal part of permission recovery.
+        audioPermissionGranted = hasAudioPermission()
+        AppGraph.permissions.refresh()
+    }
+
+    private fun setAudioGateDismissed(dismissed: Boolean) {
+        audioPermissionGateDismissed = dismissed
+        getSharedPreferences(AUDIO_GATE_PREFERENCES, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_AUDIO_GATE_DISMISSED, dismissed)
+            .apply()
+    }
 }
 
-/**
- * Asks once for notification permission, and gates nothing on the answer.
- *
- * Analysis progress and playback controls use notifications, but a refusal
- * costs visibility and nothing else — blocking the library behind it, the way
- * the audio permission legitimately is blocked, would be extortion for a
- * progress bar. Asked here rather than at the moment analysis starts because a
- * permission dialog landing on top of a screen the user just tapped a button on
- * reads as a failure of that button.
- */
+/** Applies the persisted palette before Compose draws, avoiding a wrong-colour launch frame. */
+private fun ComponentActivity.applyStoredWindowTheme() {
+    val stored = runCatching {
+        getSharedPreferences(APP_SETTINGS_FILE, Context.MODE_PRIVATE).getString(APP_THEME_KEY, null)
+    }.getOrNull()
+    val dark = when (stored) {
+        ThemeMode.DARK.name -> true
+        ThemeMode.LIGHT.name -> false
+        else -> resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+            Configuration.UI_MODE_NIGHT_YES
+    }
+    window.setBackgroundDrawable(ColorDrawable(if (dark) 0xFF0C0C0C.toInt() else 0xFFFAFAFA.toInt()))
+    WindowCompat.getInsetsController(window, window.decorView).apply {
+        isAppearanceLightStatusBars = !dark
+        isAppearanceLightNavigationBars = !dark
+    }
+}
+
+/** Offers notification access only while a real SMART scan has progress worth surfacing. */
 @Composable
-private fun NotificationPermissionRequest() {
+private fun ContextualNotificationPermissionRequest(permissions: AppPermissions) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-    val context = LocalContext.current
+    val pending by permissions.notificationPromptPending.collectAsState()
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* Declining is a valid answer; there is nothing to fall back to. */ }
-    LaunchedEffect(Unit) {
-        val already = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        if (!already) launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-    }
+    ) { permissions.refresh() }
+    if (!pending) return
+
+    AlertDialog(
+        onDismissRequest = permissions::resolveNotificationPrompt,
+        title = { Text(stringResource(Res.string.permission_notifications_title)) },
+        text = { Text(stringResource(Res.string.permission_notifications_rationale)) },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    // Resolve first so an Activity recreation while the system sheet is open does
+                    // not launch a second request. A denial is non-blocking and never re-prompted.
+                    permissions.resolveNotificationPrompt()
+                    launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                },
+            ) {
+                Text(stringResource(Res.string.permission_continue))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = permissions::resolveNotificationPrompt) {
+                Text(stringResource(Res.string.permission_not_now))
+            }
+        },
+    )
 }
 
 /** The media-read permission appropriate for this API level. */
@@ -108,13 +179,32 @@ private val audioPermission: String
 private fun Context.hasAudioPermission(): Boolean =
     checkSelfPermission(audioPermission) == PackageManager.PERMISSION_GRANTED
 
-/** Minimal one-button gate; the system permission dialog does the real work. */
+/** Permission gate with a durable recovery path after Android stops showing its dialog. */
 @Composable
-private fun AudioPermissionGate(onGranted: () -> Unit) {
+private fun AudioPermissionGate(
+    permissions: AppPermissions,
+    onGranted: () -> Unit,
+    onContinueWithoutAccess: () -> Unit,
+) {
+    val activity = LocalContext.current as ComponentActivity
     val currentOnGranted by rememberUpdatedState(onGranted)
+    var permanentlyDenied by remember {
+        mutableStateOf(
+            permissions.audioLibraryStatus.value == AppPermissionStatus.DENIED &&
+                !ActivityCompat.shouldShowRequestPermissionRationale(activity, audioPermission),
+        )
+    }
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { granted -> if (granted) currentOnGranted() }
+    ) { granted ->
+        permissions.refresh()
+        if (granted) {
+            currentOnGranted()
+        } else {
+            permanentlyDenied =
+                !ActivityCompat.shouldShowRequestPermissionRationale(activity, audioPermission)
+        }
+    }
 
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -124,13 +214,44 @@ private fun AudioPermissionGate(onGranted: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = stringResource(Res.string.permission_audio_rationale),
+                    text = stringResource(
+                        if (permanentlyDenied) {
+                            Res.string.permission_audio_settings_rationale
+                        } else {
+                            Res.string.permission_audio_rationale
+                        },
+                    ),
                     style = MaterialTheme.typography.bodyLarge,
                 )
-                Button(onClick = { launcher.launch(audioPermission) }) {
-                    Text(stringResource(Res.string.permission_grant))
+                Button(
+                    onClick = {
+                        if (permanentlyDenied) {
+                            permissions.openAppSettings()
+                        } else {
+                            // Persist before launching: the Activity may be recreated while the
+                            // operating-system permission sheet owns the screen.
+                            permissions.markAudioPermissionRequested()
+                            launcher.launch(audioPermission)
+                        }
+                    },
+                ) {
+                    Text(
+                        stringResource(
+                            if (permanentlyDenied) {
+                                Res.string.permission_open_settings
+                            } else {
+                                Res.string.permission_grant
+                            },
+                        ),
+                    )
+                }
+                TextButton(onClick = onContinueWithoutAccess) {
+                    Text(stringResource(Res.string.permission_not_now))
                 }
             }
         }
     }
 }
+
+private const val AUDIO_GATE_PREFERENCES = "audio_permission_gate"
+private const val KEY_AUDIO_GATE_DISMISSED = "dismissed"

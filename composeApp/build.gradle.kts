@@ -58,11 +58,19 @@ kotlin {
             // translations in values-<lang>. NOT Android res/ — the plugin packages
             // them as assets and resolves the locale itself.
             implementation(compose.components.resources)
-            implementation(libs.coil.compose)
+            // Coil 3.4.0's native metadata still requests Skiko 0.9.22.2, while
+            // Compose 1.11.1 provides (and already wins resolution with) 0.144.6.
+            // Keep a single Compose-owned Skiko edge: this does not change the
+            // resolved runtime artifact, and avoids reporting the stale Coil
+            // request as a potentially unsafe mixed-Skiko graph on iOS.
+            implementation("io.coil-kt.coil3:coil-compose:${libs.versions.coil.get()}") {
+                exclude(group = "org.jetbrains.skiko", module = "skiko")
+            }
         }
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
         androidMain.dependencies {
             // MainActivity lives here (see its KDoc for the AGP 9 rationale).
