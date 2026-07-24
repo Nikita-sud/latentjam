@@ -573,11 +573,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
         LaunchedEffect(tracks) {
             val loaded = tracks
-            // Do not leave a deleted/rescanned library interactive while its replacement is being
-            // built. A tap on a stale row could otherwise address a track that no longer exists.
-            catalog = null
-            if (loaded != null) {
-                catalog = withContext(Dispatchers.Default) { LibraryCatalog.build(loaded) }
+            // Rebuild in place — assign the finished catalog rather than clearing it first. Nulling
+            // it swapped the whole songs list for a loading box mid-rescan, which disposed the
+            // list's scroll state, so deleting a track teleported the list back to the top. The
+            // finished catalog is swapped in atomically instead, and stable row keys keep every
+            // surviving row exactly where it was. The sliver of time where a tap could land on a
+            // just-deleted row resolves to a harmless no-op — a far better trade than the jump.
+            catalog = if (loaded != null) {
+                withContext(Dispatchers.Default) { LibraryCatalog.build(loaded) }
+            } else {
+                null
             }
         }
         val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
