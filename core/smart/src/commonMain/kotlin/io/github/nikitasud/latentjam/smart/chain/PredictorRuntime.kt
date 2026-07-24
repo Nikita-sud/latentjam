@@ -27,11 +27,14 @@ import org.koin.core.module.Module
  * - `session_features` `[1, 5]` — see [SESSION_FEATURES_COLD]
  * - output `[1, 960]`
  *
- * Scorer:
- * - frozen acoustic scorer: `state` `[1, 960]`, `candidates` `[1, 100, 960]`
- * - learned residual: the acoustic `base_scores` plus the same audio tensors, optional
- *   `text_state` `[1, 384]`, `text_candidates` `[1, 100, 384]`, and `text_mask` `[1, 100]`
- *   → output `[1, 100]` conditioned raw logits
+ * Scorer (semantics-aware fused graph, `scoring-semtext-v1`):
+ * - `state` `[1, 1344]` = `[960-d encoder state ⊕ unit-normalized session-text-centroid 384]`
+ * - `candidates` `[1, 100, 1344]` = `[960-d raw audio ⊕ unit-normalized MiniLM text 384]`, the
+ *   text half zero-filled where a track has no vector (a trained text-dropout path)
+ * - output `[1, 100]` raw logits
+ *
+ * See [ScorerPacking] for the exact packing; a single scorer call replaces the former two-pass
+ * acoustic + text-residual pipeline.
  *
  * Both take audio embeddings in their RAW (uncentered, unit-norm) form — the centered space is the
  * chain's own construction and the models never saw it.
@@ -59,15 +62,13 @@ public interface PredictorRuntime {
     ): FloatArray
 
     /**
-     * @param candidates [POOL_SIZE] × [STATE_DIM], flattened; short pools are zero-padded
+     * @param state the fused `[SCORER_INPUT_DIM]` scorer state (`960 audio ⊕ 384 text-centroid`)
+     * @param candidates [POOL_SIZE] × [SCORER_INPUT_DIM], flattened; short pools are zero-padded
      * @return [POOL_SIZE] raw logits
      */
     public fun score(
         state: FloatArray,
         candidates: FloatArray,
-        textState: FloatArray,
-        textCandidates: FloatArray,
-        textMask: FloatArray,
     ): FloatArray
 
     /** Releases native resources. Idempotent. */
@@ -75,9 +76,19 @@ public interface PredictorRuntime {
 
     public companion object {
         public const val CONTEXT_K: Int = 4
-        public const val STATE_DIM: Int = 960
-        public const val TOKEN_DIM: Int = STATE_DIM + 1
+
+        /** The 960-d audio encoder embedding — history/audio tensors and the encoder output. */
+        public const val EMBEDDING_DIM: Int = 960
+        public const val TOKEN_DIM: Int = EMBEDDING_DIM + 1
         public const val POOL_SIZE: Int = 100
+
+        /**
+         * Fused scorer input width. The state encoder and all history/audio tensors stay
+         * [EMBEDDING_DIM] (960); ONLY the semantics-aware scorer's state and candidate rows widen to
+         * `960 audio ⊕ 384 text` = 1344 (see [ScorerPacking]). Keep these two distinct — the text
+         * half is a scorer concern and must never leak into the 960-d encoder path.
+         */
+        public const val SCORER_INPUT_DIM: Int = ScorerPacking.INPUT_DIM
 
         /**
          * Cold-start session features: `[ln(position + 1), previousSkipped,

@@ -15,9 +15,10 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 
 /**
- * Android [PredictorRuntime]: a state encoder, frozen acoustic scorer, and 253 KB learned optional
- * text residual. The residual consumes the acoustic logits and becomes an exact no-op when text is
- * unavailable.
+ * Android [PredictorRuntime]: a state encoder and a single semantics-aware fused scorer
+ * (`scoring-semtext-v1`). The scorer takes `960 audio ⊕ 384 text` on both its state and candidate
+ * rows (see [ScorerPacking]); an all-zero text half is a trained text-dropout path, so a library
+ * with no metadata-text degrades gracefully to the acoustic-only behaviour.
  *
  * The scorer graph has the pool size baked in (`n100`), so [PredictorRuntime.POOL_SIZE] is a model
  * property here, not a tuning knob — a short pool is zero-padded rather than resized.
@@ -26,15 +27,13 @@ internal class OnnxPredictorRuntime(
     private val context: Context,
     private val stateAsset: String = STATE_ASSET,
     private val scorerAsset: String = SCORER_ASSET,
-    private val residualAsset: String = RESIDUAL_ASSET,
 ) : PredictorRuntime {
 
     private var stateSession: OrtSession? = null
     private var scorerSession: OrtSession? = null
-    private var residualSession: OrtSession? = null
 
     override suspend fun load(): Result<Unit> {
-        if (stateSession != null && scorerSession != null && residualSession != null) {
+        if (stateSession != null && scorerSession != null) {
             return Result.success(Unit)
         }
         return try {
@@ -49,10 +48,6 @@ internal class OnnxPredictorRuntime(
                 )
                 scorerSession = environment.createSession(
                     context.assets.open(scorerAsset).use { it.readBytes() },
-                    options,
-                )
-                residualSession = environment.createSession(
-                    context.assets.open(residualAsset).use { it.readBytes() },
                     options,
                 )
             }
@@ -78,7 +73,7 @@ internal class OnnxPredictorRuntime(
         val environment = OrtEnvironment.getEnvironment()
         val k = PredictorRuntime.CONTEXT_K.toLong()
         val token = PredictorRuntime.TOKEN_DIM.toLong()
-        val dim = PredictorRuntime.STATE_DIM.toLong()
+        val dim = PredictorRuntime.EMBEDDING_DIM.toLong()
 
         val small = tensor(environment, historySmall, 1, k, token)
         val medium = tensor(environment, historyMedium, 1, dim)
@@ -107,27 +102,16 @@ internal class OnnxPredictorRuntime(
     override fun score(
         state: FloatArray,
         candidates: FloatArray,
-        textState: FloatArray,
-        textCandidates: FloatArray,
-        textMask: FloatArray,
     ): FloatArray {
         val scorer = scorerSession ?: throw SmartEngineException(EngineError.ModelUnavailable)
-        val residual = residualSession ?: throw SmartEngineException(EngineError.ModelUnavailable)
         val environment = OrtEnvironment.getEnvironment()
-        val stateTensor = tensor(environment, state, 1, PredictorRuntime.STATE_DIM.toLong())
+        val stateTensor = tensor(environment, state, 1, PredictorRuntime.SCORER_INPUT_DIM.toLong())
         val candidateTensor = tensor(
             environment, candidates,
-            1, PredictorRuntime.POOL_SIZE.toLong(), PredictorRuntime.STATE_DIM.toLong(),
-        )
-        val textStateTensor = tensor(environment, textState, 1, 384L)
-        val textCandidateTensor = tensor(
-            environment, textCandidates, 1, PredictorRuntime.POOL_SIZE.toLong(), 384L,
-        )
-        val textMaskTensor = tensor(
-            environment, textMask, 1, PredictorRuntime.POOL_SIZE.toLong(),
+            1, PredictorRuntime.POOL_SIZE.toLong(), PredictorRuntime.SCORER_INPUT_DIM.toLong(),
         )
         return try {
-            val baseScores = scorer.run(
+            scorer.run(
                 mapOf(
                     "state" to stateTensor,
                     "candidates" to candidateTensor,
@@ -136,39 +120,16 @@ internal class OnnxPredictorRuntime(
                 @Suppress("UNCHECKED_CAST")
                 (result[0].value as Array<FloatArray>)[0].copyOf()
             }
-            val baseTensor = tensor(
-                environment, baseScores, 1, PredictorRuntime.POOL_SIZE.toLong(),
-            )
-            try {
-                residual.run(
-                    mapOf(
-                        "base_scores" to baseTensor,
-                        "state" to stateTensor,
-                        "candidates" to candidateTensor,
-                        "text_state" to textStateTensor,
-                        "text_candidates" to textCandidateTensor,
-                        "text_mask" to textMaskTensor,
-                    ),
-                ).use { result ->
-                    @Suppress("UNCHECKED_CAST")
-                    (result[0].value as Array<FloatArray>)[0].copyOf()
-                }
-            } finally {
-                baseTensor.close()
-            }
         } finally {
-            stateTensor.close(); candidateTensor.close(); textStateTensor.close()
-            textCandidateTensor.close(); textMaskTensor.close()
+            stateTensor.close(); candidateTensor.close()
         }
     }
 
     override fun close() {
         runCatching { stateSession?.close() }
         runCatching { scorerSession?.close() }
-        runCatching { residualSession?.close() }
         stateSession = null
         scorerSession = null
-        residualSession = null
     }
 
     private fun tensor(
@@ -180,7 +141,6 @@ internal class OnnxPredictorRuntime(
     companion object {
         const val STATE_ASSET = "ml/predictor_state.onnx"
         const val SCORER_ASSET = "ml/predictor_scorer_n100.onnx"
-        const val RESIDUAL_ASSET = "ml/predictor_text_residual_n100_960.onnx"
     }
 }
 

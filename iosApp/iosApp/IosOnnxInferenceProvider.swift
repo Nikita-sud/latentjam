@@ -14,7 +14,6 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
     private var text: OrtModel?
     private var state: OrtModel?
     private var scorer: OrtModel?
-    private var textResidual: OrtModel?
 
     func loadAudio() -> String? {
         do {
@@ -127,9 +126,6 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         do {
             if state == nil { state = try runtime.loadModel(named: "predictor_state") }
             if scorer == nil { scorer = try runtime.loadModel(named: "predictor_scorer_n100") }
-            if textResidual == nil {
-                textResidual = try runtime.loadModel(named: "predictor_text_residual_n100_960")
-            }
             return nil
         } catch { return error.localizedDescription }
     }
@@ -157,29 +153,16 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
 
     func score(
         state: KotlinFloatArray,
-        candidates: KotlinFloatArray,
-        textState: KotlinFloatArray,
-        textCandidates: KotlinFloatArray,
-        textMask: KotlinFloatArray
+        candidates: KotlinFloatArray
     ) -> KotlinFloatArray? {
-        guard loadPredictor() == nil, let scorer, let textResidual else { return nil }
+        guard loadPredictor() == nil, let scorer else { return nil }
         do {
-            let stateValues = state.swiftArray
-            let candidateValues = candidates.swiftArray
-            let baseScores = try scorer.run(
+            // Fused scorer: state = [960 audio ⊕ 384 text-centroid] = 1344,
+            // candidates = [100 × 1344]. See ScorerPacking on the Kotlin side.
+            return KotlinFloatArray(try scorer.run(
                 floats: [
-                    ("state", stateValues, [1, 960]),
-                    ("candidates", candidateValues, [1, 100, 960]),
-                ], int64s: [], output: "scores", outputCount: 100
-            )
-            return KotlinFloatArray(try textResidual.run(
-                floats: [
-                    ("base_scores", baseScores, [1, 100]),
-                    ("state", stateValues, [1, 960]),
-                    ("candidates", candidateValues, [1, 100, 960]),
-                    ("text_state", textState.swiftArray, [1, 384]),
-                    ("text_candidates", textCandidates.swiftArray, [1, 100, 384]),
-                    ("text_mask", textMask.swiftArray, [1, 100]),
+                    ("state", state.swiftArray, [1, 1344]),
+                    ("candidates", candidates.swiftArray, [1, 100, 1344]),
                 ], int64s: [], output: "scores", outputCount: 100
             ))
         } catch { return nil }
@@ -191,7 +174,6 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         text = nil
         state = nil
         scorer = nil
-        textResidual = nil
     }
 
     /// Opt-in end-to-end graph check used by simulator validation. Normal app launches do no work.
@@ -205,8 +187,7 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                 if let error = self.loadText() { throw OrtError.message(error) }
                 if let error = self.loadPredictor() { throw OrtError.message(error) }
                 guard let audio = self.audio, let text = self.text,
-                      let state = self.state, let scorer = self.scorer,
-                      let textResidual = self.textResidual else {
+                      let state = self.state, let scorer = self.scorer else {
                     throw OrtError.message("One or more SMART sessions did not load")
                 }
                 let audioEmbedding = try audio.run(
@@ -229,31 +210,23 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                         ("session_features", [Float](repeating: 0, count: 5), [1, 5]),
                     ], int64s: [], output: "state", outputCount: 960
                 )
-                let candidates = [Float](repeating: 0, count: 100 * 960)
-                let baseScores = try scorer.run(
+                // Fused scorer: state = [960 ⊕ 384] = 1344, candidates = [100 × 1344]. An all-zero
+                // text half exercises the trained text-dropout path (graceful degradation).
+                let fusedState = [Float](repeating: 0, count: 1344)
+                let candidates = [Float](repeating: 0, count: 100 * 1344)
+                let scores = try scorer.run(
                     floats: [
-                        ("state", sessionState, [1, 960]),
-                        ("candidates", candidates, [1, 100, 960]),
-                    ], int64s: [], output: "scores", outputCount: 100
-                )
-                let scores = try textResidual.run(
-                    floats: [
-                        ("base_scores", baseScores, [1, 100]),
-                        ("state", sessionState, [1, 960]),
-                        ("candidates", candidates, [1, 100, 960]),
-                        ("text_state", [Float](repeating: 0, count: 384), [1, 384]),
-                        ("text_candidates", [Float](repeating: 0, count: 100 * 384), [1, 100, 384]),
-                        ("text_mask", [Float](repeating: 0, count: 100), [1, 100]),
+                        ("state", fusedState, [1, 1344]),
+                        ("candidates", candidates, [1, 100, 1344]),
                     ], int64s: [], output: "scores", outputCount: 100
                 )
                 guard audioEmbedding.allSatisfy(\.isFinite),
                       textTokens.allSatisfy(\.isFinite),
-                      sessionState.allSatisfy(\.isFinite), scores.allSatisfy(\.isFinite),
-                      zip(scores, baseScores).allSatisfy({ $0.0 == $0.1 }) else {
-                    throw OrtError.message("A SMART graph failed finiteness or fallback checks")
+                      sessionState.allSatisfy(\.isFinite), scores.allSatisfy(\.isFinite) else {
+                    throw OrtError.message("A SMART graph failed finiteness checks")
                 }
                 let elapsed = Int((CFAbsoluteTimeGetCurrent() - started) * 1_000)
-                print("[SMART_SMOKE] ok audio=960 text=384 state=960 scores=100 missing_text_exact=true elapsed_ms=\(elapsed)")
+                print("[SMART_SMOKE] ok audio=960 text=384 state=1344 scores=100 elapsed_ms=\(elapsed)")
             } catch {
                 print("[SMART_SMOKE] failed: \(error.localizedDescription)")
             }

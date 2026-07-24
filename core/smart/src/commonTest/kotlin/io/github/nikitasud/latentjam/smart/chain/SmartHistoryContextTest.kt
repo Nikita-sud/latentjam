@@ -36,7 +36,7 @@ internal class SmartHistoryContextTest {
         assertTrue(requireNotNull(cold.medium).contentEquals(requireNotNull(firstOpen.medium)))
         assertTrue(requireNotNull(cold.large).contentEquals(requireNotNull(firstOpen.large)))
         assertTrue(requireNotNull(cold.session).contentEquals(requireNotNull(firstOpen.session)))
-        assertTrue(requireNotNull(cold.textState).contentEquals(requireNotNull(firstOpen.textState)))
+        assertTrue(requireNotNull(cold.centroid).contentEquals(requireNotNull(firstOpen.centroid)))
     }
 
     @Test
@@ -122,16 +122,19 @@ internal class SmartHistoryContextTest {
         assertNear(1f / 3f, session[3])
         assertNear((0.25f + 0.5f + 1f) / 3f, session[4])
 
-        val text = requireNotNull(runtime.textState)
-        val norm = sqrt(0.5f * 0.5f + 0.5f * 0.5f + 1f)
-        assertNear(0.5f / norm, text[0])
-        assertNear(0.5f / norm, text[1])
-        assertNear(1f / norm, text[2])
+        // Session-text-centroid is the unit-norm, DE-DUPLICATED, unweighted mean of the context
+        // tracks' text (A HEAD `_text_centroid`). Context rows [0,0,1,2] collapse to {0,1,2}; the
+        // three one-hot text rows mean to (1/3,1/3,1/3,…) → 1/√3 on each of dims 0,1,2.
+        val text = requireNotNull(runtime.centroid)
+        val expected = 1f / sqrt(3f)
+        assertNear(expected, text[0])
+        assertNear(expected, text[1])
+        assertNear(expected, text[2])
     }
 
     private fun track(row: Int): SmartTrack = SmartTrack(
         id = TrackId(row.toString()),
-        audio = FloatArray(PredictorRuntime.STATE_DIM).also { it[row] = 1f },
+        audio = FloatArray(PredictorRuntime.EMBEDDING_DIM).also { it[row] = 1f },
         text = FloatArray(SmartSnapshot.TEXT_DIM).also { it[row] = 1f },
         meta = TrackMeta(
             title = "title$row",
@@ -149,7 +152,7 @@ internal class SmartHistoryContextTest {
         second: Float = 0f,
     ): SmartTrack = SmartTrack(
         id = TrackId(row.toString()),
-        audio = FloatArray(PredictorRuntime.STATE_DIM).also {
+        audio = FloatArray(PredictorRuntime.EMBEDDING_DIM).also {
             it[0] = first
             it[1] = second
             it[row + 2] = 0.01f
@@ -179,7 +182,7 @@ internal class SmartHistoryContextTest {
     private fun assertToken(history: FloatArray, slot: Int, row: Int, played: Float) {
         val offset = slot * PredictorRuntime.TOKEN_DIM
         assertNear(1f, history[offset + row])
-        assertNear(played, history[offset + PredictorRuntime.STATE_DIM])
+        assertNear(played, history[offset + PredictorRuntime.EMBEDDING_DIM])
     }
 
     private fun assertUnit(values: FloatArray) {
@@ -196,7 +199,7 @@ internal class SmartHistoryContextTest {
         var medium: FloatArray? = null
         var large: FloatArray? = null
         var session: FloatArray? = null
-        var textState: FloatArray? = null
+        var centroid: FloatArray? = null
 
         override suspend fun load(): Result<Unit> = Result.success(Unit)
 
@@ -212,17 +215,18 @@ internal class SmartHistoryContextTest {
             large = historyLarge.copyOf()
             session = sessionFeatures.copyOf()
             val newest = (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM
-            return historySmall.copyOfRange(newest, newest + PredictorRuntime.STATE_DIM)
+            return historySmall.copyOfRange(newest, newest + PredictorRuntime.EMBEDDING_DIM)
         }
 
         override fun score(
             state: FloatArray,
             candidates: FloatArray,
-            textState: FloatArray,
-            textCandidates: FloatArray,
-            textMask: FloatArray,
         ): FloatArray {
-            this.textState = textState.copyOf()
+            // The fused scorer state is [960 encoder ⊕ 384 session-text-centroid]; capture the tail.
+            this.centroid = state.copyOfRange(
+                PredictorRuntime.EMBEDDING_DIM,
+                PredictorRuntime.SCORER_INPUT_DIM,
+            )
             return FloatArray(PredictorRuntime.POOL_SIZE)
         }
 

@@ -10,6 +10,7 @@ import android.net.Uri
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.nikitasud.latentjam.smart.chain.OnnxPredictorRuntime
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
+import io.github.nikitasud.latentjam.smart.chain.ScorerPacking
 import io.github.nikitasud.latentjam.smart.text.OnnxTextEncoder
 import java.io.DataOutputStream
 import java.io.File
@@ -18,7 +19,6 @@ import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -87,24 +87,16 @@ class SmartInferenceDeviceTest {
         assertEquals(960, state.size)
         assertTrue(state.all(Float::isFinite))
 
+        // Fused scorer: state = [960 encoder ⊕ 384 text-centroid], candidates = [100 × 1344]. An
+        // all-zero text half exercises the trained text-dropout path (graceful degradation).
+        val scorerInput = PredictorRuntime.SCORER_INPUT_DIM
         val missing = predictor.score(
-            state = state,
-            candidates = FloatArray(100 * 960),
-            textState = FloatArray(384),
-            textCandidates = FloatArray(100 * 384),
-            textMask = FloatArray(100),
+            state = ScorerPacking.packState(state, FloatArray(384)),
+            candidates = FloatArray(100 * scorerInput),
         )
         val stateScoreMs = elapsedMs(stateScoreStarted)
-        val maskedNoise = predictor.score(
-            state = state,
-            candidates = FloatArray(100 * 960),
-            textState = FloatArray(384) { 0.25f },
-            textCandidates = FloatArray(100 * 384) { -0.5f },
-            textMask = FloatArray(100),
-        )
         assertEquals(100, missing.size)
         assertTrue(missing.all(Float::isFinite))
-        assertArrayEquals("masked text must be an exact audio fallback", missing, maskedNoise, 0f)
 
         val elapsedMs = (System.nanoTime() - started) / 1_000_000
         val warmStarted = System.nanoTime()
@@ -117,11 +109,8 @@ class SmartInferenceDeviceTest {
                 sessionFeatures = FloatArray(5),
             )
             val warmScores = predictor.score(
-                state = warmState,
-                candidates = FloatArray(100 * 960),
-                textState = FloatArray(384),
-                textCandidates = FloatArray(100 * 384),
-                textMask = FloatArray(100),
+                state = ScorerPacking.packState(warmState, FloatArray(384)),
+                candidates = FloatArray(100 * scorerInput),
             )
             assertTrue(warmScores.all(Float::isFinite))
         }

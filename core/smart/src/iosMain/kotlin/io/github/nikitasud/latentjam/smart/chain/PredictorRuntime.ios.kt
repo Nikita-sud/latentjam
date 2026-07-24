@@ -28,18 +28,14 @@ internal class IosPredictorRuntime : PredictorRuntime {
         sessionFeatures: FloatArray,
     ): FloatArray = IosInferenceRegistry.current()?.encodeState(
         historySmall, historyMedium, historyLarge, timeFeatures, sessionFeatures,
-    )?.takeIf { it.size == PredictorRuntime.STATE_DIM && it.all(Float::isFinite) }
+    )?.takeIf { it.size == PredictorRuntime.EMBEDDING_DIM && it.all(Float::isFinite) }
         ?: throw SmartEngineException(EngineError.ModelUnavailable)
 
     override fun score(
         state: FloatArray,
         candidates: FloatArray,
-        textState: FloatArray,
-        textCandidates: FloatArray,
-        textMask: FloatArray,
-    ): FloatArray = IosInferenceRegistry.current()?.score(
-        state, candidates, textState, textCandidates, textMask,
-    )?.takeIf { it.size == PredictorRuntime.POOL_SIZE && it.all(Float::isFinite) }
+    ): FloatArray = IosInferenceRegistry.current()?.score(state, candidates)
+        ?.takeIf { it.size == PredictorRuntime.POOL_SIZE && it.all(Float::isFinite) }
         ?: throw SmartEngineException(EngineError.ModelUnavailable)
 
     override fun close(): Unit = Unit

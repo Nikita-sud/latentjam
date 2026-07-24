@@ -99,7 +99,7 @@ internal class SmartChain(
         val seedRow = snapshot.rowOf(seedId)
         if (seedRow < 0 || length <= 0) return ChainResult.EMPTY
 
-        val dim = PredictorRuntime.STATE_DIM
+        val dim = PredictorRuntime.EMBEDDING_DIM
         val tokenDim = PredictorRuntime.TOKEN_DIM
 
         val context = prepareContext(seedRow, historyEvents, sessionFeatures)
@@ -119,28 +119,29 @@ internal class SmartChain(
 
         val pool = buildPool(seedRow, state)
         if (pool.isEmpty()) return ChainResult.EMPTY
-        // Short pools stay zero-padded: the scorer graph has the pool size baked in.
-        val candidates = FloatArray(PredictorRuntime.POOL_SIZE * dim)
-        val textCandidates = FloatArray(PredictorRuntime.POOL_SIZE * SmartSnapshot.TEXT_DIM)
-        val textMask = FloatArray(PredictorRuntime.POOL_SIZE)
-        for (i in pool.indices) {
-            if (i >= PredictorRuntime.POOL_SIZE) break
-            snapshot.rawAudio.copyInto(candidates, i * dim, pool[i] * dim, (pool[i] + 1) * dim)
-            val rawText = snapshot.rawText
-            if (rawText != null && snapshot.hasText?.get(pool[i]) == true) {
-                rawText.copyInto(
-                    textCandidates,
-                    i * SmartSnapshot.TEXT_DIM,
-                    pool[i] * SmartSnapshot.TEXT_DIM,
-                    (pool[i] + 1) * SmartSnapshot.TEXT_DIM,
-                )
-                textMask[i] = 1f
-            }
-        }
+        // Pool positions carry snapshot rows; the semantic z-scores and fused candidate block are
+        // computed per pool position so everything lines up with candidate `pool[i]` below.
+        val poolRows = pool.toIntArray()
+        // Fused candidate block, packed ONCE: `[960 raw audio ⊕ 384 unit-norm text]` per row, the
+        // text half zero-filled where a track has none (a trained text-dropout path). It never
+        // changes across the walk — only the state's session-text-centroid does — so the scorer is
+        // called against this same block every hop. Short pools stay zero-padded: the scorer graph
+        // has the pool size baked in.
+        val hasText = snapshot.hasText ?: BooleanArray(snapshot.size)
+        val candidates = FloatArray(PredictorRuntime.POOL_SIZE * PredictorRuntime.SCORER_INPUT_DIM)
+        ScorerPacking.packCandidates(
+            audioFlat = snapshot.rawAudio,
+            textFlat = snapshot.rawText,
+            hasText = hasText,
+            poolRows = poolRows,
+            scorerN = PredictorRuntime.POOL_SIZE,
+            out = candidates,
+        )
 
+        // Session-text-centroid: unit-norm, de-duplicated mean of the context tracks' text vectors
+        // (A HEAD `_text_centroid` semantics), recomputed each hop as the context window advances.
         val textHistory = context.textRows
-        val textWeights = context.textWeights
-        var textState = textState(textHistory, textWeights)
+        var centroid = ScorerPacking.textCentroid(snapshot.rawText, hasText, textHistory)
         val noLogits = FloatArray(PredictorRuntime.POOL_SIZE)
 
         val chain = ArrayList<Int>(length)
@@ -162,10 +163,8 @@ internal class SmartChain(
         seenTitles.add(snapshot.tracks[seedRow].meta.normalizedTitle)
         val artistPlays = HashMap<String, Int>()
 
-        // Pool positions carry snapshot rows; the semantic z-scores are computed per pool position
-        // so zSeed[i]/zPrev[i] line up with candidate `pool[i]` in the scoring loop below.
-        val poolRows = pool.toIntArray()
         // Seed-relative semantic z: computed once against the ORIGINAL pick, constant for the walk.
+        // (poolRows was built above alongside the fused candidate block.)
         val zSeed = chainSemanticZ(seedRow, poolRows)
 
         // A pool position still in the running this hop: not already picked, and past the artist
@@ -237,9 +236,9 @@ internal class SmartChain(
                 }
             }
             val logits = if (live) {
-                runCatching {
-                    runtime!!.score(state, candidates, textState, textCandidates, textMask)
-                }
+                // Fused state = 960 encoder state ⊕ 384 unit-norm session-text-centroid.
+                val scorerState = ScorerPacking.packState(state, centroid)
+                runCatching { runtime!!.score(scorerState, candidates) }
                     .onFailure { live = false }
                     .getOrDefault(noLogits)
             } else {
@@ -314,9 +313,7 @@ internal class SmartChain(
             history[offset + dim] = 1f
             textHistory.copyInto(textHistory, 0, 1, PredictorRuntime.CONTEXT_K)
             textHistory[PredictorRuntime.CONTEXT_K - 1] = pickedRow
-            textWeights.copyInto(textWeights, 0, 1, PredictorRuntime.CONTEXT_K)
-            textWeights[PredictorRuntime.CONTEXT_K - 1] = 1f
-            textState = textState(textHistory, textWeights)
+            centroid = ScorerPacking.textCentroid(snapshot.rawText, hasText, textHistory)
             state = runCatching {
                 encode(history, medium, large, timeFeatures, liveSessionFeatures)
             }
@@ -378,18 +375,16 @@ internal class SmartChain(
 
         val history = FloatArray(PredictorRuntime.CONTEXT_K * PredictorRuntime.TOKEN_DIM)
         val textRows = IntArray(PredictorRuntime.CONTEXT_K)
-        val textWeights = FloatArray(PredictorRuntime.CONTEXT_K)
         for (i in padded.indices) {
             val event = padded[i]
             snapshot.rawAudio.copyInto(
                 history,
                 i * PredictorRuntime.TOKEN_DIM,
-                event.row * PredictorRuntime.STATE_DIM,
-                (event.row + 1) * PredictorRuntime.STATE_DIM,
+                event.row * PredictorRuntime.EMBEDDING_DIM,
+                (event.row + 1) * PredictorRuntime.EMBEDDING_DIM,
             )
-            history[i * PredictorRuntime.TOKEN_DIM + PredictorRuntime.STATE_DIM] = event.played
+            history[i * PredictorRuntime.TOKEN_DIM + PredictorRuntime.EMBEDDING_DIM] = event.played
             textRows[i] = event.row
-            textWeights[i] = event.played.coerceAtLeast(0.05f)
         }
 
         val window = sessionEvents.takeLast(10)
@@ -410,7 +405,6 @@ internal class SmartChain(
             large = tasteCentroid(aligned, seedRow, LARGE_HALF_LIFE_DAYS),
             session = session,
             textRows = textRows,
-            textWeights = textWeights,
         )
     }
 
@@ -421,14 +415,14 @@ internal class SmartChain(
             snapshot.rawAudio.copyInto(
                 history,
                 offset,
-                seedRow * PredictorRuntime.STATE_DIM,
-                (seedRow + 1) * PredictorRuntime.STATE_DIM,
+                seedRow * PredictorRuntime.EMBEDDING_DIM,
+                (seedRow + 1) * PredictorRuntime.EMBEDDING_DIM,
             )
-            history[offset + PredictorRuntime.STATE_DIM] = 1f
+            history[offset + PredictorRuntime.EMBEDDING_DIM] = 1f
         }
         val seed = snapshot.rawAudio.copyOfRange(
-            seedRow * PredictorRuntime.STATE_DIM,
-            (seedRow + 1) * PredictorRuntime.STATE_DIM,
+            seedRow * PredictorRuntime.EMBEDDING_DIM,
+            (seedRow + 1) * PredictorRuntime.EMBEDDING_DIM,
         )
         return PreparedContext(
             history = history,
@@ -436,7 +430,6 @@ internal class SmartChain(
             large = seed.copyOf(),
             session = session,
             textRows = IntArray(PredictorRuntime.CONTEXT_K) { seedRow },
-            textWeights = FloatArray(PredictorRuntime.CONTEXT_K) { 1f },
         )
     }
 
@@ -445,7 +438,7 @@ internal class SmartChain(
         seedRow: Int,
         halfLifeDays: Float,
     ): FloatArray {
-        val centroid = FloatArray(PredictorRuntime.STATE_DIM)
+        val centroid = FloatArray(PredictorRuntime.EMBEDDING_DIM)
         val newest = events.last().timestamp
         var totalWeight = 0.0
         for (event in events) {
@@ -453,17 +446,17 @@ internal class SmartChain(
             if (reward <= 0f) continue
             val ageDays = (newest - event.timestamp).coerceAtLeast(0L) / MILLIS_PER_DAY
             val weight = reward * exp(-ageDays * LN_2 / halfLifeDays)
-            val base = event.row * PredictorRuntime.STATE_DIM
+            val base = event.row * PredictorRuntime.EMBEDDING_DIM
             for (d in centroid.indices) centroid[d] += snapshot.rawAudio[base + d] * weight.toFloat()
             totalWeight += weight
         }
         if (totalWeight <= 1e-9) {
             return snapshot.rawAudio.copyOfRange(
-                seedRow * PredictorRuntime.STATE_DIM,
-                (seedRow + 1) * PredictorRuntime.STATE_DIM,
+                seedRow * PredictorRuntime.EMBEDDING_DIM,
+                (seedRow + 1) * PredictorRuntime.EMBEDDING_DIM,
             )
         }
-        return normalized(centroid, PredictorRuntime.STATE_DIM)
+        return normalized(centroid, PredictorRuntime.EMBEDDING_DIM)
     }
 
     private data class ContextEvent(
@@ -479,7 +472,6 @@ internal class SmartChain(
         val large: FloatArray,
         val session: FloatArray,
         val textRows: IntArray,
-        val textWeights: FloatArray,
     )
 
     /**
@@ -492,7 +484,7 @@ internal class SmartChain(
      */
     private fun buildPool(seedRow: Int, state: FloatArray): List<Int> {
         val n = snapshot.size
-        val dim = PredictorRuntime.STATE_DIM
+        val dim = PredictorRuntime.EMBEDDING_DIM
         val anchorScores = FloatArray(n) { row ->
             snapshot.centeredCosine(seedRow, row) -
                 ChainConfig.HUB_PENALTY_BETA * snapshot.hubPenalty[row]
@@ -580,21 +572,6 @@ internal class SmartChain(
             poolRows,
         )
         return SemanticZ.combine(zDesc, zText, poolRows.size)
-    }
-
-    private fun textState(rows: IntArray, weights: FloatArray): FloatArray {
-        val output = FloatArray(SmartSnapshot.TEXT_DIM)
-        val rawText = snapshot.rawText ?: return output
-        var totalWeight = 0f
-        for (i in rows.indices) {
-            val row = rows[i]
-            if (snapshot.hasText?.get(row) != true) continue
-            val base = row * SmartSnapshot.TEXT_DIM
-            val weight = weights[i]
-            for (d in output.indices) output[d] += rawText[base + d] * weight
-            totalWeight += weight
-        }
-        return if (totalWeight > 0f) normalized(output, SmartSnapshot.TEXT_DIM) else output
     }
 
     /**

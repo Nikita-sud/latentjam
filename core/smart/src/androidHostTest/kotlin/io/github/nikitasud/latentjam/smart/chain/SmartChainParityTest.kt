@@ -59,8 +59,8 @@ class SmartChainParityTest {
             SmartTrack(
                 id = TrackId(row.toString()),
                 audio = audio.copyOfRange(
-                    row * PredictorRuntime.STATE_DIM,
-                    (row + 1) * PredictorRuntime.STATE_DIM,
+                    row * PredictorRuntime.EMBEDDING_DIM,
+                    (row + 1) * PredictorRuntime.EMBEDDING_DIM,
                 ),
                 text = if (hasText[row]) text.copyOfRange(row * 384, (row + 1) * 384) else null,
                 descriptor = if (hasDescriptor[row]) {
@@ -132,7 +132,7 @@ class SmartChainParityTest {
             timeFeatures: FloatArray,
             sessionFeatures: FloatArray,
         ): FloatArray {
-            val dim = PredictorRuntime.STATE_DIM
+            val dim = PredictorRuntime.EMBEDDING_DIM
             // Cold/no-history contract, mirrored by export_parity_fixture.py: the two slow-taste
             // inputs are the seed's audio and stay FIXED across hops — the chain re-encodes only
             // history_small (the reference re-encodes `features.copy(historySmall = ...)`; the port
@@ -163,9 +163,6 @@ class SmartChainParityTest {
         override fun score(
             state: FloatArray,
             candidates: FloatArray,
-            textState: FloatArray,
-            textCandidates: FloatArray,
-            textMask: FloatArray,
         ): FloatArray {
             val at = scoreCalls++
             val size = PredictorRuntime.POOL_SIZE

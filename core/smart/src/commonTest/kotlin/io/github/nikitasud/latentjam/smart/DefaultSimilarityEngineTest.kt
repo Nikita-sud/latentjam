@@ -401,17 +401,17 @@ internal class DefaultSimilarityEngineTest {
         val tracks = smartLibrary(57)
         val backend = FakeEmbeddingBackend(
             tracks.associateTo(mutableMapOf()) { track ->
-                track.id to FloatArray(PredictorRuntime.STATE_DIM).also { vector ->
+                track.id to FloatArray(PredictorRuntime.EMBEDDING_DIM).also { vector ->
                     vector[track.id.value.removePrefix("smart-").toInt()] = 1f
                 }
             },
         )
         val engine = DefaultSimilarityEngine(
             backend = backend,
-            index = InMemoryVectorIndex(PredictorRuntime.STATE_DIM),
+            index = InMemoryVectorIndex(PredictorRuntime.EMBEDDING_DIM),
             store = FakeIndexStore(),
             config = SmartEngineConfig(
-                embeddingDim = PredictorRuntime.STATE_DIM,
+                embeddingDim = PredictorRuntime.EMBEDDING_DIM,
                 modelVersion = "short-pool-test",
             ),
             dispatcher = Dispatchers.Default.limitedParallelism(1, "short-pool-test"),
@@ -432,17 +432,17 @@ internal class DefaultSimilarityEngineTest {
         val tracks = smartLibrary(23)
         val backend = FakeEmbeddingBackend(
             tracks.associateTo(mutableMapOf()) { track ->
-                track.id to FloatArray(PredictorRuntime.STATE_DIM).also { vector ->
+                track.id to FloatArray(PredictorRuntime.EMBEDDING_DIM).also { vector ->
                     vector[track.id.value.removePrefix("smart-").toInt()] = 1f
                 }
             },
         )
         val engine = DefaultSimilarityEngine(
             backend = backend,
-            index = InMemoryVectorIndex(PredictorRuntime.STATE_DIM),
+            index = InMemoryVectorIndex(PredictorRuntime.EMBEDDING_DIM),
             store = FakeIndexStore(),
             config = SmartEngineConfig(
-                embeddingDim = PredictorRuntime.STATE_DIM,
+                embeddingDim = PredictorRuntime.EMBEDDING_DIM,
                 modelVersion = "tiny-pool-test",
             ),
             dispatcher = Dispatchers.Default.limitedParallelism(1, "tiny-pool-test"),
@@ -480,15 +480,12 @@ internal class DefaultSimilarityEngineTest {
         ): FloatArray = historySmall.copyOfRange(
             (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM,
             (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM +
-                PredictorRuntime.STATE_DIM,
+                PredictorRuntime.EMBEDDING_DIM,
         )
 
         override fun score(
             state: FloatArray,
             candidates: FloatArray,
-            textState: FloatArray,
-            textCandidates: FloatArray,
-            textMask: FloatArray,
         ): FloatArray {
             scoreCalls++
             return FloatArray(PredictorRuntime.POOL_SIZE)

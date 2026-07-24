@@ -47,12 +47,13 @@ public interface IosInferenceProvider {
         sessionFeatures: FloatArray,
     ): FloatArray?
 
+    /**
+     * Fused scorer: [state] is `[SCORER_INPUT_DIM]` (`960 audio ⊕ 384 text-centroid`) and
+     * [candidates] is `[POOL_SIZE × SCORER_INPUT_DIM]` flattened (see `ScorerPacking`).
+     */
     public fun score(
         state: FloatArray,
         candidates: FloatArray,
-        textState: FloatArray,
-        textCandidates: FloatArray,
-        textMask: FloatArray,
     ): FloatArray?
 
     public fun close()
