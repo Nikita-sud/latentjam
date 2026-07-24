@@ -84,6 +84,46 @@ internal object SemanticZ {
     }
 
     /**
+     * Pool-relative z-scores of a taste DIRECTION rather than a reference row: z of
+     * `direction · matrix[row]` over the pool, with the same floor and clip discipline as [poolZ].
+     * Every pool row is valid here — the direction lives in the same centered space as the rows —
+     * so there is no availability mask and the result never contains `NaN`.
+     *
+     * Retained for the learned-taste, exploration and in-session mood terms that layer onto the
+     * chain score in later ports; production currently supplies none of them, so nothing calls this
+     * on the cold-start path, but keeping the pure operation here lets the recorded research
+     * fixtures reproduce byte-for-byte without shipping their per-track direction vectors.
+     */
+    fun directionZ(
+        matrix: FloatArray,
+        dim: Int,
+        direction: FloatArray,
+        poolRows: IntArray,
+        clip: Float = Z_CLIP,
+    ): FloatArray {
+        val n = poolRows.size
+        val sims = FloatArray(n)
+        for (k in 0 until n) {
+            var dot = 0f
+            val base = poolRows[k] * dim
+            for (d in 0 until dim) dot += direction[d] * matrix[base + d]
+            sims[k] = dot
+        }
+        if (n == 0) return sims
+        var mean = 0.0
+        for (v in sims) mean += v
+        mean /= n
+        var varSum = 0.0
+        for (v in sims) {
+            val d = v - mean
+            varSum += d * d
+        }
+        val std = sqrt(varSum / n).toFloat().coerceAtLeast(STD_FLOOR)
+        val meanF = mean.toFloat()
+        return FloatArray(n) { k -> ((sims[k] - meanF) / std).coerceIn(-clip, clip) }
+    }
+
+    /**
      * Availability-weighted combination for an optional auxiliary semantic space and the
      * on-device metadata-text space. Production currently supplies metadata text only; retaining
      * this pure operation keeps recorded research fixtures reproducible without shipping their

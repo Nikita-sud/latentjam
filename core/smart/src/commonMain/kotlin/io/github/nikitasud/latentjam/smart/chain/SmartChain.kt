@@ -25,6 +25,16 @@ internal object ChainConfig {
     /** Pull toward the seed for the whole walk, so one off-genre hop can't capture the chain. */
     const val CHAIN_SEED_GRAVITY = 2.5f
 
+    /**
+     * Semantic gravity/blend: the descriptor+text analogue of [CHAIN_SEED_GRAVITY] and
+     * [COSINE_BLEND_WEIGHT], measured as pool-relative z-scores (see [SemanticZ]) rather than raw
+     * cosine so a niche seed's true in-cluster candidates — semantic outliers within the retrieved
+     * pool that the audio scorer parks near its tanh floor — are lifted exactly where the audio
+     * geometry cannot see them. Seed gravity dominates the blend, same shape as the audio terms.
+     */
+    const val SEM_CHAIN_SEED_GRAVITY = 2.0f
+    const val SEM_CHAIN_PREV_BLEND = 1.0f
+
     const val HUB_CHAIN_DAMP = 0.6f
     const val HUB_PENALTY_BETA = 1.0f
 
@@ -152,7 +162,15 @@ internal class SmartChain(
         seenTitles.add(snapshot.tracks[seedRow].meta.normalizedTitle)
         val artistPlays = HashMap<String, Int>()
 
+        // Pool positions carry snapshot rows; the semantic z-scores are computed per pool position
+        // so zSeed[i]/zPrev[i] line up with candidate `pool[i]` in the scoring loop below.
+        val poolRows = pool.toIntArray()
+        // Seed-relative semantic z: computed once against the ORIGINAL pick, constant for the walk.
+        val zSeed = chainSemanticZ(seedRow, poolRows)
+
         while (chain.size < length) {
+            // Previous-pick-relative semantic z: recomputed each hop against the current anchor.
+            val zPrev = chainSemanticZ(anchorRow, poolRows)
             val logits = if (live) {
                 runCatching {
                     runtime!!.score(state, candidates, textState, textCandidates, textMask)
@@ -177,6 +195,11 @@ internal class SmartChain(
                 var score = ChainConfig.SCORER_SQUASH * tanh(logits[i] / ChainConfig.SCORER_TEMP)
                 score += ChainConfig.COSINE_BLEND_WEIGHT * snapshot.centeredCosine(anchorRow, row)
                 score += ChainConfig.CHAIN_SEED_GRAVITY * snapshot.centeredCosine(seedRow, row)
+                // Semantic gravity/blend: same shape as the audio terms, in the descriptor+text
+                // spaces and pool-normalized (see zSeed/zPrev construction). Zero when the seed or
+                // anchor has no semantic vector or too few pool members do, leaving score unchanged.
+                score += ChainConfig.SEM_CHAIN_SEED_GRAVITY * zSeed[i] +
+                    ChainConfig.SEM_CHAIN_PREV_BLEND * zPrev[i]
                 var multiplier = MetadataRerank.adjustMultiplier(anchorMeta, meta)
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)
                 multiplier *= MetadataRerank.seedIntentMultiplier(
@@ -455,6 +478,30 @@ internal class SmartChain(
             i++
         }
         return pool
+    }
+
+    /**
+     * Combined semantic z-scores of every pool candidate against [refRow], averaging the offline
+     * descriptor space and the on-device metadata-text space where each is available (see
+     * [SemanticZ] for why pool-relative z rather than raw cosine). Zeros when [refRow] has no
+     * vectors or a space is not loaded, leaving the chain score exactly as it was before this term.
+     */
+    private fun chainSemanticZ(refRow: Int, poolRows: IntArray): FloatArray {
+        val zDesc = SemanticZ.poolZ(
+            snapshot.centeredDescriptor,
+            snapshot.hasDescriptor,
+            SmartSnapshot.DESCRIPTOR_DIM,
+            refRow,
+            poolRows,
+        )
+        val zText = SemanticZ.poolZ(
+            snapshot.centeredText,
+            snapshot.hasText,
+            SmartSnapshot.TEXT_DIM,
+            refRow,
+            poolRows,
+        )
+        return SemanticZ.combine(zDesc, zText, poolRows.size)
     }
 
     private fun textState(rows: IntArray, weights: FloatArray): FloatArray {
