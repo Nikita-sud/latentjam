@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart.chain
 
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.sqrt
+import kotlin.random.Random
 
 /** One track's inputs to the chain. Only [audio] is required; the rest sharpen the result. */
 internal data class SmartTrack(
@@ -129,7 +130,7 @@ internal class SmartSnapshot private constructor(
                 tracks = usable,
                 rawAudio = raw,
                 centeredAudio = centered,
-                hubPenalty = computeHubPenalty(centered, usable),
+                hubPenalty = computeHubPenalty(centered, n),
                 centeredText = text,
                 hasText = hasText,
                 centeredDescriptor = descriptor,
@@ -143,44 +144,62 @@ internal class SmartSnapshot private constructor(
          * neighbours, zero-meaned across the corpus. Dense clusters (cinematic/game/anime) score
          * high here and get pushed down in retrieval, which stops them acting as everyone's
          * neighbour.
+         *
+         * Exact all-pairs is O(N²·D) — fine to ~1k tracks (~0.5–1 s for 810×960) but quadratic
+         * beyond. At or below [HUB_ANCHOR_SAMPLE] the reference set is the whole corpus, so the
+         * result is byte-identical to the historical exact behaviour and to the parity fixtures.
+         * Above it, each row is scored against a fixed seeded sample of anchors instead —
+         * O(N·[HUB_ANCHOR_SAMPLE]·D). Hubs are near *everything*, so they are near a random sample
+         * too, which preserves the relative hubness ordering; the zero-mean keeps the score scale
+         * intact so downstream floors and temperature calibration are unaffected. The anchor
+         * permutation is seeded so repeated snapshot builds rank identically.
+         *
+         * The outer loop is intentionally serial. The reference (`Retrieval.computeHubPenalty`,
+         * commit 9e978bb) parallelizes it across `Dispatchers.Default` workers, but that requires a
+         * suspend seam and `SmartSnapshot.build` is a synchronous factory reached from several
+         * non-suspend call sites; making it suspend would ripple through the engine and every test.
+         * Each row's penalty is independent and written to its own slot, so the values here are
+         * identical to the parallel path — only the wall-clock cost differs.
          */
-        private fun computeHubPenalty(
+        internal fun computeHubPenalty(
             centered: FloatArray,
-            tracks: List<SmartTrack>,
+            n: Int,
+            anchorLimit: Int = HUB_ANCHOR_SAMPLE,
         ): FloatArray {
-            val n = tracks.size
             val penalty = FloatArray(n)
-            // Exact CSLS is O(N²·D). Rebuilding it for an 860-track phone library meant roughly
-            // 700 million scalar products before the first queue could appear. A deterministic
-            // 64-track density reference preserves held-out pool recall and acoustic-scorer MRR
-            // while bounding this work at O(N·64·D). For small libraries the reference is the
-            // whole corpus, so existing exact behaviour and fixtures stay unchanged.
-            val references = tracks.indices
-                .sortedBy { stableIdHash(tracks[it].id.value) }
-                .take(HUB_REFERENCE_CAP)
-            val k = HUB_TOPK.coerceAtMost(references.size - 1)
+            val anchors: IntArray? =
+                if (n > anchorLimit) {
+                    val perm = IntArray(n) { it }
+                    val rng = Random(HUB_ANCHOR_SEED)
+                    for (i in n - 1 downTo 1) {
+                        val j = rng.nextInt(i + 1)
+                        val tmp = perm[i]
+                        perm[i] = perm[j]
+                        perm[j] = tmp
+                    }
+                    perm.copyOf(anchorLimit)
+                } else {
+                    null
+                }
+            val candidates = anchors?.size ?: n
+            val k = HUB_TOPK.coerceAtMost(candidates - 1)
             if (k <= 0) return penalty
             val top = FloatArray(k)
             for (i in 0 until n) {
-                top.fill(-2f)
+                top.fill(Float.NEGATIVE_INFINITY)
                 val baseI = i * AUDIO_DIM
-                for (j in references) {
+                for (c in 0 until candidates) {
+                    val j = anchors?.get(c) ?: c
                     if (j == i) continue
                     var dot = 0f
                     val baseJ = j * AUDIO_DIM
                     for (d in 0 until AUDIO_DIM) dot += centered[baseI + d] * centered[baseJ + d]
-                    if (dot > top[0]) {
-                        // Keep the k best in a tiny ascending array; top[0] is the weakest kept.
-                        var slot = 0
-                        while (slot + 1 < k && dot > top[slot + 1]) {
-                            top[slot] = top[slot + 1]
-                            slot++
-                        }
-                        top[slot] = dot
-                    }
+                    var minIdx = 0
+                    for (t in 1 until k) if (top[t] < top[minIdx]) minIdx = t
+                    if (dot > top[minIdx]) top[minIdx] = dot
                 }
                 var sum = 0f
-                for (v in top) sum += v
+                for (t in 0 until k) sum += top[t]
                 penalty[i] = sum / k
             }
             var mean = 0f
@@ -190,18 +209,15 @@ internal class SmartSnapshot private constructor(
             return penalty
         }
 
-        /** Stable across Android/iOS and independent of insertion order. */
-        private fun stableIdHash(value: String): ULong {
-            var hash = 0xcbf29ce484222325uL
-            for (byte in value.encodeToByteArray()) {
-                hash = hash xor byte.toUByte().toULong()
-                hash *= 0x100000001b3uL
-            }
-            return hash
-        }
+        /**
+         * Libraries at or under this size take the exact all-pairs path (byte-identical to the
+         * historical behaviour and to recorded parity fixtures); larger ones score each row against
+         * a seeded anchor sample of this size. Mirrors `Retrieval.HUB_ANCHOR_SAMPLE`.
+         */
+        internal const val HUB_ANCHOR_SAMPLE = 1024
 
-        /** Selected by the reproducible 1,519-example benchmark in docs/experiments. */
-        internal const val HUB_REFERENCE_CAP = 64
+        /** Seeds the anchor permutation so repeated snapshot builds rank identically. */
+        private const val HUB_ANCHOR_SEED = 0x1A7E47L
 
         /**
          * Centered + renormalised copy of an optional space, computed over the rows that HAVE a
