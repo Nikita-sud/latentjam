@@ -38,6 +38,7 @@ import platform.Foundation.NSNotification
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSNumber
 import platform.Foundation.NSOperationQueue
+import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSURL
 import platform.CoreGraphics.CGContextAddLineToPoint
 import platform.CoreGraphics.CGContextBeginPath
@@ -137,6 +138,17 @@ internal class IosPlaybackController(
      * on purpose — matching Media3's `handleAudioFocus = true` on Android.
      */
     private var pausedByInterruption: Boolean = false
+
+    /**
+     * Uptime of the last play/pause the *system* performed for us.
+     *
+     * One press of an AirPod arrives twice: as an audio-session interruption and
+     * as a remote toggle. Absolute commands (play, pause) are idempotent and
+     * survive that, but a bare toggle would undo whatever the interruption just
+     * did — pressing pause would keep playing, pressing play would stay paused.
+     * The toggle therefore ignores anything that lands in the same instant.
+     */
+    private var lastSystemTransportChange: Double = 0.0
 
     /** See the Android controller: read-then-append must be one atomic step. */
     private val appendMutex = Mutex()
@@ -546,6 +558,7 @@ internal class IosPlaybackController(
                 if (pausedByInterruption && shouldResume && queue.isNotEmpty()) {
                     AVAudioSession.sharedInstance().setActive(true, null)
                     playing = playActiveBackend()
+                    lastSystemTransportChange = uptimeSeconds()
                     updateTicker()
                     invalidateNowPlayingInfo()
                     pushState()
@@ -572,10 +585,21 @@ internal class IosPlaybackController(
     private fun pauseFromSystem() {
         pauseActiveBackend()
         playing = false
+        lastSystemTransportChange = uptimeSeconds()
         updateTicker()
         invalidateNowPlayingInfo()
         pushState()
     }
+
+    /** Monotonic seconds; unaffected by the wall clock moving. */
+    private fun uptimeSeconds(): Double = NSProcessInfo.processInfo.systemUptime
+
+    /**
+     * True when the system just moved the transport for us, so a remote toggle
+     * arriving now is the second delivery of one physical press, not a new one.
+     */
+    private fun systemJustChangedTransport(): Boolean =
+        uptimeSeconds() - lastSystemTransportChange < DUPLICATE_TRANSPORT_WINDOW_S
 
     /** Bridges natural completion from the MediaPlayer backend into the shared queue. */
     private fun wireMediaPlayer() {
@@ -648,7 +672,9 @@ internal class IosPlaybackController(
             MPRemoteCommandHandlerStatusSuccess
         }
         center.togglePlayPauseCommand.addTargetWithHandler { _ ->
-            mainScope.launch { togglePlayPause() }
+            // A headphone press reaches us twice — once as an interruption, once
+            // here. Undoing the interruption's work would make the button dead.
+            mainScope.launch { if (!systemJustChangedTransport()) togglePlayPause() }
             MPRemoteCommandHandlerStatusSuccess
         }
         center.nextTrackCommand.addTargetWithHandler { _ ->
@@ -769,7 +795,13 @@ internal class IosPlaybackController(
         }
         if (playing && backendPaused) {
             playing = false
+            // Same press, same rule as the observers: this is the system moving
+            // the transport, so a remote toggle chasing it must not undo it.
+            lastSystemTransportChange = uptimeSeconds()
             updateTicker()
+            // The ticker stops here, so this is the last chance to tell the lock
+            // screen the rate is now zero.
+            invalidateNowPlayingInfo()
         }
     }
 
@@ -970,6 +1002,13 @@ internal class IosPlaybackController(
 
         /** Past this point, "previous" restarts the track instead of stepping back. */
         const val RESTART_THRESHOLD_MS = 3_000L
+
+        /**
+         * How close two transport events have to be to count as one press.
+         * Long enough to cover the gap between an interruption and its remote
+         * toggle, far shorter than any real double-press of a headphone button.
+         */
+        const val DUPLICATE_TRANSPORT_WINDOW_S = 0.6
 
     }
 
