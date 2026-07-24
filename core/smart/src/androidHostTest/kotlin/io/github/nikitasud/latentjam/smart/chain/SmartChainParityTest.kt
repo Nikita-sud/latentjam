@@ -121,6 +121,7 @@ class SmartChainParityTest {
     ) : PredictorRuntime {
         private var encodeCalls = 0
         private var scoreCalls = 0
+        private var coldCentroid: FloatArray? = null
 
         override suspend fun load() = Result.success(Unit)
 
@@ -132,14 +133,29 @@ class SmartChainParityTest {
             sessionFeatures: FloatArray,
         ): FloatArray {
             val dim = PredictorRuntime.STATE_DIM
-            // This recorded fixture exercises the cold/no-history contract, where both slow-taste
-            // inputs equal the newest (seed) token. History-aware inputs have a separate test.
-            val newest = historySmall.copyOfRange(
-                (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM,
-                (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM + dim,
-            )
-            check(historyMedium.contentEquals(newest)) { "history_medium must be the newest token" }
-            check(historyLarge.contentEquals(newest)) { "history_large must be the newest token" }
+            // Cold/no-history contract, mirrored by export_parity_fixture.py: the two slow-taste
+            // inputs are the seed's audio and stay FIXED across hops — the chain re-encodes only
+            // history_small (the reference re-encodes `features.copy(historySmall = ...)`; the port
+            // passes the same fixed context.medium/large). A port that wrongly advanced them to the
+            // newest token would break this. History-aware inputs have a separate test.
+            check(historyMedium.contentEquals(historyLarge)) {
+                "cold contract: history_medium and history_large are the same fixed centroid"
+            }
+            val fixed = coldCentroid
+            if (fixed == null) {
+                val newest = historySmall.copyOfRange(
+                    (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM,
+                    (PredictorRuntime.CONTEXT_K - 1) * PredictorRuntime.TOKEN_DIM + dim,
+                )
+                check(historyMedium.contentEquals(newest)) {
+                    "cold contract: the slow-taste inputs start at the seed token"
+                }
+                coldCentroid = historyMedium.copyOf()
+            } else {
+                check(historyMedium.contentEquals(fixed)) {
+                    "cold contract: the slow-taste inputs stay fixed at the seed across hops"
+                }
+            }
             val at = encodeCalls++
             return states.copyOfRange(at * dim, (at + 1) * dim)
         }
