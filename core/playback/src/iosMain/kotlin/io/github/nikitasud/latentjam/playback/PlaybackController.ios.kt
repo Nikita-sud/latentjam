@@ -25,7 +25,16 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
+import platform.AVFAudio.AVAudioSessionInterruptionNotification
+import platform.AVFAudio.AVAudioSessionInterruptionOptionKey
+import platform.AVFAudio.AVAudioSessionInterruptionOptionShouldResume
+import platform.AVFAudio.AVAudioSessionInterruptionTypeBegan
+import platform.AVFAudio.AVAudioSessionInterruptionTypeKey
+import platform.AVFAudio.AVAudioSessionRouteChangeNotification
+import platform.AVFAudio.AVAudioSessionRouteChangeReasonKey
+import platform.AVFAudio.AVAudioSessionRouteChangeReasonOldDeviceUnavailable
 import platform.AVFAudio.setActive
+import platform.Foundation.NSNotification
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSNumber
 import platform.Foundation.NSOperationQueue
@@ -122,6 +131,13 @@ internal class IosPlaybackController(
     private var repeat: RepeatMode = RepeatMode.OFF
     private var playing: Boolean = false
 
+    /**
+     * True while the system silenced us mid-play (a call, Siri, another app).
+     * Gates the auto-resume so we only pick playback back up if we did not stop
+     * on purpose — matching Media3's `handleAudioFocus = true` on Android.
+     */
+    private var pausedByInterruption: Boolean = false
+
     /** See the Android controller: read-then-append must be one atomic step. */
     private val appendMutex = Mutex()
 
@@ -144,6 +160,7 @@ internal class IosPlaybackController(
 
     init {
         configureAudioSession()
+        wireAudioSessionObservers()
         wireMediaPlayer()
         wireRemoteCommands()
     }
@@ -481,6 +498,83 @@ internal class IosPlaybackController(
         // ring/silent switch — without it the app is silent in the user's pocket.
         session.setCategory(AVAudioSessionCategoryPlayback, null)
         session.setActive(true, null)
+    }
+
+    /**
+     * Mirrors what Media3 gives Android for free (`handleAudioFocus = true` +
+     * `setHandleAudioBecomingNoisy(true)`). The AVAudioEngine graph is otherwise
+     * deaf to everything the system does behind our back, so a headphone tap or
+     * an unplug would silence the audio while the lock screen kept showing a
+     * pause button over dead sound — and no way to resume from there.
+     *
+     * Both handlers force a lock-screen refresh via [invalidateNowPlayingInfo]
+     * so the transport always learns the new rate, even when the play flag was
+     * already what the change-guard expected.
+     *
+     * MediaPlayer-backed items are left alone: MPMusicPlayerController raises its
+     * own interruption state, already handled in [wireMediaPlayer].
+     */
+    private fun wireAudioSessionObservers() {
+        val center = NSNotificationCenter.defaultCenter
+        center.addObserverForName(
+            AVAudioSessionInterruptionNotification,
+            null,
+            NSOperationQueue.mainQueue,
+        ) { note -> onAudioInterruption(note) }
+        center.addObserverForName(
+            AVAudioSessionRouteChangeNotification,
+            null,
+            NSOperationQueue.mainQueue,
+        ) { note -> onAudioRouteChange(note) }
+    }
+
+    private fun onAudioInterruption(note: NSNotification?) {
+        val info = note?.userInfo ?: return
+        val type = (info[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.longValue ?: return
+        val began = type == AVAudioSessionInterruptionTypeBegan.toLong()
+        val option = (info[AVAudioSessionInterruptionOptionKey] as? NSNumber)?.longValue ?: 0L
+        val shouldResume =
+            option and AVAudioSessionInterruptionOptionShouldResume.toLong() != 0L
+        mainScope.launch {
+            if (activeBackend != PlaybackBackend.FILE) return@launch
+            if (began) {
+                if (playing) {
+                    pausedByInterruption = true
+                    pauseFromSystem()
+                }
+            } else {
+                if (pausedByInterruption && shouldResume && queue.isNotEmpty()) {
+                    AVAudioSession.sharedInstance().setActive(true, null)
+                    playing = playActiveBackend()
+                    updateTicker()
+                    invalidateNowPlayingInfo()
+                    pushState()
+                }
+                pausedByInterruption = false
+            }
+        }
+    }
+
+    private fun onAudioRouteChange(note: NSNotification?) {
+        val reason = (note?.userInfo?.get(AVAudioSessionRouteChangeReasonKey) as? NSNumber)?.longValue
+            ?: return
+        // Only "the thing I was playing to just vanished" — unplugging headphones
+        // or pulling an AirPod. Everything else (new device, category change) is
+        // none of our business and would pause on innocuous route reshuffles.
+        val oldDeviceGone = reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable.toLong()
+        if (!oldDeviceGone) return
+        mainScope.launch {
+            if (activeBackend == PlaybackBackend.FILE && playing) pauseFromSystem()
+        }
+    }
+
+    /** Reflect a system-initiated stop and make sure the lock screen agrees. */
+    private fun pauseFromSystem() {
+        pauseActiveBackend()
+        playing = false
+        updateTicker()
+        invalidateNowPlayingInfo()
+        pushState()
     }
 
     /** Bridges natural completion from the MediaPlayer backend into the shared queue. */
