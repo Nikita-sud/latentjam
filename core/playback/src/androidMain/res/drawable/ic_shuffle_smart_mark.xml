@@ -1,0 +1,51 @@
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  The LatentJam mark as a notification-action icon: three nodes in latent
+  space joined by curved edges tracing an L. Kept geometry-identical to the
+  Compose `LatentJamMark` so the media notification wears the same SMART glyph
+  as the in-app player. System UI renders notification actions monochrome from
+  the alpha channel, so the source colour here is only a placeholder.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <group
+        android:pivotX="50"
+        android:pivotY="52.5"
+        android:scaleX="1.5"
+        android:scaleY="1.5">
+        <!-- Ghost "L" behind the graph. -->
+        <path
+            android:pathData="M30,30 V75 H45"
+            android:strokeColor="#000000"
+            android:strokeWidth="6"
+            android:strokeAlpha="0.4"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Edges. -->
+        <path
+            android:pathData="M30,30 C50,30 50,50 70,50"
+            android:strokeColor="#000000"
+            android:strokeWidth="7"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M70,50 C70,70 60,75 45,75"
+            android:strokeColor="#000000"
+            android:strokeWidth="7"
+            android:strokeLineCap="round" />
+        <!-- Nodes. -->
+        <path
+            android:pathData="M21,30 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0 Z"
+            android:fillColor="#000000" />
+        <path
+            android:pathData="M61,50 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0 Z"
+            android:fillColor="#000000" />
+        <path
+            android:pathData="M36,75 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0 Z"
+            android:fillColor="#000000" />
+    </group>
+</vector>

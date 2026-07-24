@@ -152,6 +152,13 @@ public class PlaybackService : MediaSessionService() {
             .setSlots(CommandButton.SLOT_BACK_SECONDARY, CommandButton.SLOT_OVERFLOW)
             .build(),
         CommandButton.Builder(shuffleIcon(shuffleMode))
+            .apply {
+                // SMART wears the app's own mark, exactly like the in-app player. Media3 takes a
+                // drawable resource here; the semantic icon stays UNDEFINED so nothing overrides it.
+                if (shuffleMode == ShuffleMode.SMART) {
+                    setIconResId(R.drawable.ic_shuffle_smart_mark)
+                }
+            }
             .setDisplayName(shuffleActionName(shuffleMode))
             .setSessionCommand(CycleShuffleModeCommand)
             .setSlots(CommandButton.SLOT_FORWARD_SECONDARY, CommandButton.SLOT_OVERFLOW)
@@ -168,7 +175,8 @@ public class PlaybackService : MediaSessionService() {
     private fun shuffleIcon(mode: ShuffleMode): Int = when (mode) {
         ShuffleMode.OFF -> CommandButton.ICON_SHUFFLE_OFF
         ShuffleMode.ON -> CommandButton.ICON_SHUFFLE_ON
-        ShuffleMode.SMART -> CommandButton.ICON_SHUFFLE_STAR
+        // The drawable set in mediaButtonPreferences supplies the glyph; no built-in star.
+        ShuffleMode.SMART -> CommandButton.ICON_UNDEFINED
     }
 
     private fun shuffleActionName(mode: ShuffleMode): String = when (mode) {

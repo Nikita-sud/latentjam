@@ -14,6 +14,9 @@ kotlin {
         namespace = "io.github.nikitasud.latentjam.playback"
         compileSdk = 36
         minSdk = 24
+        // The media notification carries the SMART-shuffle glyph as a drawable
+        // (Media3 CommandButton takes a resource id, not a Compose vector).
+        androidResources.enable = true
         withHostTest {}
     }
 
