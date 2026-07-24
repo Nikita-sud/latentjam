@@ -65,6 +65,21 @@ internal class SmartSnapshot private constructor(
         return dot
     }
 
+    /**
+     * Centered-descriptor cosine between two rows, or `null` when the descriptor space is absent or
+     * either row lacks a descriptor — callers then fall back to audio-only (see [Reanchor.fusedCos]).
+     */
+    fun descriptorCosine(rowA: Int, rowB: Int): Float? {
+        val dc = centeredDescriptor ?: return null
+        val has = hasDescriptor ?: return null
+        if (rowA < 0 || rowB < 0 || !has[rowA] || !has[rowB]) return null
+        var dot = 0f
+        val baseA = rowA * DESCRIPTOR_DIM
+        val baseB = rowB * DESCRIPTOR_DIM
+        for (d in 0 until DESCRIPTOR_DIM) dot += dc[baseA + d] * dc[baseB + d]
+        return dot
+    }
+
     companion object {
         const val AUDIO_DIM = 960
         const val TEXT_DIM = 384

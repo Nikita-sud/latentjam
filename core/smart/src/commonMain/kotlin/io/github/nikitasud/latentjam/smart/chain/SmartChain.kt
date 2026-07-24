@@ -168,9 +168,74 @@ internal class SmartChain(
         // Seed-relative semantic z: computed once against the ORIGINAL pick, constant for the walk.
         val zSeed = chainSemanticZ(seedRow, poolRows)
 
+        // A pool position still in the running this hop: not already picked, and past the artist
+        // spacing/cap and repeated-title filters. Shared by the scoring loop and the tail re-anchor
+        // so the niche count sees exactly the candidates the scorer would.
+        fun isEligible(i: Int): Boolean {
+            if (i in used) return false
+            val meta = snapshot.tracks[pool[i]].meta
+            if (meta.artistKey in recentArtists) return false
+            if (meta.normalizedTitle in seenTitles) return false
+            if ((artistPlays[meta.artistKey] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP) return false
+            return true
+        }
+
         while (chain.size < length) {
             // Previous-pick-relative semantic z: recomputed each hop against the current anchor.
             val zPrev = chainSemanticZ(anchorRow, poolRows)
+
+            // Tail-exhaustion re-anchor. From output position REANCHOR MIN_IDX on, once too few
+            // eligible candidates sit within NICHE_COS fused cosine of the ORIGINAL seed the niche
+            // is spent, so the seed-anchored gravity + semantic-seed terms re-anchor to the chain's
+            // own centroid (keeping SEED_KEEP of the intent). Recomputed per hop; hops before
+            // MIN_IDX, and any hop that never exhausts, leave the score byte-identical.
+            var effSeed: FloatArray? = null
+            var zSeedActive = zSeed
+            if (Reanchor.ENABLED && seedRow >= 0 && chain.size >= Reanchor.MIN_IDX) {
+                var onNiche = 0
+                for (i in pool.indices) {
+                    if (!isEligible(i)) continue
+                    val row = pool[i]
+                    val fused = Reanchor.fusedCos(
+                        snapshot.centeredCosine(seedRow, row),
+                        snapshot.descriptorCosine(seedRow, row),
+                    )
+                    if (fused >= Reanchor.NICHE_COS) onNiche++
+                }
+                if (Reanchor.reanchorExhausted(onNiche)) {
+                    val dim = SmartSnapshot.AUDIO_DIM
+                    val centroid = FloatArray(dim)
+                    for (pickedRow in chain) {
+                        val base = pickedRow * dim
+                        for (d in 0 until dim) centroid[d] += snapshot.centeredAudio[base + d]
+                    }
+                    var sumSq = 0.0
+                    for (x in centroid) sumSq += x.toDouble() * x
+                    val cnorm = sqrt(sumSq).toFloat()
+                    if (cnorm > 1e-9f) {
+                        val inv = 1f / cnorm
+                        for (d in 0 until dim) centroid[d] *= inv
+                        val seedVec = snapshot.centeredAudio.copyOfRange(
+                            seedRow * dim,
+                            (seedRow + 1) * dim,
+                        )
+                        effSeed = Reanchor.reanchorBlend(seedVec, centroid, Reanchor.SEED_KEEP)
+                        // zSeed reference -> the played pick nearest the centroid (its medoid).
+                        var medoidRow = -1
+                        var bestDot = Float.NEGATIVE_INFINITY
+                        for (pickedRow in chain) {
+                            var dot = 0f
+                            val base = pickedRow * dim
+                            for (d in 0 until dim) dot += centroid[d] * snapshot.centeredAudio[base + d]
+                            if (dot > bestDot) {
+                                bestDot = dot
+                                medoidRow = pickedRow
+                            }
+                        }
+                        if (medoidRow >= 0) zSeedActive = chainSemanticZ(medoidRow, poolRows)
+                    }
+                }
+            }
             val logits = if (live) {
                 runCatching {
                     runtime!!.score(state, candidates, textState, textCandidates, textMask)
@@ -185,20 +250,20 @@ internal class SmartChain(
             var bestIndex = -1
             var bestScore = Float.NEGATIVE_INFINITY
             for (i in pool.indices) {
-                if (i in used) continue
+                if (!isEligible(i)) continue
                 val row = pool[i]
                 val meta = snapshot.tracks[row].meta
-                if (meta.artistKey in recentArtists) continue
-                if (meta.normalizedTitle in seenTitles) continue
-                if ((artistPlays[meta.artistKey] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP) continue
 
                 var score = ChainConfig.SCORER_SQUASH * tanh(logits[i] / ChainConfig.SCORER_TEMP)
                 score += ChainConfig.COSINE_BLEND_WEIGHT * snapshot.centeredCosine(anchorRow, row)
-                score += ChainConfig.CHAIN_SEED_GRAVITY * snapshot.centeredCosine(seedRow, row)
+                // Seed gravity toward the user's actual pick — or, on an exhausted tail hop, toward
+                // the re-anchored effective seed (effSeed).
+                score += ChainConfig.CHAIN_SEED_GRAVITY * seedGravityCos(effSeed, seedRow, row)
                 // Semantic gravity/blend: same shape as the audio terms, in the descriptor+text
                 // spaces and pool-normalized (see zSeed/zPrev construction). Zero when the seed or
                 // anchor has no semantic vector or too few pool members do, leaving score unchanged.
-                score += ChainConfig.SEM_CHAIN_SEED_GRAVITY * zSeed[i] +
+                // zSeedActive == zSeed except on an exhausted tail hop (medoid reference).
+                score += ChainConfig.SEM_CHAIN_SEED_GRAVITY * zSeedActive[i] +
                     ChainConfig.SEM_CHAIN_PREV_BLEND * zPrev[i]
                 var multiplier = MetadataRerank.adjustMultiplier(anchorMeta, meta)
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)
@@ -486,6 +551,19 @@ internal class SmartChain(
      * [SemanticZ] for why pool-relative z rather than raw cosine). Zeros when [refRow] has no
      * vectors or a space is not loaded, leaving the chain score exactly as it was before this term.
      */
+    /**
+     * Seed-gravity cosine for a candidate row: centered cosine to the original seed, or — on an
+     * exhausted tail hop — to the re-anchored effective seed ([effSeed], a unit centered-audio
+     * vector). Kept in one place so both branches measure in the same space.
+     */
+    private fun seedGravityCos(effSeed: FloatArray?, seedRow: Int, row: Int): Float {
+        if (effSeed == null) return snapshot.centeredCosine(seedRow, row)
+        var dot = 0f
+        val base = row * SmartSnapshot.AUDIO_DIM
+        for (d in 0 until SmartSnapshot.AUDIO_DIM) dot += effSeed[d] * snapshot.centeredAudio[base + d]
+        return dot
+    }
+
     private fun chainSemanticZ(refRow: Int, poolRows: IntArray): FloatArray {
         val zDesc = SemanticZ.poolZ(
             snapshot.centeredDescriptor,
