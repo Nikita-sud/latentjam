@@ -63,10 +63,14 @@ import io.github.nikitasud.latentjam.app.generated.resources.search_hint_count
 import io.github.nikitasud.latentjam.app.generated.resources.search_no_matches
 import io.github.nikitasud.latentjam.app.generated.resources.search_placeholder
 import io.github.nikitasud.latentjam.app.generated.resources.search_recent_title
+import io.github.nikitasud.latentjam.history.TrackStats
+import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.smart.ScoredTrack
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
+import io.github.nikitasud.latentjam.smart.text.SearchFold
+import kotlin.math.pow
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -111,15 +115,21 @@ internal fun SearchScreen(
     var results by remember(songs) { mutableStateOf<List<TrackDescriptor>>(emptyList()) }
     var resultQuery by remember(songs) { mutableStateOf("") }
     var isSearching by remember(songs) { mutableStateOf(false) }
+    var trackStats by remember { mutableStateOf<Map<TrackId, TrackStats>>(emptyMap()) }
     val entityResolver = AppGraph.musicEntities
     val rememberSearches by AppGraph.settings.rememberSearches.collectAsState()
+    val historyRevision by AppGraph.historyRevision.collectAsState()
 
     // Normalize/tokenize the library once, off the UI thread. The old path rebuilt all fields,
     // tokens and edit-distance inputs synchronously in composition for every typed character.
     LaunchedEffect(songs) {
         searchIndex = withContext(Dispatchers.Default) { SearchIndex.build(songs) }
     }
-    LaunchedEffect(searchIndex, query, semantic, semanticQuery, entityResolver) {
+    // Per-track play aggregates for affinity ordering; reloaded whenever the log gains an event.
+    LaunchedEffect(historyRevision) {
+        trackStats = withContext(Dispatchers.Default) { AppGraph.history.stats() }
+    }
+    LaunchedEffect(searchIndex, query, semantic, semanticQuery, entityResolver, trackStats) {
         val needle = query.trim()
         val index = searchIndex
         if (needle.isBlank()) {
@@ -133,9 +143,17 @@ internal fun SearchScreen(
         } else {
             isSearching = true
             val matchingSemantic = semantic.takeIf { semanticQuery == needle }.orEmpty()
+            val nowMs = epochMillis()
             val calculated = withContext(Dispatchers.Default) {
                 val context = currentCoroutineContext()
-                hybridSearch(index, needle, matchingSemantic, entityResolver) {
+                hybridSearch(
+                    index = index,
+                    query = needle,
+                    semantic = matchingSemantic,
+                    entityResolver = entityResolver,
+                    stats = trackStats,
+                    nowMs = nowMs,
+                ) {
                     context.ensureActive()
                 }
             }
@@ -374,11 +392,15 @@ internal fun hybridSearch(
     query: String,
     semantic: List<ScoredTrack>,
     entityResolver: MusicEntityResolver? = null,
+    stats: Map<TrackId, TrackStats> = emptyMap(),
+    nowMs: Long = 0L,
 ): List<TrackDescriptor> = hybridSearch(
     index = SearchIndex.build(songs),
     query = query,
     semantic = semantic,
     entityResolver = entityResolver,
+    stats = stats,
+    nowMs = nowMs,
 )
 
 private fun hybridSearch(
@@ -386,18 +408,36 @@ private fun hybridSearch(
     query: String,
     semantic: List<ScoredTrack>,
     entityResolver: MusicEntityResolver?,
+    stats: Map<TrackId, TrackStats> = emptyMap(),
+    nowMs: Long = 0L,
     checkCancelled: () -> Unit = {},
 ): List<TrackDescriptor> {
     val needle = query.trim()
     val normalizedNeedle = normalizeSearchText(needle)
     if (normalizedNeedle.isEmpty()) return emptyList()
     val queryTokens = searchTokens(normalizedNeedle)
+    // Within a lexical-rank tier, order by play affinity (plays × recency decay) then name — a
+    // frequently/recently played match floats to the top of its group. The rank itself keeps the
+    // exact/prefix tiers pinned above deeper substring/fuzzy matches, so an exact title is never
+    // buried under a more-played substring hit.
     val lexical = index.documents.mapIndexedNotNull { documentIndex, document ->
         if (documentIndex % CANCELLATION_CHECK_INTERVAL == 0) checkCancelled()
         document.lexicalRank(normalizedNeedle, queryTokens)?.let { rank ->
-            RankedTrack(document.track, rank, document.libraryOrder)
+            val stat = stats[document.track.id]
+            RankedTrack(
+                track = document.track,
+                rank = rank,
+                affinity = SearchAffinity.affinity(stat?.plays ?: 0, stat?.lastPlayedAtMs ?: 0L, nowMs),
+                nameKey = document.fields.firstOrNull() ?: "",
+                libraryOrder = document.libraryOrder,
+            )
         }
-    }.sortedWith(compareBy<RankedTrack> { it.rank }.thenBy { it.libraryOrder })
+    }.sortedWith(
+        compareBy<RankedTrack> { it.rank }
+            .thenByDescending { it.affinity }
+            .thenBy { it.nameKey }
+            .thenBy { it.libraryOrder },
+    )
 
     val used = lexical.mapTo(HashSet()) { it.track.id }
     val entities = entityResolver?.let { resolver ->
@@ -406,11 +446,8 @@ private fun hybridSearch(
             .filter { it.id !in used && resolver.matches(needle, it.artist) }
             .onEach { used += it.id }
     }.orEmpty()
-    val bestSemantic = semantic.firstOrNull()?.score ?: Float.NEGATIVE_INFINITY
-    val semanticFloor = maxOf(MIN_SEMANTIC_SCORE, bestSemantic - MAX_SEMANTIC_GAP)
-    val expanded = semantic.asSequence()
+    val expanded = SemanticGate.gate(semantic).asSequence()
         .onEach { checkCancelled() }
-        .takeWhile { it.score >= semanticFloor }
         .mapNotNull { index.byId[it.trackId] }
         .filter { used.add(it.id) }
         .take(SEMANTIC_RESULT_LIMIT)
@@ -418,6 +455,49 @@ private fun hybridSearch(
     return (lexical.asSequence().map { it.track } + entities + expanded)
         .take(SEARCH_RESULT_LIMIT)
         .toList()
+}
+
+/**
+ * Confidence gate for the semantic ("Sounds like") tier, ported from the validated absolute rule:
+ * show the section only when `cos_top1 >= MIN_TOP1` AND `cos_top1 − mean(cos[BG_LO:BG_HI]) >=
+ * MIN_MARGIN`. The margin against the deep background band — not the near neighbours — is what kills
+ * diffuse "blob" false positives (a diffuse match has a high background mean; a real cluster sits
+ * far above its tail). With fewer than [BG_HI] scored candidates the band can't be measured, so the
+ * section declines rather than guess. [ranked] must be sorted by score descending (as the engine
+ * returns it); when the gate fires the top [TOP_K] rows are shown.
+ */
+internal object SemanticGate {
+    const val MIN_TOP1 = 0.45f
+    const val MIN_MARGIN = 0.22f
+    const val BG_LO = 50
+    const val BG_HI = 150
+    const val TOP_K = 10
+
+    fun gate(ranked: List<ScoredTrack>): List<ScoredTrack> {
+        if (ranked.size < BG_HI) return emptyList()
+        val top1 = ranked[0].score
+        var bgSum = 0.0
+        for (i in BG_LO until BG_HI) bgSum += ranked[i].score
+        val bgMean = (bgSum / (BG_HI - BG_LO)).toFloat()
+        if (top1 < MIN_TOP1 || top1 - bgMean < MIN_MARGIN) return emptyList()
+        return ranked.take(TOP_K)
+    }
+}
+
+/**
+ * Affinity for a lexical result group: `plays × 2^(−ageDays / HALF_LIFE_DAYS)`. Recent plays count
+ * for more, and a never-played track scores exactly 0 so unheard matches keep their alphabetical
+ * order among themselves.
+ */
+internal object SearchAffinity {
+    const val HALF_LIFE_DAYS = 30.0
+    private const val DAY_MS = 24L * 60L * 60L * 1000L
+
+    fun affinity(plays: Int, lastPlayedAtMs: Long, nowMs: Long): Double {
+        if (plays <= 0) return 0.0
+        val ageDays = ((nowMs - lastPlayedAtMs).coerceAtLeast(0L)).toDouble() / DAY_MS
+        return plays * 2.0.pow(-ageDays / HALF_LIFE_DAYS)
+    }
 }
 
 /** 0 exact, 1 prefix, 2 token-prefix, 3 word-family/typo, 4 substring. */
@@ -441,10 +521,13 @@ private fun SearchDocument.lexicalRank(
     return null
 }
 
+// Fold first (NFD diacritic strip + Cyrillic→Latin transliteration, applied symmetrically to the
+// index and the query), then collapse the folded text to single-spaced alphanumeric tokens. The
+// fold is what lets a Latin-keyboard query reach non-Latin metadata; the collapse keeps the tokens
+// and edit-distance inputs the fuzzy matcher already expects.
 private fun normalizeSearchText(value: String): String = buildString(value.length) {
     var previousSpace = true
-    value.lowercase().forEach { original ->
-        val character = if (original == 'ё') 'е' else original
+    SearchFold.fold(value).forEach { character ->
         when {
             character.isLetterOrDigit() -> {
                 append(character)
@@ -493,6 +576,8 @@ private fun editDistanceAtMost(left: String, right: String, limit: Int): Boolean
 private data class RankedTrack(
     val track: TrackDescriptor,
     val rank: Int,
+    val affinity: Double,
+    val nameKey: String,
     val libraryOrder: Int,
 )
 
@@ -527,9 +612,9 @@ private class SearchIndex private constructor(
 
 private const val MIN_SEMANTIC_QUERY_CHARS = 2
 private const val SEMANTIC_DEBOUNCE_MS = 180L
-private const val SEMANTIC_CANDIDATE_LIMIT = 64
+// The confidence gate measures a background band up to rank [SemanticGate.BG_HI]; fetch enough
+// candidates to fill it, or the section always declines. 200 gives the band real headroom.
+private const val SEMANTIC_CANDIDATE_LIMIT = 200
 private const val SEMANTIC_RESULT_LIMIT = 24
 private const val SEARCH_RESULT_LIMIT = 80
 private const val CANCELLATION_CHECK_INTERVAL = 32
-private const val MIN_SEMANTIC_SCORE = 0.35f
-private const val MAX_SEMANTIC_GAP = 0.18f
