@@ -117,7 +117,8 @@ internal class SmartChain(
             FloatArray(0)
         }
 
-        val pool = buildPool(seedRow, state)
+        val excludedRows = sessionExclusions(seedRow, context.sessionRows)
+        val pool = buildPool(seedRow, state, excludedRows)
         if (pool.isEmpty()) return ChainResult.EMPTY
         // Pool positions carry snapshot rows; the semantic z-scores and fused candidate block are
         // computed per pool position so everything lines up with candidate `pool[i]` below.
@@ -368,6 +369,15 @@ internal class SmartChain(
             sessionStart--
         }
         val sessionEvents = aligned.subList(sessionStart, aligned.size)
+        // The queue's notion of "this session" is the SAME walk that produces session_features
+        // below, so what the encoder sees and what the queue excludes can never drift apart.
+        val sessionRows = HashMap<Int, Long>()
+        for (event in sessionEvents) {
+            val previous = sessionRows[event.row]
+            if (previous == null || event.timestamp > previous) {
+                sessionRows[event.row] = event.timestamp
+            }
+        }
         val recent = sessionEvents.takeLast(PredictorRuntime.CONTEXT_K)
         val padded = ArrayList<ContextEvent>(PredictorRuntime.CONTEXT_K)
         repeat(PredictorRuntime.CONTEXT_K - recent.size) { padded += recent.first() }
@@ -405,7 +415,29 @@ internal class SmartChain(
             large = tasteCentroid(aligned, seedRow, LARGE_HALF_LIFE_DAYS),
             session = session,
             textRows = textRows,
+            sessionRows = sessionRows,
         )
+    }
+
+    /**
+     * Rows the listener already heard this sitting, which the queue must not serve again.
+     *
+     * "I just heard this" is a fact, not a preference to be weighed against acoustic similarity,
+     * so it is enforced as eligibility rather than as another score term. As a term it loses:
+     * [RecencyRerank] tops out at ln(0.10) = -2.30 for a track played minutes ago, while the
+     * semantic gravity added to the chain score reaches ±9 and measures +3.6 on average, so a
+     * just-played track in the seed's own cluster still wins its hop.
+     *
+     * Cluster exhaustion is deliberately NOT guarded. Having heard most of a niche, the right
+     * queue is what remains followed by a drift outward, which is [Reanchor]'s job.
+     *
+     * Task 3 adds the starvation guard for a session larger than the library; do not add it here.
+     */
+    private fun sessionExclusions(seedRow: Int, sessionRows: Map<Int, Long>): Set<Int> {
+        if (sessionRows.isEmpty()) return emptySet()
+        val excluded = HashSet(sessionRows.keys)
+        excluded.remove(seedRow)
+        return excluded
     }
 
     private fun coldContext(seedRow: Int, session: FloatArray): PreparedContext {
@@ -430,6 +462,7 @@ internal class SmartChain(
             large = seed.copyOf(),
             session = session,
             textRows = IntArray(PredictorRuntime.CONTEXT_K) { seedRow },
+            sessionRows = emptyMap(),
         )
     }
 
@@ -472,6 +505,8 @@ internal class SmartChain(
         val large: FloatArray,
         val session: FloatArray,
         val textRows: IntArray,
+        /** Snapshot row → newest play timestamp within the current session. */
+        val sessionRows: Map<Int, Long>,
     )
 
     /**
@@ -482,7 +517,7 @@ internal class SmartChain(
      * interleaving gives each channel representation without a hand-tuned cross-modal weight; the
      * scorer learns how much optional text should affect ordering.
      */
-    private fun buildPool(seedRow: Int, state: FloatArray): List<Int> {
+    private fun buildPool(seedRow: Int, state: FloatArray, excluded: Set<Int>): List<Int> {
         val n = snapshot.size
         val dim = PredictorRuntime.EMBEDDING_DIM
         val anchorScores = FloatArray(n) { row ->
@@ -517,10 +552,12 @@ internal class SmartChain(
             anchorScores.copyInto(stateScores)
         }
 
-        val anchorOrder = order(anchorScores, seedRow)
-        val stateOrder = order(stateScores, seedRow)
+        val anchorOrder = order(anchorScores, seedRow, excluded)
+        val stateOrder = order(stateScores, seedRow, excluded)
         val textOrder = textScores.indices
-            .filter { it != seedRow && eligibleRows[it] && textScores[it].isFinite() }
+            .filter {
+                it != seedRow && eligibleRows[it] && it !in excluded && textScores[it].isFinite()
+            }
             .sortedByDescending { textScores[it] }
             .toIntArray()
         val pool = ArrayList<Int>(PredictorRuntime.POOL_SIZE)
@@ -587,8 +624,8 @@ internal class SmartChain(
         return if (over <= 0f) 1f else (1f - over).coerceAtLeast(ChainConfig.ENERGY_FLOOR)
     }
 
-    private fun order(scores: FloatArray, exclude: Int): IntArray =
-        scores.indices.filter { it != exclude && eligibleRows[it] }
+    private fun order(scores: FloatArray, exclude: Int, excluded: Set<Int>): IntArray =
+        scores.indices.filter { it != exclude && eligibleRows[it] && it !in excluded }
             .sortedByDescending { scores[it] }
             .toIntArray()
 
