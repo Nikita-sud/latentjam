@@ -52,6 +52,9 @@ internal object Tsne {
         initial: FloatArray? = null,
     ): FloatArray {
         require(n > 0 && dim > 0) { "Cannot embed an empty matrix" }
+        require(rows.size == n * dim) {
+            "rows.size was ${rows.size}, expected n * dim = ${n * dim} (n=$n, dim=$dim)"
+        }
         if (n < 3) return FloatArray(n * 2)
 
         val p = affinities(rows, n, dim)
@@ -165,7 +168,17 @@ internal object Tsne {
             var low = 0f
             var high = Float.MAX_VALUE
             var beta = 1f
-            repeat(PERPLEXITY_STEPS) {
+            // A real loop with a real break, not `repeat { return@repeat }`: `return@repeat` only
+            // returns from that one lambda invocation (a `continue`, not a `break`), so it used to
+            // skip the write on the very iteration where convergence was first detected -- and
+            // because entropy is monotone in beta, every later iteration re-converged too, so the
+            // row was stuck on its last *pre-convergence* estimate for the rest of the search. In
+            // the degenerate case where a point is equidistant from every other point (duplicate
+            // embeddings, or small n), entropy doesn't depend on beta at all, convergence is
+            // detected on step 0, and the write never happened even once -- the row stayed all
+            // zero forever. Writing `p[i * n + j]` unconditionally on every step, before the
+            // convergence check, means a `break` can never discard a result.
+            perplexitySearch@ for (step in 0 until PERPLEXITY_STEPS) {
                 var sum = 0f
                 var entropySum = 0f
                 for (j in 0 until n) {
@@ -181,6 +194,7 @@ internal object Tsne {
                 if (sum <= 0f) sum = 1e-12f
                 val entropy = ln(sum) + beta * entropySum / sum
                 val error = entropy - target
+                for (j in 0 until n) p[i * n + j] = row[j] / sum
                 if (error > 0f) {
                     low = beta
                     beta = if (high == Float.MAX_VALUE) beta * 2f else (beta + high) / 2f
@@ -188,13 +202,8 @@ internal object Tsne {
                     high = beta
                     beta = (beta + low) / 2f
                 }
-                if (error < PERPLEXITY_TOLERANCE && error > -PERPLEXITY_TOLERANCE) return@repeat
-                for (j in 0 until n) p[i * n + j] = row[j] / sum
+                if (error < PERPLEXITY_TOLERANCE && error > -PERPLEXITY_TOLERANCE) break@perplexitySearch
             }
-            var sum = 0f
-            for (j in 0 until n) sum += p[i * n + j]
-            if (sum <= 0f) sum = 1e-12f
-            for (j in 0 until n) p[i * n + j] /= sum
         }
 
         // Symmetrize and normalize to a joint distribution, with a floor so no pair contributes a
