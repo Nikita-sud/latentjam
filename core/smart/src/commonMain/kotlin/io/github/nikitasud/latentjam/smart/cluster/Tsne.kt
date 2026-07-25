@@ -15,8 +15,8 @@ import kotlin.math.ln
  * hand-made playlists, and PCA was far worse. See docs/map-page.md section 3.
  *
  * O(n^2) rather than Barnes-Hut. At library scale the full pair sweep is a couple of seconds, and
- * the layout is computed once per library change and cached, so the tree is complexity with no
- * user-visible return.
+ * the layout is computed once per library change and cached, so the tree would add complexity with
+ * no user-visible benefit.
  */
 internal object Tsne {
 

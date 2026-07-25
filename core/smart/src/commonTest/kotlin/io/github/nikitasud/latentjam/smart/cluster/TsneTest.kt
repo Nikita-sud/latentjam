@@ -71,13 +71,20 @@ class TsneTest {
     // probabilities that every other (non-degenerate) point gets.
     //
     // The affinity matrix itself is private to Tsne, so this asserts on the embedding, which is the
-    // only observable surface. A zeroed row 0 does not fully vanish after symmetrization (the other
-    // points still record their own conditional probability of point 0), but it does mean point 0
-    // is only ever pulled toward the group by half of the usual affinity mass, so under the bug it
-    // settles measurably farther from the group than the group's own diameter, driven outward by
-    // unopposed repulsion. Empirically (see report), for this construction the buggy code always
-    // lands point 0 at roughly 1.9x the group's mean radius, every seed tried; the fixed code always
-    // lands under 1.5x. 1.5x is the threshold below, chosen with margin on both sides.
+    // only observable surface: point 0's distance from the rest of the group's centroid, relative to
+    // the group's own mean radius. A zeroed row 0 does not fully vanish after symmetrization (the
+    // other points still record their own conditional probability of point 0), but it does mean
+    // point 0 is only ever pulled toward the group by half of the usual affinity mass, so under the
+    // bug it tends to settle farther from the group than the group's own mean radius, driven outward
+    // by unopposed repulsion.
+    //
+    // A *single* seed's ratio is not safe to threshold: the embedding's optimization dynamics
+    // (random initial layout, adaptive gains, momentum) make the ratio noisy per draw, and per-seed
+    // the fixed and buggy distributions overlap -- one seed even flips the ordering entirely (fixed
+    // 1.43 > buggy 0.35 at seed 19; see task-2-report.md for the full 16-seed table). Averaged over
+    // many seeds the noise cancels: the fixed code's mean ratio measures ~0.90 and the buggy code's
+    // ~1.75 across the seeds below, a gap wide enough to give real margin on both sides of the 1.3
+    // threshold, in a way no single draw could.
     @Test
     fun `embed does not strand a point whose perplexity search converges on step 0`() {
         val dim = 20
@@ -90,7 +97,29 @@ class TsneTest {
         // other, so only point 0 -- not the rest -- has the degenerate equidistant search.
         for (i in 1 until n) rows[i * dim + (i - 1)] = scale
 
-        val out = Tsne.embed(rows, n, dim, seed = 7)
+        // Odd seeds only: Tsne's internal PRNG state is seeded with `seed or 1`, so an even seed
+        // collapses onto the odd seed directly below it rather than giving an independent draw.
+        val seeds = intArrayOf(1, 3, 5, 7, 9, 11, 13, 17, 19, 23, 29, 31, 101, 2025, 31337, 99991)
+        var ratioSum = 0f
+        for (seed in seeds) ratioSum += strandedPointRatio(rows, n, dim, seed)
+        val meanRatio = ratioSum / seeds.size
+
+        assertTrue(
+            meanRatio < 1.3f,
+            "the equidistant point drifted to the edge of the map instead of joining the group, " +
+                "averaged over ${seeds.size} seeds: meanRatio=$meanRatio (bug leaves its affinity " +
+                "row zeroed, so it is only ever pulled toward the others by half the usual affinity " +
+                "mass)",
+        )
+    }
+
+    /**
+     * Distance of point 0 from the centroid of points `1 until n`, relative to those points' own
+     * mean distance to that centroid -- i.e. how far outside the group's typical radius point 0
+     * lands, as a multiple of that radius.
+     */
+    private fun strandedPointRatio(rows: FloatArray, n: Int, dim: Int, seed: Int): Float {
+        val out = Tsne.embed(rows, n, dim, seed = seed)
 
         var centroidX = 0f
         var centroidY = 0f
@@ -112,14 +141,7 @@ class TsneTest {
         val dx0 = out[0] - centroidX
         val dy0 = out[1] - centroidY
         val distanceFromGroup = sqrt(dx0 * dx0 + dy0 * dy0)
-
-        assertTrue(
-            distanceFromGroup < meanRadius * 1.5f,
-            "the equidistant point drifted to the edge of the map instead of joining the group: " +
-                "distanceFromGroup=$distanceFromGroup meanRadius=$meanRadius " +
-                "ratio=${distanceFromGroup / meanRadius} (bug leaves its affinity row zeroed, " +
-                "so it is only ever pulled toward the others by half the usual affinity mass)",
-        )
+        return distanceFromGroup / meanRadius
     }
 
     @Test
