@@ -113,9 +113,13 @@ A long session in a small library could leave too few candidates to fill the que
 
 Count the rows that remain selectable once session rows are removed — that is, rows where
 `eligibleRows` is already true, excluding the seed and the session. If that count is below
-`length`, re-admit session rows **oldest-played first** until `length` selectable rows are
-restored, then build the pool normally. The queue degrades to today's behaviour instead of
-returning a stub.
+`length`, re-admit session rows — **tracks the listener actually listened to before ones they
+skipped, oldest first within each group** — until `length` selectable rows are restored, then
+build the pool normally. The queue degrades to today's behaviour instead of returning a stub.
+Re-admission order must not invert §3.2's decision that a skip is at least as unwelcome as a
+completed play, which a timestamp-only ordering would do whenever a session opens with several
+skips: those are the oldest session rows, so a plain oldest-first guard would hand them back
+before anything the listener actually stayed for.
 
 This restores `length` *selectable rows*, not a filled queue: the count is taken over the whole
 library, before the per-hop artist-spacing, per-artist cap and duplicate-title filters run, none of
@@ -159,7 +163,7 @@ Unit tests in `core/smart/src/commonTest`:
   this change. This is the parity guarantee expressed as a unit test rather than left to the
   fixture harness.
 - **Starvation fallback.** With a library smaller than the session, the queue still reaches
-  `length`, and re-admitted tracks appear oldest-played first.
+  `length`, and re-admitted tracks appear listened-before-skipped, oldest first within each group.
 - **Pool slots.** Session rows do not occupy pool positions while non-session candidates remain.
 
 ## 7. Acceptance

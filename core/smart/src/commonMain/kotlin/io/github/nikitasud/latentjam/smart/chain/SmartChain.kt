@@ -374,14 +374,15 @@ internal class SmartChain(
         // The queue's notion of "this session" is the SAME walk that produces session_features
         // below, so what the encoder sees and what the queue excludes can never drift apart.
         // LinkedHashMap is load-bearing: sessionExclusions' starvation guard sorts these entries
-        // by timestamp with a stable sort, and ties (same-millisecond plays) must resolve to
-        // insertion order — i.e. session play order — rather than to a HashMap's unspecified
-        // iteration order, which Kotlin common code cannot guarantee matches across platforms.
-        val sessionRows = LinkedHashMap<Int, Long>()
+        // by skip flag then timestamp with a stable sort, and ties (same group, same-millisecond
+        // plays) must resolve to insertion order — i.e. session play order — rather than to a
+        // HashMap's unspecified iteration order, which Kotlin common code cannot guarantee matches
+        // across platforms.
+        val sessionRows = LinkedHashMap<Int, SessionPlay>()
         for (event in sessionEvents) {
             val previous = sessionRows[event.row]
-            if (previous == null || event.timestamp > previous) {
-                sessionRows[event.row] = event.timestamp
+            if (previous == null || event.timestamp > previous.timestamp) {
+                sessionRows[event.row] = SessionPlay(event.skipped, event.timestamp)
             }
         }
         val recent = sessionEvents.takeLast(PredictorRuntime.CONTEXT_K)
@@ -438,15 +439,18 @@ internal class SmartChain(
      * queue is what remains followed by a drift outward, which is [Reanchor]'s job.
      *
      * A long session in a small library could leave too little to build from, so when fewer than
-     * [length] rows would remain selectable the oldest plays are re-admitted until [length]
-     * selectable rows are restored — degrading to the previous behaviour rather than returning a
-     * stub queue. This count is taken over the whole library, before the per-hop artist-spacing,
-     * artist-cap and duplicate-title filters run, so it does not guarantee a filled queue of
-     * exactly [length] tracks — only that this many rows are eligible to be picked from.
+     * [length] rows would remain selectable, tracks the listener actually listened to are
+     * re-admitted before ones they skipped — oldest first within each group — until [length]
+     * selectable rows are restored, degrading to the previous behaviour rather than returning a
+     * stub queue. A skipped track is at least as unwelcome as a completed play, so re-admission
+     * must not put it back in front of someone ahead of a track they genuinely listened to. This
+     * count is taken over the whole library, before the per-hop artist-spacing, artist-cap and
+     * duplicate-title filters run, so it does not guarantee a filled queue of exactly [length]
+     * tracks — only that this many rows are eligible to be picked from.
      */
     private fun sessionExclusions(
         seedRow: Int,
-        sessionRows: Map<Int, Long>,
+        sessionRows: Map<Int, SessionPlay>,
         length: Int,
     ): Set<Int> {
         if (sessionRows.isEmpty()) return emptySet()
@@ -463,10 +467,14 @@ internal class SmartChain(
         }
         if (available >= length) return excluded
 
-        // Oldest plays come back first: they are the ones the listener is least likely to still
-        // have in their head.
+        // Tracks the listener actually listened to come back before ones they skipped — a skip
+        // is at least as unwelcome as a completed play, so re-admission must not invert that.
+        // Within each group, oldest first: those are the ones least likely to still be fresh in
+        // mind.
         var needed = length - available
-        for ((row, _) in sessionRows.entries.sortedBy { it.value }) {
+        for ((row, _) in sessionRows.entries.sortedWith(
+            compareBy({ it.value.skipped }, { it.value.timestamp }),
+        )) {
             if (needed <= 0) break
             if (row == seedRow || !eligibleRows[row]) continue
             if (excluded.remove(row)) needed--
@@ -533,14 +541,17 @@ internal class SmartChain(
         val skipped: Boolean,
     )
 
+    /** A track's most recent play within the current session. */
+    private data class SessionPlay(val skipped: Boolean, val timestamp: Long)
+
     private data class PreparedContext(
         val history: FloatArray,
         val medium: FloatArray,
         val large: FloatArray,
         val session: FloatArray,
         val textRows: IntArray,
-        /** Snapshot row → newest play timestamp within the current session. */
-        val sessionRows: Map<Int, Long>,
+        /** Snapshot row → most recent play within the current session. */
+        val sessionRows: Map<Int, SessionPlay>,
     )
 
     /**

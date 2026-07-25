@@ -116,7 +116,7 @@ internal class SessionRecencyTest {
     }
 
     @Test
-    fun `a session larger than the library re-admits the oldest plays first`() {
+    fun `a session larger than the library re-admits the oldest plays first when none were skipped`() {
         val snapshot = requireNotNull(SmartSnapshot.build((0 until 6).map(::track)))
 
         val result = SmartChain(snapshot, runtime = null).build(
@@ -134,7 +134,8 @@ internal class SessionRecencyTest {
         )
 
         // Six tracks: the seed plus five session rows leaves nothing selectable, so three of the
-        // five must come back — the three heard longest ago.
+        // five must come back — the three heard longest ago. None were skipped, so the skip/listen
+        // grouping is a no-op here and this reduces to plain oldest-first.
         assertEquals(3, result.rows.size, "the queue must still reach the requested length")
         assertTrue(
             result.pool.containsAll(listOf(1, 2, 3)),
@@ -143,6 +144,38 @@ internal class SessionRecencyTest {
         assertTrue(
             result.pool.none { it == 4 || it == 5 },
             "the two most recent plays stay excluded: ${result.pool}",
+        )
+    }
+
+    @Test
+    fun `re-admission returns listened tracks before skipped ones, even when the skips are older`() {
+        val snapshot = requireNotNull(SmartSnapshot.build((0 until 6).map(::track)))
+
+        // Session rows 1 and 2 were SKIPPED early in the session; rows 3 and 4 were LISTENED TO
+        // later. A timestamp-only guard would re-admit the skipped tracks first, since they are
+        // the oldest session rows — exactly the "hunting for a mood" pattern the spec calls out.
+        // Library size 6: seed + 4 session rows leaves only row 5 selectable (available = 1), so
+        // with length = 3 the guard must re-admit 2 rows.
+        val result = SmartChain(snapshot, runtime = null).build(
+            seedId = TrackId("0"),
+            length = 3,
+            timeFeatures = FloatArray(5),
+            historyEvents = listOf(
+                event(1, 0, 0.02f, skipped = true),
+                event(2, 60_000, 0.05f, skipped = true),
+                event(3, 120_000, 1f),
+                event(4, 180_000, 1f),
+                event(0, 240_000, 1f),
+            ),
+        )
+
+        assertTrue(
+            result.pool.containsAll(listOf(3, 4)),
+            "the listened-to tracks are re-admitted ahead of the skipped ones: ${result.pool}",
+        )
+        assertTrue(
+            result.pool.none { it == 1 || it == 2 },
+            "the skipped tracks stay excluded even though they are older: ${result.pool}",
         )
     }
 
