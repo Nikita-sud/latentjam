@@ -224,3 +224,35 @@ were not the ones landing in the final queue in this sample — `RecencyRerank`'
 had already pushed them out of the top 20 before this change. The `session_repeat.py` scenario
 (a much longer, denser real session, 38–56 tracks already heard) is the one where the pool-level
 exclusion actually changes what ships, which is exactly what its 20%→0% result shows.
+
+**The coherence figures above do not test §7.** They were measured where the change is inert, so
+"unchanged" says nothing about the risk §7 names. `benchmark.py` pins a fixed build timestamp that
+sits after the real session ended, so 36 of its 40 seeds exclude a single row and every chain comes
+out byte-identical. The gate has to be measured where the exclusion actually removes candidates.
+
+**§7 coherence, measured in the regime that exercises it** (`session_repeat.py`, the eight real
+mid-session picks, 38–56 tracks already heard, up to 28 pool candidates removed; A/B via the
+harness-only `SESSION_EXCLUSION` flag):
+
+| | exclusion off | exclusion on | floor |
+| --- | ---: | ---: | ---: |
+| seed-language match | 0.869 | **0.869** | ≥ 0.85 |
+| seed-genre-family match | 0.719 | **0.625** | ≥ 0.68 |
+
+Language coherence — the failure mode the semantic term was added to fix — is untouched. Genre
+coherence falls 0.094, and **lands below the floor this document set**. Per-seed, the drop
+concentrates where genre lock was tightest: Прованс 1.00 → 0.80, Moldovenii 0.85 → 0.75, while
+seeds already loose in their family (Another One Bites the Dust 0.50 → 0.50) do not move.
+
+That is the mechanism working as designed rather than a bug — the candidates the rule removes are
+by definition the nearest same-genre ones, because they are what the listener has been playing. In
+queue terms the trade is about two tracks of genre tightness (14.4 → 12.5 of 20 in-family) against
+four fewer just-heard repeats (4.0 → 0 of 20).
+
+Note also that the 0.68 floor was calibrated against `benchmark.py`'s 0.731, a different seed
+population, so 0.625 is not a like-for-like breach of the number it was derived from. The
+within-regime comparison, 0.719 → 0.625, is the honest one.
+
+**Status: this trade is not yet accepted.** §7 says a material drop means revisiting §3.4 rather
+than shipping. Whether 0.094 of genre coherence is material — given language is unaffected and
+in-session repetition goes to zero — is a product call, and it is open.
