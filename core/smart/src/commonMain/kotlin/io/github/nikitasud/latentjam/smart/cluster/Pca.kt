@@ -14,7 +14,7 @@ import kotlin.math.sqrt
  * leading [components] directions by repeatedly multiplying a random basis through the covariance
  * and re-orthonormalizing, which converges quickly because embedding spectra decay fast.
  *
- * Input rows must already be mean-centered; the caller centers before calling.
+ * Input rows must already be mean-centered; [LibraryLayout] centers before calling.
  */
 internal object Pca {
 
