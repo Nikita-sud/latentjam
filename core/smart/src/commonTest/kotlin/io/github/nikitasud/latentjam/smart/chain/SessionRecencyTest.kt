@@ -115,6 +115,37 @@ internal class SessionRecencyTest {
         assertEquals(11, cold.pool.size, "every non-seed row stays a candidate on the cold path")
     }
 
+    @Test
+    fun `a session larger than the library re-admits the oldest plays first`() {
+        val snapshot = requireNotNull(SmartSnapshot.build((0 until 6).map(::track)))
+
+        val result = SmartChain(snapshot, runtime = null).build(
+            seedId = TrackId("0"),
+            length = 3,
+            timeFeatures = FloatArray(5),
+            historyEvents = listOf(
+                event(1, 0, 1f),
+                event(2, 60_000, 1f),
+                event(3, 120_000, 1f),
+                event(4, 180_000, 1f),
+                event(5, 240_000, 1f),
+                event(0, 300_000, 1f),
+            ),
+        )
+
+        // Six tracks: the seed plus five session rows leaves nothing selectable, so three of the
+        // five must come back — the three heard longest ago.
+        assertEquals(3, result.rows.size, "the queue must still reach the requested length")
+        assertTrue(
+            result.pool.containsAll(listOf(1, 2, 3)),
+            "the three oldest plays are re-admitted: ${result.pool}",
+        )
+        assertTrue(
+            result.pool.none { it == 4 || it == 5 },
+            "the two most recent plays stay excluded: ${result.pool}",
+        )
+    }
+
     private fun track(row: Int): SmartTrack = SmartTrack(
         id = TrackId(row.toString()),
         audio = FloatArray(PredictorRuntime.EMBEDDING_DIM).also { it[row] = 1f },

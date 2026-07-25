@@ -117,7 +117,7 @@ internal class SmartChain(
             FloatArray(0)
         }
 
-        val excludedRows = sessionExclusions(seedRow, context.sessionRows)
+        val excludedRows = sessionExclusions(seedRow, context.sessionRows, length)
         val pool = buildPool(seedRow, state, excludedRows)
         if (pool.isEmpty()) return ChainResult.EMPTY
         // Pool positions carry snapshot rows; the semantic z-scores and fused candidate block are
@@ -431,12 +431,37 @@ internal class SmartChain(
      * Cluster exhaustion is deliberately NOT guarded. Having heard most of a niche, the right
      * queue is what remains followed by a drift outward, which is [Reanchor]'s job.
      *
-     * Task 3 adds the starvation guard for a session larger than the library; do not add it here.
+     * A long session in a small library could leave too little to build from, so when fewer than
+     * [length] rows would remain selectable the oldest plays are re-admitted until the queue can
+     * be filled — degrading to the previous behaviour rather than returning a stub queue.
      */
-    private fun sessionExclusions(seedRow: Int, sessionRows: Map<Int, Long>): Set<Int> {
+    private fun sessionExclusions(
+        seedRow: Int,
+        sessionRows: Map<Int, Long>,
+        length: Int,
+    ): Set<Int> {
         if (sessionRows.isEmpty()) return emptySet()
         val excluded = HashSet(sessionRows.keys)
         excluded.remove(seedRow)
+        if (excluded.isEmpty()) return excluded
+
+        // Counted over the whole library BEFORE the pool is assembled, so the decision is made
+        // once and cannot oscillate as pool slots fill.
+        var available = 0
+        for (row in 0 until snapshot.size) {
+            if (row == seedRow || !eligibleRows[row] || row in excluded) continue
+            available++
+        }
+        if (available >= length) return excluded
+
+        // Oldest plays come back first: they are the ones the listener is least likely to still
+        // have in their head.
+        var needed = length - available
+        for ((row, _) in sessionRows.entries.sortedBy { it.value }) {
+            if (needed <= 0) break
+            if (row == seedRow || !eligibleRows[row]) continue
+            if (excluded.remove(row)) needed--
+        }
         return excluded
     }
 
