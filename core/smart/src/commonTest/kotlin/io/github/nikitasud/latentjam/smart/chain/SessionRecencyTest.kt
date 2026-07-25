@@ -36,6 +36,85 @@ internal class SessionRecencyTest {
         assertEquals(4, result.rows.size)
     }
 
+    @Test
+    fun `a gap longer than the session window ends the session`() {
+        val snapshot = requireNotNull(SmartSnapshot.build((0 until 12).map(::track)))
+        val gap = 40L * 60 * 1000
+
+        val result = SmartChain(snapshot, runtime = null).build(
+            seedId = TrackId("0"),
+            length = 4,
+            timeFeatures = FloatArray(5),
+            historyEvents = listOf(
+                event(1, 0, 1f),
+                event(2, gap, 1f),
+                event(3, gap + 60_000, 1f),
+                event(0, gap + 120_000, 1f),
+            ),
+        )
+
+        assertTrue(
+            result.pool.contains(1),
+            "row 1 sits on the far side of a 40-minute gap and is a different session",
+        )
+        assertTrue(result.pool.none { it == 2 || it == 3 })
+    }
+
+    @Test
+    fun `consecutive gaps define the session, not distance from the newest play`() {
+        val snapshot = requireNotNull(SmartSnapshot.build((0 until 12).map(::track)))
+        val minute = 60L * 1000
+
+        val result = SmartChain(snapshot, runtime = null).build(
+            seedId = TrackId("0"),
+            length = 4,
+            timeFeatures = FloatArray(5),
+            historyEvents = listOf(
+                event(1, 0, 1f),
+                event(2, 25 * minute, 1f),
+                event(3, 50 * minute, 1f),
+                event(0, 75 * minute, 1f),
+            ),
+        )
+
+        // 75 minutes of listening, but no adjacent pair is more than 30 apart: one session.
+        assertTrue(
+            result.pool.none { it == 1 || it == 2 || it == 3 },
+            "no adjacent gap exceeds the window, so all three are the same session",
+        )
+    }
+
+    @Test
+    fun `a track skipped seconds ago is excluded like one played to the end`() {
+        val snapshot = requireNotNull(SmartSnapshot.build((0 until 12).map(::track)))
+
+        val result = SmartChain(snapshot, runtime = null).build(
+            seedId = TrackId("0"),
+            length = 4,
+            timeFeatures = FloatArray(5),
+            historyEvents = listOf(
+                event(1, 0, 0.02f, skipped = true),
+                event(0, 30_000, 1f),
+            ),
+        )
+
+        assertTrue(result.pool.none { it == 1 })
+    }
+
+    @Test
+    fun `no history excludes nothing so recorded fixtures stay byte-identical`() {
+        val snapshot = requireNotNull(SmartSnapshot.build((0 until 12).map(::track)))
+
+        val cold = SmartChain(snapshot, runtime = null).build(
+            seedId = TrackId("0"),
+            length = 5,
+            timeFeatures = FloatArray(5),
+        )
+
+        assertEquals(5, cold.rows.size)
+        assertEquals(11, cold.pool.size, "every non-seed row stays a candidate on the cold path")
+    }
+
     private fun track(row: Int): SmartTrack = SmartTrack(
         id = TrackId(row.toString()),
         audio = FloatArray(PredictorRuntime.EMBEDDING_DIM).also { it[row] = 1f },
