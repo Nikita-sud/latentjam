@@ -273,8 +273,10 @@ internal class SmartChain(
                     seedFamilyPicks = seedFamilyPicks,
                     candidate = meta,
                 )
-                // Novelty is intentionally a prior, not an exclusion. A track heard this session
-                // needs a much stronger fit to repeat, then regains a neutral score over 90 days.
+                // Outside the session, novelty is still a prior, decaying back to neutral over 90
+                // days. Inside the session it is an exclusion applied at pool construction (see
+                // sessionExclusions), so this multiplier only orders rows that survived that
+                // exclusion — including any the starvation guard re-admitted.
                 multiplier *= recency.multiplier(snapshot.tracks[row].id)
                 // The raw-cosine pool carries no CSLS correction, so the dense cinematic/game/anime
                 // cluster leaks into chains from sparse seeds unless damped here.
@@ -371,7 +373,11 @@ internal class SmartChain(
         val sessionEvents = aligned.subList(sessionStart, aligned.size)
         // The queue's notion of "this session" is the SAME walk that produces session_features
         // below, so what the encoder sees and what the queue excludes can never drift apart.
-        val sessionRows = HashMap<Int, Long>()
+        // LinkedHashMap is load-bearing: sessionExclusions' starvation guard sorts these entries
+        // by timestamp with a stable sort, and ties (same-millisecond plays) must resolve to
+        // insertion order — i.e. session play order — rather than to a HashMap's unspecified
+        // iteration order, which Kotlin common code cannot guarantee matches across platforms.
+        val sessionRows = LinkedHashMap<Int, Long>()
         for (event in sessionEvents) {
             val previous = sessionRows[event.row]
             if (previous == null || event.timestamp > previous) {
@@ -432,8 +438,11 @@ internal class SmartChain(
      * queue is what remains followed by a drift outward, which is [Reanchor]'s job.
      *
      * A long session in a small library could leave too little to build from, so when fewer than
-     * [length] rows would remain selectable the oldest plays are re-admitted until the queue can
-     * be filled — degrading to the previous behaviour rather than returning a stub queue.
+     * [length] rows would remain selectable the oldest plays are re-admitted until [length]
+     * selectable rows are restored — degrading to the previous behaviour rather than returning a
+     * stub queue. This count is taken over the whole library, before the per-hop artist-spacing,
+     * artist-cap and duplicate-title filters run, so it does not guarantee a filled queue of
+     * exactly [length] tracks — only that this many rows are eligible to be picked from.
      */
     private fun sessionExclusions(
         seedRow: Int,

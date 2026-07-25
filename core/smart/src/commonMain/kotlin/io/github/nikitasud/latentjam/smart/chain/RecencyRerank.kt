@@ -12,7 +12,12 @@ import io.github.nikitasud.latentjam.smart.TrackId
  *
  * Relevance still decides among tracks of similar age; this multiplier only makes a recently heard
  * candidate need a meaningfully better acoustic/context score to repeat. It decays smoothly back
- * to neutral and never bans a track, which matters for small libraries and repeat-heavy listeners.
+ * to neutral and, in isolation, never bans a track — true of this class on its own and of the
+ * `MetadataFallbackQueue` path, but no longer the whole story in [SmartChain]: there, tracks played
+ * in the current session are excluded outright at pool construction, so this multiplier only ever
+ * orders what is left. The small-library case that "never bans" used to speak to is handled there
+ * too, by [SmartChain]'s starvation guard, which re-admits the oldest session plays rather than
+ * leaving too few rows to select from.
  * The newest event is the planning-time seed supplied by the app, so its timestamp is the local
  * reference clock without adding a platform clock dependency to the chain.
  */

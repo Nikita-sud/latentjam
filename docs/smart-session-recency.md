@@ -96,9 +96,9 @@ and the chain never emits it.
 ### 3.3 Where it is applied
 
 One place: **`buildPool`**, in all three of its ranking channels. The pool has 100 fixed slots and
-session repeats currently consume up to 40 of them, starving the scorer of genuine alternatives
-before scoring begins; removing them at pool construction is both the fix and the only enforcement
-point needed.
+session repeats can consume a meaningful share of them — measured in §9 at up to 28, for a real
+mid-session seed — starving the scorer of genuine alternatives before scoring begins; removing them
+at pool construction is both the fix and the only enforcement point needed.
 
 The per-hop `isEligible` filter is deliberately left alone. Every channel that can put a row in the
 pool already filters, so a second check there would be unreachable code that each future reader has
@@ -113,8 +113,14 @@ A long session in a small library could leave too few candidates to fill the que
 
 Count the rows that remain selectable once session rows are removed — that is, rows where
 `eligibleRows` is already true, excluding the seed and the session. If that count is below
-`length`, re-admit session rows **oldest-played first** until it reaches `length`, then build the
-pool normally. The queue degrades to today's behaviour instead of returning a stub.
+`length`, re-admit session rows **oldest-played first** until `length` selectable rows are
+restored, then build the pool normally. The queue degrades to today's behaviour instead of
+returning a stub.
+
+This restores `length` *selectable rows*, not a filled queue: the count is taken over the whole
+library, before the per-hop artist-spacing, per-artist cap and duplicate-title filters run, none of
+which it models. A queue can therefore still come up short of `length` tracks even after the guard
+fires.
 
 The count is taken over the whole library rather than the assembled pool, so the decision is made
 once, before pool construction, and cannot oscillate as slots fill.

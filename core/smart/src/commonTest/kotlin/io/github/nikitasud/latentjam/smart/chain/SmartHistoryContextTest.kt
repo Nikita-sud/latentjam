@@ -45,6 +45,11 @@ internal class SmartHistoryContextTest {
         val eligible = booleanArrayOf(false, false, false, true, true)
         val runtime = CapturingRuntime()
 
+        // Events 0 and 1 sit more than SESSION_GAP_MS before the seed, so only the seed itself is
+        // "this session" and sessionExclusions contributes nothing (excluding the seed empties it).
+        // That keeps rows 0 and 1 out of the pool solely via eligibleRows, which is what this test
+        // means to prove — with all three events in one session, the session exclusion would also
+        // remove rows 0/1 and the eligibleRows check could be deleted without failing the test.
         val result = SmartChain(snapshot, runtime, eligible).build(
             seedId = TrackId("2"),
             length = 1,
@@ -52,13 +57,16 @@ internal class SmartHistoryContextTest {
             historyEvents = listOf(
                 event(0, 0, 0.5f),
                 event(1, 60_000, 1f),
-                event(2, 120_000, 1f),
+                event(2, 3_600_000, 1f),
             ),
         )
 
         assertTrue(result.pool.isNotEmpty())
         assertTrue(result.pool.all { it == 3 || it == 4 })
-        assertToken(requireNotNull(runtime.history), 2, row = 1, played = 1f)
+        // Only the seed's own event is in-session, so the context window (scoped to session
+        // events, then padded) collapses to four copies of the seed rather than reaching back to
+        // event 1.
+        assertToken(requireNotNull(runtime.history), 2, row = 2, played = 1f)
     }
 
     @Test
