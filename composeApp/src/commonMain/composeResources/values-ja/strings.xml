@@ -92,7 +92,7 @@
     <string name="map_lens_skips">スキップ</string>
 
     <plurals name="count_regions">
-        <item quantity="other">%1$d個の地域</item>
+        <item quantity="other">%1$dつの地域</item>
     </plurals>
 
     <string name="map_headline_worlds">%1$sが%2$sにまとまりました。タップすると中身を聴けます。</string>

@@ -116,7 +116,7 @@
 
     <string name="map_headline_worlds">Mapa dzieli %1$s na %2$s. Dotknij jednego, żeby usłyszeć, co w nim jest.</string>
     <string name="map_headline_plays">Połowa wszystkich Twoich odtworzeń to %1$s — %2$d\u0025 Twojej biblioteki.</string>
-    <string name="map_headline_never_played">W bibliotece masz %2$s, a %1$d z nich nigdy nie zostało odtworzonych. Obszar „%3$s” pozostaje nietknięty w %4$d\u0025.</string>
+    <string name="map_headline_never_played">W bibliotece masz %2$s, a %1$d z nich nigdy nie odtworzono. Obszar „%3$s” pozostaje nietknięty w %4$d\u0025.</string>
     <string name="map_headline_skips">Najczęściej rezygnujesz tutaj: „%1$s” — %2$d\u0025 rozpoczętych odtworzeń.</string>
 
     <string name="map_action_play_region">Odtwórz obszar</string>

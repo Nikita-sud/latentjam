@@ -128,10 +128,14 @@
     <!-- %3$s is a region NAME: a short noun phrase that names the region — its
          dominant genre or artist. Never a bare number, and never containing the
          word "region" itself: eight locales already prefix their own head noun
-         (Область «%3$s»), and four more inflect feminine around it. -->
+         (Область «%3$s»), and four more inflect feminine around it. Supply it
+         UNQUOTED: 17 of the 18 files wrap it in their own quotation marks
+         («%3$s», „%3$s”, 「%3$s」), so a label that arrives already quoted is
+         double-quoted everywhere except English. -->
     <string name="map_headline_never_played">You have never played %1$d of %2$s. %3$s is %4$d\u0025 untouched.</string>
     <!-- %1$s is a region NAME, same contract: a short noun-phrase name, never a
-         bare number, never containing the word "region" itself. -->
+         bare number, never containing the word "region" itself, and supplied
+         UNQUOTED — 17 of the 18 files add their own quotation marks around it. -->
     <string name="map_headline_skips">You bail out of %1$s more than anywhere else — %2$d\u0025 of starts.</string>
 
     <string name="map_action_play_region">Play region</string>

@@ -103,7 +103,7 @@
     <string name="map_headline_worlds">%1$s %2$sye yerleşti. İçinde ne olduğunu duymak için birine dokun.</string>
     <string name="map_headline_plays">Dinlediğin her şeyin yarısı %1$s: kitaplığının %2$d\u0025 kadarı.</string>
     <string name="map_headline_never_played">%2$s içinden %1$d tanesini hiç çalmadın. “%3$s” bölgesinin dokunulmamış kısmı: %4$d\u0025.</string>
-    <string name="map_headline_skips">En çok “%1$s” bölgesinde yarıda bırakıyorsun. Yarıda bırakma oranı: %2$d\u0025.</string>
+    <string name="map_headline_skips">En çok “%1$s” bölgesinde yarıda bırakıyorsun: başlattıklarının %2$d\u0025 kadarı.</string>
 
     <string name="map_action_play_region">Bölgeyi çal</string>
     <string name="map_action_smart_here">Buradan SMART</string>

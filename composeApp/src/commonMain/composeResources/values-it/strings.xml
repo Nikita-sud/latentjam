@@ -109,7 +109,7 @@
 
     <string name="map_headline_worlds">La mappa raccoglie %1$s in %2$s. Toccane una per ascoltare cosa contiene.</string>
     <string name="map_headline_plays">Metà di tutto quello che hai ascoltato viene da %1$s: il %2$d\u0025 della tua libreria.</string>
-    <string name="map_headline_never_played">La tua libreria conta %2$s, di cui %1$d mai ascoltati. “%3$s” è intatta al %4$d\u0025.</string>
+    <string name="map_headline_never_played">La tua libreria conta %2$s, di cui %1$d senza un solo ascolto. “%3$s” è intatta al %4$d\u0025.</string>
     <string name="map_headline_skips">È in “%1$s” che molli più spesso — il %2$d\u0025 degli avvii.</string>
 
     <string name="map_action_play_region">Riproduci la regione</string>
