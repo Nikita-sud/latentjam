@@ -164,8 +164,12 @@ public object LibraryLayout {
      *
      * Mutates [rows] in place, satisfying [Pca.reduce]'s own documented precondition (mean-centered
      * input) since centering runs first. Strictly, the per-row `unitize` that follows is a nonlinear
-     * reweighting and reintroduces a small nonzero mean -- but the residual off-centre it leaves
-     * behind is negligible in practice (orders of magnitude below a unit row).
+     * reweighting and reintroduces a nonzero mean -- but only because it rescales each row by a
+     * *different* factor (that row's own inverse norm): if every row happened to share the same
+     * post-centering norm, dividing by one common scalar would preserve the exact zero mean [center]
+     * just established instead. So whatever mean `unitize` reintroduces is driven entirely by how
+     * much the rows' norms vary after centering, not by anything unbounded, and is left uncorrected
+     * rather than spending a second centering pass on it.
      *
      * Visibility is `internal`, not `private`, so [LibraryLayoutTest] can assert directly that the
      * rows handed to [Pca.reduce] are unit-norm, rather than trusting this ran from downstream

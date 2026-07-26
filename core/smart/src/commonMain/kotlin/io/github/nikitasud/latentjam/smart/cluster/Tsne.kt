@@ -162,7 +162,20 @@ internal object Tsne {
         }
 
         val p = FloatArray(n * n)
-        val target = ln(PERPLEXITY)
+        // A row of n points has n - 1 candidate neighbours, so its conditional entropy can never
+        // exceed ln(n - 1) -- the value it takes when every neighbour gets equal weight (beta -> 0).
+        // PERPLEXITY (20) implies a target entropy of ln(20) =~ 2.996, which for n <= 21 is at or
+        // above that ceiling. When the target is unreachable, `error > 0` never happens below, `high`
+        // collapses every step, and beta runs toward the smallest representable magnitude, at which
+        // point `exp(-distance * beta)` rounds to exactly 1.0f for every pair: the whole affinity
+        // matrix goes uniform and stops depending on the input rows at all. Capping the *target*
+        // perplexity to a fraction of the row's real neighbour count -- the usual guidance is to keep
+        // perplexity well under the neighbour count, not at its ceiling -- keeps the search's target
+        // inside what the row can actually produce, at every n. PERPLEXITY itself is unchanged: this
+        // is a derived value, not a retuned constant, and for n >= 61 (n - 1) / 3 >= PERPLEXITY so the
+        // clamp does not bind and every measurement made at library scale (n = 873) stands untouched.
+        val effectivePerplexity = minOf(PERPLEXITY, maxOf(2f, (n - 1) / 3f))
+        val target = ln(effectivePerplexity)
         val row = FloatArray(n)
         for (i in 0 until n) {
             var low = 0f
