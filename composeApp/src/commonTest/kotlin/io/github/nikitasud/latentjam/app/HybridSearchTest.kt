@@ -169,7 +169,7 @@ class HybridSearchTest {
     }
 
     @Test
-    fun `within a lexical tier a played match outranks a rarely played one, prefix stays pinned`() {
+    fun `within a lexical tier a played match outranks a rarely played one and prefix stays pinned`() {
         val now = 1_000L * 24 * 60 * 60 * 1000
         val pinned = track("pin", "Rock Anthem", "A") // prefix match — highest tier
         val played = track("played", "Prock Loud", "B") // substring tier, played often
