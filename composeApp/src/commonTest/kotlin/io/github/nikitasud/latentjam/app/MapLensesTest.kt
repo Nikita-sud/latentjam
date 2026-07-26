@@ -32,15 +32,40 @@ class MapLensesTest {
     }
 
     // Never-played carries identity, so it must not rest on hue alone: the dot is also bigger.
+    // Both branches matter here (unlike every other lens, where colour is only ever a magnitude),
+    // so a played dot under this lens must come back Neutral, not just "not asserted on".
     @Test
     fun `never played lens marks unplayed tracks with colour and size`() {
         assertEquals(
             MapInk.Accent,
             MapLenses.ink(MapLens.NEVER_PLAYED, dot(plays = 0), 0, maxPlays = 9),
         )
+        assertEquals(
+            MapInk.Neutral,
+            MapLenses.ink(MapLens.NEVER_PLAYED, dot(plays = 4), 0, maxPlays = 9),
+        )
         val unplayed = MapLenses.radius(MapLens.NEVER_PLAYED, dot(plays = 0), 0)
         val played = MapLenses.radius(MapLens.NEVER_PLAYED, dot(plays = 4), 0)
         assertTrue(unplayed > played, "unplayed dot was not larger")
+    }
+
+    // Worlds is the only other lens whose radius varies at all, and it varies by selection rather
+    // than plays: the selected region's dot must be larger than an unselected region's dot.
+    @Test
+    fun `worlds lens grows the selected region dot and shrinks the rest`() {
+        val selected = MapLenses.radius(MapLens.WORLDS, dot(region = 2), 2)
+        val unselected = MapLenses.radius(MapLens.WORLDS, dot(region = 3), 2)
+        assertTrue(selected > unselected, "selected region dot was not larger than an unselected one")
+    }
+
+    // Plays and Skips both fall through to the shared base radius: they carry no size distinction
+    // of their own, and that shared radius must be a real, positive size rather than a collapsed 0.
+    @Test
+    fun `plays and skips lenses share a positive base radius`() {
+        val playsRadius = MapLenses.radius(MapLens.PLAYS, dot(plays = 5), 0)
+        val skipsRadius = MapLenses.radius(MapLens.SKIPS, dot(plays = 5), 0)
+        assertTrue(playsRadius > 0f, "base radius must be positive")
+        assertEquals(playsRadius, skipsRadius, "PLAYS and SKIPS should share the same base radius")
     }
 
     @Test
@@ -83,6 +108,20 @@ class MapLensesTest {
             require(ink is MapInk.WarmRamp)
             assertTrue(ink.step in 0 until MapLenses.RAMP_STEPS, "step ${ink.step} out of range for rate $rate")
             assertTrue(ink.step >= previous, "step regressed at rate $rate")
+            previous = ink.step
+        }
+    }
+
+    // Same monotonicity sweep as the skip ramp above, but for plays. The pow(0.4f) compression is a
+    // tunable presentation detail and deliberately left unpinned here; only the ordering matters.
+    @Test
+    fun `plays lens ramp step never decreases as plays increase`() {
+        var previous = -1
+        for (plays in 1..40) {
+            val ink = MapLenses.ink(MapLens.PLAYS, dot(plays = plays), 0, maxPlays = 40)
+            require(ink is MapInk.Ramp)
+            assertTrue(ink.step in 0 until MapLenses.RAMP_STEPS, "step ${ink.step} out of range for plays $plays")
+            assertTrue(ink.step >= previous, "step regressed at plays $plays")
             previous = ink.step
         }
     }
