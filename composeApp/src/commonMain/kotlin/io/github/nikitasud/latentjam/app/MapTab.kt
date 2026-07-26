@@ -154,9 +154,18 @@ fun MapTab(
                 .fillMaxWidth()
                 .pointerInput(page) {
                     detectTransformGestures { _, pan, gestureZoom, _ ->
-                        zoom = (zoom * gestureZoom).coerceIn(1f, 6f)
-                        panX += pan.x
-                        panY += pan.y
+                        val newZoom = (zoom * gestureZoom).coerceIn(1f, 6f)
+                        // Clamp so the zoomed content can never be dragged clear of the viewport:
+                        // at zoom 1 there is no slack to take up (min == max == 0f, matching the
+                        // untransformed layout), and at higher zoom the content's near edge can
+                        // reach the viewport's edge but never pass it, so some of the map is always
+                        // on screen -- there is no drag that strands the reader with an empty canvas
+                        // and no way back.
+                        val minPanX = size.width * (1f - newZoom)
+                        val minPanY = size.height * (1f - newZoom)
+                        zoom = newZoom
+                        panX = (panX + pan.x).coerceIn(minPanX, 0f)
+                        panY = (panY + pan.y).coerceIn(minPanY, 0f)
                     }
                 }
                 // Only keyed on identity/lens, not on zoom or pan: those are read fresh from their

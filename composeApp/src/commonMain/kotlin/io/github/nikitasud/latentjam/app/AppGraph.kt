@@ -18,12 +18,14 @@ import io.github.nikitasud.latentjam.playback.SleepTimerController
 import io.github.nikitasud.latentjam.playback.EqualizerController
 import io.github.nikitasud.latentjam.playback.equalizerModule
 import io.github.nikitasud.latentjam.playback.playbackModule
+import io.github.nikitasud.latentjam.smart.IndexStore
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.di.smartEngineModule
+import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.chain.smartPredictorModule
 import io.github.nikitasud.latentjam.smart.smartChainInputsModule
 import io.github.nikitasud.latentjam.smart.smartEngineBackendModule
@@ -139,6 +141,10 @@ object AppGraph {
     /** The local listening record. */
     val history: ListeningHistory
         get() = koin.get()
+
+    /** Where the Map's 2-D layout is cached between visits. */
+    val layoutStore: IndexStore
+        get() = koin.get(smartLayoutQualifier)
 
     /** Previously searched queries. */
     val recentSearches: RecentSearches

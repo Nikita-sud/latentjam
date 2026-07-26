@@ -14,6 +14,7 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 /** The browse destination shown when LatentJam is opened. */
 enum class StartPage(internal val persistedValue: String) {
     FOR_YOU("for_you"),
+    MAP("map"),
     PLAYLISTS("playlists"),
     TRACKS("tracks"),
     ALBUMS("albums"),

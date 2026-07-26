@@ -171,12 +171,14 @@ import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
 import io.github.nikitasud.latentjam.app.generated.resources.tab_for_you
 import io.github.nikitasud.latentjam.app.generated.resources.tab_folders
 import io.github.nikitasud.latentjam.app.generated.resources.tab_genres
+import io.github.nikitasud.latentjam.app.generated.resources.tab_map
 import io.github.nikitasud.latentjam.app.generated.resources.tab_playlists
 import io.github.nikitasud.latentjam.app.generated.resources.tab_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_album
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_genre
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
+import io.github.nikitasud.latentjam.history.LibraryListeningStats
 import io.github.nikitasud.latentjam.history.SmartExclusionState
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.history.excludes
@@ -197,9 +199,12 @@ import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.cluster.LibraryLayout
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorlds
+import io.github.nikitasud.latentjam.smart.cluster.loadLayout
+import io.github.nikitasud.latentjam.smart.cluster.saveLayout
 import kotlin.math.abs
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
@@ -570,6 +575,67 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             worldLibraryIds = loaded.map(TrackDescriptor::id)
             worlds = discovered
         }
+
+        // The Map's positions. A SECOND libraryMixFeatures call on purpose: LibraryVectorSpace is
+        // one-shot, and the instance above was consumed by LibraryWorlds.discover.
+        var mapPage by remember { mutableStateOf<MapPage?>(null) }
+        LaunchedEffect(tracks, worlds) {
+            val loaded = tracks ?: return@LaunchedEffect
+            val regions = worlds
+            if (regions.isEmpty()) return@LaunchedEffect
+            val loadedIds = loaded.map(TrackDescriptor::id)
+
+            // Region ids are indices into `regions`: every listening/headline lookup below keys off
+            // this same index, so it must stay the one place a track's region id is assigned.
+            val regionOf = buildMap {
+                regions.forEachIndexed { index, world ->
+                    for (track in world.tracks) put(track.id, index)
+                }
+            }
+            val positions = withContext(Dispatchers.Default) {
+                val stored = AppGraph.layoutStore.loadLayout()
+                if (LibraryLayout.covers(stored, loadedIds)) {
+                    stored
+                } else {
+                    // The stale layout is the warm start, so an added album nudges the map instead
+                    // of redrawing it.
+                    engine.libraryMixFeatures(loadedIds)?.let { features ->
+                        LibraryLayout.compute(features.vectorSpace, stored)
+                            .also { AppGraph.layoutStore.saveLayout(it) }
+                            .associate { it.trackId to floatArrayOf(it.x, it.y) }
+                    }
+                }
+            } ?: return@LaunchedEffect
+
+            val stats = AppGraph.history.stats()
+            val listening = LibraryListeningStats.summarize(
+                regionOf = regionOf.filterKeys { positions.containsKey(it) },
+                stats = stats,
+            )
+            mapPage = MapPage(
+                dots = positions.mapNotNull { (id, position) ->
+                    val region = regionOf[id] ?: return@mapNotNull null
+                    val entry = stats[id]
+                    MapDot(
+                        trackId = id,
+                        x = position[0],
+                        y = position[1],
+                        region = region,
+                        plays = entry?.plays ?: 0,
+                        skipRate = if (entry == null || entry.plays == 0) {
+                            0f
+                        } else {
+                            entry.skips.toFloat() / entry.plays
+                        },
+                    )
+                },
+                // Same index as regionOf's values above -- a short noun-phrase name per world, never
+                // a bare number or the word "region": see MapPage.regionNames' contract in MapTab.kt.
+                regionNames = regions.map { it.name },
+                listening = listening,
+            )
+        }
+
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
         LaunchedEffect(tracks) {
             val loaded = tracks
@@ -921,6 +987,34 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             onOpenWorld = { worldTarget = it },
                                         )
 
+                                        MAP_TAB -> MapTab(
+                                            page = mapPage,
+                                            contentPadding = listPadding,
+                                            onPlayRegion = { region ->
+                                                worlds.getOrNull(region)?.let { world ->
+                                                    scope.launch { playback.play(world.tracks, 0) }
+                                                }
+                                            },
+                                            onSmartFromRegion = { region ->
+                                                worlds.getOrNull(region)?.let { world ->
+                                                    scope.launch {
+                                                        val seed = world.representative
+                                                        val queue = engine.smartQueue(
+                                                            seed,
+                                                            smartEligibleTracks,
+                                                            smartQueueLength,
+                                                            smartHistoryFor(AppGraph.history, seed),
+                                                        )
+                                                        val tail = queue.mapNotNull(tracksById::get)
+                                                        playback.play(listOf(seed) + tail, 0)
+                                                    }
+                                                }
+                                            },
+                                            onOpenTrack = { id ->
+                                                tracksById[id]?.let { trackMenuTarget = it }
+                                            },
+                                        )
+
                                         PLAYLISTS_TAB -> PlaylistsTabContent(
                                             autoPlaylists = autoPlaylists,
                                             playlists = playlists,
@@ -1010,7 +1104,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             )
                                         }
 
-                                        3 -> LazyVerticalGrid(
+                                        ALBUMS_TAB -> LazyVerticalGrid(
                                             columns = GridCells.Fixed(2),
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = PaddingValues(
@@ -1029,7 +1123,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             }
                                         }
 
-                                        4 -> LazyColumn(
+                                        ARTISTS_TAB -> LazyColumn(
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = listPadding,
                                         ) {
@@ -1522,6 +1616,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
  */
 private val BROWSE_TABS: List<StringResource> = listOf(
     Res.string.tab_for_you,
+    Res.string.tab_map,
     Res.string.tab_playlists,
     Res.string.tab_tracks,
     Res.string.tab_albums,
@@ -1532,15 +1627,17 @@ private val BROWSE_TABS: List<StringResource> = listOf(
 
 /** Stable pager indices for the fixed browse destinations. */
 private const val FOR_YOU_TAB = 0
-private const val PLAYLISTS_TAB = 1
-private const val TRACKS_TAB = 2
-private const val ALBUMS_TAB = 3
-private const val ARTISTS_TAB = 4
-private const val GENRES_TAB = 5
-private const val FOLDERS_TAB = 6
+private const val MAP_TAB = 1
+private const val PLAYLISTS_TAB = 2
+private const val TRACKS_TAB = 3
+private const val ALBUMS_TAB = 4
+private const val ARTISTS_TAB = 5
+private const val GENRES_TAB = 6
+private const val FOLDERS_TAB = 7
 
 private fun StartPage.tabIndex(): Int = when (this) {
     StartPage.FOR_YOU -> FOR_YOU_TAB
+    StartPage.MAP -> MAP_TAB
     StartPage.PLAYLISTS -> PLAYLISTS_TAB
     StartPage.TRACKS -> TRACKS_TAB
     StartPage.ALBUMS -> ALBUMS_TAB

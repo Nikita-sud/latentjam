@@ -263,6 +263,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
 import io.github.nikitasud.latentjam.app.generated.resources.tab_for_you
 import io.github.nikitasud.latentjam.app.generated.resources.tab_folders
 import io.github.nikitasud.latentjam.app.generated.resources.tab_genres
+import io.github.nikitasud.latentjam.app.generated.resources.tab_map
 import io.github.nikitasud.latentjam.app.generated.resources.tab_playlists
 import io.github.nikitasud.latentjam.app.generated.resources.tab_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.theme_dark
@@ -597,6 +598,7 @@ private fun AppearanceSettings(
                     label = { page ->
                         stringResource(when (page) {
                             StartPage.FOR_YOU -> Res.string.tab_for_you
+                            StartPage.MAP -> Res.string.tab_map
                             StartPage.PLAYLISTS -> Res.string.tab_playlists
                             StartPage.TRACKS -> Res.string.tab_tracks
                             StartPage.ALBUMS -> Res.string.tab_albums
