@@ -61,6 +61,12 @@ class LibraryListeningStatsTest {
         assertNull(LibraryListeningStats.summarize(regionOf, played).skippiestRegion)
     }
 
+    @Test
+    fun `darkestRegion is null when no region has enough tracks`() {
+        val regionOf = (0 until 6).associate { TrackId("t$it") to 0 }
+        assertNull(LibraryListeningStats.summarize(regionOf, emptyMap()).darkestRegion)
+    }
+
     // --- Additional coverage: the brief's own tests only exercise one shape of each rule. ---
 
     @Test
@@ -180,16 +186,20 @@ class LibraryListeningStatsTest {
         assertEquals(0, LibraryListeningStats.summarize(regionOf, played).skippiestRegion)
     }
 
+    // skipRate must pool skips over plays, not average per-track ratios: the headline it feeds
+    // ("X% of starts") is an event-level claim, and an unweighted mean would let a single
+    // one-play track swing a region as hard as a track with real play evidence.
     @Test
-    fun `skipRate averages per-track ratios instead of pooling skips over plays`() {
+    fun `skipRate pools skips over plays instead of averaging per-track ratios`() {
         val regionOf = mapOf(TrackId("rare") to 0, TrackId("common") to 0)
         val played = mapOf(
             TrackId("rare") to stats(1, 1),    // ratio 1.0, one play
             TrackId("common") to stats(99, 0), // ratio 0.0, ninety-nine plays
         )
         val region = LibraryListeningStats.summarize(regionOf, played).regions.single()
-        // Mean of the two ratios is 0.5; pooled skips-over-plays would instead be 1/100 = 0.01.
-        assertEquals(0.5f, region.skipRate)
+        // Pooled: 1 skip over 100 plays = 0.01. The unweighted mean of the two ratios (0.5)
+        // would be the wrong, non-pooled definition.
+        assertEquals(0.01f, region.skipRate)
     }
 
     @Test

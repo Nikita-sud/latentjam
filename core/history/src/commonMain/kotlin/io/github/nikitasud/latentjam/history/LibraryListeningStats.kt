@@ -12,7 +12,13 @@ public data class RegionListening(
     public val trackCount: Int,
     public val neverPlayed: Int,
     public val plays: Int,
-    /** Share of started tracks abandoned, over tracks with at least one play. */
+    /**
+     * Share of starts in this region that ended in a skip: total skips divided by total plays,
+     * pooled across every played track in the region — not a per-track average. This is the
+     * number the "X% of starts" headline names, so a region's few heavily played tracks weigh
+     * in proportion to how often they were actually played, not as much as a single one-play
+     * track.
+     */
     public val skipRate: Float,
 )
 
@@ -69,19 +75,14 @@ public object LibraryListeningStats {
             .sortedBy { it.key }
             .map { (region, members) ->
                 val played = members.filter { playsOf(it) > 0 }
+                val totalPlays = members.sumOf(playsOf)
+                val totalSkips = played.sumOf { stats.getValue(it).skips }
                 RegionListening(
                     region = region,
                     trackCount = members.size,
                     neverPlayed = members.size - played.size,
-                    plays = members.sumOf(playsOf),
-                    skipRate = if (played.isEmpty()) {
-                        0f
-                    } else {
-                        played.sumOf { id ->
-                            val entry = stats.getValue(id)
-                            if (entry.plays == 0) 0.0 else entry.skips.toDouble() / entry.plays
-                        }.toFloat() / played.size
-                    },
+                    plays = totalPlays,
+                    skipRate = if (totalPlays == 0) 0f else totalSkips.toFloat() / totalPlays,
                 )
             }
 
