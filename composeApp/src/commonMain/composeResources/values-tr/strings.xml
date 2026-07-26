@@ -60,6 +60,7 @@
     <string name="tab_albums">Albümler</string>
     <string name="tab_artists">Sanatçılar</string>
     <string name="tab_genres">Türler</string>
+    <string name="tab_map">Harita</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">Bu cihazda müzik bulunamadı.</string>
@@ -87,6 +88,28 @@
         <item quantity="one">Daha önce %1$d kez</item>
         <item quantity="other">Daha önce %1$d kez</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Dünyalar</string>
+    <string name="map_lens_plays">Çalmalar</string>
+    <string name="map_lens_never_played">Hiç çalınmadı</string>
+    <string name="map_lens_skips">Atlamalar</string>
+
+    <string name="map_headline_worlds">%1$d parça %2$d bölgeye yerleşti. Dinlemek için birine dokun.</string>
+    <string name="map_headline_plays">%1$d parça — kitaplığının %2$d\u0025 kadarı — şimdiye kadar dinlediğin her şeyin yarısı.</string>
+    <string name="map_headline_never_played">%2$d parçanın %1$d tanesini hiç çalmadın. “%3$s” bölgesinin %4$d\u0025 kadarına hiç dokunulmadı.</string>
+    <string name="map_headline_skips">En çok “%1$s” bölgesinde vazgeçiyorsun — başlattığın çalmaların %2$d\u0025 kadarında.</string>
+
+    <string name="map_action_play_region">Bölgeyi çal</string>
+    <string name="map_action_smart_here">Buradan SMART</string>
+    <string name="map_empty_indexing">Kitaplığın hâlâ okunuyor. Dizinleme bitince harita görünecek.</string>
+
+    <string name="map_legend_selected">seçili bölge</string>
+    <string name="map_legend_rest">kitaplığın geri kalanı</string>
+    <string name="map_legend_never">hiç çalınmadı</string>
+    <string name="map_legend_played">en az bir kez çalındı</string>
+    <string name="map_legend_never_skips">hiç atlanmadı</string>
+    <string name="map_legend_always_skips">her zaman atlandı</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Çalan bir şey yok</string>

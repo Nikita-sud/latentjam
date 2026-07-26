@@ -72,6 +72,7 @@
     <string name="tab_albums">Albums</string>
     <string name="tab_artists">Artistes</string>
     <string name="tab_genres">Genres</string>
+    <string name="tab_map">Carte</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">Aucune musique trouvée sur cet appareil.</string>
@@ -99,6 +100,28 @@
         <item quantity="one">%1$d fois avant</item>
         <item quantity="other">%1$d fois avant</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Mondes</string>
+    <string name="map_lens_plays">Écoutes</string>
+    <string name="map_lens_never_played">Jamais écoutés</string>
+    <string name="map_lens_skips">Passages</string>
+
+    <string name="map_headline_worlds">%1$d morceaux se répartissent en %2$d régions. Touchez-en une pour l’écouter.</string>
+    <string name="map_headline_plays">%1$d morceaux — %2$d\u0025 de votre bibliothèque — représentent la moitié de tout ce que vous avez écouté.</string>
+    <string name="map_headline_never_played">Vous n’avez jamais écouté %1$d morceaux sur %2$d. « %3$s » reste intacte à %4$d\u0025.</string>
+    <string name="map_headline_skips">C’est dans « %1$s » que vous décrochez le plus — %2$d\u0025 des lectures lancées.</string>
+
+    <string name="map_action_play_region">Lire la région</string>
+    <string name="map_action_smart_here">SMART d’ici</string>
+    <string name="map_empty_indexing">Votre bibliothèque est encore en cours de lecture. La carte apparaîtra une fois l’indexation terminée.</string>
+
+    <string name="map_legend_selected">région sélectionnée</string>
+    <string name="map_legend_rest">reste de la bibliothèque</string>
+    <string name="map_legend_never">jamais écoutés</string>
+    <string name="map_legend_played">écoutés au moins une fois</string>
+    <string name="map_legend_never_skips">jamais passés</string>
+    <string name="map_legend_always_skips">toujours passés</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Aucune lecture en cours</string>

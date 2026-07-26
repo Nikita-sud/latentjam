@@ -67,6 +67,7 @@
     <string name="tab_albums">Álbumes</string>
     <string name="tab_artists">Artistas</string>
     <string name="tab_genres">Géneros</string>
+    <string name="tab_map">Mapa</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">No se encontró música en este dispositivo.</string>
@@ -94,6 +95,28 @@
         <item quantity="one">%1$d vez antes</item>
         <item quantity="other">%1$d veces antes</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Mundos</string>
+    <string name="map_lens_plays">Reproducciones</string>
+    <string name="map_lens_never_played">Nunca reproducidas</string>
+    <string name="map_lens_skips">Saltos</string>
+
+    <string name="map_headline_worlds">%1$d canciones se agrupan en %2$d regiones. Toca una para escucharla.</string>
+    <string name="map_headline_plays">%1$d canciones — el %2$d\u0025 de tu biblioteca — son la mitad de todo lo que has escuchado.</string>
+    <string name="map_headline_never_played">Nunca has reproducido %1$d de %2$d canciones. «%3$s» sigue intacta en un %4$d\u0025.</string>
+    <string name="map_headline_skips">Es en «%1$s» donde más abandonas: el %2$d\u0025 de las reproducciones que empiezas.</string>
+
+    <string name="map_action_play_region">Reproducir región</string>
+    <string name="map_action_smart_here">SMART desde aquí</string>
+    <string name="map_empty_indexing">Todavía estamos leyendo tu biblioteca. El mapa aparecerá cuando termine la indexación.</string>
+
+    <string name="map_legend_selected">región seleccionada</string>
+    <string name="map_legend_rest">resto de la biblioteca</string>
+    <string name="map_legend_never">nunca reproducidas</string>
+    <string name="map_legend_played">reproducidas al menos una vez</string>
+    <string name="map_legend_never_skips">nunca saltadas</string>
+    <string name="map_legend_always_skips">siempre saltadas</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nada en reproducción</string>

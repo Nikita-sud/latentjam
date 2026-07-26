@@ -58,6 +58,7 @@
     <string name="tab_albums">アルバム</string>
     <string name="tab_artists">アーティスト</string>
     <string name="tab_genres">ジャンル</string>
+    <string name="tab_map">マップ</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">この端末に音楽が見つかりません。</string>
@@ -83,6 +84,28 @@
     <plurals name="foryou_caption_played_before">
         <item quantity="other">以前%1$d回</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">ワールド</string>
+    <string name="map_lens_plays">再生数</string>
+    <string name="map_lens_never_played">未再生</string>
+    <string name="map_lens_skips">スキップ</string>
+
+    <string name="map_headline_worlds">%1$d 曲が %2$d 個の地域にまとまりました。タップすると聴けます。</string>
+    <string name="map_headline_plays">%1$d 曲、ライブラリの %2$d\u0025。これだけであなたの再生の半分です。</string>
+    <string name="map_headline_never_played">%2$d 曲のうち %1$d 曲はまだ一度も再生していません。「%3$s」は %4$d\u0025 が手つかずです。</string>
+    <string name="map_headline_skips">「%1$s」がいちばん途中でやめてしまう場所です。再生開始の %2$d\u0025。</string>
+
+    <string name="map_action_play_region">この地域を再生</string>
+    <string name="map_action_smart_here">ここから SMART</string>
+    <string name="map_empty_indexing">まだライブラリを読み込んでいます。インデックス作成が終わるとマップが表示されます。</string>
+
+    <string name="map_legend_selected">選択中の地域</string>
+    <string name="map_legend_rest">ライブラリの残り</string>
+    <string name="map_legend_never">未再生</string>
+    <string name="map_legend_played">1 回以上再生</string>
+    <string name="map_legend_never_skips">スキップなし</string>
+    <string name="map_legend_always_skips">常にスキップ</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">再生中の曲はありません</string>

@@ -70,6 +70,7 @@
     <string name="tab_albums">Alben</string>
     <string name="tab_artists">Künstler</string>
     <string name="tab_genres">Genres</string>
+    <string name="tab_map">Karte</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">Auf diesem Gerät wurde keine Musik gefunden.</string>
@@ -97,6 +98,28 @@
         <item quantity="one">Früher %1$d×</item>
         <item quantity="other">Früher %1$d×</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Welten</string>
+    <string name="map_lens_plays">Wiedergaben</string>
+    <string name="map_lens_never_played">Nie gehört</string>
+    <string name="map_lens_skips">Übersprungen</string>
+
+    <string name="map_headline_worlds">%1$d Titel gruppieren sich zu %2$d Regionen. Tippe eine an, um sie zu hören.</string>
+    <string name="map_headline_plays">%1$d Titel — %2$d\u0025 deiner Bibliothek — sind die Hälfte von allem, was du je gehört hast.</string>
+    <string name="map_headline_never_played">%1$d von %2$d Titeln hast du nie gehört. „%3$s“ ist zu %4$d\u0025 unberührt.</string>
+    <string name="map_headline_skips">Bei „%1$s“ steigst du am häufigsten aus — bei %2$d\u0025 der Starts.</string>
+
+    <string name="map_action_play_region">Region abspielen</string>
+    <string name="map_action_smart_here">SMART ab hier</string>
+    <string name="map_empty_indexing">Deine Bibliothek wird noch gelesen. Die Karte erscheint, sobald die Indexierung fertig ist.</string>
+
+    <string name="map_legend_selected">ausgewählte Region</string>
+    <string name="map_legend_rest">restliche Bibliothek</string>
+    <string name="map_legend_never">nie gehört</string>
+    <string name="map_legend_played">mindestens einmal gehört</string>
+    <string name="map_legend_never_skips">nie übersprungen</string>
+    <string name="map_legend_always_skips">immer übersprungen</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Keine Wiedergabe</string>

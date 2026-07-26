@@ -68,6 +68,7 @@
     <string name="tab_albums">Albumy</string>
     <string name="tab_artists">Wykonawcy</string>
     <string name="tab_genres">Gatunki</string>
+    <string name="tab_map">Mapa</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">Nie znaleziono muzyki na tym urządzeniu.</string>
@@ -99,6 +100,28 @@
         <item quantity="many">Wcześniej %1$d razy</item>
         <item quantity="other">Wcześniej %1$d raza</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Światy</string>
+    <string name="map_lens_plays">Odtworzenia</string>
+    <string name="map_lens_never_played">Nieodtwarzane</string>
+    <string name="map_lens_skips">Pominięcia</string>
+
+    <string name="map_headline_worlds">%1$d utworów układa się w %2$d obszarów. Dotknij jednego, żeby posłuchać.</string>
+    <string name="map_headline_plays">%1$d utworów — %2$d\u0025 Twojej biblioteki — to połowa wszystkich Twoich odtworzeń.</string>
+    <string name="map_headline_never_played">Z %2$d utworów %1$d nie zostało nigdy odtworzonych. Obszar „%3$s” pozostaje nietknięty w %4$d\u0025.</string>
+    <string name="map_headline_skips">Najczęściej rezygnujesz tutaj: „%1$s” — %2$d\u0025 rozpoczętych odtworzeń.</string>
+
+    <string name="map_action_play_region">Odtwórz obszar</string>
+    <string name="map_action_smart_here">SMART stąd</string>
+    <string name="map_empty_indexing">Wciąż czytamy Twoją bibliotekę. Mapa pojawi się po zakończeniu indeksowania.</string>
+
+    <string name="map_legend_selected">wybrany obszar</string>
+    <string name="map_legend_rest">reszta biblioteki</string>
+    <string name="map_legend_never">nigdy nieodtwarzane</string>
+    <string name="map_legend_played">odtworzone co najmniej raz</string>
+    <string name="map_legend_never_skips">nigdy niepomijane</string>
+    <string name="map_legend_always_skips">zawsze pomijane</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nic nie jest odtwarzane</string>

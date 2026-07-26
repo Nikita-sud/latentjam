@@ -73,6 +73,7 @@
     <string name="tab_albums">الألبومات</string>
     <string name="tab_artists">الفنانون</string>
     <string name="tab_genres">الأنواع</string>
+    <string name="tab_map">الخريطة</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">لم يتم العثور على موسيقى على هذا الجهاز.</string>
@@ -108,6 +109,28 @@
         <item quantity="many">%1$d مرة سابقًا</item>
         <item quantity="other">%1$d مرة سابقًا</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">العوالم</string>
+    <string name="map_lens_plays">مرات التشغيل</string>
+    <string name="map_lens_never_played">لم تُشغَّل قط</string>
+    <string name="map_lens_skips">التخطي</string>
+
+    <string name="map_headline_worlds">تتجمع %1$d مقطع في %2$d منطقة. المس إحداها لتستمع إليها.</string>
+    <string name="map_headline_plays">%1$d مقطع — %2$d\u0025 من مكتبتك — تمثل نصف كل ما استمعت إليه على الإطلاق.</string>
+    <string name="map_headline_never_played">لم تشغّل قط %1$d من أصل %2$d مقطع. منطقة «%3$s» ما زالت غير ملموسة بنسبة %4$d\u0025.</string>
+    <string name="map_headline_skips">في «%1$s» تتوقف أكثر من أي مكان آخر — %2$d\u0025 من مرات البدء.</string>
+
+    <string name="map_action_play_region">تشغيل المنطقة</string>
+    <string name="map_action_smart_here">SMART من هنا</string>
+    <string name="map_empty_indexing">ما زلنا نقرأ مكتبتك. ستظهر الخريطة عند انتهاء الفهرسة.</string>
+
+    <string name="map_legend_selected">المنطقة المحددة</string>
+    <string name="map_legend_rest">بقية المكتبة</string>
+    <string name="map_legend_never">لم تُشغَّل قط</string>
+    <string name="map_legend_played">شُغِّلت مرة واحدة على الأقل</string>
+    <string name="map_legend_never_skips">لم يتم تخطيها قط</string>
+    <string name="map_legend_always_skips">تُتخطى دائمًا</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">لا يوجد تشغيل حاليًا</string>

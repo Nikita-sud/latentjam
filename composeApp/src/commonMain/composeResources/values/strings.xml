@@ -70,6 +70,7 @@
     <string name="tab_albums">Albums</string>
     <string name="tab_artists">Artists</string>
     <string name="tab_genres">Genres</string>
+    <string name="tab_map">Map</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">No music found on this device.</string>
@@ -99,6 +100,37 @@
         <item quantity="one">%1$d× before</item>
         <item quantity="other">%1$d× before</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <!-- The four lenses: what the colour on the map currently means. -->
+    <string name="map_lens_worlds">Worlds</string>
+    <string name="map_lens_plays">Plays</string>
+    <string name="map_lens_never_played">Never played</string>
+    <string name="map_lens_skips">Skips</string>
+
+    <!-- Headlines. Each states one true fact about this library, so every
+         number is a placeholder and none of them are decorative. A literal
+         percent is written \u0025: Compose MP unescapes \uXXXX but leaves
+         %% alone, which would reach the UI as two percent signs. -->
+    <string name="map_headline_worlds">%1$d tracks settle into %2$d regions. Tap one to hear it.</string>
+    <string name="map_headline_plays">%1$d tracks — %2$d\u0025 of your library — are half of everything you have ever played.</string>
+    <!-- %3$s is the name of a region of the map -->
+    <string name="map_headline_never_played">You have never played %1$d of %2$d tracks. %3$s is %4$d\u0025 untouched.</string>
+    <!-- %1$s is the name of a region of the map -->
+    <string name="map_headline_skips">You bail out of %1$s more than anywhere else — %2$d\u0025 of starts.</string>
+
+    <string name="map_action_play_region">Play region</string>
+    <string name="map_action_smart_here">SMART from here</string>
+    <string name="map_empty_indexing">Still reading your library. The map appears when indexing finishes.</string>
+
+    <!-- Legend keys, sentence-fragment case: they label the ends of a colour
+         ramp rather than standing on their own. -->
+    <string name="map_legend_selected">selected region</string>
+    <string name="map_legend_rest">rest of library</string>
+    <string name="map_legend_never">never played</string>
+    <string name="map_legend_played">played at least once</string>
+    <string name="map_legend_never_skips">never skipped</string>
+    <string name="map_legend_always_skips">always skipped</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nothing playing</string>

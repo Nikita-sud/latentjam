@@ -68,6 +68,7 @@
     <string name="tab_albums">Альбоми</string>
     <string name="tab_artists">Виконавці</string>
     <string name="tab_genres">Жанри</string>
+    <string name="tab_map">Карта</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">На цьому пристрої не знайдено музики.</string>
@@ -99,6 +100,28 @@
         <item quantity="many">Слухали %1$d разів</item>
         <item quantity="other">Слухали %1$d разу</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Світи</string>
+    <string name="map_lens_plays">Прослуховування</string>
+    <string name="map_lens_never_played">Не слухали</string>
+    <string name="map_lens_skips">Пропуски</string>
+
+    <string name="map_headline_worlds">%1$d треків складаються в %2$d областей. Торкніться будь-якої, щоб послухати.</string>
+    <string name="map_headline_plays">%1$d треків — %2$d\u0025 бібліотеки — це половина всього, що ви коли-небудь слухали.</string>
+    <string name="map_headline_never_played">Ви жодного разу не вмикали %1$d із %2$d треків. Область «%3$s» лишилася незайманою на %4$d\u0025.</string>
+    <string name="map_headline_skips">Найчастіше ви кидаєте треки тут: «%1$s» — %2$d\u0025 запусків.</string>
+
+    <string name="map_action_play_region">Слухати область</string>
+    <string name="map_action_smart_here">SMART звідси</string>
+    <string name="map_empty_indexing">Бібліотека ще читається. Карта з’явиться, коли завершиться індексація.</string>
+
+    <string name="map_legend_selected">вибрана область</string>
+    <string name="map_legend_rest">решта бібліотеки</string>
+    <string name="map_legend_never">жодного разу не слухали</string>
+    <string name="map_legend_played">слухали принаймні раз</string>
+    <string name="map_legend_never_skips">ніколи не пропускали</string>
+    <string name="map_legend_always_skips">завжди пропускали</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Нічого не відтворюється</string>
