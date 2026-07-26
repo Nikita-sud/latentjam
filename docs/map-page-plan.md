@@ -26,6 +26,7 @@
 - Test commands: `./gradlew :core:smart:testAndroidHostTest`, `./gradlew :core:history:testAndroidHostTest`, `./gradlew :composeApp:testAndroidHostTest`.
 - **`LibraryVectorSpace` is one-shot.** `takeRows()` sets the internal matrix to null and a second call throws `IllegalStateException`. `App.kt` already consumes one space for `LibraryWorlds.discover`. The Map must call `engine.libraryMixFeatures(ids)` again for a fresh space. Never share one instance between clustering and layout.
 - Commit after every task. Conventional commit prefixes as used in this repo (`feat:`, `fix:`, `test:`, `docs:`).
+- **No AI attribution in commits.** No `Co-Authored-By: Claude…`, no `Generated with…`, no tool mentions in the subject or body. Commit messages describe the change and nothing else.
 
 ---
 
@@ -266,6 +267,14 @@ git commit -m "feat(map): randomized PCA for the layout pre-reduction"
 ### Task 2: t-SNE
 
 The layout core. Exact O(n²) t-SNE — no Barnes-Hut. At 873 tracks that is 762k pairs per iteration, which runs in a couple of seconds once per library change; the approximation is not worth its complexity.
+
+> **The code block in Step 3 below contains a bug, found in review after it was implemented.**
+> In `affinities()`, `repeat(PERPLEXITY_STEPS) { … return@repeat … }` — `return@repeat` returns
+> from that one lambda invocation, so it acts as `continue`, not `break`. The write of the
+> converged row was skipped, and for a point equidistant from every other point the affinity row
+> stayed zero forever. The shipped version uses a labeled `for` loop with a real `break` and writes
+> unconditionally before the convergence check; the trailing renormalisation pass was dead code and
+> was removed. **Read `Tsne.kt` in the repo, not this block.**
 
 **Files:**
 - Create: `core/smart/src/commonMain/kotlin/io/github/nikitasud/latentjam/smart/cluster/Tsne.kt`
@@ -631,6 +640,13 @@ git commit -m "feat(map): exact t-SNE over the fused library space"
 ### Task 3: Procrustes alignment
 
 Measured: recomputing the layout after 5% of the library changes retains only ~82% of each track's on-screen neighbourhood. Worse, an unaligned rerun can mirror or rotate the whole picture, so every location a user learned becomes wrong. This rotates, reflects and scales a fresh layout onto the previous one.
+
+> **The code block in Step 3 below contains a bug, found during implementation.** The mirrored
+> branch takes `+mirrorCos` / `+mirrorSin`; both signs must be negated. With the x axis flipped,
+> `ax` enters every cross term negated, so the alignment score is `-(cos·mirrorCos + sin·mirrorSin)`
+> and maximising it points `(cos, sin)` the opposite way from the direct case. Measured on the
+> reflection test: RMSE 6.36 with the original signs, 2.2e-17 with them negated.
+> **Read `LayoutAnchor.kt` in the repo, not this block.**
 
 **Files:**
 - Create: `core/smart/src/commonMain/kotlin/io/github/nikitasud/latentjam/smart/cluster/LayoutAnchor.kt`
