@@ -162,8 +162,10 @@ public object LibraryLayout {
      * relative to the library's centroid rather than per-track magnitude. See [reduceForEmbedding]
      * for why both steps -- and this ordering -- matter.
      *
-     * Mutates [rows] in place; the result is also what satisfies [Pca.reduce]'s own documented
-     * precondition (mean-centered input), since centering runs first.
+     * Mutates [rows] in place, satisfying [Pca.reduce]'s own documented precondition (mean-centered
+     * input) since centering runs first. Strictly, the per-row `unitize` that follows is a nonlinear
+     * reweighting and reintroduces a small nonzero mean -- but the residual off-centre it leaves
+     * behind is negligible in practice (orders of magnitude below a unit row).
      *
      * Visibility is `internal`, not `private`, so [LibraryLayoutTest] can assert directly that the
      * rows handed to [Pca.reduce] are unit-norm, rather than trusting this ran from downstream
