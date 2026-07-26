@@ -57,7 +57,7 @@ class TagValuesTest {
     }
 
     @Test
-    fun `empty and blank genres are absent, not empty strings`() {
+    fun `empty and blank genres are absent rather than empty strings`() {
         assertNull(cleanGenre(""))
         assertNull(cleanGenre("   "))
     }
