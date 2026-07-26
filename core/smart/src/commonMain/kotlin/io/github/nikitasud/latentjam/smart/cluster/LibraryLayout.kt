@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart.cluster
 
+import io.github.nikitasud.latentjam.smart.IndexStore
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.sqrt
 
@@ -401,4 +402,18 @@ public object LibraryLayout {
             for (d in 0 until dim) rows[i * dim + d] /= norm
         }
     }
+}
+
+/**
+ * Reads whatever layout is stored, current or not.
+ *
+ * Always returns a map rather than a nullable, because a stale layout is not a miss — it is the
+ * warm start. Ask [LibraryLayout.covers] whether it can also be drawn as-is.
+ */
+public suspend fun IndexStore.loadLayout(): Map<TrackId, FloatArray> =
+    load(LibraryLayout.VERSION).orEmpty()
+
+/** Replaces the stored layout. Positions persist as 2-float vectors, so no new format is needed. */
+public suspend fun IndexStore.saveLayout(points: List<LayoutPoint>) {
+    save(LibraryLayout.VERSION, points.associate { it.trackId to floatArrayOf(it.x, it.y) })
 }

@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -84,5 +85,8 @@ public actual fun smartEngineBackendModule(): Module = module {
     single<IndexStore> { IosFileIndexStore(fileName = "smart_index.bin") }
     single<IndexStore>(smartTextIndexQualifier) {
         IosFileIndexStore(fileName = "smart_text_index.bin")
+    }
+    single<IndexStore>(smartLayoutQualifier) {
+        IosFileIndexStore(fileName = "map_layout.bin")
     }
 }

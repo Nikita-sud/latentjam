@@ -9,6 +9,7 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
 import android.net.Uri
+import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
 import java.nio.FloatBuffer
 import kotlin.coroutines.cancellation.CancellationException
@@ -310,5 +311,9 @@ public actual fun smartEngineBackendModule(): Module = module {
 
     single<IndexStore>(smartTextIndexQualifier) {
         FileIndexStore(context = get(), fileName = "smart_text_index.bin")
+    }
+
+    single<IndexStore>(smartLayoutQualifier) {
+        FileIndexStore(context = get(), fileName = "map_layout.bin")
     }
 }
