@@ -77,7 +77,7 @@ class LayoutAnchorTest {
     // rotation or reflection), so its shape differs from reference's and a `reference.copyOf()`
     // stub is caught: it would carry reference's distances, not candidate's.
     @Test
-    fun `align preserves candidate's own shape, so it cannot be a copy of reference`() {
+    fun `align preserves candidate's own shape so it cannot be a copy of reference`() {
         val n = 12
         val reference = FloatArray(n * 2) { ((it * 7) % 11).toFloat() - 5f }
         // Fixed, hand-written per-point jitter -- deterministic, and not a rigid transform of

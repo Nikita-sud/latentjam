@@ -61,7 +61,7 @@ internal class SessionRecencyTest {
     }
 
     @Test
-    fun `consecutive gaps define the session, not distance from the newest play`() {
+    fun `consecutive gaps define the session rather than distance from the newest play`() {
         val snapshot = requireNotNull(SmartSnapshot.build((0 until 12).map(::track)))
         val minute = 60L * 1000
 
