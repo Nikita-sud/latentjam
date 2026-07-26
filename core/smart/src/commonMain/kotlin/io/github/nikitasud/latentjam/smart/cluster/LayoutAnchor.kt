@@ -17,6 +17,9 @@ import kotlin.math.sqrt
  * Closed-form orthogonal Procrustes over 2-D, which needs no SVD library: the optimal rotation
  * comes straight from the cross-covariance, and reflection is decided by comparing the residual of
  * the rotation against the residual of the mirrored rotation.
+ *
+ * Rotation and reflection only -- this does not scale the layout. Reconciling any change of scale
+ * between the two layouts is the caller's responsibility.
  */
 internal object LayoutAnchor {
 
