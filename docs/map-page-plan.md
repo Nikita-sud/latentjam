@@ -639,7 +639,7 @@ git commit -m "feat(map): exact t-SNE over the fused library space"
 
 ### Task 3: Procrustes alignment
 
-Measured: recomputing the layout after 5% of the library changes retains only ~82% of each track's on-screen neighbourhood. Worse, an unaligned rerun can mirror or rotate the whole picture, so every location a user learned becomes wrong. This rotates, reflects and scales a fresh layout onto the previous one.
+Measured: recomputing the layout after 5% of the library changes retains only ~82% of each track's on-screen neighbourhood. Worse, an unaligned rerun can mirror or rotate the whole picture, so every location a user learned becomes wrong. This rotates and reflects a fresh layout onto the previous one; scale is applied by the caller in Task 4, not here.
 
 > **The code block in Step 3 below contains a bug, found during implementation.** The mirrored
 > branch takes `+mirrorCos` / `+mirrorSin`; both signs must be negated. With the x axis flipped,
