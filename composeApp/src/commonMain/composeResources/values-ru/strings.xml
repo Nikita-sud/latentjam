@@ -101,9 +101,16 @@
     <string name="map_lens_never_played">Не слушали</string>
     <string name="map_lens_skips">Пропуски</string>
 
-    <string name="map_headline_worlds">%1$d треков складываются в %2$d областей. Коснитесь любой, чтобы послушать.</string>
-    <string name="map_headline_plays">%1$d треков — %2$d\u0025 медиатеки — это половина всего, что вы когда-либо слушали.</string>
-    <string name="map_headline_never_played">Вы ни разу не включали %1$d из %2$d треков. Область «%3$s» осталась нетронутой на %4$d\u0025.</string>
+    <plurals name="count_regions">
+        <item quantity="one">%1$d область</item>
+        <item quantity="few">%1$d области</item>
+        <item quantity="many">%1$d областей</item>
+        <item quantity="other">%1$d области</item>
+    </plurals>
+
+    <string name="map_headline_worlds">Карта делит %1$s на %2$s. Коснитесь любой, чтобы услышать, что внутри.</string>
+    <string name="map_headline_plays">Половина всего, что вы когда-либо слушали, — это %1$s, или %2$d\u0025 медиатеки.</string>
+    <string name="map_headline_never_played">В медиатеке %2$s, и %1$d из них вы не включали ни разу. Область «%3$s» осталась нетронутой на %4$d\u0025.</string>
     <string name="map_headline_skips">Чаще всего вы бросаете треки здесь: «%1$s» — %2$d\u0025 запусков.</string>
 
     <string name="map_action_play_region">Слушать область</string>

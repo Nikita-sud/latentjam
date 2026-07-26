@@ -102,9 +102,14 @@
     <string name="map_lens_never_played">Nunca reproducidas</string>
     <string name="map_lens_skips">Saltos</string>
 
-    <string name="map_headline_worlds">%1$d canciones se agrupan en %2$d regiones. Toca una para escucharla.</string>
-    <string name="map_headline_plays">%1$d canciones — el %2$d\u0025 de tu biblioteca — son la mitad de todo lo que has escuchado.</string>
-    <string name="map_headline_never_played">Nunca has reproducido %1$d de %2$d canciones. «%3$s» sigue intacta en un %4$d\u0025.</string>
+    <plurals name="count_regions">
+        <item quantity="one">%1$d región</item>
+        <item quantity="other">%1$d regiones</item>
+    </plurals>
+
+    <string name="map_headline_worlds">El mapa agrupa %1$s en %2$s. Toca una para escuchar lo que hay dentro.</string>
+    <string name="map_headline_plays">La mitad de todo lo que has escuchado viene de %1$s: el %2$d\u0025 de tu biblioteca.</string>
+    <string name="map_headline_never_played">Nunca has reproducido %1$d de %2$s. «%3$s» sigue intacta en un %4$d\u0025.</string>
     <string name="map_headline_skips">Es en «%1$s» donde más abandonas: el %2$d\u0025 de las reproducciones que empiezas.</string>
 
     <string name="map_action_play_region">Reproducir región</string>

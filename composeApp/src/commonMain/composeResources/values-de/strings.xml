@@ -105,9 +105,14 @@
     <string name="map_lens_never_played">Nie gehört</string>
     <string name="map_lens_skips">Übersprungen</string>
 
-    <string name="map_headline_worlds">%1$d Titel gruppieren sich zu %2$d Regionen. Tippe eine an, um sie zu hören.</string>
-    <string name="map_headline_plays">%1$d Titel — %2$d\u0025 deiner Bibliothek — sind die Hälfte von allem, was du je gehört hast.</string>
-    <string name="map_headline_never_played">%1$d von %2$d Titeln hast du nie gehört. „%3$s“ ist zu %4$d\u0025 unberührt.</string>
+    <plurals name="count_regions">
+        <item quantity="one">%1$d Region</item>
+        <item quantity="other">%1$d Regionen</item>
+    </plurals>
+
+    <string name="map_headline_worlds">Die Karte fasst %1$s zu %2$s zusammen. Tippe eine an, um zu hören, was darin steckt.</string>
+    <string name="map_headline_plays">Auf %1$s entfällt die Hälfte von allem, was du je gehört hast — %2$d\u0025 deiner Bibliothek.</string>
+    <string name="map_headline_never_played">Deine Bibliothek hat %2$s, %1$d davon hast du nie gehört. „%3$s“ ist zu %4$d\u0025 unberührt.</string>
     <string name="map_headline_skips">Bei „%1$s“ steigst du am häufigsten aus — bei %2$d\u0025 der Starts.</string>
 
     <string name="map_action_play_region">Region abspielen</string>

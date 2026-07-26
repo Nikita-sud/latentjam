@@ -97,14 +97,18 @@
     <string name="map_lens_never_played">Belum diputar</string>
     <string name="map_lens_skips">Lompatan</string>
 
-    <string name="map_headline_worlds">%1$d lagu mengelompok menjadi %2$d wilayah. Ketuk salah satunya untuk mendengarkan.</string>
-    <string name="map_headline_plays">%1$d lagu — %2$d\u0025 dari pustaka Anda — adalah separuh dari semua yang pernah Anda dengar.</string>
-    <string name="map_headline_never_played">Anda belum pernah memutar %1$d dari %2$d lagu. Wilayah "%3$s" masih %4$d\u0025 belum tersentuh.</string>
-    <string name="map_headline_skips">Di "%1$s" Anda paling sering berhenti — %2$d\u0025 dari pemutaran yang dimulai.</string>
+    <plurals name="count_regions">
+        <item quantity="other">%1$d wilayah</item>
+    </plurals>
+
+    <string name="map_headline_worlds">%1$s mengelompok menjadi %2$s. Ketuk salah satunya untuk mendengar isinya.</string>
+    <string name="map_headline_plays">Separuh dari semua yang pernah kamu dengar berasal dari %1$s — %2$d\u0025 dari pustakamu.</string>
+    <string name="map_headline_never_played">Kamu belum pernah memutar %1$d dari %2$s. Wilayah "%3$s" masih %4$d\u0025 belum tersentuh.</string>
+    <string name="map_headline_skips">Di "%1$s" kamu paling sering berhenti — %2$d\u0025 dari pemutaran yang dimulai.</string>
 
     <string name="map_action_play_region">Putar wilayah</string>
     <string name="map_action_smart_here">SMART dari sini</string>
-    <string name="map_empty_indexing">Pustaka Anda masih dibaca. Peta muncul setelah pengindeksan selesai.</string>
+    <string name="map_empty_indexing">Pustakamu masih dibaca. Peta muncul setelah pengindeksan selesai.</string>
 
     <string name="map_legend_selected">wilayah terpilih</string>
     <string name="map_legend_rest">sisa pustaka</string>

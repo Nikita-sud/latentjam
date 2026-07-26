@@ -95,16 +95,21 @@
     <string name="map_lens_never_played">कभी नहीं चलाए</string>
     <string name="map_lens_skips">स्किप</string>
 
-    <string name="map_headline_worlds">%1$d गाने %2$d इलाकों में बंट जाते हैं. सुनने के लिए किसी एक पर टैप करें.</string>
-    <string name="map_headline_plays">%1$d गाने — आपकी लाइब्रेरी का %2$d\u0025 — आपने अब तक जो कुछ सुना है, उसका आधा हिस्सा हैं.</string>
-    <string name="map_headline_never_played">%2$d में से %1$d गाने आपने कभी नहीं चलाए. "%3$s" का %4$d\u0025 हिस्सा अब भी अनछुआ है.</string>
+    <plurals name="count_regions">
+        <item quantity="one">%1$d क्षेत्र</item>
+        <item quantity="other">%1$d क्षेत्र</item>
+    </plurals>
+
+    <string name="map_headline_worlds">आपकी लाइब्रेरी %2$s बनाती है — कुल %1$s. किसी एक पर टैप करके सुनें कि उसमें क्या है.</string>
+    <string name="map_headline_plays">आपने अब तक जो कुछ सुना है, उसका आधा हिस्सा: सिर्फ़ %1$s — आपकी लाइब्रेरी का %2$d\u0025.</string>
+    <string name="map_headline_never_played">कुल %2$s, और उनमें से %1$d को आपने कभी नहीं चलाया. "%3$s" का %4$d\u0025 हिस्सा अब भी अनछुआ है.</string>
     <string name="map_headline_skips">सबसे ज़्यादा आप "%1$s" में छोड़ देते हैं — शुरू किए गए %2$d\u0025 गानों में.</string>
 
-    <string name="map_action_play_region">इलाका चलाएं</string>
+    <string name="map_action_play_region">इस क्षेत्र को चलाएं</string>
     <string name="map_action_smart_here">यहाँ से SMART</string>
     <string name="map_empty_indexing">आपकी लाइब्रेरी अब भी पढ़ी जा रही है. इंडेक्सिंग पूरी होते ही नक्शा दिखेगा.</string>
 
-    <string name="map_legend_selected">चुना हुआ इलाका</string>
+    <string name="map_legend_selected">चुना हुआ क्षेत्र</string>
     <string name="map_legend_rest">बाकी लाइब्रेरी</string>
     <string name="map_legend_never">कभी नहीं चलाए</string>
     <string name="map_legend_played">कम से कम एक बार चलाए</string>

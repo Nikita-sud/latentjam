@@ -107,10 +107,15 @@
     <string name="map_lens_never_played">Jamais écoutés</string>
     <string name="map_lens_skips">Passages</string>
 
-    <string name="map_headline_worlds">%1$d morceaux se répartissent en %2$d régions. Touchez-en une pour l’écouter.</string>
-    <string name="map_headline_plays">%1$d morceaux — %2$d\u0025 de votre bibliothèque — représentent la moitié de tout ce que vous avez écouté.</string>
-    <string name="map_headline_never_played">Vous n’avez jamais écouté %1$d morceaux sur %2$d. « %3$s » reste intacte à %4$d\u0025.</string>
-    <string name="map_headline_skips">C’est dans « %1$s » que vous décrochez le plus — %2$d\u0025 des lectures lancées.</string>
+    <plurals name="count_regions">
+        <item quantity="one">%1$d région</item>
+        <item quantity="other">%1$d régions</item>
+    </plurals>
+
+    <string name="map_headline_worlds">La carte répartit %1$s en %2$s. Touchez-en une pour écouter ce qu’elle contient.</string>
+    <string name="map_headline_plays">La moitié de tout ce que vous avez écouté vient de %1$s — %2$d \u0025 de votre bibliothèque.</string>
+    <string name="map_headline_never_played">Votre bibliothèque compte %2$s et vous n’en avez jamais écouté %1$d. « %3$s » reste intacte à %4$d \u0025.</string>
+    <string name="map_headline_skips">C’est dans « %1$s » que vous décrochez le plus — %2$d \u0025 des lectures lancées.</string>
 
     <string name="map_action_play_region">Lire la région</string>
     <string name="map_action_smart_here">SMART d’ici</string>

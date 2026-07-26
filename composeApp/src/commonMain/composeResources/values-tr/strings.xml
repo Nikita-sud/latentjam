@@ -95,10 +95,15 @@
     <string name="map_lens_never_played">Hiç çalınmadı</string>
     <string name="map_lens_skips">Atlamalar</string>
 
-    <string name="map_headline_worlds">%1$d parça %2$d bölgeye yerleşti. Dinlemek için birine dokun.</string>
-    <string name="map_headline_plays">%1$d parça — kitaplığının %2$d\u0025 kadarı — şimdiye kadar dinlediğin her şeyin yarısı.</string>
-    <string name="map_headline_never_played">%2$d parçanın %1$d tanesini hiç çalmadın. “%3$s” bölgesinin %4$d\u0025 kadarına hiç dokunulmadı.</string>
-    <string name="map_headline_skips">En çok “%1$s” bölgesinde vazgeçiyorsun — başlattığın çalmaların %2$d\u0025 kadarında.</string>
+    <plurals name="count_regions">
+        <item quantity="one">%1$d bölge</item>
+        <item quantity="other">%1$d bölge</item>
+    </plurals>
+
+    <string name="map_headline_worlds">%1$s %2$sye yerleşti. İçinde ne olduğunu duymak için birine dokun.</string>
+    <string name="map_headline_plays">Dinlediğin her şeyin yarısı %1$s: kitaplığının %2$d\u0025 kadarı.</string>
+    <string name="map_headline_never_played">%2$s içinden %1$d tanesini hiç çalmadın. “%3$s” bölgesinin dokunulmamış kısmı: %4$d\u0025.</string>
+    <string name="map_headline_skips">En çok “%1$s” bölgesinde yarıda bırakıyorsun. Yarıda bırakma oranı: %2$d\u0025.</string>
 
     <string name="map_action_play_region">Bölgeyi çal</string>
     <string name="map_action_smart_here">Buradan SMART</string>

@@ -108,15 +108,30 @@
     <string name="map_lens_never_played">Never played</string>
     <string name="map_lens_skips">Skips</string>
 
+    <!-- How many regions the map drew. Single-digit by design, which puts 2, 3
+         and 4 among its likeliest values — exactly where the Slavic paucal and
+         the Arabic 'few' form live. -->
+    <plurals name="count_regions">
+        <item quantity="one">%1$d region</item>
+        <item quantity="other">%1$d regions</item>
+    </plurals>
+
     <!-- Headlines. Each states one true fact about this library, so every
-         number is a placeholder and none of them are decorative. A literal
-         percent is written \u0025: Compose MP unescapes \uXXXX but leaves
-         %% alone, which would reach the UI as two percent signs. -->
-    <string name="map_headline_worlds">%1$d tracks settle into %2$d regions. Tap one to hear it.</string>
-    <string name="map_headline_plays">%1$d tracks — %2$d\u0025 of your library — are half of everything you have ever played.</string>
-    <!-- %3$s is the name of a region of the map -->
-    <string name="map_headline_never_played">You have never played %1$d of %2$d tracks. %3$s is %4$d\u0025 untouched.</string>
-    <!-- %1$s is the name of a region of the map -->
+         number is a placeholder and none of them are decorative. Counts arrive
+         ALREADY PLURALIZED, as %N$s fragments rendered from count_tracks and
+         count_regions, so the noun can agree with its numeral ("1 track",
+         "873 de piese"); never put a bare %N$d count back into this prose.
+         A literal percent is written \u0025: Compose MP unescapes \uXXXX but
+         leaves %% alone, which would reach the UI as two percent signs. -->
+    <string name="map_headline_worlds">%1$s across %2$s. Tap one to hear what’s in it.</string>
+    <string name="map_headline_plays">Half of everything you have ever played comes from %1$s — %2$d\u0025 of your library.</string>
+    <!-- %3$s is a region NAME: a short noun phrase that names the region — its
+         dominant genre or artist. Never a bare number, and never containing the
+         word "region" itself: eight locales already prefix their own head noun
+         (Область «%3$s»), and four more inflect feminine around it. -->
+    <string name="map_headline_never_played">You have never played %1$d of %2$s. %3$s is %4$d\u0025 untouched.</string>
+    <!-- %1$s is a region NAME, same contract: a short noun-phrase name, never a
+         bare number, never containing the word "region" itself. -->
     <string name="map_headline_skips">You bail out of %1$s more than anywhere else — %2$d\u0025 of starts.</string>
 
     <string name="map_action_play_region">Play region</string>
@@ -126,7 +141,7 @@
     <!-- Legend keys, sentence-fragment case: they label the ends of a colour
          ramp rather than standing on their own. -->
     <string name="map_legend_selected">selected region</string>
-    <string name="map_legend_rest">rest of library</string>
+    <string name="map_legend_rest">rest of the library</string>
     <string name="map_legend_never">never played</string>
     <string name="map_legend_played">played at least once</string>
     <string name="map_legend_never_skips">never skipped</string>
