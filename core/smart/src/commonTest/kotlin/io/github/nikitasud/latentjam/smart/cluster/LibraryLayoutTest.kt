@@ -7,8 +7,10 @@ package io.github.nikitasud.latentjam.smart.cluster
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.sqrt
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class LibraryLayoutTest {
@@ -97,6 +99,159 @@ class LibraryLayoutTest {
             }
             assertEquals(1f, sqrt(normSquared), 1e-4f, "row $i norm")
         }
+    }
+
+    // Finding 1: overlap.size == 2 is the exact tie-break degeneracy -- both the direct and
+    // x-mirrored similarity fits reconstruct a 2-point overlap with residual 0, so alignToPrevious
+    // must skip alignment entirely rather than let float noise pick one. This pins that boundary
+    // directly, since forcing it through compute() would depend on where t-SNE happens to converge.
+    @Test
+    fun `alignToPrevious leaves the embedding untouched at overlap two`() {
+        val ids = listOf(TrackId("a"), TrackId("b"), TrackId("c"))
+        val embedded = floatArrayOf(0f, 0f, 1f, 0f, 5f, 5f)
+        // Reference points chosen so a naive 2-point fit would recover a real (nonzero) rotation
+        // and scale, not a no-op -- if alignment ran here, the output would visibly differ.
+        val previous = mapOf(
+            TrackId("a") to floatArrayOf(10f, 10f),
+            TrackId("b") to floatArrayOf(10f, 20f),
+        )
+        val result = LibraryLayout.alignToPrevious(ids, embedded, previous, ids.size)
+        assertContentEquals(embedded, result)
+    }
+
+    @Test
+    fun `alignToPrevious aligns once overlap reaches three`() {
+        val ids = listOf(TrackId("a"), TrackId("b"), TrackId("c"))
+        // The candidate L-shape rotated 90 degrees CCW: align has exactly one non-degenerate way
+        // to reconcile these, so three points is enough to break the tie applyTransform needs.
+        val embedded = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f)
+        val reference = floatArrayOf(0f, 0f, 0f, 1f, -1f, 0f)
+        val previous = mapOf(
+            TrackId("a") to floatArrayOf(reference[0], reference[1]),
+            TrackId("b") to floatArrayOf(reference[2], reference[3]),
+            TrackId("c") to floatArrayOf(reference[4], reference[5]),
+        )
+        val result = LibraryLayout.alignToPrevious(ids, embedded, previous, ids.size)
+        val expected = LayoutAnchor.align(embedded, reference, ids.size)
+        for (i in expected.indices) {
+            assertEquals(expected[i], result[i], 1e-3f, "index $i")
+        }
+        assertNotEquals(embedded.toList(), result.toList())
+    }
+
+    // Finding 5: n = 0, 1, 2 each have documented special-cased behaviour that the existing tests
+    // (which all use n >= 40) never exercise.
+    @Test
+    fun `compute at n=0 returns an empty list`() {
+        val empty = LibraryVectorSpace(emptyList(), FloatArray(0), dim = 1, source = LibraryVectorSource.AUDIO)
+        assertEquals(emptyList(), LibraryLayout.compute(empty))
+    }
+
+    @Test
+    fun `compute at n=1 pins the single point at the center`() {
+        val points = LibraryLayout.compute(space(1, 8))
+        assertEquals(1, points.size)
+        assertEquals(0.5f, points[0].x)
+        assertEquals(0.5f, points[0].y)
+    }
+
+    @Test
+    fun `compute at n=2 pins both points at the center`() {
+        val points = LibraryLayout.compute(space(2, 8))
+        assertEquals(2, points.size)
+        for (point in points) {
+            assertEquals(0.5f, point.x)
+            assertEquals(0.5f, point.y)
+        }
+    }
+
+    // Finding 2: the previous round's fix (unitize after Pca.reduce, to satisfy Tsne.embed's
+    // precondition) was correct but incomplete -- it silently dropped the *pre*-PCA unitize that
+    // keeps Pca.reduce looking at directions instead of per-track magnitude. This asserts on the
+    // array Pca.reduce itself receives, not just on reduceForEmbedding's final output, so a
+    // regression that re-drops this step fails here even if the post-PCA unitize still holds.
+    @Test
+    fun `prepareForPca hands Pca unit-normalized directions`() {
+        val vectorSpace = space(20, 12)
+        val rows = vectorSpace.takeRows()
+        val n = vectorSpace.size
+        val dim = vectorSpace.dim
+        LibraryLayout.prepareForPca(rows, n, dim)
+        for (i in 0 until n) {
+            var normSquared = 0f
+            for (d in 0 until dim) {
+                val value = rows[i * dim + d]
+                normSquared += value * value
+            }
+            assertEquals(1f, sqrt(normSquared), 1e-4f, "row $i norm")
+        }
+    }
+
+    // Finding 3: an independent per-axis min-max scale is not rotation-invariant, so it can undo
+    // the very orientation stability Procrustes alignment exists to provide. A uniform scale must
+    // preserve the embedding's aspect ratio instead of stretching it to fill a square.
+    @Test
+    fun `normalize preserves aspect ratio instead of stretching to fill the box`() {
+        val ids = listOf(TrackId("a"), TrackId("b"), TrackId("c"), TrackId("d"))
+        // A rectangle 10x wider than it is tall.
+        val embedded = floatArrayOf(
+            0f, 0f,
+            100f, 0f,
+            0f, 10f,
+            100f, 10f,
+        )
+        val points = LibraryLayout.normalize(ids, embedded, ids.size)
+        for (point in points) {
+            assertTrue(point.x in 0f..1f, "x out of range: ${point.x}")
+            assertTrue(point.y in 0f..1f, "y out of range: ${point.y}")
+        }
+        val outSpanX = points.maxOf { it.x } - points.minOf { it.x }
+        val outSpanY = points.maxOf { it.y } - points.minOf { it.y }
+        // Old (anisotropic) behaviour would make this ratio exactly 1; the input's ratio is 10.
+        assertEquals(10f, outSpanX / outSpanY, 0.05f)
+        assertEquals(1f, outSpanX, 1e-4f, "the longer axis should fill the box")
+    }
+
+    // Finding 4: the existing partial-overlap test only asserts points.size == 40, so it would pass
+    // even if compute() ignored `previous` entirely. This proves the warm start actually pulls the
+    // recomputed layout closer to the original than an unanchored (cold) recompute of the same
+    // slightly-changed library -- discriminating evidence captured in the task report by stubbing
+    // compute() to ignore `previous` and watching this fail (RED), then restoring it (GREEN).
+    @Test
+    fun `compute pulls a warm-started recompute closer to the original than a cold one`() {
+        val original = LibraryLayout.compute(space(40, 16))
+            .associate { it.trackId to floatArrayOf(it.x, it.y) }
+
+        // A slightly changed library: the same 40 tracks (identical features, since space()'s
+        // vectors depend only on the track index, not on n) plus 4 new ones.
+        val warmStarted = LibraryLayout.compute(space(44, 16), previous = original)
+        val cold = LibraryLayout.compute(space(44, 16))
+
+        val warmDistance = averageDisplacement(original, warmStarted)
+        val coldDistance = averageDisplacement(original, cold)
+
+        assertTrue(
+            warmDistance < coldDistance * 0.75f,
+            "expected the warm start ($warmDistance) to sit measurably closer to the original " +
+                "than a cold recompute ($coldDistance)",
+        )
+    }
+
+    private fun averageDisplacement(
+        original: Map<TrackId, FloatArray>,
+        recomputed: List<LayoutPoint>,
+    ): Float {
+        var total = 0f
+        var count = 0
+        for (point in recomputed) {
+            val stored = original[point.trackId] ?: continue
+            val dx = point.x - stored[0]
+            val dy = point.y - stored[1]
+            total += sqrt(dx * dx + dy * dy)
+            count++
+        }
+        check(count > 0) { "no overlap between original and recomputed layouts" }
+        return total / count
     }
 
     private fun space(n: Int, dim: Int): LibraryVectorSpace {

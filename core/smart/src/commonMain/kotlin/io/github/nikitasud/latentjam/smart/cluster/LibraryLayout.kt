@@ -41,6 +41,17 @@ public object LibraryLayout {
     private const val SEED: Int = 0x1A7E27
 
     /**
+     * Minimum correspondence points before [alignToPrevious] attempts a similarity fit.
+     *
+     * Two points is an exact-isometry problem with two equally valid solutions: both the direct
+     * and the x-mirrored hypothesis in [applyTransform] reconstruct a 2-point overlap with residual
+     * 0, so the tie-break that picks between them has nothing but floating-point noise to go on --
+     * and whichever it picks gets applied to every point in the layout. Three points breaks the tie
+     * for any non-degenerate (non-collinear) overlap, which is what real t-SNE output produces.
+     */
+    private const val MIN_ALIGNMENT_OVERLAP: Int = 3
+
+    /**
      * @param previous the last stored layout, used as a warm start so an added album nudges the map
      *   rather than redrawing it. Tracks it does not cover start from the centroid of the tracks it
      *   does, so newcomers appear in the middle rather than at a corner.
@@ -52,9 +63,12 @@ public object LibraryLayout {
         val ids = space.trackIds
         val n = space.size
         if (n == 0) return emptyList()
+        // Below 3 points, both the reduction and t-SNE are degenerate anyway (see their own n < 3
+        // guards); short-circuit before space.takeRows() so this path never touches the one-shot
+        // matrix at all.
+        if (n < 3) return ids.map { id -> LayoutPoint(id, 0.5f, 0.5f) }
         val dim = space.dim
         val rows = space.takeRows()
-        if (n < 3) return ids.map { id -> LayoutPoint(id, 0.5f, 0.5f) }
 
         val reduced = reduceForEmbedding(rows, n, dim)
         val reducedDim = reduced.size / n
@@ -63,19 +77,7 @@ public object LibraryLayout {
         var embedded = Tsne.embed(reduced, n, reducedDim, SEED, warm)
 
         if (warm != null) {
-            val overlap = ids.withIndex().filter { previous.containsKey(it.value) }
-            if (overlap.size >= 2) {
-                val candidate = FloatArray(overlap.size * 2)
-                val reference = FloatArray(overlap.size * 2)
-                overlap.forEachIndexed { slot, (row, id) ->
-                    candidate[slot * 2] = embedded[row * 2]
-                    candidate[slot * 2 + 1] = embedded[row * 2 + 1]
-                    val stored = previous.getValue(id)
-                    reference[slot * 2] = stored[0]
-                    reference[slot * 2 + 1] = stored[1]
-                }
-                embedded = applyTransform(embedded, candidate, reference, overlap.size, n)
-            }
+            embedded = alignToPrevious(ids, embedded, previous, n)
         }
         return normalize(ids, embedded, n)
     }
@@ -90,29 +92,86 @@ public object LibraryLayout {
         stored.size == trackIds.size && stored.keys.containsAll(trackIds)
 
     /**
-     * Pre-reduction for [Tsne.embed]: mean-center (the only precondition [Pca.reduce] documents),
-     * reduce, then unit-normalize the *reduced* rows.
+     * Aligns [embedded] to [previous] via [applyTransform], or leaves it untouched when there
+     * aren't enough correspondence points to trust the fit -- see [MIN_ALIGNMENT_OVERLAP].
      *
-     * Unit-normalizing [rows] before [Pca.reduce] would not satisfy [Tsne.embed]'s documented
-     * precondition, even though it looks like it should: [Pca.reduce] is a partial orthogonal
-     * projection, which does not preserve vector norm except for a row that happens to lie entirely
-     * inside the retained subspace. So a unit-normalized input generally comes out of the projection
-     * with a row-dependent norm less than one, and squared Euclidean distance between such rows is
-     * no longer a monotone function of their cosine distance -- exactly the property [Tsne.embed]
-     * needs. Normalizing has to happen on the array [Tsne.embed] actually receives.
+     * Visibility is `internal`, not `private`, so [LibraryLayoutTest] can pin the overlap == 2
+     * boundary directly: forcing that exact tie-break through [compute] would depend on t-SNE's
+     * convergence, which a test cannot reliably steer.
+     */
+    internal fun alignToPrevious(
+        ids: List<TrackId>,
+        embedded: FloatArray,
+        previous: Map<TrackId, FloatArray>,
+        n: Int,
+    ): FloatArray {
+        val overlap = ids.withIndex().filter { previous.containsKey(it.value) }
+        if (overlap.size < MIN_ALIGNMENT_OVERLAP) return embedded
+        val candidate = FloatArray(overlap.size * 2)
+        val reference = FloatArray(overlap.size * 2)
+        overlap.forEachIndexed { slot, (row, id) ->
+            candidate[slot * 2] = embedded[row * 2]
+            candidate[slot * 2 + 1] = embedded[row * 2 + 1]
+            val stored = previous.getValue(id)
+            reference[slot * 2] = stored[0]
+            reference[slot * 2 + 1] = stored[1]
+        }
+        return applyTransform(embedded, candidate, reference, overlap.size, n)
+    }
+
+    /**
+     * Pre-reduction for [Tsne.embed]: mean-center (the only precondition [Pca.reduce] documents),
+     * unit-normalize so PCA sees per-track *directions* rather than magnitude, reduce, then
+     * unit-normalize the *reduced* rows so [Tsne.embed]'s own precondition holds too.
+     *
+     * Both normalize steps are needed and neither substitutes for the other:
+     *
+     * - The pre-PCA one guards [Pca.reduce] itself. [rows] arrives already unit-normalized (fusion
+     *   guarantees that -- see `LibraryVectorFusion.copyNormalized`), but [center] does not preserve
+     *   it: subtracting a shared per-dimension mean from a set of unit vectors leaves each row with
+     *   a magnitude that depends on how far its *direction* sits from the corpus-mean direction, not
+     *   on anything meaningful about the track -- a track whose fused vector happens to point near
+     *   the library's average direction shrinks much more than one that points away from it. Left
+     *   uncorrected, [Pca.reduce]'s leading components chase that centering-induced magnitude spread
+     *   instead of the cosine structure the rest of this pipeline is built on -- changing *which* 50
+     *   components come out, not merely their scale. Re-normalizing after centering removes that
+     *   artifact without undoing the centering [Pca.reduce] still requires.
+     * - The post-PCA one guards [Tsne.embed]. [Pca.reduce] is a partial orthogonal projection, which
+     *   does not preserve vector norm except for a row that happens to lie entirely inside the
+     *   retained subspace -- so even unit-length input generally comes out with a row-dependent norm
+     *   less than one, and squared Euclidean distance between such rows is no longer a monotone
+     *   function of their cosine distance. Normalizing has to happen again on the array
+     *   [Tsne.embed] actually receives.
      *
      * Visibility is `internal`, not `private`, so [LibraryLayoutTest] can assert directly on the
      * array handed to [Tsne.embed] rather than only on `compute`'s final, twice-removed output.
      *
-     * @param rows row-major `n x dim`, mutated in place by centering
+     * @param rows row-major `n x dim`, mutated in place by centering and the first normalize
      * @return row-major `n x COMPONENTS` (fewer if `dim` or `n` is smaller), unit-normalized per row
      */
     internal fun reduceForEmbedding(rows: FloatArray, n: Int, dim: Int): FloatArray {
-        center(rows, n, dim)
+        prepareForPca(rows, n, dim)
         val reduced = Pca.reduce(rows, n, dim, COMPONENTS, SEED)
         val reducedDim = reduced.size / n
         unitize(reduced, n, reducedDim)
         return reduced
+    }
+
+    /**
+     * Centers [rows], then unit-normalizes each row, so [Pca.reduce] sees per-track direction
+     * relative to the library's centroid rather than per-track magnitude. See [reduceForEmbedding]
+     * for why both steps -- and this ordering -- matter.
+     *
+     * Mutates [rows] in place; the result is also what satisfies [Pca.reduce]'s own documented
+     * precondition (mean-centered input), since centering runs first.
+     *
+     * Visibility is `internal`, not `private`, so [LibraryLayoutTest] can assert directly that the
+     * rows handed to [Pca.reduce] are unit-norm, rather than trusting this ran from downstream
+     * output alone.
+     */
+    internal fun prepareForPca(rows: FloatArray, n: Int, dim: Int) {
+        center(rows, n, dim)
+        unitize(rows, n, dim)
     }
 
     private fun warmStart(
@@ -162,6 +221,10 @@ public object LibraryLayout {
      * close approximation. So both hypotheses -- direct and x-mirrored -- are fit, and whichever
      * actually reconstructs [alignedOverlap] from [candidate] (residual ~0, since alignment is an
      * exact isometry on the overlap) is the one applied to the full embedding.
+     *
+     * Callers must supply at least [MIN_ALIGNMENT_OVERLAP] correspondence points ([alignToPrevious]
+     * enforces this). Below that, both hypotheses reconstruct the overlap exactly, so the residual
+     * comparison this function relies on to choose between them carries no signal.
      *
      * Visibility is `internal`, not `private`, solely so [LibraryLayoutTest] can pin this down with
      * a direct regression test: reaching the mirrored branch through [compute] would depend on
@@ -265,7 +328,27 @@ public object LibraryLayout {
         return SimilarityFit(cosScale, sinScale, denominator, residual)
     }
 
-    private fun normalize(ids: List<TrackId>, embedded: FloatArray, n: Int): List<LayoutPoint> {
+    /**
+     * Fits [embedded] into the 0..1 box with a single, uniform scale for both axes, so this step
+     * is a rigid-plus-uniform-scale map and cannot undo the rotation [applyTransform] just spent an
+     * exact isometry recovering.
+     *
+     * An independent per-axis scale (the old behaviour) is not rotation-invariant: two recomputes
+     * that agree on orientation upstream can still render at different x:y aspect ratios whenever
+     * the raw embedding's spans shift even slightly, which is the generic case whenever the track
+     * set changes at all. It also lies about the shape of the space -- a cluster that is round in
+     * the embedding can render as an ellipse merely because its bounding box wasn't square.
+     *
+     * The longer axis fills its full 0..1 range; the shorter axis is centered in the leftover room
+     * rather than pinned to the edge, so a single-file line of points (or, in the fully degenerate
+     * case, a single shared position on one axis) lands in the middle of the box instead of its
+     * corner.
+     *
+     * Visibility is `internal`, not `private`, so [LibraryLayoutTest] can assert aspect-ratio
+     * preservation directly against a hand-built, deliberately elongated `embedded` array, rather
+     * than depend on t-SNE happening to produce an elongated embedding.
+     */
+    internal fun normalize(ids: List<TrackId>, embedded: FloatArray, n: Int): List<LayoutPoint> {
         var minX = Float.MAX_VALUE
         var maxX = -Float.MAX_VALUE
         var minY = Float.MAX_VALUE
@@ -276,13 +359,17 @@ public object LibraryLayout {
             minY = minOf(minY, embedded[i * 2 + 1])
             maxY = maxOf(maxY, embedded[i * 2 + 1])
         }
-        val spanX = (maxX - minX).takeIf { it > 1e-6f } ?: 1f
-        val spanY = (maxY - minY).takeIf { it > 1e-6f } ?: 1f
+        val spanX = maxX - minX
+        val spanY = maxY - minY
+        val scale = maxOf(spanX, spanY).takeIf { it > 1e-6f } ?: 1f
+        // Half of whatever room the shorter axis doesn't need, so it centers instead of hugging 0.
+        val offsetX = (scale - spanX) / 2f
+        val offsetY = (scale - spanY) / 2f
         return ids.mapIndexed { row, id ->
             LayoutPoint(
                 trackId = id,
-                x = ((embedded[row * 2] - minX) / spanX).coerceIn(0f, 1f),
-                y = ((embedded[row * 2 + 1] - minY) / spanY).coerceIn(0f, 1f),
+                x = ((embedded[row * 2] - minX + offsetX) / scale).coerceIn(0f, 1f),
+                y = ((embedded[row * 2 + 1] - minY + offsetY) / scale).coerceIn(0f, 1f),
             )
         }
     }
