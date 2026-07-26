@@ -202,6 +202,26 @@ class LibraryListeningStatsTest {
         assertEquals(0.01f, region.skipRate)
     }
 
+    // A caller that hands summarize a `regionOf` with a missing middle id (e.g. one that filtered
+    // out every track of a region before calling in) gets a COMPACTED list back, not a dense one:
+    // region id 2 lands at `regions[1]`, not `regions[2]`. Any caller that then reads `regions[i]`
+    // positionally as "region i's stats" -- as the Map page does -- must keep `regionOf` dense
+    // (every id 0 until n present) itself; summarize does not restore the gap.
+    @Test
+    fun `summarize compacts a regionOf that is missing a middle region id`() {
+        val regionOf = mapOf(
+            TrackId("a0") to 0,
+            TrackId("a1") to 0,
+            TrackId("c0") to 2,
+        )
+        val summary = LibraryListeningStats.summarize(regionOf, emptyMap())
+        // Region 1 never appears, so the list has two entries, not three -- and the second one
+        // (index 1) is region id 2, not the still-missing id 1.
+        assertEquals(2, summary.regions.size)
+        assertEquals(listOf(0, 2), summary.regions.map { it.region })
+        assertEquals(2, summary.regions[1].region)
+    }
+
     @Test
     fun `summarize ignores stats for tracks that are no longer in the library`() {
         val regionOf = mapOf(TrackId("kept0") to 0, TrackId("kept1") to 0)

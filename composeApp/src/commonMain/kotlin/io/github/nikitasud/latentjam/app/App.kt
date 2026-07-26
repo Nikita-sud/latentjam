@@ -578,8 +578,22 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         // The Map's positions. A SECOND libraryMixFeatures call on purpose: LibraryVectorSpace is
         // one-shot, and the instance above was consumed by LibraryWorlds.discover.
+        //
+        // Gated on the tab itself, not just on (tracks, worlds): this is the only thing standing
+        // between "the user opened the app" and a PCA-50 + t-SNE pass (see the cache-miss branch
+        // below), so it must never run for someone who never visits the Map. Keying on
+        // `selectedTab` also means the listening numbers refresh on every return to the tab
+        // instead of only when the track/world set changes -- otherwise a session of plays would
+        // sit stale here indefinitely. Deliberately NOT keyed on `historyRevision`: that advances
+        // in the background during playback started from anywhere, including this page's own
+        // "Play region"/"SMART from here" buttons, and MapTab's contract is that it never re-ranks
+        // under a reader who is actively looking at it. Rebuilding on tab entry does not fight that
+        // contract: `beyondViewportPageCount = 0` already disposes the page (and every
+        // `remember(page)` value on it -- lens, selected region, zoom, pan) the moment it scrolls
+        // out of view, so there is no reader state left to disturb by the next time this fires.
         var mapPage by remember { mutableStateOf<MapPage?>(null) }
-        LaunchedEffect(tracks, worlds) {
+        LaunchedEffect(tracks, worlds, selectedTab) {
+            if (selectedTab != MAP_TAB) return@LaunchedEffect
             val loaded = tracks ?: return@LaunchedEffect
             val regions = worlds
             if (regions.isEmpty()) return@LaunchedEffect
@@ -592,48 +606,60 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     for (track in world.tracks) put(track.id, index)
                 }
             }
-            val positions = withContext(Dispatchers.Default) {
-                val stored = AppGraph.layoutStore.loadLayout()
-                if (LibraryLayout.covers(stored, loadedIds)) {
+            val layoutStore = AppGraph.layoutStore
+            mapPage = withContext(Dispatchers.Default) {
+                val stored = layoutStore.loadLayout()
+                // `covers` must be asked about the population the layout was actually computed
+                // for -- LibraryVectorFusion drops any track without a usable audio or metadata
+                // vector, so that population is `features.vectorSpace.trackIds`, a filtered
+                // subset of `loadedIds`, not `loadedIds` itself. Comparing against the full
+                // library instead would stay "stale" forever the moment even one track fails to
+                // encode: the sizes would never agree again, so every visit would pay for a full
+                // PCA+t-SNE recompute and re-save a set that fails the very same check next time.
+                val features = engine.libraryMixFeatures(loadedIds) ?: return@withContext null
+                val positions = if (LibraryLayout.covers(stored, features.vectorSpace.trackIds)) {
                     stored
                 } else {
                     // The stale layout is the warm start, so an added album nudges the map instead
                     // of redrawing it.
-                    engine.libraryMixFeatures(loadedIds)?.let { features ->
-                        LibraryLayout.compute(features.vectorSpace, stored)
-                            .also { AppGraph.layoutStore.saveLayout(it) }
-                            .associate { it.trackId to floatArrayOf(it.x, it.y) }
-                    }
+                    LibraryLayout.compute(features.vectorSpace, stored)
+                        .also { layoutStore.saveLayout(it) }
+                        .associate { it.trackId to floatArrayOf(it.x, it.y) }
                 }
-            } ?: return@LaunchedEffect
 
-            val stats = AppGraph.history.stats()
-            val listening = LibraryListeningStats.summarize(
-                regionOf = regionOf.filterKeys { positions.containsKey(it) },
-                stats = stats,
-            )
-            mapPage = MapPage(
-                dots = positions.mapNotNull { (id, position) ->
-                    val region = regionOf[id] ?: return@mapNotNull null
-                    val entry = stats[id]
-                    MapDot(
-                        trackId = id,
-                        x = position[0],
-                        y = position[1],
-                        region = region,
-                        plays = entry?.plays ?: 0,
-                        skipRate = if (entry == null || entry.plays == 0) {
-                            0f
-                        } else {
-                            entry.skips.toFloat() / entry.plays
-                        },
-                    )
-                },
-                // Same index as regionOf's values above -- a short noun-phrase name per world, never
-                // a bare number or the word "region": see MapPage.regionNames' contract in MapTab.kt.
-                regionNames = regions.map { it.name },
-                listening = listening,
-            )
+                val stats = AppGraph.history.stats()
+                MapPage(
+                    dots = positions.mapNotNull { (id, position) ->
+                        val region = regionOf[id] ?: return@mapNotNull null
+                        val entry = stats[id]
+                        MapDot(
+                            trackId = id,
+                            x = position[0],
+                            y = position[1],
+                            region = region,
+                            plays = entry?.plays ?: 0,
+                            skipRate = if (entry == null || entry.plays == 0) {
+                                0f
+                            } else {
+                                entry.skips.toFloat() / entry.plays
+                            },
+                        )
+                    },
+                    // Same index as regionOf's values above -- a short noun-phrase name per world,
+                    // never a bare number or the word "region": see MapPage.regionNames' contract
+                    // in MapTab.kt.
+                    regionNames = regions.map { it.name },
+                    // Unfiltered: `regionOf`'s values already span every index 0 until
+                    // regions.size (LibraryWorlds forbids an empty world), so summarize's
+                    // compacted-not-dense region list stays dense here regardless of which tracks
+                    // ended up with a laid-out position. Filtering this down to
+                    // `positions.keys` first would let a world that lost every dot between the two
+                    // independently-built vector spaces drop out of the id space entirely,
+                    // silently shifting every higher region's stats down by one against
+                    // `regionNames`, which is never compacted.
+                    listening = LibraryListeningStats.summarize(regionOf = regionOf, stats = stats),
+                )
+            } ?: return@LaunchedEffect
         }
 
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
