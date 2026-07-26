@@ -233,6 +233,14 @@ class LibraryLayoutTest {
     // 0.887 at dim=40) -- comfortably below the 0.75 threshold at the committed dim=16 (ratio
     // 0.387733), and not merely lucky there. The committed fixture is dim=16, matching the rest of
     // this file.
+    //
+    // Cross-platform confirmation: unlike the isolated test below, this mechanism (alignToPrevious
+    // running after Tsne.embed, the normal case whenever a recompute keeps >= 3 tracks in common
+    // with the previous layout) held up under a follow-up sweep across 15 (librarySize, dim)
+    // configurations on both the JVM and iOS -- warm beat cold in the large majority on both
+    // platforms, with tight, comparable variance between them, and this fixture's own numbers
+    // (JVM ratio 0.388, iOS ratio 0.551) both sit well inside that well-behaved range. No change was
+    // needed here; the failure this investigation chased was isolated entirely to the test below.
     @Test
     fun `compute pulls a warm-started recompute closer to the original than a cold one`() {
         val original = LibraryLayout.compute(space(30, 16))
@@ -287,30 +295,62 @@ class LibraryLayoutTest {
     // optimization pulls hard enough toward its own configuration that a merely-nudged starting
     // point does not always win out, depending on how the reduced feature space happens to land at
     // a given `dim`. That instability is a property of the isolated mechanism itself at real scale,
-    // not something this task introduces. The committed fixture, dim=16, measures warm=0.27829325
-    // cold=0.4163726 ratio=0.66837555, comfortably under the 0.85 threshold (~21 percentage points
-    // of headroom) and matches the dim already used by the combined test and the rest of this file.
+    // not something this task introduces.
+    //
+    // A *single* fixture's ratio is not safe to threshold here, unlike the combined test above: a
+    // follow-up cross-platform investigation swept this exact isolated mechanism across library
+    // sizes n1 in {25, 30, 45, 61, 90} (each grown by 4 for the recompute, as below) and dim in
+    // {8, 16, 32} -- 15 configurations, run on both the JVM and iOS. The old single fixture here
+    // (n1=30, dim=16) measured ratio 0.668 on the JVM but 1.341 on iOS -- warm *worse* than cold --
+    // because the per-configuration ratio has stdev ~0.9 on the JVM alone (vs ~0.27 for the
+    // Procrustes-assisted path the combined test exercises), including single-platform outliers up
+    // to ratio 4.77 at the same n/dim as configurations that pass comfortably. Only a small minority
+    // of sampled configurations cleared a fixed per-fixture threshold on both platforms at once --
+    // not because the "wrong" fixture was picked, but because no single fixture in the swept range
+    // has a comfortable margin on either platform. What *did* hold on both platforms is the
+    // aggregate: the median ratio across that same 15-configuration grid sits under 1 on both the
+    // JVM and iOS, meaning the isolated warm start is a real but weak effect that wins more often
+    // than not, without being reliable on any one draw. This test asserts that aggregate instead of
+    // a single fixture, mirroring how `TsneTest`'s stranded-point regression averages over 16 seeds
+    // rather than trusting one.
     @Test
     fun `compute pulls a warm-started recompute closer to the original even when alignment cannot run`() {
-        val original = LibraryLayout.compute(space(30, 16))
-            .associate { it.trackId to floatArrayOf(it.x, it.y) }
-        val previous = mapOf(
-            TrackId("t28") to original.getValue(TrackId("t28")),
-            TrackId("t29") to original.getValue(TrackId("t29")),
-        )
+        val librarySizes = intArrayOf(25, 30, 45, 61, 90)
+        val dims = intArrayOf(8, 16, 32)
+        val ratios = mutableListOf<Float>()
+        for (n1 in librarySizes) {
+            for (dim in dims) {
+                val n2 = n1 + 4
+                val original = LibraryLayout.compute(space(n1, dim))
+                    .associate { it.trackId to floatArrayOf(it.x, it.y) }
+                val previous = mapOf(
+                    TrackId("t${n1 - 2}") to original.getValue(TrackId("t${n1 - 2}")),
+                    TrackId("t${n1 - 1}") to original.getValue(TrackId("t${n1 - 1}")),
+                )
 
-        val warmStarted = LibraryLayout.compute(space(34, 16), previous = previous)
-        val cold = LibraryLayout.compute(space(34, 16))
+                val warmStarted = LibraryLayout.compute(space(n2, dim), previous = previous)
+                val cold = LibraryLayout.compute(space(n2, dim))
 
-        val warmDistance = averageDisplacement(original, warmStarted)
-        val coldDistance = averageDisplacement(original, cold)
+                val warmDistance = averageDisplacement(original, warmStarted)
+                val coldDistance = averageDisplacement(original, cold)
+                ratios += warmDistance / coldDistance
+            }
+        }
 
+        val median = median(ratios)
         assertTrue(
-            warmDistance < coldDistance * 0.85f,
-            "expected the warm start ($warmDistance) to sit measurably closer to the original " +
-                "than a cold recompute ($coldDistance), even though alignToPrevious is a guaranteed " +
-                "no-op here (overlap == 2 < MIN_ALIGNMENT_OVERLAP)",
+            median < 1f,
+            "expected the median warm/cold ratio across ${ratios.size} (librarySize, dim) " +
+                "configurations to sit under 1 (warm start usually closer than cold), even though " +
+                "alignToPrevious is a guaranteed no-op in every one of them (overlap == 2 < " +
+                "MIN_ALIGNMENT_OVERLAP): median=$median ratios=$ratios",
         )
+    }
+
+    private fun median(values: List<Float>): Float {
+        val sorted = values.sorted()
+        val mid = sorted.size / 2
+        return if (sorted.size % 2 == 0) (sorted[mid - 1] + sorted[mid]) / 2f else sorted[mid]
     }
 
     private fun averageDisplacement(

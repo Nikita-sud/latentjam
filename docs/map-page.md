@@ -112,6 +112,16 @@ For a surface people learn the shape of, that is too much churn, so recomputatio
   storing, so the map keeps its orientation. Without this, a rerun can mirror the whole picture
   and every learned location is wrong.
 
+Measured separately, the two mechanisms do not contribute equally. With the Procrustes step
+running — the normal case, whenever a recompute keeps at least 3 tracks in common with the
+previous layout — warm beats cold in the large majority of sampled library/dimension
+configurations, consistently on both JVM and iOS. The t-SNE warm start alone, with alignment
+withheld, is a real but weak and noisy effect: it wins on the median configuration on both
+platforms but not on every single one, and cross-platform floating-point differences swing
+individual configurations enough that no single fixture's ratio is a sound thing to pin a test
+threshold to. The anti-churn guarantee above should be read as coming primarily from Procrustes
+alignment, with the warm start as a modest assist rather than the load-bearing piece.
+
 ## 4. Architecture
 
 ```
