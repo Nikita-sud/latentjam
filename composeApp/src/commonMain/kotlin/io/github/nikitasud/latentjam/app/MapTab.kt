@@ -165,12 +165,16 @@ fun MapTab(
                 .pointerInput(page, lens) {
                     detectTapGestures(
                         onTap = { offset ->
-                            nearest(page.dots, offset, size.width, size.height, zoom, panX, panY)
-                                ?.let { selectedRegion = it.region }
+                            nearest(
+                                page.dots, offset, size.width, size.height, zoom, panX, panY,
+                                HIT_RADIUS_DP.toPx(),
+                            )?.let { selectedRegion = it.region }
                         },
                         onLongPress = { offset ->
-                            nearest(page.dots, offset, size.width, size.height, zoom, panX, panY)
-                                ?.let { onOpenTrack(it.trackId) }
+                            nearest(
+                                page.dots, offset, size.width, size.height, zoom, panX, panY,
+                                HIT_RADIUS_DP.toPx(),
+                            )?.let { onOpenTrack(it.trackId) }
                         },
                     )
                 },
@@ -185,10 +189,7 @@ fun MapTab(
                         is MapInk.WarmRamp -> warmRamp[ink.step]
                     },
                     radius = MapLenses.radius(lens, dot, selectedRegion) * zoom,
-                    center = Offset(
-                        x = dot.x * size.width * zoom + panX,
-                        y = dot.y * size.height * zoom + panY,
-                    ),
+                    center = screenPosition(dot, size.width, size.height, zoom, panX, panY),
                 )
             }
             // Spec section 5: regions are named on the map, because colour cannot carry identity
@@ -431,15 +432,44 @@ private fun percent(part: Int, whole: Int): Int =
 private fun largestRegion(page: MapPage): Int =
     page.listening.regions.maxByOrNull { it.trackCount }?.region ?: 0
 
-/** Screen-space hit radius for a tap, in px: dots are 2 px and fingers are not. */
-private const val HIT_RADIUS_PX = 24f
+/**
+ * Where [dot] lands on screen, in the same zoomed/panned space for every reader of the map: the
+ * `Canvas` draw loop (which centres each dot here) and [nearest] (which hit-tests against the same
+ * point) both call this rather than each keeping its own copy of the arithmetic, so the two cannot
+ * drift apart the way two independently-written copies could.
+ */
+internal fun screenPosition(
+    dot: MapDot,
+    width: Float,
+    height: Float,
+    zoom: Float,
+    panX: Float,
+    panY: Float,
+): Offset = Offset(
+    x = dot.x * width * zoom + panX,
+    y = dot.y * height * zoom + panY,
+)
 
 /**
- * The dot nearest a tap, within [HIT_RADIUS_PX], in the same zoomed/panned space [MapTab] draws in.
+ * Screen-space hit radius for a tap, sized to Material's ~48dp minimum touch target so a finger —
+ * not the 2 px dot — sets the tap tolerance, consistently across every screen density.
  *
- * Pure: takes the transform as plain numbers rather than reading [androidx.compose.ui.input.pointer]
- * state, so `MapTabTest` can pin down that this formula and the one in the `Canvas` draw loop agree
- * without going through Compose UI at all.
+ * Expressed in dp rather than raw px: a raw-px radius is a different physical size on every device
+ * (24 raw px, this file's previous value, is a generous target at 1x density but only ~8dp — well
+ * under any touch-target guidance — at 3x). Converted to px at the call site via the pointerInput
+ * block's own [androidx.compose.ui.unit.Density] so [nearest] itself stays a pure function over
+ * plain numbers.
+ */
+internal val HIT_RADIUS_DP = 48.dp
+
+/**
+ * The dot nearest a tap, within [hitRadiusPx], in the same zoomed/panned space [MapTab] draws in
+ * (via [screenPosition]).
+ *
+ * Pure: takes the transform and the hit radius as plain numbers rather than reading
+ * [androidx.compose.ui.input.pointer] state or [androidx.compose.ui.unit.Density] directly, so
+ * `MapTabTest` can pin down that this formula — the same one the `Canvas` draw loop uses — resolves
+ * a tap correctly, without going through Compose UI at all.
  */
 internal fun nearest(
     dots: List<MapDot>,
@@ -449,17 +479,19 @@ internal fun nearest(
     zoom: Float,
     panX: Float,
     panY: Float,
+    hitRadiusPx: Float,
 ): MapDot? {
     var best: MapDot? = null
     var bestDistance = Float.MAX_VALUE
     for (dot in dots) {
-        val dx = dot.x * width * zoom + panX - tap.x
-        val dy = dot.y * height * zoom + panY - tap.y
+        val position = screenPosition(dot, width.toFloat(), height.toFloat(), zoom, panX, panY)
+        val dx = position.x - tap.x
+        val dy = position.y - tap.y
         val distance = dx * dx + dy * dy
         if (distance < bestDistance) {
             bestDistance = distance
             best = dot
         }
     }
-    return best.takeIf { bestDistance < HIT_RADIUS_PX * HIT_RADIUS_PX }
+    return best.takeIf { bestDistance < hitRadiusPx * hitRadiusPx }
 }

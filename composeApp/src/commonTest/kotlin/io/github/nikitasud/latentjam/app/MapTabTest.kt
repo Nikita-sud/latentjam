@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.Density
 import io.github.nikitasud.latentjam.history.LibraryListening
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
@@ -13,20 +14,30 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Covers the two pure helpers [MapTab] draws with: [nearest] (hit-testing) and
- * [largestRegionCentroids] (label placement). Everything else in `MapTab.kt` is a `@Composable` and
- * is not exercised here.
+ * Covers the pure helpers [MapTab] draws with: [screenPosition] (the zoom/pan transform shared by
+ * the `Canvas` draw loop and hit-testing), [nearest] (hit-testing), and [largestRegionCentroids]
+ * (label placement). Everything else in `MapTab.kt` is a `@Composable` and is not exercised here.
  */
 class MapTabTest {
 
     private fun dot(trackId: String = "t", x: Float = 0.5f, y: Float = 0.5f, region: Int = 0) =
         MapDot(TrackId(trackId), x, y, region, plays = 0, skipRate = 0f)
 
-    // The Canvas draw loop places a dot's centre at `dot.x * size.width * zoom + panX` (and the
-    // same for y). This test builds a dot, applies that exact formula by hand to find where it
-    // would land on screen, and taps exactly there — pinning down that `nearest` resolves a tap
-    // using the identical transform, not a formula that happens to agree only when zoom is 1 and
-    // pan is zero.
+    // Pins the one formula both the Canvas draw loop and `nearest` share: a dot at (0.25, 0.75) on
+    // an 800x600 canvas, zoomed 2x and panned by (50, -20), lands at exactly (450, 880). If a future
+    // change edits this formula, every caller moves together or this test catches the drift.
+    @Test
+    fun `screenPosition places a dot using the zoom and pan transform`() {
+        val target = dot(x = 0.25f, y = 0.75f)
+
+        val position = screenPosition(target, width = 800f, height = 600f, zoom = 2f, panX = 50f, panY = -20f)
+
+        assertEquals(Offset(450f, 880f), position)
+    }
+
+    // Derives the expected tap point through screenPosition itself rather than re-deriving the
+    // transform by hand, so this test cannot keep passing against a formula that has drifted from
+    // the one screenPosition actually implements.
     @Test
     fun `nearest finds a dot under a zoomed and panned tap`() {
         val target = dot(trackId = "target", x = 0.5f, y = 0.5f)
@@ -37,17 +48,17 @@ class MapTabTest {
         val panX = 50f
         val panY = -20f
 
-        val screenX = target.x * width * zoom + panX
-        val screenY = target.y * height * zoom + panY
+        val tap = screenPosition(target, width.toFloat(), height.toFloat(), zoom, panX, panY)
 
         val found = nearest(
             listOf(decoy, target),
-            Offset(screenX, screenY),
+            tap,
             width,
             height,
             zoom,
             panX,
             panY,
+            hitRadiusPx = 24f,
         )
         assertEquals(target, found)
     }
@@ -65,20 +76,22 @@ class MapTabTest {
             zoom = 1f,
             panX = 0f,
             panY = 0f,
+            hitRadiusPx = 24f,
         )
         assertEquals(near, found)
     }
 
     // A generous hit target still has an edge. At zoom 1 with no pan, a dot sitting at the origin
     // has its screen centre at (0, 0); a tap 20px right and 10px down is 500 squared-px away
-    // (inside the 24px radius, 576 squared-px), and a tap 20px right and 15px down is 625 squared-px
-    // away (just outside it).
+    // (inside a 24px radius, 576 squared-px), and a tap 20px right and 15px down is 625 squared-px
+    // away (just outside it). The radius is a plain parameter here, independent of however the
+    // caller (density-converted dp, in production) arrives at it.
     @Test
     fun `nearest respects the hit radius boundary`() {
         val target = dot(trackId = "origin", x = 0f, y = 0f)
 
-        val inside = nearest(listOf(target), Offset(20f, 10f), 1, 1, 1f, 0f, 0f)
-        val outside = nearest(listOf(target), Offset(20f, 15f), 1, 1, 1f, 0f, 0f)
+        val inside = nearest(listOf(target), Offset(20f, 10f), 1, 1, 1f, 0f, 0f, hitRadiusPx = 24f)
+        val outside = nearest(listOf(target), Offset(20f, 15f), 1, 1, 1f, 0f, 0f, hitRadiusPx = 24f)
 
         assertEquals(target, inside)
         assertNull(outside)
@@ -87,14 +100,26 @@ class MapTabTest {
     @Test
     fun `nearest returns null when every dot is out of reach`() {
         val target = dot(trackId = "far", x = 0.9f, y = 0.9f)
-        val found = nearest(listOf(target), Offset(0f, 0f), 1000, 1000, 1f, 0f, 0f)
+        val found = nearest(listOf(target), Offset(0f, 0f), 1000, 1000, 1f, 0f, 0f, hitRadiusPx = 24f)
         assertNull(found)
     }
 
     @Test
     fun `nearest returns null for an empty dot list`() {
-        val found = nearest(emptyList(), Offset(100f, 100f), 1000, 1000, 1f, 0f, 0f)
+        val found = nearest(emptyList(), Offset(100f, 100f), 1000, 1000, 1f, 0f, 0f, hitRadiusPx = 24f)
         assertNull(found)
+    }
+
+    // Closes the density finding directly: the same dp constant must resolve to more raw pixels on
+    // a denser screen, or the hit target shrinks back to an unreachable sliver on high-density
+    // phones exactly as it did when HIT_RADIUS was a raw px literal.
+    @Test
+    fun `HIT_RADIUS_DP converts to more raw pixels at higher density`() {
+        val onePx = with(Density(density = 1f)) { HIT_RADIUS_DP.toPx() }
+        val threePx = with(Density(density = 3f)) { HIT_RADIUS_DP.toPx() }
+
+        assertEquals(48f, onePx)
+        assertEquals(144f, threePx)
     }
 
     private fun page(dots: List<MapDot>) = MapPage(
