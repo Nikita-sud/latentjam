@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -117,8 +118,19 @@ sealed interface MapPageState {
      */
     data class TooLarge(val trackCount: Int, val limit: Int) : MapPageState
 
-    /** A page is drawn. [page.dots] may still be empty in a degenerate edge case. */
-    data class Ready(val page: MapPage) : MapPageState
+    /**
+     * A page is drawn. `App.kt`'s assembly effect never constructs this with an empty
+     * [MapPage.dots] -- see the comment at its one call site -- so [page] is guaranteed non-empty
+     * by construction, not merely by convention.
+     *
+     * @property rebuilding Final review finding (MINOR 1): a library change (e.g. one album added)
+     *   used to blank a warm, already-drawn map to [Building]'s placeholder for the whole recompute,
+     *   even though the *previous* page was still perfectly good to look at in the meantime. When
+     *   true, [page] is that stale-but-still-correct page -- kept on screen while a fresh one
+     *   computes underneath it -- rather than nothing. Only the very first build for a library,
+     *   when there is no previous page to fall back to, ever shows [Building] instead.
+     */
+    data class Ready(val page: MapPage, val rebuilding: Boolean = false) : MapPageState
 }
 
 /**
@@ -139,27 +151,36 @@ fun MapTab(
     val page = (state as? MapPageState.Ready)?.page
     if (page == null || page.dots.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-            Text(
-                text = when (state) {
-                    is MapPageState.Building -> stringResource(Res.string.map_empty_building)
-                    is MapPageState.TooLarge -> stringResource(
-                        Res.string.map_empty_too_large,
-                        pluralStringResource(Res.plurals.count_tracks, state.trackCount, state.trackCount),
-                        pluralStringResource(Res.plurals.count_tracks, state.limit, state.limit),
-                    )
-                    // Indexing, and the degenerate Ready-with-no-dots edge case: both are honestly
-                    // described by the same "still reading" copy -- neither means real work is
-                    // happening right now the way Building does.
-                    MapPageState.Indexing, is MapPageState.Ready -> stringResource(
-                        Res.string.map_empty_indexing,
-                    )
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            val message = when (state) {
+                is MapPageState.Building -> stringResource(Res.string.map_empty_building)
+                is MapPageState.TooLarge -> stringResource(
+                    Res.string.map_empty_too_large,
+                    pluralStringResource(Res.plurals.count_tracks, state.trackCount, state.trackCount),
+                    pluralStringResource(Res.plurals.count_tracks, state.limit, state.limit),
+                )
+                MapPageState.Indexing -> stringResource(Res.string.map_empty_indexing)
+                // Final review finding (MINOR 3): unreachable in practice -- App.kt's assembly
+                // effect never constructs a Ready state with an empty page (see
+                // MapPageState.Ready's doc) -- but the `when` above must still stay exhaustive over
+                // all four MapPageState cases. Reusing map_empty_indexing's "still reading your
+                // library" copy here, as this branch used to, would be exactly the kind of lie this
+                // review round exists to remove: a Ready state is proof indexing already finished.
+                // Since this case cannot happen, it says nothing instead of saying something false.
+                is MapPageState.Ready -> null
+            }
+            if (message != null) {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         return
     }
+    // `page` is only non-null when `state` is Ready (see the assignment above), which the compiler
+    // tracks well enough to smart-cast `state` here without an explicit cast.
+    val rebuilding = state.rebuilding
 
     val lenses = remember(page.listening) { MapLenses.availableLenses(page.listening) }
     var lens by remember(page) { mutableStateOf(MapLens.WORLDS) }
@@ -192,11 +213,23 @@ fun MapTab(
             }
         }
 
-        Text(
-            text = headline(lens, page),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-        )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = headline(lens, page),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            // Final review finding (MINOR 1): a subtle indicator that a fresh layout is computing,
+            // not a blanked screen -- the page drawn below is still the last good one, at most one
+            // library change stale.
+            if (rebuilding) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+            }
+        }
 
         Canvas(
             modifier = Modifier
@@ -502,6 +535,35 @@ private fun largestRegion(page: MapPage): Int =
     page.listening.regions.maxByOrNull { it.trackCount }?.region ?: 0
 
 /**
+ * Whether [mapFallbackRegions] may stand in for an empty `worlds`.
+ *
+ * Final review finding (IMPORTANT): `worlds` reads empty for two entirely different reasons, and
+ * only one of them is "clustering found nothing for this library":
+ * - genuinely below `TrackClustering`'s minimum population, or a small library whose k-means `k`
+ *   splits it thin enough that no cluster reaches `MIN_CLUSTER_SIZE` -- [mapFallbackRegions]'
+ *   actual target.
+ * - `worlds` simply has not been discovered *for this library* yet: it starts as `emptyList()` on
+ *   first composition, and both `onRebuildAnalysis` and `onBackupRestored` in `App.kt` reset it
+ *   (together with `worldLibraryIds`) to `emptyList()` so a stale discovery is never shown as
+ *   current. In every one of those cases the discovery effect simply has not reported back yet.
+ *
+ * Collapsing these into one `worlds.isEmpty()` check let a user who swipes to the Map in the first
+ * seconds after launch -- `libraryMixFeatures` already succeeded, but `LibraryWorlds.discover`
+ * has not -- see the fallback's "Discovery mix" claim the whole library is one region, even though
+ * real regions were seconds away. Once discovery *did* land, `worlds` changing re-keyed the Map's
+ * assembly effect and threw away whatever it had just computed.
+ *
+ * Mirrors the same guard `App.kt`'s For You effect already uses for its own `requestedWorlds`
+ * (`worldLibraryIds == loadedIds`): `worlds` may only be trusted -- empty or not -- once discovery
+ * has reported on exactly this library's id set.
+ */
+internal fun mapFallbackShouldApply(
+    worlds: List<LibraryWorld>,
+    worldLibraryIds: List<TrackId>,
+    loadedIds: List<TrackId>,
+): Boolean = worlds.isEmpty() && worldLibraryIds == loadedIds
+
+/**
  * Spec section 8, row 3: "fewer tracks than MIN_CLUSTER_SIZE regions can support → fall back to a
  * single unnamed region." `TrackClustering.cluster` returns an empty list below its own minimum
  * population, and in practice also whenever the requested k splits a small library thin enough
@@ -529,6 +591,10 @@ internal fun mapFallbackRegions(
     library: List<TrackDescriptor>,
     laidOutIds: List<TrackId>,
 ): List<LibraryWorld> {
+    // See mapFallbackShouldApply's doc for why callers must check that predicate before calling
+    // this -- an empty `worlds` list means either "clustering found nothing" (this function's job)
+    // or "clustering has not reported on this library yet" (not this function's job), and this
+    // function has no way to tell those apart on its own.
     val byId = library.associateBy(TrackDescriptor::id)
     val tracks = laidOutIds.mapNotNull(byId::get)
     if (tracks.isEmpty()) return emptyList()

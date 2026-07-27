@@ -640,8 +640,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
             // Spec section 8, row 3: a library too small for TrackClustering to form even one
             // region must not leave the Map stuck showing the indexing state forever for a user
-            // whose indexing already finished -- see mapFallbackRegions.
-            val regions = worlds.ifEmpty { mapFallbackRegions(loaded, features.vectorSpace.trackIds) }
+            // whose indexing already finished -- see mapFallbackRegions. Final review finding
+            // (IMPORTANT): gated on mapFallbackShouldApply, not bare `worlds.isEmpty()` -- `worlds`
+            // reads empty both when discovery genuinely found nothing for this library AND when it
+            // simply has not reported on this library yet (see that function's doc), and only the
+            // first may borrow the fallback. When it does not apply, `regions` falls through to
+            // `worlds` itself (empty or not) and the existing `regions.isEmpty()` check below keeps
+            // this effect's prior state rather than treating "not ready" as "ready".
+            val regions = if (mapFallbackShouldApply(worlds, worldLibraryIds, loadedIds)) {
+                mapFallbackRegions(loaded, features.vectorSpace.trackIds)
+            } else {
+                worlds
+            }
             if (regions.isEmpty()) return@LaunchedEffect
 
             // Region ids are indices into `regions`: every listening/headline lookup below keys off
@@ -653,10 +663,22 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
 
             val needsCompute = !LibraryLayout.covers(stored, features.vectorSpace.trackIds)
-            // Finding (d): indexing has already finished by the time this can be reached, so a
-            // recompute gets its own honest state instead of reusing the "still reading your
-            // library" copy -- that copy is only true before indexing completes.
-            if (needsCompute) mapState = MapPageState.Building
+            if (needsCompute) {
+                // Final review finding (MINOR 1): a warm map -- one already drawn from a previous
+                // visit -- must not blank to Building's text placeholder while a routine recompute
+                // (e.g. one album added) runs underneath it; the stale page is still correct enough
+                // to look at in the meantime. Only the very first build for a library, when there is
+                // no previous page to keep showing, earns the bare placeholder.
+                val warm = mapState as? MapPageState.Ready
+                mapState = if (warm != null) {
+                    warm.copy(rebuilding = true)
+                } else {
+                    // Finding (d): indexing has already finished by the time this can be reached, so
+                    // a recompute gets its own honest state instead of reusing the "still reading
+                    // your library" copy -- that copy is only true before indexing completes.
+                    MapPageState.Building
+                }
+            }
 
             val built = withContext(Dispatchers.Default) {
                 val positions = if (needsCompute) {
@@ -714,6 +736,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     listening = LibraryListeningStats.summarize(regionOf = regionOf, stats = stats),
                 )
             } ?: return@LaunchedEffect
+
+            // Final review finding (MINOR 3): MapPageState.Ready is documented to always carry a
+            // non-empty page -- reachable only when `positions` (from this visit's own
+            // libraryMixFeatures call) and `regionOf` (built from `regions`, which may trace back to
+            // a differently-timed libraryMixFeatures/LibraryWorlds.discover call) end up disjoint.
+            // Guarded here, at the one place Ready is ever constructed, so MapTab.kt never has to
+            // decide what to tell a reader about a Ready state that -- by definition -- means
+            // indexing already finished; it keeps whatever state was already showing instead.
+            if (built.dots.isEmpty()) return@LaunchedEffect
 
             mapRegions = regions
             mapState = MapPageState.Ready(built)

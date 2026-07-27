@@ -12,6 +12,7 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldNameSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -218,5 +219,84 @@ class MapTabTest {
     @Test
     fun `mapFallbackRegions returns nothing for an empty library`() {
         assertTrue(mapFallbackRegions(emptyList(), emptyList()).isEmpty())
+    }
+
+    // Final review, IMPORTANT finding: App.kt used to substitute mapFallbackRegions on bare
+    // `worlds.isEmpty()`, which is also true in the first seconds after launch -- before
+    // LibraryWorlds.discover has ever reported on this library -- not only when it reported and
+    // found nothing. This is the exact timing window: `worlds` is empty and `worldLibraryIds` is
+    // still whatever it was before this library loaded (its own initial `emptyList()`, or a stale
+    // id set from *Rebuild analysis*/*Backup restored*), so it cannot possibly equal `loadedIds`
+    // yet. A naive `worlds.isEmpty()` predicate returns true here -- wrongly claiming the fallback
+    // applies -- which is precisely what this test proves the real predicate must not do.
+    @Test
+    fun `mapFallbackShouldApply is false before discovery has reported on this library`() {
+        val loadedIds = listOf(TrackId("a"), TrackId("b"))
+
+        val applies = mapFallbackShouldApply(
+            worlds = emptyList(),
+            worldLibraryIds = emptyList(),
+            loadedIds = loadedIds,
+        )
+
+        assertFalse(applies, "the naive worlds.isEmpty() check this replaces would wrongly say true")
+    }
+
+    // The same "not yet" window reopens after *Rebuild analysis* or *Backup restored*, which reset
+    // `worldLibraryIds` to `emptyList()` right alongside `worlds` -- so a library that was already
+    // loaded before the reset must still wait for discovery to catch up rather than borrow the
+    // fallback using its old (now stale) worldLibraryIds.
+    @Test
+    fun `mapFallbackShouldApply is false immediately after a rebuild resets worldLibraryIds`() {
+        val loadedIds = listOf(TrackId("a"), TrackId("b"), TrackId("c"))
+
+        val applies = mapFallbackShouldApply(
+            worlds = emptyList(),
+            worldLibraryIds = emptyList(),
+            loadedIds = loadedIds,
+        )
+
+        assertFalse(applies)
+    }
+
+    // Discovery stale for a *different* library (an id set that does not match the currently
+    // loaded one -- e.g. a track was added since the last discovery run) must also not borrow the
+    // fallback: it is still "not yet", just for a subtler reason than a bare reset.
+    @Test
+    fun `mapFallbackShouldApply is false when worldLibraryIds names a different library`() {
+        val applies = mapFallbackShouldApply(
+            worlds = emptyList(),
+            worldLibraryIds = listOf(TrackId("a"), TrackId("b")),
+            loadedIds = listOf(TrackId("a"), TrackId("b"), TrackId("c")),
+        )
+
+        assertFalse(applies)
+    }
+
+    // The one case the fallback actually exists for: discovery reported back on exactly this
+    // library's id set, and came back with nothing.
+    @Test
+    fun `mapFallbackShouldApply is true once discovery has genuinely found nothing for this library`() {
+        val loadedIds = listOf(TrackId("a"), TrackId("b"))
+
+        val applies = mapFallbackShouldApply(
+            worlds = emptyList(),
+            worldLibraryIds = loadedIds,
+            loadedIds = loadedIds,
+        )
+
+        assertTrue(applies)
+    }
+
+    // A non-empty `worlds` never needs the fallback, regardless of whether worldLibraryIds happens
+    // to match -- real regions always win.
+    @Test
+    fun `mapFallbackShouldApply is false when worlds are not empty`() {
+        val loadedIds = listOf(TrackId("a"))
+        val worlds = mapFallbackRegions(listOf(track("a")), loadedIds)
+
+        val applies = mapFallbackShouldApply(worlds, worldLibraryIds = loadedIds, loadedIds = loadedIds)
+
+        assertFalse(applies)
     }
 }
