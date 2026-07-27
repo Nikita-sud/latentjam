@@ -98,6 +98,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
@@ -197,6 +198,7 @@ import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSource
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorlds
@@ -219,6 +221,19 @@ import org.jetbrains.compose.resources.stringResource
 internal const val ARTWORK_KEY = "now-playing-artwork"
 internal const val PLAYER_SURFACE_KEY = "now-playing-surface"
 internal const val OVERFLOW_KEY = "overflow-button"
+
+/**
+ * What a set of discovered library worlds was built from.
+ *
+ * Clustering is deterministic, so equal keys mean an equal result and the work can be skipped.
+ * The vector source is part of the key because upgrading metadata-only vectors to fused
+ * audio+metadata ones genuinely changes the answer, and that rebuild must still happen.
+ */
+private data class LibraryWorldsKey(
+    val trackIds: List<TrackId>,
+    val source: LibraryVectorSource,
+    val semanticsCount: Int,
+)
 
 /**
  * Root composable, shared by Android and iOS: the player shell.
@@ -369,6 +384,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var forYou by remember { mutableStateOf(ForYouPage()) }
         var worlds by remember { mutableStateOf<List<LibraryWorld>>(emptyList()) }
         var worldLibraryIds by remember { mutableStateOf<List<TrackId>>(emptyList()) }
+        var builtWorldsKey by remember { mutableStateOf<LibraryWorldsKey?>(null) }
         var builtWorlds by remember { mutableStateOf<List<LibraryWorld>?>(null) }
         var builtForYouLibraryIds by remember { mutableStateOf<List<TrackId>?>(null) }
         var builtForYouExclusions by remember { mutableStateOf<SmartExclusionState?>(null) }
@@ -547,28 +563,46 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // acoustic scan covers the library, conservative late fusion adds how the tracks actually
         // sound; if either encoder is sparse, LibraryVectorFusion retains the better-covered
         // single space instead of manufacturing zero vectors or hiding most of the collection.
-        LaunchedEffect(tracks, metadataVectorsReady, audioVectorsReady) {
+        // Readiness is OBSERVED here rather than keyed on. Keying the effect on the two flags
+        // restarted it the moment the second one flipped — which lands mid-clustering, so the
+        // coroutine was cancelled before it could record what it had just built, and the next
+        // pass repeated the identical work (measured: 280 ms then a redundant 217 ms on a cold
+        // launch). Collecting instead lets each pass finish and remember its inputs, so the
+        // metadata -> audio upgrade still rebuilds while a same-inputs repeat does not.
+        LaunchedEffect(tracks) {
             val loaded = tracks ?: return@LaunchedEffect
-            if (!metadataVectorsReady && !audioVectorsReady) return@LaunchedEffect
-            val features =
-                engine.libraryMixFeatures(loaded.map(TrackDescriptor::id)) ?: return@LaunchedEffect
-            val discovered = withContext(Dispatchers.Default) {
-                val started = TimeSource.Monotonic.markNow()
-                LibraryWorlds.discover(
-                    library = loaded,
-                    vectorSpace = features.vectorSpace,
-                    semantics = features.semantics,
-                ).also { mixes ->
-                    val routed = mixes.groupingBy { it.content }.eachCount()
-                    println(
-                        "SMART: built ${mixes.size} ${features.vectorSpace.source} local mixes " +
-                            "(semantic=${features.semantics.size}, routes=$routed) in " +
-                            "${started.elapsedNow().inWholeMilliseconds} ms",
+            val loadedIds = loaded.map(TrackDescriptor::id)
+            snapshotFlow { metadataVectorsReady || audioVectorsReady }
+                .distinctUntilChanged()
+                .collect { anyReady ->
+                    if (!anyReady) return@collect
+                    val features = engine.libraryMixFeatures(loadedIds) ?: return@collect
+                    val worldsKey = LibraryWorldsKey(
+                        trackIds = loadedIds,
+                        source = features.vectorSpace.source,
+                        semanticsCount = features.semantics.size,
                     )
+                    if (worldsKey == builtWorldsKey) return@collect
+                    val discovered = withContext(Dispatchers.Default) {
+                        val started = TimeSource.Monotonic.markNow()
+                        LibraryWorlds.discover(
+                            library = loaded,
+                            vectorSpace = features.vectorSpace,
+                            semantics = features.semantics,
+                        ).also { mixes ->
+                            val routed = mixes.groupingBy { it.content }.eachCount()
+                            println(
+                                "SMART: built ${mixes.size} ${features.vectorSpace.source} " +
+                                    "local mixes (semantic=${features.semantics.size}, " +
+                                    "routes=$routed) in " +
+                                    "${started.elapsedNow().inWholeMilliseconds} ms",
+                            )
+                        }
+                    }
+                    worldLibraryIds = loadedIds
+                    worlds = discovered
+                    builtWorldsKey = worldsKey
                 }
-            }
-            worldLibraryIds = loaded.map(TrackDescriptor::id)
-            worlds = discovered
         }
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
         LaunchedEffect(tracks) {
