@@ -1,1 +1,1 @@
-mnv4-960-retrieval-distill-v1
+mnv4-960-retrieval-distill-v1-w6

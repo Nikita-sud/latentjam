@@ -30,8 +30,8 @@ import org.koin.dsl.module
  * - Output `embedding`: `[1, 960]` float32, L2-normalized in-graph.
  *
  * ### Track pooling
- * [embed] runs up to three deterministic windows (20 % / 50 % / 80 % of the
- * track), sums the window embeddings and L2-normalizes the sum (identical
+ * [embed] runs the deterministic windows [AudioWindows] places across the
+ * track, sums the window embeddings and L2-normalizes the sum (identical
  * direction to mean-then-normalize). Deterministic windows make embeddings
  * reproducible across re-indexing runs.
  *
@@ -117,7 +117,7 @@ internal class OnnxEmbeddingBackend(
                 return null
             }
 
-            for (startMs in windowStartsMs(descriptor.durationMs)) {
+            for (startMs in AudioWindows.startsMs(descriptor.durationMs, WINDOW_MS)) {
                 currentCoroutineContext().ensureActive()
                 val waveform = decoder.decodeWindowMono(
                     uri = uri,
@@ -131,8 +131,8 @@ internal class OnnxEmbeddingBackend(
             }
             // Several otherwise playable MP3/M4A files on real devices reject random access even
             // though decoding from the head works. Retry the beginning only after every preferred
-            // 20/50/80% crop failed; successful tracks keep the original three-window contract and
-            // pay no extra inference cost.
+            // crop failed; successful tracks keep the [AudioWindows] contract and pay no extra
+            // inference cost.
             if (windows == 0 && descriptor.durationMs?.let { it > WINDOW_MS } == true) {
                 decoder.decodeWindowMono(
                     uri = uri,
@@ -235,12 +235,6 @@ internal class OnnxEmbeddingBackend(
         }
     }
 
-    private fun windowStartsMs(durationMs: Long?): List<Long> {
-        if (durationMs == null || durationMs <= WINDOW_MS) return listOf(0L)
-        val span = durationMs - WINDOW_MS
-        return WINDOW_POSITIONS.map { fraction -> (span * fraction).toLong() }
-    }
-
     private fun l2NormalizeInPlace(vector: FloatArray): Boolean {
         var sumOfSquares = 0f
         for (component in vector) {
@@ -298,7 +292,6 @@ internal class OnnxEmbeddingBackend(
         const val DEFAULT_ASSET_PATH = "ml/mnv4_audio.onnx"
         const val SEMANTIC_ASSET_PATH = "ml/universal_semantic_head.onnx"
         const val SEMANTIC_INPUT_NAME = "embedding"
-        val WINDOW_POSITIONS = listOf(0.2, 0.5, 0.8)
         val INFERENCE_GAINS = listOf(1f, 0.5f, 0.25f)
     }
 }
