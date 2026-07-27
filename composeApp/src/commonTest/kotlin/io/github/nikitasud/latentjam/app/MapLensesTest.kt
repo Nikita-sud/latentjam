@@ -85,8 +85,47 @@ class MapLensesTest {
         )
         assertEquals(listOf(MapLens.WORLDS), MapLenses.availableLenses(thin))
 
-        val rich = thin.copy(neverPlayed = 150, regions = listOf(RegionListening(0, 300, 150, 900, 0.2f)))
+        // Both darkestRegion and skippiestRegion must be non-null for every stat lens to appear --
+        // see the dedicated tests below for what happens when only one of them clears.
+        val rich = thin.copy(
+            neverPlayed = 150,
+            regions = listOf(RegionListening(0, 300, 150, 900, 0.2f)),
+            darkestRegion = 0,
+            skippiestRegion = 0,
+        )
         assertEquals(MapLens.entries.toList(), MapLenses.availableLenses(rich))
+    }
+
+    // Finding (Important 1) of the final review: total plays can clear minEvents while no single
+    // region clears MIN_PLAYED_FOR_SKIPPIEST (a much harder bar than MIN_REGION_FOR_DARKEST on a
+    // library with many regions and thin-per-region history) -- concretely, 873 tracks / 45 played
+    // across 8 regions clears 50 total plays but leaves every region under 10 played tracks. Before
+    // this fix the Skips chip still appeared and its headline rendered "You bail out of  more than
+    // anywhere else — 0% of starts.", naming no region and asserting nothing true.
+    @Test
+    fun `available lenses omit skips when no region clears the skippiest threshold`() {
+        val listening = LibraryListening(
+            trackCount = 873, neverPlayed = 828, tracksForHalfOfPlays = 20,
+            regions = listOf(RegionListening(0, 873, 828, 60, 0.1f)),
+            darkestRegion = 0, skippiestRegion = null, maxPlays = 5,
+        )
+        val lenses = MapLenses.availableLenses(listening)
+        assertTrue(MapLens.SKIPS !in lenses, "SKIPS must not appear without a skippiest region")
+        assertEquals(listOf(MapLens.WORLDS, MapLens.PLAYS, MapLens.NEVER_PLAYED), lenses)
+    }
+
+    // Mirror of the test above for the other nullable region id: NEVER_PLAYED must not appear
+    // without a region clearing MIN_REGION_FOR_DARKEST, even once total plays clear minEvents.
+    @Test
+    fun `available lenses omit never played when no region clears the darkest threshold`() {
+        val listening = LibraryListening(
+            trackCount = 873, neverPlayed = 400, tracksForHalfOfPlays = 20,
+            regions = listOf(RegionListening(0, 873, 400, 60, 0.1f)),
+            darkestRegion = null, skippiestRegion = 0, maxPlays = 5,
+        )
+        val lenses = MapLenses.availableLenses(listening)
+        assertTrue(MapLens.NEVER_PLAYED !in lenses, "NEVER_PLAYED must not appear without a darkest region")
+        assertEquals(listOf(MapLens.WORLDS, MapLens.PLAYS, MapLens.SKIPS), lenses)
     }
 
     // step() boundary: an index outside 0 until RAMP_STEPS would be an array-out-of-bounds waiting
@@ -141,7 +180,13 @@ class MapLensesTest {
             regions = listOf(RegionListening(0, 10, 5, 9, 0f)),
             darkestRegion = null, skippiestRegion = null, maxPlays = 9,
         )
-        val justAt = justBelow.copy(regions = listOf(RegionListening(0, 10, 5, 10, 0f)))
+        // darkestRegion/skippiestRegion are set here so this test isolates the minEvents boundary
+        // from the separate darkest/skippiest gating covered by the tests above.
+        val justAt = justBelow.copy(
+            regions = listOf(RegionListening(0, 10, 5, 10, 0f)),
+            darkestRegion = 0,
+            skippiestRegion = 0,
+        )
 
         assertEquals(listOf(MapLens.WORLDS), MapLenses.availableLenses(justBelow, minEvents = 10))
         assertEquals(MapLens.entries.toList(), MapLenses.availableLenses(justAt, minEvents = 10))

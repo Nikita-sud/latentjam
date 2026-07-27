@@ -89,13 +89,29 @@ object MapLenses {
     /**
      * Worlds always works; the rest wait until the log can support a true sentence. Hidden rather
      * than empty — an empty chart is a broken promise, a missing chip is not.
+     *
+     * A lens whose headline names a region ([MapLens.NEVER_PLAYED] needs [LibraryListening]'s
+     * `darkestRegion`, [MapLens.SKIPS] needs `skippiestRegion`) is only offered once that specific
+     * region id is non-null, not merely once total plays clear [minEvents]. The two thresholds are
+     * very different in practice: `darkestRegion` needs one region with >= 8 tracks, but
+     * `skippiestRegion` needs one region with >= 10 *played* tracks -- a far harder bar on a library
+     * with many regions and thin-per-region history, so `plays >= minEvents` clearing does not imply
+     * `skippiestRegion` is non-null. Without this, the chip appears and its headline renders with an
+     * empty region name and a 0% that names nothing true (spec section 8: "The stat lenses appear
+     * once the listening log can support a true sentence").
      */
     fun availableLenses(
         listening: LibraryListening,
         minEvents: Int = MIN_EVENTS_FOR_STATS,
     ): List<MapLens> {
         val plays = listening.regions.sumOf { it.plays }
-        return if (plays >= minEvents) MapLens.entries.toList() else listOf(MapLens.WORLDS)
+        if (plays < minEvents) return listOf(MapLens.WORLDS)
+        return buildList {
+            add(MapLens.WORLDS)
+            add(MapLens.PLAYS)
+            if (listening.darkestRegion != null) add(MapLens.NEVER_PLAYED)
+            if (listening.skippiestRegion != null) add(MapLens.SKIPS)
+        }
     }
 
     /** Buckets a fraction already clamped to 0f..1f into 0 until [RAMP_STEPS]. */
