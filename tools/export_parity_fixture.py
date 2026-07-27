@@ -56,6 +56,8 @@ import pandas as pd
 np.seterr(all="ignore")
 
 LJ = os.environ.get("LJ_ROOT", "/Users/nichitabulgaru/Documents/LJ")
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ML = f"{REPO}/androidApp/src/main/assets/ml"
 
 # ---- chain constants (mirror ChainConfig / SemanticZ / Reanchor / MetadataRerank) ----
 SCORER_SQUASH, SCORER_TEMP = 1.5, 2.0
@@ -223,18 +225,16 @@ class Library:
         self.mtitle = [normalize_title(m[0]) for m in self.lab]
         self.martist = [(m[1] or "") for m in self.lab]
 
-        # ONNX
-        state_asset = f"{LJ}/latentjam/app/src/main/assets/ml/predictor_state.onnx"
+        # ONNX — all graphs come from this repo's own assets; the state and scorer files are
+        # byte-identical to the ones the legacy checkout ships, so nothing points across.
+        state_asset = f"{ML}/predictor_state.onnx"
         self.se = ort.InferenceSession(state_asset)
         self.scorer_mode = scorer_mode
-        b_ml = f"{LJ}/latentjam/.claude/worktrees/monorepo-bootstrap/androidApp/src/main/assets/ml"
         if scorer_mode == "twostage":
-            self.sc = ort.InferenceSession(f"{b_ml}/predictor_scorer_n100.onnx")
-            self.res = ort.InferenceSession(f"{b_ml}/predictor_text_residual_n100_960.onnx")
+            self.sc = ort.InferenceSession(f"{ML}/predictor_scorer_n100.onnx")
+            self.res = ort.InferenceSession(f"{ML}/predictor_text_residual_n100_960.onnx")
         elif scorer_mode == "semtext1344":
-            self.sc = ort.InferenceSession(
-                f"{LJ}/latentjam/app/src/main/assets/ml/predictor_scorer_n100.onnx"
-            )
+            self.sc = ort.InferenceSession(f"{ML}/predictor_scorer_n100.onnx")
             self.res = None
         else:  # none
             self.sc = None
@@ -598,8 +598,7 @@ def w_i32(path, arr):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out",
-                    default=f"{LJ}/latentjam/.claude/worktrees/monorepo-bootstrap/"
-                            "tools/research/output/parity-fixture")
+                    default=f"{REPO}/tools/research/output/parity-fixture")
     ap.add_argument("--scorer", choices=["twostage", "semtext1344", "none"],
                     default="twostage")
     ap.add_argument("--length", type=int, default=20)

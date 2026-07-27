@@ -5,15 +5,21 @@ music_graph_debug.dot maps song UID -> title. Titles are matched against the
 emulator's MediaStore to get the ids the new app uses. Purely data-level: no
 legacy source is consulted, only files the app itself wrote.
 """
+import os
 import re
 import sqlite3
 import subprocess
 import sys
 from collections import OrderedDict
 
-ADB = "/Users/nichitabulgaru/Library/Android/sdk/platform-tools/adb"
-EMU = "emulator-5554"
-LEGACY = "/private/tmp/claude-501/-Users-nichitabulgaru-Documents-LJ-latentjam/05df9346-d4dd-4ba7-a050-dfe8e1a1216f/scratchpad/legacy"
+ADB = os.environ.get("ADB", "adb")
+EMU = os.environ.get("ANDROID_SERIAL", "emulator-5554")
+
+# Directory holding the legacy app's pulled state: graph.dot and user_music.db go in,
+# playlists.txt comes out. Pass it as the first argument.
+if len(sys.argv) < 2:
+    sys.exit(f"usage: {sys.argv[0]} <legacy-state-dir>")
+LEGACY = sys.argv[1].rstrip("/")
 FIELD = ""
 
 # --- 1. UID -> title, from the app's debug graph -------------------------
