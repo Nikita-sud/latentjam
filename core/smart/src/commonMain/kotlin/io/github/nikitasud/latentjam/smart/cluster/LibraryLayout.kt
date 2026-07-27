@@ -39,6 +39,38 @@ public object LibraryLayout {
     /** Pre-reduction width. Measured: keeping this step is worth ~0.01 on both quality metrics. */
     public const val COMPONENTS: Int = 50
 
+    /**
+     * Hard ceiling on the library size [compute] will lay out.
+     *
+     * Every array [Tsne.affinities]/[Tsne.embed] allocate is `O(n^2)`: at n=873 (the real library
+     * this feature was measured against, docs/map-page.md) that is ~12 MB of transient `FloatArray`s
+     * and a "couple of seconds" on a flagship; nothing capped it further, and every other consumer
+     * of this vector space is linear in n, so nothing else in the app was ever asked to hold that
+     * invariant. Left uncapped, a library in the few-thousand range risks minutes of pegged CPU, and
+     * one in the 8-10k range risks a `FloatArray(n*n)` allocation alone running 300-400 MB per array
+     * -- four of those are live across [Tsne.affinities] and [Tsne.embed] -- which is an OOM kill on
+     * most phones, not a slow screen.
+     *
+     * Measured on this implementation (JVM, `LibraryLayout.compute` wall time, dim=1344 fused
+     * space): n=873 -> 1.86 s, n=2400 -> 14.2 s, n=3000 -> 22.5 s -- consistent with the O(n^2)
+     * model (ratios track n^2 almost exactly). docs/map-page.md's own worked example of a materially
+     * larger library (2,400 tracks, `LibraryVectorFusion`'s cross-library test case) already costs
+     * ~7.6x this library's compute time; 3000 was chosen as the ceiling because it is the largest
+     * round number that (a) still comfortably clears that 2,400-track example rather than locking it
+     * out, (b) keeps peak transient memory for the four `n*n` arrays at ~144 MB -- nowhere near the
+     * 300-400 MB *per array* danger zone the OOM reports above start in -- and (c) keeps the
+     * worst-case wall time (this measurement x the ~8-16x flagship-to-budget-device ratio
+     * docs/map-page.md's cold-start section implies) at a few minutes, a one-time cost paid once per
+     * material library change and cached afterward, not per visit.
+     *
+     * Above this, [compute] refuses outright ([require] below) rather than silently drawing a
+     * subset that looks complete. The caller (`App.kt`) checks this ceiling before ever calling
+     * [compute], so a library over the limit shows an honest "too large" state instead of hitting
+     * this exception; the `require` exists as the layer's own guarantee, independent of any one
+     * caller remembering to check first.
+     */
+    public const val MAX_TRACKS: Int = 3000
+
     private const val SEED: Int = 0x1A7E27
 
     /**
@@ -56,10 +88,21 @@ public object LibraryLayout {
      * @param previous the last stored layout, used as a warm start so an added album nudges the map
      *   rather than redrawing it. Tracks it does not cover start from the centroid of the tracks it
      *   does, so newcomers appear in the middle rather than at a corner.
+     * @param isActive cooperative abort hook, checked once per outer iteration of both the PCA
+     *   pre-reduction and the t-SNE pass -- see [Tsne.embed]'s parameter of the same name. A caller
+     *   running this under a coroutine (the only realistic caller: see [MAX_TRACKS]'s doc on why
+     *   this can take real wall time) passes its own `{ isActive }` so a reader who has already
+     *   navigated away is not paid for in full CPU regardless. Aborting mid-pass still returns a
+     *   well-formed, merely under-converged, `List<LayoutPoint>` -- it is the caller's job to check
+     *   its own `isActive` again before treating that result as final and persisting it; this
+     *   function has no way to know whether it was actually cancelled or just handed a hook that
+     *   happened to return false once.
+     * @throws IllegalArgumentException if `space.size` exceeds [MAX_TRACKS]
      */
     public fun compute(
         space: LibraryVectorSpace,
         previous: Map<TrackId, FloatArray> = emptyMap(),
+        isActive: () -> Boolean = { true },
     ): List<LayoutPoint> {
         val ids = space.trackIds
         val n = space.size
@@ -68,14 +111,18 @@ public object LibraryLayout {
         // guards); short-circuit before space.takeRows() so this path never touches the one-shot
         // matrix at all.
         if (n < 3) return ids.map { id -> LayoutPoint(id, 0.5f, 0.5f) }
+        require(n <= MAX_TRACKS) {
+            "Library has $n laid-out tracks, above MAX_TRACKS ($MAX_TRACKS); the caller must check " +
+                "this before calling compute() and show an honest state instead of hitting this"
+        }
         val dim = space.dim
         val rows = space.takeRows()
 
-        val reduced = reduceForEmbedding(rows, n, dim)
+        val reduced = reduceForEmbedding(rows, n, dim, isActive)
         val reducedDim = reduced.size / n
 
         val warm = warmStart(ids, previous, n)
-        var embedded = Tsne.embed(reduced, n, reducedDim, SEED, warm)
+        var embedded = Tsne.embed(reduced, n, reducedDim, SEED, warm, isActive)
 
         if (warm != null) {
             embedded = alignToPrevious(ids, embedded, previous, n)
@@ -148,11 +195,17 @@ public object LibraryLayout {
      * array handed to [Tsne.embed] rather than only on `compute`'s final, twice-removed output.
      *
      * @param rows row-major `n x dim`, mutated in place by centering and the first normalize
+     * @param isActive forwarded to [Pca.reduce] -- see [compute]'s parameter of the same name
      * @return row-major `n x COMPONENTS` (fewer if `dim` or `n` is smaller), unit-normalized per row
      */
-    internal fun reduceForEmbedding(rows: FloatArray, n: Int, dim: Int): FloatArray {
+    internal fun reduceForEmbedding(
+        rows: FloatArray,
+        n: Int,
+        dim: Int,
+        isActive: () -> Boolean = { true },
+    ): FloatArray {
         prepareForPca(rows, n, dim)
-        val reduced = Pca.reduce(rows, n, dim, COMPONENTS, SEED)
+        val reduced = Pca.reduce(rows, n, dim, COMPONENTS, SEED, isActive)
         val reducedDim = reduced.size / n
         unitize(reduced, n, reducedDim)
         return reduced

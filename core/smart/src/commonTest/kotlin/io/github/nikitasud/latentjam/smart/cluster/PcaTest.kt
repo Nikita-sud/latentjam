@@ -56,6 +56,21 @@ class PcaTest {
         for (i in a.indices) assertEquals(a[i], b[i], 0f)
     }
 
+    // The abort hook exists so a cancelled Map visit stops paying for iterations nobody will see
+    // (see LibraryLayout.MAX_TRACKS's doc). `calls` counts every isActive() invocation; returning
+    // false on the 2nd call must stop the loop before a 3rd check ever happens, proving the 4
+    // configured ITERATIONS do not all run regardless.
+    @Test
+    fun `reduce stops iterating once isActive turns false`() {
+        val n = 20
+        val dim = 8
+        val rows = FloatArray(n * dim) { ((it * 5) % 11).toFloat() - 5f }
+        center(rows, n, dim)
+        var calls = 0
+        Pca.reduce(rows, n, dim, components = 3, seed = 1, isActive = { calls++; calls <= 1 })
+        assertEquals(2, calls, "expected the loop to stop right after isActive first returned false")
+    }
+
     private fun center(rows: FloatArray, n: Int, dim: Int) {
         for (d in 0 until dim) {
             var mean = 0f

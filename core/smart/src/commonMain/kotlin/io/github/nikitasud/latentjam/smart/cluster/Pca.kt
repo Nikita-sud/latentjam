@@ -23,9 +23,20 @@ internal object Pca {
 
     /**
      * @param rows row-major `n x dim`, mean-centered
+     * @param isActive cooperative abort hook, checked once per subspace iteration -- see
+     *   [Tsne.embed]'s parameter of the same name for why a plain lambda rather than a coroutines
+     *   dependency. [ITERATIONS] is only 4, so this matters far less here than in [Tsne.embed], but
+     *   the entry point still honours it rather than silently running to completion regardless.
      * @return row-major `n x components`
      */
-    fun reduce(rows: FloatArray, n: Int, dim: Int, components: Int, seed: Int): FloatArray {
+    fun reduce(
+        rows: FloatArray,
+        n: Int,
+        dim: Int,
+        components: Int,
+        seed: Int,
+        isActive: () -> Boolean = { true },
+    ): FloatArray {
         require(n > 0 && dim > 0) { "Empty matrix has no principal components" }
         val k = components.coerceAtMost(dim).coerceAtMost(n)
 
@@ -43,7 +54,8 @@ internal object Pca {
         orthonormalize(basis, dim, k)
 
         val scratch = FloatArray(n * k)
-        repeat(ITERATIONS) {
+        for (iteration in 0 until ITERATIONS) {
+            if (!isActive()) break
             // scratch = rows * basis
             multiply(rows, n, dim, basis, k, scratch)
             // basis = rows^T * scratch

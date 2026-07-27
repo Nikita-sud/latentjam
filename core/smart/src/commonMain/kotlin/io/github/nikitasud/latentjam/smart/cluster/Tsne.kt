@@ -42,6 +42,15 @@ internal object Tsne {
      * @param rows row-major `n x dim`; rows are unit-normalized by the caller so squared euclidean
      *   distance is a monotone function of cosine distance
      * @param initial optional row-major `n x 2` warm start
+     * @param isActive cooperative abort hook, checked once per outer iteration. This object has no
+     *   coroutines dependency (see the class doc on `:core:smart`'s cluster package), so it cannot
+     *   observe structured-concurrency cancellation on its own -- `withContext(Dispatchers.Default)`
+     *   only ever throws at a suspension point, and this loop has none. A caller running under a
+     *   coroutine passes its own `{ isActive }` (the enclosing `CoroutineScope`'s property) here so
+     *   a reader who has already navigated away stops paying for iterations nobody will see, instead
+     *   of the whole 1000-iteration pass running to completion regardless. Returning early hands
+     *   back whatever `y` holds at that point -- an under-converged but well-formed embedding, never
+     *   a crash -- the caller decides whether a partial result is safe to keep.
      * @return row-major `n x 2`
      */
     fun embed(
@@ -50,6 +59,7 @@ internal object Tsne {
         dim: Int,
         seed: Int,
         initial: FloatArray? = null,
+        isActive: () -> Boolean = { true },
     ): FloatArray {
         require(n > 0 && dim > 0) { "Cannot embed an empty matrix" }
         require(rows.size == n * dim) {
@@ -83,6 +93,7 @@ internal object Tsne {
         val q = FloatArray(n * n)
 
         for (iteration in 0 until ITERATIONS) {
+            if (!isActive()) break
             val scale = if (iteration < EXAGGERATION_ITERATIONS) EXAGGERATION else 1f
 
             // Student-t affinities in the embedding, and their normalizer.

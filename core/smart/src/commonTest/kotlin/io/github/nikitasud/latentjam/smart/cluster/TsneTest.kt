@@ -144,6 +144,37 @@ class TsneTest {
         return distanceFromGroup / meanRadius
     }
 
+    // The abort hook exists so a reader who has already navigated away is not paid for in full CPU
+    // -- see LibraryLayout.MAX_TRACKS's doc. `calls` counts every isActive() invocation; returning
+    // false on the 5th call must stop the loop before a 6th check ever happens, proving the 1000
+    // configured ITERATIONS do not all run regardless of what the hook says.
+    @Test
+    fun `embed stops iterating once isActive turns false`() {
+        val n = 30
+        val dim = 4
+        val rows = FloatArray(n * dim) { ((it * 13) % 7).toFloat() }
+        var calls = 0
+        val abortAfter = 5
+        Tsne.embed(rows, n, dim, seed = 3, isActive = { calls++; calls <= abortAfter })
+        assertEquals(
+            abortAfter + 1,
+            calls,
+            "expected the loop to stop right after isActive first returned false",
+        )
+    }
+
+    // An abort on the very first check must still hand back a well-formed embedding -- the whole
+    // point of the hook is "stop cheaply", not "crash" or "return garbage-shaped data".
+    @Test
+    fun `embed returns a well-formed but under-converged result when aborted immediately`() {
+        val n = 12
+        val dim = 4
+        val rows = FloatArray(n * dim) { ((it * 3) % 9).toFloat() - 4f }
+        val out = Tsne.embed(rows, n, dim, seed = 1, isActive = { false })
+        assertEquals(n * 2, out.size)
+        for (value in out) assertTrue(value.isFinite(), "aborted embedding produced a non-finite value")
+    }
+
     @Test
     fun `embed is deterministic for a fixed seed`() {
         val n = 40

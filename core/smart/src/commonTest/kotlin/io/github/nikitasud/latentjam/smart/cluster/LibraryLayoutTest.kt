@@ -9,6 +9,7 @@ import kotlin.math.sqrt
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
@@ -368,6 +369,33 @@ class LibraryLayoutTest {
         }
         check(count > 0) { "no overlap between original and recomputed layouts" }
         return total / count
+    }
+
+    // Finding (a) of the final review: nothing capped n before, so a library a few thousand tracks
+    // large risked minutes of pegged CPU and one in the 8-10k range risked an OOM kill. This must
+    // fail fast -- before space.takeRows() ever consumes the one-shot matrix -- not after a slow
+    // PCA/t-SNE pass, so this test stays cheap even though n is large.
+    @Test
+    fun `compute refuses a library above MAX_TRACKS`() {
+        val exception = assertFailsWith<IllegalArgumentException> {
+            LibraryLayout.compute(space(LibraryLayout.MAX_TRACKS + 1, 8))
+        }
+        assertTrue(
+            exception.message?.contains("${LibraryLayout.MAX_TRACKS}") == true,
+            "expected the message to name the ceiling, was: ${exception.message}",
+        )
+    }
+
+    // Finding (b): the abort hook must actually be wired from compute() through to both Pca.reduce
+    // and Tsne.embed, not merely accepted and dropped. An immediate abort still returns a
+    // well-formed (if under-converged) result rather than throwing.
+    @Test
+    fun `compute honors an immediately aborted isActive without throwing`() {
+        val points = LibraryLayout.compute(space(30, 16), isActive = { false })
+        assertEquals(30, points.size)
+        for (point in points) {
+            assertTrue(point.x.isFinite() && point.y.isFinite(), "non-finite point from an abort")
+        }
     }
 
     private fun space(n: Int, dim: Int): LibraryVectorSpace {
