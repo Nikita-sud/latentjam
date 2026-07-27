@@ -113,12 +113,8 @@ object AppGraph {
                                 embeddingDim = 960,
                                 modelLocator = "ml/mnv4_audio.onnx",
                                 // Must match assets/ml/embedding_version.txt;
-                                // keys the persisted index snapshot. The `-w6` suffix is the
-                                // pooling contract, not a new graph: mnv4_audio.onnx is
-                                // unchanged, but AudioWindows now pools six crops instead of
-                                // three, so vectors from either side are not interchangeable
-                                // and the old snapshot has to be discarded.
-                                modelVersion = "mnv4-960-retrieval-distill-v1-w6",
+                                // keys the persisted index snapshot.
+                                modelVersion = "mnv4-960-retrieval-distill-v1",
                             )
                         }
                         // The single point where playback meets the engine.
