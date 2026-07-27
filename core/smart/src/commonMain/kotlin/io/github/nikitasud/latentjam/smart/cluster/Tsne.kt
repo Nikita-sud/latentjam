@@ -67,7 +67,7 @@ internal object Tsne {
         }
         if (n < 3) return FloatArray(n * 2)
 
-        val p = affinities(rows, n, dim)
+        val p = affinities(rows, n, dim, isActive)
 
         var state = (seed.toLong() and 0xFFFFFFFFL) or 1L
         fun next(): Float {
@@ -155,10 +155,22 @@ internal object Tsne {
     /**
      * Symmetric joint probabilities, one bandwidth per point chosen so its conditional
      * distribution has the target perplexity.
+     *
+     * Final review finding (MINOR 2): this used to run to completion -- `O(n^2 * dim)` distances
+     * plus [PERPLEXITY_STEPS] `* n^2` `exp()` calls (roughly 540M of them at
+     * n=[LibraryLayout.MAX_TRACKS], several seconds on a phone) -- entirely before [embed]'s own
+     * [isActive] check was ever consulted, since that check only guards the *gradient* loop below
+     * and this function runs before it. [isActive] is polled once per outer row of each of this
+     * function's two loops, exactly like the gradient loop already does, so a caller who has
+     * navigated away is not paid for in full CPU regardless of which of the two phases the abort
+     * lands in.
+     *
+     * @param isActive forwarded from [embed]'s parameter of the same name
      */
-    private fun affinities(rows: FloatArray, n: Int, dim: Int): FloatArray {
+    private fun affinities(rows: FloatArray, n: Int, dim: Int, isActive: () -> Boolean): FloatArray {
         val distances = FloatArray(n * n)
         for (i in 0 until n) {
+            if (!isActive()) return FloatArray(n * n)
             for (j in i + 1 until n) {
                 var sum = 0f
                 val a = i * dim
@@ -189,6 +201,7 @@ internal object Tsne {
         val target = ln(effectivePerplexity)
         val row = FloatArray(n)
         for (i in 0 until n) {
+            if (!isActive()) return FloatArray(n * n)
             var low = 0f
             var high = Float.MAX_VALUE
             var beta = 1f

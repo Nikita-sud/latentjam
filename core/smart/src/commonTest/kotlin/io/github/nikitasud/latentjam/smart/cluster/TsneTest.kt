@@ -146,8 +146,15 @@ class TsneTest {
 
     // The abort hook exists so a reader who has already navigated away is not paid for in full CPU
     // -- see LibraryLayout.MAX_TRACKS's doc. `calls` counts every isActive() invocation; returning
-    // false on the 5th call must stop the loop before a 6th check ever happens, proving the 1000
+    // false on the 6th call must stop everything before a 7th check ever happens, proving the 1000
     // configured ITERATIONS do not all run regardless of what the hook says.
+    //
+    // Final review MINOR 2: affinities() now polls isActive() once per outer row too (see the two
+    // tests below), so at n=30 the trip lands inside affinities' own distances loop (calls 1-6, one
+    // per row i=0..5) before the gradient loop -- this test's original target -- is ever reached.
+    // The gradient loop still gets its own single confirming check (call 7) once affinities bails
+    // out and control returns to it, which is why the total is abortAfter + 2, not + 1 as it was
+    // before affinities did any polling of its own.
     @Test
     fun `embed stops iterating once isActive turns false`() {
         val n = 30
@@ -157,9 +164,58 @@ class TsneTest {
         val abortAfter = 5
         Tsne.embed(rows, n, dim, seed = 3, isActive = { calls++; calls <= abortAfter })
         assertEquals(
-            abortAfter + 1,
+            abortAfter + 2,
             calls,
-            "expected the loop to stop right after isActive first returned false",
+            "expected affinities' own row-by-row polling to stop it before the gradient loop's " +
+                "single confirming check",
+        )
+    }
+
+    // Regression test for the final review's MINOR 2: affinities() used to run to completion --
+    // O(n^2 * dim) distances plus PERPLEXITY_STEPS * n^2 exp() calls -- entirely before isActive()
+    // was ever consulted, since only the gradient loop below it polled the hook. An isActive that
+    // is false from the very first check must now stop affinities on its first row rather than
+    // silently paying for the whole O(n^2) pass and only being noticed afterward.
+    @Test
+    fun `embed consults isActive before affinities does any quadratic work`() {
+        val n = 200
+        val dim = 4
+        val rows = FloatArray(n * dim) { ((it * 13) % 7).toFloat() }
+        var calls = 0
+        val out = Tsne.embed(rows, n, dim, seed = 1, isActive = { calls++; false })
+        assertEquals(
+            2,
+            calls,
+            "expected affinities' first-row check (1) plus the gradient loop's single confirming " +
+                "check (2) -- not one call per row of a matrix this large, and not zero, which is " +
+                "what affinities used to cost before it polled isActive at all",
+        )
+        assertEquals(n * 2, out.size)
+        for (value in out) assertTrue(value.isFinite(), "aborted embedding produced a non-finite value")
+    }
+
+    // Symmetric to the test above: an abort that lands partway through affinities' second
+    // (perplexity-search) loop, after the first (distances) loop already completed in full, must
+    // still stop before that phase's own O(n^2 * PERPLEXITY_STEPS) exp() calls run for every row --
+    // proving the second loop's poll is independent of the first's, not merely inherited from it.
+    @Test
+    fun `embed also aborts mid-affinities from the perplexity-search loop`() {
+        val n = 60
+        val dim = 4
+        val rows = FloatArray(n * dim) { ((it * 13) % 7).toFloat() }
+        var calls = 0
+        // The distances loop alone costs exactly n calls (one per row, i=0 until n) when never
+        // aborted; allowing n + 1 true calls lets the distances loop finish (n calls) plus the
+        // perplexity-search loop's own first row check (call n + 1), so the trip -- and the total,
+        // by the same "+2" reasoning as the test above -- lands on the perplexity-search loop's
+        // 2nd row check.
+        val abortAfter = n + 1
+        Tsne.embed(rows, n, dim, seed = 1, isActive = { calls++; calls <= abortAfter })
+        assertEquals(
+            abortAfter + 2,
+            calls,
+            "expected the perplexity-search loop's own poll to stop it independently of the " +
+                "distances loop that already ran to completion",
         )
     }
 
