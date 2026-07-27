@@ -28,14 +28,38 @@ public data class SongSection(
  */
 public object SongSorting {
 
-    /** Sorts a plain track list. Recency descending; the rest alphabetical. */
+    /**
+     * Sorts a plain track list. Recency descending; the rest alphabetical.
+     *
+     * The alphabetical orders key each track ONCE up front rather than from inside the
+     * comparator. [sortKey] allocates (it trims and lowercases), and a comparator runs
+     * O(n log n) times — on a thousand-track library that is ~13k throwaway strings per sort,
+     * paid on the main thread because the songs list keys its sections off this. Recency needs
+     * no such treatment: its key is a field read.
+     *
+     * Both paths sort with the same comparator over the same keys as before, and Kotlin's sort
+     * is stable, so the resulting order is byte-for-byte the one this always produced.
+     */
     public fun sort(tracks: List<TrackDescriptor>, sort: SongSort): List<TrackDescriptor> = when (sort) {
-        SongSort.TITLE -> tracks.sortedBy { sortKey(it.title) }
-        SongSort.ARTIST -> tracks.sortedWith(
-            compareBy({ sortKey(it.artist) }, { sortKey(it.title) }),
-        )
+        SongSort.TITLE -> tracks
+            .map { KeyedTrack(it, sortKey(it.title)) }
+            .sortedBy { it.primary }
+            .map { it.track }
+
+        SongSort.ARTIST -> tracks
+            .map { KeyedTrack(it, sortKey(it.artist), sortKey(it.title)) }
+            .sortedWith(compareBy({ it.primary }, { it.secondary }))
+            .map { it.track }
+
         SongSort.RECENT -> tracks.sortedByDescending { it.addedAtMs ?: 0L }
     }
+
+    /** A track carrying its precomputed sort keys, so the comparator only compares. */
+    private class KeyedTrack(
+        val track: TrackDescriptor,
+        val primary: String,
+        val secondary: String = "",
+    )
 
     /**
      * Sorted tracks grouped into index buckets. [SongSort.RECENT] returns a

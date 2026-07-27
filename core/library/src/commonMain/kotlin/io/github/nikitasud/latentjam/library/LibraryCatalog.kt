@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.library
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 
 /**
  * An album as grouped from track metadata.
@@ -60,6 +61,20 @@ public data class LibraryCatalog(
     public companion object {
 
         public fun build(tracks: List<TrackDescriptor>): LibraryCatalog {
+            // Every grouping below orders its tracks by title, and each `sortedBy` used to
+            // lowercase inside the comparator — so one title was rebuilt four times over, then
+            // again on each of the O(n log n) comparisons. Keying once up front leaves the
+            // comparators doing nothing but comparing. Same keys, same stable sort, same order.
+            val titleKeys = HashMap<TrackId, String>(tracks.size)
+            for (track in tracks) {
+                titleKeys[track.id] = track.title?.lowercase() ?: UNKNOWN_LAST
+            }
+
+            fun List<TrackDescriptor>.byTitle(): List<TrackDescriptor> =
+                map { it to titleKeys.getValue(it.id) }
+                    .sortedBy { it.second }
+                    .map { it.first }
+
             val albums = tracks
                 .albumGroups()
                 .map { (key, grouped) ->
@@ -68,10 +83,10 @@ public data class LibraryCatalog(
                         title = grouped.firstNotNullOfOrNull { it.album },
                         artist = grouped.firstNotNullOfOrNull { it.artist },
                         artworkUri = grouped.firstNotNullOfOrNull { it.artworkUri },
-                        tracks = grouped.sortedBy { it.title?.lowercase() ?: "￿" },
+                        tracks = grouped.byTitle(),
                     )
                 }
-                .sortedBy { it.title?.lowercase() ?: "￿" }
+                .sortedByKey { it.title?.lowercase() ?: UNKNOWN_LAST }
 
             val albumCountByArtist = albums
                 .groupingBy { it.artist }
@@ -82,21 +97,21 @@ public data class LibraryCatalog(
                 .map { (name, grouped) ->
                     ArtistGroup(
                         name = name,
-                        tracks = grouped.sortedBy { it.title?.lowercase() ?: "￿" },
+                        tracks = grouped.byTitle(),
                         albumCount = albumCountByArtist[name] ?: 0,
                     )
                 }
-                .sortedBy { it.name?.lowercase() ?: "￿" }
+                .sortedByKey { it.name?.lowercase() ?: UNKNOWN_LAST }
 
             val genres = tracks
                 .groupBy { it.genre }
                 .map { (name, grouped) ->
                     GenreGroup(
                         name = name,
-                        tracks = grouped.sortedBy { it.title?.lowercase() ?: "￿" },
+                        tracks = grouped.byTitle(),
                     )
                 }
-                .sortedBy { it.name?.lowercase() ?: "￿" }
+                .sortedByKey { it.name?.lowercase() ?: UNKNOWN_LAST }
 
             val folders = tracks
                 .groupBy { it.folderPath?.trim('/') ?: DEFAULT_FOLDER }
@@ -104,10 +119,12 @@ public data class LibraryCatalog(
                     FolderGroup(
                         path = path,
                         name = path.substringAfterLast('/'),
-                        tracks = grouped.sortedBy { it.title?.lowercase() ?: "￿" },
+                        tracks = grouped.byTitle(),
                     )
                 }
-                .sortedWith(compareBy<FolderGroup> { it.name.lowercase() }.thenBy { it.path.lowercase() })
+                .map { Triple(it, it.name.lowercase(), it.path.lowercase()) }
+                .sortedWith(compareBy({ it.second }, { it.third }))
+                .map { it.first }
 
             return LibraryCatalog(
                 songs = tracks,
@@ -118,7 +135,19 @@ public data class LibraryCatalog(
             )
         }
 
+        /** Sorts by a key computed once per element instead of once per comparison. */
+        private inline fun <T> List<T>.sortedByKey(key: (T) -> String): List<T> =
+            map { it to key(it) }
+                .sortedBy { it.second }
+                .map { it.first }
+
         private const val DEFAULT_FOLDER = "Music"
+
+        /** Sorts after every real name; U+FFFF has no assigned character above it. */
+        private const val UNKNOWN_LAST = "￿"
+
+        /** Hoisted: `Regex(...)` compiles a pattern, and this runs once per track. */
+        private val WHITESPACE = Regex("\\s+")
 
         /**
          * Builds album groups without treating a cache-file URI as album identity.
@@ -162,7 +191,7 @@ public data class LibraryCatalog(
         private fun String?.normalizedKey(): String? = this
             ?.filterNot { it == '\u200B' || it == '\u200C' || it == '\u200D' || it == '\uFEFF' }
             ?.trim()
-            ?.replace(Regex("\\s+"), " ")
+            ?.replace(WHITESPACE, " ")
             ?.lowercase()
             ?.takeIf { it.isNotEmpty() }
     }
