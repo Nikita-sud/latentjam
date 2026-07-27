@@ -385,7 +385,12 @@ internal class DefaultSimilarityEngine(
                     "indexed=$indexedEligible/${eligibleIds.size}, required=$requiredAudio, " +
                     "text=${if (textEncoderLoaded) "ready" else "unavailable"}",
             )
-            val chain = SmartChain(snapshot, livePredictor, eligibleRows).build(
+            val chain = SmartChain(
+                snapshot,
+                livePredictor,
+                eligibleRows,
+                typicalityWeight = config.typicalityWeight,
+            ).build(
                 seedId = seed.id,
                 length = length,
                 timeFeatures = clock.timeFeatures(),

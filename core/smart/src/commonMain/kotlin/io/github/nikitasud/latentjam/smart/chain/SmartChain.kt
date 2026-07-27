@@ -78,6 +78,12 @@ internal class SmartChain(
     private val runtime: PredictorRuntime?,
     /** Rows allowed in the output; history-only rows may inform state without becoming candidates. */
     private val eligibleRows: BooleanArray = BooleanArray(snapshot.size) { true },
+    /**
+     * Weight on [SmartSnapshot.typicality], in standard deviations of this library. Zero
+     * reproduces the shipped chain exactly, which is what the recorded parity fixtures pin.
+     * Set from `SmartEngineConfig.typicalityWeight`; see TypicalityTest for the evidence.
+     */
+    private val typicalityWeight: Float = 0f,
 ) {
 
     init {
@@ -265,6 +271,11 @@ internal class SmartChain(
                 // zSeedActive == zSeed except on an exhausted tail hop (medoid reference).
                 score += ChainConfig.SEM_CHAIN_SEED_GRAVITY * zSeedActive[i] +
                     ChainConfig.SEM_CHAIN_PREV_BLEND * zPrev[i]
+                // Typicality: the axis centering removes. Off (0f) unless the caller opts in, so
+                // the recorded parity fixtures and every shipped queue are unchanged by default.
+                if (typicalityWeight != 0f) {
+                    score += typicalityWeight * snapshot.typicality[row]
+                }
                 var multiplier = MetadataRerank.adjustMultiplier(anchorMeta, meta)
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)
                 multiplier *= MetadataRerank.seedIntentMultiplier(

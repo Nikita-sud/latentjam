@@ -115,6 +115,11 @@ object AppGraph {
                                 // Must match assets/ml/embedding_version.txt;
                                 // keys the persisted index snapshot.
                                 modelVersion = "mnv4-960-retrieval-distill-v1",
+                                // EXPERIMENT, on. Set back to 0f to disable. Only affects
+                                // ordering, never the index, so flipping it costs no re-index
+                                // and the comparison is a clean before/after in
+                                // files/listening_history.log.
+                                typicalityWeight = 0.3f,
                             )
                         }
                         // The single point where playback meets the engine.

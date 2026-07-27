@@ -38,6 +38,13 @@ internal class SmartSnapshot private constructor(
     val centeredAudio: FloatArray,
     /** Per-row CSLS hub penalty, zero-meaned across the corpus. */
     val hubPenalty: FloatArray,
+    /**
+     * Per-row projection onto the corpus mean direction, z-scored — how much of this library
+     * sounds like the track. This is precisely the axis [centeredAudio] removes, kept because
+     * the removal is not free: measured against real listening it predicts whether a track is
+     * kept better than the centered cosine does. See TypicalityTest for the numbers.
+     */
+    val typicality: FloatArray,
     val centeredText: FloatArray?,
     val hasText: BooleanArray?,
     val centeredDescriptor: FloatArray?,
@@ -146,12 +153,50 @@ internal class SmartSnapshot private constructor(
                 rawAudio = raw,
                 centeredAudio = centered,
                 hubPenalty = computeHubPenalty(centered, n),
+                typicality = computeTypicality(raw, mean, n),
                 centeredText = text,
                 hasText = hasText,
                 centeredDescriptor = descriptor,
                 hasDescriptor = hasDescriptor,
                 rawText = rawText,
             )
+        }
+
+        /**
+         * Projection of every row onto the corpus mean direction, z-scored.
+         *
+         * The z-score is what makes the chain's weight portable: the raw projection's scale
+         * depends on how tightly a particular library clusters, so an absolute weight tuned on
+         * one collection would mean something else on another. After z-scoring, a weight is
+         * expressed in standard deviations of *this* library and behaves the same everywhere.
+         *
+         * Returns all zeros — a term that cannot fire — when the mean direction is degenerate or
+         * every row projects identically, which is the correct neutral for a library too small or
+         * too uniform to have a centre.
+         */
+        private fun computeTypicality(raw: FloatArray, mean: FloatArray, n: Int): FloatArray {
+            val out = FloatArray(n)
+            val meanNorm = norm(mean)
+            if (meanNorm < DEGENERATE_NORM_EPS) return out
+            val scale = 1f / meanNorm
+            var sum = 0.0
+            for (i in 0 until n) {
+                val base = i * AUDIO_DIM
+                var dot = 0f
+                for (d in 0 until AUDIO_DIM) dot += raw[base + d] * mean[d] * scale
+                out[i] = dot
+                sum += dot
+            }
+            val average = (sum / n).toFloat()
+            var sumSq = 0.0
+            for (i in 0 until n) {
+                val delta = out[i] - average
+                sumSq += delta.toDouble() * delta
+            }
+            val deviation = sqrt(sumSq / n).toFloat()
+            if (deviation < DEGENERATE_NORM_EPS) return FloatArray(n)
+            for (i in 0 until n) out[i] = (out[i] - average) / deviation
+            return out
         }
 
         /**

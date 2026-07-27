@@ -23,9 +23,21 @@ package io.github.nikitasud.latentjam.smart
  * @property modelVersion Version string of the embedding model, used to key
  *   persisted index snapshots ([IndexStore]) — embeddings from different
  *   model versions must never mix. Keep in sync with the shipped model asset.
+ * @property typicalityWeight EXPERIMENT FLAG, off at `0f`. How strongly the
+ *   chain prefers tracks that are typical of the library, in standard
+ *   deviations of that library's own spread. The chain measures every cosine
+ *   in a mean-centered space, which discards how central a track is; measured
+ *   against 717 real listening transitions that discarded axis predicts
+ *   whether a track is kept at AUC 0.633, with keep rate climbing 0.393 →
+ *   0.550 → 0.644 across terciles. Offline sweeps show no niche collapse up to
+ *   `0.8f` (genre-family retention, language retention and cross-seed overlap
+ *   all flat), but no offline judge can confirm it *helps* — the only
+ *   validated predictor is typicality itself, so scoring it with typicality
+ *   would be circular. It ships behind this flag to be settled on device.
  */
 public data class SmartEngineConfig(
     public val embeddingDim: Int = 512,
     public val modelLocator: String? = null,
     public val modelVersion: String = "unversioned",
+    public val typicalityWeight: Float = 0f,
 )
