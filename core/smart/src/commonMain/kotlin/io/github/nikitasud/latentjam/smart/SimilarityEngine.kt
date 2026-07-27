@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorCoverage
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
 import kotlinx.coroutines.flow.StateFlow
 
@@ -110,6 +111,18 @@ public interface SimilarityEngine {
      * defensive snapshots beside the fused output on large libraries.
      */
     public suspend fun libraryMixVectors(ids: List<TrackId>): LibraryVectorSpace?
+
+    /**
+     * Which tracks [libraryMixVectors] would cover, and from which modality, without building the
+     * rows.
+     *
+     * For callers that only need the population — a cached-layout check, a track-count ceiling, a
+     * mappable-set filter. Building a space to read `trackIds` off it allocates
+     * `trackIds.size × dim` floats and normalises every one of them; on an 877-track library that
+     * is 4.7 MB per call, discarded unread. The selection is shared with the build, so the two
+     * cannot disagree about which tracks are covered.
+     */
+    public suspend fun libraryMixCoverage(ids: List<TrackId>): LibraryVectorCoverage?
 
     /**
      * Builds mix vectors and batches the corresponding audio fingerprints through the universal

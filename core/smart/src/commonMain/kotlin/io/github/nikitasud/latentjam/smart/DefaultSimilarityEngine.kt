@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.smart.chain.SmartChain
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
 import io.github.nikitasud.latentjam.smart.chain.SmartTrack
 import io.github.nikitasud.latentjam.smart.chain.TrackMeta
+import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorCoverage
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorFusion
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
@@ -250,6 +251,20 @@ internal class DefaultSimilarityEngine(
             mutex.withLock {
                 if (mutableState.value !is EngineState.Ready) return@withLock null
                 LibraryVectorFusion.buildFromIndexes(
+                    ids = ids,
+                    audio = index,
+                    metadata = textIndex,
+                    audioDim = config.embeddingDim,
+                    metadataDim = TextEncoder.TEXT_DIM,
+                )
+            }
+        }
+
+    override suspend fun libraryMixCoverage(ids: List<TrackId>): LibraryVectorCoverage? =
+        withContext(dispatcher) {
+            mutex.withLock {
+                if (mutableState.value !is EngineState.Ready) return@withLock null
+                LibraryVectorFusion.coverageFromIndexes(
                     ids = ids,
                     audio = index,
                     metadata = textIndex,

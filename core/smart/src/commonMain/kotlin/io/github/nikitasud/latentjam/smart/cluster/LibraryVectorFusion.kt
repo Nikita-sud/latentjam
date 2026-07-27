@@ -54,6 +54,21 @@ public class LibraryVectorSpace internal constructor(
     }
 }
 
+/**
+ * The population a fused space would cover, without the space.
+ *
+ * Callers that only need to know *which* tracks are laid out — [LibraryLayout.covers], the
+ * Map's track ceiling and its mappable-set filter — would otherwise pay for the whole fused
+ * matrix and read two fields off it.
+ */
+public class LibraryVectorCoverage internal constructor(
+    /** Exactly the ids [LibraryVectorFusion.build] would put in [LibraryVectorSpace.trackIds]. */
+    public val trackIds: List<TrackId>,
+    public val source: LibraryVectorSource,
+) {
+    public val size: Int get() = trackIds.size
+}
+
 public enum class LibraryVectorSource {
     AUDIO,
     METADATA,
@@ -121,6 +136,93 @@ public object LibraryVectorFusion {
     }
 
     /**
+     * Which tracks a fused space would cover, and from which modality — without the rows.
+     *
+     * Same selection as [build], by construction: both delegate to [select]. Callers that only
+     * need the population skip allocating a `trackIds.size × dim` matrix they would not read.
+     */
+    public fun coverage(
+        ids: List<TrackId>,
+        audio: Map<TrackId, FloatArray>,
+        metadata: Map<TrackId, FloatArray>,
+        audioDim: Int,
+        metadataDim: Int,
+        minHybridCoverage: Float = MIN_HYBRID_COVERAGE,
+    ): LibraryVectorCoverage? {
+        validateParameters(audioDim, metadataDim, METADATA_WEIGHT, minHybridCoverage)
+        val stableIds = ids.distinct()
+        if (stableIds.isEmpty()) return null
+        return select(
+            stableIds = stableIds,
+            audioIds = stableIds.filterTo(LinkedHashSet()) { audio[it].isUsable(audioDim) },
+            metadataIds = stableIds.filterTo(LinkedHashSet()) { metadata[it].isUsable(metadataDim) },
+            minHybridCoverage = minHybridCoverage,
+        )
+    }
+
+    /**
+     * Index-backed [coverage]; the production entry point.
+     *
+     * Still reads every candidate vector — usability is a property of the row's contents, not of
+     * its presence, so [VectorIndex.contains] cannot stand in without the selection drifting from
+     * [buildFromIndexes]. What it avoids is the output matrix and the normalising pass over it.
+     */
+    public fun coverageFromIndexes(
+        ids: List<TrackId>,
+        audio: VectorIndex,
+        metadata: VectorIndex?,
+        audioDim: Int,
+        metadataDim: Int,
+        minHybridCoverage: Float = MIN_HYBRID_COVERAGE,
+    ): LibraryVectorCoverage? {
+        validateParameters(audioDim, metadataDim, METADATA_WEIGHT, minHybridCoverage)
+        val stableIds = ids.distinct()
+        if (stableIds.isEmpty()) return null
+        return select(
+            stableIds = stableIds,
+            audioIds = stableIds.filterTo(LinkedHashSet()) { audio.vector(it).isUsable(audioDim) },
+            metadataIds = stableIds.filterTo(LinkedHashSet()) {
+                metadata?.vector(it).isUsable(metadataDim)
+            },
+            minHybridCoverage = minHybridCoverage,
+        )
+    }
+
+    /**
+     * The one place a fused space's population and modality are decided.
+     *
+     * Shared by [buildSelected] and [coverage] so the two can never disagree — `LibraryLayout`
+     * compares its stored positions against this id list, and a divergence would either force a
+     * t-SNE recompute on every visit or keep a layout that no longer covers the library.
+     */
+    private fun select(
+        stableIds: List<TrackId>,
+        audioIds: Set<TrackId>,
+        metadataIds: Set<TrackId>,
+        minHybridCoverage: Float,
+    ): LibraryVectorCoverage? {
+        val sharedCount = audioIds.count(metadataIds::contains)
+        val sharedCoverage = sharedCount.toFloat() / stableIds.size
+        if (sharedCount > 0 && sharedCoverage >= minHybridCoverage) {
+            return LibraryVectorCoverage(
+                trackIds = stableIds.filter { it in audioIds || it in metadataIds },
+                source = LibraryVectorSource.AUDIO_AND_METADATA,
+            )
+        }
+        return when {
+            metadataIds.isNotEmpty() && metadataIds.size >= audioIds.size -> LibraryVectorCoverage(
+                trackIds = stableIds.filter(metadataIds::contains),
+                source = LibraryVectorSource.METADATA,
+            )
+            audioIds.isNotEmpty() -> LibraryVectorCoverage(
+                trackIds = stableIds.filter(audioIds::contains),
+                source = LibraryVectorSource.AUDIO,
+            )
+            else -> null
+        }
+    }
+
+    /**
      * Index-backed production path. Each candidate is copied and validated one at a time, then
      * discarded before the output pass; malformed custom-index rows cannot poison clustering, and
      * full snapshots are never simultaneously resident.
@@ -167,10 +269,9 @@ public object LibraryVectorFusion {
         metadataWeight: Float,
         minHybridCoverage: Float,
     ): LibraryVectorSpace? {
-        val sharedCount = audioIds.count(metadataIds::contains)
-        val sharedCoverage = sharedCount.toFloat() / stableIds.size
-        if (sharedCount > 0 && sharedCoverage >= minHybridCoverage) {
-            val selectedIds = stableIds.filter { it in audioIds || it in metadataIds }
+        val selection = select(stableIds, audioIds, metadataIds, minHybridCoverage) ?: return null
+        if (selection.source == LibraryVectorSource.AUDIO_AND_METADATA) {
+            val selectedIds = selection.trackIds
             val dim = audioDim + metadataDim
             val rows = FloatArray(selectedIds.size * dim)
             val audioScale = sqrt(1f - metadataWeight)
@@ -199,22 +300,21 @@ public object LibraryVectorFusion {
             )
         }
 
-        return when {
-            metadataIds.isNotEmpty() && metadataIds.size >= audioIds.size ->
-                singleSpace(
-                    ids = stableIds.filter(metadataIds::contains),
-                    vectors = metadata,
-                    dim = metadataDim,
-                    source = LibraryVectorSource.METADATA,
-                )
-            audioIds.isNotEmpty() ->
-                singleSpace(
-                    ids = stableIds.filter(audioIds::contains),
-                    vectors = audio,
-                    dim = audioDim,
-                    source = LibraryVectorSource.AUDIO,
-                )
-            else -> null
+        return when (selection.source) {
+            LibraryVectorSource.METADATA -> singleSpace(
+                ids = selection.trackIds,
+                vectors = metadata,
+                dim = metadataDim,
+                source = LibraryVectorSource.METADATA,
+            )
+            LibraryVectorSource.AUDIO -> singleSpace(
+                ids = selection.trackIds,
+                vectors = audio,
+                dim = audioDim,
+                source = LibraryVectorSource.AUDIO,
+            )
+            // Handled above; listed so a new source cannot be added without deciding its rows.
+            LibraryVectorSource.AUDIO_AND_METADATA -> null
         }
     }
 
