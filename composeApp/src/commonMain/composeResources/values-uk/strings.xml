@@ -68,6 +68,7 @@
     <string name="tab_albums">Альбоми</string>
     <string name="tab_artists">Виконавці</string>
     <string name="tab_genres">Жанри</string>
+    <string name="tab_map">Карта</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">На цьому пристрої не знайдено музики.</string>
@@ -99,6 +100,37 @@
         <item quantity="many">Слухали %1$d разів</item>
         <item quantity="other">Слухали %1$d разу</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Світи</string>
+    <string name="map_lens_plays">Прослуховування</string>
+    <string name="map_lens_never_played">Не слухали</string>
+    <string name="map_lens_skips">Пропуски</string>
+
+    <plurals name="count_regions">
+        <item quantity="one">%1$d область</item>
+        <item quantity="few">%1$d області</item>
+        <item quantity="many">%1$d областей</item>
+        <item quantity="other">%1$d області</item>
+    </plurals>
+
+    <string name="map_headline_worlds">Карта ділить %1$s на %2$s. Торкніться будь-якої, щоб почути, що всередині.</string>
+    <string name="map_headline_plays">Половина всього, що ви коли-небудь слухали, — це %1$s, або %2$d\u0025 бібліотеки.</string>
+    <string name="map_headline_never_played">У бібліотеці %2$s, і %1$d з них ви не вмикали жодного разу. Область «%3$s» лишилася незайманою на %4$d\u0025.</string>
+    <string name="map_headline_skips">Найчастіше ви кидаєте треки тут: «%1$s» — %2$d\u0025 запусків.</string>
+
+    <string name="map_action_play_region">Слухати область</string>
+    <string name="map_action_smart_here">SMART звідси</string>
+    <string name="map_empty_indexing">Бібліотека ще читається. Карта з’явиться, коли завершиться індексація.</string>
+    <string name="map_empty_building">Будуємо карту вашої бібліотеки. Для великої бібліотеки це може зайняти певний час.</string>
+    <string name="map_empty_too_large">У вашій бібліотеці %1$s — це більше, ніж %2$s, які карта може показати зараз.</string>
+
+    <string name="map_legend_selected">вибрана область</string>
+    <string name="map_legend_rest">решта бібліотеки</string>
+    <string name="map_legend_never">жодного разу не слухали</string>
+    <string name="map_legend_played">слухали принаймні раз</string>
+    <string name="map_legend_never_skips">ніколи не пропускали</string>
+    <string name="map_legend_always_skips">завжди пропускали</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Нічого не відтворюється</string>

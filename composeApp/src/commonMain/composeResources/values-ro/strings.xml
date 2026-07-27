@@ -63,6 +63,7 @@
     <string name="tab_albums">Albume</string>
     <string name="tab_artists">Artiști</string>
     <string name="tab_genres">Genuri</string>
+    <string name="tab_map">Hartă</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">Nu s-a găsit muzică pe acest dispozitiv.</string>
@@ -92,6 +93,36 @@
         <item quantity="few">%1$d ascultări</item>
         <item quantity="other">%1$d de ascultări</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Lumi</string>
+    <string name="map_lens_plays">Redări</string>
+    <string name="map_lens_never_played">Neascultate</string>
+    <string name="map_lens_skips">Omiteri</string>
+
+    <plurals name="count_regions">
+        <item quantity="one">%1$d regiune</item>
+        <item quantity="few">%1$d regiuni</item>
+        <item quantity="other">%1$d de regiuni</item>
+    </plurals>
+
+    <string name="map_headline_worlds">%1$s se așază în %2$s. Atinge una ca să auzi ce e în ea.</string>
+    <string name="map_headline_plays">Jumătate din tot ce ai ascultat vreodată înseamnă %1$s — %2$d\u0025 din bibliotecă.</string>
+    <string name="map_headline_never_played">Nu ai ascultat niciodată %1$d din %2$s. Regiunea „%3$s” a rămas neatinsă în proporție de %4$d\u0025.</string>
+    <string name="map_headline_skips">Aici renunți cel mai des: „%1$s” — %2$d\u0025 din porniri.</string>
+
+    <string name="map_action_play_region">Redă regiunea</string>
+    <string name="map_action_smart_here">SMART de aici</string>
+    <string name="map_empty_indexing">Încă îți citim biblioteca. Harta apare când se termină indexarea.</string>
+    <string name="map_empty_building">Construim harta bibliotecii tale. Pentru o bibliotecă mare poate dura puțin.</string>
+    <string name="map_empty_too_large">Biblioteca ta are %1$s — mai mult decât %2$s pe care harta le poate afișa acum.</string>
+
+    <string name="map_legend_selected">regiunea selectată</string>
+    <string name="map_legend_rest">restul bibliotecii</string>
+    <string name="map_legend_never">neascultate</string>
+    <string name="map_legend_played">ascultate cel puțin o dată</string>
+    <string name="map_legend_never_skips">niciodată omise</string>
+    <string name="map_legend_always_skips">mereu omise</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nu se redă nimic</string>

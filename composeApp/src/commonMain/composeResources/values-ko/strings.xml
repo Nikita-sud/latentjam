@@ -58,6 +58,7 @@
     <string name="tab_albums">앨범</string>
     <string name="tab_artists">아티스트</string>
     <string name="tab_genres">장르</string>
+    <string name="tab_map">지도</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">이 기기에서 음악을 찾을 수 없습니다.</string>
@@ -83,6 +84,34 @@
     <plurals name="foryou_caption_played_before">
         <item quantity="other">예전에 %1$d번</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">세계</string>
+    <string name="map_lens_plays">재생</string>
+    <string name="map_lens_never_played">안 들은 곡</string>
+    <string name="map_lens_skips">건너뛰기</string>
+
+    <plurals name="count_regions">
+        <item quantity="other">%1$d개 지역</item>
+    </plurals>
+
+    <string name="map_headline_worlds">%1$s이 %2$s으로 모였습니다. 하나를 눌러 무엇이 들어 있는지 들어 보세요.</string>
+    <string name="map_headline_plays">지금까지 들은 모든 것의 절반이 %1$s, 라이브러리의 %2$d\u0025입니다.</string>
+    <string name="map_headline_never_played">%2$s 중 %1$d곡은 한 번도 듣지 않았습니다. ‘%3$s’ 지역은 %4$d\u0025가 그대로 남아 있습니다.</string>
+    <string name="map_headline_skips">‘%1$s’에서 가장 자주 중간에 그만둡니다. 재생 시작의 %2$d\u0025.</string>
+
+    <string name="map_action_play_region">지역 재생</string>
+    <string name="map_action_smart_here">여기서 SMART</string>
+    <string name="map_empty_indexing">아직 라이브러리를 읽고 있습니다. 색인이 끝나면 지도가 나타납니다.</string>
+    <string name="map_empty_building">라이브러리 지도를 만들고 있습니다. 라이브러리가 크면 시간이 좀 걸릴 수 있습니다.</string>
+    <string name="map_empty_too_large">라이브러리에 %1$s이 있어 지도가 지금 보여줄 수 있는 %2$s보다 많습니다.</string>
+
+    <string name="map_legend_selected">선택한 지역</string>
+    <string name="map_legend_rest">나머지 라이브러리</string>
+    <string name="map_legend_never">한 번도 안 들음</string>
+    <string name="map_legend_played">한 번 이상 들음</string>
+    <string name="map_legend_never_skips">건너뛴 적 없음</string>
+    <string name="map_legend_always_skips">항상 건너뜀</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">재생 중인 곡 없음</string>

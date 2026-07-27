@@ -67,6 +67,7 @@
     <string name="tab_albums">Álbumes</string>
     <string name="tab_artists">Artistas</string>
     <string name="tab_genres">Géneros</string>
+    <string name="tab_map">Mapa</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">No se encontró música en este dispositivo.</string>
@@ -94,6 +95,35 @@
         <item quantity="one">%1$d vez antes</item>
         <item quantity="other">%1$d veces antes</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Mundos</string>
+    <string name="map_lens_plays">Reproducciones</string>
+    <string name="map_lens_never_played">Nunca reproducidas</string>
+    <string name="map_lens_skips">Saltos</string>
+
+    <plurals name="count_regions">
+        <item quantity="one">%1$d región</item>
+        <item quantity="other">%1$d regiones</item>
+    </plurals>
+
+    <string name="map_headline_worlds">El mapa agrupa %1$s en %2$s. Toca una para escuchar lo que hay dentro.</string>
+    <string name="map_headline_plays">La mitad de todo lo que has escuchado viene de %1$s: el %2$d\u0025 de tu biblioteca.</string>
+    <string name="map_headline_never_played">Nunca has reproducido %1$d de %2$s. «%3$s» sigue intacta en un %4$d\u0025.</string>
+    <string name="map_headline_skips">Es en «%1$s» donde más abandonas: el %2$d\u0025 de las reproducciones que empiezas.</string>
+
+    <string name="map_action_play_region">Reproducir región</string>
+    <string name="map_action_smart_here">SMART desde aquí</string>
+    <string name="map_empty_indexing">Todavía estamos leyendo tu biblioteca. El mapa aparecerá cuando termine la indexación.</string>
+    <string name="map_empty_building">Estamos construyendo el mapa de tu biblioteca. Si es grande, puede tardar un poco.</string>
+    <string name="map_empty_too_large">Tu biblioteca tiene %1$s: más de %2$s que el mapa puede mostrar ahora mismo.</string>
+
+    <string name="map_legend_selected">región seleccionada</string>
+    <string name="map_legend_rest">resto de la biblioteca</string>
+    <string name="map_legend_never">nunca reproducidas</string>
+    <string name="map_legend_played">reproducidas al menos una vez</string>
+    <string name="map_legend_never_skips">nunca saltadas</string>
+    <string name="map_legend_always_skips">siempre saltadas</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nada en reproducción</string>

@@ -60,6 +60,7 @@
     <string name="tab_albums">Albümler</string>
     <string name="tab_artists">Sanatçılar</string>
     <string name="tab_genres">Türler</string>
+    <string name="tab_map">Harita</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">Bu cihazda müzik bulunamadı.</string>
@@ -87,6 +88,35 @@
         <item quantity="one">Daha önce %1$d kez</item>
         <item quantity="other">Daha önce %1$d kez</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Dünyalar</string>
+    <string name="map_lens_plays">Çalmalar</string>
+    <string name="map_lens_never_played">Hiç çalınmadı</string>
+    <string name="map_lens_skips">Atlamalar</string>
+
+    <plurals name="count_regions">
+        <item quantity="one">%1$d bölge</item>
+        <item quantity="other">%1$d bölge</item>
+    </plurals>
+
+    <string name="map_headline_worlds">%1$s %2$sye yerleşti. İçinde ne olduğunu duymak için birine dokun.</string>
+    <string name="map_headline_plays">Dinlediğin her şeyin yarısı %1$s: kitaplığının %2$d\u0025 kadarı.</string>
+    <string name="map_headline_never_played">%2$s içinden %1$d tanesini hiç çalmadın. “%3$s” bölgesinin dokunulmamış kısmı: %4$d\u0025.</string>
+    <string name="map_headline_skips">En çok “%1$s” bölgesinde yarıda bırakıyorsun: başlattıklarının %2$d\u0025 kadarı.</string>
+
+    <string name="map_action_play_region">Bölgeyi çal</string>
+    <string name="map_action_smart_here">Buradan SMART</string>
+    <string name="map_empty_indexing">Kitaplığın hâlâ okunuyor. Dizinleme bitince harita görünecek.</string>
+    <string name="map_empty_building">Kitaplığının haritası oluşturuluyor. Büyük bir kitaplıkta bu biraz zaman alabilir.</string>
+    <string name="map_empty_too_large">Kitaplığında %1$s var — bu, haritanın şu anda gösterebileceği %2$s sayısından fazla.</string>
+
+    <string name="map_legend_selected">seçili bölge</string>
+    <string name="map_legend_rest">kitaplığın geri kalanı</string>
+    <string name="map_legend_never">hiç çalınmadı</string>
+    <string name="map_legend_played">en az bir kez çalındı</string>
+    <string name="map_legend_never_skips">hiç atlanmadı</string>
+    <string name="map_legend_always_skips">her zaman atlandı</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Çalan bir şey yok</string>

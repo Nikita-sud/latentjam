@@ -172,12 +172,14 @@ import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
 import io.github.nikitasud.latentjam.app.generated.resources.tab_for_you
 import io.github.nikitasud.latentjam.app.generated.resources.tab_folders
 import io.github.nikitasud.latentjam.app.generated.resources.tab_genres
+import io.github.nikitasud.latentjam.app.generated.resources.tab_map
 import io.github.nikitasud.latentjam.app.generated.resources.tab_playlists
 import io.github.nikitasud.latentjam.app.generated.resources.tab_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_album
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_genre
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
+import io.github.nikitasud.latentjam.history.LibraryListeningStats
 import io.github.nikitasud.latentjam.history.SmartExclusionState
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.history.excludes
@@ -198,10 +200,13 @@ import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.cluster.LibraryLayout
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSource
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorlds
+import io.github.nikitasud.latentjam.smart.cluster.loadLayout
+import io.github.nikitasud.latentjam.smart.cluster.saveLayout
 import kotlin.math.abs
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
@@ -209,6 +214,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
@@ -604,6 +610,180 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     builtWorldsKey = worldsKey
                 }
         }
+
+        // The Map's positions. A SECOND libraryMixFeatures call on purpose: LibraryVectorSpace is
+        // one-shot, and the instance above was consumed by LibraryWorlds.discover.
+        //
+        // Gated on the tab itself, not just on (tracks, worlds): this is the only thing standing
+        // between "the user opened the app" and a PCA-50 + t-SNE pass (see the cache-miss branch
+        // below), so it must never run for someone who never visits the Map. Keyed on
+        // `pagerState.settledPage`, NOT `pagerState.currentPage` (what `selectedTab` reads): an
+        // animated scroll to a tab past the Map advances `currentPage` through every intermediate
+        // page on the way there, including MAP_TAB, so keying on it stacked a full t-SNE run onto
+        // Dispatchers.Default for every tab tap that merely passed through the Map en route
+        // somewhere else. `settledPage` only updates once a scroll actually settles, and settles
+        // directly on the final destination -- transit through the Map never trips it. Settling on
+        // the Map also means the listening numbers refresh on every genuine return to the tab
+        // instead of only when the track/world set changes -- otherwise a session of plays would
+        // sit stale here indefinitely. Deliberately NOT keyed on `historyRevision`: that advances
+        // in the background during playback started from anywhere, including this page's own
+        // "Play region"/"SMART from here" buttons, and MapTab's contract is that it never re-ranks
+        // under a reader who is actively looking at it. Rebuilding on tab entry does not fight that
+        // contract: `beyondViewportPageCount = 0` already disposes the page (and every
+        // `remember(page)` value on it -- lens, selected region, zoom, pan) the moment it scrolls
+        // out of view, so there is no reader state left to disturb by the next time this fires.
+        var mapState by remember { mutableStateOf<MapPageState>(MapPageState.Indexing) }
+        // The regions actually behind the currently shown MapPage. Not always `worlds` itself --
+        // spec section 8's smallest-library fallback (mapFallbackRegions) can stand in for it -- so
+        // the "Play region"/"SMART from here" callbacks below read this, not `worlds` directly, or
+        // they would silently no-op whenever the Map is showing that fallback.
+        var mapRegions by remember { mutableStateOf<List<LibraryWorld>>(emptyList()) }
+        LaunchedEffect(tracks, worlds, pagerState.settledPage) {
+            if (pagerState.settledPage != MAP_TAB) return@LaunchedEffect
+            val loaded = tracks ?: return@LaunchedEffect
+            val loadedIds = loaded.map(TrackDescriptor::id)
+            val layoutStore = AppGraph.layoutStore
+
+            // Cheap prep only: the vector space and whatever layout is already cached. Neither does
+            // the O(n^2) PCA/t-SNE pass, so a cache hit below never has to tell the reader anything
+            // is "building" -- only a genuine recompute, further down, does that.
+            val prepared = withContext(Dispatchers.Default) {
+                // `covers` (below) must be asked about the population the layout was actually
+                // computed for -- LibraryVectorFusion drops any track without a usable audio or
+                // metadata vector, so that population is `features.vectorSpace.trackIds`, a
+                // filtered subset of `loadedIds`, not `loadedIds` itself. Comparing against the
+                // full library instead would stay "stale" forever the moment even one track fails
+                // to encode: the sizes would never agree again, so every visit would pay for a full
+                // PCA+t-SNE recompute and re-save a set that fails the very same check next time.
+                val features = engine.libraryMixFeatures(loadedIds) ?: return@withContext null
+                features to layoutStore.loadLayout()
+            } ?: return@LaunchedEffect
+            val (features, stored) = prepared
+
+            // Finding (a) of the final review: Tsne/Pca are O(n^2) per array with nothing capping n
+            // anywhere upstream. Refuse outright above the ceiling rather than silently draw a
+            // truncated map that looks complete -- see LibraryLayout.MAX_TRACKS's doc for why this
+            // number and what it costs at it.
+            if (features.vectorSpace.size > LibraryLayout.MAX_TRACKS) {
+                mapState = MapPageState.TooLarge(
+                    trackCount = features.vectorSpace.size,
+                    limit = LibraryLayout.MAX_TRACKS,
+                )
+                return@LaunchedEffect
+            }
+
+            // Spec section 8, row 3: a library too small for TrackClustering to form even one
+            // region must not leave the Map stuck showing the indexing state forever for a user
+            // whose indexing already finished -- see mapFallbackRegions. Final review finding
+            // (IMPORTANT): gated on mapFallbackShouldApply, not bare `worlds.isEmpty()` -- `worlds`
+            // reads empty both when discovery genuinely found nothing for this library AND when it
+            // simply has not reported on this library yet (see that function's doc), and only the
+            // first may borrow the fallback. When it does not apply, `regions` falls through to
+            // `worlds` itself (empty or not) and the existing `regions.isEmpty()` check below keeps
+            // this effect's prior state rather than treating "not ready" as "ready".
+            val regions = if (mapFallbackShouldApply(worlds, worldLibraryIds, loadedIds)) {
+                mapFallbackRegions(loaded, features.vectorSpace.trackIds)
+            } else {
+                worlds
+            }
+            if (regions.isEmpty()) return@LaunchedEffect
+
+            // Region ids are indices into `regions`: every listening/headline lookup below keys off
+            // this same index, so it must stay the one place a track's region id is assigned.
+            val regionOf = buildMap {
+                regions.forEachIndexed { index, world ->
+                    for (track in world.tracks) put(track.id, index)
+                }
+            }
+
+            val needsCompute = !LibraryLayout.covers(stored, features.vectorSpace.trackIds)
+            if (needsCompute) {
+                // Final review finding (MINOR 1): a warm map -- one already drawn from a previous
+                // visit -- must not blank to Building's text placeholder while a routine recompute
+                // (e.g. one album added) runs underneath it; the stale page is still correct enough
+                // to look at in the meantime. Only the very first build for a library, when there is
+                // no previous page to keep showing, earns the bare placeholder.
+                val warm = mapState as? MapPageState.Ready
+                mapState = if (warm != null) {
+                    warm.copy(rebuilding = true)
+                } else {
+                    // Finding (d): indexing has already finished by the time this can be reached, so
+                    // a recompute gets its own honest state instead of reusing the "still reading
+                    // your library" copy -- that copy is only true before indexing completes.
+                    MapPageState.Building
+                }
+            }
+
+            val built = withContext(Dispatchers.Default) {
+                val positions = if (needsCompute) {
+                    // The stale layout is the warm start, so an added album nudges the map instead
+                    // of redrawing it. `isActive` is this CoroutineScope's own cancellation state --
+                    // passing it as the abort hook (finding (b)) lets a reader who navigates away
+                    // mid-compute stop paying for iterations nobody will see, instead of the whole
+                    // 1000-iteration pass running to completion regardless and only being noticed
+                    // (and discarded) afterward.
+                    val computed = LibraryLayout.compute(
+                        features.vectorSpace,
+                        stored,
+                        isActive = { isActive },
+                    )
+                    // No partial state persisted: only save and adopt a layout that actually
+                    // finished. An aborted compute's result is well-formed but under-converged, and
+                    // must never reach the cache or a reader.
+                    if (!isActive) return@withContext null
+                    layoutStore.saveLayout(computed)
+                    computed.associate { it.trackId to floatArrayOf(it.x, it.y) }
+                } else {
+                    stored
+                }
+
+                val stats = AppGraph.history.stats()
+                MapPage(
+                    dots = positions.mapNotNull { (id, position) ->
+                        val region = regionOf[id] ?: return@mapNotNull null
+                        val entry = stats[id]
+                        MapDot(
+                            trackId = id,
+                            x = position[0],
+                            y = position[1],
+                            region = region,
+                            plays = entry?.plays ?: 0,
+                            skipRate = if (entry == null || entry.plays == 0) {
+                                0f
+                            } else {
+                                entry.skips.toFloat() / entry.plays
+                            },
+                        )
+                    },
+                    // Same index as regionOf's values above -- a short noun-phrase name per world,
+                    // never a bare number or the word "region": see MapPage.regionNames' contract
+                    // in MapTab.kt.
+                    regionNames = regions.map { it.name },
+                    // Unfiltered: `regionOf`'s values already span every index 0 until
+                    // regions.size (LibraryWorlds forbids an empty world), so summarize's
+                    // compacted-not-dense region list stays dense here regardless of which tracks
+                    // ended up with a laid-out position. Filtering this down to
+                    // `positions.keys` first would let a world that lost every dot between the two
+                    // independently-built vector spaces drop out of the id space entirely,
+                    // silently shifting every higher region's stats down by one against
+                    // `regionNames`, which is never compacted.
+                    listening = LibraryListeningStats.summarize(regionOf = regionOf, stats = stats),
+                )
+            } ?: return@LaunchedEffect
+
+            // Final review finding (MINOR 3): MapPageState.Ready is documented to always carry a
+            // non-empty page -- reachable only when `positions` (from this visit's own
+            // libraryMixFeatures call) and `regionOf` (built from `regions`, which may trace back to
+            // a differently-timed libraryMixFeatures/LibraryWorlds.discover call) end up disjoint.
+            // Guarded here, at the one place Ready is ever constructed, so MapTab.kt never has to
+            // decide what to tell a reader about a Ready state that -- by definition -- means
+            // indexing already finished; it keeps whatever state was already showing instead.
+            if (built.dots.isEmpty()) return@LaunchedEffect
+
+            mapRegions = regions
+            mapState = MapPageState.Ready(built)
+        }
+
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
         LaunchedEffect(tracks) {
             val loaded = tracks
@@ -955,6 +1135,34 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             onOpenWorld = { worldTarget = it },
                                         )
 
+                                        MAP_TAB -> MapTab(
+                                            state = mapState,
+                                            contentPadding = listPadding,
+                                            onPlayRegion = { region ->
+                                                mapRegions.getOrNull(region)?.let { world ->
+                                                    scope.launch { playback.play(world.tracks, 0) }
+                                                }
+                                            },
+                                            onSmartFromRegion = { region ->
+                                                mapRegions.getOrNull(region)?.let { world ->
+                                                    scope.launch {
+                                                        val seed = world.representative
+                                                        val queue = engine.smartQueue(
+                                                            seed,
+                                                            smartEligibleTracks,
+                                                            smartQueueLength,
+                                                            smartHistoryFor(AppGraph.history, seed),
+                                                        )
+                                                        val tail = queue.mapNotNull(tracksById::get)
+                                                        playback.play(listOf(seed) + tail, 0)
+                                                    }
+                                                }
+                                            },
+                                            onOpenTrack = { id ->
+                                                tracksById[id]?.let { trackMenuTarget = it }
+                                            },
+                                        )
+
                                         PLAYLISTS_TAB -> PlaylistsTabContent(
                                             autoPlaylists = autoPlaylists,
                                             playlists = playlists,
@@ -1044,7 +1252,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             )
                                         }
 
-                                        3 -> LazyVerticalGrid(
+                                        ALBUMS_TAB -> LazyVerticalGrid(
                                             columns = GridCells.Fixed(2),
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = PaddingValues(
@@ -1063,7 +1271,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             }
                                         }
 
-                                        4 -> LazyColumn(
+                                        ARTISTS_TAB -> LazyColumn(
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = listPadding,
                                         ) {
@@ -1504,6 +1712,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     audioVectorsReady = false
                     worlds = emptyList()
                     worldLibraryIds = emptyList()
+                    // The key is the cache of the very thing being invalidated: leaving it set
+                    // lets a same-inputs rebuild short-circuit, and worlds would stay empty.
+                    builtWorldsKey = null
                     invalidateSmartRecommendationCaches()
                     retryAutomaticIndexing()
                 },
@@ -1528,6 +1739,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     audioVectorsReady = false
                     worlds = emptyList()
                     worldLibraryIds = emptyList()
+                    builtWorldsKey = null
                     personalizationRevision += 1
                     invalidateSmartRecommendationCaches()
                     refreshPlaylists()
@@ -1556,6 +1768,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
  */
 private val BROWSE_TABS: List<StringResource> = listOf(
     Res.string.tab_for_you,
+    Res.string.tab_map,
     Res.string.tab_playlists,
     Res.string.tab_tracks,
     Res.string.tab_albums,
@@ -1566,15 +1779,17 @@ private val BROWSE_TABS: List<StringResource> = listOf(
 
 /** Stable pager indices for the fixed browse destinations. */
 private const val FOR_YOU_TAB = 0
-private const val PLAYLISTS_TAB = 1
-private const val TRACKS_TAB = 2
-private const val ALBUMS_TAB = 3
-private const val ARTISTS_TAB = 4
-private const val GENRES_TAB = 5
-private const val FOLDERS_TAB = 6
+private const val MAP_TAB = 1
+private const val PLAYLISTS_TAB = 2
+private const val TRACKS_TAB = 3
+private const val ALBUMS_TAB = 4
+private const val ARTISTS_TAB = 5
+private const val GENRES_TAB = 6
+private const val FOLDERS_TAB = 7
 
 private fun StartPage.tabIndex(): Int = when (this) {
     StartPage.FOR_YOU -> FOR_YOU_TAB
+    StartPage.MAP -> MAP_TAB
     StartPage.PLAYLISTS -> PLAYLISTS_TAB
     StartPage.TRACKS -> TRACKS_TAB
     StartPage.ALBUMS -> ALBUMS_TAB

@@ -34,6 +34,13 @@ public val smartEngineDispatcherQualifier: StringQualifier = named("smart-engine
 public val smartTextIndexQualifier: StringQualifier = named("smart-text-index")
 
 /**
+ * Qualifier of the Map page's 2-D layout store. A third store rather than a field on an existing
+ * one: the layout has its own version, its own invalidation trigger, and must survive an embedding
+ * re-index untouched.
+ */
+public val smartLayoutQualifier: StringQualifier = named("smart-layout-index")
+
+/**
  * Koin module providing the SMART similarity engine.
  *
  * 100% common code — the only platform seam is the
@@ -92,6 +99,7 @@ public val smartEngineModule: Module = module {
     // bound in smartEngineBackendModule, listed after this module).
     single<IndexStore> { NoopIndexStore() }
     single<IndexStore>(smartTextIndexQualifier) { NoopIndexStore() }
+    single<IndexStore>(smartLayoutQualifier) { NoopIndexStore() }
 
     single<SimilarityEngine> {
         DefaultSimilarityEngine(

@@ -58,6 +58,7 @@
     <string name="tab_albums">专辑</string>
     <string name="tab_artists">艺人</string>
     <string name="tab_genres">流派</string>
+    <string name="tab_map">地图</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">此设备上未找到音乐。</string>
@@ -83,6 +84,34 @@
     <plurals name="foryou_caption_played_before">
         <item quantity="other">此前 %1$d 次</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">世界</string>
+    <string name="map_lens_plays">播放量</string>
+    <string name="map_lens_never_played">从未播放</string>
+    <string name="map_lens_skips">跳过</string>
+
+    <plurals name="count_regions">
+        <item quantity="other">%1$d 个区域</item>
+    </plurals>
+
+    <string name="map_headline_worlds">%1$s聚成 %2$s。点按其中一个，听听里面有什么。</string>
+    <string name="map_headline_plays">你听过的一切，有一半来自 %1$s，占音乐库的 %2$d\u0025。</string>
+    <string name="map_headline_never_played">%2$s里，有 %1$d 首你从未播放过。“%3$s”还有 %4$d\u0025 没被碰过。</string>
+    <string name="map_headline_skips">你在“%1$s”里放弃得最多——%2$d\u0025 的播放都没听完。</string>
+
+    <string name="map_action_play_region">播放该区域</string>
+    <string name="map_action_smart_here">从这里开始 SMART</string>
+    <string name="map_empty_indexing">仍在读取你的音乐库。索引完成后地图就会出现。</string>
+    <string name="map_empty_building">正在为你的音乐库生成地图。如果音乐库较大，这可能需要一点时间。</string>
+    <string name="map_empty_too_large">你的音乐库有 %1$s——比地图目前能显示的 %2$s 还多。</string>
+
+    <string name="map_legend_selected">选中的区域</string>
+    <string name="map_legend_rest">音乐库的其余部分</string>
+    <string name="map_legend_never">从未播放</string>
+    <string name="map_legend_played">至少播放过一次</string>
+    <string name="map_legend_never_skips">从未跳过</string>
+    <string name="map_legend_always_skips">总是跳过</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">暂无播放内容</string>

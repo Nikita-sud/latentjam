@@ -17,7 +17,14 @@ import kotlin.math.sqrt
  * matrix were simultaneously resident.
  */
 public class LibraryVectorSpace internal constructor(
-    internal val trackIds: List<TrackId>,
+    /**
+     * The ids this space actually covers -- a filtered subset of whatever id list was requested,
+     * since a track without a usable audio or metadata vector is dropped rather than padded with a
+     * zero row. Public so callers that persist something keyed by this space (e.g.
+     * [LibraryLayout]'s stored positions) can compare against the population they actually built
+     * against, not the caller's original, unfiltered id list.
+     */
+    public val trackIds: List<TrackId>,
     rows: FloatArray,
     public val dim: Int,
     public val source: LibraryVectorSource,

@@ -12,6 +12,7 @@ class AppSettingsTest {
     @Test
     fun `start page has stable persisted values and a safe fallback`() {
         assertEquals(StartPage.FOR_YOU, startPageFromPersisted("for_you"))
+        assertEquals(StartPage.MAP, startPageFromPersisted("map"))
         assertEquals(StartPage.PLAYLISTS, startPageFromPersisted("playlists"))
         assertEquals(StartPage.TRACKS, startPageFromPersisted("tracks"))
         assertEquals(StartPage.ALBUMS, startPageFromPersisted("albums"))

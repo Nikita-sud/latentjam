@@ -68,6 +68,7 @@
     <string name="tab_albums">Albumy</string>
     <string name="tab_artists">Wykonawcy</string>
     <string name="tab_genres">Gatunki</string>
+    <string name="tab_map">Mapa</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">Nie znaleziono muzyki na tym urządzeniu.</string>
@@ -99,6 +100,37 @@
         <item quantity="many">Wcześniej %1$d razy</item>
         <item quantity="other">Wcześniej %1$d raza</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Światy</string>
+    <string name="map_lens_plays">Odtworzenia</string>
+    <string name="map_lens_never_played">Nieodtwarzane</string>
+    <string name="map_lens_skips">Pominięcia</string>
+
+    <plurals name="count_regions">
+        <item quantity="one">%1$d obszar</item>
+        <item quantity="few">%1$d obszary</item>
+        <item quantity="many">%1$d obszarów</item>
+        <item quantity="other">%1$d obszaru</item>
+    </plurals>
+
+    <string name="map_headline_worlds">Mapa dzieli %1$s na %2$s. Dotknij jednego, żeby usłyszeć, co w nim jest.</string>
+    <string name="map_headline_plays">Połowa wszystkich Twoich odtworzeń to %1$s — %2$d\u0025 Twojej biblioteki.</string>
+    <string name="map_headline_never_played">W bibliotece masz %2$s, a %1$d z nich nigdy nie odtworzono. Obszar „%3$s” pozostaje nietknięty w %4$d\u0025.</string>
+    <string name="map_headline_skips">Najczęściej rezygnujesz tutaj: „%1$s” — %2$d\u0025 rozpoczętych odtworzeń.</string>
+
+    <string name="map_action_play_region">Odtwórz obszar</string>
+    <string name="map_action_smart_here">SMART stąd</string>
+    <string name="map_empty_indexing">Wciąż czytamy Twoją bibliotekę. Mapa pojawi się po zakończeniu indeksowania.</string>
+    <string name="map_empty_building">Tworzymy mapę Twojej biblioteki. W przypadku dużej biblioteki może to chwilę potrwać.</string>
+    <string name="map_empty_too_large">Twoja biblioteka ma %1$s — więcej niż %2$s, które mapa może teraz pokazać.</string>
+
+    <string name="map_legend_selected">wybrany obszar</string>
+    <string name="map_legend_rest">reszta biblioteki</string>
+    <string name="map_legend_never">nigdy nieodtwarzane</string>
+    <string name="map_legend_played">odtworzone co najmniej raz</string>
+    <string name="map_legend_never_skips">nigdy niepomijane</string>
+    <string name="map_legend_always_skips">zawsze pomijane</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nic nie jest odtwarzane</string>

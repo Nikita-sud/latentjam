@@ -70,6 +70,7 @@
     <string name="tab_albums">Albums</string>
     <string name="tab_artists">Artists</string>
     <string name="tab_genres">Genres</string>
+    <string name="tab_map">Map</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">No music found on this device.</string>
@@ -99,6 +100,65 @@
         <item quantity="one">%1$d× before</item>
         <item quantity="other">%1$d× before</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <!-- The four lenses: what the colour on the map currently means. -->
+    <string name="map_lens_worlds">Worlds</string>
+    <string name="map_lens_plays">Plays</string>
+    <string name="map_lens_never_played">Never played</string>
+    <string name="map_lens_skips">Skips</string>
+
+    <!-- How many regions the map drew. Single-digit by design, which puts 2, 3
+         and 4 among its likeliest values — exactly where the Slavic paucal and
+         the Arabic 'few' form live. -->
+    <plurals name="count_regions">
+        <item quantity="one">%1$d region</item>
+        <item quantity="other">%1$d regions</item>
+    </plurals>
+
+    <!-- Headlines. Each states one true fact about this library, so every
+         number is a placeholder and none of them are decorative. Counts arrive
+         ALREADY PLURALIZED, as %N$s fragments rendered from count_tracks and
+         count_regions, so the noun can agree with its numeral ("1 track",
+         "873 de piese"); never put a bare %N$d count back into this prose.
+         A literal percent is written \u0025: Compose MP unescapes \uXXXX but
+         leaves %% alone, which would reach the UI as two percent signs. -->
+    <string name="map_headline_worlds">%1$s across %2$s. Tap one to hear what’s in it.</string>
+    <string name="map_headline_plays">Half of everything you have ever played comes from %1$s — %2$d\u0025 of your library.</string>
+    <!-- %3$s is a region NAME: a short noun phrase that names the region — its
+         dominant genre or artist. Never a bare number, and never containing the
+         word "region" itself: eight locales already prefix their own head noun
+         (Область «%3$s»), and four more inflect feminine around it. Supply it
+         UNQUOTED: 17 of the 18 files wrap it in their own quotation marks
+         («%3$s», „%3$s”, 「%3$s」), so a label that arrives already quoted is
+         double-quoted everywhere except English. -->
+    <string name="map_headline_never_played">You have never played %1$d of %2$s. %3$s is %4$d\u0025 untouched.</string>
+    <!-- %1$s is a region NAME, same contract: a short noun-phrase name, never a
+         bare number, never containing the word "region" itself, and supplied
+         UNQUOTED — 17 of the 18 files add their own quotation marks around it. -->
+    <string name="map_headline_skips">You bail out of %1$s more than anywhere else — %2$d\u0025 of starts.</string>
+
+    <string name="map_action_play_region">Play region</string>
+    <string name="map_action_smart_here">SMART from here</string>
+    <string name="map_empty_indexing">Still reading your library. The map appears when indexing finishes.</string>
+    <!-- Shown only while LibraryLayout is actually computing (PCA + t-SNE), which can be
+         genuinely slow on a large library. Distinct from map_empty_indexing above, which
+         is only true before indexing itself has finished. -->
+    <string name="map_empty_building">Working out the shape of your library. This can take a little while, especially on a large one.</string>
+    <!-- %1$s / %2$s are count_tracks fragments, already pluralized, same contract as
+         map_headline_worlds; never feed a bare count back into this sentence. Shown
+         instead of a silently truncated map when the library has more usable tracks than
+         the layout will safely lay out at once. -->
+    <string name="map_empty_too_large">Your library has %1$s — more than the %2$s the map can currently draw.</string>
+
+    <!-- Legend keys, sentence-fragment case: they label the ends of a colour
+         ramp rather than standing on their own. -->
+    <string name="map_legend_selected">selected region</string>
+    <string name="map_legend_rest">rest of the library</string>
+    <string name="map_legend_never">never played</string>
+    <string name="map_legend_played">played at least once</string>
+    <string name="map_legend_never_skips">never skipped</string>
+    <string name="map_legend_always_skips">always skipped</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nothing playing</string>

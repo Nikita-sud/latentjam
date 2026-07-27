@@ -61,7 +61,7 @@ internal class SessionRecencyTest {
     }
 
     @Test
-    fun `consecutive gaps define the session, not distance from the newest play`() {
+    fun `consecutive gaps define the session rather than distance from the newest play`() {
         val snapshot = requireNotNull(SmartSnapshot.build((0 until 12).map(::track)))
         val minute = 60L * 1000
 
@@ -148,7 +148,7 @@ internal class SessionRecencyTest {
     }
 
     @Test
-    fun `re-admission returns listened tracks before skipped ones, even when the skips are older`() {
+    fun `re-admission returns listened tracks before skipped ones even when the skips are older`() {
         val snapshot = requireNotNull(SmartSnapshot.build((0 until 6).map(::track)))
 
         // Session rows 1 and 2 were SKIPPED early in the session; rows 3 and 4 were LISTENED TO

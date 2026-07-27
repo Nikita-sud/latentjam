@@ -60,6 +60,7 @@
     <string name="tab_albums">एल्बम</string>
     <string name="tab_artists">कलाकार</string>
     <string name="tab_genres">शैलियां</string>
+    <string name="tab_map">नक्शा</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">इस डिवाइस पर कोई संगीत नहीं मिला.</string>
@@ -87,6 +88,35 @@
         <item quantity="one">पहले %1$d बार</item>
         <item quantity="other">पहले %1$d बार</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">दुनिया</string>
+    <string name="map_lens_plays">प्ले</string>
+    <string name="map_lens_never_played">कभी नहीं चलाए</string>
+    <string name="map_lens_skips">स्किप</string>
+
+    <plurals name="count_regions">
+        <item quantity="one">%1$d क्षेत्र</item>
+        <item quantity="other">%1$d क्षेत्र</item>
+    </plurals>
+
+    <string name="map_headline_worlds">आपकी लाइब्रेरी %2$s बनाती है — कुल %1$s. किसी एक पर टैप करके सुनें कि उसमें क्या है.</string>
+    <string name="map_headline_plays">आपने अब तक जो कुछ सुना है, उसका आधा हिस्सा: सिर्फ़ %1$s — आपकी लाइब्रेरी का %2$d\u0025.</string>
+    <string name="map_headline_never_played">कुल %2$s, और उनमें से %1$d को आपने कभी नहीं चलाया. "%3$s" का %4$d\u0025 हिस्सा अब भी अनछुआ है.</string>
+    <string name="map_headline_skips">सबसे ज़्यादा आप "%1$s" में छोड़ देते हैं — शुरू किए गए %2$d\u0025 गानों में.</string>
+
+    <string name="map_action_play_region">इस क्षेत्र को चलाएं</string>
+    <string name="map_action_smart_here">यहाँ से SMART</string>
+    <string name="map_empty_indexing">आपकी लाइब्रेरी अब भी पढ़ी जा रही है. इंडेक्सिंग पूरी होते ही नक्शा दिखेगा.</string>
+    <string name="map_empty_building">आपकी लाइब्रेरी का नक्शा बनाया जा रहा है. बड़ी लाइब्रेरी में इसमें थोड़ा समय लग सकता है.</string>
+    <string name="map_empty_too_large">आपकी लाइब्रेरी में %1$s हैं — जो नक्शा अभी दिखा सकता है उन %2$s से ज़्यादा.</string>
+
+    <string name="map_legend_selected">चुना हुआ क्षेत्र</string>
+    <string name="map_legend_rest">बाकी लाइब्रेरी</string>
+    <string name="map_legend_never">कभी नहीं चलाए</string>
+    <string name="map_legend_played">कम से कम एक बार चलाए</string>
+    <string name="map_legend_never_skips">कभी स्किप नहीं किए</string>
+    <string name="map_legend_always_skips">हमेशा स्किप किए</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">कुछ भी नहीं चल रहा</string>

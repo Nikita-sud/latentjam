@@ -64,6 +64,7 @@
     <string name="tab_albums">Album</string>
     <string name="tab_artists">Artis</string>
     <string name="tab_genres">Genre</string>
+    <string name="tab_map">Peta</string>
 
     <!-- ===================================================== library shell -->
     <string name="library_empty">Tidak ada musik yang ditemukan di perangkat ini.</string>
@@ -89,6 +90,34 @@
     <plurals name="foryou_caption_played_before">
         <item quantity="other">%1$d kali sebelumnya</item>
     </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">Dunia</string>
+    <string name="map_lens_plays">Pemutaran</string>
+    <string name="map_lens_never_played">Belum diputar</string>
+    <string name="map_lens_skips">Lompatan</string>
+
+    <plurals name="count_regions">
+        <item quantity="other">%1$d wilayah</item>
+    </plurals>
+
+    <string name="map_headline_worlds">%1$s mengelompok menjadi %2$s. Ketuk salah satunya untuk mendengar isinya.</string>
+    <string name="map_headline_plays">Separuh dari semua yang pernah kamu dengar berasal dari %1$s — %2$d\u0025 dari pustakamu.</string>
+    <string name="map_headline_never_played">Kamu belum pernah memutar %1$d dari %2$s. Wilayah "%3$s" masih %4$d\u0025 belum tersentuh.</string>
+    <string name="map_headline_skips">Di "%1$s" kamu paling sering berhenti — %2$d\u0025 dari pemutaran yang dimulai.</string>
+
+    <string name="map_action_play_region">Putar wilayah</string>
+    <string name="map_action_smart_here">SMART dari sini</string>
+    <string name="map_empty_indexing">Pustakamu masih dibaca. Peta muncul setelah pengindeksan selesai.</string>
+    <string name="map_empty_building">Sedang membuat peta pustakamu. Ini bisa memakan waktu jika pustakamu besar.</string>
+    <string name="map_empty_too_large">Pustakamu punya %1$s — lebih banyak dari %2$s yang bisa ditampilkan peta saat ini.</string>
+
+    <string name="map_legend_selected">wilayah terpilih</string>
+    <string name="map_legend_rest">sisa pustaka</string>
+    <string name="map_legend_never">belum pernah diputar</string>
+    <string name="map_legend_played">pernah diputar setidaknya sekali</string>
+    <string name="map_legend_never_skips">tidak pernah dilompati</string>
+    <string name="map_legend_always_skips">selalu dilompati</string>
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Tidak ada yang diputar</string>
