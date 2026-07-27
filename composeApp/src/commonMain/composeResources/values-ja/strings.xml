@@ -103,6 +103,8 @@
     <string name="map_action_play_region">この地域を再生</string>
     <string name="map_action_smart_here">ここから SMART</string>
     <string name="map_empty_indexing">まだライブラリを読み込んでいます。インデックス作成が終わるとマップが表示されます。</string>
+    <string name="map_empty_building">ライブラリのマップを作成しています。ライブラリが大きい場合、少し時間がかかることがあります。</string>
+    <string name="map_empty_too_large">ライブラリには%1$sあり、マップが今表示できる%2$sより多くなっています。</string>
 
     <string name="map_legend_selected">選択中の地域</string>
     <string name="map_legend_rest">ライブラリの残り</string>

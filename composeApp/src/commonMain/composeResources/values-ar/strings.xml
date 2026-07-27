@@ -133,6 +133,8 @@
     <string name="map_action_play_region">تشغيل المنطقة</string>
     <string name="map_action_smart_here">SMART من هنا</string>
     <string name="map_empty_indexing">ما زلنا نقرأ مكتبتك. ستظهر الخريطة عند انتهاء الفهرسة.</string>
+    <string name="map_empty_building">نحسب شكل مكتبتك على الخريطة. قد يستغرق ذلك بعض الوقت إذا كانت مكتبتك كبيرة.</string>
+    <string name="map_empty_too_large">تحتوي مكتبتك على %1$s — أكثر من %2$s التي يمكن للخريطة عرضها حاليًا.</string>
 
     <string name="map_legend_selected">المنطقة المحددة</string>
     <string name="map_legend_rest">بقية المكتبة</string>

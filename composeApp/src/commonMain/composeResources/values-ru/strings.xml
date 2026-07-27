@@ -116,6 +116,8 @@
     <string name="map_action_play_region">Слушать область</string>
     <string name="map_action_smart_here">SMART отсюда</string>
     <string name="map_empty_indexing">Медиатека ещё читается. Карта появится, когда закончится индексация.</string>
+    <string name="map_empty_building">Строим карту вашей медиатеки. Для большой медиатеки это может занять некоторое время.</string>
+    <string name="map_empty_too_large">В вашей медиатеке %1$s — это больше, чем %2$s, которые карта может показать сейчас.</string>
 
     <string name="map_legend_selected">выбранная область</string>
     <string name="map_legend_rest">остальная медиатека</string>

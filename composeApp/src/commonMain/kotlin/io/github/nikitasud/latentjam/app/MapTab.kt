@@ -42,7 +42,9 @@ import io.github.nikitasud.latentjam.app.generated.resources.count_regions
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.map_action_play_region
 import io.github.nikitasud.latentjam.app.generated.resources.map_action_smart_here
+import io.github.nikitasud.latentjam.app.generated.resources.map_empty_building
 import io.github.nikitasud.latentjam.app.generated.resources.map_empty_indexing
+import io.github.nikitasud.latentjam.app.generated.resources.map_empty_too_large
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_never_played
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_plays
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_skips
@@ -58,7 +60,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.map_legend_played
 import io.github.nikitasud.latentjam.app.generated.resources.map_legend_rest
 import io.github.nikitasud.latentjam.app.generated.resources.map_legend_selected
 import io.github.nikitasud.latentjam.history.LibraryListening
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldNameSource
 import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -86,6 +91,37 @@ data class MapPage(
 )
 
 /**
+ * Everything the Map tab can be showing instead of a drawn [MapPage], named honestly rather than
+ * folded into a single nullable `MapPage?` -- the final-review finding this fixes is exactly that
+ * collapsing "indexing incomplete", "computing the layout right now", and "refusing to draw a
+ * library this large" into one null all read the same *wrong* string ("Still reading your
+ * library…") to someone whose indexing finished minutes ago.
+ */
+sealed interface MapPageState {
+    /** No usable vector space yet: indexing has not produced one, or the tab has not been visited. */
+    data object Indexing : MapPageState
+
+    /**
+     * Indexing is done and a vector space exists, but [io.github.nikitasud.latentjam.smart.cluster.LibraryLayout]
+     * has not finished computing positions for it yet. The only state where real, possibly slow CPU
+     * work (PCA + t-SNE, `O(n^2)` per t-SNE iteration) is actually running -- every other state is
+     * effectively instant.
+     */
+    data object Building : MapPageState
+
+    /**
+     * The library has more laid-out tracks than
+     * [io.github.nikitasud.latentjam.smart.cluster.LibraryLayout.MAX_TRACKS]. The map refuses to
+     * draw a silently-truncated picture that would look complete but is not, rather than lie about
+     * coverage -- see that constant's doc for why the ceiling exists and where it sits.
+     */
+    data class TooLarge(val trackCount: Int, val limit: Int) : MapPageState
+
+    /** A page is drawn. [page.dots] may still be empty in a degenerate edge case. */
+    data class Ready(val page: MapPage) : MapPageState
+}
+
+/**
  * The library as a place.
  *
  * Positions come from [io.github.nikitasud.latentjam.smart.cluster.LibraryLayout] and colours from
@@ -94,16 +130,30 @@ data class MapPage(
  */
 @Composable
 fun MapTab(
-    page: MapPage?,
+    state: MapPageState,
     contentPadding: PaddingValues,
     onPlayRegion: (Int) -> Unit,
     onSmartFromRegion: (Int) -> Unit,
     onOpenTrack: (TrackId) -> Unit,
 ) {
+    val page = (state as? MapPageState.Ready)?.page
     if (page == null || page.dots.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
             Text(
-                text = stringResource(Res.string.map_empty_indexing),
+                text = when (state) {
+                    is MapPageState.Building -> stringResource(Res.string.map_empty_building)
+                    is MapPageState.TooLarge -> stringResource(
+                        Res.string.map_empty_too_large,
+                        pluralStringResource(Res.plurals.count_tracks, state.trackCount, state.trackCount),
+                        pluralStringResource(Res.plurals.count_tracks, state.limit, state.limit),
+                    )
+                    // Indexing, and the degenerate Ready-with-no-dots edge case: both are honestly
+                    // described by the same "still reading" copy -- neither means real work is
+                    // happening right now the way Building does.
+                    MapPageState.Indexing, is MapPageState.Ready -> stringResource(
+                        Res.string.map_empty_indexing,
+                    )
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -197,7 +247,17 @@ fun MapTab(
                         is MapInk.Ramp -> coolRamp[ink.step]
                         is MapInk.WarmRamp -> warmRamp[ink.step]
                     },
-                    radius = MapLenses.radius(lens, dot, selectedRegion) * zoom,
+                    // MapLenses supplies unitless dp magnitudes (same contract as HIT_RADIUS_DP), so
+                    // this DrawScope -- itself a Density -- converts to px, exactly as the
+                    // pointerInput block above does for the hit radius. Screen-constant, not scaled
+                    // by zoom: dot spacing (screenPosition, below) already scales with zoom, so a
+                    // radius that scaled too would keep every dot's share of the canvas fixed at any
+                    // zoom level -- a pure magnification that never reduces overlap, contradicting
+                    // spec section 6's reason pinch-zoom is required at all ("~33% of dots overlap
+                    // another dot" at rest). Holding the mark size constant on screen is the usual
+                    // convention for a zoomable scatter, and it is what actually lets zooming in
+                    // separate two dots that started on top of each other.
+                    radius = MapLenses.radius(lens, dot, selectedRegion).dp.toPx(),
                     center = screenPosition(dot, size.width, size.height, zoom, panX, panY),
                 )
             }
@@ -440,6 +500,46 @@ private fun percent(part: Int, whole: Int): Int =
 
 private fun largestRegion(page: MapPage): Int =
     page.listening.regions.maxByOrNull { it.trackCount }?.region ?: 0
+
+/**
+ * Spec section 8, row 3: "fewer tracks than MIN_CLUSTER_SIZE regions can support → fall back to a
+ * single unnamed region." `TrackClustering.cluster` returns an empty list below its own minimum
+ * population, and in practice also whenever the requested k splits a small library thin enough
+ * that no resulting cluster reaches `MIN_CLUSTER_SIZE` -- both leave `LibraryWorlds.discover` with
+ * nothing to offer even though indexing finished and a real vector space exists. Without this, the
+ * Map's assembly effect had no regions to key dots against and stayed on the indexing state
+ * forever, for a user whose indexing had long since completed.
+ *
+ * Only called once the caller already has a *successful* vector-space fetch and `LibraryWorlds`
+ * came back empty from it -- an empty result here (only possible when [laidOutIds] shares nothing
+ * with [library]) means there is genuinely nothing to show yet, not that clustering merely has not
+ * run, so the caller keeps its existing state in that case rather than treating this as "ready".
+ *
+ * The synthetic region's name matches `LibraryWorlds`' own generic label for a cluster with no
+ * strong shared claim ([LibraryWorldNameSource.GENERIC], text "Discovery mix") — this fallback
+ * makes exactly that claim about the whole library, so the same honest, unnamed-in-spirit name
+ * applies. Region names are not localized anywhere in this system today (every `LibraryWorld.name`
+ * — genre, artist, or this generic label — is generated in `:core:smart` as plain, unlocalized
+ * text), so no new locale strings are needed for it.
+ *
+ * Pure and Compose-free, so it is exercised directly in `MapTabTest` rather than through the full
+ * assembly effect.
+ */
+internal fun mapFallbackRegions(
+    library: List<TrackDescriptor>,
+    laidOutIds: List<TrackId>,
+): List<LibraryWorld> {
+    val byId = library.associateBy(TrackDescriptor::id)
+    val tracks = laidOutIds.mapNotNull(byId::get)
+    if (tracks.isEmpty()) return emptyList()
+    return listOf(
+        LibraryWorld(
+            name = "Discovery mix",
+            tracks = tracks,
+            nameSource = LibraryWorldNameSource.GENERIC,
+        ),
+    )
+}
 
 /**
  * Where [dot] lands on screen, in the same zoomed/panned space for every reader of the map: the

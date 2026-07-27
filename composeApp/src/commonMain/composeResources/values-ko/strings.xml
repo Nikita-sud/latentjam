@@ -103,6 +103,8 @@
     <string name="map_action_play_region">지역 재생</string>
     <string name="map_action_smart_here">여기서 SMART</string>
     <string name="map_empty_indexing">아직 라이브러리를 읽고 있습니다. 색인이 끝나면 지도가 나타납니다.</string>
+    <string name="map_empty_building">라이브러리 지도를 만들고 있습니다. 라이브러리가 크면 시간이 좀 걸릴 수 있습니다.</string>
+    <string name="map_empty_too_large">라이브러리에 %1$s이 있어 지도가 지금 보여줄 수 있는 %2$s보다 많습니다.</string>
 
     <string name="map_legend_selected">선택한 지역</string>
     <string name="map_legend_rest">나머지 라이브러리</string>

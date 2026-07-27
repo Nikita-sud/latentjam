@@ -141,6 +141,15 @@
     <string name="map_action_play_region">Play region</string>
     <string name="map_action_smart_here">SMART from here</string>
     <string name="map_empty_indexing">Still reading your library. The map appears when indexing finishes.</string>
+    <!-- Shown only while LibraryLayout is actually computing (PCA + t-SNE), which can be
+         genuinely slow on a large library. Distinct from map_empty_indexing above, which
+         is only true before indexing itself has finished. -->
+    <string name="map_empty_building">Working out the shape of your library. This can take a little while, especially on a large one.</string>
+    <!-- %1$s / %2$s are count_tracks fragments, already pluralized, same contract as
+         map_headline_worlds; never feed a bare count back into this sentence. Shown
+         instead of a silently truncated map when the library has more usable tracks than
+         the layout will safely lay out at once. -->
+    <string name="map_empty_too_large">Your library has %1$s — more than the %2$s the map can currently draw.</string>
 
     <!-- Legend keys, sentence-fragment case: they label the ends of a colour
          ramp rather than standing on their own. -->

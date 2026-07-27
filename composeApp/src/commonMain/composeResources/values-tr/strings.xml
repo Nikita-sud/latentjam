@@ -108,6 +108,8 @@
     <string name="map_action_play_region">Bölgeyi çal</string>
     <string name="map_action_smart_here">Buradan SMART</string>
     <string name="map_empty_indexing">Kitaplığın hâlâ okunuyor. Dizinleme bitince harita görünecek.</string>
+    <string name="map_empty_building">Kitaplığının haritası oluşturuluyor. Büyük bir kitaplıkta bu biraz zaman alabilir.</string>
+    <string name="map_empty_too_large">Kitaplığında %1$s var — bu, haritanın şu anda gösterebileceği %2$s sayısından fazla.</string>
 
     <string name="map_legend_selected">seçili bölge</string>
     <string name="map_legend_rest">kitaplığın geri kalanı</string>

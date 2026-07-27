@@ -109,6 +109,8 @@
     <string name="map_action_play_region">Putar wilayah</string>
     <string name="map_action_smart_here">SMART dari sini</string>
     <string name="map_empty_indexing">Pustakamu masih dibaca. Peta muncul setelah pengindeksan selesai.</string>
+    <string name="map_empty_building">Sedang membuat peta pustakamu. Ini bisa memakan waktu jika pustakamu besar.</string>
+    <string name="map_empty_too_large">Pustakamu punya %1$s — lebih banyak dari %2$s yang bisa ditampilkan peta saat ini.</string>
 
     <string name="map_legend_selected">wilayah terpilih</string>
     <string name="map_legend_rest">sisa pustaka</string>

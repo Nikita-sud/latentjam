@@ -212,6 +212,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
@@ -581,8 +582,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         //
         // Gated on the tab itself, not just on (tracks, worlds): this is the only thing standing
         // between "the user opened the app" and a PCA-50 + t-SNE pass (see the cache-miss branch
-        // below), so it must never run for someone who never visits the Map. Keying on
-        // `selectedTab` also means the listening numbers refresh on every return to the tab
+        // below), so it must never run for someone who never visits the Map. Keyed on
+        // `pagerState.settledPage`, NOT `pagerState.currentPage` (what `selectedTab` reads): an
+        // animated scroll to a tab past the Map advances `currentPage` through every intermediate
+        // page on the way there, including MAP_TAB, so keying on it stacked a full t-SNE run onto
+        // Dispatchers.Default for every tab tap that merely passed through the Map en route
+        // somewhere else. `settledPage` only updates once a scroll actually settles, and settles
+        // directly on the final destination -- transit through the Map never trips it. Settling on
+        // the Map also means the listening numbers refresh on every genuine return to the tab
         // instead of only when the track/world set changes -- otherwise a session of plays would
         // sit stale here indefinitely. Deliberately NOT keyed on `historyRevision`: that advances
         // in the background during playback started from anywhere, including this page's own
@@ -591,13 +598,51 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // contract: `beyondViewportPageCount = 0` already disposes the page (and every
         // `remember(page)` value on it -- lens, selected region, zoom, pan) the moment it scrolls
         // out of view, so there is no reader state left to disturb by the next time this fires.
-        var mapPage by remember { mutableStateOf<MapPage?>(null) }
-        LaunchedEffect(tracks, worlds, selectedTab) {
-            if (selectedTab != MAP_TAB) return@LaunchedEffect
+        var mapState by remember { mutableStateOf<MapPageState>(MapPageState.Indexing) }
+        // The regions actually behind the currently shown MapPage. Not always `worlds` itself --
+        // spec section 8's smallest-library fallback (mapFallbackRegions) can stand in for it -- so
+        // the "Play region"/"SMART from here" callbacks below read this, not `worlds` directly, or
+        // they would silently no-op whenever the Map is showing that fallback.
+        var mapRegions by remember { mutableStateOf<List<LibraryWorld>>(emptyList()) }
+        LaunchedEffect(tracks, worlds, pagerState.settledPage) {
+            if (pagerState.settledPage != MAP_TAB) return@LaunchedEffect
             val loaded = tracks ?: return@LaunchedEffect
-            val regions = worlds
-            if (regions.isEmpty()) return@LaunchedEffect
             val loadedIds = loaded.map(TrackDescriptor::id)
+            val layoutStore = AppGraph.layoutStore
+
+            // Cheap prep only: the vector space and whatever layout is already cached. Neither does
+            // the O(n^2) PCA/t-SNE pass, so a cache hit below never has to tell the reader anything
+            // is "building" -- only a genuine recompute, further down, does that.
+            val prepared = withContext(Dispatchers.Default) {
+                // `covers` (below) must be asked about the population the layout was actually
+                // computed for -- LibraryVectorFusion drops any track without a usable audio or
+                // metadata vector, so that population is `features.vectorSpace.trackIds`, a
+                // filtered subset of `loadedIds`, not `loadedIds` itself. Comparing against the
+                // full library instead would stay "stale" forever the moment even one track fails
+                // to encode: the sizes would never agree again, so every visit would pay for a full
+                // PCA+t-SNE recompute and re-save a set that fails the very same check next time.
+                val features = engine.libraryMixFeatures(loadedIds) ?: return@withContext null
+                features to layoutStore.loadLayout()
+            } ?: return@LaunchedEffect
+            val (features, stored) = prepared
+
+            // Finding (a) of the final review: Tsne/Pca are O(n^2) per array with nothing capping n
+            // anywhere upstream. Refuse outright above the ceiling rather than silently draw a
+            // truncated map that looks complete -- see LibraryLayout.MAX_TRACKS's doc for why this
+            // number and what it costs at it.
+            if (features.vectorSpace.size > LibraryLayout.MAX_TRACKS) {
+                mapState = MapPageState.TooLarge(
+                    trackCount = features.vectorSpace.size,
+                    limit = LibraryLayout.MAX_TRACKS,
+                )
+                return@LaunchedEffect
+            }
+
+            // Spec section 8, row 3: a library too small for TrackClustering to form even one
+            // region must not leave the Map stuck showing the indexing state forever for a user
+            // whose indexing already finished -- see mapFallbackRegions.
+            val regions = worlds.ifEmpty { mapFallbackRegions(loaded, features.vectorSpace.trackIds) }
+            if (regions.isEmpty()) return@LaunchedEffect
 
             // Region ids are indices into `regions`: every listening/headline lookup below keys off
             // this same index, so it must stay the one place a track's region id is assigned.
@@ -606,25 +651,34 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     for (track in world.tracks) put(track.id, index)
                 }
             }
-            val layoutStore = AppGraph.layoutStore
-            mapPage = withContext(Dispatchers.Default) {
-                val stored = layoutStore.loadLayout()
-                // `covers` must be asked about the population the layout was actually computed
-                // for -- LibraryVectorFusion drops any track without a usable audio or metadata
-                // vector, so that population is `features.vectorSpace.trackIds`, a filtered
-                // subset of `loadedIds`, not `loadedIds` itself. Comparing against the full
-                // library instead would stay "stale" forever the moment even one track fails to
-                // encode: the sizes would never agree again, so every visit would pay for a full
-                // PCA+t-SNE recompute and re-save a set that fails the very same check next time.
-                val features = engine.libraryMixFeatures(loadedIds) ?: return@withContext null
-                val positions = if (LibraryLayout.covers(stored, features.vectorSpace.trackIds)) {
-                    stored
-                } else {
+
+            val needsCompute = !LibraryLayout.covers(stored, features.vectorSpace.trackIds)
+            // Finding (d): indexing has already finished by the time this can be reached, so a
+            // recompute gets its own honest state instead of reusing the "still reading your
+            // library" copy -- that copy is only true before indexing completes.
+            if (needsCompute) mapState = MapPageState.Building
+
+            val built = withContext(Dispatchers.Default) {
+                val positions = if (needsCompute) {
                     // The stale layout is the warm start, so an added album nudges the map instead
-                    // of redrawing it.
-                    LibraryLayout.compute(features.vectorSpace, stored)
-                        .also { layoutStore.saveLayout(it) }
-                        .associate { it.trackId to floatArrayOf(it.x, it.y) }
+                    // of redrawing it. `isActive` is this CoroutineScope's own cancellation state --
+                    // passing it as the abort hook (finding (b)) lets a reader who navigates away
+                    // mid-compute stop paying for iterations nobody will see, instead of the whole
+                    // 1000-iteration pass running to completion regardless and only being noticed
+                    // (and discarded) afterward.
+                    val computed = LibraryLayout.compute(
+                        features.vectorSpace,
+                        stored,
+                        isActive = { isActive },
+                    )
+                    // No partial state persisted: only save and adopt a layout that actually
+                    // finished. An aborted compute's result is well-formed but under-converged, and
+                    // must never reach the cache or a reader.
+                    if (!isActive) return@withContext null
+                    layoutStore.saveLayout(computed)
+                    computed.associate { it.trackId to floatArrayOf(it.x, it.y) }
+                } else {
+                    stored
                 }
 
                 val stats = AppGraph.history.stats()
@@ -660,6 +714,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     listening = LibraryListeningStats.summarize(regionOf = regionOf, stats = stats),
                 )
             } ?: return@LaunchedEffect
+
+            mapRegions = regions
+            mapState = MapPageState.Ready(built)
         }
 
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
@@ -1014,15 +1071,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         )
 
                                         MAP_TAB -> MapTab(
-                                            page = mapPage,
+                                            state = mapState,
                                             contentPadding = listPadding,
                                             onPlayRegion = { region ->
-                                                worlds.getOrNull(region)?.let { world ->
+                                                mapRegions.getOrNull(region)?.let { world ->
                                                     scope.launch { playback.play(world.tracks, 0) }
                                                 }
                                             },
                                             onSmartFromRegion = { region ->
-                                                worlds.getOrNull(region)?.let { world ->
+                                                mapRegions.getOrNull(region)?.let { world ->
                                                     scope.launch {
                                                         val seed = world.representative
                                                         val queue = engine.smartQueue(

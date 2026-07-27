@@ -114,6 +114,8 @@
     <string name="map_action_play_region">Redă regiunea</string>
     <string name="map_action_smart_here">SMART de aici</string>
     <string name="map_empty_indexing">Încă îți citim biblioteca. Harta apare când se termină indexarea.</string>
+    <string name="map_empty_building">Construim harta bibliotecii tale. Pentru o bibliotecă mare poate dura puțin.</string>
+    <string name="map_empty_too_large">Biblioteca ta are %1$s — mai mult decât %2$s pe care harta le poate afișa acum.</string>
 
     <string name="map_legend_selected">regiunea selectată</string>
     <string name="map_legend_rest">restul bibliotecii</string>

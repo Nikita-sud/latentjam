@@ -115,6 +115,8 @@
     <string name="map_action_play_region">Reproduzir região</string>
     <string name="map_action_smart_here">SMART daqui</string>
     <string name="map_empty_indexing">Ainda estamos lendo sua biblioteca. O mapa aparece quando a indexação terminar.</string>
+    <string name="map_empty_building">Estamos construindo o mapa da sua biblioteca. Se ela for grande, isso pode levar um tempo.</string>
+    <string name="map_empty_too_large">Sua biblioteca tem %1$s — mais do que %2$s que o mapa consegue mostrar agora.</string>
 
     <string name="map_legend_selected">região selecionada</string>
     <string name="map_legend_rest">resto da biblioteca</string>

@@ -7,7 +7,9 @@ package io.github.nikitasud.latentjam.app
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Density
 import io.github.nikitasud.latentjam.history.LibraryListening
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldNameSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -171,5 +173,50 @@ class MapTabTest {
     @Test
     fun `largestRegionCentroids returns nothing for an empty page`() {
         assertTrue(largestRegionCentroids(page(emptyList()), limit = 5).isEmpty())
+    }
+
+    private fun track(id: String) = TrackDescriptor(id = TrackId(id))
+
+    // Finding (Important 3) of the final review, spec section 8 row 3: a library too small for
+    // TrackClustering to form even one region must fall back to a single unnamed region rather
+    // than leave the Map with nothing to key dots against.
+    @Test
+    fun `mapFallbackRegions covers every laid out track in one region`() {
+        val library = listOf(track("a"), track("b"), track("c"))
+        val laidOutIds = listOf(TrackId("a"), TrackId("b"), TrackId("c"))
+
+        val regions = mapFallbackRegions(library, laidOutIds)
+
+        assertEquals(1, regions.size)
+        assertEquals(laidOutIds, regions.single().tracks.map { it.id })
+        assertEquals(LibraryWorldNameSource.GENERIC, regions.single().nameSource)
+    }
+
+    // A laid-out id with no matching library track (should not happen in practice, but the
+    // function must not crash on it) is simply dropped rather than crashing on a missing lookup.
+    @Test
+    fun `mapFallbackRegions drops laid out ids with no matching track`() {
+        val library = listOf(track("a"))
+        val laidOutIds = listOf(TrackId("a"), TrackId("ghost"))
+
+        val regions = mapFallbackRegions(library, laidOutIds)
+
+        assertEquals(listOf(TrackId("a")), regions.single().tracks.map { it.id })
+    }
+
+    // An empty overlap between the library and the laid-out ids means there is genuinely nothing
+    // to show yet -- the caller (App.kt) must be able to tell this apart from "clustering merely
+    // has not run" and keep its existing state instead of treating this as ready.
+    @Test
+    fun `mapFallbackRegions returns nothing when there is no overlap at all`() {
+        val library = listOf(track("a"))
+        val laidOutIds = listOf(TrackId("ghost"))
+
+        assertTrue(mapFallbackRegions(library, laidOutIds).isEmpty())
+    }
+
+    @Test
+    fun `mapFallbackRegions returns nothing for an empty library`() {
+        assertTrue(mapFallbackRegions(emptyList(), emptyList()).isEmpty())
     }
 }

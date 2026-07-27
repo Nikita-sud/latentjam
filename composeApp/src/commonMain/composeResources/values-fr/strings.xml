@@ -120,6 +120,8 @@
     <string name="map_action_play_region">Lire la région</string>
     <string name="map_action_smart_here">SMART d’ici</string>
     <string name="map_empty_indexing">Votre bibliothèque est encore en cours de lecture. La carte apparaîtra une fois l’indexation terminée.</string>
+    <string name="map_empty_building">Nous construisons la carte de votre bibliothèque. Cela peut prendre un moment si elle est volumineuse.</string>
+    <string name="map_empty_too_large">Votre bibliothèque compte %1$s — plus que les %2$s que la carte peut afficher pour l’instant.</string>
 
     <string name="map_legend_selected">région sélectionnée</string>
     <string name="map_legend_rest">reste de la bibliothèque</string>

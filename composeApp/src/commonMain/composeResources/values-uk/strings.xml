@@ -122,6 +122,8 @@
     <string name="map_action_play_region">Слухати область</string>
     <string name="map_action_smart_here">SMART звідси</string>
     <string name="map_empty_indexing">Бібліотека ще читається. Карта з’явиться, коли завершиться індексація.</string>
+    <string name="map_empty_building">Будуємо карту вашої бібліотеки. Для великої бібліотеки це може зайняти певний час.</string>
+    <string name="map_empty_too_large">У вашій бібліотеці %1$s — це більше, ніж %2$s, які карта може показати зараз.</string>
 
     <string name="map_legend_selected">вибрана область</string>
     <string name="map_legend_rest">решта бібліотеки</string>

@@ -108,6 +108,8 @@
     <string name="map_action_play_region">इस क्षेत्र को चलाएं</string>
     <string name="map_action_smart_here">यहाँ से SMART</string>
     <string name="map_empty_indexing">आपकी लाइब्रेरी अब भी पढ़ी जा रही है. इंडेक्सिंग पूरी होते ही नक्शा दिखेगा.</string>
+    <string name="map_empty_building">आपकी लाइब्रेरी का नक्शा बनाया जा रहा है. बड़ी लाइब्रेरी में इसमें थोड़ा समय लग सकता है.</string>
+    <string name="map_empty_too_large">आपकी लाइब्रेरी में %1$s हैं — जो नक्शा अभी दिखा सकता है उन %2$s से ज़्यादा.</string>
 
     <string name="map_legend_selected">चुना हुआ क्षेत्र</string>
     <string name="map_legend_rest">बाकी लाइब्रेरी</string>

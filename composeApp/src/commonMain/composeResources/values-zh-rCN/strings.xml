@@ -103,6 +103,8 @@
     <string name="map_action_play_region">播放该区域</string>
     <string name="map_action_smart_here">从这里开始 SMART</string>
     <string name="map_empty_indexing">仍在读取你的音乐库。索引完成后地图就会出现。</string>
+    <string name="map_empty_building">正在为你的音乐库生成地图。如果音乐库较大，这可能需要一点时间。</string>
+    <string name="map_empty_too_large">你的音乐库有 %1$s——比地图目前能显示的 %2$s 还多。</string>
 
     <string name="map_legend_selected">选中的区域</string>
     <string name="map_legend_rest">音乐库的其余部分</string>

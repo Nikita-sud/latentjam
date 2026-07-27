@@ -115,6 +115,8 @@
     <string name="map_action_play_region">Riproduci la regione</string>
     <string name="map_action_smart_here">SMART da qui</string>
     <string name="map_empty_indexing">Stiamo ancora leggendo la tua libreria. La mappa compare quando finisce l’indicizzazione.</string>
+    <string name="map_empty_building">Stiamo costruendo la mappa della tua libreria. Se è grande, può richiedere un po’ di tempo.</string>
+    <string name="map_empty_too_large">La tua libreria conta %1$s, più dei %2$s che la mappa può mostrare al momento.</string>
 
     <string name="map_legend_selected">regione selezionata</string>
     <string name="map_legend_rest">resto della libreria</string>
