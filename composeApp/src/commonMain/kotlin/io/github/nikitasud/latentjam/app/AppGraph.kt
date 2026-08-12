@@ -342,6 +342,11 @@ object AppGraph {
         }
     }
 
+    /** Stops the process-lifetime scan when the platform withdraws its execution budget. */
+    fun cancelAutomaticIndexing() {
+        automaticIndexingJob?.cancel()
+    }
+
     private val koin: Koin
         get() = checkNotNull(koinApp) {
             "AppGraph.start() must be called by the platform entry point before use"

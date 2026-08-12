@@ -7,9 +7,12 @@ package io.github.nikitasud.latentjam.app
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Density
 import io.github.nikitasud.latentjam.history.LibraryListening
+import io.github.nikitasud.latentjam.history.RegionListening
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldNameSource
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -25,6 +28,32 @@ class MapTabTest {
 
     private fun dot(trackId: String = "t", x: Float = 0.5f, y: Float = 0.5f, region: Int = 0) =
         MapDot(TrackId(trackId), x, y, region, plays = 0, skipRate = 0f)
+
+    @Test
+    fun `an interrupted cold map build returns to indexing`() {
+        assertEquals(
+            MapPageState.Indexing,
+            MapPageState.Building.afterInterruptedMapBuild(),
+        )
+    }
+
+    @Test
+    fun `an interrupted warm map build keeps its page and clears the spinner`() {
+        val ready = MapPageState.Ready(page(emptyList()), rebuilding = true)
+
+        assertEquals(
+            ready.copy(rebuilding = false),
+            ready.afterInterruptedMapBuild(),
+        )
+    }
+
+    @Test
+    fun `starting a build keeps a warm page but uses a placeholder when cold`() {
+        val warm = MapPageState.Ready(page(emptyList()))
+
+        assertEquals(warm.copy(rebuilding = true), warm.duringMapBuild())
+        assertEquals(MapPageState.Building, MapPageState.Indexing.duringMapBuild())
+    }
 
     // Pins the one formula both the Canvas draw loop and `nearest` share: a dot at (0.25, 0.75) on
     // an 800x600 canvas, zoomed 2x and panned by (50, -20), lands at exactly (450, 880). If a future
@@ -121,8 +150,8 @@ class MapTabTest {
         val onePx = with(Density(density = 1f)) { HIT_RADIUS_DP.toPx() }
         val threePx = with(Density(density = 3f)) { HIT_RADIUS_DP.toPx() }
 
-        assertEquals(48f, onePx)
-        assertEquals(144f, threePx)
+        assertEquals(24f, onePx)
+        assertEquals(72f, threePx)
     }
 
     private fun page(dots: List<MapDot>) = MapPage(
@@ -138,6 +167,40 @@ class MapTabTest {
             maxPlays = 0,
         ),
     )
+
+    private fun region(index: Int) = RegionListening(
+        region = index,
+        trackCount = 1,
+        neverPlayed = 1,
+        plays = 0,
+        skipRate = 0f,
+    )
+
+    @Test
+    fun `region accessibility actions expose named real regions and update selection`() {
+        val accessiblePage = MapPage(
+            dots = listOf(dot("rock", region = 0), dot("ambient", region = 2)),
+            regionNames = listOf("Rock", "", "Ambient", ""),
+            listening = LibraryListening(
+                trackCount = 2,
+                neverPlayed = 2,
+                tracksForHalfOfPlays = 0,
+                // Duplicate, blank-named, and invalid entries model malformed/stale page data. None
+                // should become an ambiguous TalkBack action.
+                regions = listOf(region(0), region(2), region(2), region(3), region(-1)),
+                darkestRegion = null,
+                skippiestRegion = null,
+                maxPlays = 0,
+            ),
+        )
+        var selected = -1
+
+        val actions = regionAccessibilityActions(accessiblePage) { selected = it }
+
+        assertEquals(listOf("Rock", "Ambient"), actions.map { it.label })
+        assertTrue(actions[1].action())
+        assertEquals(2, selected)
+    }
 
     @Test
     fun `largestRegionCentroids orders by region size and truncates to the limit`() {
@@ -174,6 +237,298 @@ class MapTabTest {
     @Test
     fun `largestRegionCentroids returns nothing for an empty page`() {
         assertTrue(largestRegionCentroids(page(emptyList()), limit = 5).isEmpty())
+    }
+
+    // The unclaimed set is not a region and has no name to draw. Before this, its dots grouped into a
+    // MapDot.NO_REGION "region" that could outrank real ones, take a label slot, then find
+    // regionNames.getOrNull(-1) == null and silently draw nothing -- one of five slots wasted.
+    @Test
+    fun `largestRegionCentroids ignores dots no region claimed`() {
+        val dots = listOf(
+            dot("u1", region = MapDot.NO_REGION),
+            dot("u2", region = MapDot.NO_REGION),
+            dot("u3", region = MapDot.NO_REGION),
+            dot("a1", region = 0),
+        )
+
+        val labelled = largestRegionCentroids(page(dots), limit = 5)
+
+        assertEquals(listOf(0), labelled.map { it.first })
+    }
+
+    @Test
+    fun `a dot is claimed only when a region took it`() {
+        assertTrue(dot("a", region = 0).claimed)
+        assertFalse(dot("u", region = MapDot.NO_REGION).claimed)
+    }
+
+    private fun world(
+        name: String,
+        source: LibraryWorldNameSource,
+        semanticTitle: LibraryWorldSemanticTitle? = null,
+    ) = LibraryWorld(
+        name = name,
+        tracks = listOf(track("t-$name")),
+        nameSource = source,
+        semanticTitle = semanticTitle,
+    )
+
+    private val semanticLabels = mapOf(
+        LibraryWorldSemanticTitle.MEME_VIRAL_AUDIO to "Мемы и вирусные аудиозаписи",
+    )
+
+    // The defect this exists for: a real library produced three regions all named "Discovery mix",
+    // which on the map meant three identical labels that could not be told apart. Numbering follows
+    // the list order, which for the map is its stable size order.
+    @Test
+    fun `regionDisplayNames numbers every generic region`() {
+        val regions = listOf(
+            world("Discovery mix", LibraryWorldNameSource.GENERIC),
+            world("Rock", LibraryWorldNameSource.GENRE),
+            world("Discovery mix", LibraryWorldNameSource.GENERIC),
+            world("Discovery mix", LibraryWorldNameSource.GENERIC),
+        )
+
+        val names = regionDisplayNames(regions, "Микс открытий", semanticLabels)
+
+        assertEquals(
+            listOf("Микс открытий 1", "Rock", "Микс открытий 2", "Микс открытий 3"),
+            names,
+        )
+    }
+
+    // One discovery region has nothing to be told apart from, so a bare "1" would be noise.
+    @Test
+    fun `regionDisplayNames leaves a lone generic region unnumbered`() {
+        val regions = listOf(
+            world("Rock", LibraryWorldNameSource.GENRE),
+            world("Discovery mix", LibraryWorldNameSource.GENERIC),
+        )
+
+        val names = regionDisplayNames(regions, "Микс открытий", semanticLabels)
+
+        assertEquals(listOf("Rock", "Микс открытий"), names)
+    }
+
+    // The map used to draw the generator's English "Meme & Viral Audio" while the For You tab beside
+    // it showed the localized name for the very same region.
+    @Test
+    fun `regionDisplayNames localizes a semantic region`() {
+        val regions = listOf(
+            world(
+                "Meme & Viral Audio",
+                LibraryWorldNameSource.SEMANTIC,
+                LibraryWorldSemanticTitle.MEME_VIRAL_AUDIO,
+            ),
+        )
+
+        val names = regionDisplayNames(regions, "Микс открытий", semanticLabels)
+
+        assertEquals(listOf("Мемы и вирусные аудиозаписи"), names)
+    }
+
+    // A semantic title with no label supplied must still name its region rather than blank it, and an
+    // artist or genre name is a proper noun or tag text that no locale file translates.
+    @Test
+    fun `regionDisplayNames passes through names it cannot improve on`() {
+        val regions = listOf(
+            world("Ke\$ha • Mix", LibraryWorldNameSource.ARTIST),
+            world(
+                "Spoken Audio",
+                LibraryWorldNameSource.SEMANTIC,
+                LibraryWorldSemanticTitle.SPOKEN_AUDIO,
+            ),
+        )
+
+        val names = regionDisplayNames(regions, "Микс открытий", semanticLabels)
+
+        assertEquals(listOf("Ke\$ha • Mix", "Spoken Audio"), names)
+    }
+
+    // A region whose centroid sits near an edge used to have its name drawn centred on that
+    // centroid regardless, which put half the text outside the canvas: on a real library the
+    // right-hand region's label read "Discovery mi" with the rest cut off by the viewport. The
+    // label is a region's only identity on the map (colour cannot carry it), so a half-drawn one
+    // fails at the one job it has.
+    @Test
+    fun `labelTopLeft keeps a label at the right edge fully inside the canvas`() {
+        val topLeft = labelTopLeft(
+            centre = Offset(1f, 0.5f),
+            labelWidth = 200f,
+            labelHeight = 40f,
+            width = 800f,
+            height = 600f,
+            zoom = 1f,
+            panX = 0f,
+            panY = 0f,
+            marginPx = 0f,
+        )
+
+        assertEquals(Offset(600f, 280f), topLeft)
+        assertTrue(topLeft.x + 200f <= 800f)
+    }
+
+    // The margin is only spent on labels the clamp actually moved, so it is measured here on the
+    // same right-edge label: without it the name ends flush against the screen border and reads as
+    // cut off even though it is whole.
+    @Test
+    fun `labelTopLeft holds a clamped label clear of the edge by the margin`() {
+        val topLeft = labelTopLeft(
+            centre = Offset(1f, 0.5f),
+            labelWidth = 200f,
+            labelHeight = 40f,
+            width = 800f,
+            height = 600f,
+            zoom = 1f,
+            panX = 0f,
+            panY = 0f,
+            marginPx = 18f,
+        )
+
+        assertEquals(Offset(582f, 280f), topLeft)
+    }
+
+    @Test
+    fun `labelTopLeft clamps a label past the left and top edges to the corner`() {
+        val topLeft = labelTopLeft(
+            centre = Offset(0f, 0f),
+            labelWidth = 200f,
+            labelHeight = 40f,
+            width = 800f,
+            height = 600f,
+            zoom = 1f,
+            panX = 0f,
+            panY = 0f,
+            marginPx = 0f,
+        )
+
+        assertEquals(Offset.Zero, topLeft)
+    }
+
+    // Clamping must not become a general nudge inward: a label with room to spare stays centred on
+    // its own centroid, or every interior label would drift away from the cluster it names.
+    @Test
+    fun `labelTopLeft leaves an interior label centred on its centroid`() {
+        val topLeft = labelTopLeft(
+            centre = Offset(0.5f, 0.5f),
+            labelWidth = 200f,
+            labelHeight = 40f,
+            width = 800f,
+            height = 600f,
+            zoom = 1f,
+            panX = 0f,
+            panY = 0f,
+            marginPx = 0f,
+        )
+
+        assertEquals(Offset(300f, 280f), topLeft)
+    }
+
+    // Zoom and pan move the centroid exactly as they move a dot, so this derives the expectation
+    // from screenPosition rather than re-deriving the transform by hand -- the same guard the
+    // `nearest` test above uses, for the same reason.
+    @Test
+    fun `labelTopLeft follows the zoom and pan transform`() {
+        val centre = Offset(0.5f, 0.5f)
+        val centreOnScreen = screenPosition(
+            dot(x = centre.x, y = centre.y),
+            width = 800f,
+            height = 600f,
+            zoom = 2f,
+            panX = -400f,
+            panY = -200f,
+        )
+
+        val topLeft = labelTopLeft(
+            centre = centre,
+            labelWidth = 100f,
+            labelHeight = 20f,
+            width = 800f,
+            height = 600f,
+            zoom = 2f,
+            panX = -400f,
+            panY = -200f,
+            marginPx = 0f,
+        )
+
+        assertEquals(Offset(centreOnScreen.x - 50f, centreOnScreen.y - 10f), topLeft)
+    }
+
+    // A label longer than the canvas is wide has no position that fits, and the naive clamp
+    // (coerceIn(margin, width - labelWidth - margin)) throws IllegalArgumentException on an upper
+    // bound below its lower one rather than drawing anything. Pinning to the leading margin shows as
+    // much of the name as there is room for, which is what a reader can use.
+    @Test
+    fun `labelTopLeft pins a label wider than the canvas to the leading edge`() {
+        val topLeft = labelTopLeft(
+            centre = Offset(0.5f, 0.5f),
+            labelWidth = 200f,
+            labelHeight = 40f,
+            width = 100f,
+            height = 600f,
+            zoom = 1f,
+            panX = 0f,
+            panY = 0f,
+            marginPx = 12f,
+        )
+
+        assertEquals(Offset(12f, 280f), topLeft)
+    }
+
+    // Once zoom/pan has moved a region itself out of view, clamping its name is no longer keeping a
+    // visible label readable: it manufactures an edge label for something that is not there. Worse,
+    // every offscreen centroid in the same quadrant lands at this exact corner and the names pile up.
+    @Test
+    fun `visibleLabelTopLeft omits offscreen centroids instead of piling them at an edge`() {
+        val common = listOf(Offset(0.1f, 0.1f), Offset(0.2f, 0.2f))
+
+        val legacyClamped = common.map { centre ->
+            labelTopLeft(
+                centre = centre,
+                labelWidth = 100f,
+                labelHeight = 20f,
+                width = 800f,
+                height = 600f,
+                zoom = 2f,
+                panX = -800f,
+                panY = -600f,
+                marginPx = 0f,
+            )
+        }
+        val visible = common.map { centre ->
+            visibleLabelTopLeft(
+                centre = centre,
+                labelWidth = 100f,
+                labelHeight = 20f,
+                width = 800f,
+                height = 600f,
+                zoom = 2f,
+                panX = -800f,
+                panY = -600f,
+                marginPx = 0f,
+            )
+        }
+
+        assertEquals(listOf(Offset.Zero, Offset.Zero), legacyClamped)
+        visible.forEach(::assertNull)
+    }
+
+    @Test
+    fun `visibleLabelTopLeft still clamps a visible edge centroid into the viewport`() {
+        assertEquals(
+            Offset(600f, 280f),
+            visibleLabelTopLeft(
+                centre = Offset(1f, 0.5f),
+                labelWidth = 200f,
+                labelHeight = 40f,
+                width = 800f,
+                height = 600f,
+                zoom = 1f,
+                panX = 0f,
+                panY = 0f,
+                marginPx = 0f,
+            ),
+        )
     }
 
     private fun track(id: String) = TrackDescriptor(id = TrackId(id))

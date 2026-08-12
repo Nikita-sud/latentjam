@@ -109,6 +109,7 @@
     </plurals>
 
     <string name="map_headline_worlds">Карта делит %1$s на %2$s. Коснитесь любой, чтобы услышать, что внутри.</string>
+    <string name="map_headline_worlds_partial">Карта делит %1$d из %2$s на %3$s. Коснитесь любой, чтобы услышать, что внутри.</string>
     <string name="map_headline_plays">Половина всего, что вы когда-либо слушали, — это %1$s, или %2$d\u0025 медиатеки.</string>
     <string name="map_headline_never_played">В медиатеке %2$s, и %1$d из них вы не включали ни разу. Область «%3$s» осталась нетронутой на %4$d\u0025.</string>
     <string name="map_headline_skips">Чаще всего вы бросаете треки здесь: «%1$s» — %2$d\u0025 запусков.</string>
@@ -170,6 +171,8 @@
     <string name="action_play_next">Слушать следующим</string>
     <string name="action_add_to_queue">Добавить в очередь</string>
     <string name="action_add_to_playlist">Добавить в плейлист</string>
+    <string name="action_remove_from_playlist">Убрать из этого плейлиста</string>
+    <string name="snack_playlist_track_removed">Убрано из "%1$s"</string>
     <string name="action_go_to_album">Перейти к альбому</string>
     <string name="action_go_to_artist">Перейти к исполнителю</string>
     <string name="action_information">Информация</string>

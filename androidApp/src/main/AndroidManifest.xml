@@ -3,7 +3,8 @@
   Copyright (c) 2026 LatentJam Project
   SPDX-License-Identifier: Apache-2.0
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Media access for the library scanner: split by API level. -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
@@ -25,6 +26,7 @@
     <!-- State leaves the device only through the user's explicit backup export. -->
     <application
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
@@ -50,7 +52,8 @@
         <service
             android:name="io.github.nikitasud.latentjam.playback.PlaybackService"
             android:exported="true"
-            android:foregroundServiceType="mediaPlayback">
+            android:foregroundServiceType="mediaPlayback"
+            tools:ignore="ExportedService">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>

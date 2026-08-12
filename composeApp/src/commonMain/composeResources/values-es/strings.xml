@@ -108,6 +108,7 @@
     </plurals>
 
     <string name="map_headline_worlds">El mapa agrupa %1$s en %2$s. Toca una para escuchar lo que hay dentro.</string>
+    <string name="map_headline_worlds_partial">El mapa agrupa %1$d de %2$s en %3$s. Toca una para escuchar lo que hay dentro.</string>
     <string name="map_headline_plays">La mitad de todo lo que has escuchado viene de %1$s: el %2$d\u0025 de tu biblioteca.</string>
     <string name="map_headline_never_played">Nunca has reproducido %1$d de %2$s. «%3$s» sigue intacta en un %4$d\u0025.</string>
     <string name="map_headline_skips">Es en «%1$s» donde más abandonas: el %2$d\u0025 de las reproducciones que empiezas.</string>
@@ -174,6 +175,8 @@
     <string name="action_play_next">Reproducir a continuación</string>
     <string name="action_add_to_queue">Añadir a la cola</string>
     <string name="action_add_to_playlist">Añadir a una lista de reproducción</string>
+    <string name="action_remove_from_playlist">Quitar de esta lista</string>
+    <string name="snack_playlist_track_removed">Quitado de "%1$s"</string>
     <string name="action_go_to_album">Ir al álbum</string>
     <string name="action_go_to_artist">Ir al artista</string>
     <string name="action_information">Información</string>

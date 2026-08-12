@@ -126,6 +126,7 @@
     </plurals>
 
     <string name="map_headline_worlds">تنقسم مكتبتك إلى %2$s تضم %1$s. المس إحداها لتسمع ما فيها.</string>
+    <string name="map_headline_worlds_partial">تنقسم مكتبتك إلى %3$s تضم %1$d من أصل %2$s. المس إحداها لتسمع ما فيها.</string>
     <string name="map_headline_plays">نصف كل ما استمعت إليه يأتي من %1$s — %2$d\u0025 من مكتبتك.</string>
     <string name="map_headline_never_played">لم تشغّل قط %1$d من أصل %2$s. منطقة «%3$s» ما زالت غير ملموسة بنسبة %4$d\u0025.</string>
     <string name="map_headline_skips">في «%1$s» تتوقف أكثر من أي مكان آخر — %2$d\u0025 من مرات البدء.</string>
@@ -196,6 +197,8 @@
     <string name="action_play_next">تشغيل التالي</string>
     <string name="action_add_to_queue">إضافة إلى قائمة الانتظار</string>
     <string name="action_add_to_playlist">إضافة إلى قائمة تشغيل</string>
+    <string name="action_remove_from_playlist">إزالة من قائمة التشغيل هذه</string>
+    <string name="snack_playlist_track_removed">تمت الإزالة من "%1$s"</string>
     <string name="action_go_to_album">الانتقال إلى الألبوم</string>
     <string name="action_go_to_artist">الانتقال إلى الفنان</string>
     <string name="action_information">معلومات</string>

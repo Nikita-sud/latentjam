@@ -111,6 +111,7 @@
     </plurals>
 
     <string name="map_headline_worlds">Die Karte fasst %1$s zu %2$s zusammen. Tippe eine an, um zu hören, was darin steckt.</string>
+    <string name="map_headline_worlds_partial">Die Karte fasst %1$d von %2$s zu %3$s zusammen. Tippe eine an, um zu hören, was darin steckt.</string>
     <string name="map_headline_plays">Auf %1$s entfällt die Hälfte von allem, was du je gehört hast — %2$d\u0025 deiner Bibliothek.</string>
     <string name="map_headline_never_played">Deine Bibliothek hat %2$s, %1$d davon hast du nie gehört. „%3$s“ ist zu %4$d\u0025 unberührt.</string>
     <string name="map_headline_skips">Bei „%1$s“ steigst du am häufigsten aus — bei %2$d\u0025 der Starts.</string>
@@ -177,6 +178,8 @@
     <string name="action_play_next">Als Nächstes abspielen</string>
     <string name="action_add_to_queue">Zur Warteschlange hinzufügen</string>
     <string name="action_add_to_playlist">Zu Playlist hinzufügen</string>
+    <string name="action_remove_from_playlist">Aus dieser Playlist entfernen</string>
+    <string name="snack_playlist_track_removed">Aus "%1$s" entfernt</string>
     <string name="action_go_to_album">Zum Album</string>
     <string name="action_go_to_artist">Zum Künstler</string>
     <string name="action_information">Informationen</string>

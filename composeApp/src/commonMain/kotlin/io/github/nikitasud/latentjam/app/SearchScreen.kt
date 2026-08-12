@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -72,6 +73,7 @@ import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
 import io.github.nikitasud.latentjam.smart.text.SearchFold
 import kotlin.math.pow
 import kotlin.time.TimeSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -116,6 +118,8 @@ internal fun SearchScreen(
     var resultQuery by remember(songs) { mutableStateOf("") }
     var isSearching by remember(songs) { mutableStateOf(false) }
     var trackStats by remember { mutableStateOf<Map<TrackId, TrackStats>>(emptyMap()) }
+    // A slower read from an older action must not replace the result of a newer record/remove/clear.
+    var recentOperationRevision by remember { mutableLongStateOf(0L) }
     val entityResolver = AppGraph.musicEntities
     val rememberSearches by AppGraph.settings.rememberSearches.collectAsState()
     val historyRevision by AppGraph.historyRevision.collectAsState()
@@ -127,7 +131,17 @@ internal fun SearchScreen(
     }
     // Per-track play aggregates for affinity ordering; reloaded whenever the log gains an event.
     LaunchedEffect(historyRevision) {
-        trackStats = withContext(Dispatchers.Default) { AppGraph.history.stats() }
+        val loaded = try {
+            withContext(Dispatchers.Default) { AppGraph.history.stats() }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            // Affinity is an enhancement. Keep the last good ordering if its local file is
+            // temporarily unreadable instead of letting a persistence exception kill Search.
+            println("Search: could not load listening affinity: $failure")
+            null
+        }
+        if (loaded != null) trackStats = loaded
     }
     LaunchedEffect(searchIndex, query, semantic, semanticQuery, entityResolver, trackStats) {
         val needle = query.trim()
@@ -165,12 +179,22 @@ internal fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
-    suspend fun refreshRecent() {
-        recent = AppGraph.recentSearches.recent()
+    suspend fun refreshRecent(expectedRevision: Long = recentOperationRevision) {
+        val loaded = try {
+            AppGraph.recentSearches.recent()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            // The last successfully rendered shortcuts remain usable. Search itself does not own a
+            // snackbar surface, so report diagnostically without replacing them with a false empty.
+            println("Search: could not load recent searches: $failure")
+            null
+        }
+        if (loaded != null && recentOperationRevision == expectedRevision) recent = loaded
     }
 
     LaunchedEffect(Unit) {
-        refreshRecent()
+        refreshRecent(recentOperationRevision)
         focusRequester.requestFocus()
     }
 
@@ -193,9 +217,17 @@ internal fun SearchScreen(
 
     fun remember(queryToKeep: String) {
         if (!rememberSearches) return
+        val operationRevision = ++recentOperationRevision
         scope.launch {
-            AppGraph.recentSearches.record(queryToKeep)
-            refreshRecent()
+            try {
+                AppGraph.recentSearches.record(queryToKeep)
+                refreshRecent(operationRevision)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                // A failed write publishes no in-memory store change; leave the visible list alone.
+                println("Search: could not record recent search: $failure")
+            }
         }
     }
 
@@ -290,15 +322,29 @@ internal fun SearchScreen(
                         remember(picked)
                     },
                     onRemove = { removed ->
+                        val operationRevision = ++recentOperationRevision
                         scope.launch {
-                            AppGraph.recentSearches.remove(removed)
-                            refreshRecent()
+                            try {
+                                AppGraph.recentSearches.remove(removed)
+                                refreshRecent(operationRevision)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (failure: Throwable) {
+                                println("Search: could not remove recent search: $failure")
+                            }
                         }
                     },
                     onClearAll = {
+                        val operationRevision = ++recentOperationRevision
                         scope.launch {
-                            AppGraph.recentSearches.clear()
-                            refreshRecent()
+                            try {
+                                AppGraph.recentSearches.clear()
+                                refreshRecent(operationRevision)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (failure: Throwable) {
+                                println("Search: could not clear recent searches: $failure")
+                            }
                         }
                     },
                 )

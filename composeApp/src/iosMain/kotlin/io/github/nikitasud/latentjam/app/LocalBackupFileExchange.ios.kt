@@ -15,11 +15,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
+import platform.Foundation.NSFileHandle
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.dataWithBytes
-import platform.Foundation.dataWithContentsOfURL
+import platform.Foundation.closeFile
+import platform.Foundation.fileHandleForReadingAtPath
+import platform.Foundation.readDataOfLength
+import platform.Foundation.seekToEndOfFile
+import platform.Foundation.seekToFileOffset
 import platform.Foundation.writeToFile
 import platform.UIKit.UIApplication
 import platform.UIKit.UIDocumentPickerDelegateProtocol
@@ -211,7 +216,22 @@ private fun discardTemporaryBackup(path: String) {
 
 @OptIn(ExperimentalForeignApi::class)
 private fun readDocument(url: NSURL): LocalBackupFileResult<String> = runCatching {
-    val data = NSData.dataWithContentsOfURL(url) ?: error("The selected document cannot be opened")
+    val path = url.path ?: error("The selected document cannot be opened")
+    val handle = NSFileHandle.fileHandleForReadingAtPath(path)
+        ?: error("The selected document cannot be opened")
+    val data = try {
+        // `NSData.dataWithContentsOfURL` reads the entire selection before its length is known. A
+        // malicious or accidental multi-gigabyte file could therefore exhaust memory before the
+        // 64 MiB policy check ran. Preflight the opened file and still read at most limit+1 bytes,
+        // so a replacement/growth race cannot bypass the bound between the two operations.
+        check(handle.seekToEndOfFile() <= MAX_LOCAL_BACKUP_DOCUMENT_CHARS.toULong()) {
+            "Backup exceeds the supported size"
+        }
+        handle.seekToFileOffset(0uL)
+        handle.readDataOfLength(MAX_LOCAL_BACKUP_DOCUMENT_CHARS.toULong() + 1uL)
+    } finally {
+        handle.closeFile()
+    }
     check(data.length <= MAX_LOCAL_BACKUP_DOCUMENT_CHARS.toULong()) {
         "Backup exceeds the supported size"
     }

@@ -96,6 +96,7 @@
     </plurals>
 
     <string name="map_headline_worlds">%1$s이 %2$s으로 모였습니다. 하나를 눌러 무엇이 들어 있는지 들어 보세요.</string>
+    <string name="map_headline_worlds_partial">%2$s 중 %1$d곡이 %3$s으로 모였습니다. 하나를 눌러 무엇이 들어 있는지 들어 보세요.</string>
     <string name="map_headline_plays">지금까지 들은 모든 것의 절반이 %1$s, 라이브러리의 %2$d\u0025입니다.</string>
     <string name="map_headline_never_played">%2$s 중 %1$d곡은 한 번도 듣지 않았습니다. ‘%3$s’ 지역은 %4$d\u0025가 그대로 남아 있습니다.</string>
     <string name="map_headline_skips">‘%1$s’에서 가장 자주 중간에 그만둡니다. 재생 시작의 %2$d\u0025.</string>
@@ -161,6 +162,8 @@
     <string name="action_play_next">다음에 재생</string>
     <string name="action_add_to_queue">대기열에 추가</string>
     <string name="action_add_to_playlist">플레이리스트에 추가</string>
+    <string name="action_remove_from_playlist">이 재생목록에서 제거</string>
+    <string name="snack_playlist_track_removed">"%1$s"에서 제거됨</string>
     <string name="action_go_to_album">앨범으로 이동</string>
     <string name="action_go_to_artist">아티스트로 이동</string>
     <string name="action_information">정보</string>

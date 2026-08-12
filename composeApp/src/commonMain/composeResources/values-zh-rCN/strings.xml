@@ -96,6 +96,7 @@
     </plurals>
 
     <string name="map_headline_worlds">%1$s聚成 %2$s。点按其中一个，听听里面有什么。</string>
+    <string name="map_headline_worlds_partial">%2$s里有 %1$d 首聚成 %3$s。点按其中一个，听听里面有什么。</string>
     <string name="map_headline_plays">你听过的一切，有一半来自 %1$s，占音乐库的 %2$d\u0025。</string>
     <string name="map_headline_never_played">%2$s里，有 %1$d 首你从未播放过。“%3$s”还有 %4$d\u0025 没被碰过。</string>
     <string name="map_headline_skips">你在“%1$s”里放弃得最多——%2$d\u0025 的播放都没听完。</string>
@@ -161,6 +162,8 @@
     <string name="action_play_next">下一首播放</string>
     <string name="action_add_to_queue">添加到播放队列</string>
     <string name="action_add_to_playlist">添加到播放列表</string>
+    <string name="action_remove_from_playlist">从此播放列表中移除</string>
+    <string name="snack_playlist_track_removed">已从"%1$s"中移除</string>
     <string name="action_go_to_album">转到专辑</string>
     <string name="action_go_to_artist">转到艺人</string>
     <string name="action_information">详细信息</string>

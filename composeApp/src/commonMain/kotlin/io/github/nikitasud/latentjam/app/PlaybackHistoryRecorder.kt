@@ -12,6 +12,7 @@ import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -34,8 +35,21 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
     val gate = PlaybackHistoryGate(initiallyEnabled = enabled.value)
     playback.state.combine(enabled) { now, isEnabled -> now to isEnabled }.collect { (now, isEnabled) ->
         gate.onSnapshot(now, isEnabled, epochMillis())?.let { finished ->
-            history.record(finished)
-            onRecorded()
+            try {
+                history.record(finished)
+                onRecorded()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                // This is the one process-lifetime history collector. A transient private-storage
+                // failure may cost this finished session, but must not cancel the collector and
+                // silently discard every later session until the app is restarted. Keep consuming
+                // playback snapshots so the next transition gets an independent durable attempt.
+                println(
+                    "Listening history append failed; recording will continue: " +
+                        (failure.message ?: failure::class.simpleName.orEmpty()),
+                )
+            }
         }
     }
 }

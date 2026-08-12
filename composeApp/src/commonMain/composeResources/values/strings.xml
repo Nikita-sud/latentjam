@@ -124,6 +124,13 @@
          A literal percent is written \u0025: Compose MP unescapes \uXXXX but
          leaves %% alone, which would reach the UI as two percent signs. -->
     <string name="map_headline_worlds">%1$s across %2$s. Tap one to hear what’s in it.</string>
+    <!-- Same contract, plus the honest denominator: %1$d is a BARE count on
+         purpose (the same exception map_headline_never_played takes) because
+         its noun lives in %2$s, the count_tracks fragment it is measured
+         against. Used only when the map draws tracks that no region claimed,
+         so a library whose regions cover everything keeps the shorter
+         map_headline_worlds sentence instead. -->
+    <string name="map_headline_worlds_partial">%1$d of %2$s across %3$s. Tap one to hear what’s in it.</string>
     <string name="map_headline_plays">Half of everything you have ever played comes from %1$s — %2$d\u0025 of your library.</string>
     <!-- %3$s is a region NAME: a short noun phrase that names the region — its
          dominant genre or artist. Never a bare number, and never containing the
@@ -213,6 +220,8 @@
     <string name="action_play_next">Play next</string>
     <string name="action_add_to_queue">Add to queue</string>
     <string name="action_add_to_playlist">Add to playlist</string>
+    <string name="action_remove_from_playlist">Remove from this playlist</string>
+    <string name="snack_playlist_track_removed">Removed from "%1$s"</string>
     <string name="action_go_to_album">Go to album</string>
     <string name="action_go_to_artist">Go to artist</string>
     <string name="action_information">Information</string>

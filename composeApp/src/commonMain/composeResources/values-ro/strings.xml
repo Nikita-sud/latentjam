@@ -107,6 +107,7 @@
     </plurals>
 
     <string name="map_headline_worlds">%1$s se așază în %2$s. Atinge una ca să auzi ce e în ea.</string>
+    <string name="map_headline_worlds_partial">%1$d din %2$s se așază în %3$s. Atinge una ca să auzi ce e în ea.</string>
     <string name="map_headline_plays">Jumătate din tot ce ai ascultat vreodată înseamnă %1$s — %2$d\u0025 din bibliotecă.</string>
     <string name="map_headline_never_played">Nu ai ascultat niciodată %1$d din %2$s. Regiunea „%3$s” a rămas neatinsă în proporție de %4$d\u0025.</string>
     <string name="map_headline_skips">Aici renunți cel mai des: „%1$s” — %2$d\u0025 din porniri.</string>
@@ -167,6 +168,8 @@
     <string name="action_play_next">Redă în continuare</string>
     <string name="action_add_to_queue">Adaugă la coadă</string>
     <string name="action_add_to_playlist">Adaugă în playlist</string>
+    <string name="action_remove_from_playlist">Elimină din acest playlist</string>
+    <string name="snack_playlist_track_removed">Eliminat din "%1$s"</string>
     <string name="action_go_to_album">Mergi la album</string>
     <string name="action_go_to_artist">Mergi la artist</string>
     <string name="action_information">Informații</string>

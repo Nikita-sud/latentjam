@@ -113,6 +113,7 @@
     </plurals>
 
     <string name="map_headline_worlds">La carte répartit %1$s en %2$s. Touchez-en une pour écouter ce qu’elle contient.</string>
+    <string name="map_headline_worlds_partial">La carte répartit %1$d de vos %2$s en %3$s. Touchez-en une pour écouter ce qu’elle contient.</string>
     <string name="map_headline_plays">La moitié de tout ce que vous avez écouté vient de %1$s — %2$d \u0025 de votre bibliothèque.</string>
     <string name="map_headline_never_played">Votre bibliothèque compte %2$s et vous n’en avez jamais écouté %1$d. « %3$s » reste intacte à %4$d \u0025.</string>
     <string name="map_headline_skips">C’est dans « %1$s » que vous décrochez le plus — %2$d \u0025 des lectures lancées.</string>
@@ -179,6 +180,8 @@
     <string name="action_play_next">Lire ensuite</string>
     <string name="action_add_to_queue">Ajouter à la file d’attente</string>
     <string name="action_add_to_playlist">Ajouter à une playlist</string>
+    <string name="action_remove_from_playlist">Retirer de cette playlist</string>
+    <string name="snack_playlist_track_removed">Retiré de "%1$s"</string>
     <string name="action_go_to_album">Aller à l’album</string>
     <string name="action_go_to_artist">Aller à l’artiste</string>
     <string name="action_information">Informations</string>

@@ -111,6 +111,18 @@ class IndexingService : Service() {
     }
 
     /**
+     * Android 15 caps data-sync foreground services at six background hours in a rolling day.
+     * Once that budget expires the service has only a few seconds to stop or the system reports an
+     * ANR. Cancel the process-lifetime worker as well as this Service: leaving inference running
+     * after foreground protection is revoked would make the progress notification disappear while
+     * the advertised work continued unreliably in a killable background process.
+     */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        AppGraph.cancelAutomaticIndexing()
+        stopSelf(startId)
+    }
+
+    /**
      * Names the channel from the caller's already-localised title.
      *
      * The app's strings live in Compose resources across eighteen locales, and

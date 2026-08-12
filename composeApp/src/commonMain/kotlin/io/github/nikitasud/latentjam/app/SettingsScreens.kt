@@ -2021,8 +2021,27 @@ private fun PrivacySettings(
     val dataClearFailed = stringResource(Res.string.privacy_data_clear_failed)
 
     LaunchedEffect(history, recentSearches) {
-        listens = history.stats().values.sumOf { it.plays }
-        searches = recentSearches.recent(Int.MAX_VALUE).size
+        val loadedListens = try {
+            history.stats().values.sumOf { it.plays }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            // Keep the last successfully displayed count. In particular, do not turn an unreadable
+            // history file into a misleading zero that enables destructive-looking controls.
+            println("Privacy settings: could not load listening history count: $failure")
+            null
+        }
+        if (loadedListens != null) listens = loadedListens
+
+        val loadedSearches = try {
+            recentSearches.recent(Int.MAX_VALUE).size
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            println("Privacy settings: could not load recent-search count: $failure")
+            null
+        }
+        if (loadedSearches != null) searches = loadedSearches
     }
 
     suspend fun persist(block: suspend () -> Result<Unit>): Boolean {

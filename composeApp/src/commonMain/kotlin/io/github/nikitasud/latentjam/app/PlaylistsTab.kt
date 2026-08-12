@@ -305,27 +305,41 @@ internal fun PlaylistNameDialog(
     confirmLabel: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
+    busy: Boolean = false,
+    errorMessage: String? = null,
 ) {
     var name by remember { mutableStateOf(initialName) }
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!busy) onDismiss() },
         title = { Text(title) },
         text = {
-            TextField(
-                value = name,
-                onValueChange = { name = it },
-                singleLine = true,
-                placeholder = { Text(stringResource(Res.string.playlist_name_placeholder)) },
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    enabled = !busy,
+                    singleLine = true,
+                    placeholder = { Text(stringResource(Res.string.playlist_name_placeholder)) },
+                )
+                errorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
         },
         confirmButton = {
             TextButton(
                 onClick = { onConfirm(name) },
-                enabled = name.isNotBlank(),
+                enabled = name.isNotBlank() && !busy,
             ) { Text(confirmLabel) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
+            TextButton(onClick = onDismiss, enabled = !busy) {
+                Text(stringResource(Res.string.action_cancel))
+            }
         },
     )
 }
@@ -339,8 +353,10 @@ internal fun AddToPlaylistSheet(
     onAddTo: (Playlist) -> Unit,
     onCreateNew: () -> Unit,
     onDismiss: () -> Unit,
+    busy: Boolean = false,
+    errorMessage: String? = null,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() }) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             // Two whole sentences rather than a fragment plus an interpolated
             // fallback noun: "track" would have had to decline with the verb in
@@ -360,10 +376,18 @@ internal fun AddToPlaylistSheet(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             )
+            errorMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                )
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
+                    .clickable(enabled = !busy) {
                         onDismiss()
                         onCreateNew()
                     }
@@ -387,10 +411,7 @@ internal fun AddToPlaylistSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                onDismiss()
-                                onAddTo(playlist)
-                            }
+                            .clickable(enabled = !busy) { onAddTo(playlist) }
                             .padding(horizontal = 24.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(20.dp),

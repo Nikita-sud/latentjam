@@ -49,6 +49,34 @@ class MapLensesTest {
         assertTrue(unplayed > played, "unplayed dot was not larger")
     }
 
+    // An unclaimed track is drawn on every lens but counted by none of their figures, which come from
+    // region-keyed stats. A played unclaimed track therefore must NOT take a ramp step, and an
+    // unplayed one must NOT take the never-played lens's accent-and-large treatment, or the plot would
+    // show more of whatever the headline counts than the headline says exists.
+    @Test
+    fun `no lens paints a track no region claimed`() {
+        val unclaimed = dot(region = MapDot.NO_REGION, plays = 0)
+        val unclaimedPlayed = dot(region = MapDot.NO_REGION, plays = 40, skipRate = 1f)
+
+        for (lens in MapLens.entries) {
+            assertEquals(
+                MapInk.Neutral,
+                MapLenses.ink(lens, unclaimed, selectedRegion = 0, maxPlays = 40),
+                "$lens coloured an unclaimed unplayed track",
+            )
+            assertEquals(
+                MapInk.Neutral,
+                MapLenses.ink(lens, unclaimedPlayed, selectedRegion = 0, maxPlays = 40),
+                "$lens coloured an unclaimed played track",
+            )
+            assertTrue(
+                MapLenses.radius(lens, unclaimed, selectedRegion = 0) <
+                    MapLenses.radius(MapLens.NEVER_PLAYED, dot(plays = 0), 0),
+                "$lens gave an unclaimed track the counted never-played size",
+            )
+        }
+    }
+
     // Worlds is the only other lens whose radius varies at all, and it varies by selection rather
     // than plays: the selected region's dot must be larger than an unselected region's dot.
     @Test

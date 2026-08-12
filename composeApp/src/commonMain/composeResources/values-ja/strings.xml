@@ -96,6 +96,7 @@
     </plurals>
 
     <string name="map_headline_worlds">%1$sが%2$sにまとまりました。タップすると中身を聴けます。</string>
+    <string name="map_headline_worlds_partial">%2$sのうち%1$d曲が%3$sにまとまりました。タップすると中身を聴けます。</string>
     <string name="map_headline_plays">これまでの再生の半分は%1$s、ライブラリの%2$d\u0025です。</string>
     <string name="map_headline_never_played">%2$sのうち%1$d曲はまだ一度も再生していません。「%3$s」は%4$d\u0025が手つかずです。</string>
     <string name="map_headline_skips">「%1$s」がいちばん途中でやめてしまう場所です。再生開始の%2$d\u0025。</string>
@@ -161,6 +162,8 @@
     <string name="action_play_next">次に再生</string>
     <string name="action_add_to_queue">キューに追加</string>
     <string name="action_add_to_playlist">プレイリストに追加</string>
+    <string name="action_remove_from_playlist">このプレイリストから削除</string>
+    <string name="snack_playlist_track_removed">"%1$s"から削除しました</string>
     <string name="action_go_to_album">アルバムを表示</string>
     <string name="action_go_to_artist">アーティストを表示</string>
     <string name="action_information">情報</string>

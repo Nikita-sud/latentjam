@@ -10,11 +10,14 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,8 +38,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.count_regions
@@ -50,6 +61,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.map_headline_never_
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_plays
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_skips
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_worlds
+import io.github.nikitasud.latentjam.app.generated.resources.map_headline_worlds_partial
 import io.github.nikitasud.latentjam.app.generated.resources.map_lens_never_played
 import io.github.nikitasud.latentjam.app.generated.resources.map_lens_plays
 import io.github.nikitasud.latentjam.app.generated.resources.map_lens_skips
@@ -60,11 +72,14 @@ import io.github.nikitasud.latentjam.app.generated.resources.map_legend_never_sk
 import io.github.nikitasud.latentjam.app.generated.resources.map_legend_played
 import io.github.nikitasud.latentjam.app.generated.resources.map_legend_rest
 import io.github.nikitasud.latentjam.app.generated.resources.map_legend_selected
+import io.github.nikitasud.latentjam.app.generated.resources.tab_map
 import io.github.nikitasud.latentjam.history.LibraryListening
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldNameSource
+import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
+import kotlin.math.max
 import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -73,9 +88,9 @@ import org.jetbrains.compose.resources.stringResource
  * Everything the Map draws, assembled once per visit.
  *
  * @property regionNames One name per region, indexed exactly like [MapDot.region] and
- *   [LibraryListening.regions] — `regionNames[i]` names the region whose id is `i`. This file never
- *   generates these names (Task 10 does, from the region's dominant
- *   [io.github.nikitasud.latentjam.smart.cluster.LibraryWorld]); it only drops one into the
+ *   [LibraryListening.regions] — `regionNames[i]` names the region whose id is `i`. Built by
+ *   [regionDisplayNames] from each region's
+ *   [io.github.nikitasud.latentjam.smart.cluster.LibraryWorld]; these are dropped into the
  *   `%3$s` / `%1$s` of `map_headline_never_played` / `map_headline_skips`, so that string's
  *   contract is this property's contract too:
  *   - a short noun phrase naming the region — its dominant genre or artist — never a bare number
@@ -131,6 +146,26 @@ sealed interface MapPageState {
      *   when there is no previous page to fall back to, ever shows [Building] instead.
      */
     data class Ready(val page: MapPage, val rebuilding: Boolean = false) : MapPageState
+}
+
+/**
+ * Removes a transient build marker inherited from a cancelled/restarted assembly effect.
+ *
+ * The Map effect publishes [MapPageState.Building] or `Ready(rebuilding = true)` before it crosses
+ * the suspending vector/layout boundary. Any key change can cancel it there. The replacement effect
+ * must start from a stable state, otherwise an early precondition return (index not ready, no
+ * regions, user left the tab) leaves a spinner latched forever.
+ */
+internal fun MapPageState.afterInterruptedMapBuild(): MapPageState = when (this) {
+    MapPageState.Building -> MapPageState.Indexing
+    is MapPageState.Ready -> if (rebuilding) copy(rebuilding = false) else this
+    else -> this
+}
+
+/** The transient state shown while a new layout is being computed from [this] stable state. */
+internal fun MapPageState.duringMapBuild(): MapPageState = when (this) {
+    is MapPageState.Ready -> copy(rebuilding = true)
+    else -> MapPageState.Building
 }
 
 /**
@@ -198,36 +233,108 @@ fun MapTab(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     val centroids = remember(page) { largestRegionCentroids(page, limit = 5) }
+    val mapDescription = stringResource(Res.string.tab_map)
+    val selectedRegionDescription = page.regionNames.getOrNull(selectedRegion).orEmpty()
+    // A Canvas otherwise collapses to one opaque, gesture-only accessibility node: TalkBack can
+    // announce it, but cannot synthesize a tap at a particular dot. Expose the same finite set of
+    // region choices as named custom actions, without adding a second visible control strip to an
+    // already height-constrained map. The selected region's name is the state description below,
+    // so invoking an action gives immediate spoken confirmation as the panel and semantics update.
+    val regionActions = remember(page) {
+        regionAccessibilityActions(page) { region -> selectedRegion = region }
+    }
 
     Column(Modifier.fillMaxSize().padding(contentPadding)) {
-        Row(
+        // FlowRow rather than Row: the four lens labels are long in a good many locales (ru
+        // "Прослушивания" + "Не слушали" + "Пропуски" wants ~1276 px of a 1080 px screen; hi, uk and
+        // ar are longer still), and a plain Row does not wrap or scroll -- it simply hands the last
+        // chip whatever width is left. Measured on a Russian device that was 117 px, inside which
+        // "Пропуски" wrapped one character per line and inflated the chip to 456 px tall. One
+        // overflowing chip therefore cost three separate things: a blank band under the visible
+        // chips, a third of the weighted Canvas's height below, and the Skips lens itself, clipped
+        // past the right edge with no way to reach it. Wrapping costs one extra chip row of height,
+        // and only in the locales that genuinely need it.
+        FlowRow(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             for (candidate in lenses) {
                 FilterChip(
                     selected = lens == candidate,
                     onClick = { lens = candidate },
-                    label = { Text(stringResource(lensLabel(candidate))) },
+                    label = {
+                        Text(
+                            text = stringResource(lensLabel(candidate)),
+                            // A second, independent guard on the same failure: should a single label
+                            // ever be too long for a whole line of its own -- a longer translation, a
+                            // narrower screen, a large font scale -- it ellipsizes within a one-line
+                            // chip instead of growing the chip vertically. Vertical growth is what
+                            // turned one squeezed chip into a 456 px row, so the row's height no
+                            // longer depends on any label fitting.
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
                 )
             }
         }
 
-        Row(
+        // Every headline this page can show, not just the current one: the Canvas below takes
+        // whatever vertical space is left over, so a three-line headline made the map 57 px shorter
+        // than a two-line one -- switching lens moved every dot on screen for a change that was only
+        // supposed to recolour them. Reserving the tallest of them pins the map's height across all
+        // four lenses, and reserves nothing beyond what the longest genuinely needs: a locale whose
+        // headlines all fit one line reserves one line.
+        val headlines = lenses.associateWith { headline(it, page) }
+        val headlineStyle = MaterialTheme.typography.bodyMedium
+        val density = LocalDensity.current
+        BoxWithConstraints(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = headline(lens, page),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
-            // Final review finding (MINOR 1): a subtle indicator that a fresh layout is computing,
-            // not a blanked screen -- the page drawn below is still the last good one, at most one
-            // library change stale.
-            if (rebuilding) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+            // Measured at the width the Text actually gets, with the indicator's slot subtracted
+            // whether or not it is showing (see the Row below) -- a reservation measured at some
+            // other width is not a reservation.
+            val textWidthPx = with(density) {
+                (maxWidth - INDICATOR_SLOT_DP - 8.dp).coerceAtLeast(0.dp).roundToPx()
+            }
+            val reservedHeight = remember(headlines, textWidthPx, headlineStyle) {
+                headlines.values.maxOfOrNull { text ->
+                    measurer.measure(
+                        text = text,
+                        style = headlineStyle,
+                        constraints = Constraints(maxWidth = textWidthPx),
+                    ).size.height
+                } ?: 0
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = headlines[lens].orEmpty(),
+                    style = headlineStyle,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(with(density) { reservedHeight.toDp() }),
+                )
+                // Final review finding (MINOR 1): a subtle indicator that a fresh layout is
+                // computing, not a blanked screen -- the page drawn below is still the last good
+                // one, at most one library change stale.
+                //
+                // Its slot is held open even when it is not showing, so the headline's width -- and
+                // so its line count, and so the height measured above -- cannot depend on whether a
+                // rebuild happens to be running. Otherwise a rebuild starting would reflow the
+                // headline and resize the map underneath it, which is the very thing this block
+                // exists to prevent.
+                Box(Modifier.size(INDICATOR_SLOT_DP), contentAlignment = Alignment.Center) {
+                    if (rebuilding) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(INDICATOR_SLOT_DP),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                }
             }
         }
 
@@ -235,6 +342,13 @@ fun MapTab(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .semantics {
+                    contentDescription = mapDescription
+                    if (selectedRegionDescription.isNotBlank()) {
+                        stateDescription = selectedRegionDescription
+                    }
+                    customActions = regionActions
+                }
                 .pointerInput(page) {
                     detectTransformGestures { _, pan, gestureZoom, _ ->
                         val newZoom = (zoom * gestureZoom).coerceIn(1f, 6f)
@@ -260,7 +374,16 @@ fun MapTab(
                             nearest(
                                 page.dots, offset, size.width, size.height, zoom, panX, panY,
                                 HIT_RADIUS_DP.toPx(),
-                            )?.let { selectedRegion = it.region }
+                            )
+                                // An unclaimed dot has no region to select, and assigning its
+                                // MapDot.NO_REGION would empty the panel below of its name, its
+                                // count, and the two buttons' target -- a tap that silently breaks
+                                // the rest of the page. Keeping the current selection is the honest
+                                // answer to "which region did you tap?" when the answer is none.
+                                // Long-press still opens such a track: it is a real track, and that
+                                // gesture asks about the track rather than about a region.
+                                ?.takeIf(MapDot::claimed)
+                                ?.let { selectedRegion = it.region }
                         },
                         onLongPress = { offset ->
                             nearest(
@@ -300,12 +423,20 @@ fun MapTab(
             for ((region, centre) in centroids) {
                 val name = page.regionNames.getOrNull(region) ?: continue
                 val measured = measurer.measure(name, labelStyle)
+                val topLeft = visibleLabelTopLeft(
+                    centre = centre,
+                    labelWidth = measured.size.width.toFloat(),
+                    labelHeight = measured.size.height.toFloat(),
+                    width = size.width,
+                    height = size.height,
+                    zoom = zoom,
+                    panX = panX,
+                    panY = panY,
+                    marginPx = LABEL_EDGE_MARGIN_DP.toPx(),
+                ) ?: continue
                 drawText(
                     textLayoutResult = measured,
-                    topLeft = Offset(
-                        x = centre.x * size.width * zoom + panX - measured.size.width / 2f,
-                        y = centre.y * size.height * zoom + panY - measured.size.height / 2f,
-                    ),
+                    topLeft = topLeft,
                 )
             }
         }
@@ -412,11 +543,16 @@ private fun LegendLabel(text: String) {
 /**
  * Centre of each of the [limit] largest regions, for the on-map labels.
  *
+ * Unclaimed dots ([MapDot.NO_REGION]) are not a region and have no name: left in, they would group
+ * into a pseudo-region that can outrank real ones, take one of the [limit] label slots, and then draw
+ * nothing at all when `regionNames` has no entry for it.
+ *
  * Pure and Compose-free by construction (it only touches [MapPage] and [Offset] arithmetic), so it
  * is exercised directly in `MapTabTest` rather than through a screenshot.
  */
 internal fun largestRegionCentroids(page: MapPage, limit: Int): List<Pair<Int, Offset>> =
-    page.dots.groupBy { it.region }
+    page.dots.filter(MapDot::claimed)
+        .groupBy { it.region }
         .entries
         .sortedByDescending { it.value.size }
         .take(limit)
@@ -426,6 +562,38 @@ internal fun largestRegionCentroids(page: MapPage, limit: Int): List<Pair<Int, O
                 y = members.sumOf { it.y.toDouble() }.toFloat() / members.size,
             )
         }
+
+/**
+ * TalkBack actions for the regions the page can actually select.
+ *
+ * A Compose [Canvas] has no child semantics for the dots it draws, so coordinate gestures alone
+ * make region selection impossible without sight. These named actions expose the same choices on
+ * the Canvas node. They follow [io.github.nikitasud.latentjam.history.LibraryListening.regions]
+ * rather than every `regionNames` slot: only a region with listening/card data is an honest target
+ * for the panel and its Play/SMART buttons. Malformed duplicate or blank entries are ignored rather
+ * than creating indistinguishable accessibility actions.
+ *
+ * Kept outside the composable so the action callbacks themselves can be regression-tested; invoking
+ * one must update the same selected-region state a pointer tap updates.
+ */
+internal fun regionAccessibilityActions(
+    page: MapPage,
+    onSelect: (Int) -> Unit,
+): List<CustomAccessibilityAction> {
+    val seen = mutableSetOf<Int>()
+    return page.listening.regions.mapNotNull { regionListening ->
+        val region = regionListening.region
+        val name = page.regionNames.getOrNull(region)?.takeIf(String::isNotBlank)
+        if (name == null || !seen.add(region)) {
+            null
+        } else {
+            CustomAccessibilityAction(label = name) {
+                onSelect(region)
+                true
+            }
+        }
+    }
+}
 
 /**
  * The floor of both sequential ramps' alpha range.
@@ -455,6 +623,14 @@ private fun rememberWarmRamp(): List<Color> {
     return remember(scheme) { rampAlphas().map { scheme.error.copy(alpha = it) } }
 }
 
+/**
+ * The headline row's trailing slot, sized to the rebuild indicator it sometimes holds.
+ *
+ * Held open in both states on purpose — see the call site for why a slot that appears and disappears
+ * would resize the map.
+ */
+private val INDICATOR_SLOT_DP = 16.dp
+
 /** [MapLenses.RAMP_STEPS] alphas, evenly spaced from [RAMP_FLOOR_ALPHA] to fully opaque. */
 private fun rampAlphas(): List<Float> {
     val steps = MapLenses.RAMP_STEPS
@@ -476,19 +652,38 @@ private fun headline(lens: MapLens, page: MapPage): String {
         // pluralized ("873 tracks", "12 regions") — the string's own comment forbids feeding it a
         // bare number here, because the noun that agrees with that number only exists inside the
         // plural resource.
-        MapLens.WORLDS -> stringResource(
-            Res.string.map_headline_worlds,
-            pluralStringResource(
-                Res.plurals.count_tracks,
-                listening.trackCount,
-                listening.trackCount,
-            ),
-            pluralStringResource(
+        MapLens.WORLDS -> {
+            // `listening.trackCount` counts the tracks a region claimed (it is `regionOf.size`),
+            // which is NOT the number of tracks on screen: unclaimed ones are drawn too (see
+            // MapDot.NO_REGION), 90 of 877 on a real library. Reporting only the claimed count next
+            // to a map that plainly shows more dots than that invites the obvious reading -- that
+            // 787 is the size of the library -- and gets it wrong by a tenth. When the two differ,
+            // say both; when every drawn track has a region, the shorter sentence is still exactly
+            // true, so nothing changes for a library whose regions cover it. The `>` also means a
+            // page with more claimed tracks than dots (region members that never got a position)
+            // keeps the old sentence rather than printing "787 of 780".
+            val drawn = page.dots.size
+            val claimed = listening.trackCount
+            val regions = pluralStringResource(
                 Res.plurals.count_regions,
                 listening.regions.size,
                 listening.regions.size,
-            ),
-        )
+            )
+            if (drawn > claimed) {
+                stringResource(
+                    Res.string.map_headline_worlds_partial,
+                    claimed,
+                    pluralStringResource(Res.plurals.count_tracks, drawn, drawn),
+                    regions,
+                )
+            } else {
+                stringResource(
+                    Res.string.map_headline_worlds,
+                    pluralStringResource(Res.plurals.count_tracks, claimed, claimed),
+                    regions,
+                )
+            }
+        }
         // %1$s is the same count_tracks contract: "half your plays come from 12 tracks", not "12".
         MapLens.PLAYS -> stringResource(
             Res.string.map_headline_plays,
@@ -533,6 +728,57 @@ private fun percent(part: Int, whole: Int): Int =
 
 private fun largestRegion(page: MapPage): Int =
     page.listening.regions.maxByOrNull { it.trackCount }?.region ?: 0
+
+/**
+ * The name the map shows for each region, in the same order as [regions].
+ *
+ * `LibraryWorld.name` is raw generator output and cannot be shown as it stands, for two reasons the
+ * map made plainly visible on a Russian device:
+ * - It is not localized. The plot drew the English "Discovery mix", and `map_headline_never_played`
+ *   interpolated the English "Meme & Viral Audio" into the middle of a Russian sentence, while the
+ *   For You tab beside it had been showing "Мемы и вирусные аудиозаписи" for the same region all
+ *   along.
+ * - [LibraryWorldNameSource.GENERIC] is one shared label for every cluster `LibraryWorlds` found no
+ *   shared claim in, so a real library put three identical "Discovery mix" labels among its five
+ *   largest regions — three words that identified nothing and could not even be told apart.
+ *
+ * Both are already solved for the For You cards (`ForYouSections.worlds`), so this applies that
+ * settled convention rather than inventing a second one: the localized label per semantic title, the
+ * localized discovery label for a generic region, numbered when more than one of them exists, and the
+ * generated name untouched for a genre or artist region (those are proper nouns and tag text, which
+ * no locale file can or should translate).
+ *
+ * An ordinal is deliberately the only thing added to a generic name. Any *content* detail would
+ * assert exactly what `LibraryWorlds` already weighed and rejected as below its evidence threshold —
+ * it had no dominant genre, artist or decade to offer, which is why the region is generic at all.
+ *
+ * The ordinals are this map's own, and need not agree with the numbers on the For You cards: For You
+ * numbers in feedback-ranked order, which changes as you listen, while the map numbers in its stable
+ * size order because the whole promise of this page is a shape that stays put between visits. Their
+ * jobs differ too — here the number exists only to tell two blobs on one plot apart.
+ *
+ * Pure, so `MapTabTest` pins the numbering directly.
+ */
+internal fun regionDisplayNames(
+    regions: List<LibraryWorld>,
+    discoveryMixLabel: String,
+    semanticLabels: Map<LibraryWorldSemanticTitle, String>,
+): List<String> {
+    val genericCount = regions.count { it.nameSource == LibraryWorldNameSource.GENERIC }
+    var genericIndex = 0
+    return regions.map { world ->
+        val semanticTitle = world.semanticTitle
+        when {
+            semanticTitle != null -> semanticLabels[semanticTitle] ?: world.name
+            world.nameSource == LibraryWorldNameSource.GENERIC -> {
+                genericIndex++
+                // A lone discovery region needs no number to be told apart from anything.
+                if (genericCount == 1) discoveryMixLabel else "$discoveryMixLabel $genericIndex"
+            }
+            else -> world.name
+        }
+    }
+}
 
 /**
  * Whether [mapFallbackRegions] may stand in for an empty `worlds`.
@@ -620,10 +866,112 @@ internal fun screenPosition(
     zoom: Float,
     panX: Float,
     panY: Float,
+): Offset = screenPoint(dot.x, dot.y, width, height, zoom, panX, panY)
+
+/**
+ * [screenPosition] for a point that is not a dot — a region centroid, for [labelTopLeft].
+ *
+ * The transform itself lives here so that dots and the labels naming their regions cannot drift out
+ * of alignment: a label placed by one copy of this arithmetic and dots drawn by another would
+ * disagree about where a region *is* the moment either copy was edited.
+ */
+internal fun screenPoint(
+    x: Float,
+    y: Float,
+    width: Float,
+    height: Float,
+    zoom: Float,
+    panX: Float,
+    panY: Float,
 ): Offset = Offset(
-    x = dot.x * width * zoom + panX,
-    y = dot.y * height * zoom + panY,
+    x = x * width * zoom + panX,
+    y = y * height * zoom + panY,
 )
+
+/**
+ * Where a region's name is drawn: centred on the region's centroid, then clamped so the whole label
+ * stays inside the canvas.
+ *
+ * A label is a region's only identity on the map — [MapLenses]' colours carry selection and
+ * listening, never which region this is — so half a name is a label that has failed. Centring alone
+ * cuts one off whenever a centroid lands within half a label of an edge, which is common: t-SNE
+ * pushes distinct regions to the rim of the layout by design, so the outermost regions are exactly
+ * the ones whose names get cropped.
+ *
+ * Clamping moves such a label by at most half its own width, which keeps it touching the cluster it
+ * names; nudging every label inward instead — or dropping the ones that do not fit — would either
+ * detach interior labels from their regions or leave the map's biggest outer regions anonymous.
+ *
+ * Pure, like [screenPosition] and [nearest] beside it, so `MapTabTest` pins the geometry directly.
+ */
+internal fun labelTopLeft(
+    centre: Offset,
+    labelWidth: Float,
+    labelHeight: Float,
+    width: Float,
+    height: Float,
+    zoom: Float,
+    panX: Float,
+    panY: Float,
+    marginPx: Float,
+): Offset {
+    val centreOnScreen = screenPoint(centre.x, centre.y, width, height, zoom, panX, panY)
+    return Offset(
+        // max(margin, …) is not defensive dressing: a label wider than the canvas makes the upper
+        // bound fall below the lower one, and coerceIn throws on a range whose end precedes its
+        // start. Such a label has no fitting position at all, so it pins to the leading edge and
+        // shows what there is room for.
+        x = (centreOnScreen.x - labelWidth / 2f)
+            .coerceIn(marginPx, max(marginPx, width - labelWidth - marginPx)),
+        y = (centreOnScreen.y - labelHeight / 2f)
+            .coerceIn(marginPx, max(marginPx, height - labelHeight - marginPx)),
+    )
+}
+
+/**
+ * [labelTopLeft] for a centroid that is still in the viewport.
+ *
+ * At rest every normalized centroid is visible and edge clamping keeps its full name readable.
+ * After zooming and panning, however, several centroids can be far outside the viewport. Clamping
+ * those names anyway drags all of them onto the same nearest edge or corner, where unrelated labels
+ * pile on top of one another even though none of their regions is on screen. An offscreen region has
+ * no honest label position; its name returns when its centroid is panned back into view.
+ */
+internal fun visibleLabelTopLeft(
+    centre: Offset,
+    labelWidth: Float,
+    labelHeight: Float,
+    width: Float,
+    height: Float,
+    zoom: Float,
+    panX: Float,
+    panY: Float,
+    marginPx: Float,
+): Offset? {
+    val centreOnScreen = screenPoint(centre.x, centre.y, width, height, zoom, panX, panY)
+    if (centreOnScreen.x !in 0f..width || centreOnScreen.y !in 0f..height) return null
+    return labelTopLeft(
+        centre = centre,
+        labelWidth = labelWidth,
+        labelHeight = labelHeight,
+        width = width,
+        height = height,
+        zoom = zoom,
+        panX = panX,
+        panY = panY,
+        marginPx = marginPx,
+    )
+}
+
+/**
+ * How far a clamped label stays clear of the canvas edge.
+ *
+ * A clamp to exactly the edge is correct and still reads as broken: measured on the device, the
+ * right-hand region's name ended 4 px from a 1080 px screen's border, close enough to the bezel that
+ * it looks cut off even though every glyph is drawn. This is only ever spent on labels the clamp
+ * actually moved — an interior label is untouched — so it costs nothing in the common case.
+ */
+internal val LABEL_EDGE_MARGIN_DP = 6.dp
 
 /**
  * Screen-space hit radius for a tap, sized to Material's ~48dp minimum touch target so a finger —
@@ -635,7 +983,7 @@ internal fun screenPosition(
  * block's own [androidx.compose.ui.unit.Density] so [nearest] itself stays a pure function over
  * plain numbers.
  */
-internal val HIT_RADIUS_DP = 48.dp
+internal val HIT_RADIUS_DP = 24.dp
 
 /**
  * The dot nearest a tap, within [hitRadiusPx], in the same zoomed/panned space [MapTab] draws in

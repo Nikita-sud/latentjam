@@ -99,6 +99,23 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun codecScansCrLfAndRejectsCardinalityBeforeDecodingOverflowRecord() {
+        val valid = LocalBackupCodec.encode(emptySnapshot())
+        assertEquals(emptySnapshot(), LocalBackupCodec.decode(valid.replace("\n", "\r\n")))
+
+        val overloaded = buildString {
+            append(valid)
+            repeat(100) { append("Q\ts61\n") }
+            // Deliberately corrupt: the count limit must reject this before attempting hex decode.
+            append("Q\tnot-hex\n")
+        }
+        val failure = assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.decode(overloaded)
+        }
+        assertContains(failure.message.orEmpty(), "Too many recent searches")
+    }
+
+    @Test
     fun serviceRestoresPortableMatchesAndReportsUnsafeUnresolvedTracks() = runTest {
         val sourceTrack = track(
             id = "old-kino-id",
@@ -224,6 +241,56 @@ internal class LocalBackupTest {
         )
     }
 
+    @Test
+    fun indexedResolverPreservesDurationUniquenessAndAmbiguity() = runTest {
+        val destination = fixture(
+            listOf(
+                track("new-a", "Shared", "Artist", "Album", 100_000),
+                track("new-b", "Shared", "Artist", "Album", 101_000),
+                track("new-c", "Shared", "Artist", "Album", 110_000),
+            ),
+        )
+        val snapshot = emptySnapshot().copy(
+            tracks = listOf(
+                LocalBackupTrackReference("old-ambiguous", " shared ", "ARTIST", "Album", 100_500),
+                LocalBackupTrackReference("old-unique", "Shared", "Artist", "Album", 110_000),
+            ),
+        )
+
+        val report = destination.service.restore(snapshot, LocalBackupRestoreMode.REPLACE, noSections())
+
+        assertEquals(1, report.resolvedTrackReferences)
+        assertEquals(1, report.unresolvedTrackReferences)
+    }
+
+    @Test
+    fun indexedResolverHandlesLargeMetadataFallbackWithoutLibraryWideScanPerReference() = runTest {
+        val count = 5_000
+        val destinationTracks = List(count) { index ->
+            track("new-$index", "Shared", "Artist", "Album", index * 5_000L)
+        }
+        val snapshot = emptySnapshot().copy(
+            tracks = List(count) { index ->
+                LocalBackupTrackReference(
+                    originalId = "old-$index",
+                    title = "Shared",
+                    artist = "Artist",
+                    album = "Album",
+                    durationMs = index * 5_000L,
+                )
+            },
+        )
+
+        val report = fixture(destinationTracks).service.restore(
+            snapshot,
+            LocalBackupRestoreMode.REPLACE,
+            noSections(),
+        )
+
+        assertEquals(count, report.resolvedTrackReferences)
+        assertEquals(0, report.unresolvedTrackReferences)
+    }
+
     private fun emptySnapshot() = LocalBackupSnapshot(
         createdAtMs = 1,
         settings = LocalBackupSettings(
@@ -241,6 +308,15 @@ internal class LocalBackupTest {
         hiddenTrackReferenceIds = emptySet(),
         smartExcludedTrackReferenceIds = emptySet(),
         smartExcludedArtists = emptySet(),
+    )
+
+    private fun noSections() = LocalBackupSections(
+        settings = false,
+        playlists = false,
+        listeningHistory = false,
+        recentSearches = false,
+        hiddenTracks = false,
+        smartExclusions = false,
     )
 
     private fun fixture(

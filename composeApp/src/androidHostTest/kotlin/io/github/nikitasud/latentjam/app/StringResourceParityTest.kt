@@ -152,7 +152,11 @@ class StringResourceParityTest {
             // Gradle runs host tests with the module directory as the working directory, but do
             // not rely on it — walk up until the resources show up, and say so loudly if they
             // never do.
-            var dir: File? = File(System.getProperty("user.dir")).absoluteFile
+            var dir: File? = File(
+                requireNotNull(System.getProperty("user.dir")) {
+                    "The test process has no user.dir"
+                },
+            ).absoluteFile
             while (dir != null) {
                 File(dir, "src/commonMain/composeResources")
                     .takeIf { it.isDirectory }

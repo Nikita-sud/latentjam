@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.ThumbDown
@@ -55,6 +56,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_include_arti
 import io.github.nikitasud.latentjam.app.generated.resources.action_include_track_in_smart
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_play_next
+import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_latentjam
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message_generic
@@ -81,6 +83,8 @@ internal fun TrackActionsSheet(
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
     onAddToPlaylist: () -> Unit,
+    /** Non-null only when the sheet was raised from inside a user playlist's own track list. */
+    onRemoveFromPlaylist: (() -> Unit)?,
     onGoToAlbum: (() -> Unit)?,
     onGoToArtist: (() -> Unit)?,
     onInfo: () -> Unit,
@@ -147,6 +151,12 @@ internal fun TrackActionsSheet(
                 Icons.Rounded.LibraryAdd,
                 stringResource(Res.string.action_add_to_playlist),
             ) { onDismiss(); onAddToPlaylist() }
+            onRemoveFromPlaylist?.let { removeFromPlaylist ->
+                SheetAction(
+                    Icons.Rounded.PlaylistRemove,
+                    stringResource(Res.string.action_remove_from_playlist),
+                ) { onDismiss(); removeFromPlaylist() }
+            }
             onGoToAlbum?.let { goToAlbum ->
                 SheetAction(
                     Icons.Rounded.Album,

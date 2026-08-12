@@ -136,6 +136,8 @@ internal object LocalBackupCodec {
     private const val MAX_HISTORY_EVENTS = 500_000
     private const val MAX_SEARCHES = 100
     private const val MAX_ARTIST_EXCLUSIONS = 100_000
+    private const val MAX_ENCODED_FIELD_CHARS = 2 * 1024 * 1024 + 1
+    private const val MAX_RECORD_CHARS = 16 * 1024 * 1024
 
     fun encode(snapshot: LocalBackupSnapshot): String {
         validate(snapshot)
@@ -198,12 +200,11 @@ internal object LocalBackupCodec {
 
     fun decode(encoded: String): LocalBackupSnapshot {
         if (encoded.length > MAX_TEXT_CHARS) formatError("Backup exceeds the supported size")
-        val rawLines = encoded.split('\n').map { it.removeSuffix("\r") }
-        val lines = if (rawLines.lastOrNull().isNullOrEmpty()) rawLines.dropLast(1) else rawLines
-        if (lines.isEmpty()) formatError("Backup is empty")
-        val header = lines.first().split('\t')
-        if (header.size != 2 || header[0] != HEADER) formatError("Not a LatentJam local backup")
-        val version = header[1].parseInt("format version")
+        val records = RecordCursor(encoded)
+        val header = records.next() ?: formatError("Backup is empty")
+        header.requireFieldCount(2)
+        if (header.nextField() != HEADER) formatError("Not a LatentJam local backup")
+        val version = header.nextField().parseInt("format version")
         if (version != FORMAT_VERSION) formatError("Unsupported backup version: $version")
 
         var createdAtMs: Long? = null
@@ -215,80 +216,110 @@ internal object LocalBackupCodec {
         val hidden = linkedSetOf<String>()
         val excludedTracks = linkedSetOf<String>()
         val excludedArtists = linkedSetOf<String>()
+        var playlistTrackCount = 0
+        var hiddenRecordCount = 0
+        var excludedTrackRecordCount = 0
+        var excludedArtistRecordCount = 0
 
-        lines.drop(1).forEachIndexed { index, line ->
-            if (line.isEmpty()) formatError("Blank record at line ${index + 2}")
-            val fields = line.split('\t')
-            when (fields.firstOrNull()) {
+        while (true) {
+            val record = records.next() ?: break
+            when (record.nextField()) {
                 "C" -> {
-                    fields.requireSize(2, index)
+                    record.requireFieldCount(2)
                     if (createdAtMs != null) formatError("Duplicate creation record")
-                    createdAtMs = fields[1].parseLong("creation time")
+                    createdAtMs = record.nextField().parseLong("creation time")
                 }
                 "S" -> {
-                    fields.requireSize(7, index)
+                    record.requireFieldCount(7)
                     if (settings != null) formatError("Duplicate settings record")
                     settings = LocalBackupSettings(
-                        themeMode = enumValue<ThemeMode>(fields[1], "theme"),
-                        startPage = startPageFromPersisted(fields[2]).also {
-                            if (it.persistedValue != fields[2]) formatError("Unknown start page")
+                        themeMode = enumValue<ThemeMode>(record.nextField(), "theme"),
+                        startPage = record.nextField().let { persisted ->
+                            startPageFromPersisted(persisted).also {
+                                if (it.persistedValue != persisted) formatError("Unknown start page")
+                            }
                         },
-                        trackColorMode = trackColorModeFromPersisted(fields[3]).also {
-                            if (it.persistedValue != fields[3]) formatError("Unknown track colour mode")
+                        trackColorMode = record.nextField().let { persisted ->
+                            trackColorModeFromPersisted(persisted).also {
+                                if (it.persistedValue != persisted) formatError("Unknown track colour mode")
+                            }
                         },
-                        smartQueueLength = fields[4].parseInt("SMART queue length"),
-                        saveListeningHistory = fields[5].parseBit("save listening history"),
-                        rememberSearches = fields[6].parseBit("remember searches"),
+                        smartQueueLength = record.nextField().parseInt("SMART queue length"),
+                        saveListeningHistory = record.nextField().parseBit("save listening history"),
+                        rememberSearches = record.nextField().parseBit("remember searches"),
                     )
                 }
                 "T" -> {
-                    fields.requireSize(6, index)
+                    record.requireFieldCount(6)
+                    if (tracks.size >= MAX_TRACKS) formatError("Too many track references")
                     tracks += LocalBackupTrackReference(
-                        originalId = fields[1].decodeField("track id"),
-                        title = fields[2].decodeNullableField("track title"),
-                        artist = fields[3].decodeNullableField("track artist"),
-                        album = fields[4].decodeNullableField("track album"),
-                        durationMs = fields[5].decodeNullableLong("track duration"),
+                        originalId = record.nextField().decodeField("track id"),
+                        title = record.nextField().decodeNullableField("track title"),
+                        artist = record.nextField().decodeNullableField("track artist"),
+                        album = record.nextField().decodeNullableField("track album"),
+                        durationMs = record.nextField().decodeNullableLong("track duration"),
                     )
                 }
                 "P" -> {
-                    if (fields.size < 4) formatError("Invalid playlist record at line ${index + 2}")
+                    val trackCount = record.fieldCount - 4
+                    if (trackCount < 0) record.invalid()
+                    if (playlists.size >= MAX_PLAYLISTS) formatError("Too many playlists")
+                    if (trackCount > MAX_PLAYLIST_TRACKS - playlistTrackCount) {
+                        formatError("Too many playlist entries")
+                    }
+                    playlistTrackCount += trackCount
                     playlists += LocalBackupPlaylist(
-                        id = fields[1].decodeField("playlist id"),
-                        name = fields[2].decodeField("playlist name"),
-                        createdAtMs = fields[3].parseLong("playlist creation time"),
-                        trackReferenceIds = fields.drop(4).map { it.decodeField("playlist track id") },
+                        id = record.nextField().decodeField("playlist id"),
+                        name = record.nextField().decodeField("playlist name"),
+                        createdAtMs = record.nextField().parseLong("playlist creation time"),
+                        trackReferenceIds = buildList(trackCount) {
+                            repeat(trackCount) {
+                                add(record.nextField().decodeField("playlist track id"))
+                            }
+                        },
                     )
                 }
                 "H" -> {
-                    fields.requireSize(8, index)
+                    record.requireFieldCount(8)
+                    if (history.size >= MAX_HISTORY_EVENTS) formatError("Too many history events")
                     history += LocalBackupListenEvent(
-                        trackReferenceId = fields[1].decodeField("history track id"),
-                        startedAtMs = fields[2].parseLong("history start time"),
-                        playedMs = fields[3].parseLong("history played time"),
-                        trackDurationMs = fields[4].decodeNullableLong("history duration"),
-                        completed = fields[5].parseBit("history completed flag"),
-                        skipped = fields[6].parseBit("history skipped flag"),
-                        shuffleMode = fields[7].decodeNullableField("history shuffle mode"),
+                        trackReferenceId = record.nextField().decodeField("history track id"),
+                        startedAtMs = record.nextField().parseLong("history start time"),
+                        playedMs = record.nextField().parseLong("history played time"),
+                        trackDurationMs = record.nextField().decodeNullableLong("history duration"),
+                        completed = record.nextField().parseBit("history completed flag"),
+                        skipped = record.nextField().parseBit("history skipped flag"),
+                        shuffleMode = record.nextField().decodeNullableField("history shuffle mode"),
                     )
                 }
                 "Q" -> {
-                    fields.requireSize(2, index)
-                    searches += fields[1].decodeField("recent search")
+                    record.requireFieldCount(2)
+                    if (searches.size >= MAX_SEARCHES) formatError("Too many recent searches")
+                    searches += record.nextField().decodeField("recent search")
                 }
                 "D" -> {
-                    fields.requireSize(2, index)
-                    hidden += fields[1].decodeField("hidden track id")
+                    record.requireFieldCount(2)
+                    if (hiddenRecordCount >= MAX_TRACKS) formatError("Too many hidden track records")
+                    hiddenRecordCount++
+                    hidden += record.nextField().decodeField("hidden track id")
                 }
                 "X" -> {
-                    fields.requireSize(2, index)
-                    excludedTracks += fields[1].decodeField("excluded track id")
+                    record.requireFieldCount(2)
+                    if (excludedTrackRecordCount >= MAX_TRACKS) {
+                        formatError("Too many excluded track records")
+                    }
+                    excludedTrackRecordCount++
+                    excludedTracks += record.nextField().decodeField("excluded track id")
                 }
                 "A" -> {
-                    fields.requireSize(2, index)
-                    excludedArtists += fields[1].decodeField("excluded artist")
+                    record.requireFieldCount(2)
+                    if (excludedArtistRecordCount >= MAX_ARTIST_EXCLUSIONS) {
+                        formatError("Too many artist exclusion records")
+                    }
+                    excludedArtistRecordCount++
+                    excludedArtists += record.nextField().decodeField("excluded artist")
                 }
-                else -> formatError("Unknown backup record at line ${index + 2}")
+                else -> formatError("Unknown backup record at line ${record.lineNumber}")
             }
         }
 
@@ -361,12 +392,16 @@ internal object LocalBackupCodec {
     private fun StringBuilder.appendRecord(vararg fields: String) = appendRecord(fields.asList())
 
     private fun StringBuilder.appendRecord(fields: List<String>) {
-        append(fields.joinToString("\t"))
+        val recordLength = fields.sumOf { it.length.toLong() } + (fields.size - 1).coerceAtLeast(0)
+        if (recordLength > MAX_RECORD_CHARS) formatError("Backup record exceeds the supported size")
+        if (fields.any { it.length > MAX_ENCODED_FIELD_CHARS }) {
+            formatError("Backup field exceeds the supported size")
+        }
+        fields.forEachIndexed { index, field ->
+            if (index > 0) append('\t')
+            append(field)
+        }
         append('\n')
-    }
-
-    private fun List<String>.requireSize(expected: Int, zeroBasedRecordIndex: Int) {
-        if (size != expected) formatError("Invalid record at line ${zeroBasedRecordIndex + 2}")
     }
 
     private inline fun <reified T : Enum<T>> enumValue(value: String, label: String): T =
@@ -387,11 +422,18 @@ internal object LocalBackupCodec {
 
     private fun String?.encodeNullableField(): String = this?.encodeField() ?: "n"
 
-    private fun String.encodeField(): String = buildString(1 + length * 2) {
-        append('s')
-        encodeToByteArray().forEach { byte ->
-            append(HEX[(byte.toInt() ushr 4) and 0x0f])
-            append(HEX[byte.toInt() and 0x0f])
+    private fun String.encodeField(): String {
+        if (length > MAX_ENCODED_FIELD_CHARS / 2) formatError("Backup field exceeds the supported size")
+        val bytes = encodeToByteArray()
+        if (bytes.size > (MAX_ENCODED_FIELD_CHARS - 1) / 2) {
+            formatError("Backup field exceeds the supported size")
+        }
+        return buildString(1 + bytes.size * 2) {
+            append('s')
+            bytes.forEach { byte ->
+                append(HEX[(byte.toInt() ushr 4) and 0x0f])
+                append(HEX[byte.toInt() and 0x0f])
+            }
         }
     }
 
@@ -400,6 +442,7 @@ internal object LocalBackupCodec {
 
     private fun String.decodeField(label: String): String {
         if (!startsWith('s')) formatError("Invalid $label")
+        if (length > MAX_ENCODED_FIELD_CHARS) formatError("$label exceeds the supported size")
         val hex = drop(1)
         if (hex.length % 2 != 0) formatError("Invalid $label")
         return try {
@@ -413,6 +456,60 @@ internal object LocalBackupCodec {
         } catch (_: Throwable) {
             formatError("Invalid UTF-8 in $label")
         }
+    }
+
+    /** Scans record and field boundaries without materializing whole-file or per-line lists. */
+    private class RecordCursor(private val source: String) {
+        private var offset = 0
+        private var nextLineNumber = 1
+
+        fun next(): FieldCursor? {
+            if (offset >= source.length) return null
+            val start = offset
+            val newline = source.indexOf('\n', start)
+            val rawEnd = if (newline >= 0) newline else source.length
+            val end = if (rawEnd > start && source[rawEnd - 1] == '\r') rawEnd - 1 else rawEnd
+            val lineNumber = nextLineNumber++
+            offset = if (newline >= 0) newline + 1 else source.length
+            if (end == start) formatError("Blank record at line $lineNumber")
+            if (end - start > MAX_RECORD_CHARS) {
+                formatError("Backup record exceeds the supported size at line $lineNumber")
+            }
+            return FieldCursor(source, start, end, lineNumber)
+        }
+    }
+
+    private class FieldCursor(
+        private val source: String,
+        private val start: Int,
+        private val end: Int,
+        val lineNumber: Int,
+    ) {
+        val fieldCount: Int = run {
+            var count = 1
+            var index = start
+            while (index < end) {
+                if (source[index] == '\t') count++
+                index++
+            }
+            count
+        }
+        private var offset = start
+
+        fun nextField(): String {
+            if (offset > end) invalid()
+            val tab = source.indexOf('\t', offset).let { if (it < 0 || it > end) end else it }
+            if (tab - offset > MAX_ENCODED_FIELD_CHARS) {
+                formatError("Backup field exceeds the supported size at line $lineNumber")
+            }
+            return source.substring(offset, tab).also { offset = tab + 1 }
+        }
+
+        fun requireFieldCount(expected: Int) {
+            if (fieldCount != expected) invalid()
+        }
+
+        fun invalid(): Nothing = formatError("Invalid record at line $lineNumber")
     }
 
     private const val HEX = "0123456789abcdef"
@@ -496,8 +593,9 @@ internal class LocalBackupService(
     ): LocalBackupRestoreReport {
         LocalBackupCodec.validate(snapshot)
         val currentTracks = library.allKnownTracks().distinctBy { it.id }
+        val resolver = TrackReferenceResolver(currentTracks, snapshot.tracks)
         val resolved = snapshot.tracks.associate { reference ->
-            reference.originalId to resolve(reference, currentTracks)
+            reference.originalId to resolver.resolve(reference)
         }
         val completed = linkedSetOf<LocalBackupSection>()
         var playlistsApplied = 0
@@ -614,38 +712,130 @@ internal class LocalBackupService(
         )
     }
 
-    private fun resolve(
-        reference: LocalBackupTrackReference,
+    /**
+     * One restore can contain hundreds of thousands of references. Normalize and index the device
+     * library once so an id lookup is O(1), metadata-only uniqueness is O(1), and a duration match
+     * only binary-searches the relevant normalized metadata group.
+     */
+    private class TrackReferenceResolver(
         tracks: List<TrackDescriptor>,
-    ): TrackId? {
-        val exact = tracks.firstOrNull { it.id.value == reference.originalId }
-        if (exact != null && reference.isCompatibleWith(exact)) return exact.id
-        if (reference.title.normalizedIdentity() == null) return null
-        return tracks.filter { reference.isMetadataMatch(it) }.singleOrNull()?.id
-    }
-
-    private fun LocalBackupTrackReference.isCompatibleWith(track: TrackDescriptor): Boolean {
-        val hasIdentity = title.normalizedIdentity() != null ||
-            (artist.normalizedIdentity() != null && album.normalizedIdentity() != null)
-        if (!hasIdentity) return false
-        return listOf(
-            title.normalizedIdentity() to track.title.normalizedIdentity(),
-            artist.normalizedIdentity() to track.artist.normalizedIdentity(),
-            album.normalizedIdentity() to track.album.normalizedIdentity(),
-        ).all { (expected, actual) -> expected == null || expected == actual } &&
-            (durationMs == null || track.durationMs?.let { durationNear(durationMs, it) } == true)
-    }
-
-    private fun LocalBackupTrackReference.isMetadataMatch(track: TrackDescriptor): Boolean {
-        val expectedTitle = title.normalizedIdentity() ?: return false
-        if (track.title.normalizedIdentity() != expectedTitle) return false
-        artist.normalizedIdentity()?.let { if (track.artist.normalizedIdentity() != it) return false }
-        album.normalizedIdentity()?.let { if (track.album.normalizedIdentity() != it) return false }
-        durationMs?.let { expected ->
-            val actual = track.durationMs ?: return false
-            if (!durationNear(expected, actual)) return false
+        references: List<LocalBackupTrackReference>,
+    ) {
+        private val normalizedById = references.associate { it.originalId to NormalizedReference(it) }
+        private val requestedMetadataKeys = normalizedById.values.mapNotNullTo(hashSetOf()) { reference ->
+            reference.title?.let { MetadataKey(it, reference.artist, reference.album) }
         }
-        return true
+        private val indexedTracks = tracks.map { IndexedTrack(it) }
+        private val exactById = indexedTracks
+            .filter { it.track.id.value in normalizedById }
+            .associateBy { it.track.id.value }
+        private val metadataByKey: Map<MetadataKey, MetadataCandidates> = buildMap {
+            val builders = mutableMapOf<MetadataKey, MutableList<IndexedTrack>>()
+            indexedTracks.forEach { indexed ->
+                val title = indexed.title ?: return@forEach
+                fun add(artist: String?, album: String?) {
+                    val key = MetadataKey(title, artist, album)
+                    if (key in requestedMetadataKeys) {
+                        builders.getOrPut(key) { mutableListOf() }.add(indexed)
+                    }
+                }
+                add(null, null)
+                if (indexed.artist != null) add(indexed.artist, null)
+                if (indexed.album != null) add(null, indexed.album)
+                if (indexed.artist != null && indexed.album != null) {
+                    add(indexed.artist, indexed.album)
+                }
+            }
+            builders.forEach { (key, candidates) -> put(key, MetadataCandidates(candidates)) }
+        }
+
+        fun resolve(reference: LocalBackupTrackReference): TrackId? {
+            val normalized = normalizedById.getValue(reference.originalId)
+            exactById[reference.originalId]?.let { exact ->
+                if (normalized.isCompatibleWith(exact)) return exact.track.id
+            }
+            val title = normalized.title ?: return null
+            return metadataByKey[MetadataKey(title, normalized.artist, normalized.album)]
+                ?.uniqueNear(normalized.durationMs)
+        }
+    }
+
+    private data class IndexedTrack(
+        val track: TrackDescriptor,
+        val title: String? = track.title.normalizedBackupIdentity(),
+        val artist: String? = track.artist.normalizedBackupIdentity(),
+        val album: String? = track.album.normalizedBackupIdentity(),
+    )
+
+    private data class NormalizedReference(
+        val title: String?,
+        val artist: String?,
+        val album: String?,
+        val durationMs: Long?,
+    ) {
+        constructor(reference: LocalBackupTrackReference) : this(
+            title = reference.title.normalizedBackupIdentity(),
+            artist = reference.artist.normalizedBackupIdentity(),
+            album = reference.album.normalizedBackupIdentity(),
+            durationMs = reference.durationMs,
+        )
+
+        fun isCompatibleWith(track: IndexedTrack): Boolean {
+            val hasIdentity = title != null || (artist != null && album != null)
+            if (!hasIdentity) return false
+            return (title == null || title == track.title) &&
+                (artist == null || artist == track.artist) &&
+                (album == null || album == track.album) &&
+                (durationMs == null ||
+                    track.track.durationMs?.let { backupDurationsNear(durationMs, it) } == true)
+        }
+    }
+
+    private data class MetadataKey(
+        val title: String,
+        val artist: String?,
+        val album: String?,
+    )
+
+    private class MetadataCandidates(private val tracks: List<IndexedTrack>) {
+        private var durationSorted: List<IndexedTrack>? = null
+
+        fun uniqueNear(durationMs: Long?): TrackId? {
+            if (durationMs == null) return tracks.singleOrNull()?.track?.id
+            val sorted = durationSorted ?: tracks
+                .filter { it.track.durationMs != null }
+                .sortedBy { it.track.durationMs }
+                .also { durationSorted = it }
+            val minimum = (durationMs - LOCAL_BACKUP_DURATION_TOLERANCE_MS).coerceAtLeast(0L)
+            val maximum = if (durationMs > Long.MAX_VALUE - LOCAL_BACKUP_DURATION_TOLERANCE_MS) {
+                Long.MAX_VALUE
+            } else {
+                durationMs + LOCAL_BACKUP_DURATION_TOLERANCE_MS
+            }
+            val first = sorted.lowerBound(minimum)
+            val afterLast = sorted.upperBound(maximum)
+            return if (afterLast - first == 1) sorted[first].track.id else null
+        }
+
+        private fun List<IndexedTrack>.lowerBound(target: Long): Int {
+            var low = 0
+            var high = size
+            while (low < high) {
+                val middle = (low + high) ushr 1
+                if (this[middle].track.durationMs!! < target) low = middle + 1 else high = middle
+            }
+            return low
+        }
+
+        private fun List<IndexedTrack>.upperBound(target: Long): Int {
+            var low = 0
+            var high = size
+            while (low < high) {
+                val middle = (low + high) ushr 1
+                if (this[middle].track.durationMs!! <= target) low = middle + 1 else high = middle
+            }
+            return low
+        }
     }
 
     private fun mergePlaylists(existing: List<Playlist>, imported: List<Playlist>): List<Playlist> {
@@ -695,21 +885,23 @@ internal class LocalBackupService(
         shuffleMode = shuffleMode,
     )
 
-    private fun String?.normalizedIdentity(): String? = this
-        ?.trim()
-        ?.lowercase()
-        ?.split(Regex("\\s+"))
-        ?.joinToString(" ")
-        ?.takeIf(String::isNotEmpty)
-
-    private fun durationNear(first: Long, second: Long): Boolean =
-        if (first >= second) first - second <= DURATION_TOLERANCE_MS
-        else second - first <= DURATION_TOLERANCE_MS
-
     private companion object {
-        const val DURATION_TOLERANCE_MS = 2_000L
         const val MAX_CAPTURE_HISTORY = 500_000
     }
 }
+
+private const val LOCAL_BACKUP_DURATION_TOLERANCE_MS = 2_000L
+private val LOCAL_BACKUP_IDENTITY_WHITESPACE = Regex("\\s+")
+
+private fun String?.normalizedBackupIdentity(): String? = this
+    ?.trim()
+    ?.lowercase()
+    ?.split(LOCAL_BACKUP_IDENTITY_WHITESPACE)
+    ?.joinToString(" ")
+    ?.takeIf(String::isNotEmpty)
+
+private fun backupDurationsNear(first: Long, second: Long): Boolean =
+    if (first >= second) second >= first - LOCAL_BACKUP_DURATION_TOLERANCE_MS
+    else first >= second - LOCAL_BACKUP_DURATION_TOLERANCE_MS
 
 private fun formatError(message: String): Nothing = throw LocalBackupFormatException(message)

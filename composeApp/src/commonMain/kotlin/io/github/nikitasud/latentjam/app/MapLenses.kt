@@ -16,10 +16,34 @@ data class MapDot(
     val trackId: TrackId,
     val x: Float,
     val y: Float,
+    /** The region that claimed this track, or [NO_REGION] if none did. */
     val region: Int,
     val plays: Int,
     val skipRate: Float,
-)
+) {
+    val claimed: Boolean get() = region != NO_REGION
+
+    companion object {
+        /**
+         * [region] for a track no region claimed.
+         *
+         * `LibraryWorlds` admits a track to a region only on evidence, and drops it at five separate
+         * points otherwise: confidence trimming with no backfill, a cluster whose confident
+         * remainder is under `MIN_CLUSTER_SIZE`, a thin music subgroup, a name whose claim the track
+         * does not satisfy (`admitted = tracks.filter(label.accepts)`), and a thin special-content
+         * route. Every one of those is right for *naming* a region — and on a real 877-track library
+         * they together left 90 tracks, better than a tenth of it, in no region at all.
+         *
+         * Those 90 used to be dropped from the map entirely: no dot, and absent from its counts, on
+         * a page whose whole claim is to be "the library as a place". They are drawn now, in the
+         * neutral ink the legend already calls "the rest of your library", which is exactly what
+         * they are. Deliberately negative so it can never collide with a real region index (region
+         * ids are indices into `regions`), and so the `dot.region == selectedRegion` tests in [ink]
+         * and [radius] keep an unclaimed dot neutral and small without needing a special case.
+         */
+        const val NO_REGION: Int = -1
+    }
+}
 
 /**
  * A dot's ink, named by role rather than by colour so the palette lives in the theme and this file
@@ -54,7 +78,30 @@ object MapLenses {
 
     private const val BASE_RADIUS = 2.2f
 
-    fun ink(lens: MapLens, dot: MapDot, selectedRegion: Int, maxPlays: Int): MapInk = when (lens) {
+    /**
+     * An unclaimed track's dot, on every lens: the same size an unselected region's dot has on the
+     * Worlds lens, so the library it is part of reads as quiet background rather than as a mark
+     * competing with whatever the current lens is actually about.
+     */
+    private const val UNCLAIMED_RADIUS = 1.8f
+
+    fun ink(lens: MapLens, dot: MapDot, selectedRegion: Int, maxPlays: Int): MapInk =
+        // An unclaimed track is drawn on every lens but counted by none of them: the listening
+        // figures each headline quotes come from LibraryListeningStats.summarize, which is keyed by
+        // region, so a track no region claimed is absent from all of them. Painting such a track into
+        // a ramp would put colour on the plot that the sentence above it does not account for -- 91
+        // tracks' worth on a real library, e.g. more accented "never played" dots than the "342"
+        // beside them. Neutral says what is true of it here: present, and outside this statistic.
+        // (RAMP_FLOOR_ALPHA keeps Neutral distinguishable from a ramp's own zero step, so this reads
+        // as "not counted" rather than as "counted, lowest value".)
+        if (!dot.claimed) MapInk.Neutral else inkOfClaimed(lens, dot, selectedRegion, maxPlays)
+
+    private fun inkOfClaimed(
+        lens: MapLens,
+        dot: MapDot,
+        selectedRegion: Int,
+        maxPlays: Int,
+    ): MapInk = when (lens) {
         MapLens.WORLDS -> if (dot.region == selectedRegion) MapInk.Accent else MapInk.Neutral
         MapLens.PLAYS -> if (dot.plays <= 0) {
             MapInk.Neutral
@@ -71,11 +118,13 @@ object MapLenses {
         }
     }
 
-    fun radius(lens: MapLens, dot: MapDot, selectedRegion: Int): Float = when (lens) {
-        // Size carries the never-played distinction alongside colour, so the one lens whose colour
-        // means membership rather than magnitude never rests on hue alone.
-        MapLens.NEVER_PLAYED -> if (dot.plays <= 0) 3.0f else 1.6f
-        MapLens.WORLDS -> if (dot.region == selectedRegion) 2.8f else 1.8f
+    fun radius(lens: MapLens, dot: MapDot, selectedRegion: Int): Float = when {
+        // Size follows colour for the same reason (see [ink]): on the never-played lens size is half
+        // the encoding, so leaving an uncounted track at the large "never played" radius would make
+        // it read as one of the tracks that figure counts.
+        !dot.claimed -> UNCLAIMED_RADIUS
+        lens == MapLens.NEVER_PLAYED -> if (dot.plays <= 0) 3.0f else 1.6f
+        lens == MapLens.WORLDS -> if (dot.region == selectedRegion) 2.8f else 1.8f
         else -> BASE_RADIUS
     }
 
