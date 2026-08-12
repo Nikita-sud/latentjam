@@ -346,6 +346,26 @@ internal class AndroidPlaybackController(
         repeat
     }
 
+    override suspend fun retainQueue(trackIds: Set<TrackId>): Unit = withContext(Dispatchers.Main) {
+        val player = controller ?: return@withContext
+        val keep = trackIds.mapTo(HashSet()) { it.value }
+        // Backwards, so surviving indices stay valid while earlier ones are removed. Media3
+        // treats removing the current item as that item ending: playback advances on its own.
+        var removed = false
+        for (index in player.mediaItemCount - 1 downTo 0) {
+            if (player.getMediaItemAt(index).mediaId !in keep) {
+                player.removeMediaItem(index)
+                removed = true
+            }
+        }
+        if (!removed) return@withContext
+        queueGeneration++
+        pool = pool.filter { it.id.value in keep }
+        poolById = poolById.filterKeys { it in keep }
+        rebuildQueueSnapshot()
+        pushState()
+    }
+
     override suspend fun playNext(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
         queueGeneration++

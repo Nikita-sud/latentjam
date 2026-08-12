@@ -302,6 +302,33 @@ internal class IosPlaybackController(
         return repeat
     }
 
+    override suspend fun retainQueue(trackIds: Set<TrackId>): Unit = withContext(Dispatchers.Main) {
+        if (queue.isEmpty()) return@withContext
+        val current = queue.getOrNull(queueIndex)
+        val kept = queue.filter { it.id in trackIds }
+        if (kept.size == queue.size) return@withContext
+        pool = pool.filter { it.id in trackIds }
+        queue = kept
+        if (kept.isEmpty()) {
+            queueIndex = -1
+            pauseActiveBackend()
+            playing = false
+            updateTicker()
+            pushState()
+            return@withContext
+        }
+        if (current != null && current.id in trackIds) {
+            // The playing track survived; only its position in the queue may have shifted.
+            queueIndex = kept.indexOfFirst { it.id == current.id }
+        } else {
+            // The current entry was deleted: behave like it ended and move to the track that
+            // now occupies its slot, keeping whether we were playing.
+            queueIndex = queueIndex.coerceIn(0, kept.lastIndex)
+            loadCurrentItem(autoPlay = playing)
+        }
+        pushState()
+    }
+
     override suspend fun playNext(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
         val insertAt = (queueIndex + 1).coerceIn(0, queue.size)
         queue = queue.toMutableList().apply { add(insertAt, track) }

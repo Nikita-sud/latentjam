@@ -138,6 +138,14 @@ public interface PlaybackController {
     /** Advances OFF → ALL → ONE → OFF and returns the new mode. */
     public suspend fun cycleRepeatMode(): RepeatMode
 
+    /**
+     * Drops every queue entry whose id is NOT in [trackIds] — the reconciliation call for
+     * tracks deleted from the device while queued. Removing the current entry behaves like
+     * that track ending: playback moves on rather than clinging to a file that no longer
+     * exists. A no-op when everything queued is still present.
+     */
+    public suspend fun retainQueue(trackIds: Set<TrackId>)
+
     /** Inserts [track] directly after the current one. */
     public suspend fun playNext(track: TrackDescriptor)
 

@@ -246,7 +246,10 @@ private fun PlaylistRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = pluralStringResource(Res.plurals.count_tracks, playlist.trackIds.size, playlist.trackIds.size),
+                // Resolved tracks, not stored ids: a playlist keeps the id of a track deleted
+                // from the device (so it self-heals if the file returns), but the number shown
+                // must count what tapping the row will actually show.
+                text = pluralStringResource(Res.plurals.count_tracks, tracks.size, tracks.size),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -120,6 +120,7 @@ private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackControl
     override suspend fun playAt(queueIndex: Int) = Unit
     override suspend fun cycleShuffleMode(): ShuffleMode = ShuffleMode.OFF
     override suspend fun setShuffleMode(mode: ShuffleMode) = Unit
+    override suspend fun retainQueue(trackIds: Set<TrackId>) = Unit
     override suspend fun restoreQueue(
         tracks: List<TrackDescriptor>,
         startIndex: Int,
