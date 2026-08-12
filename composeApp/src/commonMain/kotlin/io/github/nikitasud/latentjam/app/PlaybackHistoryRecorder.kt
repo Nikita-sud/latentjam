@@ -79,6 +79,7 @@ internal class PlaybackHistoryGate(initiallyEnabled: Boolean) {
                 trackDurationMs = now.durationMs,
                 currentShuffleMode = now.shuffleMode.name,
                 nowMs = nowMs,
+                isPlaying = now.isPlaying,
             )
         }
     }

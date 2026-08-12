@@ -37,6 +37,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -136,6 +139,26 @@ object AppGraph {
                 enabled = settings.saveListeningHistory,
                 onRecorded = { mutableHistoryRevision.value += 1L },
             )
+            // Remembers where listening stood, so the next launch reopens with the same track
+            // parked in the player and the same shuffle mode — SMART stays on across restarts.
+            // Never cleared on a null track: launch itself starts with no track, and wiping the
+            // saved session at that moment would defeat the restore it exists for. Position is
+            // bucketed to 10 s so the ~2 Hz playback ticker does not become 2 Hz disk writes.
+            appScope.launch {
+                playback.state
+                    .map { now ->
+                        now.track?.let { track ->
+                            ResumePlayback(
+                                trackId = track.id.value,
+                                shuffleMode = now.shuffleMode.name,
+                                positionMs = now.positionMs - (now.positionMs % 10_000),
+                            )
+                        }
+                    }
+                    .filterNotNull()
+                    .distinctUntilChanged()
+                    .collect(settings::setResumePlayback)
+            }
         }
     }
 

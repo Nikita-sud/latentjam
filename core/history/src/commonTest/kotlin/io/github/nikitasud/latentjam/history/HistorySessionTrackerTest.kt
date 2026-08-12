@@ -77,4 +77,39 @@ internal class HistorySessionTrackerTest {
         assertFalse(event.completed)
         assertNull(event.trackDurationMs)
     }
+
+    // A queue restored from a previous run parks a track in the player without anyone choosing to
+    // hear it now. Only actual playback may open a session: otherwise closing the app again (or
+    // picking something else tomorrow) would log a skip for a track the user never rejected --
+    // false negatives written straight into the signal SMART is evaluated against.
+
+    @Test
+    fun aPausedTrackOpensNoSession() {
+        val tracker = HistorySessionTracker()
+        assertNull(tracker.onSnapshot(a, 0, 200_000, "SMART", nowMs = 1_000, isPlaying = false))
+        val event = tracker.onSnapshot(b, 0, 100_000, "SMART", nowMs = 500_000, isPlaying = false)
+        assertNull(event, "neither track ever played, so there is nothing to record")
+    }
+
+    @Test
+    fun theSessionOpensWhenTheRestoredTrackFinallyPlays() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "SMART", nowMs = 1_000, isPlaying = false)
+        tracker.onSnapshot(a, 0, 200_000, "SMART", nowMs = 900_000, isPlaying = true)
+        tracker.onSnapshot(a, 180_000, 200_000, "SMART", nowMs = 1_080_000, isPlaying = true)
+        val event = assertNotNull(tracker.onSnapshot(b, 0, 100_000, "SMART", nowMs = 1_081_000))
+        assertEquals(a, event.trackId)
+        assertTrue(event.completed)
+        assertEquals(900_000, event.startedAtMs, "the session began at play, not at restore")
+    }
+
+    @Test
+    fun pausingMidTrackDoesNotCloseTheSession() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 1_000)
+        assertNull(tracker.onSnapshot(a, 50_000, 200_000, "OFF", nowMs = 51_000, isPlaying = false))
+        val event = assertNotNull(tracker.onSnapshot(b, 0, 100_000, "OFF", nowMs = 60_000))
+        assertEquals(a, event.trackId)
+        assertEquals(50_000, event.playedMs)
+    }
 }

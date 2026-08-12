@@ -340,6 +340,41 @@ internal class IosPlaybackController(
         )
     }
 
+    override suspend fun setShuffleMode(mode: ShuffleMode): Unit = withContext(Dispatchers.Main) {
+        applyShuffleMode(mode)
+    }
+
+    override suspend fun restoreQueue(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        positionMs: Long,
+    ): Unit = withContext(Dispatchers.Main) {
+        if (tracks.isEmpty()) return@withContext
+        val start = startIndex.coerceIn(0, tracks.lastIndex)
+        pool = tracks
+        when (mode) {
+            // SMART owns its queue: restore the parked track alone; the chooser plans the path
+            // forward once listening actually resumes.
+            ShuffleMode.SMART -> {
+                queue = listOf(tracks[start])
+                queueIndex = 0
+            }
+            ShuffleMode.ON -> {
+                val started = tracks[start]
+                queue = listOf(started) + tracks.filter { it.id != started.id }.shuffled()
+                queueIndex = 0
+            }
+            ShuffleMode.OFF -> {
+                queue = tracks
+                queueIndex = start
+            }
+        }
+        // Paused is the whole point: the session reappears, nothing sounds until asked.
+        loadCurrentItem(autoPlay = false)
+        if (positionMs > 0) seekTo(positionMs)
+        pushState()
+    }
+
     private suspend fun applyShuffleMode(requested: ShuffleMode): ShuffleMode {
         if (mode == requested) {
             syncRemotePlaybackModes()

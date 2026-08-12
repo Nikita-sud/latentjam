@@ -371,6 +371,56 @@ internal class AndroidPlaybackController(
         nextMode
     }
 
+    override suspend fun setShuffleMode(mode: ShuffleMode): Unit = withContext(Dispatchers.Main) {
+        // Through the registry so the notification's cycle button continues from the restored
+        // mode instead of from whatever the registry last saw.
+        AndroidShuffleModeRegistry.set(mode)
+        applyShuffleMode(mode)
+    }
+
+    override suspend fun restoreQueue(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        positionMs: Long,
+    ) {
+        if (tracks.isEmpty()) return
+        // Same generation contract as play(): a user tap that lands during a slow restore must
+        // win, and the restore must then abandon its stale queue rather than clobber the tap's.
+        val requestGeneration = playRequestGeneration.incrementAndGet()
+        val modeAtRequest = withContext(Dispatchers.Main.immediate) { mode }
+        val prepared = withContext(Dispatchers.Default) {
+            preparePlayback(
+                tracks = tracks,
+                startIndex = startIndex,
+                includeFullQueue = modeAtRequest != ShuffleMode.SMART,
+            )
+        }
+        withContext(Dispatchers.Main.immediate) {
+            if (playRequestGeneration.get() != requestGeneration) return@withContext
+            val player = controller()
+            if (playRequestGeneration.get() != requestGeneration) return@withContext
+            pool = prepared.tracks
+            poolById = prepared.byId
+            queueGeneration++
+            val startPositionMs = positionMs.coerceAtLeast(0L)
+            val fullQueue = prepared.fullQueue
+            if (mode == ShuffleMode.SMART || fullQueue == null) {
+                // SMART owns its queue: restore the parked track alone; the chooser plans the
+                // path forward once listening actually resumes.
+                player.setMediaItems(listOf(prepared.selectedItem), 0, startPositionMs)
+            } else {
+                player.setMediaItems(fullQueue, prepared.startIndex, startPositionMs)
+                player.shuffleModeEnabled = mode == ShuffleMode.ON
+            }
+            // Paused is the whole point: the session reappears, nothing sounds. pause() before
+            // prepare() pins playWhenReady false no matter what state the controller came back in.
+            player.pause()
+            player.prepare()
+            rebuildQueueSnapshot()
+            pushState()
+        }
+    }
+
     /** Applies a mode chosen by either the app UI or the notification. Main-thread only. */
     private suspend fun applyShuffleMode(nextMode: ShuffleMode) {
         val currentPlayer = controller

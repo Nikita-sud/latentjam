@@ -110,6 +110,25 @@ interface AppSettings {
 
     /** See [setSaveListeningHistory]; the same persistence guarantee applies to search history. */
     suspend fun setRememberSearches(enabled: Boolean): Result<Unit>
+
+    /** The playback session to restore at launch, or null when nothing was saved. */
+    val resumePlayback: StateFlow<ResumePlayback?>
+
+    /** Fire-and-forget: written on every track/mode change, so best-effort like the visual prefs. */
+    fun setResumePlayback(state: ResumePlayback?)
 }
+
+/**
+ * Where listening stood when the app last ran: enough to put the same track back in the player,
+ * paused, with the same shuffle mode — so SMART stays on across launches without being re-armed.
+ *
+ * [shuffleMode] is the mode's name rather than the enum so a persisted value from a build with
+ * different modes degrades to "no restore" instead of crashing launch.
+ */
+data class ResumePlayback(
+    val trackId: String,
+    val shuffleMode: String,
+    val positionMs: Long,
+)
 
 expect fun appSettingsModule(): Module

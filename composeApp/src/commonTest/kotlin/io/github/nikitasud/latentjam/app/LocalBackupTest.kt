@@ -343,6 +343,8 @@ internal class LocalBackupTest {
         override val rememberSearches: MutableStateFlow<Boolean> = MutableStateFlow(true)
         override suspend fun setRememberSearches(enabled: Boolean): Result<Unit> =
             Result.success(Unit).also { rememberSearches.value = enabled }
+        override val resumePlayback: MutableStateFlow<ResumePlayback?> = MutableStateFlow(null)
+        override fun setResumePlayback(state: ResumePlayback?) { resumePlayback.value = state }
     }
 
     private fun track(

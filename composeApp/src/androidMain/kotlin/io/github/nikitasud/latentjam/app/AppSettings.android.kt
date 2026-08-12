@@ -33,6 +33,8 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override val saveListeningHistory: StateFlow<Boolean> = mutableSaveListeningHistory.asStateFlow()
     private val mutableRememberSearches = MutableStateFlow(readRecordingPreference(KEY_REMEMBER_SEARCHES))
     override val rememberSearches: StateFlow<Boolean> = mutableRememberSearches.asStateFlow()
+    private val mutableResumePlayback = MutableStateFlow(readResumePlayback())
+    override val resumePlayback: StateFlow<ResumePlayback?> = mutableResumePlayback.asStateFlow()
 
     override fun setThemeMode(mode: ThemeMode) {
         preferences.edit().putString(KEY_THEME, mode.name).apply()
@@ -96,6 +98,26 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         runCatching { preferences.getBoolean(key, true) }.getOrNull(),
     )
 
+    private fun readResumePlayback(): ResumePlayback? {
+        val trackId = readString(KEY_RESUME_TRACK) ?: return null
+        val mode = readString(KEY_RESUME_MODE) ?: return null
+        val position = runCatching { preferences.getLong(KEY_RESUME_POSITION, 0L) }.getOrNull() ?: 0L
+        return ResumePlayback(trackId = trackId, shuffleMode = mode, positionMs = position)
+    }
+
+    override fun setResumePlayback(state: ResumePlayback?) {
+        preferences.edit().apply {
+            if (state == null) {
+                remove(KEY_RESUME_TRACK).remove(KEY_RESUME_MODE).remove(KEY_RESUME_POSITION)
+            } else {
+                putString(KEY_RESUME_TRACK, state.trackId)
+                putString(KEY_RESUME_MODE, state.shuffleMode)
+                putLong(KEY_RESUME_POSITION, state.positionMs)
+            }
+        }.apply()
+        mutableResumePlayback.value = state
+    }
+
     private suspend fun persistRecordingPreference(
         key: String,
         enabled: Boolean,
@@ -117,6 +139,9 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"
         const val KEY_SAVE_HISTORY = "save_listening_history"
         const val KEY_REMEMBER_SEARCHES = "remember_searches"
+        const val KEY_RESUME_TRACK = "resume_track_id"
+        const val KEY_RESUME_MODE = "resume_shuffle_mode"
+        const val KEY_RESUME_POSITION = "resume_position_ms"
     }
 }
 

@@ -119,6 +119,12 @@ private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackControl
     override suspend fun seekTo(positionMs: Long) = Unit
     override suspend fun playAt(queueIndex: Int) = Unit
     override suspend fun cycleShuffleMode(): ShuffleMode = ShuffleMode.OFF
+    override suspend fun setShuffleMode(mode: ShuffleMode) = Unit
+    override suspend fun restoreQueue(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        positionMs: Long,
+    ) = Unit
     override suspend fun cycleRepeatMode(): RepeatMode = RepeatMode.OFF
     override suspend fun playNext(track: TrackDescriptor) = Unit
     override suspend fun addToQueue(track: TrackDescriptor) = Unit

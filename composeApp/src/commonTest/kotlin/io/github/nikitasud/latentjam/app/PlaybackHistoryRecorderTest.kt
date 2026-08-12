@@ -59,6 +59,9 @@ internal class PlaybackHistoryRecorderTest {
 
     private fun now(track: TrackDescriptor, positionMs: Long) = NowPlaying(
         track = track,
+        // These fixtures model live listening; a session only opens for a PLAYING track
+        // (a restored-but-parked queue must not turn into phantom skips).
+        isPlaying = true,
         positionMs = positionMs,
         durationMs = 100_000,
     )

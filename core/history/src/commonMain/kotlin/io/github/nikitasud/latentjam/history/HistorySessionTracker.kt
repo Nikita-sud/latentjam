@@ -36,6 +36,7 @@ public class HistorySessionTracker(
         trackDurationMs: Long,
         currentShuffleMode: String?,
         nowMs: Long,
+        isPlaying: Boolean = true,
     ): ListenEvent? {
         if (trackId == currentTrackId) {
             if (positionMs > maxPositionMs) maxPositionMs = positionMs
@@ -43,6 +44,14 @@ public class HistorySessionTracker(
             return null
         }
         val finished = finishCurrent()
+        // A parked track — restored into the player at launch, never actually started — must not
+        // open a session: abandoning it later would be recorded as a skip the user never made.
+        // Only playback opens a session; pausing mid-track hits the same-track branch above and
+        // keeps the session it already has. `startedAtMs` is therefore the moment it PLAYED.
+        if (trackId != null && !isPlaying) {
+            currentTrackId = null
+            return finished
+        }
         currentTrackId = trackId
         startedAtMs = nowMs
         maxPositionMs = positionMs.coerceAtLeast(0)

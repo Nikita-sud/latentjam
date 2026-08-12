@@ -119,6 +119,22 @@ public interface PlaybackController {
     /** Advances OFF → ON → SMART → OFF and returns the new mode. */
     public suspend fun cycleShuffleMode(): ShuffleMode
 
+    /** Applies [mode] directly — restoring a persisted session, not a user tap on the cycle. */
+    public suspend fun setShuffleMode(mode: ShuffleMode)
+
+    /**
+     * Loads [tracks] as the queue with [startIndex] current at [positionMs] — PAUSED.
+     *
+     * The launch-restore path: the last session's track reappears in the player ready to
+     * continue, but nothing sounds until the user asks. Because playback has not started, the
+     * history recorder opens no session for the restored track unless it actually plays.
+     */
+    public suspend fun restoreQueue(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        positionMs: Long,
+    )
+
     /** Advances OFF → ALL → ONE → OFF and returns the new mode. */
     public suspend fun cycleRepeatMode(): RepeatMode
 
