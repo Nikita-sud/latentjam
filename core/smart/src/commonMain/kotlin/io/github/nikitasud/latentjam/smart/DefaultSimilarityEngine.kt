@@ -263,6 +263,10 @@ internal class DefaultSimilarityEngine(
         }
     }
 
+    override suspend fun missingFromIndex(ids: List<TrackId>): Int = withContext(dispatcher) {
+        mutex.withLock { ids.count { it !in index } }
+    }
+
     override suspend fun embedding(trackId: TrackId): FloatArray? = withContext(dispatcher) {
         mutex.withLock { index.vector(trackId) }
     }

@@ -15,7 +15,11 @@ import androidx.compose.runtime.Composable
  * effect swallows that one (see [ForegroundReturns]).
  */
 @Composable
-expect fun PlatformForegroundEffect(onReturn: () -> Unit)
+expect fun PlatformForegroundEffect(
+    /** Runs when the app LEAVES the foreground; for finalizing state a process kill would lose. */
+    onLeave: () -> Unit = {},
+    onReturn: () -> Unit,
+)
 
 /** Distinguishes the launch activation from genuine background→foreground returns. */
 internal class ForegroundReturns {

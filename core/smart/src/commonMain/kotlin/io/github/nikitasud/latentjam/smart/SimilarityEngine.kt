@@ -95,6 +95,14 @@ public interface SimilarityEngine {
     public suspend fun nextTrack(context: ListeningContext): NextTrackResult
 
     /**
+     * How many of [ids] have no audio embedding yet — the cheap "is there any indexing work"
+     * question, so launch paths can decide whether a foreground service and its notification
+     * are warranted before committing to them. Pure index-membership lookups under the engine
+     * lock; never touches the backend.
+     */
+    public suspend fun missingFromIndex(ids: List<TrackId>): Int
+
+    /**
      * The stored embedding for [trackId], or `null` if it is not indexed.
      *
      * Exposed so the UI can express a track's position in latent space —

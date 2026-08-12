@@ -496,7 +496,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // on the next cold start. An unchanged library re-queries into an equal list, which the
         // state holder swallows — no downstream effect re-runs, so the no-change case costs one
         // MediaStore query and nothing else.
-        PlatformForegroundEffect {
+        PlatformForegroundEffect(
+            // Leaving while paused ends the sitting: finalize the in-progress listening session
+            // so the last track of the day stops vanishing from the history log.
+            onLeave = { AppGraph.flushListeningSession() },
+        ) {
             scope.launch {
                 tracks = library.tracks()
                 hasHiddenTracks = library.hasHiddenTracks()

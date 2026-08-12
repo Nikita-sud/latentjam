@@ -158,4 +158,39 @@ internal class PlaybackHistoryRecorderTest {
         override suspend fun playNext(track: TrackDescriptor) = Unit
         override suspend fun addToQueue(track: TrackDescriptor) = Unit
     }
+
+    // The log records a session only when playback moves OFF a track, so the final track of
+    // every sitting was silently dropped when the app was backgrounded and killed. flush() is
+    // the backgrounding hook: finalize what is in progress WITHOUT waiting for a transition.
+
+    @Test
+    fun `flush records the in-progress session and leaves the gate empty`() {
+        val gate = PlaybackHistoryGate(initiallyEnabled = true)
+        gate.onSnapshot(now(a, 0), enabled = true, nowMs = 1)
+        gate.onSnapshot(now(a, 90_000), enabled = true, nowMs = 2)
+
+        val event = gate.flush()
+        assertEquals(a.id, event?.trackId)
+        assertEquals(90_000, event?.playedMs)
+        assertNull(gate.flush(), "a second flush has nothing left to record")
+    }
+
+    @Test
+    fun `flush is silent while recording is disabled`() {
+        val gate = PlaybackHistoryGate(initiallyEnabled = false)
+        gate.onSnapshot(now(a, 0), enabled = false, nowMs = 1)
+        assertNull(gate.flush())
+    }
+
+    @Test
+    fun `flush does not disturb the waiting-for-next-track privacy rule`() {
+        val gate = PlaybackHistoryGate(initiallyEnabled = false)
+        // History enabled mid-track: that track stays ignored until the next one.
+        gate.onSnapshot(now(a, 10_000), enabled = true, nowMs = 1)
+        assertNull(gate.flush(), "the ignored track must not be recorded by a flush either")
+        assertNull(
+            gate.onSnapshot(now(a, 50_000), enabled = true, nowMs = 2),
+            "and it stays ignored after the flush",
+        )
+    }
 }

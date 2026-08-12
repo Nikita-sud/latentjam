@@ -12,20 +12,32 @@ import androidx.compose.runtime.rememberUpdatedState
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIApplicationDidBecomeActiveNotification
+import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 
 @Composable
-actual fun PlatformForegroundEffect(onReturn: () -> Unit) {
+actual fun PlatformForegroundEffect(onLeave: () -> Unit, onReturn: () -> Unit) {
     val currentOnReturn by rememberUpdatedState(onReturn)
+    val currentOnLeave by rememberUpdatedState(onLeave)
     val gate = remember { ForegroundReturns() }
     DisposableEffect(Unit) {
         // didBecomeActive also fires at launch; the gate keeps this returns-only.
-        val observer = NSNotificationCenter.defaultCenter.addObserverForName(
+        val activeObserver = NSNotificationCenter.defaultCenter.addObserverForName(
             name = UIApplicationDidBecomeActiveNotification,
             `object` = null,
             queue = NSOperationQueue.mainQueue,
         ) { _ ->
             if (gate.onActivated()) currentOnReturn()
         }
-        onDispose { NSNotificationCenter.defaultCenter.removeObserver(observer) }
+        val backgroundObserver = NSNotificationCenter.defaultCenter.addObserverForName(
+            name = UIApplicationDidEnterBackgroundNotification,
+            `object` = null,
+            queue = NSOperationQueue.mainQueue,
+        ) { _ ->
+            currentOnLeave()
+        }
+        onDispose {
+            NSNotificationCenter.defaultCenter.removeObserver(activeObserver)
+            NSNotificationCenter.defaultCenter.removeObserver(backgroundObserver)
+        }
     }
 }

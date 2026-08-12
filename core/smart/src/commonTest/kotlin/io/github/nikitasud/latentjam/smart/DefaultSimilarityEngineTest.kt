@@ -769,4 +769,18 @@ internal class DefaultSimilarityEngineTest {
 
         override fun close(): Unit = Unit
     }
+
+    @Test
+    fun missingFromIndexCountsOnlyUnembeddedTracks() = runTest {
+        val harness = Harness()
+        harness.engine.initialize()
+        val indexed = TrackDescriptor(id = TrackId("indexed"))
+        val absent = TrackDescriptor(id = TrackId("absent"))
+        harness.backend.vectors[indexed.id] = floatArrayOf(1f, 0f, 0f)
+        harness.engine.indexLibrary(listOf(indexed))
+
+        assertEquals(1, harness.engine.missingFromIndex(listOf(indexed.id, absent.id)))
+        assertEquals(0, harness.engine.missingFromIndex(listOf(indexed.id)))
+        assertEquals(0, harness.engine.missingFromIndex(emptyList()))
+    }
 }

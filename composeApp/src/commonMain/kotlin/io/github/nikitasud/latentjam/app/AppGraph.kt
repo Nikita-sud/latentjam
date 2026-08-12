@@ -40,6 +40,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -85,6 +86,7 @@ object AppGraph {
     private val mutableHistoryRevision = MutableStateFlow(0L)
     /** Advances after each accepted listening event so For You can apply feedback next time it opens. */
     val historyRevision: StateFlow<Long> = mutableHistoryRevision.asStateFlow()
+    private val historyFlushRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private var automaticIndexingKey: List<TrackDescriptor>? = null
     private var automaticIndexingJob: Job? = null
 
@@ -142,6 +144,7 @@ object AppGraph {
                 playback = playback,
                 history = history,
                 enabled = settings.saveListeningHistory,
+                flushRequests = historyFlushRequests,
                 onRecorded = { mutableHistoryRevision.value += 1L },
             )
             // Remembers where listening stood, so the next launch reopens with the same track
@@ -165,6 +168,17 @@ object AppGraph {
                     .collect(settings::setResumePlayback)
             }
         }
+    }
+
+    /**
+     * Asks the history recorder to finalize the in-progress listening session — called when the
+     * app leaves the foreground. Without this the log only gained a session when playback moved
+     * OFF a track, so the last track of every sitting was lost to a process kill. The recorder
+     * ignores the request while sound is still playing (the foreground service keeps the
+     * eventual transition recording intact); backgrounding while paused is what ends a sitting.
+     */
+    fun flushListeningSession() {
+        historyFlushRequests.tryEmit(Unit)
     }
 
     /** The process-wide similarity engine. */
@@ -265,17 +279,23 @@ object AppGraph {
             val notifier = indexingNotifier
             val failures = LinkedHashMap<TrackId, EngineError>()
             val total = tracks.size
-            val reportProgress = total > 0
+            var reportProgress = false
             val eta = IndexingEta(nowMillis())
             mutableAutomaticIndexing.value = AutomaticIndexingState(
                 trackIds = trackIds,
                 running = true,
             )
             try {
-                // Promote before model loading or the first audio batch. Starting after a slow
-                // first batch leaves Android free to suspend the process during exactly the work
-                // the foreground service is meant to protect.
-                if (reportProgress) {
+                engine.initialize()
+                engine.synchronizeLibrary(tracks)
+                // The foreground service and its notification are only warranted when audio
+                // embedding will actually run. The dedup key lives in process memory, so every
+                // cold start re-enters this job — and used to flash a "0 of N" notification at
+                // an already-complete library on every single launch. Promotion still happens
+                // BEFORE the first audio batch, which is the work the service protects; the
+                // window during model loading is seconds and carries no batch to lose.
+                if (total > 0 && engine.missingFromIndex(trackIds) > 0) {
+                    reportProgress = true
                     // This signal only offers a rationale in the active UI. It never waits for or
                     // requires permission: indexing remains fully functional after "Not now".
                     permissions.backgroundAnalysisNeedsNotifications()
@@ -286,9 +306,6 @@ object AppGraph {
                         total = total,
                     )
                 }
-
-                engine.initialize()
-                engine.synchronizeLibrary(tracks)
                 tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
                     val added = engine.ensureMetadataVectors(chunk)
                     if (added > 0) delay(AUTOMATIC_INDEX_YIELD_MS)

@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.HistorySessionTracker
+import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.playback.NowPlaying
@@ -13,8 +14,12 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
 /**
@@ -30,13 +35,30 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
     playback: PlaybackController,
     history: ListeningHistory,
     enabled: StateFlow<Boolean>,
+    /** Each emission asks the gate to finalize the in-progress session (see [PlaybackHistoryGate.flush]). */
+    flushRequests: Flow<Unit> = emptyFlow(),
     onRecorded: () -> Unit = {},
 ): Job = launch {
     val gate = PlaybackHistoryGate(initiallyEnabled = enabled.value)
-    playback.state.combine(enabled) { now, isEnabled -> now to isEnabled }.collect { (now, isEnabled) ->
-        gate.onSnapshot(now, isEnabled, epochMillis())?.let { finished ->
+    // One merged stream, one collector: snapshots and flushes are serialized through the same
+    // coroutine, so the gate needs no synchronization.
+    merge(
+        playback.state.combine(enabled) { now, isEnabled -> HistoryCommand.Snapshot(now, isEnabled) },
+        flushRequests.map { HistoryCommand.Flush },
+    ).collect { command ->
+        val finished = when (command) {
+            is HistoryCommand.Snapshot ->
+                gate.onSnapshot(command.now, command.enabled, epochMillis())
+            HistoryCommand.Flush ->
+                // A flush while sound is still playing is premature: the foreground service
+                // keeps the process alive and the eventual transition records the session
+                // with its full played time. Backgrounding while PAUSED is the real signal
+                // that the sitting is over.
+                if (playback.state.value.isPlaying) null else gate.flush()
+        }
+        finished?.let { event ->
             try {
-                history.record(finished)
+                history.record(event)
                 onRecorded()
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -97,4 +119,24 @@ internal class PlaybackHistoryGate(initiallyEnabled: Boolean) {
             )
         }
     }
+
+    /**
+     * Finalizes the in-progress session without waiting for a track transition — the
+     * backgrounding hook. Without it the log only gains a session when playback moves OFF a
+     * track, so the last track of every sitting was silently dropped when the app was killed.
+     *
+     * Honors the privacy boundary exactly as [onSnapshot] does: nothing is recorded while
+     * recording is off, and a track that is being ignored until the next one stays ignored —
+     * the tracker simply has no session open for it.
+     */
+    fun flush(): ListenEvent? {
+        if (!recording) return null
+        return tracker.flush()
+    }
+}
+
+/** The recorder's single-collector input alphabet: a playback snapshot or a flush request. */
+private sealed interface HistoryCommand {
+    data class Snapshot(val now: NowPlaying, val enabled: Boolean) : HistoryCommand
+    data object Flush : HistoryCommand
 }
