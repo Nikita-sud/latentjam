@@ -16,6 +16,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.sqrt
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -90,6 +91,8 @@ internal class OnnxEmbeddingBackend(
 
         return try {
             val uri = Uri.parse(audioUri)
+            val decodeContext = currentCoroutineContext()
+            val isDecodeCancelled = { !decodeContext.isActive }
             val pooled = FloatArray(config.embeddingDim)
             var windows = 0
             var lastModelFailure: String? = null
@@ -124,7 +127,9 @@ internal class OnnxEmbeddingBackend(
                     startMs = startMs,
                     targetSampleRate = SAMPLE_RATE,
                     targetSamples = WINDOW_SAMPLES,
+                    isCancelled = isDecodeCancelled,
                 ) ?: continue
+                currentCoroutineContext().ensureActive()
                 val embedding = inferStable(waveform, startMs) ?: continue
                 for (i in pooled.indices) pooled[i] += embedding[i]
                 windows++
@@ -139,7 +144,9 @@ internal class OnnxEmbeddingBackend(
                     startMs = 0L,
                     targetSampleRate = SAMPLE_RATE,
                     targetSamples = WINDOW_SAMPLES,
+                    isCancelled = isDecodeCancelled,
                 )?.let { waveform ->
+                    currentCoroutineContext().ensureActive()
                     val embedding = inferStable(waveform, 0L)
                     if (embedding != null) {
                         for (i in pooled.indices) pooled[i] += embedding[i]

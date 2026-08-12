@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.smart.text
 
 import io.github.nikitasud.latentjam.smart.EngineError
+import io.github.nikitasud.latentjam.smart.IosInferenceLease
 import io.github.nikitasud.latentjam.smart.IosInferenceRegistry
 import io.github.nikitasud.latentjam.smart.SmartEngineException
 import kotlinx.cinterop.ByteVar
@@ -21,11 +22,10 @@ import platform.Foundation.NSFileManager
 internal class IosTextEncoder : TextEncoder {
 
     private var tokenizer: BertWordPieceTokenizer? = null
+    private var lease: IosInferenceLease? = null
 
     override suspend fun load(): Result<Unit> {
-        val provider = IosInferenceRegistry.current()
-            ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
-        return try {
+        val loadedTokenizer = try {
             val path = NSBundle.mainBundle.pathForResource(
                 name = "text_vocab", ofType = "txt", inDirectory = "ml",
             ) ?: NSBundle.mainBundle.pathForResource(
@@ -36,20 +36,47 @@ internal class IosTextEncoder : TextEncoder {
             val pointer = data.bytes?.reinterpret<ByteVar>()
                 ?: return failure("Bundled MiniLM vocabulary is empty")
             val text = pointer.readBytes(data.length.toInt()).decodeToString()
-            tokenizer = BertWordPieceTokenizer(
+            BertWordPieceTokenizer(
                 BertWordPieceTokenizer.parseVocab(text.lineSequence()),
             )
-            val error = provider.loadText()
-            if (error == null) Result.success(Unit) else failure(error)
         } catch (t: Throwable) {
             tokenizer = null
+            return failure("Failed to load MiniLM: ${t.message}")
+        }
+
+        tokenizer = null
+        val existingLease = lease?.takeIf { it.currentProvider() != null }
+        if (existingLease == null) {
+            lease?.release()
+            lease = null
+        }
+        val activeLease = existingLease ?: IosInferenceRegistry.acquire()
+            ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        val provider = activeLease.currentProvider() ?: run {
+            if (existingLease == null) activeLease.release()
+            return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        }
+        return try {
+            val error = provider.loadText()
+            if (error == null) {
+                tokenizer = loadedTokenizer
+                lease = activeLease
+                Result.success(Unit)
+            } else {
+                tokenizer = null
+                if (existingLease == null) activeLease.release()
+                failure(error)
+            }
+        } catch (t: Throwable) {
+            tokenizer = null
+            if (existingLease == null) activeLease.release()
             failure("Failed to load MiniLM: ${t.message}")
         }
     }
 
     override fun encode(metadata: String): FloatArray? {
         if (metadata.isBlank()) return null
-        val provider = IosInferenceRegistry.current() ?: return null
+        val provider = lease?.currentProvider() ?: return null
         val ids = (tokenizer ?: return null).encode(metadata)
         return provider.encodeText(LongArray(ids.size) { ids[it].toLong() })
             ?.takeIf { it.size == TextEncoder.TEXT_DIM && it.all(Float::isFinite) }
@@ -57,6 +84,8 @@ internal class IosTextEncoder : TextEncoder {
 
     override fun close(): Unit {
         tokenizer = null
+        lease?.release()
+        lease = null
     }
 
     private fun <T> failure(message: String): Result<T> =

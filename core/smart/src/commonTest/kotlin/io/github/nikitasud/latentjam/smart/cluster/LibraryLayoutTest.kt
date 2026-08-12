@@ -48,6 +48,24 @@ class LibraryLayoutTest {
     }
 
     @Test
+    fun `covers rejects malformed or non-finite stored positions`() {
+        val ids = listOf(TrackId("a"), TrackId("b"))
+
+        assertFalse(
+            LibraryLayout.covers(
+                mapOf(ids[0] to floatArrayOf(0f), ids[1] to floatArrayOf(1f, 1f)),
+                ids,
+            ),
+        )
+        assertFalse(
+            LibraryLayout.covers(
+                mapOf(ids[0] to floatArrayOf(Float.NaN, 0f), ids[1] to floatArrayOf(1f, 1f)),
+                ids,
+            ),
+        )
+    }
+
+    @Test
     fun `compute tolerates a previous layout that covers only some tracks`() {
         val previous = LibraryLayout.compute(space(40, 16))
             .take(20)

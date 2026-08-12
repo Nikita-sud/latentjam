@@ -59,6 +59,17 @@ internal class DefaultSimilarityEngine(
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow<EngineState>(EngineState.Uninitialized)
     private val knownTracks = LinkedHashMap<TrackId, TrackDescriptor>()
+    /** Identity of the descriptor used to create each in-memory/persisted audio vector. */
+    private val audioVectorIdentities = LinkedHashMap<TrackId, String>()
+    /** Identity of the descriptor used to create each in-memory/persisted metadata vector. */
+    private val textVectorIdentities = LinkedHashMap<TrackId, String>()
+    /**
+     * In-memory mutations remain dirty until the corresponding snapshot save returns normally.
+     * This matters after an I/O failure: the next operation may find every vector already present,
+     * but it must still retry the snapshot rather than treating the batch as fully persisted.
+     */
+    private var audioIndexDirty = false
+    private var textIndexDirty = false
     private var indexRevision = 0L
     private var snapshotCache: SnapshotCache? = null
     private var predictorLoaded = false
@@ -84,8 +95,17 @@ internal class DefaultSimilarityEngine(
                         runCatching { it.load().getOrThrow() }.isSuccess
                     } ?: false
                     if (textIndex != null && textIndex.size == 0) {
-                        runCatching { textStore?.load(TEXT_INDEX_VERSION) }.getOrNull()
-                            ?.forEach { (id, vector) -> runCatching { textIndex.upsert(id, vector) } }
+                        runCatching { textStore?.loadSnapshot(TEXT_INDEX_VERSION) }.getOrNull()
+                            ?.let { persisted ->
+                                for ((id, vector) in persisted.entries) {
+                                    runCatching { textIndex.upsert(id, vector) }
+                                        .onSuccess {
+                                            persisted.identities[id]?.let { identity ->
+                                                textVectorIdentities[id] = identity
+                                            }
+                                        }
+                                }
+                            }
                     }
                     mutableState.value = EngineState.Ready(indexedCount = index.size)
                     println(
@@ -121,7 +141,7 @@ internal class DefaultSimilarityEngine(
             for (track in toEmbed) {
                 backend.embed(track).fold(
                     onSuccess = { vector ->
-                        val rejection = validateAndUpsert(track.id, vector)
+                        val rejection = validateAndUpsert(track, vector)
                         if (rejection == null) indexed++ else errors[track.id] = rejection
                     },
                     onFailure = { throwable -> errors[track.id] = throwable.toEngineError() },
@@ -135,17 +155,15 @@ internal class DefaultSimilarityEngine(
             //
             // Over ALL tracks, not just the ones needing audio: the two indexes fill independently,
             // so a library already embedded before text encoding existed still gets its vectors.
-            var textIndexed = 0
             for (track in tracks) {
-                if (indexTextVector(track)) textIndexed++
+                indexTextVector(track)
                 yield()
             }
-            if (indexed > 0) {
-                runCatching { store.save(config.modelVersion, index.entries()) }
-            }
-            if (textIndexed > 0 && textIndex != null) {
-                runCatching { textStore?.save(TEXT_INDEX_VERSION, textIndex.entries()) }
-            }
+            // Persist dirty work even when this invocation added nothing. A previous save may have
+            // failed after the vectors were installed in memory, so `indexed == 0` is not proof
+            // that the durable snapshot is current.
+            persistAudioIndex()
+            persistTextIndex()
             mutableState.value = EngineState.Ready(indexedCount = index.size)
             IndexReport(
                 indexed = indexed,
@@ -164,34 +182,32 @@ internal class DefaultSimilarityEngine(
                 val staleAudio = index.entries().keys.filterNot(liveIds::contains)
                 val staleText = textIndex?.entries()?.keys?.filterNot(liveIds::contains).orEmpty()
 
-                // Library rows keep the same id when their tags are edited. Preserve the expensive
-                // audio vector, but invalidate the cheap text vector so semantic search and SMART
-                // conditioning cannot keep using an old title, artist, genre, or year. A changed
-                // audio locator/duration is treated as replaced content and embedded again.
+                // Compare against the identity persisted WITH each vector, not against
+                // knownTracks: that map is intentionally empty after process death. Missing
+                // identity means a legacy vector-only snapshot and is a conservative cache miss.
                 val changedText = library.mapNotNull { track ->
-                    knownTracks[track.id]
-                        ?.takeIf { previous -> !previous.hasSameTextIdentity(track) }
-                        ?.let { track.id }
+                    track.id.takeIf { id ->
+                        textIndex?.contains(id) == true &&
+                            textVectorIdentities[id] != track.textVectorIdentity()
+                    }
                 }
                 val changedAudio = library.mapNotNull { track ->
-                    knownTracks[track.id]
-                        ?.takeIf { previous -> !previous.hasSameAudioIdentity(track) }
-                        ?.let { track.id }
+                    track.id.takeIf { id ->
+                        id in index && audioVectorIdentities[id] != track.audioVectorIdentity()
+                    }
                 }
 
                 staleAudio.forEach(index::remove)
                 staleText.forEach { textIndex?.remove(it) }
                 changedAudio.forEach(index::remove)
                 changedText.forEach { textIndex?.remove(it) }
+                (staleAudio + changedAudio).forEach(audioVectorIdentities::remove)
+                (staleText + changedText).forEach(textVectorIdentities::remove)
                 (staleAudio + changedAudio).forEach(semanticCache::remove)
                 knownTracks.keys.retainAll(liveIds)
 
-                if (staleAudio.isNotEmpty() || changedAudio.isNotEmpty()) {
-                    runCatching { store.save(config.modelVersion, index.entries()) }
-                }
-                if ((staleText.isNotEmpty() || changedText.isNotEmpty()) && textIndex != null) {
-                    runCatching { textStore?.save(TEXT_INDEX_VERSION, textIndex.entries()) }
-                }
+                if (staleAudio.isNotEmpty() || changedAudio.isNotEmpty()) audioIndexDirty = true
+                if (staleText.isNotEmpty() || changedText.isNotEmpty()) textIndexDirty = true
                 if (
                     staleAudio.isNotEmpty() ||
                     staleText.isNotEmpty() ||
@@ -201,6 +217,11 @@ internal class DefaultSimilarityEngine(
                     indexRevision++
                     snapshotCache = null
                 }
+                // Also retries an earlier failed save when reconciliation itself made no change.
+                // Cache invalidation above precedes I/O because a failed save must not make the
+                // already-mutated in-memory indexes appear to have their previous revision.
+                persistAudioIndex()
+                persistTextIndex()
                 rememberTracks(library)
                 mutableState.value = EngineState.Ready(indexedCount = index.size)
                 (staleAudio + changedAudio).distinct().size
@@ -320,9 +341,8 @@ internal class DefaultSimilarityEngine(
                     if (indexTextVector(track)) added++
                     yield()
                 }
-                if (added > 0 && textIndex != null) {
-                    runCatching { textStore?.save(TEXT_INDEX_VERSION, textIndex.entries()) }
-                }
+                // Also retries metadata that was installed before an earlier save failure.
+                persistTextIndex()
                 added
             }
         }
@@ -359,16 +379,19 @@ internal class DefaultSimilarityEngine(
             // Metadata is cheap enough to create on demand and gives first launch an honest local
             // result while the acoustic index is still cold.
             indexTextVector(seed)
+            // A prior metadata save may have failed after the row was installed in memory. Queue
+            // generation must not silently report success while leaving that dirty cache unsaved.
+            persistTextIndex()
 
             // First-launch indexing is progressive. Whichever track the listener actually picked
             // must still be a valid anchor even when its background batch has not reached it yet.
             if (index.vector(seed.id) == null) {
                 val vector = backend.embed(seed).getOrNull()
                     ?: return@withLock metadataFallback(seed, library, length, history)
-                if (validateAndUpsert(seed.id, vector) != null) {
+                if (validateAndUpsert(seed, vector) != null) {
                     return@withLock metadataFallback(seed, library, length, history)
                 }
-                runCatching { store.save(config.modelVersion, index.entries()) }
+                persistAudioIndex()
                 mutableState.value = EngineState.Ready(indexedCount = index.size)
             }
 
@@ -419,11 +442,46 @@ internal class DefaultSimilarityEngine(
     override suspend fun clearAnalysis() {
         withContext(dispatcher) {
             mutex.withLock {
+                val audioSnapshot = currentAudioSnapshot()
+                val metadataSnapshot = currentTextSnapshot()
+                val failures = mutableListOf<Throwable>()
+
+                // Both deletions are attempted even if the first fails. Memory stays live until
+                // every durable snapshot has been deleted, so a caller never observes a cleared
+                // engine while an old snapshot is still known to be recoverable on restart.
+                runCatching { store.clear() }.onFailure(failures::add)
+                textStore?.let { target ->
+                    runCatching { target.clear() }.onFailure(failures::add)
+                }
+                if (failures.isNotEmpty()) {
+                    // A successful deletion paired with a failed/ambiguous one would leave the two
+                    // indexes at different logical generations. Restore both current snapshots on
+                    // a best-effort basis before surfacing the failure; dirty flags retain any
+                    // repair that still needs another save attempt in this process.
+                    audioIndexDirty = true
+                    runCatching {
+                        store.saveSnapshot(config.modelVersion, audioSnapshot)
+                    }.onSuccess {
+                        audioIndexDirty = false
+                    }.onFailure(failures::add)
+                    if (textStore != null) {
+                        textIndexDirty = true
+                        runCatching {
+                            textStore.saveSnapshot(TEXT_INDEX_VERSION, metadataSnapshot)
+                        }.onSuccess {
+                            textIndexDirty = false
+                        }.onFailure(failures::add)
+                    }
+                    throwAnalysisClearFailure(failures)
+                }
+
                 index.clear()
                 textIndex?.clear()
-                store.clear()
-                textStore?.clear()
                 knownTracks.clear()
+                audioVectorIdentities.clear()
+                textVectorIdentities.clear()
+                audioIndexDirty = false
+                textIndexDirty = false
                 semanticCache.clear()
                 snapshotCache = null
                 indexRevision++
@@ -443,6 +501,10 @@ internal class DefaultSimilarityEngine(
                 index.clear()
                 textIndex?.clear()
                 knownTracks.clear()
+                audioVectorIdentities.clear()
+                textVectorIdentities.clear()
+                audioIndexDirty = false
+                textIndexDirty = false
                 semanticCache.clear()
                 snapshotCache = null
                 indexRevision++
@@ -460,11 +522,16 @@ internal class DefaultSimilarityEngine(
      */
     private suspend fun restorePersistedIndex() {
         if (index.size > 0) return
-        val persisted = runCatching { store.load(config.modelVersion) }.getOrNull() ?: return
-        for ((id, vector) in persisted) {
+        val persisted = runCatching { store.loadSnapshot(config.modelVersion) }.getOrNull() ?: return
+        for ((id, vector) in persisted.entries) {
             runCatching { index.upsert(id, vector) }
+                .onSuccess {
+                    persisted.identities[id]?.let { identity ->
+                        audioVectorIdentities[id] = identity
+                    }
+                }
         }
-        if (persisted.isNotEmpty()) indexRevision++
+        if (persisted.entries.isNotEmpty()) indexRevision++
     }
 
     /**
@@ -484,6 +551,8 @@ internal class DefaultSimilarityEngine(
         if (vector.size != TextEncoder.TEXT_DIM) return false
         return runCatching { target.upsert(track.id, vector) }
             .onSuccess {
+                textVectorIdentities[track.id] = track.textVectorIdentity()
+                textIndexDirty = true
                 indexRevision++
                 snapshotCache = null
             }
@@ -491,7 +560,8 @@ internal class DefaultSimilarityEngine(
     }
 
     /** Returns `null` on success, or the typed rejection reason. */
-    private fun validateAndUpsert(id: TrackId, vector: FloatArray): EngineError? {
+    private fun validateAndUpsert(track: TrackDescriptor, vector: FloatArray): EngineError? {
+        val id = track.id
         if (vector.size != config.embeddingDim) {
             return EngineError.BackendFailure(
                 "Backend produced a ${vector.size}-dim vector for ${id.value}, " +
@@ -513,6 +583,8 @@ internal class DefaultSimilarityEngine(
             )
         }
         index.upsert(id, vector)
+        audioVectorIdentities[id] = track.audioVectorIdentity()
+        audioIndexDirty = true
         semanticCache.remove(id)
         indexRevision++
         snapshotCache = null
@@ -529,11 +601,81 @@ internal class DefaultSimilarityEngine(
         }
     }
 
-    private fun TrackDescriptor.hasSameTextIdentity(other: TrackDescriptor): Boolean =
-        title == other.title && artist == other.artist && genre == other.genre && year == other.year
+    /**
+     * Collision-safe canonical identity. Values are length-prefixed, so an opaque URI/title may
+     * contain any delimiter without making two different descriptors serialize alike.
+     */
+    private fun vectorIdentity(version: String, vararg fields: String?): String = buildString {
+        append(version)
+        for (field in fields) {
+            append('|')
+            if (field == null) {
+                append("-1:")
+            } else {
+                append(field.length)
+                append(':')
+                append(field)
+            }
+        }
+    }
 
-    private fun TrackDescriptor.hasSameAudioIdentity(other: TrackDescriptor): Boolean =
-        audioUri == other.audioUri && durationMs == other.durationMs
+    private fun TrackDescriptor.audioVectorIdentity(): String = vectorIdentity(
+        AUDIO_IDENTITY_VERSION,
+        audioUri,
+        durationMs?.toString(),
+        sourceRevision,
+    )
+
+    private fun TrackDescriptor.textVectorIdentity(): String = vectorIdentity(
+        TEXT_IDENTITY_VERSION,
+        title,
+        artist,
+        genre,
+        year?.toString(),
+    )
+
+    private suspend fun persistAudioIndex() {
+        if (!audioIndexDirty) return
+        store.saveSnapshot(config.modelVersion, currentAudioSnapshot())
+        audioIndexDirty = false
+    }
+
+    private suspend fun persistTextIndex() {
+        if (!textIndexDirty) return
+        val targetStore = textStore
+        if (targetStore == null) {
+            // This engine was intentionally configured without metadata persistence.
+            textIndexDirty = false
+            return
+        }
+        targetStore.saveSnapshot(TEXT_INDEX_VERSION, currentTextSnapshot())
+        textIndexDirty = false
+    }
+
+    private fun currentAudioSnapshot(): StoredIndexSnapshot {
+        val entries = index.entries()
+        return StoredIndexSnapshot(
+            entries = entries,
+            identities = audioVectorIdentities.filterKeys(entries::containsKey),
+        )
+    }
+
+    private fun currentTextSnapshot(): StoredIndexSnapshot {
+        val entries = textIndex?.entries().orEmpty()
+        return StoredIndexSnapshot(
+            entries = entries,
+            identities = textVectorIdentities.filterKeys(entries::containsKey),
+        )
+    }
+
+    private fun throwAnalysisClearFailure(failures: List<Throwable>): Nothing {
+        val failure = IllegalStateException(
+            "Could not clear every SMART snapshot; in-memory analysis was retained",
+            failures.first(),
+        )
+        failures.drop(1).forEach(failure::addSuppressed)
+        throw failure
+    }
 
     private fun snapshotFor(history: List<SmartHistoryEvent>): SmartSnapshot? {
         snapshotCache?.takeIf { it.revision == indexRevision }?.let { return it.snapshot }
@@ -590,6 +732,9 @@ internal class DefaultSimilarityEngine(
         const val MIN_AUDIO_CORPUS_FLOOR = 24
 
         const val SEMANTIC_BATCH_SIZE = 128
+
+        const val AUDIO_IDENTITY_VERSION = "audio-v1"
+        const val TEXT_IDENTITY_VERSION = "text-v1"
 
         /** Small libraries promote only when at least 80% of their tracks have usable audio. */
         fun requiredAudioCorpus(librarySize: Int): Int {

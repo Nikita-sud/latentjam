@@ -91,12 +91,48 @@ public class MusicEntityIndex private constructor(
                     ((bytes[offset + 1].toInt() and 0xff) shl 8) or
                     ((bytes[offset + 2].toInt() and 0xff) shl 16) or
                     ((bytes[offset + 3].toInt() and 0xff) shl 24)
+            fun uShortAt(offset: Int): Int =
+                (bytes[offset].toInt() and 0xff) or
+                    ((bytes[offset + 1].toInt() and 0xff) shl 8)
+            fun uLongAt(offset: Int): ULong {
+                var result = 0uL
+                for (index in 0 until 8) {
+                    result = result or
+                        ((bytes[offset + index].toULong() and 0xffuL) shl (index * 8))
+                }
+                return result
+            }
             val entryCount = intAt(8)
             val valueCount = intAt(12)
-            if (entryCount < 0 || valueCount < 0) return null
+            val entityCount = intAt(16)
+            if (entryCount < 0 || valueCount < 0 || entityCount < 0) return null
             val valuesOffset = HEADER_SIZE.toLong() + entryCount.toLong() * ENTRY_SIZE
             val required = valuesOffset + valueCount.toLong() * 4
             if (valuesOffset > Int.MAX_VALUE || required != bytes.size.toLong()) return null
+
+            // resolve() binary-searches hashes, and matches() merge-scans each id slice. Validate
+            // both ordering contracts once here so corrupt optional assets fail closed instead of
+            // producing false negatives or an out-of-bounds read later on a user query.
+            val valuesStart = valuesOffset.toInt()
+            var previousHash: ULong? = null
+            for (index in 0 until entryCount) {
+                val entry = HEADER_SIZE + index * ENTRY_SIZE
+                val hash = uLongAt(entry)
+                val lastHash = previousHash
+                if (lastHash != null && hash <= lastHash) return null
+                previousHash = hash
+
+                val start = intAt(entry + 8)
+                val count = uShortAt(entry + 12)
+                if (start < 0 || start.toLong() + count > valueCount.toLong()) return null
+
+                var previousEntity = -1
+                for (valueIndex in 0 until count) {
+                    val entity = intAt(valuesStart + (start + valueIndex) * 4)
+                    if (entity < 0 || entity >= entityCount || entity <= previousEntity) return null
+                    previousEntity = entity
+                }
+            }
             return MusicEntityIndex(bytes, entryCount, valuesOffset.toInt())
         }
 

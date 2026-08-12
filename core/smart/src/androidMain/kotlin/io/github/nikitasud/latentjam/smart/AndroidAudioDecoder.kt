@@ -10,6 +10,50 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import kotlin.coroutines.cancellation.CancellationException
+
+internal enum class DecodeLoopGuardResult {
+    CONTINUE,
+    CANCELLED,
+    WALL_TIMEOUT,
+    IDLE_TIMEOUT,
+}
+
+/**
+ * Monotonic liveness guard for the synchronous MediaCodec polling loop.
+ *
+ * The wall budget is absolute. The idle budget is reset only after input or
+ * output was successfully handed across the codec boundary, so repeated
+ * `INFO_TRY_AGAIN_LATER` results cannot keep a broken codec alive forever.
+ */
+internal class DecodeLoopGuard(
+    private val wallBudgetNanos: Long,
+    private val idleBudgetNanos: Long,
+    private val nowNanos: () -> Long,
+) {
+    private val startedAtNanos = nowNanos()
+    private var lastProgressAtNanos = startedAtNanos
+
+    init {
+        require(wallBudgetNanos > 0L) { "wallBudgetNanos must be positive" }
+        require(idleBudgetNanos > 0L) { "idleBudgetNanos must be positive" }
+    }
+
+    fun observe(cancelled: Boolean, madeProgress: Boolean = false): DecodeLoopGuardResult {
+        if (cancelled) return DecodeLoopGuardResult.CANCELLED
+        val now = nowNanos()
+        if (elapsedNanos(startedAtNanos, now) >= wallBudgetNanos) {
+            return DecodeLoopGuardResult.WALL_TIMEOUT
+        }
+        if (madeProgress) lastProgressAtNanos = now
+        if (elapsedNanos(lastProgressAtNanos, now) >= idleBudgetNanos) {
+            return DecodeLoopGuardResult.IDLE_TIMEOUT
+        }
+        return DecodeLoopGuardResult.CONTINUE
+    }
+
+    private fun elapsedNanos(since: Long, now: Long): Long = (now - since).coerceAtLeast(0L)
+}
 
 /**
  * Decodes one fixed-length mono window of a track for the embedding model,
@@ -41,11 +85,14 @@ internal class AndroidAudioDecoder(private val context: Context) {
         startMs: Long,
         targetSampleRate: Int,
         targetSamples: Int,
+        isCancelled: () -> Boolean,
     ): FloatArray? {
         lastFailure = null
+        if (isCancelled()) throw CancellationException("Audio decoding cancelled")
         val extractor = MediaExtractor()
         return try {
             extractor.setDataSource(context, uri, null)
+            if (isCancelled()) throw CancellationException("Audio decoding cancelled")
             val trackIndex = (0 until extractor.trackCount).firstOrNull { index ->
                 extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
                     ?.startsWith("audio/") == true
@@ -60,12 +107,14 @@ internal class AndroidAudioDecoder(private val context: Context) {
             try {
                 codec.configure(inputFormat, null, null, 0)
                 codec.start()
-                decodeLoop(codec, extractor, targetSampleRate, targetSamples)
+                decodeLoop(codec, extractor, targetSampleRate, targetSamples, isCancelled)
                     ?: failed("Decoder produced no PCM at ${startMs}ms ($mime)")
             } finally {
                 runCatching { codec.stop() }
-                codec.release()
+                runCatching { codec.release() }
             }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (error: Exception) {
             failed(
                 buildString {
@@ -75,7 +124,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 },
             )
         } finally {
-            extractor.release()
+            runCatching { extractor.release() }
         }
     }
 
@@ -89,6 +138,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
         extractor: MediaExtractor,
         targetSampleRate: Int,
         targetSamples: Int,
+        isCancelled: () -> Boolean,
     ): FloatArray? {
         var sourceRate = 0
         var sourceChannels = 0
@@ -99,6 +149,26 @@ internal class AndroidAudioDecoder(private val context: Context) {
         var inputDone = false
         var outputDone = false
         val info = MediaCodec.BufferInfo()
+        val guard = DecodeLoopGuard(
+            wallBudgetNanos = DECODE_WALL_BUDGET_NANOS,
+            idleBudgetNanos = DECODE_IDLE_BUDGET_NANOS,
+            nowNanos = { System.nanoTime() },
+        )
+
+        fun checkLiveness(madeProgress: Boolean = false) {
+            when (guard.observe(cancelled = isCancelled(), madeProgress = madeProgress)) {
+                DecodeLoopGuardResult.CONTINUE -> Unit
+                DecodeLoopGuardResult.CANCELLED -> {
+                    throw CancellationException("Audio decoding cancelled")
+                }
+                DecodeLoopGuardResult.WALL_TIMEOUT -> {
+                    throw DecodeLoopTimeoutException("Decoder exceeded the 30 second wall budget")
+                }
+                DecodeLoopGuardResult.IDLE_TIMEOUT -> {
+                    throw DecodeLoopTimeoutException("Decoder made no progress for 5 seconds")
+                }
+            }
+        }
 
         fun readOutputFormat() {
             val format = codec.outputFormat
@@ -112,11 +182,14 @@ internal class AndroidAudioDecoder(private val context: Context) {
         }
 
         while (!outputDone) {
+            checkLiveness()
             if (!inputDone) {
                 val inputIndex = codec.dequeueInputBuffer(DEQUEUE_TIMEOUT_US)
+                checkLiveness()
                 if (inputIndex >= 0) {
                     val buffer = codec.getInputBuffer(inputIndex) ?: return null
                     val size = extractor.readSampleData(buffer, 0)
+                    checkLiveness()
                     if (size < 0) {
                         codec.queueInputBuffer(
                             inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM,
@@ -126,12 +199,17 @@ internal class AndroidAudioDecoder(private val context: Context) {
                         codec.queueInputBuffer(inputIndex, 0, size, extractor.sampleTime, 0)
                         extractor.advance()
                     }
+                    checkLiveness(madeProgress = true)
                 }
             }
 
             val outputIndex = codec.dequeueOutputBuffer(info, DEQUEUE_TIMEOUT_US)
+            checkLiveness()
             when {
-                outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> readOutputFormat()
+                outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                    readOutputFormat()
+                    checkLiveness(madeProgress = true)
+                }
                 outputIndex >= 0 -> {
                     if (sourceRate == 0) readOutputFormat()
                     if (info.size > 0) {
@@ -147,6 +225,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
                         collected += mono.size
                     }
                     codec.releaseOutputBuffer(outputIndex, false)
+                    checkLiveness(madeProgress = true)
                     if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0 ||
                         collected >= sourceNeeded
                     ) {
@@ -156,6 +235,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
             }
         }
 
+        checkLiveness()
         if (sourceRate == 0 || collected == 0) return null
         val source = FloatArray(collected)
         var position = 0
@@ -163,6 +243,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
             chunk.copyInto(source, position)
             position += chunk.size
         }
+        checkLiveness()
         return resampleLinear(source, sourceRate, targetSampleRate, targetSamples)
     }
 
@@ -222,5 +303,9 @@ internal class AndroidAudioDecoder(private val context: Context) {
 
     private companion object {
         const val DEQUEUE_TIMEOUT_US = 10_000L
+        const val DECODE_WALL_BUDGET_NANOS = 30_000_000_000L
+        const val DECODE_IDLE_BUDGET_NANOS = 5_000_000_000L
     }
 }
+
+private class DecodeLoopTimeoutException(message: String) : Exception(message)

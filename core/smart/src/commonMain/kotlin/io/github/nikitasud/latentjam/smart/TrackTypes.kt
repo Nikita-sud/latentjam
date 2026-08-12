@@ -42,6 +42,10 @@ public value class TrackId(public val value: String)
  * @property folderPath User-facing source folder, relative to shared storage
  *   when the platform exposes one. The engine ignores it; the library browser
  *   uses it to keep Downloads, Music, Telegram, and imported files separate.
+ * @property sourceRevision Optional opaque revision of the underlying media bytes. Platform
+ *   libraries should change it when content at the same [id]/[audioUri] may have been replaced
+ *   (for example MediaStore size + modified generation, or an imported file's size + mtime).
+ *   SMART uses it only for cache invalidation and never interprets its value.
  */
 public data class TrackDescriptor(
     public val id: TrackId,
@@ -58,6 +62,7 @@ public data class TrackDescriptor(
     public val year: Int? = null,
     /** Loudness in `[0, 1]`, or null when unmeasured. Feeds the chain's energy-smoothness term. */
     public val energy: Float? = null,
+    public val sourceRevision: String? = null,
 )
 
 /**

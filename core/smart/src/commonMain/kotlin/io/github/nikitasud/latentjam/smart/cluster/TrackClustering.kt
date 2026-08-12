@@ -127,6 +127,7 @@ public object TrackClustering {
         iterations: Int = DEFAULT_ITERATIONS,
     ): List<TrackCluster> {
         require(dim > 0) { "Embedding dimension must be positive, got $dim" }
+        require(iterations > 0) { "Iteration count must be positive, got $iterations" }
         if (k <= 0 || ids.isEmpty()) return emptyList()
 
         val usable = ArrayList<TrackId>(ids.size)
@@ -134,7 +135,9 @@ public object TrackClustering {
         for (id in ids) {
             val vector = vectors[id] ?: continue
             if (vector.size != dim) continue
-            if (norm(vector) < DEGENERATE_NORM_EPS) continue
+            if (!vector.all(Float::isFinite)) continue
+            val length = norm(vector)
+            if (!length.isFinite() || length < DEGENERATE_NORM_EPS) continue
             // A caller may hand us the same track twice (two rows of one file); clustering it twice
             // would let it vote twice for its own centroid.
             if (seen.add(id)) usable.add(id)
@@ -167,8 +170,10 @@ public object TrackClustering {
         minSize: Int = MIN_CLUSTER_SIZE,
         iterations: Int = DEFAULT_ITERATIONS,
     ): List<TrackCluster> {
+        require(iterations > 0) { "Iteration count must be positive, got $iterations" }
         if (k <= 0 || space.size < minSize) return emptyList()
         val rows = space.takeRows()
+        require(rows.all(Float::isFinite)) { "Library vector space contains a non-finite row" }
         val n = space.size
         val dim = space.dim
         center(rows, n, dim)

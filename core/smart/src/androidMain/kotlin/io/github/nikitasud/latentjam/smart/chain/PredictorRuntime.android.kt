@@ -92,7 +92,9 @@ internal class OnnxPredictorRuntime(
                 ),
             ).use { result ->
                 @Suppress("UNCHECKED_CAST")
-                (result[0].value as Array<FloatArray>)[0].copyOf()
+                val output = (result[0].value as Array<FloatArray>)[0].copyOf()
+                validatedPredictorOutput(output, PredictorRuntime.EMBEDDING_DIM)
+                    ?: throw SmartEngineException(EngineError.ModelUnavailable)
             }
         } finally {
             small.close(); medium.close(); large.close(); time.close(); session5.close()
@@ -118,7 +120,9 @@ internal class OnnxPredictorRuntime(
                 ),
             ).use { result ->
                 @Suppress("UNCHECKED_CAST")
-                (result[0].value as Array<FloatArray>)[0].copyOf()
+                val output = (result[0].value as Array<FloatArray>)[0].copyOf()
+                validatedPredictorOutput(output, PredictorRuntime.POOL_SIZE)
+                    ?: throw SmartEngineException(EngineError.ModelUnavailable)
             }
         } finally {
             stateTensor.close(); candidateTensor.close()

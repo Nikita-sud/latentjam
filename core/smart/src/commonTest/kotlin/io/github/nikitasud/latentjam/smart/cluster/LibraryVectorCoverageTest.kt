@@ -9,7 +9,9 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * The Map asks which tracks a layout would cover, not what they sound like.
@@ -44,6 +46,7 @@ class LibraryVectorCoverageTest {
 
         assertEquals(built.trackIds, covered.trackIds)
         assertEquals(built.source, covered.source)
+        assertEquals(built.fingerprint, covered.fingerprint)
         assertEquals(LibraryVectorSource.AUDIO_AND_METADATA, covered.source)
     }
 
@@ -63,6 +66,7 @@ class LibraryVectorCoverageTest {
         assertEquals(LibraryVectorSource.METADATA, built.source, "fixture must exercise the fallback")
         assertEquals(built.trackIds, covered.trackIds)
         assertEquals(built.source, covered.source)
+        assertEquals(built.fingerprint, covered.fingerprint)
     }
 
     @Test
@@ -80,6 +84,7 @@ class LibraryVectorCoverageTest {
         assertEquals(LibraryVectorSource.AUDIO, built.source, "fixture must exercise the audio path")
         assertEquals(built.trackIds, covered.trackIds)
         assertEquals(built.source, covered.source)
+        assertEquals(built.fingerprint, covered.fingerprint)
     }
 
     @Test
@@ -103,6 +108,7 @@ class LibraryVectorCoverageTest {
         )
 
         assertEquals(built.trackIds, covered.trackIds)
+        assertEquals(built.fingerprint, covered.fingerprint)
         assertEquals(3, covered.trackIds.size, "two unusable rows must be gone")
     }
 
@@ -133,10 +139,86 @@ class LibraryVectorCoverageTest {
 
         assertEquals(built.trackIds, covered.trackIds)
         assertEquals(built.source, covered.source)
+        assertEquals(built.fingerprint, covered.fingerprint)
     }
 
     @Test
-    fun `coverage can be asked more than once, unlike the one-shot space`() {
+    fun `hybrid materialization ignores malformed modalities excluded by coverage`() {
+        val ids = ids(10)
+        val audio = ids.associateWith { floatArrayOf(0f, 1f) }
+        val metadata = buildMap {
+            ids.take(8).forEach { put(it, floatArrayOf(1f, 0f)) }
+            put(ids[8], floatArrayOf(1f, 0f, 3f))
+            put(ids[9], floatArrayOf(Float.NaN, 1f))
+        }
+
+        val built = assertNotNull(
+            LibraryVectorFusion.build(ids, audio, metadata, audioDim = 2, metadataDim = 2),
+        )
+        val covered = assertNotNull(
+            LibraryVectorFusion.coverage(ids, audio, metadata, audioDim = 2, metadataDim = 2),
+        )
+
+        assertEquals(LibraryVectorSource.AUDIO_AND_METADATA, built.source)
+        assertEquals(built.fingerprint, covered.fingerprint)
+        assertEquals(listOf(0f, 1f, 0f, 0f), assertNotNull(built.vector(ids[8])).toList())
+        assertTrue(assertNotNull(built.vector(ids[9])).all(Float::isFinite))
+    }
+
+    @Test
+    fun `raw vector changes invalidate the fingerprint even when normalization is unchanged`() {
+        val ids = ids(4)
+        val firstAudio = ids.associateWith { floatArrayOf(0f, 1f) }
+        val secondAudio = firstAudio + (ids.first() to floatArrayOf(0f, 2f))
+
+        val first = assertNotNull(
+            LibraryVectorFusion.coverage(ids, firstAudio, emptyMap(), 2, 2),
+        )
+        val second = assertNotNull(
+            LibraryVectorFusion.coverage(ids, secondAudio, emptyMap(), 2, 2),
+        )
+
+        assertEquals(first.trackIds, second.trackIds)
+        assertEquals(first.source, second.source)
+        assertNotEquals(first.fingerprint, second.fingerprint)
+    }
+
+    @Test
+    fun `library scan order does not change the content fingerprint`() {
+        val ids = ids(5)
+        val audio = ids.associateWith { id -> floatArrayOf(id.value.toFloat(), 1f) }
+
+        val first = assertNotNull(
+            LibraryVectorFusion.coverage(ids, audio, emptyMap(), 2, 2),
+        )
+        val reordered = assertNotNull(
+            LibraryVectorFusion.coverage(ids.reversed(), audio, emptyMap(), 2, 2),
+        )
+
+        assertEquals(first.trackIds.reversed(), reordered.trackIds)
+        assertEquals(first.fingerprint, reordered.fingerprint)
+    }
+
+    @Test
+    fun `selected source is part of the fingerprint`() {
+        val ids = ids(10)
+        val audio = ids.associateWith { floatArrayOf(0f, 1f) }
+        val metadata = ids.take(8).associateWith { floatArrayOf(1f, 0f) }
+
+        val hybrid = assertNotNull(
+            LibraryVectorFusion.coverage(ids, audio, metadata, 2, 2, minHybridCoverage = 0.8f),
+        )
+        val audioOnly = assertNotNull(
+            LibraryVectorFusion.coverage(ids, audio, metadata, 2, 2, minHybridCoverage = 0.9f),
+        )
+
+        assertEquals(hybrid.trackIds, audioOnly.trackIds)
+        assertNotEquals(hybrid.source, audioOnly.source)
+        assertNotEquals(hybrid.fingerprint, audioOnly.fingerprint)
+    }
+
+    @Test
+    fun `coverage can be asked repeatedly unlike the one-shot space`() {
         val ids = ids(4)
         val audio = ids.associateWith { floatArrayOf(0f, 1f) }
 

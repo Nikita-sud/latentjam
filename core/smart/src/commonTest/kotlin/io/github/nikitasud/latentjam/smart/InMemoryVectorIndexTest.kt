@@ -79,6 +79,18 @@ internal class InMemoryVectorIndexTest {
     }
 
     @Test
+    fun rejectsNonFiniteStoredAndQueryVectors() {
+        val index = InMemoryVectorIndex(dim = 3)
+        assertFailsWith<IllegalArgumentException> {
+            index.upsert(a, floatArrayOf(1f, Float.NaN, 0f))
+        }
+        index.upsert(a, floatArrayOf(1f, 0f, 0f))
+        assertFailsWith<IllegalArgumentException> {
+            index.nearest(floatArrayOf(Float.POSITIVE_INFINITY, 0f, 0f), k = 1)
+        }
+    }
+
+    @Test
     fun vectorReturnsDefensiveNormalizedCopy() {
         val index = InMemoryVectorIndex(dim = 3)
         index.upsert(a, floatArrayOf(2f, 0f, 0f))

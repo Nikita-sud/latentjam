@@ -167,7 +167,9 @@ internal class SmartChain(
         // artist/album dump while avoiding the old behaviour where the best neighbour was
         // forbidden merely because the user started from it.
         val seenTitles = HashSet<String>()
-        seenTitles.add(snapshot.tracks[seedRow].meta.normalizedTitle)
+        snapshot.tracks[seedRow].meta.normalizedTitle
+            .takeIf(String::isNotEmpty)
+            ?.let(seenTitles::add)
         val artistPlays = HashMap<String, Int>()
 
         // Seed-relative semantic z: computed once against the ORIGINAL pick, constant for the walk.
@@ -181,7 +183,7 @@ internal class SmartChain(
             if (i in used) return false
             val meta = snapshot.tracks[pool[i]].meta
             if (meta.artistKey in recentArtists) return false
-            if (meta.normalizedTitle in seenTitles) return false
+            if (meta.normalizedTitle.isNotEmpty() && meta.normalizedTitle in seenTitles) return false
             if ((artistPlays[meta.artistKey] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP) return false
             return true
         }
@@ -311,7 +313,7 @@ internal class SmartChain(
             used.add(bestIndex)
             val pickedMeta = snapshot.tracks[pickedRow].meta
             if (MetadataRerank.normalizeGenre(pickedMeta.genre) == seedGenre) seedFamilyPicks++
-            seenTitles.add(pickedMeta.normalizedTitle)
+            if (pickedMeta.normalizedTitle.isNotEmpty()) seenTitles.add(pickedMeta.normalizedTitle)
             artistPlays[pickedMeta.artistKey] = (artistPlays[pickedMeta.artistKey] ?: 0) + 1
             recentArtists.addLast(pickedMeta.artistKey)
             while (recentArtists.size > ChainConfig.CHAIN_ARTIST_SPACING) recentArtists.removeFirst()

@@ -46,6 +46,30 @@ class MusicEntityIndexTest {
         assertNull(MusicEntityIndex.parse(pack("name" to intArrayOf(1)).copyOf(24)))
     }
 
+    @Test
+    fun `hash table must be strictly sorted for binary search`() {
+        val bytes = pack(
+            "alpha" to intArrayOf(1),
+            "beta" to intArrayOf(2),
+        )
+        val first = bytes.copyOfRange(20, 36)
+        val second = bytes.copyOfRange(36, 52)
+        second.copyInto(bytes, destinationOffset = 20)
+        first.copyInto(bytes, destinationOffset = 36)
+
+        assertNull(MusicEntityIndex.parse(bytes))
+    }
+
+    @Test
+    fun `every entity value slice must be bounded sorted and refer to a known entity`() {
+        val outOfBounds = pack("name" to intArrayOf(1))
+        writeInt(outOfBounds, 20 + 8, 1)
+
+        assertNull(MusicEntityIndex.parse(outOfBounds))
+        assertNull(MusicEntityIndex.parse(pack("name" to intArrayOf(2, 1))))
+        assertNull(MusicEntityIndex.parse(pack("name" to intArrayOf(100))))
+    }
+
     private fun pack(vararg mappings: Pair<String, IntArray>): ByteArray {
         val ordered = mappings
             .map { (key, values) -> MusicEntityIndex.fnv1a64(key.encodeToByteArray()) to values }

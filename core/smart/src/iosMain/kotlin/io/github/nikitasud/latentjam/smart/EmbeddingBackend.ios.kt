@@ -14,15 +14,32 @@ internal class IosEmbeddingBackend(
     private val config: SmartEngineConfig,
 ) : EmbeddingBackend {
 
+    private var lease: IosInferenceLease? = null
+
     override suspend fun loadModel(): Result<Unit> {
-        val provider = IosInferenceRegistry.current()
+        val existingLease = lease?.takeIf { it.currentProvider() != null }
+        if (existingLease == null) {
+            lease?.release()
+            lease = null
+        }
+        val activeLease = existingLease ?: IosInferenceRegistry.acquire()
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        val provider = activeLease.currentProvider() ?: run {
+            if (existingLease == null) activeLease.release()
+            return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        }
         val error = provider.loadAudio()
-        return if (error == null) Result.success(Unit) else backendFailure(error)
+        return if (error == null) {
+            lease = activeLease
+            Result.success(Unit)
+        } else {
+            if (existingLease == null) activeLease.release()
+            backendFailure(error)
+        }
     }
 
     override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
-        val provider = IosInferenceRegistry.current()
+        val provider = lease?.currentProvider()
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
         val uri = descriptor.audioUri
             ?: return audioUnavailable("No audio URI")
@@ -42,7 +59,7 @@ internal class IosEmbeddingBackend(
         if (embeddings.any { it.size != config.embeddingDim || !it.all(Float::isFinite) }) {
             return backendFailure("Semantic head received an invalid embedding batch")
         }
-        val provider = IosInferenceRegistry.current()
+        val provider = lease?.currentProvider()
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
         provider.loadSemantic()?.let { return backendFailure(it) }
         val flattened = FloatArray(embeddings.size * config.embeddingDim)
@@ -71,7 +88,10 @@ internal class IosEmbeddingBackend(
         )
     }
 
-    override fun close(): Unit = Unit
+    override fun close(): Unit {
+        lease?.release()
+        lease = null
+    }
 
     private fun <T> backendFailure(message: String): Result<T> =
         Result.failure(SmartEngineException(EngineError.BackendFailure(message)))

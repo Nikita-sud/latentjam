@@ -62,11 +62,64 @@ public interface IosInferenceProvider {
 /** Process-local handoff installed by the Swift app before Compose starts. */
 public object IosInferenceRegistry {
     private var installed: IosInferenceProvider? = null
+    private var generation: Long = 0L
+    private var activeLeases: Int = 0
 
     public fun install(provider: IosInferenceProvider): Unit {
         installed?.close()
+        generation++
+        activeLeases = 0
         installed = provider
     }
 
     public fun current(): IosInferenceProvider? = installed
+
+    /**
+     * Acquires one engine-subsystem lease on the installed provider.
+     *
+     * The registry retains the app-owned provider itself after the final lease is released. Only
+     * the provider's native sessions are closed, so a later engine initialization can lazily load
+     * them again without requiring Swift to reinstall its provider object.
+     */
+    internal fun acquire(): IosInferenceLease? {
+        val provider = installed ?: return null
+        activeLeases++
+        return IosInferenceLease(provider = provider, generation = generation)
+    }
+
+    internal fun providerFor(lease: IosInferenceLease): IosInferenceProvider? =
+        installed?.takeIf { provider ->
+            provider === lease.provider && lease.generation == generation
+        }
+
+    internal fun release(lease: IosInferenceLease): Unit {
+        if (providerFor(lease) == null) return
+        check(activeLeases > 0) { "iOS inference lease count underflow" }
+        activeLeases--
+        if (activeLeases == 0) installed?.close()
+    }
+
+    internal fun resetForTests(): Unit {
+        installed?.close()
+        installed = null
+        generation++
+        activeLeases = 0
+    }
+}
+
+/** Idempotent ownership token for one iOS SMART subsystem. */
+internal class IosInferenceLease internal constructor(
+    internal val provider: IosInferenceProvider,
+    internal val generation: Long,
+) {
+    private var released: Boolean = false
+
+    internal fun currentProvider(): IosInferenceProvider? =
+        if (released) null else IosInferenceRegistry.providerFor(this)
+
+    internal fun release(): Unit {
+        if (released) return
+        released = true
+        IosInferenceRegistry.release(this)
+    }
 }

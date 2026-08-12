@@ -81,6 +81,12 @@ internal object MetadataRerank {
             .replace(WHITESPACE, " ")
             .trim()
 
+    /** Canonical artist key shared by pairwise scoring, queue spacing, and per-artist caps. */
+    fun normalizeArtist(artist: String?): String =
+        artist.orEmpty().lowercase()
+            .replace(WHITESPACE, " ")
+            .trim()
+
     /**
      * Pairwise multiplier between the chain's current anchor and a candidate. Base 1.0; the caller
      * clamps and takes the logarithm.
@@ -90,12 +96,7 @@ internal object MetadataRerank {
         if (!anchor.album.isNullOrEmpty() && anchor.album == candidate.album) {
             multiplier -= SAME_ALBUM_PENALTY
         }
-        val anchorArtist = anchor.artist?.trim()
-        val candidateArtist = candidate.artist?.trim()
-        if (!anchorArtist.isNullOrEmpty() &&
-            !candidateArtist.isNullOrEmpty() &&
-            anchorArtist.equals(candidateArtist, ignoreCase = true)
-        ) {
+        if (anchor.artistKey.isNotEmpty() && anchor.artistKey == candidate.artistKey) {
             // Only one such neighbour can appear before artist spacing activates, so this modest
             // confidence signal improves the first hop without turning SMART into "play artist".
             multiplier *= SAME_ARTIST_BONUS
@@ -153,5 +154,5 @@ internal data class TrackMeta(
      * deliberately: they behave as one artist, so a run of them gets spaced apart like any other
      * repeat rather than clustering because nothing identified them.
      */
-    val artistKey: String = artist.orEmpty()
+    val artistKey: String = MetadataRerank.normalizeArtist(artist)
 }

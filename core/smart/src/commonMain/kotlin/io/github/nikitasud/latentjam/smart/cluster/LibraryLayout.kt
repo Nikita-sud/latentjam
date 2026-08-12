@@ -15,6 +15,17 @@ public data class LayoutPoint(
     public val y: Float,
 )
 
+/** Persisted positions plus the vector content identity they were computed from. */
+public data class StoredLibraryLayout(
+    /** Always safe to use as a warm start, even when [fingerprint] is stale or absent. */
+    public val positions: Map<TrackId, FloatArray>,
+    /** `null` for a missing, legacy, or malformed metadata entry. */
+    public val fingerprint: Long?,
+)
+
+private fun FloatArray.isUsableLayoutPosition(): Boolean =
+    size == 2 && this[0].isFinite() && this[1].isFinite()
+
 /**
  * The library's 2-D shape.
  *
@@ -34,7 +45,7 @@ public object LibraryLayout {
      * Layout identity. Part of the cache key, so bumping it invalidates every stored map — which
      * is the point: a different algorithm is a different picture.
      */
-    public const val VERSION: String = "tsne-p20-pca50-v1"
+    public const val VERSION: String = "tsne-p20-pca50-v2"
 
     /** Pre-reduction width. Measured: keeping this step is worth ~0.01 on both quality metrics. */
     public const val COMPONENTS: Int = 50
@@ -137,7 +148,26 @@ public object LibraryLayout {
      * it is kept under [VERSION] alone rather than under a key that encodes the track set.
      */
     public fun covers(stored: Map<TrackId, FloatArray>, trackIds: List<TrackId>): Boolean =
-        stored.size == trackIds.size && stored.keys.containsAll(trackIds)
+        stored.size == trackIds.size &&
+            stored.keys.containsAll(trackIds) &&
+            stored.values.all(FloatArray::isUsableLayoutPosition)
+
+    /**
+     * Whether [stored] is drawable as-is for both the selected population and its raw vector
+     * content. A false result deliberately leaves [StoredLibraryLayout.positions] available to
+     * [compute] as a warm start.
+     */
+    public fun covers(
+        stored: StoredLibraryLayout,
+        trackIds: List<TrackId>,
+        fingerprint: Long,
+    ): Boolean = stored.fingerprint == fingerprint && covers(stored.positions, trackIds)
+
+    /** Convenience overload for the coverage object callers already have. */
+    public fun covers(
+        stored: StoredLibraryLayout,
+        coverage: LibraryVectorCoverage,
+    ): Boolean = covers(stored, coverage.trackIds, coverage.fingerprint)
 
     /**
      * Aligns [embedded] to [previous] via [applyTransform], or leaves it untouched when there
@@ -153,7 +183,9 @@ public object LibraryLayout {
         previous: Map<TrackId, FloatArray>,
         n: Int,
     ): FloatArray {
-        val overlap = ids.withIndex().filter { previous.containsKey(it.value) }
+        val overlap = ids.withIndex().filter {
+            previous[it.value]?.isUsableLayoutPosition() == true
+        }
         if (overlap.size < MIN_ALIGNMENT_OVERLAP) return embedded
         val candidate = FloatArray(overlap.size * 2)
         val reference = FloatArray(overlap.size * 2)
@@ -245,7 +277,7 @@ public object LibraryLayout {
         var cy = 0f
         for (id in ids) {
             val stored = previous[id] ?: continue
-            if (stored.size < 2) continue
+            if (!stored.isUsableLayoutPosition()) continue
             covered++
             cx += stored[0]
             cy += stored[1]
@@ -256,7 +288,7 @@ public object LibraryLayout {
         val out = FloatArray(n * 2)
         ids.forEachIndexed { row, id ->
             val stored = previous[id]
-            if (stored != null && stored.size >= 2) {
+            if (stored != null && stored.isUsableLayoutPosition()) {
                 out[row * 2] = stored[0]
                 out[row * 2 + 1] = stored[1]
             } else {
@@ -457,16 +489,111 @@ public object LibraryLayout {
     }
 }
 
-/**
- * Reads whatever layout is stored, current or not.
- *
- * Always returns a map rather than a nullable, because a stale layout is not a miss — it is the
- * warm start. Ask [LibraryLayout.covers] whether it can also be drawn as-is.
+/*
+ * IndexStore intentionally supports one uniform vector width per snapshot. Layout coordinates are
+ * two floats, so fingerprint metadata must also be two finite floats: iOS drops non-finite rows on
+ * decode. The finite-pattern codec below retains all 63 bits emitted by LibraryVectorFusion while
+ * avoiding every NaN/infinity bit pattern.
  */
-public suspend fun IndexStore.loadLayout(): Map<TrackId, FloatArray> =
-    load(LibraryLayout.VERSION).orEmpty()
+private const val STORED_TRACK_PREFIX: String = "\u0000lj-layout-track:"
+private val STORED_FINGERPRINT_KEY: TrackId = TrackId("\u0000lj-layout-meta:fingerprint")
+private const val POSITIVE_FINITE_PATTERN_COUNT: Long = 0x7f800000L
+private const val FINITE_PATTERN_COUNT: Long = 0xff000000L
+private const val FLOAT_SIGN_BIT: Long = 0x80000000L
+private const val UNSIGNED_INT_MASK: Long = 0xffffffffL
 
-/** Replaces the stored layout. Positions persist as 2-float vectors, so no new format is needed. */
+private fun storedTrackKey(trackId: TrackId): TrackId =
+    TrackId("$STORED_TRACK_PREFIX${trackId.value.length}:${trackId.value}")
+
+private fun TrackId.realTrackIdOrNull(): TrackId? {
+    if (!value.startsWith(STORED_TRACK_PREFIX)) return null
+    val lengthEnd = value.indexOf(':', startIndex = STORED_TRACK_PREFIX.length)
+    if (lengthEnd < 0) return null
+    val expectedLength = value.substring(STORED_TRACK_PREFIX.length, lengthEnd).toIntOrNull()
+        ?: return null
+    if (expectedLength < 0) return null
+    val realValue = value.substring(lengthEnd + 1)
+    return realValue.takeIf { it.length == expectedLength }?.let(::TrackId)
+}
+
+private fun finiteFloatForCode(code: Long): Float {
+    require(code in 0 until FINITE_PATTERN_COUNT)
+    val rawBits = if (code < POSITIVE_FINITE_PATTERN_COUNT) {
+        code
+    } else {
+        FLOAT_SIGN_BIT + code - POSITIVE_FINITE_PATTERN_COUNT
+    }
+    return Float.fromBits(rawBits.toInt()).also { check(it.isFinite()) }
+}
+
+private fun Float.finiteCodeOrNull(): Long? {
+    if (!isFinite()) return null
+    val rawBits = toRawBits().toLong() and UNSIGNED_INT_MASK
+    return if (rawBits < FLOAT_SIGN_BIT) {
+        rawBits
+    } else {
+        POSITIVE_FINITE_PATTERN_COUNT + rawBits - FLOAT_SIGN_BIT
+    }
+}
+
+private fun encodeFingerprint(fingerprint: Long): FloatArray {
+    require(fingerprint >= 0L) { "Library vector fingerprints must be non-negative" }
+    return floatArrayOf(
+        finiteFloatForCode(fingerprint / FINITE_PATTERN_COUNT),
+        finiteFloatForCode(fingerprint % FINITE_PATTERN_COUNT),
+    )
+}
+
+private fun FloatArray.decodeFingerprintOrNull(): Long? {
+    if (size != 2) return null
+    val high = this[0].finiteCodeOrNull() ?: return null
+    val low = this[1].finiteCodeOrNull() ?: return null
+    if (high > Long.MAX_VALUE / FINITE_PATTERN_COUNT) return null
+    val prefix = high * FINITE_PATTERN_COUNT
+    if (low > Long.MAX_VALUE - prefix) return null
+    return prefix + low
+}
+
+/**
+ * Reads the current layout snapshot. A missing/corrupt fingerprint is a cache miss, while every
+ * valid decoded position remains available as a warm start.
+ */
+public suspend fun IndexStore.loadStoredLayout(): StoredLibraryLayout {
+    val stored = load(LibraryLayout.VERSION).orEmpty()
+    val positions = LinkedHashMap<TrackId, FloatArray>(stored.size)
+    for ((storedId, vector) in stored) {
+        if (storedId == STORED_FINGERPRINT_KEY) continue
+        val realId = storedId.realTrackIdOrNull() ?: continue
+        if (vector.isUsableLayoutPosition()) positions[realId] = vector.copyOf()
+    }
+    return StoredLibraryLayout(
+        positions = positions,
+        fingerprint = stored[STORED_FINGERPRINT_KEY]?.decodeFingerprintOrNull(),
+    )
+}
+
+/** Compatibility view for callers that only need warm-start positions. */
+public suspend fun IndexStore.loadLayout(): Map<TrackId, FloatArray> =
+    loadStoredLayout().positions
+
+/** Replaces the positions and records the vector content they represent. */
+public suspend fun IndexStore.saveLayout(points: List<LayoutPoint>, fingerprint: Long) {
+    saveLayoutEntries(points, fingerprint)
+}
+
+/** Compatibility overload for callers migrating from the population-only cache identity. */
 public suspend fun IndexStore.saveLayout(points: List<LayoutPoint>) {
-    save(LibraryLayout.VERSION, points.associate { it.trackId to floatArrayOf(it.x, it.y) })
+    saveLayoutEntries(points, fingerprint = null)
+}
+
+private suspend fun IndexStore.saveLayoutEntries(points: List<LayoutPoint>, fingerprint: Long?) {
+    val entries = LinkedHashMap<TrackId, FloatArray>(points.size + 1)
+    for (point in points) {
+        require(point.x.isFinite() && point.y.isFinite()) {
+            "Layout position for ${point.trackId.value} must be finite"
+        }
+        entries[storedTrackKey(point.trackId)] = floatArrayOf(point.x, point.y)
+    }
+    if (fingerprint != null) entries[STORED_FINGERPRINT_KEY] = encodeFingerprint(fingerprint)
+    save(LibraryLayout.VERSION, entries)
 }

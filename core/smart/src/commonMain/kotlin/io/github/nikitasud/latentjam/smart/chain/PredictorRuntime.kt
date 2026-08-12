@@ -121,6 +121,24 @@ public interface PredictorRuntime {
 }
 
 /**
+ * Applies the fixed predictor tensor contract before model output reaches queue arithmetic.
+ *
+ * A backend can successfully execute while still returning a malformed tensor (for example after
+ * a mismatched asset update). Treat that exactly like an unavailable model: the chain already has
+ * a deterministic geometry-only fallback, while a short or non-finite array would either crash in
+ * the scoring loop or poison every candidate score with `NaN`.
+ */
+internal fun validatedPredictorOutput(
+    output: FloatArray?,
+    expectedSize: Int,
+): FloatArray? {
+    require(expectedSize >= 0) { "Expected output size must not be negative" }
+    return output?.takeIf { values ->
+        values.size == expectedSize && values.all(Float::isFinite)
+    }
+}
+
+/**
  * Koin bindings for this platform's [PredictorRuntime]. Android resolves an
  * `android.content.Context` from the graph for asset access; iOS has no extra requirements.
  */

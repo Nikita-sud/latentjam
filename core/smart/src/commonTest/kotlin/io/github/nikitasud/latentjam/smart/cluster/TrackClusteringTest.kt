@@ -11,6 +11,7 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
@@ -191,6 +192,42 @@ class TrackClusteringTest {
         assertTrue(zeroed.none { it in clustered }, "a zero vector was clustered")
         assertTrue(wrongSize !in clustered, "a wrong-dimension vector was clustered")
         assertEquals(40, clustered.size)
+    }
+
+    @Test
+    fun `non-finite vectors are excluded before they can poison centroids`() {
+        val (ids, vectors) = twoClouds(count = 20)
+        val nan = TrackId("nan")
+        val positiveInfinity = TrackId("positive-infinity")
+        val negativeInfinity = TrackId("negative-infinity")
+        val malformed = mapOf(
+            nan to FloatArray(dim).also { it[2] = Float.NaN },
+            positiveInfinity to FloatArray(dim).also { it[3] = Float.POSITIVE_INFINITY },
+            negativeInfinity to FloatArray(dim).also { it[4] = Float.NEGATIVE_INFINITY },
+        )
+
+        val clusters = TrackClustering.cluster(
+            ids = ids + malformed.keys,
+            vectors = vectors + malformed,
+            dim = dim,
+            k = 2,
+        )
+        val clustered = clusters.flatMap(TrackCluster::members).toSet()
+
+        assertTrue(malformed.keys.none { it in clustered })
+        assertEquals(40, clustered.size)
+    }
+
+    @Test
+    fun `a non-positive iteration count is rejected instead of returning invalid assignments`() {
+        val (ids, vectors) = twoClouds(count = 4)
+
+        assertFailsWith<IllegalArgumentException> {
+            TrackClustering.cluster(ids, vectors, dim, iterations = 0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TrackClustering.cluster(ids, vectors, dim, iterations = -1)
+        }
     }
 
     @Test

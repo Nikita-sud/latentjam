@@ -16,9 +16,12 @@ package io.github.nikitasud.latentjam.smart
 public object Genres {
 
     /**
-     * Substring → family. ORDER MATTERS: the first needle found wins, so `Pop Rock` resolves to
-     * `rock` because `rock` is listed above `pop`. Reordering this list silently re-labels part of
-     * every library.
+     * Token/phrase → family. ORDER MATTERS: the first alias found wins, so `Pop Rock` resolves
+     * to `rock` because `rock` is listed above `pop`. Reordering this list silently re-labels part
+     * of every library.
+     *
+     * Matching whole words is load-bearing. A substring check labels `Chiptune` as rap because it
+     * contains `hip`, and similarly lets ordinary words such as `popular` masquerade as genres.
      */
     private val ALIASES = listOf(
         "hip" to "rap", "rap" to "rap", "trap" to "rap", "phonk" to "rap",
@@ -39,8 +42,36 @@ public object Genres {
     public fun normalize(genre: String?): String? {
         val raw = genre?.lowercase()?.trim().orEmpty()
         if (raw.isEmpty() || raw == "<unknown>" || raw == "unknown" || raw == "other") return null
-        for ((needle, family) in ALIASES) if (needle in raw) return family
+        val tokens = tokenize(raw)
+        for ((phrase, family) in ALIASES) {
+            val phraseTokens = phrase.split(' ')
+            if (tokens.containsPhrase(phraseTokens)) return family
+        }
         return raw
+    }
+
+    /** Common-code tokenizer; unlike `String.split`, this keeps Unicode letter boundaries. */
+    private fun tokenize(value: String): List<String> {
+        val tokens = ArrayList<String>()
+        var start = -1
+        for (index in value.indices) {
+            if (value[index].isLetterOrDigit()) {
+                if (start < 0) start = index
+            } else if (start >= 0) {
+                tokens.add(value.substring(start, index))
+                start = -1
+            }
+        }
+        if (start >= 0) tokens.add(value.substring(start))
+        return tokens
+    }
+
+    private fun List<String>.containsPhrase(phrase: List<String>): Boolean {
+        if (phrase.isEmpty() || phrase.size > size) return false
+        for (start in 0..size - phrase.size) {
+            if (phrase.indices.all { offset -> this[start + offset] == phrase[offset] }) return true
+        }
+        return false
     }
 
     private val HUB_TOKENS = setOf(

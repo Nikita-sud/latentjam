@@ -28,6 +28,12 @@ public class LibraryVectorSpace internal constructor(
     rows: FloatArray,
     public val dim: Int,
     public val source: LibraryVectorSource,
+    /**
+     * Stable identity of [source], [trackIds], and every raw usable modality vector selected for
+     * this space. Unlike the normalized, one-shot row matrix, this remains available after
+     * clustering so callers can validate content-addressed caches.
+     */
+    public val fingerprint: Long = 0L,
 ) {
     private var ownedRows: FloatArray? = rows
 
@@ -65,6 +71,8 @@ public class LibraryVectorCoverage internal constructor(
     /** Exactly the ids [LibraryVectorFusion.build] would put in [LibraryVectorSpace.trackIds]. */
     public val trackIds: List<TrackId>,
     public val source: LibraryVectorSource,
+    /** The same content fingerprint [LibraryVectorFusion.build] exposes on its vector space. */
+    public val fingerprint: Long,
 ) {
     public val size: Int get() = trackIds.size
 }
@@ -116,16 +124,16 @@ public object LibraryVectorFusion {
         validateParameters(audioDim, metadataDim, metadataWeight, minHybridCoverage)
         val stableIds = ids.distinct()
         if (stableIds.isEmpty()) return null
-        val audioIds = stableIds.filterTo(LinkedHashSet()) {
-            audio[it].isUsable(audioDim)
-        }
-        val metadataIds = stableIds.filterTo(LinkedHashSet()) {
-            metadata[it].isUsable(metadataDim)
-        }
+        val inventory = inventory(
+            stableIds = stableIds,
+            audio = audio::get,
+            metadata = metadata::get,
+            audioDim = audioDim,
+            metadataDim = metadataDim,
+        )
         return buildSelected(
             stableIds = stableIds,
-            audioIds = audioIds,
-            metadataIds = metadataIds,
+            inventory = inventory,
             audio = audio::get,
             metadata = metadata::get,
             audioDim = audioDim,
@@ -152,10 +160,16 @@ public object LibraryVectorFusion {
         validateParameters(audioDim, metadataDim, METADATA_WEIGHT, minHybridCoverage)
         val stableIds = ids.distinct()
         if (stableIds.isEmpty()) return null
+        val inventory = inventory(
+            stableIds = stableIds,
+            audio = audio::get,
+            metadata = metadata::get,
+            audioDim = audioDim,
+            metadataDim = metadataDim,
+        )
         return select(
             stableIds = stableIds,
-            audioIds = stableIds.filterTo(LinkedHashSet()) { audio[it].isUsable(audioDim) },
-            metadataIds = stableIds.filterTo(LinkedHashSet()) { metadata[it].isUsable(metadataDim) },
+            inventory = inventory,
             minHybridCoverage = minHybridCoverage,
         )
     }
@@ -178,12 +192,16 @@ public object LibraryVectorFusion {
         validateParameters(audioDim, metadataDim, METADATA_WEIGHT, minHybridCoverage)
         val stableIds = ids.distinct()
         if (stableIds.isEmpty()) return null
+        val inventory = inventory(
+            stableIds = stableIds,
+            audio = audio::vector,
+            metadata = { id -> metadata?.vector(id) },
+            audioDim = audioDim,
+            metadataDim = metadataDim,
+        )
         return select(
             stableIds = stableIds,
-            audioIds = stableIds.filterTo(LinkedHashSet()) { audio.vector(it).isUsable(audioDim) },
-            metadataIds = stableIds.filterTo(LinkedHashSet()) {
-                metadata?.vector(it).isUsable(metadataDim)
-            },
+            inventory = inventory,
             minHybridCoverage = minHybridCoverage,
         )
     }
@@ -197,26 +215,30 @@ public object LibraryVectorFusion {
      */
     private fun select(
         stableIds: List<TrackId>,
-        audioIds: Set<TrackId>,
-        metadataIds: Set<TrackId>,
+        inventory: VectorInventory,
         minHybridCoverage: Float,
     ): LibraryVectorCoverage? {
+        val audioIds = inventory.audioIds
+        val metadataIds = inventory.metadataIds
         val sharedCount = audioIds.count(metadataIds::contains)
         val sharedCoverage = sharedCount.toFloat() / stableIds.size
         if (sharedCount > 0 && sharedCoverage >= minHybridCoverage) {
-            return LibraryVectorCoverage(
+            return coverage(
                 trackIds = stableIds.filter { it in audioIds || it in metadataIds },
                 source = LibraryVectorSource.AUDIO_AND_METADATA,
+                inventory = inventory,
             )
         }
         return when {
-            metadataIds.isNotEmpty() && metadataIds.size >= audioIds.size -> LibraryVectorCoverage(
+            metadataIds.isNotEmpty() && metadataIds.size >= audioIds.size -> coverage(
                 trackIds = stableIds.filter(metadataIds::contains),
                 source = LibraryVectorSource.METADATA,
+                inventory = inventory,
             )
-            audioIds.isNotEmpty() -> LibraryVectorCoverage(
+            audioIds.isNotEmpty() -> coverage(
                 trackIds = stableIds.filter(audioIds::contains),
                 source = LibraryVectorSource.AUDIO,
+                inventory = inventory,
             )
             else -> null
         }
@@ -239,16 +261,16 @@ public object LibraryVectorFusion {
         validateParameters(audioDim, metadataDim, metadataWeight, minHybridCoverage)
         val stableIds = ids.distinct()
         if (stableIds.isEmpty()) return null
-        val audioIds = stableIds.filterTo(LinkedHashSet()) {
-            audio.vector(it).isUsable(audioDim)
-        }
-        val metadataIds = stableIds.filterTo(LinkedHashSet()) {
-            metadata?.vector(it).isUsable(metadataDim)
-        }
+        val inventory = inventory(
+            stableIds = stableIds,
+            audio = audio::vector,
+            metadata = { id -> metadata?.vector(id) },
+            audioDim = audioDim,
+            metadataDim = metadataDim,
+        )
         return buildSelected(
             stableIds = stableIds,
-            audioIds = audioIds,
-            metadataIds = metadataIds,
+            inventory = inventory,
             audio = audio::vector,
             metadata = { id -> metadata?.vector(id) },
             audioDim = audioDim,
@@ -260,8 +282,7 @@ public object LibraryVectorFusion {
 
     private fun buildSelected(
         stableIds: List<TrackId>,
-        audioIds: Set<TrackId>,
-        metadataIds: Set<TrackId>,
+        inventory: VectorInventory,
         audio: (TrackId) -> FloatArray?,
         metadata: (TrackId) -> FloatArray?,
         audioDim: Int,
@@ -269,7 +290,9 @@ public object LibraryVectorFusion {
         metadataWeight: Float,
         minHybridCoverage: Float,
     ): LibraryVectorSpace? {
-        val selection = select(stableIds, audioIds, metadataIds, minHybridCoverage) ?: return null
+        val selection = select(stableIds, inventory, minHybridCoverage) ?: return null
+        val audioIds = inventory.audioIds
+        val metadataIds = inventory.metadataIds
         if (selection.source == LibraryVectorSource.AUDIO_AND_METADATA) {
             val selectedIds = selection.trackIds
             val dim = audioDim + metadataDim
@@ -277,8 +300,12 @@ public object LibraryVectorFusion {
             val audioScale = sqrt(1f - metadataWeight)
             val metadataScale = sqrt(metadataWeight)
             for ((row, id) in selectedIds.withIndex()) {
-                val audioVector = audio(id)
-                val metadataVector = metadata(id)
+                // A track can enter a hybrid through just one usable modality. Do not re-read a
+                // non-null but malformed row that the inventory deliberately excluded: treating
+                // mere presence as usability used to feed a wrong-sized/NaN vector into
+                // copyNormalized and either throw or poison the whole layout.
+                val audioVector = if (id in audioIds) audio(id) else null
+                val metadataVector = if (id in metadataIds) metadata(id) else null
                 val base = row * dim
                 if (audioVector != null) {
                     // With no metadata, the available modality carries the full unit norm. Against
@@ -297,6 +324,7 @@ public object LibraryVectorFusion {
                 rows = rows,
                 dim = dim,
                 source = LibraryVectorSource.AUDIO_AND_METADATA,
+                fingerprint = selection.fingerprint,
             )
         }
 
@@ -306,12 +334,14 @@ public object LibraryVectorFusion {
                 vectors = metadata,
                 dim = metadataDim,
                 source = LibraryVectorSource.METADATA,
+                fingerprint = selection.fingerprint,
             )
             LibraryVectorSource.AUDIO -> singleSpace(
                 ids = selection.trackIds,
                 vectors = audio,
                 dim = audioDim,
                 source = LibraryVectorSource.AUDIO,
+                fingerprint = selection.fingerprint,
             )
             // Handled above; listed so a new source cannot be added without deciding its rows.
             LibraryVectorSource.AUDIO_AND_METADATA -> null
@@ -323,13 +353,123 @@ public object LibraryVectorFusion {
         vectors: (TrackId) -> FloatArray?,
         dim: Int,
         source: LibraryVectorSource,
+        fingerprint: Long,
     ): LibraryVectorSpace {
         val rows = FloatArray(ids.size * dim)
         for ((row, id) in ids.withIndex()) {
             copyNormalized(checkNotNull(vectors(id)), rows, row * dim, dim, scale = 1f)
         }
-        return LibraryVectorSpace(ids, rows, dim, source)
+        return LibraryVectorSpace(ids, rows, dim, source, fingerprint)
     }
+
+    private class VectorInventory(
+        val audioIds: Set<TrackId>,
+        val metadataIds: Set<TrackId>,
+        val audioFingerprint: Long,
+        val metadataFingerprint: Long,
+    )
+
+    /**
+     * Scans each candidate once per modality. The digests let coverage and materialization derive
+     * exactly the same identity without retaining the raw index rows beside the output matrix.
+     */
+    private fun inventory(
+        stableIds: List<TrackId>,
+        audio: (TrackId) -> FloatArray?,
+        metadata: (TrackId) -> FloatArray?,
+        audioDim: Int,
+        metadataDim: Int,
+    ): VectorInventory {
+        // Library scans may return the same ids in a different order. The matrix keeps caller
+        // order, but cache identity is content identity and therefore uses one canonical order.
+        val canonicalIds = stableIds.sortedBy { it.value }
+        val audioIds = LinkedHashSet<TrackId>()
+        val audioFingerprint = Fingerprint64().apply {
+            putString("audio")
+            for (id in canonicalIds) {
+                val vector = audio(id)
+                if (vector != null && vector.isUsable(audioDim)) {
+                    audioIds += id
+                    putString(id.value)
+                    putVector(vector)
+                }
+            }
+        }.value
+
+        val metadataIds = LinkedHashSet<TrackId>()
+        val metadataFingerprint = Fingerprint64().apply {
+            putString("metadata")
+            for (id in canonicalIds) {
+                val vector = metadata(id)
+                if (vector != null && vector.isUsable(metadataDim)) {
+                    metadataIds += id
+                    putString(id.value)
+                    putVector(vector)
+                }
+            }
+        }.value
+
+        return VectorInventory(
+            audioIds = audioIds,
+            metadataIds = metadataIds,
+            audioFingerprint = audioFingerprint,
+            metadataFingerprint = metadataFingerprint,
+        )
+    }
+
+    private fun coverage(
+        trackIds: List<TrackId>,
+        source: LibraryVectorSource,
+        inventory: VectorInventory,
+    ): LibraryVectorCoverage {
+        val fingerprint = Fingerprint64().apply {
+            putString("latentjam-library-vector-content-v1")
+            putString(source.name)
+            putInt(trackIds.size)
+            trackIds.sortedBy { it.value }.forEach { putString(it.value) }
+            when (source) {
+                LibraryVectorSource.AUDIO -> putLong(inventory.audioFingerprint)
+                LibraryVectorSource.METADATA -> putLong(inventory.metadataFingerprint)
+                LibraryVectorSource.AUDIO_AND_METADATA -> {
+                    putLong(inventory.audioFingerprint)
+                    putLong(inventory.metadataFingerprint)
+                }
+            }
+        }.value and Long.MAX_VALUE
+        return LibraryVectorCoverage(trackIds, source, fingerprint)
+    }
+
+    /** A small, platform-independent FNV-1a encoder with explicit length framing. */
+    private class Fingerprint64 {
+        var value: Long = FNV_OFFSET_BASIS
+            private set
+
+        fun putInt(input: Int) {
+            for (shift in 24 downTo 0 step 8) putByte(input ushr shift)
+        }
+
+        fun putLong(input: Long) {
+            for (shift in 56 downTo 0 step 8) putByte((input ushr shift).toInt())
+        }
+
+        fun putString(input: String) {
+            val bytes = input.encodeToByteArray()
+            putInt(bytes.size)
+            bytes.forEach { putByte(it.toInt()) }
+        }
+
+        fun putVector(input: FloatArray) {
+            putInt(input.size)
+            input.forEach { putInt(it.toRawBits()) }
+        }
+
+        private fun putByte(input: Int) {
+            value = (value xor (input and 0xff).toLong()) * FNV_PRIME
+        }
+    }
+
+    private const val FNV_OFFSET_BASIS: Long = -3750763034362895579L
+    private const val FNV_PRIME: Long = 1099511628211L
 
     private fun copyNormalized(
         vector: FloatArray,

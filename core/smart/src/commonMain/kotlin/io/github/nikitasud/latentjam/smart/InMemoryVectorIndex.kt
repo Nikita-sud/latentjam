@@ -41,6 +41,9 @@ public class InMemoryVectorIndex(
         require(vector.size == dim) {
             "Vector for ${id.value} has dimension ${vector.size}, expected $dim"
         }
+        require(vector.all(Float::isFinite)) {
+            "Vector for ${id.value} contains a non-finite component"
+        }
         vectors[id] = l2Normalized(vector)
     }
 
@@ -57,6 +60,7 @@ public class InMemoryVectorIndex(
         require(query.size == dim) {
             "Query vector has dimension ${query.size}, expected $dim"
         }
+        require(query.all(Float::isFinite)) { "Query contains a non-finite component" }
         if (k <= 0 || vectors.isEmpty()) return emptyList()
         val normalizedQuery = l2Normalized(query)
         return vectors.asSequence()

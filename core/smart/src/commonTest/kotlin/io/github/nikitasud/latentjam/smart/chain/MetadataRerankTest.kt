@@ -81,6 +81,19 @@ class MetadataRerankTest {
         )
     }
 
+    @Test
+    fun `artist identity normalizes case edge whitespace and repeated whitespace`() {
+        val seed = TrackMeta("Seed", "  The   Band\t", null, null, null)
+        val neighbour = TrackMeta("Neighbour", "the band", null, null, null)
+
+        assertEquals("the band", seed.artistKey)
+        assertEquals(seed.artistKey, neighbour.artistKey)
+        assertEquals(
+            MetadataRerank.SAME_ARTIST_BONUS,
+            MetadataRerank.adjustMultiplier(seed, neighbour),
+        )
+    }
+
     private fun meta(
         title: String = "Track",
         genre: String? = null,
