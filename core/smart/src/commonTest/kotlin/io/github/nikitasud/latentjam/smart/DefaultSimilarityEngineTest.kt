@@ -70,28 +70,71 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
-    fun initializeIsIdempotent() = runTest {
+    fun initializeIsIdempotentAndNeverTouchesTheAudioBackend() = runTest {
         val harness = Harness()
         assertTrue(harness.engine.initialize().isSuccess)
         assertTrue(harness.engine.initialize().isSuccess)
-        assertEquals(1, harness.backend.loadModelCalls, "Ready engine must not reload the model")
+        assertEquals(0, harness.backend.loadModelCalls, "launch must not pay for the audio model")
     }
 
     @Test
-    fun initializeFailureIsTypedAndRetryable() = runTest {
+    fun brokenAudioModelFailsPerOperationNotStartup() = runTest {
         val harness = Harness()
+        harness.registerTriangle()
         harness.backend.loadModelResult =
             Result.failure(SmartEngineException(EngineError.ModelUnavailable))
 
-        val failure = harness.engine.initialize()
-        val exception = assertIs<SmartEngineException>(failure.exceptionOrNull())
-        assertEquals(EngineError.ModelUnavailable, exception.error)
-        assertEquals(EngineState.Failed(EngineError.ModelUnavailable), harness.engine.state.value)
-
-        harness.backend.loadModelResult = Result.success(Unit)
+        // A corrupt audio model must not brick the engine: restored vectors and
+        // the metadata fallback still serve queries without it.
         assertTrue(harness.engine.initialize().isSuccess)
-        assertEquals(2, harness.backend.loadModelCalls)
         assertEquals(EngineState.Ready(indexedCount = 0), harness.engine.state.value)
+
+        // The failure surfaces, typed, on the operation that actually needed the model…
+        val report = harness.engine.indexLibrary(listOf(seed, near))
+        assertEquals(0, report.indexed)
+        assertEquals(2, report.failed)
+        assertTrue(report.errors.values.all { it == EngineError.ModelUnavailable })
+        assertEquals(EngineState.Ready(indexedCount = 0), harness.engine.state.value)
+
+        // …and is never latched: the next operation retries the load.
+        harness.backend.loadModelResult = Result.success(Unit)
+        val retried = harness.engine.indexLibrary(listOf(seed, near))
+        assertEquals(2, retried.indexed)
+        assertEquals(2, harness.backend.loadModelCalls)
+    }
+
+    @Test
+    fun fullyIndexedLibraryNeverLoadsTheAudioModel() = runTest {
+        val harness = Harness()
+        harness.store.snapshots["test-model"] = mapOf(
+            seed.id to floatArrayOf(1f, 0f, 0f),
+            near.id to floatArrayOf(0.9f, 0.1f, 0f),
+            far.id to floatArrayOf(0f, 1f, 0f),
+        )
+        harness.engine.initialize()
+
+        val report = harness.engine.indexLibrary(listOf(seed, near, far))
+        assertEquals(3, report.skipped)
+        val result = harness.engine.nextTrack(ListeningContext(seed = seed))
+        assertEquals(near.id, assertIs<NextTrackResult.Match>(result).trackId)
+        assertEquals(
+            0,
+            harness.backend.loadModelCalls,
+            "a restored library answers every query from stored vectors",
+        )
+    }
+
+    @Test
+    fun audioModelLoadsOnceAcrossEmbeddingBatches() = runTest {
+        val harness = Harness()
+        harness.registerTriangle()
+        harness.engine.initialize()
+
+        harness.engine.indexLibrary(listOf(seed, near))
+        harness.engine.indexLibrary(listOf(seed, near, far))
+
+        assertEquals(1, harness.backend.loadModelCalls)
+        assertEquals(EngineState.Ready(indexedCount = 3), harness.engine.state.value)
     }
 
     // --------------------------------------------------------------- indexLibrary
@@ -261,9 +304,10 @@ internal class DefaultSimilarityEngineTest {
 
         assertTrue(harness.engine.initialize().isSuccess)
         // release() clears the in-memory index but NOT the persisted snapshot:
-        // re-initialize restores the three indexed tracks from the store.
+        // re-initialize restores the three indexed tracks from the store, and the
+        // restored vectors mean the audio model is not reloaded either.
         assertEquals(EngineState.Ready(indexedCount = 3), harness.engine.state.value)
-        assertEquals(2, harness.backend.loadModelCalls)
+        assertEquals(1, harness.backend.loadModelCalls)
     }
 
     // --------------------------------------------------------------- persistence

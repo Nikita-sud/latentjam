@@ -33,10 +33,13 @@ import kotlinx.coroutines.flow.StateFlow
  * callers queue rather than interleave.
  *
  * ### Lifecycle
- * `Uninitialized → initialize() → Ready → release() → Uninitialized`, with
- * `Failed` reachable from a failed [initialize] (retry allowed). The engine
- * is intended to be a process-wide singleton owned by the DI graph; whoever
- * owns the graph is responsible for calling [release] on teardown.
+ * `Uninitialized → initialize() → Ready → release() → Uninitialized`. The
+ * heavy audio model is NOT part of this transition: it loads lazily inside the
+ * first operation that must embed or classify, and a load failure surfaces as
+ * that operation's typed error (retried on the next need) rather than as a
+ * `Failed` engine — a restored index keeps serving queries regardless. The
+ * engine is intended to be a process-wide singleton owned by the DI graph;
+ * whoever owns the graph is responsible for calling [release] on teardown.
  */
 public interface SimilarityEngine {
 
@@ -47,12 +50,15 @@ public interface SimilarityEngine {
     public val state: StateFlow<EngineState>
 
     /**
-     * Loads the similarity model via the platform backend.
+     * Restores the persisted vector indexes and loads the queue-chain models
+     * (scorer, text encoder). The audio encoder itself is NOT loaded here: it
+     * loads lazily inside the first operation that must embed or classify, so
+     * a fully indexed library launches without paying tens of MB of ONNX
+     * session it may never run.
      *
      * Idempotent: calling while already [EngineState.Ready] returns success
-     * immediately without touching the backend. Calling after a failure
-     * retries. The heavy work happens on the engine's background dispatcher —
-     * never call-site's thread.
+     * immediately. The heavy work happens on the engine's background
+     * dispatcher — never call-site's thread.
      *
      * @return success, or a failure whose exception is a [SmartEngineException]
      *   carrying the typed [EngineError].

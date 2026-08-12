@@ -56,14 +56,15 @@ public sealed interface EngineError {
  */
 public sealed interface EngineState {
 
-    /** No model loaded. The state after construction and after [SimilarityEngine.release]. */
+    /** Nothing restored. The state after construction and after [SimilarityEngine.release]. */
     public data object Uninitialized : EngineState
 
-    /** [SimilarityEngine.initialize] is currently loading the model. */
+    /** [SimilarityEngine.initialize] is restoring indexes and loading the chain models. */
     public data object Initializing : EngineState
 
     /**
-     * Model loaded; queries are possible.
+     * Indexes restored; queries are possible. The audio encoder may still be
+     * unloaded — it loads lazily inside the first operation that needs it.
      *
      * @property indexedCount Number of tracks currently in the vector index.
      *   `0` means queries will fail with [EngineError.NotIndexed] until

@@ -74,53 +74,62 @@ internal class DefaultSimilarityEngine(
     private var snapshotCache: SnapshotCache? = null
     private var predictorLoaded = false
     private var textEncoderLoaded = false
+    private var audioModelLoaded = false
     private val semanticCache = LinkedHashMap<TrackId, TrackSemantics>()
 
     override val state: StateFlow<EngineState> = mutableState.asStateFlow()
 
     override suspend fun initialize(): Result<Unit> = withContext(dispatcher) {
         mutex.withLock {
-            // Idempotent: a Ready engine stays Ready; the model is not reloaded.
+            // Idempotent: a Ready engine stays Ready; nothing is reloaded.
             if (mutableState.value is EngineState.Ready) return@withLock Result.success(Unit)
             mutableState.value = EngineState.Initializing
-            backend.loadModel().fold(
-                onSuccess = {
-                    restorePersistedIndex()
-                    // The chain's models are best-effort: a missing predictor or text encoder costs
-                    // queue quality, not the ability to shuffle, so none of this can fail startup.
-                    predictorLoaded = predictor?.let {
-                        runCatching { it.load().getOrThrow() }.isSuccess
-                    } ?: false
-                    textEncoderLoaded = textEncoder?.let {
-                        runCatching { it.load().getOrThrow() }.isSuccess
-                    } ?: false
-                    if (textIndex != null && textIndex.size == 0) {
-                        runCatching { textStore?.loadSnapshot(TEXT_INDEX_VERSION) }.getOrNull()
-                            ?.let { persisted ->
-                                for ((id, vector) in persisted.entries) {
-                                    runCatching { textIndex.upsert(id, vector) }
-                                        .onSuccess {
-                                            persisted.identities[id]?.let { identity ->
-                                                textVectorIdentities[id] = identity
-                                            }
-                                        }
+            restorePersistedIndex()
+            // The chain's models are best-effort: a missing predictor or text encoder costs
+            // queue quality, not the ability to shuffle, so none of this can fail startup.
+            predictorLoaded = predictor?.let {
+                runCatching { it.load().getOrThrow() }.isSuccess
+            } ?: false
+            textEncoderLoaded = textEncoder?.let {
+                runCatching { it.load().getOrThrow() }.isSuccess
+            } ?: false
+            if (textIndex != null && textIndex.size == 0) {
+                runCatching { textStore?.loadSnapshot(TEXT_INDEX_VERSION) }.getOrNull()
+                    ?.let { persisted ->
+                        for ((id, vector) in persisted.entries) {
+                            runCatching { textIndex.upsert(id, vector) }
+                                .onSuccess {
+                                    persisted.identities[id]?.let { identity ->
+                                        textVectorIdentities[id] = identity
+                                    }
                                 }
-                            }
+                        }
                     }
-                    mutableState.value = EngineState.Ready(indexedCount = index.size)
-                    println(
-                        "SMART: models audio=ready, " +
-                            "scorer=${if (predictorLoaded) "ready" else "unavailable"}, " +
-                            "text=${if (textEncoderLoaded) "ready" else "unavailable"}",
-                    )
-                    Result.success(Unit)
-                },
-                onFailure = { throwable ->
-                    val error = throwable.toEngineError()
-                    mutableState.value = EngineState.Failed(error)
-                    Result.failure(SmartEngineException(error))
-                },
+            }
+            mutableState.value = EngineState.Ready(indexedCount = index.size)
+            println(
+                "SMART: models audio=lazy, " +
+                    "scorer=${if (predictorLoaded) "ready" else "unavailable"}, " +
+                    "text=${if (textEncoderLoaded) "ready" else "unavailable"}",
             )
+            Result.success(Unit)
+        }
+    }
+
+    /**
+     * Loads the audio encoder on first need instead of at [initialize]: a fully indexed library
+     * answers every query from stored vectors, so launches must not pay tens of MB of ONNX
+     * session for a model they may never run. Failures are returned to the operation that needed
+     * the model, never latched into [state] — the next operation retries the load, and the
+     * persisted index keeps serving queries in the meantime.
+     *
+     * Only ever called with [mutex] held, which is what makes the unguarded flag safe.
+     */
+    private suspend fun ensureAudioModel(): Result<Unit> {
+        if (audioModelLoaded) return Result.success(Unit)
+        return backend.loadModel().onSuccess {
+            audioModelLoaded = true
+            println("SMART: audio model loaded on first use")
         }
     }
 
@@ -138,17 +147,27 @@ internal class DefaultSimilarityEngine(
             val (alreadyIndexed, toEmbed) = tracks.partition { it.id in index }
             var indexed = 0
             val errors = LinkedHashMap<TrackId, EngineError>()
-            for (track in toEmbed) {
-                backend.embed(track).fold(
-                    onSuccess = { vector ->
-                        val rejection = validateAndUpsert(track, vector)
-                        if (rejection == null) indexed++ else errors[track.id] = rejection
-                    },
-                    onFailure = { throwable -> errors[track.id] = throwable.toEngineError() },
-                )
-                // Let foreground dispatchers run between independent tracks. Native inference is
-                // still serialized, but indexing no longer behaves like one unbroken CPU task.
-                yield()
+            val modelFailure = if (toEmbed.isEmpty()) {
+                null // Nothing to embed — the audio model stays unloaded.
+            } else {
+                ensureAudioModel().exceptionOrNull()?.toEngineError()
+            }
+            if (modelFailure != null) {
+                for (track in toEmbed) errors[track.id] = modelFailure
+            } else {
+                for (track in toEmbed) {
+                    backend.embed(track).fold(
+                        onSuccess = { vector ->
+                            val rejection = validateAndUpsert(track, vector)
+                            if (rejection == null) indexed++ else errors[track.id] = rejection
+                        },
+                        onFailure = { throwable -> errors[track.id] = throwable.toEngineError() },
+                    )
+                    // Let foreground dispatchers run between independent tracks. Native inference
+                    // is still serialized, but indexing no longer behaves like one unbroken CPU
+                    // task.
+                    yield()
+                }
             }
             // Text is encoded here rather than at query time: MiniLM costs milliseconds per track,
             // but a whole library of it would stall the first SMART press for seconds.
@@ -238,10 +257,15 @@ internal class DefaultSimilarityEngine(
             }
 
             val seed = context.seed
-            // Prefer the stored vector — no inference cost for indexed seeds.
+            // Prefer the stored vector — no inference cost (and no model load) for indexed seeds.
             val seedVector = index.vector(seed.id)
-                ?: backend.embed(seed).getOrElse { throwable ->
-                    return@withLock NextTrackResult.Failure(throwable.toEngineError())
+                ?: run {
+                    ensureAudioModel().onFailure { throwable ->
+                        return@withLock NextTrackResult.Failure(throwable.toEngineError())
+                    }
+                    backend.embed(seed).getOrElse { throwable ->
+                        return@withLock NextTrackResult.Failure(throwable.toEngineError())
+                    }
                 }
             if (seedVector.size != config.embeddingDim) {
                 return@withLock NextTrackResult.Failure(
@@ -311,9 +335,14 @@ internal class DefaultSimilarityEngine(
                     metadataDim = TextEncoder.TEXT_DIM,
                 ) ?: return@withLock null
                 val requested = ids.distinct()
-                val missing = requested.mapNotNull { id ->
+                var missing = requested.mapNotNull { id ->
                     if (id in semanticCache) return@mapNotNull null
                     index.vector(id)?.let { id to it }
+                }
+                // The semantic head shares the audio model's lazy load. Semantics are optional —
+                // when the model cannot load, the vector space alone still serves the mix build.
+                if (missing.isNotEmpty() && ensureAudioModel().isFailure) {
+                    missing = emptyList()
                 }
                 for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
                     val outputs = backend.classify(batch.map { it.second }).getOrNull()
@@ -390,7 +419,8 @@ internal class DefaultSimilarityEngine(
             // First-launch indexing is progressive. Whichever track the listener actually picked
             // must still be a valid anchor even when its background batch has not reached it yet.
             if (index.vector(seed.id) == null) {
-                val vector = backend.embed(seed).getOrNull()
+                val vector = ensureAudioModel().getOrNull()
+                    ?.let { backend.embed(seed).getOrNull() }
                     ?: return@withLock metadataFallback(seed, library, length, history)
                 if (validateAndUpsert(seed, vector) != null) {
                     return@withLock metadataFallback(seed, library, length, history)
@@ -514,6 +544,7 @@ internal class DefaultSimilarityEngine(
                 indexRevision++
                 predictorLoaded = false
                 textEncoderLoaded = false
+                audioModelLoaded = false
                 mutableState.value = EngineState.Uninitialized
             }
         }

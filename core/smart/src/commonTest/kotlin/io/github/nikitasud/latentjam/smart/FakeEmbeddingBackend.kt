@@ -10,6 +10,10 @@ package io.github.nikitasud.latentjam.smart
  * Returns the vector registered in [vectors] for the descriptor's id, or a
  * typed [EngineError.BackendFailure] when none is registered. Records call
  * counts so tests can assert on interaction (idempotency, on-the-fly embeds).
+ *
+ * Like both production backends, [embed] fails with [EngineError.ModelUnavailable]
+ * unless a successful [loadModel] came first — tests therefore pin the engine's
+ * load-before-embed ordering, not just its call counts.
  */
 internal class FakeEmbeddingBackend(
     val vectors: MutableMap<TrackId, FloatArray> = mutableMapOf(),
@@ -19,14 +23,18 @@ internal class FakeEmbeddingBackend(
     var loadModelCalls: Int = 0
     var embedCalls: Int = 0
     var closed: Boolean = false
+    private var modelLoaded = false
 
     override suspend fun loadModel(): Result<Unit> {
         loadModelCalls++
-        return loadModelResult
+        return loadModelResult.onSuccess { modelLoaded = true }
     }
 
     override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
         embedCalls++
+        if (!modelLoaded) {
+            return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        }
         val vector = vectors[descriptor.id]
             ?: return Result.failure(
                 SmartEngineException(
@@ -38,5 +46,6 @@ internal class FakeEmbeddingBackend(
 
     override fun close() {
         closed = true
+        modelLoaded = false
     }
 }

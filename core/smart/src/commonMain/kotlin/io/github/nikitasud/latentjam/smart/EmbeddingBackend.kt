@@ -27,8 +27,10 @@ public interface EmbeddingBackend {
 
     /**
      * Loads the model referenced by [SmartEngineConfig.modelLocator] into
-     * memory, ready for [embed] calls. Called at most once per engine
-     * initialization; heavy by design (tens of MB of weights).
+     * memory, ready for [embed] calls. Heavy by design (tens of MB of
+     * weights), which is why the engine calls it lazily — on the first
+     * operation that needs [embed] or [classify], not at initialization —
+     * and at most once per successful load.
      */
     public suspend fun loadModel(): Result<Unit>
 
