@@ -53,18 +53,13 @@ fun rememberTrackAccent(
     val artworkColor = rememberArtworkColor(
         track?.artworkUri.takeIf { mode == TrackColorMode.DYNAMIC },
     )
-    val latentColor = rememberLatentColor(
+    val seededColor = rememberSeededColor(
         track.takeIf { mode != TrackColorMode.THEME && artworkColor == null },
     )
-    // Every track gets an identity, even before it is indexed: the id hash is
-    // arbitrary but stable, so a coverless track is never just grey.
-    val identityColor = track
-        ?.takeIf { mode != TrackColorMode.THEME }
-        ?.let { identityTrackColorSeed(it.id.value).toComposeColor() }
 
     val seed = when (mode) {
-        TrackColorMode.DYNAMIC -> artworkColor ?: latentColor ?: identityColor
-        TrackColorMode.SMART -> latentColor ?: identityColor
+        TrackColorMode.DYNAMIC -> artworkColor ?: seededColor
+        TrackColorMode.SMART -> seededColor
         TrackColorMode.THEME -> null
     }
     val target = seed?.let { toContainer(it, darkTheme) } ?: fallback
@@ -78,23 +73,50 @@ fun rememberTrackAccent(
 }
 
 /**
- * Hue from the track's embedding. Deterministic, so a track always wears the
- * same colour, and neighbours in latent space wear neighbouring hues.
+ * A resolved seed colour, remembered for the process. [latent] records which arm produced it,
+ * so an identity colour can still upgrade to the embedding's once indexing reaches the track,
+ * while a latent colour — deterministic for a given embedding — is never re-resolved.
+ */
+private class SeededAccent(val color: Color, val latent: Boolean)
+
+/**
+ * Process-wide, so a track wears ONE colour for the app's lifetime. Before this cache the
+ * resolution was per-composition: every player open showed the id-hash identity colour first,
+ * then the async embedding query landed and the accent visibly crossed to a different hue —
+ * the same coverless track appearing to change colour on every single play.
+ *
+ * Main-thread confined (composition and effects), bounded by library size.
+ */
+private val seededAccents = HashMap<String, SeededAccent>()
+
+/**
+ * Hue from the track's embedding, falling back to a stable id-hash identity for tracks the
+ * index does not know. Deterministic either way, so a track always wears the same colour and
+ * latent-space neighbours wear neighbouring hues. Unresolved (first encounter only) is null —
+ * the theme fallback — rather than a colour that is about to be replaced.
  */
 @Composable
-private fun rememberLatentColor(track: TrackDescriptor?): Color? {
+private fun rememberSeededColor(track: TrackDescriptor?): Color? {
     val engineState by AppGraph.engine.state.collectAsState()
     val indexRevision = (engineState as? EngineState.Ready)?.indexedCount ?: 0
-    var color by remember(track?.id) { mutableStateOf<Color?>(null) }
-    LaunchedEffect(track?.id, indexRevision) {
-        val resolved = track?.id?.let { id ->
-            AppGraph.engine.embedding(id)?.let { latentTrackColorSeed(it).toComposeColor() }
-        }
-        // A batch that did not contain the current track must not make an already-resolved accent
-        // flash back to the identity fallback while the rest of the library is still indexing.
-        if (resolved != null || track == null) color = resolved
+    var accent by remember(track?.id) {
+        mutableStateOf(track?.id?.value?.let(seededAccents::get))
     }
-    return color
+    LaunchedEffect(track?.id, indexRevision) {
+        val id = track?.id ?: return@LaunchedEffect
+        // A latent colour is final; only an identity placeholder can improve, and only after
+        // more of the library was indexed (indexRevision keys the retry).
+        if (accent?.latent == true) return@LaunchedEffect
+        val embedding = AppGraph.engine.embedding(id)
+        val resolved = if (embedding != null) {
+            SeededAccent(latentTrackColorSeed(embedding).toComposeColor(), latent = true)
+        } else {
+            SeededAccent(identityTrackColorSeed(id.value).toComposeColor(), latent = false)
+        }
+        seededAccents[id.value] = resolved
+        accent = resolved
+    }
+    return accent?.color
 }
 
 private fun TrackColorSeed.toComposeColor(): Color =
