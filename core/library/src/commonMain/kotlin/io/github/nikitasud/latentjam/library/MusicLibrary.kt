@@ -55,8 +55,18 @@ public interface MusicLibrary {
     /** Hides [trackId] in LatentJam without modifying the source file on the device. */
     public suspend fun hide(trackId: TrackId)
 
+    /** Hides a selection in one platform transaction when the backend supports it. */
+    public suspend fun hide(trackIds: Collection<TrackId>) {
+        trackIds.forEach { hide(it) }
+    }
+
     /** Makes a previously hidden track visible again. */
     public suspend fun unhide(trackId: TrackId)
+
+    /** Restores a selection in one platform transaction when the backend supports it. */
+    public suspend fun unhide(trackIds: Collection<TrackId>) {
+        trackIds.forEach { unhide(it) }
+    }
 
     /** Tracks hidden only inside LatentJam, including their last readable metadata. */
     public suspend fun hiddenTracks(): List<TrackDescriptor>

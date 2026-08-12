@@ -52,6 +52,9 @@ public enum class Id3Refusal {
     /** An extended header whose declared size does not fit the spec or the tag. */
     BAD_EXTENDED_HEADER,
 
+    /** A v2.4 header claims a footer, but the matching `3DI` footer is absent or inconsistent. */
+    BAD_FOOTER,
+
     /** Header flags are set that this codec does not know how to preserve. */
     UNKNOWN_HEADER_FLAGS,
 

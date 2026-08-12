@@ -8,6 +8,7 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 internal class ListeningHistoryTest {
@@ -42,6 +43,49 @@ internal class ListeningHistoryTest {
         // Null duration + null mode round-trip too.
         val bare = ListenEvent(TrackId("7"), 5, 10, null, false, true, null)
         assertEquals(bare, ListenEvent.parse(bare.serialize()))
+        val opaque = event("folder/Earth|Wind,曲.mp3", startedAt = 9)
+            .copy(shuffleMode = "mode|future")
+        assertEquals(opaque, ListenEvent.parse(opaque.serialize()))
+    }
+
+    @Test
+    fun legacyV1LinesStillLoad() {
+        assertEquals(
+            ListenEvent(TrackId("42"), 1, 2, null, completed = true, skipped = false, shuffleMode = "SMART"),
+            ListenEvent.parse("v1|42|1|2||1|0|SMART"),
+        )
+    }
+
+    @Test
+    fun aFailedAppendDoesNotPublishAnInMemoryEvent() = runTest {
+        val store = object : HistoryStore {
+            override suspend fun append(line: String): Unit = error("disk full")
+            override suspend fun readAll(): List<String> = emptyList()
+            override suspend fun clear() = Unit
+        }
+        val history = DefaultListeningHistory(store)
+
+        assertFailsWith<IllegalStateException> { history.record(event("x", startedAt = 1)) }
+        assertEquals(emptyMap(), history.stats())
+    }
+
+    @Test
+    fun aFailedInitialReadIsRetried() = runTest {
+        val persisted = event("existing", startedAt = 1)
+        val store = object : HistoryStore {
+            var fail = true
+            override suspend fun append(line: String) = Unit
+            override suspend fun readAll(): List<String> {
+                if (fail) error("transient read")
+                return listOf(persisted.serialize())
+            }
+            override suspend fun clear() = Unit
+        }
+        val history = DefaultListeningHistory(store)
+
+        assertFailsWith<IllegalStateException> { history.stats() }
+        store.fail = false
+        assertEquals(1, history.stats()[persisted.trackId]?.plays)
     }
 
     @Test

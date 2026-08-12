@@ -37,3 +37,14 @@ internal val CycleShuffleModeCommand: SessionCommand = SessionCommand(
     "io.github.nikitasud.latentjam.CYCLE_SHUFFLE_MODE",
     Bundle.EMPTY,
 )
+
+/**
+ * App-private queue edit handled by [PlaybackService], where the real ExoPlayer shuffle order is
+ * available. A MediaController can edit physical playlist indices but cannot set that order.
+ */
+internal val InsertShufflePlayNextCommand: SessionCommand = SessionCommand(
+    "io.github.nikitasud.latentjam.INSERT_SHUFFLE_PLAY_NEXT",
+    Bundle.EMPTY,
+)
+
+internal const val PlayNextMediaItemBundleKey: String = "play_next_media_item"

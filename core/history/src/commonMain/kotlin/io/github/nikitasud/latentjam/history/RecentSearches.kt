@@ -62,15 +62,22 @@ public class DefaultRecentSearches(
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return@withLock
         ensureLoaded()
-        queries.removeAll { it.equals(trimmed, ignoreCase = true) }
-        queries.add(0, trimmed)
-        while (queries.size > cap) queries.removeAt(queries.lastIndex)
-        persist()
+        val replacement = buildList {
+            add(trimmed)
+            queries.filterTo(this) { !it.equals(trimmed, ignoreCase = true) }
+        }.take(cap.coerceAtLeast(0))
+        persist(replacement)
+        queries.clear()
+        queries += replacement
     }
 
     override suspend fun remove(query: String): Unit = mutex.withLock {
         ensureLoaded()
-        if (queries.removeAll { it.equals(query, ignoreCase = true) }) persist()
+        val replacement = queries.filterNot { it.equals(query, ignoreCase = true) }
+        if (replacement.size == queries.size) return@withLock
+        persist(replacement)
+        queries.clear()
+        queries += replacement
     }
 
     override suspend fun clear(): Unit = mutex.withLock {
@@ -95,16 +102,12 @@ public class DefaultRecentSearches(
 
     private suspend fun ensureLoaded() {
         if (loaded) return
-        runCatching { store.read() }
-            .getOrDefault(emptyList())
-            .filter { it.isNotBlank() }
-            .forEach(queries::add)
+        val stored = store.read().filter { it.isNotBlank() }
+        queries += stored
         loaded = true
     }
 
-    private suspend fun persist() {
-        runCatching { store.write(queries.toList()) }
-    }
+    private suspend fun persist(replacement: List<String>) = store.write(replacement)
 
     private fun normalize(values: List<String>): List<String> {
         val result = mutableListOf<String>()

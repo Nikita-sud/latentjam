@@ -60,7 +60,12 @@ internal class MediaStoreMusicLibrary(
             add(MediaStore.Audio.Media.ALBUM_ID)
             add(MediaStore.Audio.Media.DURATION)
             add(MediaStore.Audio.Media.DATE_ADDED)
+            add(MediaStore.Audio.Media.DATE_MODIFIED)
+            add(MediaStore.Audio.Media.SIZE)
             add(MediaStore.Audio.Media.YEAR)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                add(MediaStore.Audio.Media.GENERATION_MODIFIED)
+            }
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                 add(MediaStore.Audio.Media.RELATIVE_PATH)
             } else {
@@ -91,7 +96,14 @@ internal class MediaStoreMusicLibrary(
             val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val addedColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+            val modifiedColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+            val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
             val yearColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+            val generationColumn = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                cursor.getColumnIndex(MediaStore.Audio.Media.GENERATION_MODIFIED)
+            } else {
+                -1
+            }
             val folderColumn = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                 cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
             } else {
@@ -117,8 +129,20 @@ internal class MediaStoreMusicLibrary(
                     },
                     // MediaStore stores DATE_ADDED in epoch seconds.
                     addedAtMs = cursor.getLong(addedColumn).takeIf { it > 0 }?.times(1000),
-                    folderPath = cursor.getString(folderColumn)?.toFolderPath(),
+                    folderPath = mediaStoreFolderPath(
+                        cursor.getString(folderColumn),
+                        relativePath = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q,
+                    ),
                     year = cursor.getInt(yearColumn).takeIf { it > 0 },
+                    sourceRevision = androidMediaSourceRevision(
+                        sizeBytes = cursor.getLong(sizeColumn).takeIf { it >= 0 },
+                        modifiedAtSeconds = cursor.getLong(modifiedColumn).takeIf { it > 0 },
+                        generationModified = if (generationColumn >= 0) {
+                            cursor.getLong(generationColumn).takeIf { it > 0 }
+                        } else {
+                            null
+                        },
+                    ),
                 )
             }
         }
@@ -132,10 +156,24 @@ internal class MediaStoreMusicLibrary(
         }
     }
 
+    override suspend fun hide(trackIds: Collection<TrackId>): Unit = withContext(Dispatchers.IO) {
+        visibilityMutex.withLock {
+            val hidden = readHiddenIds().toMutableSet()
+            if (hidden.addAll(trackIds.map(TrackId::value))) writeHiddenIds(hidden)
+        }
+    }
+
     override suspend fun unhide(trackId: TrackId): Unit = withContext(Dispatchers.IO) {
         visibilityMutex.withLock {
             val hidden = readHiddenIds().toMutableSet()
             if (hidden.remove(trackId.value)) writeHiddenIds(hidden)
+        }
+    }
+
+    override suspend fun unhide(trackIds: Collection<TrackId>): Unit = withContext(Dispatchers.IO) {
+        visibilityMutex.withLock {
+            val hidden = readHiddenIds().toMutableSet()
+            if (hidden.removeAll(trackIds.map(TrackId::value).toSet())) writeHiddenIds(hidden)
         }
     }
 
@@ -195,7 +233,7 @@ internal class MediaStoreMusicLibrary(
         else emptySet()
 
     private fun writeHiddenIds(ids: Set<String>) {
-        hiddenFile.writeText(ids.sorted().joinToString("\n"))
+        hiddenFile.atomicReplaceText(ids.sorted().joinToString("\n"))
     }
 
     private fun readExcludedSourceIds(): Set<String> =
@@ -206,7 +244,7 @@ internal class MediaStoreMusicLibrary(
         }
 
     private fun writeExcludedSourceIds(ids: Set<String>) {
-        excludedSourcesFile.writeText(ids.sorted().joinToString("\n"))
+        excludedSourcesFile.atomicReplaceText(ids.sorted().joinToString("\n"))
     }
 
     private fun sourceId(folderPath: String?): String = SOURCE_PREFIX + folderPath.orEmpty()
@@ -214,17 +252,6 @@ internal class MediaStoreMusicLibrary(
     /** MediaStore reports missing tags as the literal string "<unknown>". */
     private fun String?.knownOrNull(): String? =
         this?.takeIf { it.isNotBlank() && it != MediaStore.UNKNOWN_STRING }
-
-    private fun String.toFolderPath(): String? {
-        val normalized = replace('\\', '/').trimEnd('/')
-        val folder = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            normalized
-        } else {
-            normalized.substringBeforeLast('/', "")
-                .substringAfterLast("/storage/emulated/0/", missingDelimiterValue = normalized)
-        }
-        return folder.takeIf(String::isNotBlank)
-    }
 
     private companion object {
         /** Base of the classic per-album artwork content URIs. */
@@ -234,6 +261,34 @@ internal class MediaStoreMusicLibrary(
         const val SOURCE_PREFIX = "folder:"
     }
 }
+
+/** Pure MediaStore path projection, shared with host regressions for removable-volume paths. */
+internal fun mediaStoreFolderPath(rawPath: String?, relativePath: Boolean): String? {
+    val normalized = rawPath?.replace('\\', '/')?.trimEnd('/').orEmpty()
+    if (normalized.isBlank()) return null
+    if (relativePath) return normalized
+
+    val parent = normalized.substringBeforeLast('/', "")
+    if (parent.isBlank()) return null
+    val relative = when {
+        parent.startsWith("/storage/emulated/0/") -> parent.removePrefix("/storage/emulated/0/")
+        parent.startsWith("/sdcard/") -> parent.removePrefix("/sdcard/")
+        parent.startsWith("/storage/") -> {
+            // `/storage/<volume-id>/…`: remove both the mount root and opaque volume segment.
+            parent.removePrefix("/storage/").substringAfter('/', missingDelimiterValue = "")
+        }
+        else -> parent
+    }
+    return relative.trim('/').takeIf(String::isNotBlank)
+}
+
+/** Versioned and delimiter-safe because every component is a nullable decimal integer. */
+internal fun androidMediaSourceRevision(
+    sizeBytes: Long?,
+    modifiedAtSeconds: Long?,
+    generationModified: Long?,
+): String = "android-mediastore-v1:" +
+    listOf(sizeBytes, modifiedAtSeconds, generationModified).joinToString(":") { it?.toString() ?: "-" }
 
 /** Whole-file rewrite; playlists are few and short. */
 internal class FilePlaylistStore(private val context: Context) : PlaylistStore {
@@ -245,7 +300,7 @@ internal class FilePlaylistStore(private val context: Context) : PlaylistStore {
     }
 
     override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.IO) {
-        file.writeText(lines.joinToString("\n"))
+        file.atomicReplaceText(lines.joinToString("\n"))
     }
 
     private companion object {

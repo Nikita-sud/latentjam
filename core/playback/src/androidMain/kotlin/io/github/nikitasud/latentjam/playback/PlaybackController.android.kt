@@ -13,15 +13,20 @@ import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Shader
 import android.net.Uri
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaLibraryInfo
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import androidx.media3.session.SessionResult
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -106,8 +111,20 @@ internal class AndroidPlaybackController(
 
     /** Rebuilt only when the queue actually changes; shared by ticker emissions. */
     private var cachedQueue: List<TrackDescriptor> = emptyList()
+    /** Maps each user-visible queue row back to Media3's physical playlist index. */
+    private var cachedQueueMediaIndices: List<Int> = emptyList()
     private var tickerJob: Job? = null
     private var repeat: RepeatMode = RepeatMode.OFF
+
+    /**
+     * Identities already attempted by the current automatic fatal-error recovery chain.
+     *
+     * Media3 reports each unreadable item asynchronously. Keeping identities rather than physical
+     * indices survives shuffle-order changes and makes the chain bounded even with repeat-all
+     * enabled. Manual transport commands clear it because they are a fresh user request and may
+     * follow a transient I/O failure.
+     */
+    private val failedRecoveryIds = mutableSetOf<String>()
 
     /** Small bounded cache: only coverless tracks that actually reach the playhead are rendered. */
     private val latentArtworkCachedIds = mutableSetOf<String>()
@@ -146,7 +163,68 @@ internal class AndroidPlaybackController(
             pushState()
         }
 
-        override fun onPlaybackStateChanged(playbackState: Int) = pushState()
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            // Reaching READY proves the recovery chain found a readable item. Forget failures from
+            // that completed chain so a later repeat/session may legitimately retry those tracks.
+            if (playbackState == Player.STATE_READY) failedRecoveryIds.clear()
+            pushState()
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            val player = controller ?: return
+            val failedId = player.currentMediaItem?.mediaId ?: return
+            val reportedIndex = player.currentMediaItemIndex
+            // A fatal source failure can leave Media3's index unset even though it still exposes the
+            // failing item. Resolve that stable identity back into the physical queue before choosing
+            // recovery candidates; treating INDEX_UNSET as terminal would strand readable tail rows.
+            val failedIndex = reportedIndex.takeIf { it in 0 until player.mediaItemCount }
+                ?: (0 until player.mediaItemCount).firstOrNull { index ->
+                    player.getMediaItemAt(index).mediaId == failedId
+                }
+                ?: run {
+                    player.pause()
+                    pushState()
+                    return
+                }
+            val intendedToPlay = player.playWhenReady
+            failedRecoveryIds += failedId
+            val traversalOrder = playerTraversalOrder(player)
+            val replacement = nextPlaybackErrorRecoveryIndex(
+                mediaIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId },
+                failedIndex = failedIndex,
+                repeatAll = player.repeatMode == Player.REPEAT_MODE_ALL,
+                traversalOrder = traversalOrder,
+                failedIds = failedRecoveryIds,
+            )
+
+            if (replacement == null) {
+                // Every reachable row failed exactly once. Park on the final failed row with honest
+                // paused state; a later explicit Play/Next clears the attempt set and may retry after
+                // transient storage access returns.
+                player.pause()
+                rebuildQueueSnapshot()
+                pushState()
+                return
+            }
+
+            queueGeneration++
+            player.seekToDefaultPosition(replacement)
+            player.prepare()
+            if (intendedToPlay) player.play()
+            rebuildQueueSnapshot()
+            pushState()
+        }
+
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) {
+            // System UI and Bluetooth controllers can seek while paused, when the ticker is off.
+            // Publish that discontinuity immediately so Now Playing and persisted resume position
+            // do not keep the pre-seek value until playback happens to resume.
+            pushState()
+        }
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
             // SMART deliberately disables ExoPlayer's random shuffle because LatentJam owns the
@@ -155,6 +233,7 @@ internal class AndroidPlaybackController(
                 mode = if (shuffleModeEnabled) ShuffleMode.ON else ShuffleMode.OFF
                 AndroidShuffleModeRegistry.set(mode)
             }
+            rebuildQueueSnapshot()
             pushState()
         }
 
@@ -247,6 +326,7 @@ internal class AndroidPlaybackController(
 
                 pool = prepared.tracks
                 poolById = prepared.byId
+                beginFreshRecoveryAttempt()
                 queueGeneration++
                 val committedQueueGeneration = queueGeneration
 
@@ -287,33 +367,49 @@ internal class AndroidPlaybackController(
 
     override suspend fun togglePlayPause(): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
-        if (player.isPlaying) player.pause() else player.play()
+        if (player.isPlaying) {
+            player.pause()
+        } else {
+            beginFreshRecoveryAttempt()
+            // `play()` alone is a no-op after the final item reaches STATE_ENDED. Media controls
+            // conventionally restart that item, and the in-app button must match them.
+            if (player.playbackState == Player.STATE_ENDED) player.seekToDefaultPosition()
+            if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            player.play()
+        }
         pushState()
     }
 
     override suspend fun pause(): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
-        if (player.isPlaying) player.pause()
+        if (player.playWhenReady) player.pause()
         pushState()
     }
 
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
+        beginFreshRecoveryAttempt()
         if (player.hasNextMediaItem()) {
             player.seekToNextMediaItem()
+            if (player.playbackState == Player.STATE_IDLE) player.prepare()
             pushState()
             // Prediction must not delay a skip when a playable item is already queued.
             mainScope.launch { appendSmartNextIfNeeded() }
         } else {
             appendSmartNextIfNeeded()
-            if (player.hasNextMediaItem()) player.seekToNextMediaItem()
+            if (player.hasNextMediaItem()) {
+                player.seekToNextMediaItem()
+                if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            }
             pushState()
         }
     }
 
     override suspend fun previous(): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
+        beginFreshRecoveryAttempt()
         player.seekToPrevious()
+        if (player.playbackState == Player.STATE_IDLE) player.prepare()
         pushState()
     }
 
@@ -325,8 +421,11 @@ internal class AndroidPlaybackController(
 
     override suspend fun playAt(queueIndex: Int): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
-        if (queueIndex !in 0 until player.mediaItemCount) return@withContext
-        player.seekTo(queueIndex, 0L)
+        val mediaItemIndex = cachedQueueMediaIndices.getOrNull(queueIndex) ?: return@withContext
+        if (mediaItemIndex !in 0 until player.mediaItemCount) return@withContext
+        beginFreshRecoveryAttempt()
+        player.seekTo(mediaItemIndex, 0L)
+        if (player.playbackState == Player.STATE_IDLE) player.prepare()
         player.play()
         pushState()
     }
@@ -367,20 +466,58 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun playNext(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
-        val player = controller ?: return@withContext
+        val player = controller()
+        beginFreshRecoveryAttempt()
         queueGeneration++
+        pool = sourceQueueAfterManualInsert(
+            source = pool,
+            currentId = player.currentMediaItem?.mediaId?.let(::TrackId),
+            track = track,
+            insertion = SourceQueueInsertion.PLAY_NEXT,
+        )
         poolById = poolById + (track.id.value to track)
-        val insertAt = (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
-        player.addMediaItem(insertAt, track.toMediaItem())
+        val item = track.toMediaItem()
+        if (player.mediaItemCount == 0) {
+            // Queue actions are allowed before the first play. Cue the first item paused, matching
+            // iOS, rather than silently dropping the command because no controller existed yet.
+            player.pause()
+            player.setMediaItem(item)
+            player.prepare()
+        } else {
+            val insertedByService = mode == ShuffleMode.ON &&
+                player.shuffleModeEnabled &&
+                sendShufflePlayNext(player, item)
+            if (!insertedByService) {
+                val insertAt = if (mode == ShuffleMode.ON && player.shuffleModeEnabled) {
+                    player.nextMediaItemIndex.takeIf { it >= 0 } ?: player.mediaItemCount
+                } else {
+                    (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
+                }
+                player.addMediaItem(insertAt, item)
+            }
+        }
         rebuildQueueSnapshot()
         pushState()
     }
 
     override suspend fun addToQueue(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
-        val player = controller ?: return@withContext
+        val player = controller()
+        beginFreshRecoveryAttempt()
         queueGeneration++
+        pool = sourceQueueAfterManualInsert(
+            source = pool,
+            currentId = player.currentMediaItem?.mediaId?.let(::TrackId),
+            track = track,
+            insertion = SourceQueueInsertion.APPEND,
+        )
         poolById = poolById + (track.id.value to track)
-        player.addMediaItem(track.toMediaItem())
+        if (player.mediaItemCount == 0) {
+            player.pause()
+            player.setMediaItem(track.toMediaItem())
+            player.prepare()
+        } else {
+            player.addMediaItem(track.toMediaItem())
+        }
         rebuildQueueSnapshot()
         pushState()
     }
@@ -422,6 +559,7 @@ internal class AndroidPlaybackController(
             pool = prepared.tracks
             poolById = prepared.byId
             queueGeneration++
+            beginFreshRecoveryAttempt()
             val startPositionMs = positionMs.coerceAtLeast(0L)
             val fullQueue = prepared.fullQueue
             if (mode == ShuffleMode.SMART || fullQueue == null) {
@@ -455,17 +593,63 @@ internal class AndroidPlaybackController(
             pushState()
             return
         }
+        val previousMode = mode
+        beginFreshRecoveryAttempt()
         queueGeneration++
         mode = nextMode
         controller?.let { player ->
+            val sourceOrder = sourceOrderForShuffleTransition(
+                previousMode = previousMode,
+                requestedMode = mode,
+                source = pool,
+                current = player.currentMediaItem?.mediaId?.let(::trackById),
+            )
             when (mode) {
-                ShuffleMode.OFF -> player.shuffleModeEnabled = false
+                ShuffleMode.OFF -> if (sourceOrder == null) {
+                    player.shuffleModeEnabled = false
+                } else {
+                    // SMART removed the source tail and replaced it with recommendations. Disabling
+                    // ExoPlayer shuffle alone would leave that SMART queue playing under an OFF
+                    // indicator, so install the source queue again at the same logical track and
+                    // playhead. Media3 keeps playWhenReady/repeat across a playlist replacement.
+                    val positionMs = player.currentPosition.coerceAtLeast(0L)
+                    val current = sourceOrder.tracks[sourceOrder.currentIndex]
+                    poolById = poolById + (current.id.value to current)
+                    player.shuffleModeEnabled = false
+                    player.setMediaItems(
+                        sourceOrder.tracks.map { it.toMediaItem() },
+                        sourceOrder.currentIndex,
+                        positionMs,
+                    )
+                    player.prepare()
+                }
                 ShuffleMode.ON -> player.shuffleModeEnabled = true
                 ShuffleMode.SMART -> {
+                    // Snapshot BEFORE disabling shuffle: once false, Media3 exposes physical source
+                    // order and the actual played history can no longer be recovered.
+                    rebuildQueueSnapshot()
+                    val retainedHistory = traversalHistoryThroughCurrent(
+                        rows = cachedQueue,
+                        currentRowIndex = cachedQueueMediaIndices.indexOf(
+                            player.currentMediaItemIndex,
+                        ),
+                    ).ifEmpty {
+                        player.currentMediaItem?.mediaId?.let(::trackById)?.let(::listOf).orEmpty()
+                    }
+                    val positionMs = player.currentPosition.coerceAtLeast(0L)
+                    val playWhenReady = player.playWhenReady
                     player.shuffleModeEnabled = false
-                    // Drop the pre-planned tail; the chooser now decides the path.
-                    if (player.mediaItemCount > player.currentMediaItemIndex + 1) {
-                        player.removeMediaItems(player.currentMediaItemIndex + 1, player.mediaItemCount)
+                    // Reinstall actual traversal history as a linear SMART queue. Physical index
+                    // truncation is wrong under shuffle because it preserves source predecessors,
+                    // not rows the listener really traversed.
+                    if (retainedHistory.isNotEmpty()) {
+                        player.setMediaItems(
+                            retainedHistory.map { it.toMediaItem() },
+                            retainedHistory.lastIndex,
+                            positionMs,
+                        )
+                        player.prepare()
+                        if (playWhenReady) player.play()
                     }
                     appendSmartNextIfNeeded()
                 }
@@ -558,9 +742,43 @@ internal class AndroidPlaybackController(
     /** Main-thread only. */
     private fun rebuildQueueSnapshot() {
         val player = controller ?: return
-        cachedQueue = (0 until player.mediaItemCount).mapNotNull { itemIndex ->
+        val physicalRows = (0 until player.mediaItemCount).map { itemIndex ->
             trackById(player.getMediaItemAt(itemIndex).mediaId)
         }
+        val traversalOrder = playerTraversalOrder(player)
+        val snapshot = playbackQueueSnapshot(
+            physicalRows = physicalRows,
+            traversalOrder = traversalOrder,
+            currentMediaItemIndex = player.currentMediaItemIndex,
+        )
+        cachedQueue = snapshot.rows
+        cachedQueueMediaIndices = snapshot.mediaItemIndices
+    }
+
+    /** Main-thread-only physical indices in the order the current transport traverses them. */
+    private fun playerTraversalOrder(player: Player): IntArray {
+        val timeline = player.currentTimeline
+        return if (
+            player.shuffleModeEnabled &&
+            timeline.windowCount == player.mediaItemCount
+        ) {
+            boundedQueueOrder(
+                queueSize = player.mediaItemCount,
+                firstIndex = timeline.getFirstWindowIndex(/* shuffleModeEnabled = */ true),
+            ) { index ->
+                timeline.getNextWindowIndex(
+                    index,
+                    Player.REPEAT_MODE_OFF,
+                    /* shuffleModeEnabled = */ true,
+                )
+            }
+        } else {
+            IntArray(player.mediaItemCount) { it }
+        }
+    }
+
+    private fun beginFreshRecoveryAttempt() {
+        failedRecoveryIds.clear()
     }
 
     private fun trackById(id: String): TrackDescriptor? = poolById[id] ?: smartById[id]
@@ -594,7 +812,10 @@ internal class AndroidPlaybackController(
             positionMs = player?.currentPosition?.coerceAtLeast(0) ?: 0,
             durationMs = duration ?: track?.durationMs ?: 0,
             queue = cachedQueue,
-            queueIndex = player?.currentMediaItemIndex?.takeIf { cachedQueue.isNotEmpty() } ?: -1,
+            queueIndex = player?.currentMediaItemIndex
+                ?.let(cachedQueueMediaIndices::indexOf)
+                ?.takeIf { it >= 0 }
+                ?: -1,
         )
     }
 
@@ -701,6 +922,35 @@ internal class AndroidPlaybackController(
             }
         }, mainExecutor)
         continuation.invokeOnCancellation { future.cancel(true) }
+    }
+
+    /** Delegates the one shuffle edit a MediaController cannot express to the owning service. */
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    private suspend fun sendShufflePlayNext(
+        player: MediaController,
+        item: MediaItem,
+    ): Boolean {
+        if (!player.isSessionCommandAvailable(InsertShufflePlayNextCommand)) return false
+        val args = Bundle().apply {
+            putBundle(
+                PlayNextMediaItemBundleKey,
+                item.toBundleIncludeLocalConfiguration(MediaLibraryInfo.INTERFACE_VERSION),
+            )
+        }
+        return suspendCancellableCoroutine { continuation ->
+            val future = player.sendCustomCommand(InsertShufflePlayNextCommand, args)
+            val mainExecutor = java.util.concurrent.Executor { runnable ->
+                Handler(Looper.getMainLooper()).post(runnable)
+            }
+            future.addListener({
+                if (!continuation.isActive) return@addListener
+                val succeeded = runCatching {
+                    future.get().resultCode == SessionResult.RESULT_SUCCESS
+                }.getOrDefault(false)
+                continuation.resume(succeeded)
+            }, mainExecutor)
+            continuation.invokeOnCancellation { future.cancel(true) }
+        }
     }
 
     private fun TrackDescriptor.toMediaItem(): MediaItem = MediaItem.Builder()

@@ -77,9 +77,9 @@ public data class LibraryCatalog(
 
             val albums = tracks
                 .albumGroups()
-                .map { (key, grouped) ->
+                .map { (identity, grouped) ->
                     AlbumGroup(
-                        key = key,
+                        key = identity.stableKey(),
                         title = grouped.firstNotNullOfOrNull { it.album },
                         artist = grouped.firstNotNullOfOrNull { it.artist },
                         artworkUri = grouped.firstNotNullOfOrNull { it.artworkUri },
@@ -157,36 +157,66 @@ public data class LibraryCatalog(
          * owned by multiple artists, shared artwork still joins compilations;
          * otherwise artwork/artist separates genuinely different releases.
          */
-        private fun List<TrackDescriptor>.albumGroups(): Map<String, List<TrackDescriptor>> =
-            groupBy { it.album.normalizedKey() }
-                .flatMap { (albumKey, sameTitle) ->
-                    if (albumKey == null) {
-                        sameTitle.groupBy { track ->
-                            track.artworkUri ?: "unknown::${track.artist.normalizedKey()}"
-                        }.entries
-                    } else {
-                        val artists = sameTitle.mapNotNull { it.artist.normalizedKey() }.toSet()
-                        val artwork = sameTitle.mapNotNull { it.artworkUri }.toSet()
-                        when {
-                            artists.size <= 1 -> listOf(
-                                object : Map.Entry<String, List<TrackDescriptor>> {
-                                    override val key = "album::$albumKey::${artists.firstOrNull()}"
-                                    override val value = sameTitle
-                                },
-                            )
-                            artwork.size == 1 -> listOf(
-                                object : Map.Entry<String, List<TrackDescriptor>> {
-                                    override val key = "album::$albumKey::${artwork.first()}"
-                                    override val value = sameTitle
-                                },
-                            )
-                            else -> sameTitle.groupBy { track ->
-                                "album::$albumKey::${track.artworkUri ?: track.artist.normalizedKey()}"
-                            }.entries
+        private fun List<TrackDescriptor>.albumGroups(): Map<AlbumIdentity, List<TrackDescriptor>> {
+            val result = LinkedHashMap<AlbumIdentity, List<TrackDescriptor>>()
+            for ((albumTitle, sameTitle) in groupBy { it.album.normalizedKey() }) {
+                if (albumTitle == null) {
+                    for ((discriminator, grouped) in sameTitle.groupBy { it.albumDiscriminator() }) {
+                        result[AlbumIdentity(albumTitle, discriminator)] = grouped
+                    }
+                    continue
+                }
+
+                val artists = sameTitle.mapNotNull { it.artist.normalizedKey() }.toSet()
+                val artwork = sameTitle.mapNotNull { it.artworkUri }.toSet()
+                when {
+                    artists.size <= 1 -> {
+                        result[AlbumIdentity(albumTitle, AlbumDiscriminator.Artist(artists.firstOrNull()))] = sameTitle
+                    }
+                    artwork.size == 1 -> {
+                        result[AlbumIdentity(albumTitle, AlbumDiscriminator.Artwork(artwork.first()))] = sameTitle
+                    }
+                    else -> {
+                        for ((discriminator, grouped) in sameTitle.groupBy { it.albumDiscriminator() }) {
+                            result[AlbumIdentity(albumTitle, discriminator)] = grouped
                         }
                     }
                 }
-                .associate { it.key to it.value }
+            }
+            return result
+        }
+
+        /** Artwork and artist are different identity domains even when their strings happen to match. */
+        private fun TrackDescriptor.albumDiscriminator(): AlbumDiscriminator =
+            artworkUri?.let(AlbumDiscriminator::Artwork)
+                ?: AlbumDiscriminator.Artist(artist.normalizedKey())
+
+        /**
+         * Album grouping is deliberately structural. Concatenating title, artist and artwork with
+         * a delimiter makes valid metadata containing that delimiter collide and silently drops a
+         * group when the resulting map is built.
+         */
+        private data class AlbumIdentity(
+            val normalizedTitle: String?,
+            val discriminator: AlbumDiscriminator,
+        ) {
+            /** A collision-free public string for Compose keys and other callers. */
+            fun stableKey(): String = when (val part = discriminator) {
+                is AlbumDiscriminator.Artist ->
+                    "album:v2:${normalizedTitle.stableComponent()}:artist:${part.normalizedName.stableComponent()}"
+                is AlbumDiscriminator.Artwork ->
+                    "album:v2:${normalizedTitle.stableComponent()}:artwork:${part.uri.stableComponent()}"
+            }
+        }
+
+        private sealed interface AlbumDiscriminator {
+            data class Artist(val normalizedName: String?) : AlbumDiscriminator
+            data class Artwork(val uri: String) : AlbumDiscriminator
+        }
+
+        /** Length-prefixing makes arbitrary punctuation in metadata unambiguous. */
+        private fun String?.stableComponent(): String =
+            this?.let { "${it.length}:$it" } ?: "null"
 
         private fun String?.normalizedKey(): String? = this
             ?.filterNot { it == '\u200B' || it == '\u200C' || it == '\u200D' || it == '\uFEFF' }

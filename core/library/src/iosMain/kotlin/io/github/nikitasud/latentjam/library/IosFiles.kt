@@ -110,7 +110,7 @@ internal fun readLinesOrEmpty(path: String): List<String> {
     val text = memScoped {
         val error = alloc<ObjCObjectVar<NSError?>>()
         NSString.stringWithContentsOfFile(path, NSUTF8StringEncoding, error.ptr)
-    } ?: return emptyList()
+    } ?: error("Could not read private library data")
     // A trailing newline would otherwise yield a phantom empty final record.
     return text.split("\n").dropLastWhile { it.isEmpty() }
 }

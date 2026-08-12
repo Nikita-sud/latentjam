@@ -54,13 +54,6 @@ public object Id3Tags {
      */
     private const val PADDING = 1024
 
-    /**
-     * Container magics that must never be given a prepended ID3v2 tag. The
-     * check is deny-known-foreign rather than require-MPEG, because real MP3s
-     * routinely start with junk bytes that no sync-word test survives.
-     */
-    private val FOREIGN_MAGIC = listOf("fLaC", "OggS", "RIFF", "FORM", "MThd", "wvpk", "PNG")
-
     /** Bytes a caller must read before [tagLength] can answer. */
     public const val HEADER_SIZE: Int = Id3Codec.HEADER_SIZE
 
@@ -123,9 +116,10 @@ public object Id3Tags {
      * how long that is. Returns null when the tag cannot be rewritten safely;
      * [refusalOf] says why.
      *
-     * When there is no tag yet, one is created at [newTagVersion], and the data
-     * is checked against [FOREIGN_MAGIC] first so a FLAC or WAV never gets an
-     * ID3v2 tag stapled to its front.
+     * When there is no tag yet, one is created at [newTagVersion] only when the
+     * data starts with a valid MPEG-audio or ADTS frame header. An allowlist is
+     * intentional: an unknown container is not safe merely because its magic
+     * has not been added to a denylist yet.
      */
     public fun buildUpdate(
         prefix: ByteArray,
@@ -136,18 +130,25 @@ public object Id3Tags {
 
         is Id3Parse.Parsed -> {
             val tag = parsed.tag
-            val frames = applyEdits(tag.version, tag.frames, edits)
-            val needed = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames)
-            // Keep the original footprint whenever the new frames still fit:
-            // the surplus becomes padding, the audio never moves, and the caller
-            // may patch just the head of the file instead of rewriting it.
-            val total = if (needed <= tag.totalLength) tag.totalLength else needed + PADDING
-            Id3Codec.serialize(tag.version, tag.isExperimental, frames, total)
-                ?.let { Id3TagUpdate(it, tag.totalLength) }
+            if (edits.isEmpty) {
+                // Besides being cheaper, this preserves optional extended headers,
+                // footers, non-canonical frame-size encodings, and every padding byte.
+                Id3TagUpdate(prefix.copyOfRange(0, tag.totalLength), tag.totalLength)
+            } else {
+                val frames = applyEdits(tag.version, tag.frames, edits)
+                val needed = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames)
+                // Keep the original footprint whenever the new frames still fit:
+                // the surplus becomes padding, the audio never moves, and the caller
+                // may patch just the head of the file instead of rewriting it.
+                val total = if (needed <= tag.totalLength) tag.totalLength else needed + PADDING
+                Id3Codec.serialize(tag.version, tag.isExperimental, frames, total)
+                    ?.let { Id3TagUpdate(it, tag.totalLength) }
+            }
         }
 
         Id3Parse.Absent -> when {
             !canPrependTag(prefix) -> null
+            edits.isEmpty -> Id3TagUpdate(prefix.copyOf(), prefix.size)
             else -> {
                 val frames = applyEdits(newTagVersion, emptyList(), edits)
                 val total = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames) + PADDING
@@ -310,19 +311,47 @@ public object Id3Tags {
         }
     }
 
-    /** False when [data] is a container that must not be given an ID3v2 tag. */
-    private fun canPrependTag(data: ByteArray): Boolean {
+    /**
+     * True only for raw stream formats for which a leading ID3v2 tag is defined
+     * and routinely supported. A filename or a non-match against a list of known
+     * containers is not evidence that prepending bytes is safe.
+     */
+    private fun canPrependTag(data: ByteArray): Boolean =
+        looksLikeMpegAudioFrame(data) || looksLikeAdtsFrame(data)
+
+    /** Validates the fixed fields of an MPEG-1/2/2.5 audio frame header. */
+    private fun looksLikeMpegAudioFrame(data: ByteArray): Boolean {
         if (data.size < 4) return false
-        if (FOREIGN_MAGIC.any { matchesAscii(data, 0, it) }) return false
-        // ISO base media (M4A/MP4) carries its magic at offset 4.
-        if (data.size >= 8 && matchesAscii(data, 4, "ftyp")) return false
-        return true
+        val first = data[0].toInt() and 0xFF
+        val second = data[1].toInt() and 0xFF
+        val third = data[2].toInt() and 0xFF
+        if (first != 0xFF || second and 0xE0 != 0xE0) return false
+
+        val version = second ushr 3 and 0x03
+        val layer = second ushr 1 and 0x03
+        val bitrate = third ushr 4 and 0x0F
+        val sampleRate = third ushr 2 and 0x03
+        return version != 0x01 &&
+            layer != 0x00 &&
+            bitrate != 0x00 &&
+            bitrate != 0x0F &&
+            sampleRate != 0x03
     }
 
-    private fun matchesAscii(data: ByteArray, at: Int, text: String): Boolean {
-        if (at + text.length > data.size) return false
-        for (i in text.indices) if (data[at + i] != text[i].code.toByte()) return false
-        return true
+    /** Validates enough of ADTS's seven-byte fixed header to reject accidental sync words. */
+    private fun looksLikeAdtsFrame(data: ByteArray): Boolean {
+        if (data.size < 7) return false
+        val first = data[0].toInt() and 0xFF
+        val second = data[1].toInt() and 0xFF
+        val third = data[2].toInt() and 0xFF
+        val fourth = data[3].toInt() and 0xFF
+        val fifth = data[4].toInt() and 0xFF
+        val sixth = data[5].toInt() and 0xFF
+        if (first != 0xFF || second and 0xF6 != 0xF0) return false
+        if (third ushr 2 and 0x0F == 0x0F) return false // reserved sampling-frequency index
+
+        val frameLength = ((fourth and 0x03) shl 11) or (fifth shl 3) or (sixth ushr 5)
+        return frameLength >= 7
     }
 }
 

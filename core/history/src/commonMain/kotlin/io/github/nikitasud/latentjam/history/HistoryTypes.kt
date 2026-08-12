@@ -26,34 +26,56 @@ public data class ListenEvent(
     public val skipped: Boolean,
     public val shuffleMode: String? = null,
 ) {
-    /** Pipe-delimited v1 line format; ids are numeric strings on Android. */
+    /** Versioned line format. Arbitrary identifiers are hex-escaped before delimiters are added. */
     public fun serialize(): String = listOf(
-        FORMAT_VERSION,
-        trackId.value,
+        FORMAT_V2,
+        trackId.value.encodeHex(),
         startedAtMs.toString(),
         playedMs.toString(),
         trackDurationMs?.toString() ?: "",
         if (completed) "1" else "0",
         if (skipped) "1" else "0",
-        shuffleMode ?: "",
+        shuffleMode?.encodeHex() ?: "",
     ).joinToString("|")
 
     public companion object {
-        private const val FORMAT_VERSION = "v1"
+        private const val FORMAT_V1 = "v1"
+        private const val FORMAT_V2 = "v2"
 
         /** Returns `null` for corrupt or unknown-version lines (they are skipped). */
         public fun parse(line: String): ListenEvent? {
             val parts = line.split("|")
-            if (parts.size != 8 || parts[0] != FORMAT_VERSION) return null
+            if (parts.size != 8) return null
+            val id = when (parts[0]) {
+                FORMAT_V1 -> parts[1]
+                FORMAT_V2 -> parts[1].decodeHex() ?: return null
+                else -> return null
+            }
+            val mode = parts[7].takeIf(String::isNotEmpty)?.let { value ->
+                if (parts[0] == FORMAT_V2) value.decodeHex() ?: return null else value
+            }
             return ListenEvent(
-                trackId = TrackId(parts[1]),
+                trackId = TrackId(id),
                 startedAtMs = parts[2].toLongOrNull() ?: return null,
                 playedMs = parts[3].toLongOrNull() ?: return null,
                 trackDurationMs = parts[4].takeIf { it.isNotEmpty() }?.let { it.toLongOrNull() ?: return null },
                 completed = parts[5] == "1",
                 skipped = parts[6] == "1",
-                shuffleMode = parts[7].takeIf { it.isNotEmpty() },
+                shuffleMode = mode,
             )
+        }
+
+        private fun String.encodeHex(): String = encodeToByteArray().joinToString("") { byte ->
+            (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+        }
+
+        private fun String.decodeHex(): String? {
+            if (length % 2 != 0) return null
+            return runCatching {
+                ByteArray(length / 2) { index ->
+                    substring(index * 2, index * 2 + 2).toInt(16).toByte()
+                }.decodeToString(throwOnInvalidSequence = true)
+            }.getOrNull()
         }
     }
 }

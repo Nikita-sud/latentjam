@@ -112,4 +112,35 @@ internal class HistorySessionTrackerTest {
         assertEquals(a, event.trackId)
         assertEquals(50_000, event.playedMs)
     }
+
+    @Test
+    fun repeatOneWrapClosesTheFirstListenAndStartsAnother() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 1_000)
+        tracker.onSnapshot(a, 190_000, 200_000, "OFF", nowMs = 191_000)
+
+        val first = assertNotNull(
+            tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 201_000),
+        )
+        assertEquals(a, first.trackId)
+        assertTrue(first.completed)
+        assertEquals(190_000, first.playedMs)
+
+        tracker.onSnapshot(a, 40_000, 200_000, "OFF", nowMs = 241_000)
+        val second = assertNotNull(tracker.flush())
+        assertEquals(201_000, second.startedAtMs)
+        assertEquals(40_000, second.playedMs)
+    }
+
+    @Test
+    fun ordinaryBackwardSeekDoesNotSplitTheSession() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 1_000)
+        tracker.onSnapshot(a, 80_000, 200_000, "OFF", nowMs = 81_000)
+        assertNull(tracker.onSnapshot(a, 20_000, 200_000, "OFF", nowMs = 82_000))
+
+        val event = assertNotNull(tracker.flush())
+        assertEquals(80_000, event.playedMs)
+        assertEquals(1_000, event.startedAtMs)
+    }
 }

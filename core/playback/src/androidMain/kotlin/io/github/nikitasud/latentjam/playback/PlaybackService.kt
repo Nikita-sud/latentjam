@@ -8,9 +8,12 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.media.AudioManager
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaLibraryInfo
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
 import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -50,12 +53,20 @@ public class PlaybackService : MediaSessionService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
         ): MediaSession.ConnectionResult {
+            // The service has to be exported so Android System UI, Bluetooth controls and the
+            // app's own MediaController can reach the session. Media3 1.10's default callback,
+            // however, builds an accepted result with DEFAULT_PLAYER_COMMANDS before it knows
+            // who is connecting. Reject callers Android has not authenticated as our app, a
+            // system component, or a holder of media-control permission; otherwise any installed
+            // app can replace/seek/stop this player's queue through the exported component.
+            if (!controller.isTrusted) return MediaSession.ConnectionResult.reject()
             val result = super.onConnect(session, controller)
             if (!result.isAccepted) return result
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(
                     result.availableSessionCommands.buildUpon()
                         .add(CycleShuffleModeCommand)
+                        .add(InsertShufflePlayNextCommand)
                         .build(),
                 )
                 .setAvailablePlayerCommands(result.availablePlayerCommands)
@@ -68,9 +79,32 @@ public class PlaybackService : MediaSessionService() {
             customCommand: SessionCommand,
             args: android.os.Bundle,
         ): ListenableFuture<SessionResult> {
-            if (customCommand == CycleShuffleModeCommand) {
-                AndroidShuffleModeRegistry.cycle()
-                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            if (controller.isTrusted) {
+                when (customCommand) {
+                    CycleShuffleModeCommand -> {
+                        AndroidShuffleModeRegistry.cycle()
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
+
+                    InsertShufflePlayNextCommand -> {
+                        val player = playbackPlayer
+                            ?: return Futures.immediateFuture(
+                                SessionResult(SessionResult.RESULT_ERROR_INVALID_STATE),
+                            )
+                        val item = runCatching {
+                            args.getBundle(PlayNextMediaItemBundleKey)?.let { bundle ->
+                                MediaItem.fromBundle(bundle, MediaLibraryInfo.INTERFACE_VERSION)
+                            }
+                        }.getOrNull()
+                        if (item?.localConfiguration == null || item.mediaId.isBlank()) {
+                            return Futures.immediateFuture(
+                                SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE),
+                            )
+                        }
+                        insertPlayNext(player, item)
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
+                }
             }
             return super.onCustomCommand(session, controller, customCommand, args)
         }
@@ -156,7 +190,7 @@ public class PlaybackService : MediaSessionService() {
                 // SMART wears the app's own mark, exactly like the in-app player. Media3 takes a
                 // drawable resource here; the semantic icon stays UNDEFINED so nothing overrides it.
                 if (shuffleMode == ShuffleMode.SMART) {
-                    setIconResId(R.drawable.ic_shuffle_smart_mark)
+                    setCustomIconResId(R.drawable.ic_shuffle_smart_mark)
                 }
             }
             .setDisplayName(shuffleActionName(shuffleMode))
@@ -170,6 +204,39 @@ public class PlaybackService : MediaSessionService() {
         mediaSession?.setMediaButtonPreferences(
             mediaButtonPreferences(player, AndroidShuffleModeRegistry.mode.value),
         )
+    }
+
+    /**
+     * Inserts without surrendering Play Next semantics to ExoPlayer's random insertion rule.
+     *
+     * `DefaultShuffleOrder.cloneAndInsert` intentionally chooses a random traversal slot. This
+     * service is the only layer that owns the real ExoPlayer (the app sees a MediaController), so
+     * it appends physically and then installs the old permutation with that new index directly
+     * after the playhead. Native next/previous and system media controls continue using ExoPlayer.
+     */
+    private fun insertPlayNext(player: ExoPlayer, item: MediaItem) {
+        if (player.mediaItemCount == 0) {
+            player.addMediaItem(item)
+            return
+        }
+        if (!player.shuffleModeEnabled) {
+            val insertAt = (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
+            player.addMediaItem(insertAt, item)
+            return
+        }
+
+        val shuffleOrder = player.shuffleOrder
+        val oldTraversal = boundedQueueOrder(
+            queueSize = player.mediaItemCount,
+            firstIndex = shuffleOrder.firstIndex,
+            nextIndex = shuffleOrder::getNextIndex,
+        )
+        val extendedTraversal = shuffleOrderAppendingNext(
+            existingOrder = oldTraversal,
+            currentMediaItemIndex = player.currentMediaItemIndex,
+        )
+        player.addMediaItem(item)
+        player.setShuffleOrder(DefaultShuffleOrder(extendedTraversal, System.nanoTime()))
     }
 
     private fun shuffleIcon(mode: ShuffleMode): Int = when (mode) {

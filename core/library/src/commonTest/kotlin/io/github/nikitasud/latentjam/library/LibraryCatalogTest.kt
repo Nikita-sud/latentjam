@@ -84,6 +84,22 @@ internal class LibraryCatalogTest {
     }
 
     @Test
+    fun albumMetadataContainingTheOldDelimiterCannotCollide() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("left", artist = "c", album = "a::b"),
+                track("right", artist = "b::c", album = "a"),
+            ),
+        )
+
+        assertEquals(2, catalog.albums.size)
+        assertEquals(
+            setOf(setOf("left"), setOf("right")),
+            catalog.albums.map { album -> album.tracks.map { it.id.value }.toSet() }.toSet(),
+        )
+    }
+
+    @Test
     fun artistsCarryTrackAndAlbumCounts() {
         val catalog = LibraryCatalog.build(
             listOf(

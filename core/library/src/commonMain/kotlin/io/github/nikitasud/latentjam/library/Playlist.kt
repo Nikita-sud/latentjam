@@ -16,17 +16,40 @@ public data class Playlist(
     public val createdAtMs: Long = 0,
 )
 
+/** Exact ordered membership around one durable playlist edit. */
+public data class PlaylistTrackChange(
+    public val before: List<TrackId>,
+    public val after: List<TrackId>,
+)
+
 /**
  * The device's playlists. Ids rather than descriptors are stored, so a
  * playlist survives a rescan and never holds stale metadata.
  */
 public interface Playlists {
     public suspend fun all(): List<Playlist>
-    public suspend fun create(name: String): Playlist
+    /** Creates a playlist and its initial membership in one durable transaction. */
+    public suspend fun create(
+        name: String,
+        trackIds: List<TrackId> = emptyList(),
+    ): Playlist
     public suspend fun rename(id: String, name: String)
     public suspend fun delete(id: String)
     public suspend fun addTracks(id: String, trackIds: List<TrackId>)
-    public suspend fun removeTrack(id: String, trackId: TrackId)
+    public suspend fun removeTracks(
+        id: String,
+        trackIds: Collection<TrackId>,
+    ): PlaylistTrackChange?
+
+    public suspend fun removeTrack(id: String, trackId: TrackId): PlaylistTrackChange? =
+        removeTracks(id, listOf(trackId))
+
+    /** Exact ordered compare-and-set, used to Undo without clobbering a newer edit. */
+    public suspend fun replaceTracksIfUnchanged(
+        id: String,
+        expected: List<TrackId>,
+        replacement: List<TrackId>,
+    ): Boolean
 
     /** Replaces all user playlists in one durable write, primarily for local backup restore. */
     public suspend fun replaceAll(playlists: List<Playlist>)
@@ -59,15 +82,19 @@ public class DefaultPlaylists(
         playlists.toList()
     }
 
-    override suspend fun create(name: String): Playlist = mutex.withLock {
+    override suspend fun create(
+        name: String,
+        trackIds: List<TrackId>,
+    ): Playlist = mutex.withLock {
         ensureLoaded()
         val created = Playlist(
             id = "pl-${nowMillis()}-${playlists.size}",
             name = name.trim().ifEmpty { "Untitled playlist" },
+            trackIds = trackIds.map(TrackId::value).filter(String::isNotBlank).distinct(),
             createdAtMs = nowMillis(),
         )
+        persist(listOf(created) + playlists)
         playlists.add(0, created)
-        persist()
         created
     }
 
@@ -75,14 +102,19 @@ public class DefaultPlaylists(
         ensureLoaded()
         val index = playlists.indexOfFirst { it.id == id }
         if (index >= 0) {
-            playlists[index] = playlists[index].copy(name = name.trim().ifEmpty { "Untitled playlist" })
-            persist()
+            val changed = playlists[index].copy(name = name.trim().ifEmpty { "Untitled playlist" })
+            persist(playlists.toMutableList().also { it[index] = changed })
+            playlists[index] = changed
         }
     }
 
     override suspend fun delete(id: String): Unit = mutex.withLock {
         ensureLoaded()
-        if (playlists.removeAll { it.id == id }) persist()
+        val replacement = playlists.filterNot { it.id == id }
+        if (replacement.size != playlists.size) {
+            persist(replacement)
+            playlists.removeAll { it.id == id }
+        }
     }
 
     override suspend fun addTracks(id: String, trackIds: List<TrackId>): Unit = mutex.withLock {
@@ -90,22 +122,56 @@ public class DefaultPlaylists(
         val index = playlists.indexOfFirst { it.id == id }
         if (index < 0) return@withLock
         val existing = playlists[index].trackIds
-        val additions = trackIds.map { it.value }.filter { it !in existing }
+        // One call can contain the same selected track more than once. Seed the
+        // set with the playlist's current contents, then let `add` both test and
+        // reserve each id so duplicates in this batch are ignored as well.
+        val seen = existing.toHashSet()
+        val additions = trackIds.map { it.value }.filter(seen::add)
         if (additions.isNotEmpty()) {
-            playlists[index] = playlists[index].copy(trackIds = existing + additions)
-            persist()
+            val changed = playlists[index].copy(trackIds = existing + additions)
+            persist(playlists.toMutableList().also { it[index] = changed })
+            playlists[index] = changed
         }
     }
 
-    override suspend fun removeTrack(id: String, trackId: TrackId): Unit = mutex.withLock {
+    override suspend fun removeTracks(
+        id: String,
+        trackIds: Collection<TrackId>,
+    ): PlaylistTrackChange? = mutex.withLock {
         ensureLoaded()
         val index = playlists.indexOfFirst { it.id == id }
-        if (index < 0) return@withLock
-        val remaining = playlists[index].trackIds.filterNot { it == trackId.value }
-        if (remaining.size != playlists[index].trackIds.size) {
-            playlists[index] = playlists[index].copy(trackIds = remaining)
-            persist()
+        if (index < 0) return@withLock null
+        val before = playlists[index].trackIds
+        val removedIds = trackIds.mapTo(HashSet(trackIds.size), TrackId::value)
+        val remaining = before.filterNot(removedIds::contains)
+        if (remaining.size != before.size) {
+            val changed = playlists[index].copy(trackIds = remaining)
+            persist(playlists.toMutableList().also { it[index] = changed })
+            playlists[index] = changed
         }
+        PlaylistTrackChange(before.map(::TrackId), remaining.map(::TrackId))
+    }
+
+    override suspend fun replaceTracksIfUnchanged(
+        id: String,
+        expected: List<TrackId>,
+        replacement: List<TrackId>,
+    ): Boolean = mutex.withLock {
+        ensureLoaded()
+        val index = playlists.indexOfFirst { it.id == id }
+        if (index < 0) return@withLock false
+        val expectedValues = expected.map(TrackId::value)
+        if (playlists[index].trackIds != expectedValues) return@withLock false
+        val replacementValues = replacement
+            .map(TrackId::value)
+            .filter(String::isNotBlank)
+            .distinct()
+        if (replacementValues != expectedValues) {
+            val changed = playlists[index].copy(trackIds = replacementValues)
+            persist(playlists.toMutableList().also { it[index] = changed })
+            playlists[index] = changed
+        }
+        true
     }
 
     override suspend fun replaceAll(playlists: List<Playlist>): Unit = mutex.withLock {
@@ -121,15 +187,22 @@ public class DefaultPlaylists(
 
     private suspend fun ensureLoaded() {
         if (loaded) return
-        runCatching { store.read() }
-            .getOrDefault(emptyList())
+        val seenIds = mutableSetOf<String>()
+        val restored = store.read()
             .mapNotNull(PlaylistSerializer::parse)
-            .forEach(playlists::add)
+            .filter { it.id.isNotBlank() }
+            .map { playlist -> playlist.normalizedForRestore() }
+            // A legacy/corrupt store can contain the same playlist more than
+            // once. Keep the first valid occurrence in storage order so ids
+            // remain unique for UI keys and mutations always target one item.
+            .filter { playlist -> seenIds.add(playlist.id) }
+        playlists += restored
         loaded = true
     }
 
-    private suspend fun persist() {
-        runCatching { store.write(playlists.map(PlaylistSerializer::serialize)) }
+    /** Durable state advances before the in-memory view, so a failed write never looks successful. */
+    private suspend fun persist(replacement: List<Playlist>) {
+        store.write(replacement.map(PlaylistSerializer::serialize))
     }
 
     private fun Playlist.normalizedForRestore(): Playlist {
@@ -149,16 +222,35 @@ internal object PlaylistSerializer {
 
     private const val FIELD = ''
     private const val TRACK = ','
+    private const val FORMAT_V2 = "v2"
 
     fun serialize(playlist: Playlist): String = listOf(
-        playlist.id,
-        playlist.name,
+        FORMAT_V2,
+        playlist.id.encodeHex(),
+        playlist.name.encodeHex(),
         playlist.createdAtMs.toString(),
-        playlist.trackIds.joinToString(TRACK.toString()),
+        playlist.trackIds.joinToString(TRACK.toString()) { it.encodeHex() },
     ).joinToString(FIELD.toString())
 
     fun parse(line: String): Playlist? {
         val parts = line.split(FIELD)
+        return if (parts.firstOrNull() == FORMAT_V2) parseV2(parts) else parseV1(parts)
+    }
+
+    private fun parseV2(parts: List<String>): Playlist? {
+        if (parts.size != 5) return null
+        return Playlist(
+            id = parts[1].decodeHex()?.ifEmpty { return null } ?: return null,
+            name = parts[2].decodeHex() ?: return null,
+            createdAtMs = parts[3].toLongOrNull() ?: return null,
+            trackIds = parts[4].split(TRACK).filter(String::isNotEmpty).map { encoded ->
+                encoded.decodeHex() ?: return null
+            },
+        )
+    }
+
+    /** Reader for the delimiter-based format written by older app versions. */
+    private fun parseV1(parts: List<String>): Playlist? {
         if (parts.size != 4) return null
         return Playlist(
             id = parts[0].ifEmpty { return null },
@@ -166,5 +258,18 @@ internal object PlaylistSerializer {
             createdAtMs = parts[2].toLongOrNull() ?: return null,
             trackIds = parts[3].split(TRACK).filter { it.isNotEmpty() },
         )
+    }
+
+    private fun String.encodeHex(): String = encodeToByteArray().joinToString("") { byte ->
+        (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+    }
+
+    private fun String.decodeHex(): String? {
+        if (length % 2 != 0) return null
+        return runCatching {
+            ByteArray(length / 2) { index ->
+                substring(index * 2, index * 2 + 2).toInt(16).toByte()
+            }.decodeToString(throwOnInvalidSequence = true)
+        }.getOrNull()
     }
 }

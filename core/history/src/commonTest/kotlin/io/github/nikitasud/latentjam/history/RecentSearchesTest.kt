@@ -89,4 +89,66 @@ internal class RecentSearchesTest {
         assertFailsWith<IllegalStateException> { searches.clear() }
         assertContentEquals(listOf("aria"), searches.recent())
     }
+
+    @Test
+    fun failedRecordDoesNotPublishAnUndurableQuery() = runTest {
+        var failWrites = false
+        val store = object : RecentSearchStore {
+            override suspend fun read(): List<String> = listOf("aria")
+            override suspend fun write(queries: List<String>) {
+                if (failWrites) error("disk failure")
+            }
+        }
+        val searches = DefaultRecentSearches(store)
+        assertContentEquals(listOf("aria"), searches.recent())
+        failWrites = true
+
+        assertFailsWith<IllegalStateException> { searches.record("modern") }
+        assertContentEquals(listOf("aria"), searches.recent())
+    }
+
+    @Test
+    fun failedInitialReadIsRetried() = runTest {
+        var reads = 0
+        val store = object : RecentSearchStore {
+            override suspend fun read(): List<String> {
+                reads++
+                if (reads == 1) error("temporary read failure")
+                return listOf("aria")
+            }
+
+            override suspend fun write(queries: List<String>) = Unit
+        }
+        val searches = DefaultRecentSearches(store)
+
+        assertFailsWith<IllegalStateException> { searches.recent() }
+        assertContentEquals(listOf("aria"), searches.recent())
+        assertEquals(2, reads)
+    }
+
+    @Test
+    fun fileCodecRoundTripsNewlinesUnicodeAndControlCharacters() {
+        val queries = listOf("first line\nsecond\tline", "КИНО 🚗\u0000")
+
+        val encoded = RecentSearchFileCodec.encode(queries)
+
+        assertContentEquals(queries, RecentSearchFileCodec.decode(encoded))
+        assertTrue(encoded.startsWith("LATENTJAM-RECENT-SEARCHES\t1\n"))
+        assertTrue("first line" !in encoded)
+    }
+
+    @Test
+    fun fileCodecReadsLegacyOneQueryPerLineFiles() {
+        assertContentEquals(
+            listOf("aria", "modern", "КИНО"),
+            RecentSearchFileCodec.decode("aria\r\nmodern\nКИНО\n"),
+        )
+    }
+
+    @Test
+    fun fileCodecRejectsCorruptVersionedRecords() {
+        assertFailsWith<IllegalStateException> {
+            RecentSearchFileCodec.decode("LATENTJAM-RECENT-SEARCHES\t1\nnot-hex\n")
+        }
+    }
 }

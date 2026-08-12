@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -33,11 +34,47 @@ internal class PlaylistsTest {
     }
 
     @Test
+    fun createWithInitialTracksUsesOneTransactionalWrite() = runTest {
+        val store = object : PlaylistStore {
+            var lines: List<String> = emptyList()
+            var writes = 0
+            override suspend fun read(): List<String> = lines
+            override suspend fun write(lines: List<String>) {
+                writes++
+                this.lines = lines
+            }
+        }
+        val playlists = DefaultPlaylists(store)
+
+        val created = playlists.create(
+            "Road trip",
+            listOf(TrackId("one"), TrackId("one"), TrackId("two")),
+        )
+
+        assertEquals(1, store.writes)
+        assertContentEquals(listOf("one", "two"), created.trackIds)
+        assertContentEquals(created.trackIds, playlists.all().single().trackIds)
+    }
+
+    @Test
     fun addingTheSameTrackTwiceIsANoOp() = runTest {
         val playlists = DefaultPlaylists(FakeStore())
         val created = playlists.create("Mix")
         playlists.addTracks(created.id, listOf(TrackId("1")))
         playlists.addTracks(created.id, listOf(TrackId("1"), TrackId("2")))
+        assertContentEquals(listOf("1", "2"), playlists.all().single().trackIds)
+    }
+
+    @Test
+    fun duplicateTracksWithinOneAddAreStoredOnceInFirstSeenOrder() = runTest {
+        val playlists = DefaultPlaylists(FakeStore())
+        val created = playlists.create("Mix")
+
+        playlists.addTracks(
+            created.id,
+            listOf(TrackId("1"), TrackId("1"), TrackId("2"), TrackId("1"), TrackId("2")),
+        )
+
         assertContentEquals(listOf("1", "2"), playlists.all().single().trackIds)
     }
 
@@ -51,6 +88,59 @@ internal class PlaylistsTest {
 
         playlists.delete(created.id)
         assertTrue(playlists.all().isEmpty())
+    }
+
+    @Test
+    fun removingASelectionUsesOneTransactionalWrite() = runTest {
+        val store = object : PlaylistStore {
+            var lines: List<String> = emptyList()
+            var writes = 0
+            override suspend fun read(): List<String> = lines
+            override suspend fun write(lines: List<String>) {
+                writes++
+                this.lines = lines
+            }
+        }
+        val playlists = DefaultPlaylists(store)
+        val created = playlists.create("Mix")
+        playlists.addTracks(created.id, listOf(TrackId("1"), TrackId("2"), TrackId("3")))
+        val beforeRemoval = store.writes
+
+        val change = requireNotNull(
+            playlists.removeTracks(
+                created.id,
+                listOf(TrackId("1"), TrackId("3")),
+            ),
+        )
+
+        assertEquals(beforeRemoval + 1, store.writes)
+        assertContentEquals(listOf(TrackId("1"), TrackId("2"), TrackId("3")), change.before)
+        assertContentEquals(listOf(TrackId("2")), change.after)
+        assertContentEquals(listOf("2"), playlists.all().single().trackIds)
+    }
+
+    @Test
+    fun orderedUndoUsesCompareAndSetAndCannotClobberANewerEdit() = runTest {
+        val playlists = DefaultPlaylists(FakeStore())
+        val created = playlists.create(
+            "Mix",
+            listOf(TrackId("1"), TrackId("2"), TrackId("3")),
+        )
+        val change = requireNotNull(
+            playlists.removeTracks(created.id, listOf(TrackId("1"), TrackId("3"))),
+        )
+
+        assertTrue(
+            playlists.replaceTracksIfUnchanged(created.id, change.after, change.before),
+        )
+        assertContentEquals(listOf("1", "2", "3"), playlists.all().single().trackIds)
+
+        playlists.removeTracks(created.id, listOf(TrackId("1"), TrackId("3")))
+        playlists.addTracks(created.id, listOf(TrackId("4")))
+        assertTrue(
+            !playlists.replaceTracksIfUnchanged(created.id, change.after, change.before),
+        )
+        assertContentEquals(listOf("2", "4"), playlists.all().single().trackIds)
     }
 
     @Test
@@ -71,6 +161,111 @@ internal class PlaylistsTest {
         val reloaded = DefaultPlaylists(store).all().single()
         assertEquals("Rock | Metal, vol.2", reloaded.name)
         assertContentEquals(listOf("7"), reloaded.trackIds)
+    }
+
+    @Test
+    fun arbitraryTrackIdsRoundTripWithoutDelimiterCorruption() = runTest {
+        val store = FakeStore()
+        val playlists = DefaultPlaylists(store)
+        val created = playlists.create("Paths \u001f and Unicode 🎧")
+        val ids = listOf("Earth, Wind & Fire.mp3", "folder/a\u001fb|c,曲.mp3")
+        playlists.addTracks(created.id, ids.map(::TrackId))
+
+        val reloaded = DefaultPlaylists(store).all().single()
+        assertEquals("Paths \u001f and Unicode 🎧", reloaded.name)
+        assertContentEquals(ids, reloaded.trackIds)
+    }
+
+    @Test
+    fun duplicateTrackIdsFromLegacyStorageAreNormalizedOnLoad() = runTest {
+        val duplicated = Playlist(
+            id = "old",
+            name = "Legacy",
+            trackIds = listOf("one", "one", "two", "one"),
+            createdAtMs = 1,
+        )
+        val store = FakeStore(listOf(PlaylistSerializer.serialize(duplicated)))
+
+        assertContentEquals(
+            listOf("one", "two"),
+            DefaultPlaylists(store).all().single().trackIds,
+        )
+    }
+
+    @Test
+    fun duplicatePlaylistIdsFromStorageKeepFirstValidOccurrenceInStorageOrder() = runTest {
+        val first = Playlist(
+            id = "duplicate",
+            name = "  First  ",
+            trackIds = listOf("one", "one", "", "two", "one"),
+            createdAtMs = 1,
+        )
+        val middle = Playlist(
+            id = "middle",
+            name = "Middle",
+            trackIds = listOf("three", "three"),
+            createdAtMs = 2,
+        )
+        val laterDuplicate = Playlist(
+            id = first.id,
+            name = "Later duplicate",
+            trackIds = listOf("four"),
+            createdAtMs = 3,
+        )
+        val store = FakeStore(
+            listOf(first, middle, laterDuplicate).map(PlaylistSerializer::serialize),
+        )
+        val playlists = DefaultPlaylists(store)
+
+        val restored = playlists.all()
+
+        assertContentEquals(listOf("duplicate", "middle"), restored.map(Playlist::id))
+        assertEquals("First", restored[0].name)
+        assertContentEquals(listOf("one", "two"), restored[0].trackIds)
+        assertContentEquals(listOf("three"), restored[1].trackIds)
+
+        playlists.addTracks(first.id, listOf(TrackId("five")))
+        val afterMutation = DefaultPlaylists(store).all()
+        assertEquals(2, afterMutation.size)
+        assertEquals("First", afterMutation[0].name)
+        assertContentEquals(listOf("one", "two", "five"), afterMutation[0].trackIds)
+    }
+
+    @Test
+    fun aFailedWriteDoesNotPublishAnInMemoryPlaylist() = runTest {
+        val store = object : PlaylistStore {
+            var fail = true
+            var lines: List<String> = emptyList()
+            override suspend fun read(): List<String> = lines
+            override suspend fun write(lines: List<String>) {
+                if (fail) error("disk full")
+                this.lines = lines
+            }
+        }
+        val playlists = DefaultPlaylists(store)
+
+        assertFailsWith<IllegalStateException> { playlists.create("Lost") }
+        assertTrue(playlists.all().isEmpty())
+        store.fail = false
+        assertEquals("Saved", playlists.create("Saved").name)
+    }
+
+    @Test
+    fun aFailedInitialReadIsRetriedInsteadOfBecomingAnEmptyLoadedStore() = runTest {
+        val original = Playlist("old", "Existing", listOf("track"), createdAtMs = 1)
+        val store = object : PlaylistStore {
+            var fail = true
+            override suspend fun read(): List<String> {
+                if (fail) error("transient read")
+                return listOf(PlaylistSerializer.serialize(original))
+            }
+            override suspend fun write(lines: List<String>) = Unit
+        }
+        val playlists = DefaultPlaylists(store)
+
+        assertFailsWith<IllegalStateException> { playlists.all() }
+        store.fail = false
+        assertEquals(original, playlists.all().single())
     }
 
     @Test

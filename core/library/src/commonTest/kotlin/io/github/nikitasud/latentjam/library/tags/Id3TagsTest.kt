@@ -361,6 +361,12 @@ internal class Id3TagsTest {
     }
 
     @Test
+    fun aNoOpOnUntaggedCompatibleAudioIsByteIdentical() {
+        val audio = mp3Payload()
+        assertContentEquals(audio, assertNotNull(updateId3Tag(audio, TagEdits())))
+    }
+
+    @Test
     fun aNewTagCanBeCreatedAtV24OnRequest() {
         val out = assertNotNull(
             updateId3Tag(mp3Payload(), TagEdits(title = "君の名は。"), newTagVersion = Id3Version.V2_4),
@@ -368,6 +374,18 @@ internal class Id3TagsTest {
         val info = assertNotNull(Id3Tags.read(out))
         assertEquals(Id3Version.V2_4, info.version)
         assertEquals("君の名は。", info.title)
+    }
+
+    @Test
+    fun aNewTagCanBeCreatedOnAnAdtsAacStream() {
+        // MPEG-4 AAC-LC, 44.1 kHz, stereo, one 7-byte ADTS frame.
+        val adts = byteArrayOf(
+            0xFF.toByte(), 0xF1.toByte(), 0x50.toByte(), 0x80.toByte(), 0x00.toByte(),
+            0xFF.toByte(), 0xFC.toByte(),
+        ) + ByteArray(64)
+
+        val out = assertNotNull(updateId3Tag(adts, TagEdits(title = "AAC title")))
+        assertEquals("AAC title", assertNotNull(Id3Tags.read(out)).title)
     }
 
     // ---------------------------------------------------------------- years
@@ -543,6 +561,20 @@ internal class Id3TagsTest {
     }
 
     @Test
+    fun arbitraryUntaggedBytesAreRefusedEvenWithoutAKnownContainerMagic() {
+        val unknown = "not-a-known-container".encodeToByteArray() + ByteArray(500) { 7 }
+        assertNull(updateId3Tag(unknown, TagEdits(title = "x")))
+    }
+
+    @Test
+    fun malformedMpegSyncWordsAreNotEnoughToAuthorizePrepending() {
+        val reservedVersion = byteArrayOf(0xFF.toByte(), 0xEB.toByte(), 0x90.toByte(), 0x00) + ByteArray(100)
+        val invalidBitrate = byteArrayOf(0xFF.toByte(), 0xFB.toByte(), 0xF0.toByte(), 0x00) + ByteArray(100)
+        assertNull(updateId3Tag(reservedVersion, TagEdits(title = "x")))
+        assertNull(updateId3Tag(invalidBitrate, TagEdits(title = "x")))
+    }
+
+    @Test
     fun emptyAndTinyInputsAreRefusedNotCrashed() {
         for (data in listOf(ByteArray(0), ByteArray(1), ByteArray(3) { 'I'.code.toByte() })) {
             assertNull(updateId3Tag(data, TagEdits(title = "x")))
@@ -631,6 +663,28 @@ internal class Id3TagsTest {
     }
 
     @Test
+    fun aNoOpPreservesExtendedHeadersAndFootersByteForByte() {
+        val v23Extended = Id3TestTags.plain(6) + byteArrayOf(0, 0) + Id3TestTags.plain(0)
+        val withExtendedHeader = Id3TestTags.build(
+            major = 3,
+            frames = listOf(TestFrame("TIT2", latin1Body("Old")), artFrame(size = 64)),
+            headerFlags = 0x40,
+            extendedHeader = v23Extended,
+            padding = 17,
+        ) + mp3Payload()
+        val withFooter = Id3TestTags.build(
+            major = 4,
+            frames = listOf(TestFrame("TIT2", utf8Body("Old")), artFrame(size = 64)),
+            withFooter = true,
+            padding = 17,
+        ) + mp3Payload()
+
+        for (file in listOf(withExtendedHeader, withFooter)) {
+            assertContentEquals(file, assertNotNull(updateId3Tag(file, TagEdits())))
+        }
+    }
+
+    @Test
     fun anImplausibleExtendedHeaderIsRefused() {
         val ext = Id3TestTags.plain(9999) + byteArrayOf(0, 0)
         val file = Id3TestTags.build(
@@ -661,6 +715,35 @@ internal class Id3TagsTest {
         assertEquals("New", info.title)
         assertContentEquals(audio, out.copyOfRange(info.totalLength, out.size), "audio must not be clipped or doubled")
         assertEquals(0, out[5].toInt() and 0x10, "the rewritten tag declares no footer")
+    }
+
+    @Test
+    fun aV24FooterFlagWithoutAFooterIsRefusedInsteadOfDeletingAudio() {
+        val tag = Id3TestTags.build(
+            major = 4,
+            frames = listOf(TestFrame("TIT2", utf8Body("Old"))),
+        ).also { it[5] = (it[5].toInt() or 0x10).toByte() }
+        val audio = mp3Payload()
+        val file = tag + audio
+
+        assertEquals(tag.size + Id3Codec.FOOTER_SIZE, Id3Tags.tagLength(file))
+        assertEquals(Id3Refusal.BAD_FOOTER, Id3Tags.refusalOf(file))
+        assertNull(updateId3Tag(file, TagEdits(title = "New")))
+        assertContentEquals(audio, file.copyOfRange(tag.size, file.size))
+    }
+
+    @Test
+    fun anInconsistentV24FooterIsRefused() {
+        val file = Id3TestTags.build(
+            major = 4,
+            frames = listOf(TestFrame("TIT2", utf8Body("Old"))),
+            withFooter = true,
+        ) + mp3Payload()
+        val footer = assertNotNull(Id3Tags.tagLength(file)) - Id3Codec.FOOTER_SIZE
+        val corrupt = file.copyOf().also { it[footer + 9] = (it[footer + 9].toInt() xor 1).toByte() }
+
+        assertEquals(Id3Refusal.BAD_FOOTER, Id3Tags.refusalOf(corrupt))
+        assertNull(updateId3Tag(corrupt, TagEdits(artist = "New")))
     }
 
     // ---------------------------------------------------------------- id3v1 trailer

@@ -130,6 +130,13 @@ internal object Id3Codec {
         val footerSize = if (version == Id3Version.V2_4 && flags and FLAG_FOOTER != 0) FOOTER_SIZE else 0
         val totalLength = bodyEnd + footerSize
         if (data.size < totalLength) return Id3Parse.Refused(Id3Refusal.TRUNCATED)
+        if (footerSize != 0 && !hasMatchingFooter(data, bodyEnd)) {
+            // Trusting the flag alone consumes the first ten bytes after the tag as though they
+            // were a footer. On a damaged file those bytes are audio, and the next metadata edit
+            // would silently delete them. A footer is safe to account for only when every field
+            // mirrors the header as v2.4 requires.
+            return Id3Parse.Refused(Id3Refusal.BAD_FOOTER)
+        }
 
         var pos = HEADER_SIZE
         if (flags and FLAG_EXTENDED_HEADER != 0) {
@@ -140,6 +147,20 @@ internal object Id3Codec {
         val frames = parseFrames(data, pos, bodyEnd, version)
             ?: return Id3Parse.Refused(Id3Refusal.MALFORMED_FRAMES)
         return Id3Parse.Parsed(Id3RawTag(version, flags, totalLength, frames))
+    }
+
+    /** v2.4's footer is the header reversed in name (`3DI`) and identical in all other fields. */
+    private fun hasMatchingFooter(data: ByteArray, offset: Int): Boolean {
+        if (data[offset] != '3'.code.toByte() ||
+            data[offset + 1] != 'D'.code.toByte() ||
+            data[offset + 2] != 'I'.code.toByte()
+        ) {
+            return false
+        }
+        for (i in 3 until FOOTER_SIZE) {
+            if (data[offset + i] != data[i]) return false
+        }
+        return true
     }
 
     /** Total bytes [frames] occupy once serialized, excluding the tag header. */

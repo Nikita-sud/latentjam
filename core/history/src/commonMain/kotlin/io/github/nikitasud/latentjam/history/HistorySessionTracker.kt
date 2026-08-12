@@ -39,6 +39,20 @@ public class HistorySessionTracker(
         isPlaying: Boolean = true,
     ): ListenEvent? {
         if (trackId == currentTrackId) {
+            // Repeat-one and adjacent duplicate queue entries do not necessarily emit a different
+            // TrackId. A near-end -> near-zero wrap is nevertheless a new playback instance and
+            // must close the prior listen before opening another one. Treating every backward seek
+            // as a restart would inflate history, so require both substantial prior progress and a
+            // return to the opening seconds.
+            if (trackId != null && isPlaybackRestart(positionMs)) {
+                val finished = finishCurrent()
+                if (isPlaying) {
+                    startSession(trackId, positionMs, trackDurationMs, currentShuffleMode, nowMs)
+                } else {
+                    currentTrackId = null
+                }
+                return finished
+            }
             if (positionMs > maxPositionMs) maxPositionMs = positionMs
             if (trackDurationMs > 0) durationMs = trackDurationMs
             return null
@@ -52,11 +66,9 @@ public class HistorySessionTracker(
             currentTrackId = null
             return finished
         }
-        currentTrackId = trackId
-        startedAtMs = nowMs
-        maxPositionMs = positionMs.coerceAtLeast(0)
-        durationMs = trackDurationMs.takeIf { it > 0 }
-        shuffleMode = currentShuffleMode
+        if (trackId != null) {
+            startSession(trackId, positionMs, trackDurationMs, currentShuffleMode, nowMs)
+        }
         return finished
     }
 
@@ -82,5 +94,33 @@ public class HistorySessionTracker(
             skipped = skipped,
             shuffleMode = shuffleMode,
         )
+    }
+
+    private fun isPlaybackRestart(positionMs: Long): Boolean {
+        val duration = durationMs ?: return false
+        val openingPosition = positionMs.coerceAtLeast(0)
+        return openingPosition <= RESTART_OPENING_WINDOW_MS &&
+            maxPositionMs >= (duration * RESTART_MIN_PROGRESS).toLong() &&
+            maxPositionMs - openingPosition >= RESTART_MIN_REWIND_MS
+    }
+
+    private fun startSession(
+        trackId: TrackId,
+        positionMs: Long,
+        trackDurationMs: Long,
+        currentShuffleMode: String?,
+        nowMs: Long,
+    ) {
+        currentTrackId = trackId
+        startedAtMs = nowMs
+        maxPositionMs = positionMs.coerceAtLeast(0)
+        durationMs = trackDurationMs.takeIf { it > 0 }
+        shuffleMode = currentShuffleMode
+    }
+
+    private companion object {
+        const val RESTART_OPENING_WINDOW_MS: Long = 5_000
+        const val RESTART_MIN_REWIND_MS: Long = 30_000
+        const val RESTART_MIN_PROGRESS: Double = 0.75
     }
 }

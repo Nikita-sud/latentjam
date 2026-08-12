@@ -5,12 +5,15 @@
 package io.github.nikitasud.latentjam.history
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.usePinned
+import kotlinx.cinterop.value
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.core.module.Module
@@ -27,13 +30,10 @@ import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.NSUserDomainMask
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLIsExcludedFromBackupKey
-import platform.Foundation.closeFile
 import platform.Foundation.dataWithBytes
 import platform.Foundation.fileHandleForWritingAtPath
-import platform.Foundation.seekToEndOfFile
 import platform.Foundation.stringWithContentsOfFile
 import platform.Foundation.timeIntervalSince1970
-import platform.Foundation.writeData
 import platform.Foundation.writeToFile
 
 /**
@@ -74,18 +74,40 @@ private fun ByteArray.toNSData(): NSData {
 
 @OptIn(ExperimentalForeignApi::class)
 private fun readLines(path: String): List<String> {
-    if (!NSFileManager.defaultManager.fileExistsAtPath(path)) return emptyList()
+    val text = readText(path)
+    // A trailing newline would otherwise yield a phantom empty final record.
+    return text.split("\n").dropLastWhile { it.isEmpty() }
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun readText(path: String): String {
+    if (!NSFileManager.defaultManager.fileExistsAtPath(path)) return ""
     val text = memScoped {
         val error = alloc<ObjCObjectVar<NSError?>>()
         NSString.stringWithContentsOfFile(path, NSUTF8StringEncoding, error.ptr)
-    } ?: return emptyList()
-    // A trailing newline would otherwise yield a phantom empty final record.
-    return text.split("\n").dropLastWhile { it.isEmpty() }
+    } ?: error("Could not read private history data")
+    return text
 }
 
 private fun writeText(path: String, text: String) {
     check(text.encodeToByteArray().toNSData().writeToFile(path, true)) {
         "Could not write private history data"
+    }
+}
+
+/** Runs one error-returning NSFileHandle operation and preserves Foundation's diagnosis. */
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+private fun requireFileOperation(
+    fallbackMessage: String,
+    operation: (CPointer<ObjCObjectVar<NSError?>>?) -> Boolean,
+) {
+    memScoped {
+        val error = alloc<ObjCObjectVar<NSError?>>()
+        error.value = null
+        check(operation(error.ptr)) {
+            error.value?.localizedDescription?.let { "$fallbackMessage: $it" }
+                ?: fallbackMessage
+        }
     }
 }
 
@@ -100,21 +122,52 @@ private fun writeText(path: String, text: String) {
  */
 internal class FileHistoryStore : HistoryStore {
 
+    @OptIn(ExperimentalForeignApi::class)
     override suspend fun append(line: String): Unit = withContext(Dispatchers.Default) {
-        val path = appSupportFile(FILE_NAME) ?: return@withContext
-        val handle = NSFileHandle.fileHandleForWritingAtPath(path)
-        if (handle == null) {
-            // Nothing to open yet — this is the first event on this device.
-            writeText(path, line + "\n")
-            return@withContext
+        val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
+        val manager = NSFileManager.defaultManager
+        if (!manager.fileExistsAtPath(path)) {
+            check(manager.createFileAtPath(path, NSData(), null)) {
+                "Could not create private history data"
+            }
         }
-        handle.seekToEndOfFile()
-        handle.writeData((line + "\n").encodeToByteArray().toNSData())
-        handle.closeFile()
+        val handle = NSFileHandle.fileHandleForWritingAtPath(path)
+            ?: error("Could not open private history data for append")
+        var primaryFailure: Throwable? = null
+        try {
+            requireFileOperation("Could not seek private history data") { error ->
+                handle.seekToEndReturningOffset(null, error)
+            }
+            requireFileOperation("Could not append private history data") { error ->
+                handle.writeData((line + "\n").encodeToByteArray().toNSData(), error)
+            }
+            // A record is not acknowledged to DefaultListeningHistory until the kernel has
+            // durably synchronized it. Otherwise an apparently successful play can disappear
+            // after a crash or power loss while remaining visible in this process's aggregates.
+            requireFileOperation("Could not synchronize private history data") { error ->
+                handle.synchronizeAndReturnError(error)
+            }
+        } catch (failure: Throwable) {
+            primaryFailure = failure
+            throw failure
+        } finally {
+            try {
+                requireFileOperation("Could not close private history data") { error ->
+                    handle.closeAndReturnError(error)
+                }
+            } catch (closeFailure: Throwable) {
+                val original = primaryFailure
+                if (original != null) {
+                    original.addSuppressed(closeFailure)
+                } else {
+                    throw closeFailure
+                }
+            }
+        }
     }
 
     override suspend fun readAll(): List<String> = withContext(Dispatchers.Default) {
-        appSupportFile(FILE_NAME)?.let(::readLines) ?: emptyList()
+        readLines(appSupportFile(FILE_NAME) ?: error("Application Support is unavailable"))
     }
 
     override suspend fun replaceAll(lines: List<String>): Unit = withContext(Dispatchers.Default) {
@@ -140,12 +193,14 @@ internal class FileHistoryStore : HistoryStore {
 internal class FileRecentSearchStore : RecentSearchStore {
 
     override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
-        appSupportFile(FILE_NAME)?.let(::readLines) ?: emptyList()
+        RecentSearchFileCodec.decode(
+            readText(appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")),
+        )
     }
 
     override suspend fun write(queries: List<String>): Unit = withContext(Dispatchers.Default) {
         val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
-        writeText(path, queries.joinToString("\n"))
+        writeText(path, RecentSearchFileCodec.encode(queries))
     }
 
     private companion object {
@@ -155,7 +210,7 @@ internal class FileRecentSearchStore : RecentSearchStore {
 
 internal class FileSmartExclusionStore : SmartExclusionStore {
     override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
-        appSupportFile(FILE_NAME)?.let(::readLines) ?: emptyList()
+        readLines(appSupportFile(FILE_NAME) ?: error("Application Support is unavailable"))
     }
 
     override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.Default) {

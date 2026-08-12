@@ -67,8 +67,10 @@ public class DefaultListeningHistory(
 
     override suspend fun record(event: ListenEvent): Unit = mutex.withLock {
         ensureLoaded()
+        // Publish only after the append succeeds. Otherwise stats in this process include a
+        // session that silently disappears at the next launch.
+        store.append(event.serialize())
         events += event
-        runCatching { store.append(event.serialize()) }
     }
 
     override suspend fun stats(): Map<TrackId, TrackStats> = mutex.withLock {
@@ -108,7 +110,7 @@ public class DefaultListeningHistory(
 
     private suspend fun ensureLoaded() {
         if (loaded) return
-        val lines = runCatching { store.readAll() }.getOrDefault(emptyList())
+        val lines = store.readAll()
         lines.mapNotNullTo(events, ListenEvent::parse)
         loaded = true
     }

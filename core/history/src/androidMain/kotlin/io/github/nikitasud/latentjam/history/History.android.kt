@@ -21,7 +21,7 @@ internal class FileHistoryStore(context: Context) : HistoryStore {
     private val file = File(context.filesDir, FILE_NAME)
 
     override suspend fun append(line: String): Unit = withContext(Dispatchers.IO) {
-        file.appendText(line + "\n")
+        file.durableAppendText(line + "\n")
     }
 
     override suspend fun readAll(): List<String> = withContext(Dispatchers.IO) {
@@ -29,7 +29,9 @@ internal class FileHistoryStore(context: Context) : HistoryStore {
     }
 
     override suspend fun replaceAll(lines: List<String>): Unit = withContext(Dispatchers.IO) {
-        file.writeText(lines.joinToString(separator = "\n", postfix = if (lines.isEmpty()) "" else "\n"))
+        file.atomicReplaceText(
+            lines.joinToString(separator = "\n", postfix = if (lines.isEmpty()) "" else "\n"),
+        )
     }
 
     override suspend fun clear(): Unit = withContext(Dispatchers.IO) {
@@ -42,16 +44,16 @@ internal class FileHistoryStore(context: Context) : HistoryStore {
 }
 
 /** Whole-file rewrite; the list is a dozen short lines at most. */
-internal class FileRecentSearchStore(context: Context) : RecentSearchStore {
+internal class FileRecentSearchStore internal constructor(private val file: File) : RecentSearchStore {
 
-    private val file = File(context.filesDir, FILE_NAME)
+    constructor(context: Context) : this(File(context.filesDir, FILE_NAME))
 
     override suspend fun read(): List<String> = withContext(Dispatchers.IO) {
-        if (!file.exists()) emptyList() else file.readLines()
+        if (!file.exists()) emptyList() else RecentSearchFileCodec.decode(file.readText())
     }
 
     override suspend fun write(queries: List<String>): Unit = withContext(Dispatchers.IO) {
-        file.writeText(queries.joinToString("\n"))
+        file.atomicReplaceText(RecentSearchFileCodec.encode(queries))
     }
 
     private companion object {
@@ -67,7 +69,7 @@ internal class FileSmartExclusionStore(context: Context) : SmartExclusionStore {
     }
 
     override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.IO) {
-        file.writeText(lines.joinToString("\n"))
+        file.atomicReplaceText(lines.joinToString("\n"))
     }
 
     private companion object {

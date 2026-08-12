@@ -68,10 +68,19 @@ internal class IosAudioEngine : EqualizerController {
         publishEqualizerState()
     }
 
-    /** Cues a local file and optionally starts it. False means the URL could not be decoded. */
+    /**
+     * Cues a local file and optionally starts it.
+     *
+     * Failure leaves no previous segment alive. The controller may already have moved its logical
+     * playhead to this URL; keeping the old file running would put different audio under that new
+     * metadata until another successful load.
+     */
     fun load(url: NSURL, autoPlay: Boolean, onEnded: () -> Unit): Boolean {
         val file = runCatching { AVAudioFile(forReading = url, error = null) }.getOrNull()
-            ?: return false
+            ?: run {
+                stop()
+                return false
+            }
         completionGeneration++
         player.stop()
         currentFile = file
@@ -80,14 +89,28 @@ internal class IosAudioEngine : EqualizerController {
         completion = onEnded
         scheduleSegment(file, 0L)
         if (autoPlay) {
-            if (!ensureEngineRunning()) return false
+            if (!ensureEngineRunning()) {
+                stop()
+                return false
+            }
             player.play()
         }
         return true
     }
 
     fun play(): Boolean {
-        if (currentFile == null || !ensureEngineRunning()) return false
+        val file = currentFile ?: return false
+        // A completed AVAudioPlayerNode segment is consumed. Calling play() again changes the
+        // node's flag but emits no samples, so a transport press after natural end must schedule a
+        // fresh segment just like an explicit seek to zero.
+        if (shouldRestartConsumedSegment(pausedFrame, file.length)) {
+            completionGeneration++
+            player.stop()
+            segmentStartFrame = 0L
+            pausedFrame = 0L
+            scheduleSegment(file, 0L)
+        }
+        if (!ensureEngineRunning()) return false
         player.play()
         return true
     }

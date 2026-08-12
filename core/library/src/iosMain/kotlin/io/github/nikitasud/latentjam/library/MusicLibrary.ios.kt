@@ -134,10 +134,24 @@ internal class IosMusicLibrary : MusicLibrary {
         }
     }
 
+    override suspend fun hide(trackIds: Collection<TrackId>): Unit = withContext(Dispatchers.Default) {
+        visibilityMutex.withLock {
+            val hidden = readHiddenTrackIds().toMutableSet()
+            if (hidden.addAll(trackIds.map(TrackId::value))) writeHiddenTrackIds(hidden)
+        }
+    }
+
     override suspend fun unhide(trackId: TrackId): Unit = withContext(Dispatchers.Default) {
         visibilityMutex.withLock {
             val hidden = readHiddenTrackIds().toMutableSet()
             if (hidden.remove(trackId.value)) writeHiddenTrackIds(hidden)
+        }
+    }
+
+    override suspend fun unhide(trackIds: Collection<TrackId>): Unit = withContext(Dispatchers.Default) {
+        visibilityMutex.withLock {
+            val hidden = readHiddenTrackIds().toMutableSet()
+            if (hidden.removeAll(trackIds.map(TrackId::value).toSet())) writeHiddenTrackIds(hidden)
         }
     }
 
@@ -223,8 +237,9 @@ internal class IosMusicLibrary : MusicLibrary {
         .toSet()
 
     private fun writeHiddenTrackIds(ids: Set<String>) {
-        hiddenTrackPath()?.let { path ->
-            writeText(path, ids.sorted().joinToString("\n", transform = String::encodeHexString))
+        val path = hiddenTrackPath() ?: error("Application Support is unavailable")
+        check(writeText(path, ids.sorted().joinToString("\n", transform = String::encodeHexString))) {
+            "Could not write hidden tracks"
         }
     }
 
@@ -238,8 +253,9 @@ internal class IosMusicLibrary : MusicLibrary {
         .toSet()
 
     private fun writeExcludedSourceIds(ids: Set<String>) {
-        excludedSourcesPath()?.let { path ->
-            writeText(path, ids.sorted().joinToString("\n", transform = String::encodeHexString))
+        val path = excludedSourcesPath() ?: error("Application Support is unavailable")
+        check(writeText(path, ids.sorted().joinToString("\n", transform = String::encodeHexString))) {
+            "Could not write excluded sources"
         }
     }
 
@@ -381,6 +397,7 @@ internal class IosMusicLibrary : MusicLibrary {
                 relativePath = relativePath,
                 absolutePath = absolutePath,
                 sizeBytes = sizeBytes,
+                modifiedAtMs = modifiedAtMs,
                 addedAtMs = addedAtMs,
             )
             cache[relativePath] = CachedTrack(modifiedAtMs, sizeBytes, descriptor)
@@ -400,6 +417,7 @@ internal class IosMusicLibrary : MusicLibrary {
         relativePath: String,
         absolutePath: String,
         sizeBytes: Long,
+        modifiedAtMs: Long,
         addedAtMs: Long?,
     ): TrackDescriptor {
         val url = fileUrl(absolutePath)
@@ -452,6 +470,7 @@ internal class IosMusicLibrary : MusicLibrary {
             folderPath = relativePath.substringBeforeLast('/', "").ifBlank { "Imported" },
             year = (asset.firstString(YEAR_IDENTIFIERS) ?: asset.rawString("DATE", "YEAR") ?: created)
                 ?.let(::parseYear),
+            sourceRevision = "ios-import-v1:$sizeBytes:$modifiedAtMs",
         )
     }
 
@@ -600,8 +619,10 @@ internal class FilePlaylistStore : PlaylistStore {
     }
 
     override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.Default) {
-        path()?.let { writeText(it, lines.joinToString("\n")) }
-        Unit
+        val target = path() ?: error("Application Support is unavailable")
+        check(writeText(target, lines.joinToString("\n"))) {
+            "Could not write playlists"
+        }
     }
 
     private companion object {
