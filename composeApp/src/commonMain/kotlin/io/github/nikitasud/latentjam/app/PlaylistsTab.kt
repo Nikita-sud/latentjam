@@ -350,6 +350,8 @@ internal fun PlaylistNameDialog(
 internal fun AddToPlaylistSheet(
     tracks: List<TrackDescriptor>,
     playlists: List<Playlist>,
+    /** Resolved (playable) track count per playlist; stored ids may include deleted files. */
+    resolvedSize: (Playlist) -> Int = { it.trackIds.size },
     onAddTo: (Playlist) -> Unit,
     onCreateNew: () -> Unit,
     onDismiss: () -> Unit,
@@ -424,7 +426,7 @@ internal fun AddToPlaylistSheet(
                         Column {
                             Text(text = playlist.name, style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                text = pluralStringResource(Res.plurals.count_tracks, playlist.trackIds.size, playlist.trackIds.size),
+                                text = pluralStringResource(Res.plurals.count_tracks, resolvedSize(playlist), resolvedSize(playlist)),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

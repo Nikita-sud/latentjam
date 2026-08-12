@@ -509,7 +509,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // library (the common foreground return) runs nothing.
         LaunchedEffect(tracks) {
             val loaded = tracks ?: return@LaunchedEffect
-            val known = library.allKnownTracks().mapTo(mutableSetOf()) { it.id }
+            // The visible half of allKnownTracks() is the list already in hand; only the hidden
+            // half needs a query, saving one full MediaStore pass per library change.
+            val known = loaded.mapTo(mutableSetOf()) { it.id }
+            library.hiddenTracks().mapTo(known) { it.id }
             // A permission failure is also represented by an empty library snapshot. Keep a
             // persisted queue in that ambiguous case; confirmed deletion reconciles explicitly
             // below, where an empty set really does mean "the final track was removed".
@@ -2392,6 +2395,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             AddToPlaylistSheet(
                 tracks = selection,
                 playlists = playlists,
+                resolvedSize = { tracksOf(it).size },
                 onAddTo = { playlist ->
                     if (playlistMutationInProgress) return@AddToPlaylistSheet
                     val selectedBefore = selectedTrackIds

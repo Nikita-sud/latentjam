@@ -110,14 +110,45 @@ BRACKETED = re.compile(r"\s*[\(\[][^()\[\]]*[\)\]]\s*")
 WHITESPACE = re.compile(r"\s+")
 
 
+def _genre_tokens(value):
+    # Mirror of Genres.tokenize: runs of letter-or-digit characters, Unicode-aware.
+    tokens, start = [], -1
+    for i, ch in enumerate(value):
+        if ch.isalnum():
+            if start < 0:
+                start = i
+        elif start >= 0:
+            tokens.append(value[start:i])
+            start = -1
+    if start >= 0:
+        tokens.append(value[start:])
+    return tokens
+
+
+def _contains_phrase(tokens, phrase):
+    if not phrase or len(phrase) > len(tokens):
+        return False
+    return any(tokens[i:i + len(phrase)] == phrase
+               for i in range(len(tokens) - len(phrase) + 1))
+
+
 def normalize_genre(g):
+    # Mirror of Genres.normalize: whole-token phrase aliases, not substrings —
+    # "Chiptune" must not resolve to rap via the "hip" needle.
     raw = (g or "").lower().strip()
     if raw in ("", "<unknown>", "unknown", "other"):
         return None
+    tokens = _genre_tokens(raw)
     for needle, family in GENRE_ALIASES:
-        if needle in raw:
+        if _contains_phrase(tokens, needle.split(" ")):
             return family
     return raw
+
+
+def normalize_artist(artist):
+    # Mirror of MetadataRerank.normalizeArtist: the canonical artist key shared by
+    # pairwise scoring, queue spacing, and per-artist caps.
+    return WHITESPACE.sub(" ", (artist or "").lower()).strip()
 
 
 def is_hub(g):
@@ -224,6 +255,7 @@ class Library:
         self.mhub = [is_hub(m[3]) for m in self.lab]
         self.mtitle = [normalize_title(m[0]) for m in self.lab]
         self.martist = [(m[1] or "") for m in self.lab]
+        self.makey = [normalize_artist(m[1]) for m in self.lab]
 
         # ONNX — all graphs come from this repo's own assets; the state and scorer files are
         # byte-identical to the ones the legacy checkout ships, so nothing points across.
@@ -404,8 +436,8 @@ def adjust_multiplier(lib, anchor, cand):
     a, c = lib.lab[anchor], lib.lab[cand]
     if a[2] and a[2] == c[2]:
         m -= SAME_ALBUM_PENALTY
-    aa, ca = (a[1] or "").strip(), (c[1] or "").strip()
-    if aa and ca and aa.lower() == ca.lower():
+    aa, ca = lib.makey[anchor], lib.makey[cand]
+    if aa and aa == ca:
         m *= SAME_ARTIST_BONUS
     ga, gc = lib.mgenre[anchor], lib.mgenre[cand]
     if ga is not None and gc is not None:
@@ -462,7 +494,7 @@ def build_chain(lib, seed, length):
     # recentArtists starts EMPTY: SmartChain deliberately lets the seed lead into one closely
     # related track by the same artist before the spacing window engages (see SmartChain.kt).
     recent = deque()
-    seen_titles = {lib.mtitle[seed]}
+    seen_titles = {lib.mtitle[seed]} if lib.mtitle[seed] else set()
     artist_plays = {}
     family_picks = 0
     z_seed = lib.chain_semantic_z(seed, pool)
@@ -471,11 +503,11 @@ def build_chain(lib, seed, length):
         if i in used:
             return False
         r = pool[i]
-        if lib.martist[r] in recent:
+        if lib.makey[r] in recent:
             return False
-        if lib.mtitle[r] in seen_titles:
+        if lib.mtitle[r] and lib.mtitle[r] in seen_titles:
             return False
-        if artist_plays.get(lib.martist[r], 0) >= CHAIN_ARTIST_QUEUE_CAP:
+        if artist_plays.get(lib.makey[r], 0) >= CHAIN_ARTIST_QUEUE_CAP:
             return False
         return True
 
@@ -546,9 +578,10 @@ def build_chain(lib, seed, length):
         used.add(best_i)
         if lib.mgenre[picked] == seed_genre and seed_genre is not None:
             family_picks += 1
-        seen_titles.add(lib.mtitle[picked])
-        artist_plays[lib.martist[picked]] = artist_plays.get(lib.martist[picked], 0) + 1
-        recent.append(lib.martist[picked])
+        if lib.mtitle[picked]:
+            seen_titles.add(lib.mtitle[picked])
+        artist_plays[lib.makey[picked]] = artist_plays.get(lib.makey[picked], 0) + 1
+        recent.append(lib.makey[picked])
         while len(recent) > CHAIN_ARTIST_SPACING:
             recent.popleft()
         anchor = picked
