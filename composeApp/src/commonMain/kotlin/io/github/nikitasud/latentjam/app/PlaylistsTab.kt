@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -89,8 +91,25 @@ internal fun PlaylistsTabContent(
     onOpenPlaylist: (Playlist) -> Unit,
     onRename: (Playlist) -> Unit,
     onDelete: (Playlist) -> Unit,
+    /** Whether the pager is currently settled on this tab; drives the entry scroll reset. */
+    settledOnTab: Boolean = true,
 ) {
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
+    // Entering the tab always starts at the top — with the auto playlists (the most useful
+    // row, and the whole reason they lead) visible. Nothing tied to this page's lifecycle can
+    // express "on entry": measured on a device, the page composition survives leaving the tab
+    // (state, effects and offset all stay live in the pager), so a LaunchedEffect(Unit) here
+    // fires once per process and never again. The pager's settled position is what actually
+    // changes, so the reset keys on settling here. Scrolling within a visit still holds; only
+    // re-entry resets.
+    val listState = remember { LazyListState() }
+    LaunchedEffect(settledOnTab) {
+        if (settledOnTab) listState.scrollToItem(0)
+    }
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = contentPadding,
+    ) {
         if (autoPlaylists.isNotEmpty()) {
             item(key = "auto") {
                 LazyRow(
