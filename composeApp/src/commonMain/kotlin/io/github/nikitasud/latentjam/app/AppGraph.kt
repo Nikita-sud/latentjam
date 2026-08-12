@@ -118,11 +118,16 @@ object AppGraph {
                                 // Must match assets/ml/embedding_version.txt;
                                 // keys the persisted index snapshot.
                                 modelVersion = "mnv4-960-retrieval-distill-v1",
-                                // EXPERIMENT, on. Set back to 0f to disable. Only affects
-                                // ordering, never the index, so flipping it costs no re-index
-                                // and the comparison is a clean before/after in
-                                // files/listening_history.log.
-                                typicalityWeight = 0.3f,
+                                // EXPERIMENT CONCLUDED, off. Two weeks live at 0.3f
+                                // (2026-07-27 → 08-12): SMART skip rate 0.469 pre vs 0.463
+                                // post over 783/363 events, Fisher p=0.90, with the
+                                // non-SMART control moving the same amount. Typicality
+                                // PREDICTS keeps (AUC 0.633 on 717 transitions) but boosting
+                                // it does not CAUSE them — the prediction was carried by
+                                // familiarity, not by queue fit. The term and snapshot axis
+                                // stay for future experiments; re-enable only with a new
+                                // hypothesis and its own before/after window.
+                                typicalityWeight = 0f,
                             )
                         }
                         // The single point where playback meets the engine.
