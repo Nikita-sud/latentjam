@@ -53,4 +53,35 @@ internal class LibraryWorldNamingTest {
         )
         assertEquals(listOf("Mix 1", "Anime"), renamed.map { it.name })
     }
+
+    @Test
+    fun namesDifferingOnlyByWhitespaceAndCaseNameOnlyOneWorld() {
+        val renamed = LibraryWorlds.namedAfterGroups(
+            worlds = listOf(
+                world("Mix 1", listOf("a", "b", "c")),
+                world("Mix 2", listOf("d", "e", "f")),
+            ),
+            groups = listOf(
+                group("  Chill  ", "a", "b", "c"),
+                group("chill", "d", "e", "f"),
+            ),
+        )
+
+        assertEquals(listOf("Chill", "Mix 2"), renamed.map { it.name })
+    }
+
+    @Test
+    fun firstGroupWinsAnEqualContainmentTie() {
+        val renamed = LibraryWorlds.namedAfterGroups(
+            worlds = listOf(world("Mix 1", listOf("a", "b", "c"))),
+            // Callers put listener playlists before album groups; stable input-order tie breaking
+            // is what makes the listener's own vocabulary win equal containment.
+            groups = listOf(
+                group("My playlist", "a", "b", "c"),
+                group("Album title", "a", "b", "c"),
+            ),
+        )
+
+        assertEquals("My playlist", renamed.single().name)
+    }
 }

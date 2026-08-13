@@ -112,26 +112,44 @@ public object LibraryWorlds {
         minContainment: Double = GROUP_NAME_CONTAINMENT,
     ): List<LibraryWorld> {
         if (worlds.isEmpty() || groups.isEmpty()) return worlds
-        data class Claim(val worldIndex: Int, val groupName: String, val containment: Double)
+        data class Claim(
+            val worldIndex: Int,
+            val groupName: String,
+            val normalizedName: String,
+            val containment: Double,
+            val inputOrder: Int,
+        )
 
         val claims = mutableListOf<Claim>()
+        var inputOrder = 0
         worlds.forEachIndexed { worldIndex, world ->
             for ((groupName, members) in groups) {
-                if (groupName.isBlank() || members.isEmpty()) continue
+                val displayName = groupName.trim()
+                val normalizedName = displayName.lowercase()
+                if (displayName.isEmpty() || members.isEmpty()) continue
                 val inside = world.tracks.count { it.id in members }
                 val containment = inside.toDouble() / world.tracks.size
                 if (containment >= minContainment) {
-                    claims += Claim(worldIndex, groupName, containment)
+                    claims += Claim(
+                        worldIndex = worldIndex,
+                        groupName = displayName,
+                        normalizedName = normalizedName,
+                        containment = containment,
+                        inputOrder = inputOrder,
+                    )
                 }
+                inputOrder++
             }
         }
         val renamed = worlds.toMutableList()
         val takenWorlds = HashSet<Int>()
         val takenNames = HashSet<String>()
-        for (claim in claims.sortedByDescending { it.containment }) {
-            if (claim.worldIndex in takenWorlds || claim.groupName in takenNames) continue
+        for (claim in claims.sortedWith(
+            compareByDescending<Claim> { it.containment }.thenBy { it.inputOrder },
+        )) {
+            if (claim.worldIndex in takenWorlds || claim.normalizedName in takenNames) continue
             takenWorlds += claim.worldIndex
-            takenNames += claim.groupName
+            takenNames += claim.normalizedName
             renamed[claim.worldIndex] = renamed[claim.worldIndex].copy(
                 name = claim.groupName,
                 nameSource = LibraryWorldNameSource.PLAYLIST,
