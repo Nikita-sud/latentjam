@@ -179,6 +179,7 @@
     <string name="action_go_to_artist">Sanatçıya git</string>
     <string name="action_show_on_map">Haritada göster</string>
     <string name="action_export_m3u">M3U olarak dışa aktar</string>
+    <string name="action_smart_keep_together">SMART'ta birlikte tut</string>
     <string name="action_import_m3u">M3U içe aktar</string>
     <string name="snack_m3u_imported">%2$d parçadan %1$d içe aktarıldı</string>
     <string name="snack_m3u_import_failed">Çalma listesi içe aktarılamadı</string>

@@ -186,6 +186,7 @@
     <string name="action_go_to_artist">Ir al artista</string>
     <string name="action_show_on_map">Mostrar en el mapa</string>
     <string name="action_export_m3u">Exportar como M3U</string>
+    <string name="action_smart_keep_together">Mantener juntas en SMART</string>
     <string name="action_import_m3u">Importar M3U</string>
     <string name="snack_m3u_imported">Importadas %1$d de %2$d pistas</string>
     <string name="snack_m3u_import_failed">No se pudo importar la lista</string>

@@ -22,6 +22,16 @@ internal object ChainConfig {
     /** Local coherence toward the previous pick. */
     const val COSINE_BLEND_WEIGHT = 3.0f
 
+    /**
+     * Additive nudge toward candidates sharing a listener-marked group (an opted-in playlist)
+     * with the current anchor. Sized as ~0.3 standard deviations of a typical library's cosine
+     * spread (~0.056 raw, measured on a 1063-track device library) times [COSINE_BLEND_WEIGHT]:
+     * enough to decide ties and keep a marked mood together, never enough to outweigh genuine
+     * acoustic distance. Applies ONLY when the caller passes groups — the empty default is the
+     * shipped chain, byte-identical, which is what the recorded parity fixtures pin.
+     */
+    const val COMPANION_BONUS = 0.17f
+
     /** Pull toward the seed for the whole walk, so one off-genre hop can't capture the chain. */
     const val CHAIN_SEED_GRAVITY = 2.5f
 
@@ -84,10 +94,28 @@ internal class SmartChain(
      * Set from `SmartEngineConfig.typicalityWeight`; see TypicalityTest for the evidence.
      */
     private val typicalityWeight: Float = 0f,
+    /**
+     * Track groups the listener explicitly asked to keep together — opted-in playlists, passed
+     * as bare id sets so the chain stays ignorant of what a playlist is. Empty (the default)
+     * reproduces the shipped chain exactly.
+     */
+    companionGroups: List<Set<TrackId>> = emptyList(),
 ) {
 
     init {
         require(eligibleRows.size == snapshot.size) { "eligible row mask must match snapshot" }
+    }
+
+    /** Per-row membership bitmask over the first 64 groups; two rows share a group iff AND != 0. */
+    private val companionBits: LongArray = LongArray(snapshot.size).also { bits ->
+        companionGroups.take(64).forEachIndexed { groupIndex, group ->
+            if (group.isEmpty()) return@forEachIndexed
+            for (row in 0 until snapshot.size) {
+                if (snapshot.tracks[row].id in group) {
+                    bits[row] = bits[row] or (1L shl groupIndex)
+                }
+            }
+        }
     }
 
     /**
@@ -277,6 +305,11 @@ internal class SmartChain(
                 // the recorded parity fixtures and every shipped queue are unchanged by default.
                 if (typicalityWeight != 0f) {
                     score += typicalityWeight * snapshot.typicality[row]
+                }
+                // The listener's own "keep these together": a nudge for candidates sharing a
+                // marked group with the current anchor. No groups — no term, see COMPANION_BONUS.
+                if (companionBits[anchorRow] and companionBits[row] != 0L) {
+                    score += ChainConfig.COMPANION_BONUS
                 }
                 var multiplier = MetadataRerank.adjustMultiplier(anchorMeta, meta)
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)

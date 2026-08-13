@@ -14,6 +14,8 @@ public data class Playlist(
     public val name: String,
     public val trackIds: List<String> = emptyList(),
     public val createdAtMs: Long = 0,
+    /** The listener asked SMART to keep this playlist's tracks together (an explicit opt-in). */
+    public val includeInSmart: Boolean = false,
 )
 
 /** Exact ordered membership around one durable playlist edit. */
@@ -53,6 +55,9 @@ public interface Playlists {
 
     /** Moves playlist [id] to [toIndex] in the user's ordering; out-of-range indices clamp. */
     public suspend fun move(id: String, toIndex: Int)
+
+    /** Flips whether SMART keeps this playlist's tracks together. @return the new state. */
+    public suspend fun toggleIncludeInSmart(id: String): Boolean
 
     /** Replaces all user playlists in one durable write, primarily for local backup restore. */
     public suspend fun replaceAll(playlists: List<Playlist>)
@@ -130,6 +135,16 @@ public class DefaultPlaylists(
         persist(reordered)
         playlists.clear()
         playlists += reordered
+    }
+
+    override suspend fun toggleIncludeInSmart(id: String): Boolean = mutex.withLock {
+        ensureLoaded()
+        val index = playlists.indexOfFirst { it.id == id }
+        if (index < 0) return@withLock false
+        val changed = playlists[index].copy(includeInSmart = !playlists[index].includeInSmart)
+        persist(playlists.toMutableList().also { it[index] = changed })
+        playlists[index] = changed
+        changed.includeInSmart
     }
 
     override suspend fun addTracks(id: String, trackIds: List<TrackId>): Unit = mutex.withLock {
@@ -238,18 +253,30 @@ internal object PlaylistSerializer {
     private const val FIELD = ''
     private const val TRACK = ','
     private const val FORMAT_V2 = "v2"
+    private const val FORMAT_V3 = "v3"
 
     fun serialize(playlist: Playlist): String = listOf(
-        FORMAT_V2,
+        FORMAT_V3,
         playlist.id.encodeHex(),
         playlist.name.encodeHex(),
         playlist.createdAtMs.toString(),
         playlist.trackIds.joinToString(TRACK.toString()) { it.encodeHex() },
+        if (playlist.includeInSmart) "1" else "0",
     ).joinToString(FIELD.toString())
 
     fun parse(line: String): Playlist? {
         val parts = line.split(FIELD)
-        return if (parts.firstOrNull() == FORMAT_V2) parseV2(parts) else parseV1(parts)
+        return when (parts.firstOrNull()) {
+            FORMAT_V3 -> parseV3(parts)
+            FORMAT_V2 -> parseV2(parts)
+            else -> parseV1(parts)
+        }
+    }
+
+    /** v3 = v2 plus the SMART opt-in flag; a v2 line simply reads as "not opted in". */
+    private fun parseV3(parts: List<String>): Playlist? {
+        if (parts.size != 6) return null
+        return parseV2(parts.subList(0, 5))?.copy(includeInSmart = parts[5] == "1")
     }
 
     private fun parseV2(parts: List<String>): Playlist? {

@@ -199,6 +199,12 @@ public interface SimilarityEngine {
         length: Int,
         /** Oldest-first, device-local observations; empty preserves the exact cold-start path. */
         history: List<SmartHistoryEvent> = emptyList(),
+        /**
+         * Track groups the listener explicitly asked to keep together (opted-in playlists),
+         * passed as bare id sets — the engine stays ignorant of what a playlist is. Empty
+         * preserves the exact shipped chain.
+         */
+        companionGroups: List<Set<TrackId>> = emptyList(),
     ): List<TrackId>
 
     /**

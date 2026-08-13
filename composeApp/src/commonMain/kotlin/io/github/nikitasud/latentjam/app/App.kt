@@ -773,6 +773,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             eligible,
                             smartQueueLength,
                             smartHistoryFor(AppGraph.history, seed),
+                            AppGraph.smartCompanionGroups.value,
                         )
                         val byId = eligible.associateBy { it.id }
                         val recommendations = queue.mapNotNull(byId::get)
@@ -1280,6 +1281,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             if (selectedTab == PLAYLISTS_TAB) refreshPlaylistsWithFeedback()
         }
 
+        // Every SMART planner (in-app and the playback chooser) reads the marked playlists from
+        // this flow; kept in lockstep with the playlists state.
+        LaunchedEffect(playlists) {
+            AppGraph.smartCompanionGroups.value = playlists
+                .filter { it.includeInSmart }
+                .map { playlist -> playlist.trackIds.mapTo(HashSet()) { TrackId(it) } }
+        }
         var autoPlaylists by remember { mutableStateOf<List<AutoPlaylist>>(emptyList()) }
         LaunchedEffect(catalog, playCounts, lastPlayedAt, favoriteIds) {
             val songs = catalog?.songs
@@ -1704,6 +1712,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                         smartEligibleTracks,
                                                         smartQueueLength,
                                                         smartHistoryFor(AppGraph.history, hero.track),
+                                                        AppGraph.smartCompanionGroups.value,
                                                     )
                                                     val byId = visibleCatalog.songs.associateBy { it.id }
                                                     val tail = queue.mapNotNull(byId::get)
@@ -1737,6 +1746,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                             smartEligibleTracks,
                                                             smartQueueLength,
                                                             smartHistoryFor(AppGraph.history, seed),
+                                                            AppGraph.smartCompanionGroups.value,
                                                         )
                                                         val tail = queue.mapNotNull(tracksById::get)
                                                         AppGraph.queueSource.value =
@@ -1793,6 +1803,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             },
                                             onExport = ::exportPlaylistAsM3u,
+                                            onToggleSmart = { playlist ->
+                                                scope.launch {
+                                                    if (!runPlaylistMutation {
+                                                            AppGraph.playlists
+                                                                .toggleIncludeInSmart(playlist.id)
+                                                        }
+                                                    ) return@launch
+                                                    refreshPlaylistMembershipsBestEffort()
+                                                }
+                                            },
                                             onMove = { from, to ->
                                                 val moving = playlists.getOrNull(from)
                                                 if (moving != null) {
@@ -2691,6 +2711,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             smartEligibleTracks,
                             smartQueueLength,
                             smartHistoryFor(AppGraph.history, target.track),
+                            AppGraph.smartCompanionGroups.value,
                         )
                         val byId = songs.associateBy { it.id }
                         AppGraph.queueSource.value = QueueSource(QueueSourceKind.FOR_YOU)

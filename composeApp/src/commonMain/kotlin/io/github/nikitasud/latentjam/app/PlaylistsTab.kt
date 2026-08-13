@@ -28,6 +28,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DriveFileRenameOutline
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.MoreVert
@@ -66,6 +68,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_delete
 import io.github.nikitasud.latentjam.app.generated.resources.action_export_m3u
+import io.github.nikitasud.latentjam.app.generated.resources.action_smart_keep_together
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_most_played
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_favorites
@@ -102,6 +105,7 @@ internal fun PlaylistsTabContent(
     onOpenPlaylist: (Playlist) -> Unit,
     onRename: (Playlist) -> Unit,
     onExport: (Playlist) -> Unit = {},
+    onToggleSmart: (Playlist) -> Unit = {},
     onDelete: (Playlist) -> Unit,
     /** Commits a long-press drag: the playlist at [from] drops at [to], both list positions. */
     onMove: (from: Int, to: Int) -> Unit = { _, _ -> },
@@ -220,6 +224,7 @@ internal fun PlaylistsTabContent(
                     onClick = { onOpenPlaylist(playlist) },
                     onRename = { onRename(playlist) },
                     onExport = { onExport(playlist) },
+                    onToggleSmart = { onToggleSmart(playlist) },
                     onDelete = { onDelete(playlist) },
                 )
             }
@@ -295,6 +300,7 @@ private fun PlaylistRow(
     onClick: () -> Unit,
     onRename: () -> Unit,
     onExport: () -> Unit,
+    onToggleSmart: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -354,6 +360,21 @@ private fun PlaylistRow(
                     onClick = {
                         menuOpen = false
                         onExport()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.action_smart_keep_together)) },
+                    leadingIcon = {
+                        Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
+                    },
+                    trailingIcon = if (playlist.includeInSmart) {
+                        { Icon(Icons.Rounded.Check, contentDescription = null) }
+                    } else {
+                        null
+                    },
+                    onClick = {
+                        menuOpen = false
+                        onToggleSmart()
                     },
                 )
                 DropdownMenuItem(

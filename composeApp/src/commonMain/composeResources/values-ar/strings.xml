@@ -208,6 +208,7 @@
     <string name="action_go_to_artist">الانتقال إلى الفنان</string>
     <string name="action_show_on_map">عرض على الخريطة</string>
     <string name="action_export_m3u">تصدير كملف M3U</string>
+    <string name="action_smart_keep_together">إبقاؤها معًا في SMART</string>
     <string name="action_import_m3u">استيراد M3U</string>
     <string name="snack_m3u_imported">تم استيراد %1$d من %2$d مقطعًا</string>
     <string name="snack_m3u_import_failed">تعذّر استيراد قائمة التشغيل</string>

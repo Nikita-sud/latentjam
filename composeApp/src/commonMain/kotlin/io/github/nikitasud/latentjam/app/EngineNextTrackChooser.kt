@@ -34,6 +34,8 @@ import kotlin.time.TimeSource
 class EngineNextTrackChooser(
     private val engine: SimilarityEngine,
     private val history: ListeningHistory,
+    /** Live view of the playlists the listener marked "keep together in SMART". */
+    private val companionGroups: () -> List<Set<TrackId>> = { emptyList() },
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
@@ -57,6 +59,7 @@ class EngineNextTrackChooser(
                     candidates,
                     CHAIN_LENGTH,
                     smartHistoryFor(history, current),
+                    companionGroups(),
                 ),
             )
             println(

@@ -93,6 +93,12 @@ object AppGraph {
      * survives a restart. Null means unknown, which simply shows nothing.
      */
     val queueSource = MutableStateFlow<QueueSource?>(null)
+
+    /**
+     * The playlists the listener marked "keep together in SMART", as bare id-set groups. Kept
+     * current by the App whenever playlists change; read by every SMART queue planner.
+     */
+    val smartCompanionGroups = MutableStateFlow<List<Set<TrackId>>>(emptyList())
     /** Advances after each accepted listening event so For You can apply feedback next time it opens. */
     val historyRevision: StateFlow<Long> = mutableHistoryRevision.asStateFlow()
     private val historyFlushRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -143,7 +149,11 @@ object AppGraph {
                         }
                         // The single point where playback meets the engine.
                         single<NextTrackChooser> {
-                            EngineNextTrackChooser(engine = get(), history = get())
+                            EngineNextTrackChooser(
+                                engine = get(),
+                                history = get(),
+                                companionGroups = { smartCompanionGroups.value },
+                            )
                         }
                     },
                 )

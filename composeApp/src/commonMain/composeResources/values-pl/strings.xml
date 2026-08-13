@@ -195,6 +195,7 @@
     <string name="action_go_to_artist">Przejdź do wykonawcy</string>
     <string name="action_show_on_map">Pokaż na mapie</string>
     <string name="action_export_m3u">Eksportuj jako M3U</string>
+    <string name="action_smart_keep_together">Trzymaj razem w SMART</string>
     <string name="action_import_m3u">Importuj M3U</string>
     <string name="snack_m3u_imported">Zaimportowano %1$d z %2$d utworów</string>
     <string name="snack_m3u_import_failed">Nie udało się zaimportować playlisty</string>

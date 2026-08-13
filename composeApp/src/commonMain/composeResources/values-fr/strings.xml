@@ -191,6 +191,7 @@
     <string name="action_go_to_artist">Aller à l’artiste</string>
     <string name="action_show_on_map">Afficher sur la carte</string>
     <string name="action_export_m3u">Exporter en M3U</string>
+    <string name="action_smart_keep_together">Garder ensemble dans SMART</string>
     <string name="action_import_m3u">Importer un M3U</string>
     <string name="snack_m3u_imported">%1$d piste(s) sur %2$d importée(s)</string>
     <string name="snack_m3u_import_failed">Impossible d’importer la playlist</string>

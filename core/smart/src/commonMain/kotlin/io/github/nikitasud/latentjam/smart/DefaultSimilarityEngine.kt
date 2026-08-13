@@ -449,6 +449,7 @@ internal class DefaultSimilarityEngine(
         library: List<TrackDescriptor>,
         length: Int,
         history: List<SmartHistoryEvent>,
+        companionGroups: List<Set<TrackId>>,
     ): List<TrackId> = withContext(dispatcher) {
         mutex.withLock {
             if (mutableState.value !is EngineState.Ready) return@withLock emptyList()
@@ -519,6 +520,7 @@ internal class DefaultSimilarityEngine(
                 livePredictor,
                 eligibleRows,
                 typicalityWeight = config.typicalityWeight,
+                companionGroups = companionGroups,
             ).build(
                 seedId = seed.id,
                 length = length,
