@@ -12,4 +12,6 @@
     <string name="widget_previous">Previous track</string>
     <string name="widget_play_pause">Play or pause</string>
     <string name="widget_next">Next track</string>
+    <string name="browse_playlists">Playlists</string>
+    <string name="browse_tracks">Tracks</string>
 </resources>

@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyStoredWindowTheme()
+        installMediaBrowseCatalog(this)
         AppGraph.start(
             platformModule = module {
                 single<Context> { applicationContext }

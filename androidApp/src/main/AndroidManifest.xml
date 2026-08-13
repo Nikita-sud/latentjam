@@ -35,6 +35,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.LatentJam">
 
+        <!-- Android Auto: this is a media app; browsing goes through the
+             Media3 library session in PlaybackService. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+
         <!-- Fully-qualified: the activity class is compiled in :composeApp
              (androidMain), not in this zero-source packaging module. -->
         <activity
