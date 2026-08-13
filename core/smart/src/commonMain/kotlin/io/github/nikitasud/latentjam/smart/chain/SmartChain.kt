@@ -39,6 +39,15 @@ internal object ChainConfig {
      */
     const val COMPANION_POOL_SLOTS = 16
 
+    /**
+     * The bonus scales with the SPECIFICITY of the smallest group two tracks share:
+     * `1 - groupSize/librarySize`, floored here. A 19-track Phonk speaks almost at full
+     * weight; a marked super-playlist holding half the library says nearly nothing about any
+     * particular pair — without this, marking "Anime" (458 of 1064 on a real device) handed
+     * the same bonus to every anime-adjacent track and drowned the sub-playlists inside it.
+     */
+    const val COMPANION_SPECIFICITY_FLOOR = 0.25f
+
     /** Pull toward the seed for the whole walk, so one off-genre hop can't capture the chain. */
     const val CHAIN_SEED_GRAVITY = 2.5f
 
@@ -123,6 +132,32 @@ internal class SmartChain(
                 }
             }
         }
+    }
+
+    /** Rows of this snapshot inside each group, indexed like the bitmask bits. */
+    private val companionGroupSizes: IntArray = IntArray(minOf(companionGroups.size, 64)).also {
+        for (row in 0 until snapshot.size) {
+            var bits = companionBits[row]
+            while (bits != 0L) {
+                val bit = bits.countTrailingZeroBits()
+                it[bit]++
+                bits = bits and (bits - 1)
+            }
+        }
+    }
+
+    /** Specificity weight of the smallest group [a] and [b] share, or 0 when they share none. */
+    private fun companionWeight(a: Int, b: Int): Float {
+        var shared = companionBits[a] and companionBits[b]
+        if (shared == 0L) return 0f
+        var minSize = Int.MAX_VALUE
+        while (shared != 0L) {
+            val bit = shared.countTrailingZeroBits()
+            if (companionGroupSizes[bit] < minSize) minSize = companionGroupSizes[bit]
+            shared = shared and (shared - 1)
+        }
+        return (1f - minSize.toFloat() / snapshot.size)
+            .coerceIn(ChainConfig.COMPANION_SPECIFICITY_FLOOR, 1f)
     }
 
     /**
@@ -314,9 +349,10 @@ internal class SmartChain(
                     score += typicalityWeight * snapshot.typicality[row]
                 }
                 // The listener's own "keep these together": a nudge for candidates sharing a
-                // marked group with the current anchor. No groups — no term, see COMPANION_BONUS.
+                // marked group with the current anchor, weighted by how SPECIFIC the smallest
+                // shared group is. No groups — no term, see COMPANION_BONUS.
                 if (companionBits[anchorRow] and companionBits[row] != 0L) {
-                    score += ChainConfig.COMPANION_BONUS
+                    score += ChainConfig.COMPANION_BONUS * companionWeight(anchorRow, row)
                 }
                 var multiplier = MetadataRerank.adjustMultiplier(anchorMeta, meta)
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)

@@ -72,6 +72,17 @@ internal class CompanionGroupsTest {
     }
 
     @Test
+    fun `the smallest shared group outweighs a marked super-playlist`() {
+        // Rows 1 and 2 tie acoustically. Row 1 shares only a huge group with the seed (8 of 10
+        // rows — an "Anime" that holds most of the library); row 2 also shares a tight one.
+        // Specificity must let the tight group win, or marking a super-playlist would hand the
+        // same bonus to half the library and drown every sub-playlist inside it.
+        val everything = setOf("0", "1", "3", "4", "5", "6", "7", "8").mapTo(HashSet(), ::TrackId)
+        val tight = setOf(TrackId("0"), TrackId("2"))
+        assertEquals(TrackId("2"), firstPick(listOf(everything, tight)))
+    }
+
+    @Test
     fun `a remote companion still enters the candidate pool`() {
         // 120 tracks around the seed overflow the 100-slot pool; the one marked companion is the
         // single farthest track, which retrieval alone would never surface. With its group
