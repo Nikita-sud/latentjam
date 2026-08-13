@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.Favorites
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.RecentSearches
 import io.github.nikitasud.latentjam.history.SmartExclusions
@@ -204,6 +205,10 @@ object AppGraph {
 
     /** Previously searched queries. */
     val recentSearches: RecentSearches
+        get() = koin.get()
+
+    /** Hearted tracks, newest first; device-local like the rest of the listening data. */
+    val favorites: Favorites
         get() = koin.get()
 
     /** Tracks/artists kept in the library but explicitly excluded from SMART suggestions. */

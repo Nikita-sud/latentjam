@@ -155,6 +155,7 @@
     <string name="snack_playlist_created">「%1$s」を作成しました</string>
     <string name="snack_playlist_deleted">「%1$s」を削除しました</string>
     <string name="snack_added_to_playlist">「%1$s」に追加しました</string>
+    <string name="auto_playlist_favorites">お気に入り</string>
     <string name="auto_playlist_recently_added">最近追加した曲</string>
     <string name="auto_playlist_most_played">よく再生した曲</string>
     <string name="auto_playlist_recently_played">最近再生した曲</string>
@@ -163,6 +164,8 @@
     <string name="action_play_next">次に再生</string>
     <string name="action_add_to_queue">キューに追加</string>
     <string name="action_add_to_playlist">プレイリストに追加</string>
+    <string name="action_add_favorite">お気に入りに追加</string>
+    <string name="action_remove_favorite">お気に入りから削除</string>
     <string name="action_remove_from_playlist">このプレイリストから削除</string>
     <string name="snack_playlist_track_removed">"%1$s"から削除しました</string>
     <string name="action_go_to_album">アルバムを表示</string>

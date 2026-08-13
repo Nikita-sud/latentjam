@@ -155,6 +155,7 @@
     <string name="snack_playlist_created">"%1$s" 플레이리스트를 만들었습니다</string>
     <string name="snack_playlist_deleted">"%1$s" 플레이리스트를 삭제했습니다</string>
     <string name="snack_added_to_playlist">"%1$s"에 추가했습니다</string>
+    <string name="auto_playlist_favorites">즐겨찾기</string>
     <string name="auto_playlist_recently_added">최근 추가한 곡</string>
     <string name="auto_playlist_most_played">자주 재생한 곡</string>
     <string name="auto_playlist_recently_played">최근 재생한 곡</string>
@@ -163,6 +164,8 @@
     <string name="action_play_next">다음에 재생</string>
     <string name="action_add_to_queue">대기열에 추가</string>
     <string name="action_add_to_playlist">플레이리스트에 추가</string>
+    <string name="action_add_favorite">즐겨찾기에 추가</string>
+    <string name="action_remove_favorite">즐겨찾기에서 제거</string>
     <string name="action_remove_from_playlist">이 재생목록에서 제거</string>
     <string name="snack_playlist_track_removed">"%1$s"에서 제거됨</string>
     <string name="action_go_to_album">앨범으로 이동</string>

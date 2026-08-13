@@ -223,6 +223,21 @@ internal class FileSmartExclusionStore : SmartExclusionStore {
     }
 }
 
+internal class FileFavoritesStore : FavoritesStore {
+    override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
+        readLines(appSupportFile(FILE_NAME) ?: error("Application Support is unavailable"))
+    }
+
+    override suspend fun write(ids: List<String>): Unit = withContext(Dispatchers.Default) {
+        val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
+        writeText(path, ids.joinToString("\n"))
+    }
+
+    private companion object {
+        const val FILE_NAME = "favorites.txt"
+    }
+}
+
 public actual fun listeningHistoryModule(): Module = module {
     single<HistoryStore> { FileHistoryStore() }
     single<ListeningHistory> { DefaultListeningHistory(store = get()) }
@@ -230,6 +245,8 @@ public actual fun listeningHistoryModule(): Module = module {
     single<RecentSearches> { DefaultRecentSearches(store = get()) }
     single<SmartExclusionStore> { FileSmartExclusionStore() }
     single { SmartExclusions(store = get()) }
+    single<FavoritesStore> { FileFavoritesStore() }
+    single<Favorites> { DefaultFavorites(store = get()) }
 }
 
 public actual fun epochMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()

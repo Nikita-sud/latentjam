@@ -59,6 +59,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playl
 import io.github.nikitasud.latentjam.app.generated.resources.action_delete
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_most_played
+import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_favorites
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_recently_added
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_recently_played
 import io.github.nikitasud.latentjam.app.generated.resources.cd_playlist_options
@@ -166,6 +167,7 @@ internal fun PlaylistsTabContent(
  * in composition, while opening a collection resolves it inside a coroutine.
  */
 internal fun AutoPlaylistKind.titleRes(): StringResource = when (this) {
+    AutoPlaylistKind.FAVORITES -> Res.string.auto_playlist_favorites
     AutoPlaylistKind.RECENTLY_ADDED -> Res.string.auto_playlist_recently_added
     AutoPlaylistKind.MOST_PLAYED -> Res.string.auto_playlist_most_played
     AutoPlaylistKind.RECENTLY_PLAYED -> Res.string.auto_playlist_recently_played

@@ -190,6 +190,7 @@
     <string name="snack_playlist_created">تم إنشاء "%1$s"</string>
     <string name="snack_playlist_deleted">تم حذف "%1$s"</string>
     <string name="snack_added_to_playlist">تمت الإضافة إلى "%1$s"</string>
+    <string name="auto_playlist_favorites">المفضلة</string>
     <string name="auto_playlist_recently_added">المضافة حديثًا</string>
     <string name="auto_playlist_most_played">الأكثر تشغيلًا</string>
     <string name="auto_playlist_recently_played">المشغَّلة حديثًا</string>
@@ -198,6 +199,8 @@
     <string name="action_play_next">تشغيل التالي</string>
     <string name="action_add_to_queue">إضافة إلى قائمة الانتظار</string>
     <string name="action_add_to_playlist">إضافة إلى قائمة تشغيل</string>
+    <string name="action_add_favorite">إضافة إلى المفضلة</string>
+    <string name="action_remove_favorite">إزالة من المفضلة</string>
     <string name="action_remove_from_playlist">إزالة من قائمة التشغيل هذه</string>
     <string name="snack_playlist_track_removed">تمت الإزالة من "%1$s"</string>
     <string name="action_go_to_album">الانتقال إلى الألبوم</string>

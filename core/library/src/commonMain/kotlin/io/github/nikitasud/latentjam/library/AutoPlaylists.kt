@@ -8,7 +8,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 
 /** The kinds of playlist the app derives rather than the user curating. */
-public enum class AutoPlaylistKind { RECENTLY_ADDED, MOST_PLAYED, RECENTLY_PLAYED }
+public enum class AutoPlaylistKind { FAVORITES, RECENTLY_ADDED, MOST_PLAYED, RECENTLY_PLAYED }
 
 /**
  * A playlist computed from library and listening data, never stored.
@@ -36,8 +36,13 @@ public object AutoPlaylists {
         tracks: List<TrackDescriptor>,
         playCounts: Map<TrackId, Int>,
         lastPlayedAtMs: Map<TrackId, Long>,
+        /** Hearted track ids in the order the store keeps them (newest first). */
+        favorites: List<TrackId> = emptyList(),
     ): List<AutoPlaylist> {
         val byId = tracks.associateBy { it.id }
+
+        // The store's order IS the playlist's order; ids whose tracks left the device drop out.
+        val hearted = favorites.mapNotNull { byId[it] }
 
         val recentlyAdded = tracks
             .filter { it.addedAtMs != null }
@@ -56,6 +61,7 @@ public object AutoPlaylists {
             .take(PLAYED_LIMIT)
 
         return listOf(
+            AutoPlaylist(AutoPlaylistKind.FAVORITES, hearted),
             AutoPlaylist(AutoPlaylistKind.RECENTLY_ADDED, recentlyAdded),
             AutoPlaylist(AutoPlaylistKind.MOST_PLAYED, mostPlayed),
             AutoPlaylist(AutoPlaylistKind.RECENTLY_PLAYED, recentlyPlayed),

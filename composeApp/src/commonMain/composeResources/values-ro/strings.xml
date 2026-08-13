@@ -161,6 +161,7 @@
     <string name="snack_playlist_created">Playlistul „%1$s” a fost creat</string>
     <string name="snack_playlist_deleted">Playlistul „%1$s” a fost șters</string>
     <string name="snack_added_to_playlist">Adăugat în „%1$s”</string>
+    <string name="auto_playlist_favorites">Favorite</string>
     <string name="auto_playlist_recently_added">Adăugate recent</string>
     <string name="auto_playlist_most_played">Cele mai ascultate</string>
     <string name="auto_playlist_recently_played">Ascultate recent</string>
@@ -169,6 +170,8 @@
     <string name="action_play_next">Redă în continuare</string>
     <string name="action_add_to_queue">Adaugă la coadă</string>
     <string name="action_add_to_playlist">Adaugă în playlist</string>
+    <string name="action_add_favorite">Adaugă la favorite</string>
+    <string name="action_remove_favorite">Elimină din favorite</string>
     <string name="action_remove_from_playlist">Elimină din acest playlist</string>
     <string name="snack_playlist_track_removed">Eliminat din "%1$s"</string>
     <string name="action_go_to_album">Mergi la album</string>

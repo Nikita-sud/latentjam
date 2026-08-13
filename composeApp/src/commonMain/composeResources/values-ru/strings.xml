@@ -164,6 +164,7 @@
     <string name="snack_playlist_created">Плейлист «%1$s» создан</string>
     <string name="snack_playlist_deleted">Плейлист «%1$s» удалён</string>
     <string name="snack_added_to_playlist">Добавлено в «%1$s»</string>
+    <string name="auto_playlist_favorites">Любимые</string>
     <string name="auto_playlist_recently_added">Недавно добавленные</string>
     <string name="auto_playlist_most_played">Самые прослушиваемые</string>
     <string name="auto_playlist_recently_played">Недавно прослушанные</string>
@@ -172,6 +173,8 @@
     <string name="action_play_next">Слушать следующим</string>
     <string name="action_add_to_queue">Добавить в очередь</string>
     <string name="action_add_to_playlist">Добавить в плейлист</string>
+    <string name="action_add_favorite">В любимые</string>
+    <string name="action_remove_favorite">Убрать из любимых</string>
     <string name="action_remove_from_playlist">Убрать из этого плейлиста</string>
     <string name="snack_playlist_track_removed">Убрано из "%1$s"</string>
     <string name="action_go_to_album">Перейти к альбому</string>

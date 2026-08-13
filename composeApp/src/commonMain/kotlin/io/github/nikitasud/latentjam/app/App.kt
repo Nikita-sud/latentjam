@@ -503,9 +503,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
+        var favoriteIds by remember { mutableStateOf<List<TrackId>>(emptyList()) }
+        fun toggleFavorite(id: TrackId) {
+            scope.launch {
+                AppGraph.favorites.toggle(id)
+                favoriteIds = AppGraph.favorites.all()
+            }
+        }
         LaunchedEffect(Unit) {
             tracks = library.tracks()
             hasHiddenTracks = library.hasHiddenTracks()
+            favoriteIds = AppGraph.favorites.all()
         }
         // A track downloaded while the app sat in the background shows up on return instead of
         // on the next cold start. An unchanged library re-queries into an equal list, which the
@@ -1264,13 +1272,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
 
         var autoPlaylists by remember { mutableStateOf<List<AutoPlaylist>>(emptyList()) }
-        LaunchedEffect(catalog, playCounts, lastPlayedAt) {
+        LaunchedEffect(catalog, playCounts, lastPlayedAt, favoriteIds) {
             val songs = catalog?.songs
             autoPlaylists = if (songs == null) {
                 emptyList()
             } else {
                 withContext(Dispatchers.Default) {
-                    AutoPlaylists.build(songs, playCounts, lastPlayedAt)
+                    AutoPlaylists.build(songs, playCounts, lastPlayedAt, favoriteIds)
                 }
             }
         }
@@ -1430,6 +1438,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 .takeIf { it.isNotEmpty() }
                                 ?.let { addToPlaylistSelection = it }
                         },
+                        isFavorite = currentTrack?.id?.let { it in favoriteIds } == true,
+                        onToggleFavorite = { currentTrack?.id?.let(::toggleFavorite) },
                         onClose = { showNowPlaying = false },
                     )
                 } else {
@@ -2207,6 +2217,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 },
                 onPlayNext = { scope.launch { playback.playNext(target) } },
                 onAddToQueue = { scope.launch { playback.addToQueue(target) } },
+                isFavorite = target.id in favoriteIds,
+                onToggleFavorite = { toggleFavorite(target.id) },
                 onAddToPlaylist = { addToPlaylistSelection = listOf(target) },
                 // Only from inside a user playlist whose list actually holds this track. The
                 // sheet can be raised over a playlist from other surfaces (the queue sheet, For

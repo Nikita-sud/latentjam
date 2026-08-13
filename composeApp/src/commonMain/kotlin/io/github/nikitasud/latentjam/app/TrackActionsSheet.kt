@@ -18,6 +18,8 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.PlaylistRemove
@@ -42,7 +44,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_add_favorite
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
+import io.github.nikitasud.latentjam.app.generated.resources.action_remove_favorite
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_queue
 import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.action_delete
@@ -83,6 +87,8 @@ internal fun TrackActionsSheet(
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
     onAddToPlaylist: () -> Unit,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
     /** Non-null only when the sheet was raised from inside a user playlist's own track list. */
     onRemoveFromPlaylist: (() -> Unit)?,
     onGoToAlbum: (() -> Unit)?,
@@ -151,6 +157,16 @@ internal fun TrackActionsSheet(
                 Icons.Rounded.LibraryAdd,
                 stringResource(Res.string.action_add_to_playlist),
             ) { onDismiss(); onAddToPlaylist() }
+            SheetAction(
+                if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                stringResource(
+                    if (isFavorite) {
+                        Res.string.action_remove_favorite
+                    } else {
+                        Res.string.action_add_favorite
+                    },
+                ),
+            ) { onDismiss(); onToggleFavorite() }
             onRemoveFromPlaylist?.let { removeFromPlaylist ->
                 SheetAction(
                     Icons.Rounded.PlaylistRemove,

@@ -168,6 +168,7 @@
     <string name="snack_playlist_created">Lista "%1$s" creada</string>
     <string name="snack_playlist_deleted">Lista "%1$s" eliminada</string>
     <string name="snack_added_to_playlist">Añadida a "%1$s"</string>
+    <string name="auto_playlist_favorites">Favoritos</string>
     <string name="auto_playlist_recently_added">Añadidas recientemente</string>
     <string name="auto_playlist_most_played">Más reproducidas</string>
     <string name="auto_playlist_recently_played">Reproducidas recientemente</string>
@@ -176,6 +177,8 @@
     <string name="action_play_next">Reproducir a continuación</string>
     <string name="action_add_to_queue">Añadir a la cola</string>
     <string name="action_add_to_playlist">Añadir a una lista de reproducción</string>
+    <string name="action_add_favorite">Añadir a favoritos</string>
+    <string name="action_remove_favorite">Quitar de favoritos</string>
     <string name="action_remove_from_playlist">Quitar de esta lista</string>
     <string name="snack_playlist_track_removed">Quitado de "%1$s"</string>
     <string name="action_go_to_album">Ir al álbum</string>

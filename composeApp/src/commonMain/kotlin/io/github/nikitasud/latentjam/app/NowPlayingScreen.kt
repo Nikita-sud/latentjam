@@ -41,6 +41,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.MusicNote
@@ -61,6 +63,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -102,7 +105,9 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.action_close
 import io.github.nikitasud.latentjam.app.generated.resources.action_next
 import io.github.nikitasud.latentjam.app.generated.resources.action_pause
+import io.github.nikitasud.latentjam.app.generated.resources.action_add_favorite
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
+import io.github.nikitasud.latentjam.app.generated.resources.action_remove_favorite
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_previous
 import io.github.nikitasud.latentjam.app.generated.resources.action_track_options
@@ -166,6 +171,8 @@ fun NowPlayingScreen(
     onTrackMenu: (TrackDescriptor) -> Unit,
     /** Raised by the queue sheet's save affordance with the CURRENT queue as the selection. */
     onAddQueueToPlaylist: () -> Unit,
+    isFavorite: Boolean = false,
+    onToggleFavorite: () -> Unit = {},
     onClose: () -> Unit,
 ) {
     // Position is intentionally projected out. It changes twice per second, while artwork, queue,
@@ -279,6 +286,29 @@ fun NowPlayingScreen(
                             )
                         }
                         Spacer(modifier = Modifier.weight(1f))
+                        if (now.track != null) {
+                            IconButton(onClick = onToggleFavorite) {
+                                Icon(
+                                    imageVector = if (isFavorite) {
+                                        Icons.Rounded.Favorite
+                                    } else {
+                                        Icons.Rounded.FavoriteBorder
+                                    },
+                                    contentDescription = stringResource(
+                                        if (isFavorite) {
+                                            Res.string.action_remove_favorite
+                                        } else {
+                                            Res.string.action_add_favorite
+                                        },
+                                    ),
+                                    tint = if (isFavorite) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        LocalContentColor.current
+                                    },
+                                )
+                            }
+                        }
                         OverflowButton(
                             sharedScope = sharedScope,
                             animatedScope = animatedScope,

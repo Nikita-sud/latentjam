@@ -161,6 +161,7 @@
     <string name="snack_playlist_created">Playlist "%1$s" dibuat</string>
     <string name="snack_playlist_deleted">Playlist "%1$s" dihapus</string>
     <string name="snack_added_to_playlist">Ditambahkan ke "%1$s"</string>
+    <string name="auto_playlist_favorites">Favorit</string>
     <string name="auto_playlist_recently_added">Baru ditambahkan</string>
     <string name="auto_playlist_most_played">Paling sering diputar</string>
     <string name="auto_playlist_recently_played">Baru diputar</string>
@@ -169,6 +170,8 @@
     <string name="action_play_next">Putar berikutnya</string>
     <string name="action_add_to_queue">Tambahkan ke antrean</string>
     <string name="action_add_to_playlist">Tambahkan ke playlist</string>
+    <string name="action_add_favorite">Tambahkan ke favorit</string>
+    <string name="action_remove_favorite">Hapus dari favorit</string>
     <string name="action_remove_from_playlist">Hapus dari playlist ini</string>
     <string name="snack_playlist_track_removed">Dihapus dari "%1$s"</string>
     <string name="action_go_to_album">Buka album</string>

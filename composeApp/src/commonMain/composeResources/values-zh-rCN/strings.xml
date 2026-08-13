@@ -155,6 +155,7 @@
     <string name="snack_playlist_created">已创建“%1$s”</string>
     <string name="snack_playlist_deleted">已删除“%1$s”</string>
     <string name="snack_added_to_playlist">已添加到“%1$s”</string>
+    <string name="auto_playlist_favorites">收藏</string>
     <string name="auto_playlist_recently_added">最近添加</string>
     <string name="auto_playlist_most_played">最常播放</string>
     <string name="auto_playlist_recently_played">最近播放</string>
@@ -163,6 +164,8 @@
     <string name="action_play_next">下一首播放</string>
     <string name="action_add_to_queue">添加到播放队列</string>
     <string name="action_add_to_playlist">添加到播放列表</string>
+    <string name="action_add_favorite">添加到收藏</string>
+    <string name="action_remove_favorite">从收藏中移除</string>
     <string name="action_remove_from_playlist">从此播放列表中移除</string>
     <string name="snack_playlist_track_removed">已从"%1$s"中移除</string>
     <string name="action_go_to_album">转到专辑</string>

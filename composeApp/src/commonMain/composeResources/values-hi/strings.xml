@@ -161,6 +161,7 @@
     <string name="snack_playlist_created">"%1$s" बनाई गई</string>
     <string name="snack_playlist_deleted">"%1$s" मिटाई गई</string>
     <string name="snack_added_to_playlist">"%1$s" में जोड़ा गया</string>
+    <string name="auto_playlist_favorites">पसंदीदा</string>
     <string name="auto_playlist_recently_added">हाल ही में जोड़े गए</string>
     <string name="auto_playlist_most_played">सबसे ज़्यादा चलाए गए</string>
     <string name="auto_playlist_recently_played">हाल ही में चलाए गए</string>
@@ -169,6 +170,8 @@
     <string name="action_play_next">अगले में चलाएं</string>
     <string name="action_add_to_queue">क्यू में जोड़ें</string>
     <string name="action_add_to_playlist">प्लेलिस्ट में जोड़ें</string>
+    <string name="action_add_favorite">पसंदीदा में जोड़ें</string>
+    <string name="action_remove_favorite">पसंदीदा से हटाएँ</string>
     <string name="action_remove_from_playlist">इस प्लेलिस्ट से हटाएँ</string>
     <string name="snack_playlist_track_removed">"%1$s" से हटाया गया</string>
     <string name="action_go_to_album">एल्बम पर जाएं</string>
