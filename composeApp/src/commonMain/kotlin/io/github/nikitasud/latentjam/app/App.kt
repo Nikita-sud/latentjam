@@ -284,7 +284,7 @@ internal fun shouldRestoreCollectionAfterHideUndo(
  * The vector source is part of the key because upgrading metadata-only vectors to fused
  * audio+metadata ones genuinely changes the answer, and that rebuild must still happen.
  */
-private data class LibraryWorldsKey(
+private data class LibraryWorldDiscoveryKey(
     val trackIds: List<TrackId>,
     val source: LibraryVectorSource,
     /** Raw selected-vector contents, not just their population/source. */
@@ -293,6 +293,117 @@ private data class LibraryWorldsKey(
     val descriptorIdentity: List<WorldTrackIdentity>,
     val semanticsCount: Int,
 )
+
+private data class LibraryWorldsKey(
+    val discovery: LibraryWorldDiscoveryKey,
+    /** Ordered user names/membership used to name the already-discovered worlds. */
+    val playlistIdentity: List<PlaylistPresentationIdentity>,
+)
+
+/** Playlist fields that can change a For You collection or a discovered-world title. */
+internal data class PlaylistPresentationIdentity(
+    val id: String,
+    val name: String,
+    val trackIds: List<String>,
+)
+
+internal fun List<Playlist>.presentationIdentity(): List<PlaylistPresentationIdentity> = map { playlist ->
+    PlaylistPresentationIdentity(
+        id = playlist.id,
+        name = playlist.name,
+        trackIds = playlist.trackIds.toList(),
+    )
+}
+
+/** Membership policy consumed by both foreground and background SMART planners. */
+internal fun List<Playlist>.smartCompanionMemberships(): List<Set<TrackId>> {
+    val normalized = asSequence()
+        .filter(Playlist::includeInSmart)
+        .map { playlist -> playlist.trackIds.distinct().sorted().map(::TrackId) }
+        // A singleton cannot keep anything together. Omitting it also avoids throwing away a
+        // perfectly good generated future when toggling an ineffective one-track playlist.
+        .filter { it.size >= 2 }
+        // Core SMART deliberately collapses identical membership groups. Mirror its effective
+        // policy here so adding a second playlist with the same tracks does not prune/refill an
+        // unchanged future (or wake the lazy model) for no behavioral gain.
+        .distinct()
+        .toList()
+    // Playlist drag order is presentation, not recommendation policy. Quota rotation is ordered,
+    // so give core SMART a canonical membership order or merely reorganizing the Playlists tab
+    // changes the next recommendation and needlessly refills the queue.
+    return normalized.sortedWith { left, right ->
+        for (index in 0 until minOf(left.size, right.size)) {
+            val comparison = left[index].value.compareTo(right[index].value)
+            if (comparison != 0) return@sortedWith comparison
+        }
+        left.size.compareTo(right.size)
+    }.map { it.toCollection(LinkedHashSet()) }
+}
+
+/** Initial hydration reconstructs saved policy; only a later real change invalidates lookahead. */
+internal fun shouldInvalidateSmartFuture(
+    policyInitialized: Boolean,
+    previous: List<Set<TrackId>>,
+    updated: List<Set<TrackId>>,
+): Boolean = policyInitialized && previous != updated
+
+/** Resolves a canonical resume source without mistaking generated SMART rows for that source. */
+internal fun resolveResumeSourceQueue(
+    saved: ResumePlayback,
+    library: List<TrackDescriptor>,
+    playlists: List<Playlist>,
+    playlistsAvailable: Boolean = true,
+): List<TrackDescriptor>? {
+    val byId = library.associateBy { it.id.value }
+    return when {
+        saved.sourceQueuePersisted -> saved.sourceQueueTrackIds.mapNotNull(byId::get)
+        saved.sourceKind == QueueSourceKind.TRACKS.name -> library
+        saved.sourceKind == QueueSourceKind.COLLECTION.name &&
+            saved.sourceReference != null && playlistsAvailable ->
+            playlists.firstOrNull { it.id == saved.sourceReference }
+                ?.trackIds
+                ?.mapNotNull(byId::get)
+                .orEmpty()
+        else -> null
+    }
+}
+
+internal data class ResumeFallbackQueue(
+    val liveQueue: List<TrackDescriptor>,
+    val currentIndex: Int,
+)
+
+/**
+ * Reconstructs a coherent live queue when an old or oversized session did not persist one.
+ *
+ * SMART must restart from the current seed alone so the chooser plans a real recommendation
+ * future; treating the complete source as a saved SMART plan would play it linearly. ON creates a
+ * fresh traversal with current first, while OFF restores canonical source order. The injectable
+ * shuffler keeps this state transition deterministic in tests.
+ */
+internal fun fallbackResumeQueue(
+    mode: ShuffleMode?,
+    current: TrackDescriptor,
+    source: List<TrackDescriptor>,
+    shuffle: (List<TrackDescriptor>) -> List<TrackDescriptor> = { it.shuffled() },
+): ResumeFallbackQueue {
+    val distinctSource = source.distinctBy(TrackDescriptor::id)
+    return when (mode) {
+        ShuffleMode.SMART -> ResumeFallbackQueue(listOf(current), 0)
+        ShuffleMode.ON -> ResumeFallbackQueue(
+            liveQueue = listOf(current) + shuffle(distinctSource.filterNot { it.id == current.id }),
+            currentIndex = 0,
+        )
+        ShuffleMode.OFF, null -> {
+            val currentIndex = distinctSource.indexOfFirst { it.id == current.id }
+            if (currentIndex >= 0) {
+                ResumeFallbackQueue(distinctSource, currentIndex)
+            } else {
+                ResumeFallbackQueue(listOf(current) + distinctSource, 0)
+            }
+        }
+    }
+}
 
 private data class WorldTrackIdentity(
     val id: TrackId,
@@ -381,6 +492,34 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
+        // SMART reconciliation needs more than the rows: an unavailable media permission is
+        // represented by an empty/partial list, which must not be mistaken for deletion. Keep the
+        // authority bit bound to the scan that produced these exact rows so a later permission
+        // transition cannot retroactively reclassify an older empty result.
+        var libraryIndexingRequest by remember {
+            mutableStateOf<AutomaticIndexingRequest?>(null)
+        }
+        fun publishLibraryTracks(
+            value: List<TrackDescriptor>,
+            authoritative: Boolean,
+        ) {
+            tracks = value
+            libraryIndexingRequest = AutomaticIndexingRequest(value, authoritative)
+        }
+        suspend fun scanLibrary(): List<TrackDescriptor> {
+            val scan = library.scan()
+            // iOS may resolve its Music-library prompt inside scan(); Android refreshes here as
+            // a second line of defence around a return from system settings.
+            AppGraph.permissions.refresh()
+            publishLibraryTracks(
+                value = scan.tracks,
+                authoritative = authoritativeLibrarySnapshot(
+                    scanCompleted = scan.complete,
+                    permissionStatus = AppGraph.permissions.audioLibraryStatus.value,
+                ),
+            )
+            return scan.tracks
+        }
         // The pager owns the section position; everything else reads it. One source of truth means
         // the strip and the content can never disagree about where a half-finished swipe is.
         val pagerState = rememberPagerState(initialPage = startPage.tabIndex()) { BROWSE_TABS.size }
@@ -413,6 +552,21 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 }
         }
         var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
+        var playlistsLoaded by remember { mutableStateOf(false) }
+        var playlistsAvailableForSourceRestore by remember { mutableStateOf(false) }
+        var companionGroupsInitialized by remember { mutableStateOf(false) }
+        fun publishPlaylists(value: List<Playlist>) {
+            // On first hydration, publish the planning policy before allowing queue resume. A
+            // short saved SMART queue may top itself up immediately; letting restore win this race
+            // would generate that future with an empty policy and then preserve it as “initial”.
+            if (!playlistsLoaded) {
+                AppGraph.smartCompanionGroups.value = value.smartCompanionMemberships()
+                companionGroupsInitialized = true
+            }
+            playlists = value
+            playlistsLoaded = true
+            playlistsAvailableForSourceRestore = true
+        }
         var playCounts by remember { mutableStateOf<Map<TrackId, Int>>(emptyMap()) }
         var lastPlayedAt by remember { mutableStateOf<Map<TrackId, Long>>(emptyMap()) }
         var showCreatePlaylist by remember { mutableStateOf(false) }
@@ -491,7 +645,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         val importAudio = rememberAudioImporter { result ->
             scope.launch {
-                tracks = library.tracks()
+                scanLibrary()
                 val message = when {
                     result.failed > 0 || result.skipped > 0 -> getString(
                         Res.string.library_import_partial,
@@ -518,17 +672,26 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
         LaunchedEffect(Unit) {
-            tracks = library.tracks()
+            scanLibrary()
             hasHiddenTracks = library.hasHiddenTracks()
             favoriteIds = AppGraph.favorites.all()
             // Playlists load at launch, not first tab visit: the SMART companion groups and mix
             // names derive from them, and both must work in a session that never opens the tab.
             try {
-                playlists = AppGraph.playlists.all()
+                publishPlaylists(AppGraph.playlists.all())
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
                 println("Playlists: could not load at launch: $failure")
+                // Playlist storage is optional to transport restore. Mark an empty policy ready so
+                // a read failure cannot suppress the saved player for the whole session; if a
+                // later retry succeeds, the initialized-policy effect prunes/refills SMART once.
+                if (!playlistsLoaded) {
+                    AppGraph.smartCompanionGroups.value = emptyList()
+                    companionGroupsInitialized = true
+                    playlistsLoaded = true
+                    playlistsAvailableForSourceRestore = false
+                }
             }
         }
         // A track downloaded while the app sat in the background shows up on return instead of
@@ -541,7 +704,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             onLeave = { AppGraph.flushListeningSession() },
         ) {
             scope.launch {
-                tracks = library.tracks()
+                scanLibrary()
                 hasHiddenTracks = library.hasHiddenTracks()
             }
         }
@@ -602,16 +765,21 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         PlatformBackHandler(enabled = selectionMode) { updateTrackSelection(emptySet()) }
 
-        // Arm SMART in the background as soon as the library is known: load the models, restore the
-        // persisted index, and backfill any missing metadata-text vectors. All idempotent. Doing it
-        // here rather than on first press means the SMART button is instant when it is finally
-        // tapped, instead of stalling on tens of MB of model loading.
+        // Arm SMART in the background as soon as the library is known: restore persisted vectors
+        // and backfill genuinely new/changed rows. The audio model remains lazy when everything is
+        // already indexed or remembered as an unchanged decode failure, so a permanently bad file
+        // cannot wake tens of MB of model state on every launch.
         var forYou by remember { mutableStateOf(ForYouPage()) }
         var worlds by remember { mutableStateOf<List<LibraryWorld>>(emptyList()) }
         var worldLibraryIds by remember { mutableStateOf<List<TrackId>>(emptyList()) }
         var builtWorldsKey by remember { mutableStateOf<LibraryWorldsKey?>(null) }
+        var builtWorldDiscoveryKey by remember { mutableStateOf<LibraryWorldDiscoveryKey?>(null) }
+        var builtDiscoveredWorlds by remember { mutableStateOf<List<LibraryWorld>?>(null) }
         var builtWorlds by remember { mutableStateOf<List<LibraryWorld>?>(null) }
         var builtForYouLibraryIds by remember { mutableStateOf<List<TrackId>?>(null) }
+        var builtForYouPlaylistIdentity by remember {
+            mutableStateOf<List<PlaylistPresentationIdentity>?>(null)
+        }
         var builtForYouExclusions by remember { mutableStateOf<SmartExclusionState?>(null) }
         var builtIncludeNoveltyMixes by remember { mutableStateOf<Boolean?>(null) }
         var personalizationRevision by remember { mutableStateOf(0) }
@@ -639,6 +807,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 LibraryWorldSemanticTitle.INSTRUMENTAL to instrumentalMixLabel,
             )
         }
+        val playlistPresentationIdentity = remember(playlists) { playlists.presentationIdentity() }
 
         LaunchedEffect(
             tracks,
@@ -651,6 +820,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             personalizationRevision,
             historyRevision,
             smartExclusionState,
+            playlistPresentationIdentity,
         ) {
             val loaded = tracks ?: return@LaunchedEffect
             if (selectedTab != FOR_YOU_TAB) return@LaunchedEffect
@@ -664,6 +834,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 !forYou.isEmpty &&
                 builtWorlds == requestedWorlds &&
                 builtForYouLibraryIds == loadedIds &&
+                builtForYouPlaylistIdentity == playlistPresentationIdentity &&
                 builtForYouExclusions == smartExclusionState &&
                 builtIncludeNoveltyMixes == includeNoveltyMixes &&
                 builtPersonalizationRevision == personalizationRevision &&
@@ -712,6 +883,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             forYou = rebuiltPage
             builtWorlds = requestedWorlds
             builtForYouLibraryIds = loadedIds
+            builtForYouPlaylistIdentity = playlistPresentationIdentity
             builtForYouExclusions = smartExclusionState
             builtIncludeNoveltyMixes = includeNoveltyMixes
             builtPersonalizationRevision = personalizationRevision
@@ -719,8 +891,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             forYouRefreshing = false
         }
 
-        LaunchedEffect(tracks, smartEligibleTracks) {
-            val loaded = tracks ?: return@LaunchedEffect
+        LaunchedEffect(libraryIndexingRequest, smartEligibleTracks) {
+            val request = libraryIndexingRequest ?: return@LaunchedEffect
+            val loaded = request.tracks
             // Search, playlists, and collection screens often start playback from a filtered
             // subset. SMART is a library journey, so keep its candidate universe independent of
             // whichever small list happened to contain the track the listener tapped.
@@ -733,6 +906,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             val notificationTitle = getString(Res.string.indexing_notification_title)
             AppGraph.ensureAutomaticIndexing(
                 tracks = loaded,
+                librarySnapshotAuthoritative = request.librarySnapshotAuthoritative,
                 notificationTitle = notificationTitle,
             ) { done, total, etaMinutes ->
                 if (etaMinutes == null) {
@@ -750,8 +924,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         // The UI observes the app-lifetime worker; it does not own it. Recreating MainActivity
         // therefore reconnects to the same scan instead of starting a duplicate or cancelling it.
-        LaunchedEffect(tracks, smartEligibleTracks) {
-            val loaded = tracks ?: return@LaunchedEffect
+        LaunchedEffect(libraryIndexingRequest, smartEligibleTracks) {
+            val loaded = libraryIndexingRequest?.tracks ?: return@LaunchedEffect
             val eligible = smartEligibleTracks
             val trackIds = loaded.map(TrackDescriptor::id)
             AppGraph.automaticIndexing.collect { indexing ->
@@ -813,9 +987,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // process: a restore that raced a user tap must not fire again later and yank the queue
         // out from under whatever the user chose instead.
         var resumeAttempted by remember { mutableStateOf(false) }
-        LaunchedEffect(tracks) {
+        LaunchedEffect(tracks, playlistsLoaded) {
             if (resumeAttempted) return@LaunchedEffect
             val loaded = tracks ?: return@LaunchedEffect
+            // Restore may asynchronously top up a short SMART future. Wait until its marked
+            // playlist policy has been hydrated so those new rows honor the saved preference.
+            if (!playlistsLoaded) return@LaunchedEffect
             // An empty snapshot is the pre-permission state, not a library: consuming the one
             // restore attempt on it would silently skip the restore the first REAL load earns.
             if (loaded.isEmpty()) return@LaunchedEffect
@@ -825,31 +1002,64 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             if (playback.state.value.track != null) return@LaunchedEffect
             // The mode is the more important half — restore it even when the track is gone
             // (deleted, SD card unmounted): SMART being on is what the user asked to keep.
-            ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode }
-                ?.let { playback.setShuffleMode(it) }
+            val savedMode = ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode }
+            savedMode?.let { playback.setShuffleMode(it) }
             // Prefer the queue that was ACTUALLY playing — a playlist stays that playlist across
             // a restart. Tracks deleted meanwhile drop out; if the saved track itself is gone or
             // no queue was saved, fall back to wrapping the track in the whole library.
             val byId = loaded.associateBy { it.id.value }
-            val savedQueue = saved.queueTrackIds.mapNotNull(byId::get)
-            val savedQueueIndex = savedQueue.indexOfFirst { it.id.value == saved.trackId }
+            val resolvedSavedQueue = saved.queueTrackIds.mapIndexedNotNull { persistedIndex, id ->
+                byId[id]?.let { persistedIndex to it }
+            }
+            val savedQueue = resolvedSavedQueue.map { it.second }
+            val savedQueueIndex = resolvedSavedQueue.indexOfFirst { (persistedIndex, track) ->
+                persistedIndex == saved.queueIndex && track.id.value == saved.trackId
+            }.takeIf { it >= 0 } ?: savedQueue.indexOfFirst { it.id.value == saved.trackId }
+            // Oversized sources are omitted from frequently-written preferences. Tracks rebuild
+            // from the library; a stable playlist id rebuilds current membership. A deleted
+            // playlist resolves to known-empty, never to the generated SMART tail.
+            val savedSourceQueue = resolveResumeSourceQueue(
+                saved = saved,
+                library = loaded,
+                playlists = playlists,
+                playlistsAvailable = playlistsAvailableForSourceRestore,
+            )
             if (savedQueueIndex >= 0) {
-                playback.restoreQueue(savedQueue, savedQueueIndex, saved.positionMs)
+                playback.restoreQueue(
+                    tracks = savedQueue,
+                    startIndex = savedQueueIndex,
+                    positionMs = saved.positionMs,
+                    // Null is the legacy state (no source was ever persisted); an empty v2 source
+                    // is meaningful when every original playlist row was deleted while a
+                    // generated SMART current row survived.
+                    sourceTracks = savedSourceQueue,
+                )
             }
             val index = loaded.indexOfFirst { it.id.value == saved.trackId }
             if (savedQueueIndex < 0 && index >= 0) {
-                playback.restoreQueue(loaded, index, saved.positionMs)
+                val fallbackSource = savedSourceQueue ?: loaded
+                val fallback = fallbackResumeQueue(
+                    mode = savedMode,
+                    current = loaded[index],
+                    source = fallbackSource,
+                )
+                playback.restoreQueue(
+                    tracks = fallback.liveQueue,
+                    startIndex = fallback.currentIndex,
+                    positionMs = saved.positionMs,
+                    sourceTracks = fallbackSource,
+                )
             }
             if (savedQueueIndex >= 0 || index >= 0) {
                 // The restored player keeps saying where its queue came from. An unknown kind
                 // from another build degrades to no label, same as the mode above.
                 AppGraph.queueSource.value = saved.sourceKind
                     ?.let { kind -> QueueSourceKind.entries.firstOrNull { it.name == kind } }
-                    ?.let { QueueSource(it, saved.sourceName) }
+                    ?.let { QueueSource(it, saved.sourceName, saved.sourceReference) }
             }
         }
 
-        LaunchedEffect(tracks) {
+        LaunchedEffect(tracks, playlistPresentationIdentity, includeNoveltyMixes) {
             val loaded = tracks ?: return@LaunchedEffect
             val loadedIds = loaded.map(TrackDescriptor::id)
             // Observe the readiness tier, not a boolean OR. Metadata becomes ready first; when
@@ -859,13 +1069,23 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 .distinctUntilChanged()
                 .collect { (metadataReady, audioReady) ->
                     if (!metadataReady && !audioReady) return@collect
-                    val features = engine.libraryMixFeatures(loadedIds) ?: return@collect
-                    val worldsKey = LibraryWorldsKey(
+                    val features = engine.libraryMixFeatures(
+                        ids = loadedIds,
+                        // This preference is the listener's explicit request for semantic novelty
+                        // and effect routing, so loading the shared model here is useful work. The
+                        // default path keeps restored/failed-only libraries completely lazy.
+                        loadMissingSemantics = includeNoveltyMixes,
+                    ) ?: return@collect
+                    val discoveryKey = LibraryWorldDiscoveryKey(
                         trackIds = loadedIds,
                         source = features.vectorSpace.source,
                         vectorFingerprint = features.vectorSpace.fingerprint,
                         descriptorIdentity = loaded.map(TrackDescriptor::worldIdentity),
                         semanticsCount = features.semantics.size,
+                    )
+                    val worldsKey = LibraryWorldsKey(
+                        discovery = discoveryKey,
+                        playlistIdentity = playlistPresentationIdentity,
                     )
                     if (worldsKey == builtWorldsKey) return@collect
                     // Snapshot for the background pass; a world mostly inside one named group
@@ -875,20 +1095,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     val playlistGroups = playlists.map { playlist ->
                         playlist.name to playlist.trackIds.mapTo(HashSet()) { TrackId(it) }
                     }
-                    val discovered = withContext(Dispatchers.Default) {
+                    val cachedDiscovery = builtDiscoveredWorlds
+                        ?.takeIf { builtWorldDiscoveryKey == discoveryKey }
+                    val discovered = cachedDiscovery ?: withContext(Dispatchers.Default) {
                         val started = TimeSource.Monotonic.markNow()
-                        val albumGroups = LibraryCatalog.build(loaded).albums
-                            .filter { it.tracks.size > 1 && !it.title.isNullOrBlank() }
-                            .map { album ->
-                                album.title.orEmpty() to album.tracks.mapTo(HashSet()) { it.id }
-                            }
-                        LibraryWorlds.namedAfterGroups(
-                            LibraryWorlds.discover(
-                                library = loaded,
-                                vectorSpace = features.vectorSpace,
-                                semantics = features.semantics,
-                            ),
-                            playlistGroups + albumGroups,
+                        LibraryWorlds.discover(
+                            library = loaded,
+                            vectorSpace = features.vectorSpace,
+                            semantics = features.semantics,
                         ).also { mixes ->
                             val routed = mixes.groupingBy { it.content }.eachCount()
                             println(
@@ -899,8 +1113,21 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             )
                         }
                     }
+                    val namedWorlds = withContext(Dispatchers.Default) {
+                        val albumGroups = LibraryCatalog.build(loaded).albums
+                            .filter { it.tracks.size > 1 && !it.title.isNullOrBlank() }
+                            .map { album ->
+                                album.title.orEmpty() to album.tracks.mapTo(HashSet()) { it.id }
+                            }
+                        LibraryWorlds.namedAfterGroups(
+                            discovered,
+                            playlistGroups + albumGroups,
+                        )
+                    }
                     worldLibraryIds = loadedIds
-                    worlds = discovered
+                    worlds = namedWorlds
+                    builtWorldDiscoveryKey = discoveryKey
+                    builtDiscoveredWorlds = discovered
                     builtWorldsKey = worldsKey
                 }
         }
@@ -1240,7 +1467,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
 
         suspend fun refreshPlaylistMemberships() {
-            playlists = AppGraph.playlists.all()
+            publishPlaylists(AppGraph.playlists.all())
         }
 
         suspend fun refreshPlaylistStats() {
@@ -1318,10 +1545,28 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         // Every SMART planner (in-app and the playback chooser) reads the marked playlists from
         // this flow; kept in lockstep with the playlists state.
-        LaunchedEffect(playlists) {
-            AppGraph.smartCompanionGroups.value = playlists
-                .filter { it.includeInSmart }
-                .map { playlist -> playlist.trackIds.mapTo(HashSet()) { TrackId(it) } }
+        LaunchedEffect(playlistsLoaded, playlists) {
+            // The first successful read reconstructs the policy that produced a persisted SMART
+            // future. Treat it as launch state, not as a user edit: pruning the saved lookahead at
+            // this point would defeat exact resume and could load the lazy model for no reason.
+            if (!playlistsLoaded) return@LaunchedEffect
+            val groups = playlists.smartCompanionMemberships()
+            val changed = groups != AppGraph.smartCompanionGroups.value
+            val shouldInvalidateFuture = shouldInvalidateSmartFuture(
+                policyInitialized = companionGroupsInitialized,
+                previous = AppGraph.smartCompanionGroups.value,
+                updated = groups,
+            )
+            companionGroupsInitialized = true
+            if (changed) {
+                AppGraph.smartCompanionGroups.value = groups
+            }
+            if (shouldInvalidateFuture) {
+                // Controllers keep a bounded generated lookahead. A policy or membership change
+                // must prune that stale future now; clearing only the chooser's unserved plan
+                // would postpone the user's explicit choice for roughly twenty tracks.
+                playback.invalidateSmartFuture()
+            }
         }
         var autoPlaylists by remember { mutableStateOf<List<AutoPlaylist>>(emptyList()) }
         LaunchedEffect(catalog, playCounts, lastPlayedAt, favoriteIds) {
@@ -1412,10 +1657,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // Rescan after a delete so the removed track leaves every list at once.
         val deleteTrack = rememberTrackDeleter {
             scope.launch {
-                tracks = library.tracks()
-                // The platform calls this only after deletion succeeds. Unlike a general library
-                // refresh, an empty result is authoritative here and must stop/clear a queue whose
-                // final track has just been removed.
+                // A successful deletion proves only that target is gone, not that every media
+                // source was readable during the follow-up scan (iOS app-owned files remain
+                // editable while Music-library access is denied). Let the refreshed permission
+                // state decide whether absence is authoritative; the explicit known-track set
+                // below still clears playback after deleting the final real track.
+                scanLibrary()
                 playback.retainQueue(
                     library.allKnownTracks().mapTo(mutableSetOf()) { track -> track.id },
                 )
@@ -1429,6 +1676,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 val notificationTitle = getString(Res.string.indexing_notification_title)
                 AppGraph.ensureAutomaticIndexing(
                     tracks = loaded,
+                    librarySnapshotAuthoritative =
+                        libraryIndexingRequest?.librarySnapshotAuthoritative ?: false,
                     notificationTitle = notificationTitle,
                     force = true,
                 ) { done, total, etaMinutes ->
@@ -1476,6 +1725,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             forYou = ForYouPage()
             builtWorlds = null
             builtForYouLibraryIds = null
+            builtForYouPlaylistIdentity = null
             builtForYouExclusions = null
             forYouRefreshing = selectedTab == FOR_YOU_TAB
         }
@@ -2140,12 +2390,20 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             },
                             onPlayTrack = { index ->
                                 AppGraph.queueSource.value =
-                                    QueueSource(QueueSourceKind.COLLECTION, selection.title)
+                                    QueueSource(
+                                        QueueSourceKind.COLLECTION,
+                                        selection.title,
+                                        selection.playlistId,
+                                    )
                                 scope.launch { playback.play(selection.tracks, index) }
                             },
                             onShuffle = {
                                 AppGraph.queueSource.value =
-                                    QueueSource(QueueSourceKind.COLLECTION, selection.title)
+                                    QueueSource(
+                                        QueueSourceKind.COLLECTION,
+                                        selection.title,
+                                        selection.playlistId,
+                                    )
                                 scope.launch { playback.play(selection.tracks.shuffled(), 0) }
                             },
                             onTrackMenu = { track ->
@@ -2212,6 +2470,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         QueueSource(
                                             QueueSourceKind.COLLECTION,
                                             selectedCollection?.title,
+                                            selectedCollection?.playlistId,
                                         )
                                     showSearch || selectedTab in GROUP_TABS -> null
                                     else -> QueueSource(QueueSourceKind.TRACKS)
@@ -2571,7 +2830,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             )
                             return@launch
                         }
-                        tracks = tracks?.filterNot { it.id == target.id }
+                        tracks?.filterNot { it.id == target.id }?.let { remaining ->
+                            publishLibraryTracks(
+                                remaining,
+                                libraryIndexingRequest?.librarySnapshotAuthoritative ?: false,
+                            )
+                        }
                         hasHiddenTracks = true
                         val collectionAfterHide = collectionBeforeHide?.let { selection ->
                             val remaining = selection.tracks.filterNot { it.id == target.id }
@@ -2595,7 +2859,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         if (result == SnackbarResult.ActionPerformed) {
                             val restored = try {
                                 library.unhide(target.id)
-                                tracks = library.tracks()
+                                scanLibrary()
                                 hasHiddenTracks = library.hasHiddenTracks()
                                 true
                             } catch (cancelled: CancellationException) {
@@ -2667,7 +2931,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             return@launch
                         }
                         val hiddenIds = ids.toHashSet()
-                        tracks = tracks?.filterNot { it.id in hiddenIds }
+                        tracks?.filterNot { it.id in hiddenIds }?.let { remaining ->
+                            publishLibraryTracks(
+                                remaining,
+                                libraryIndexingRequest?.librarySnapshotAuthoritative ?: false,
+                            )
+                        }
                         hasHiddenTracks = true
                         val collectionAfterHide = collectionBeforeHide?.let { collection ->
                             val remaining = collection.tracks.filterNot { it.id in hiddenIds }
@@ -2691,7 +2960,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         if (result == SnackbarResult.ActionPerformed) {
                             val restored = try {
                                 library.unhide(ids)
-                                tracks = library.tracks()
+                                scanLibrary()
                                 hasHiddenTracks = library.hasHiddenTracks()
                                 true
                             } catch (cancelled: CancellationException) {
@@ -2950,7 +3219,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 track = target,
                 // Without this the list keeps the old title until relaunch — the write lands, the
                 // rescan finishes, and the UI is still holding the pre-edit snapshot.
-                onSaved = { scope.launch { tracks = library.tracks() } },
+                onSaved = { scope.launch { scanLibrary() } },
                 onDismiss = { infoTarget = null },
             )
         }
@@ -2972,7 +3241,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         libraryRefreshing = true
                         scope.launch {
                             try {
-                                tracks = library.tracks()
+                                scanLibrary()
                                 hasHiddenTracks = library.hasHiddenTracks()
                                 snackbar.showSnackbar(getString(Res.string.snack_library_refreshed))
                             } finally {
@@ -2997,7 +3266,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 },
                 onHideTrack = { target ->
                     library.hide(target.id)
-                    tracks = library.tracks()
+                    scanLibrary()
                     hasHiddenTracks = true
                     updateSelectedCollection(selectedCollection?.let { selection ->
                         val remaining = selection.tracks.filterNot { it.id == target.id }
@@ -3009,7 +3278,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     invalidateSmartRecommendationCaches()
                 },
                 onBackupRestored = {
-                    tracks = library.tracks()
+                    scanLibrary()
                     hasHiddenTracks = library.hasHiddenTracks()
                     updateTrackSelection(emptySet())
                     updateSelectedCollection(null)
@@ -3027,6 +3296,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     forYou = ForYouPage()
                     builtWorlds = null
                     builtForYouLibraryIds = null
+                    builtForYouPlaylistIdentity = null
                     personalizationRevision += 1
                     refreshPlaylistsWithFeedback()
                 },

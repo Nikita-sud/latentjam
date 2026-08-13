@@ -112,6 +112,7 @@ private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackControl
 
     override suspend fun setSmartLibrary(tracks: List<TrackDescriptor>) = Unit
     override suspend fun setSmartQueueLength(length: Int) = Unit
+    override suspend fun invalidateSmartFuture() = Unit
     override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int) = Unit
     override suspend fun togglePlayPause() = Unit
     override suspend fun next() = Unit
@@ -125,6 +126,7 @@ private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackControl
         tracks: List<TrackDescriptor>,
         startIndex: Int,
         positionMs: Long,
+        sourceTracks: List<TrackDescriptor>?,
     ) = Unit
     override suspend fun cycleRepeatMode(): RepeatMode = RepeatMode.OFF
     override suspend fun playNext(track: TrackDescriptor) = Unit

@@ -102,7 +102,7 @@ object AppGraph {
     /** Advances after each accepted listening event so For You can apply feedback next time it opens. */
     val historyRevision: StateFlow<Long> = mutableHistoryRevision.asStateFlow()
     private val historyFlushRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    private var automaticIndexingKey: List<TrackDescriptor>? = null
+    private var automaticIndexingKey: AutomaticIndexingRequest? = null
     private var automaticIndexingJob: Job? = null
 
     /** Initializes the graph. Call once from the platform entry point. */
@@ -174,19 +174,34 @@ object AppGraph {
             appScope.launch {
                 combine(playback.state, queueSource) { now, source ->
                     now.track?.let { track ->
+                        val liveQueueIds = now.queue
+                            .takeIf { it.size in 1..MAX_RESUME_QUEUE }
+                            ?.map { it.id.value }
+                            .orEmpty()
+                        // Empty is a real source after every original playlist row was deleted;
+                        // null means an oversized source was deliberately omitted and restore must
+                        // use its backward-compatible fallback instead.
+                        val persistedSourceQueue = now.sourceQueue
+                            .takeIf { it.size <= MAX_RESUME_QUEUE }
                         ResumePlayback(
                             trackId = track.id.value,
                             shuffleMode = now.shuffleMode.name,
                             positionMs = now.positionMs - (now.positionMs % 10_000),
                             sourceKind = source?.kind?.name,
                             sourceName = source?.name,
+                            sourceReference = source?.reference,
                             // The queue itself, so a restart resumes the playlist that was
                             // actually playing. A whole-library queue is exactly what the
                             // fallback restore rebuilds anyway, so oversized ones are skipped.
-                            queueTrackIds = now.queue
-                                .takeIf { it.size in 1..MAX_RESUME_QUEUE }
+                            queueTrackIds = liveQueueIds,
+                            queueIndex = now.queueIndex.takeIf { liveQueueIds.isNotEmpty() } ?: -1,
+                            // SMART's live queue is a generated path, not its durable source. Save
+                            // the latter independently so SMART -> OFF after restart returns to the
+                            // originating playlist/collection instead of the recommendation tail.
+                            sourceQueueTrackIds = persistedSourceQueue
                                 ?.map { it.id.value }
                                 .orEmpty(),
+                            sourceQueuePersisted = persistedSourceQueue != null,
                         )
                     }
                 }
@@ -286,11 +301,15 @@ object AppGraph {
      */
     fun ensureAutomaticIndexing(
         tracks: List<TrackDescriptor>,
+        librarySnapshotAuthoritative: Boolean,
         notificationTitle: String,
         force: Boolean = false,
         notificationText: suspend (done: Int, total: Int, etaMinutes: Int?) -> String,
     ) {
-        val key = tracks
+        val key = AutomaticIndexingRequest(
+            tracks = tracks,
+            librarySnapshotAuthoritative = librarySnapshotAuthoritative,
+        )
         val trackIds = tracks.map(TrackDescriptor::id)
         val existing = automaticIndexingJob
         if (!force &&
@@ -318,7 +337,16 @@ object AppGraph {
             )
             try {
                 engine.initialize()
-                engine.synchronizeLibrary(tracks)
+                // A denied/not-yet-resolved permission is represented by an empty (or on iOS,
+                // partial app-owned-files-only) scan. Index the rows we can see, but do not let
+                // that ambiguous snapshot erase durable vectors or remembered decode failures.
+                // The authority bit belongs to this exact scan and participates in the dedup key,
+                // so a later granted, genuinely empty rescan still reaches reconciliation.
+                engine.synchronizeLibrary(
+                    library = tracks,
+                    pruneMissing = librarySnapshotAuthoritative,
+                )
+                if (force) engine.retryFailedTracks(trackIds)
                 // The foreground service and its notification are only warranted when audio
                 // embedding will actually run. The dedup key lives in process memory, so every
                 // cold start re-enters this job — and used to flash a "0 of N" notification at
@@ -406,6 +434,12 @@ object AppGraph {
         }.koin
 }
 
+/** A completed UI library scan plus whether it proves which durable SMART rows are still live. */
+internal data class AutomaticIndexingRequest(
+    val tracks: List<TrackDescriptor>,
+    val librarySnapshotAuthoritative: Boolean,
+)
+
 data class AutomaticIndexingState(
     val trackIds: List<TrackId> = emptyList(),
     val running: Boolean = false,
@@ -421,4 +455,7 @@ private const val AUTOMATIC_INDEX_CHUNK_SIZE = 8
 private const val AUTOMATIC_INDEX_YIELD_MS = 75L
 
 /** Queues beyond this are effectively "the whole library" and are cheaper to rebuild than store. */
-private const val MAX_RESUME_QUEUE = 2000
+// Keep this aligned with the collision-safe decoder cap. A 10k-id source is still a modest
+// preferences value (opaque ids dominate size), and persisting it is more truthful than inferring
+// the order of a shuffled/sorted/multi-selected Tracks or Search queue after restart.
+private const val MAX_RESUME_QUEUE = 10_000

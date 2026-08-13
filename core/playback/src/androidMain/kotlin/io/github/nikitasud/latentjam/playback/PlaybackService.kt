@@ -67,6 +67,7 @@ public class PlaybackService : MediaSessionService() {
                     result.availableSessionCommands.buildUpon()
                         .add(CycleShuffleModeCommand)
                         .add(InsertShufflePlayNextCommand)
+                        .add(MaterializeRestoredShuffleOrderCommand)
                         .build(),
                 )
                 .setAvailablePlayerCommands(result.availablePlayerCommands)
@@ -102,6 +103,25 @@ public class PlaybackService : MediaSessionService() {
                             )
                         }
                         insertPlayNext(player, item)
+                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
+
+                    MaterializeRestoredShuffleOrderCommand -> {
+                        val player = playbackPlayer
+                            ?: return Futures.immediateFuture(
+                                SessionResult(SessionResult.RESULT_ERROR_INVALID_STATE),
+                            )
+                        // The controller has already installed NowPlaying.queue physically in its
+                        // persisted traversal order. Identity is therefore the exact saved Next
+                        // chain. Enable native shuffle only after installing it, so both player
+                        // listeners continue to report logical ON without an OFF transition.
+                        player.setShuffleOrder(
+                            DefaultShuffleOrder(
+                                restoredOnIdentityTraversal(player.mediaItemCount),
+                                System.nanoTime(),
+                            ),
+                        )
+                        player.shuffleModeEnabled = true
                         return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                     }
                 }

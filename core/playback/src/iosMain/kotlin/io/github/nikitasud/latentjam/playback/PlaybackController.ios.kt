@@ -174,6 +174,9 @@ internal class IosPlaybackController(
     /** Invalidates a SMART result whenever the queue or its candidate universe is replaced. */
     private var queueGeneration: Long = 0L
 
+    /** See Android: policy may change while launch restore has not installed its queue yet. */
+    private var smartFutureInvalidationPending: Boolean = false
+
     private var tickerJob: Job? = null
 
     /** Last values pushed to the lock screen, to keep the ticker off that path. */
@@ -224,6 +227,19 @@ internal class IosPlaybackController(
         appendSmartNextIfNeeded()
     }
 
+    override suspend fun invalidateSmartFuture(): Unit = withContext(Dispatchers.Main) {
+        // Reject a suspended chooser result before pruning the old policy's unplayed plan. The
+        // current backend remains loaded because history and the current row are left untouched.
+        queueGeneration++
+        smartFutureInvalidationPending = true
+        if (mode != ShuffleMode.SMART || queue.isEmpty()) return@withContext
+        queue = smartHistoryThroughCurrent(queue, queueIndex)
+        if (queueIndex !in queue.indices) queueIndex = 0
+        smartFutureInvalidationPending = false
+        pushState()
+        appendSmartNextIfNeeded()
+    }
+
     override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int): Unit =
         withContext(Dispatchers.Main) {
             if (tracks.isEmpty()) return@withContext
@@ -241,6 +257,8 @@ internal class IosPlaybackController(
                 ShuffleMode.SMART -> {
                     queue = listOf(tracks[start])
                     queueIndex = 0
+                    // A newly seeded queue has no future planned under an earlier policy.
+                    smartFutureInvalidationPending = false
                 }
                 ShuffleMode.ON -> {
                     val started = tracks[start]
@@ -456,6 +474,7 @@ internal class IosPlaybackController(
             from > queueIndex && to <= queueIndex -> queueIndex + 1
             else -> queueIndex
         }
+        pool = sourceQueueAfterVisibleReorder(pool, queue, mode)
         pushState()
     }
 
@@ -529,28 +548,25 @@ internal class IosPlaybackController(
         tracks: List<TrackDescriptor>,
         startIndex: Int,
         positionMs: Long,
+        sourceTracks: List<TrackDescriptor>?,
     ): Unit = withContext(Dispatchers.Main) {
         if (tracks.isEmpty()) return@withContext
-        val start = startIndex.coerceIn(0, tracks.lastIndex)
-        pool = tracks
-        when (mode) {
-            // SMART owns its queue: restore the parked track alone; the chooser plans the path
-            // forward once listening actually resumes.
-            ShuffleMode.SMART -> {
-                queue = listOf(tracks[start])
-                queueIndex = 0
-            }
-            ShuffleMode.ON -> {
-                val started = tracks[start]
-                queue = listOf(started) + tracks.filter { it.id != started.id }.shuffled()
-                queueIndex = 0
-            }
-            ShuffleMode.OFF -> {
-                queue = tracks
-                queueIndex = start
-            }
-        }
+        val restorePlan = playbackResumePlan(tracks, startIndex, sourceTracks)
+        // The live queue and canonical source are independent on resume: SMART's saved future is
+        // restored exactly, while leaving SMART can still reconstruct the originating playlist.
+        pool = restorePlan.sourceQueue
+        queue = restorePlan.liveQueue
+        queueIndex = restorePlan.currentIndex
         queueGeneration++
+        val refillAfterPendingInvalidation = mode == ShuffleMode.SMART &&
+            smartFutureInvalidationPending
+        if (refillAfterPendingInvalidation) {
+            queue = smartHistoryThroughCurrent(queue, queueIndex)
+            smartFutureInvalidationPending = false
+            // Rebuild before opening audio so an unreadable saved current row may recover into the
+            // newly planned tail just like an ordinary resume recovers into its saved future.
+            appendSmartNextIfNeeded()
+        }
         // Paused is the whole point: the session reappears, nothing sounds until asked.
         val requestedIndex = queueIndex
         val loaded = loadPlayableFrom(
@@ -566,6 +582,11 @@ internal class IosPlaybackController(
             invalidateNowPlayingInfo()
         }
         pushState()
+        if (mode == ShuffleMode.SMART && !refillAfterPendingInvalidation) {
+            // Close the same setSmartLibrary/restore ordering race as Android. Full saved queues
+            // are untouched; only a short tail asks the current chooser to top up.
+            mainScope.launch { appendSmartNextIfNeeded() }
+        }
     }
 
     private suspend fun applyShuffleMode(requested: ShuffleMode): ShuffleMode {
@@ -577,8 +598,9 @@ internal class IosPlaybackController(
         queueGeneration++
         mode = requested
         val current = queue.getOrNull(queueIndex)
+        var topUpSmartQueue = false
         when (mode) {
-            ShuffleMode.OFF -> if (current != null && pool.isNotEmpty()) {
+            ShuffleMode.OFF -> if (current != null) {
                 // Back to source order without changing the logical current. A manual/SMART item
                 // may not exist in the source; keep it at the playhead instead of coercing the
                 // missing lookup to source index zero while its audio continues.
@@ -593,11 +615,15 @@ internal class IosPlaybackController(
             ShuffleMode.SMART -> {
                 // Drop the pre-planned tail; the chooser decides the path now.
                 if (queueIndex >= 0) queue = queue.take(queueIndex + 1)
-                appendSmartNextIfNeeded()
+                smartFutureInvalidationPending = false
+                topUpSmartQueue = true
             }
         }
         syncRemotePlaybackModes()
         pushState()
+        // iOS already retains its loaded native item for every queue transformation. Keep model
+        // planning out of the mode-button path as well so the UI/remote state changes immediately.
+        if (topUpSmartQueue) mainScope.launch { appendSmartNextIfNeeded() }
         return mode
     }
 
@@ -612,7 +638,10 @@ internal class IosPlaybackController(
         // Each pass appends exactly one item, so the shortfall shrinks by one and at
         // most [smartLookahead] passes are ever needed; the counter caps it regardless.
         var guard = smartLookahead
-        while (guard-- > 0 && queue.size - 1 - queueIndex < smartLookahead) {
+        while (
+            guard-- > 0 &&
+            smartQueueNeedsTopUp(queue.size, queueIndex, smartLookahead)
+        ) {
             val tailIndex = queue.lastIndex
             val seed = queue[tailIndex]
             val commitGuard = SmartAppendGuard(
@@ -1233,6 +1262,7 @@ internal class IosPlaybackController(
             durationMs = durationMs() ?: track?.durationMs ?: 0,
             queue = queue,
             queueIndex = if (queue.isEmpty()) -1 else queueIndex,
+            sourceQueue = pool,
         )
         publishNowPlayingInfo(track)
     }

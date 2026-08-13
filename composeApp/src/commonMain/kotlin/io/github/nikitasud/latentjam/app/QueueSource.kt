@@ -21,11 +21,14 @@ enum class QueueSourceKind { COLLECTION, TRACKS, SEARCH, MAP, FOR_YOU }
  *
  * [name] carries the display name when the source has one of its own — a collection title, a
  * search query. Kinds without a natural name fall back to their surface's label via
- * [fallbackLabelRes].
+ * [fallbackLabelRes]. [reference] is an opaque stable source id when one exists (currently a user
+ * playlist id), allowing an oversized source queue to be reconstructed instead of persisted in
+ * preferences on every position tick.
  */
 data class QueueSource(
     val kind: QueueSourceKind,
     val name: String? = null,
+    val reference: String? = null,
 )
 
 /** Surface label for sources without a name of their own; null means "show nothing". */

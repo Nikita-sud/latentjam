@@ -32,6 +32,9 @@ public enum class RepeatMode { OFF, ALL, ONE }
  * @property queue The play queue in order (immutable snapshot; rebuilt only
  *   when the queue actually changes, so ticker emissions share the same list).
  * @property queueIndex Index of the current track in [queue], -1 when empty.
+ * @property sourceQueue Canonical natural-order queue from which playback was started. SMART may
+ *   replace [queue]'s future with recommendations, but this source remains intact so leaving SMART
+ *   and restoring a saved session can return to the original playlist or collection.
  */
 public data class NowPlaying(
     public val track: TrackDescriptor? = null,
@@ -42,6 +45,7 @@ public data class NowPlaying(
     public val durationMs: Long = 0,
     public val queue: List<TrackDescriptor> = emptyList(),
     public val queueIndex: Int = -1,
+    public val sourceQueue: List<TrackDescriptor> = emptyList(),
 )
 
 /**
@@ -92,6 +96,15 @@ public interface PlaybackController {
     public suspend fun setSmartQueueLength(length: Int)
 
     /**
+     * Invalidates recommendations that have not played yet after SMART's planning policy changes.
+     *
+     * Implementations preserve queue history and the current row, discard only the unplayed SMART
+     * future, reject any chooser result computed under the previous policy, and refill the queue
+     * using the current policy. A no-op outside [ShuffleMode.SMART].
+     */
+    public suspend fun invalidateSmartFuture()
+
+    /**
      * Replaces the queue with [tracks] and starts playing the one at
      * [startIndex]. The list remains the natural OFF/ON playback source; SMART draws from the
      * complete library supplied by [setSmartLibrary].
@@ -123,16 +136,22 @@ public interface PlaybackController {
     public suspend fun setShuffleMode(mode: ShuffleMode)
 
     /**
-     * Loads [tracks] as the queue with [startIndex] current at [positionMs] — PAUSED.
+     * Loads [tracks] as the live queue with [startIndex] current at [positionMs] — PAUSED.
      *
      * The launch-restore path: the last session's track reappears in the player ready to
      * continue, but nothing sounds until the user asks. Because playback has not started, the
      * history recorder opens no session for the restored track unless it actually plays.
+     * [sourceTracks] is the canonical natural-order queue retained across SMART planning. It is
+     * separate because [tracks] may be a saved SMART queue containing generated recommendations.
+     * `null` keeps sessions written before source queues were persisted backward compatible by
+     * using [tracks]. An explicitly empty list is meaningful: the saved source existed but every
+     * row was deleted while a generated SMART current row survived.
      */
     public suspend fun restoreQueue(
         tracks: List<TrackDescriptor>,
         startIndex: Int,
         positionMs: Long,
+        sourceTracks: List<TrackDescriptor>? = null,
     )
 
     /** Advances OFF → ALL → ONE → OFF and returns the new mode. */

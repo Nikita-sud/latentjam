@@ -13,6 +13,87 @@ internal data class PlaybackQueueOrder(
     val currentIndex: Int,
 )
 
+/** Non-current rows to splice around a platform player's already-loaded current item. */
+internal data class PlaybackQueueSplice(
+    val beforeCurrent: List<TrackDescriptor>,
+    val current: TrackDescriptor,
+    val afterCurrent: List<TrackDescriptor>,
+)
+
+/**
+ * Plans a playlist replacement that never removes/reloads the current media item.
+ *
+ * Platform controllers apply [beforeCurrent] and [afterCurrent] around their existing native
+ * current item. That preserves decoder state, position and playWhenReady while SMART's generated
+ * queue is exchanged for source order (or source/shuffle history is exchanged for SMART order).
+ */
+internal fun playbackQueueSplice(order: PlaybackQueueOrder): PlaybackQueueSplice? {
+    if (order.currentIndex !in order.tracks.indices) return null
+    return PlaybackQueueSplice(
+        beforeCurrent = order.tracks.take(order.currentIndex),
+        current = order.tracks[order.currentIndex],
+        afterCurrent = order.tracks.drop(order.currentIndex + 1),
+    )
+}
+
+/** Result policy for materializing the exact traversal of a persisted ON queue. */
+internal enum class RestoredOnShuffleOrder {
+    SAVED_IDENTITY,
+    NATIVE_RANDOM_FALLBACK,
+}
+
+internal data class RestoredOnShufflePolicy(
+    val order: RestoredOnShuffleOrder,
+    val nativeShuffleEnabled: Boolean,
+)
+
+/**
+ * Native shuffle stays enabled in either result. The fallback may lose exact saved Next order, but
+ * remains a coherent ON queue and never turns a recoverable resume into a launch exception.
+ */
+internal fun restoredOnShufflePolicy(identityOrderInstalled: Boolean): RestoredOnShufflePolicy =
+    RestoredOnShufflePolicy(
+        order = if (identityOrderInstalled) {
+            RestoredOnShuffleOrder.SAVED_IDENTITY
+        } else {
+            RestoredOnShuffleOrder.NATIVE_RANDOM_FALLBACK
+        },
+        nativeShuffleEnabled = true,
+    )
+
+/** Physical permutation installed after the persisted ON traversal is materialized as the queue. */
+internal fun restoredOnIdentityTraversal(queueSize: Int): IntArray =
+    IntArray(queueSize.coerceAtLeast(0)) { it }
+
+/** Complete launch-resume inputs shared by both platform controllers. */
+internal data class PlaybackResumePlan(
+    val liveQueue: List<TrackDescriptor>,
+    val sourceQueue: List<TrackDescriptor>,
+    val currentIndex: Int,
+)
+
+/**
+ * Keeps a persisted SMART queue separate from its canonical source during launch restore.
+ *
+ * Sessions written before source persistence pass a null [sourceQueue] and deliberately fall back
+ * to the live queue. An explicitly empty source remains empty so deleting every original playlist
+ * row cannot turn a generated SMART tail into the new source. Copying both lists prevents a mutable
+ * caller from changing a committed player/source pair after the restore returns.
+ */
+internal fun playbackResumePlan(
+    liveQueue: List<TrackDescriptor>,
+    currentIndex: Int,
+    sourceQueue: List<TrackDescriptor>?,
+): PlaybackResumePlan {
+    val stableLive = liveQueue.toList()
+    val stableSource = sourceQueue?.toList() ?: stableLive
+    return PlaybackResumePlan(
+        liveQueue = stableLive,
+        sourceQueue = stableSource,
+        currentIndex = if (stableLive.isEmpty()) -1 else currentIndex.coerceIn(stableLive.indices),
+    )
+}
+
 /**
  * Restores source order without inventing a different current track.
  *
@@ -63,6 +144,22 @@ internal fun sourceQueueAfterManualInsert(
 }
 
 /**
+ * Applies a visible queue reorder to the canonical source without leaking SMART recommendations.
+ *
+ * Under OFF every visible row is the source, so its new order can be adopted directly. ON exposes
+ * a shuffled traversal and SMART exposes generated/history rows, so neither is allowed to rewrite
+ * the natural source order merely because the listener rearranged that mode's live queue.
+ */
+internal fun sourceQueueAfterVisibleReorder(
+    source: List<TrackDescriptor>,
+    visibleQueue: List<TrackDescriptor>,
+    mode: ShuffleMode,
+): List<TrackDescriptor> = when (mode) {
+    ShuffleMode.ON, ShuffleMode.SMART -> source
+    ShuffleMode.OFF -> visibleQueue.toList()
+}
+
+/**
  * Retains actual shuffle history through the current row before SMART takes ownership.
  *
  * A Media3 playlist is stored in physical source order, while its user-visible/current traversal is
@@ -78,6 +175,31 @@ internal fun <T : Any> traversalHistoryThroughCurrent(
 } else {
     emptyList()
 }
+
+/**
+ * Drops only the unplayed SMART future when recommendation policy changes.
+ *
+ * A temporarily missing backend index still preserves the first queued seed. This matches the
+ * controller invariant used while a media backend is preparing: a non-empty SMART queue always has
+ * one current-or-cued row, and policy invalidation must never turn that into an empty transport.
+ */
+internal fun <T : Any> smartHistoryThroughCurrent(
+    rows: List<T>,
+    currentRowIndex: Int,
+): List<T> {
+    if (rows.isEmpty()) return emptyList()
+    val keepThrough = currentRowIndex.takeIf { it in rows.indices } ?: 0
+    return rows.take(keepThrough + 1)
+}
+
+/** Whether a restored/active SMART queue is short enough to require another chooser call. */
+internal fun smartQueueNeedsTopUp(
+    queueSize: Int,
+    currentIndex: Int,
+    lookahead: Int,
+): Boolean = queueSize > 0 &&
+    currentIndex in 0 until queueSize &&
+    queueSize - 1 - currentIndex < lookahead.coerceAtLeast(1)
 
 /**
  * Bounded forward recovery candidates after a backend fails its current media item.
@@ -130,8 +252,9 @@ internal fun nextPlaybackErrorRecoveryIndex(
  * Source-order replacement needed when a backend leaves SMART shuffle.
  *
  * SMART owns and truncates the live queue, so merely disabling a platform shuffle flag cannot
- * recover the source rows it removed. Normal ON shuffle keeps the complete physical source queue
- * and therefore needs no replacement when it turns off.
+ * recover source rows it removed. ON also requests a replacement: ordinary ON yields the same
+ * physical source order, while a restored ON session may have materialized its saved traversal
+ * physically and must therefore reconstruct canonical source order on the way back to OFF.
  */
 internal fun sourceOrderForShuffleTransition(
     previousMode: ShuffleMode,
@@ -140,10 +263,9 @@ internal fun sourceOrderForShuffleTransition(
     current: TrackDescriptor?,
 ): PlaybackQueueOrder? =
     if (
-        previousMode == ShuffleMode.SMART &&
+        previousMode != ShuffleMode.OFF &&
         requestedMode == ShuffleMode.OFF &&
-        current != null &&
-        source.isNotEmpty()
+        current != null
     ) {
         sourceOrderKeepingCurrent(source, current)
     } else {

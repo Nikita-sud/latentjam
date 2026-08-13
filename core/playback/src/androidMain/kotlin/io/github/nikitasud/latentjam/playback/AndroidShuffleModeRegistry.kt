@@ -47,4 +47,14 @@ internal val InsertShufflePlayNextCommand: SessionCommand = SessionCommand(
     Bundle.EMPTY,
 )
 
+/**
+ * Installs an identity native shuffle order after a saved ON traversal was materialized physically.
+ * ExoPlayer stays shuffle-enabled (so app/service listeners keep logical ON), while Next follows
+ * the exact persisted traversal instead of randomly shuffling it a second time.
+ */
+internal val MaterializeRestoredShuffleOrderCommand: SessionCommand = SessionCommand(
+    "io.github.nikitasud.latentjam.MATERIALIZE_RESTORED_SHUFFLE_ORDER",
+    Bundle.EMPTY,
+)
+
 internal const val PlayNextMediaItemBundleKey: String = "play_next_media_item"

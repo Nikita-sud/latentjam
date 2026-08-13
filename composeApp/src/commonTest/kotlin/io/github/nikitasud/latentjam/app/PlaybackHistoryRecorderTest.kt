@@ -139,6 +139,7 @@ internal class PlaybackHistoryRecorderTest {
 
         override suspend fun setSmartLibrary(tracks: List<TrackDescriptor>) = Unit
         override suspend fun setSmartQueueLength(length: Int) = Unit
+        override suspend fun invalidateSmartFuture() = Unit
         override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int) = Unit
         override suspend fun togglePlayPause() = Unit
         override suspend fun pause() = Unit
@@ -152,6 +153,7 @@ internal class PlaybackHistoryRecorderTest {
             tracks: List<TrackDescriptor>,
             startIndex: Int,
             positionMs: Long,
+            sourceTracks: List<TrackDescriptor>?,
         ) = Unit
         override suspend fun cycleRepeatMode() = RepeatMode.OFF
         override suspend fun retainQueue(trackIds: Set<TrackId>) = Unit

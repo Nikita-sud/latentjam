@@ -89,6 +89,13 @@ internal class AndroidPlaybackController(
     private var queueGeneration = 0L
 
     /**
+     * Remembers a companion-policy invalidation that arrived before SMART had a queue to prune.
+     * Playlist loading and launch restore are concurrent; dropping that early signal would restore
+     * a saved future planned under the old policy and leave it untouched for the whole lookahead.
+     */
+    private var smartFutureInvalidationPending = false
+
+    /**
      * Serialises SMART appends.
      *
      * [appendSmartNextIfNeeded] decides whether to append by reading the player, then SUSPENDS in
@@ -295,6 +302,23 @@ internal class AndroidPlaybackController(
         }
     }
 
+    override suspend fun invalidateSmartFuture() {
+        withContext(Dispatchers.Main.immediate) {
+            // Invalidate before touching the queue so an in-flight chooser cannot commit a row
+            // selected under the old companion policy after the replacement tail is installed.
+            queueGeneration++
+            smartFutureInvalidationPending = true
+            val player = controller ?: return@withContext
+            if (mode != ShuffleMode.SMART || player.mediaItemCount == 0) return@withContext
+
+            removeUnplayedSmartFuture(player)
+            smartFutureInvalidationPending = false
+            rebuildQueueSnapshot()
+            pushState()
+            appendSmartNextIfNeeded()
+        }
+    }
+
     override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int) {
         if (tracks.isEmpty()) return
         val requestGeneration = playRequestGeneration.incrementAndGet()
@@ -334,6 +358,8 @@ internal class AndroidPlaybackController(
                     // SMART owns its queue: start from the tapped track alone and let the chooser
                     // build the path forward. Do not construct hundreds of unused MediaItems.
                     player.setMediaItems(listOf(prepared.selectedItem))
+                    // A fresh one-row queue contains no recommendation from the previous policy.
+                    smartFutureInvalidationPending = false
                 } else {
                     player.setMediaItems(fullQueue!!, prepared.startIndex, 0L)
                     player.shuffleModeEnabled = currentMode == ShuffleMode.ON
@@ -532,6 +558,7 @@ internal class AndroidPlaybackController(
         queueGeneration++
         player.moveMediaItem(from, to)
         rebuildQueueSnapshot()
+        pool = sourceQueueAfterVisibleReorder(pool, cachedQueue, mode)
         pushState()
     }
 
@@ -573,43 +600,76 @@ internal class AndroidPlaybackController(
         tracks: List<TrackDescriptor>,
         startIndex: Int,
         positionMs: Long,
+        sourceTracks: List<TrackDescriptor>?,
     ) {
         if (tracks.isEmpty()) return
         // Same generation contract as play(): a user tap that lands during a slow restore must
         // win, and the restore must then abandon its stale queue rather than clobber the tap's.
         val requestGeneration = playRequestGeneration.incrementAndGet()
-        val modeAtRequest = withContext(Dispatchers.Main.immediate) { mode }
         val prepared = withContext(Dispatchers.Default) {
-            preparePlayback(
-                tracks = tracks,
-                startIndex = startIndex,
-                includeFullQueue = modeAtRequest != ShuffleMode.SMART,
+            val restorePlan = playbackResumePlan(tracks, startIndex, sourceTracks)
+            val live = preparePlayback(
+                tracks = restorePlan.liveQueue,
+                startIndex = restorePlan.currentIndex,
+                // Resume always restores the exact saved live queue, including SMART's generated
+                // future. The separately persisted source remains available for SMART -> OFF.
+                includeFullQueue = true,
             )
+            val source = restorePlan.sourceQueue
+            Triple(live, source, source.associateBy { it.id.value } + live.byId)
         }
         withContext(Dispatchers.Main.immediate) {
             if (playRequestGeneration.get() != requestGeneration) return@withContext
             val player = controller()
             if (playRequestGeneration.get() != requestGeneration) return@withContext
-            pool = prepared.tracks
-            poolById = prepared.byId
+            val live = prepared.first
+            pool = prepared.second
+            // The live SMART queue can contain generated rows absent from the canonical source;
+            // retain descriptors for both so queue/state reconstruction never loses those rows.
+            poolById = prepared.third
             queueGeneration++
             beginFreshRecoveryAttempt()
             val startPositionMs = positionMs.coerceAtLeast(0L)
-            val fullQueue = prepared.fullQueue
-            if (mode == ShuffleMode.SMART || fullQueue == null) {
-                // SMART owns its queue: restore the parked track alone; the chooser plans the
-                // path forward once listening actually resumes.
-                player.setMediaItems(listOf(prepared.selectedItem), 0, startPositionMs)
+            player.setMediaItems(live.fullQueue!!, live.startIndex, startPositionMs)
+            // [tracks] is NowPlaying.queue: already the exact saved traversal order for ON. Keep
+            // it as an identity native shuffle traversal instead of randomly permuting it again.
+            // The trusted service owns ExoPlayer's ShuffleOrder, which MediaController cannot set.
+            if (mode == ShuffleMode.ON) {
+                val identityOrderInstalled = runCatching {
+                    materializeRestoredShuffleOrder(player)
+                }.getOrDefault(false)
+                val restoredPolicy = restoredOnShufflePolicy(identityOrderInstalled)
+                when (restoredPolicy.order) {
+                    RestoredOnShuffleOrder.SAVED_IDENTITY -> Unit
+                    RestoredOnShuffleOrder.NATIVE_RANDOM_FALLBACK -> {
+                        // Service/controller version skew or a transient command failure must not
+                        // abort launch after queue state was already committed. Native random
+                        // shuffle loses exact saved Next, but keeps transport/logical mode ON.
+                        println(
+                            "Playback: restored ON identity order unavailable; using native shuffle",
+                        )
+                    }
+                }
+                player.shuffleModeEnabled = restoredPolicy.nativeShuffleEnabled
             } else {
-                player.setMediaItems(fullQueue, prepared.startIndex, startPositionMs)
-                player.shuffleModeEnabled = mode == ShuffleMode.ON
+                player.shuffleModeEnabled = false
             }
             // Paused is the whole point: the session reappears, nothing sounds. pause() before
             // prepare() pins playWhenReady false no matter what state the controller came back in.
             player.pause()
             player.prepare()
+            val refillAfterPendingInvalidation = mode == ShuffleMode.SMART &&
+                smartFutureInvalidationPending
+            if (refillAfterPendingInvalidation) {
+                removeUnplayedSmartFuture(player)
+                smartFutureInvalidationPending = false
+            }
             rebuildQueueSnapshot()
             pushState()
+            // Preserve every saved row, but repair a legitimately short SMART queue regardless of
+            // whether setSmartLibrary happened just before or just after this restore coroutine.
+            // A full saved lookahead exits without invoking the chooser/model.
+            if (mode == ShuffleMode.SMART) mainScope.launch { appendSmartNextIfNeeded() }
         }
     }
 
@@ -631,6 +691,7 @@ internal class AndroidPlaybackController(
         beginFreshRecoveryAttempt()
         queueGeneration++
         mode = nextMode
+        var topUpSmartQueue = false
         controller?.let { player ->
             val sourceOrder = sourceOrderForShuffleTransition(
                 previousMode = previousMode,
@@ -644,18 +705,25 @@ internal class AndroidPlaybackController(
                 } else {
                     // SMART removed the source tail and replaced it with recommendations. Disabling
                     // ExoPlayer shuffle alone would leave that SMART queue playing under an OFF
-                    // indicator, so install the source queue again at the same logical track and
-                    // playhead. Media3 keeps playWhenReady/repeat across a playlist replacement.
-                    val positionMs = player.currentPosition.coerceAtLeast(0L)
+                    // indicator. Keep the native current item and splice source rows around it;
+                    // replacing the whole playlist + prepare() reloads audio and caused a gap.
                     val current = sourceOrder.tracks[sourceOrder.currentIndex]
                     poolById = poolById + (current.id.value to current)
                     player.shuffleModeEnabled = false
-                    player.setMediaItems(
-                        sourceOrder.tracks.map { it.toMediaItem() },
-                        sourceOrder.currentIndex,
-                        positionMs,
-                    )
-                    player.prepare()
+                    if (!replaceQueueAroundCurrent(player, sourceOrder)) {
+                        // Defensive mismatch fallback (for an externally replaced media session).
+                        // Normal in-app transitions always hit the splice path above and remain
+                        // gapless; correctness wins if a foreign controller changed current first.
+                        val positionMs = player.currentPosition.coerceAtLeast(0L)
+                        val playWhenReady = player.playWhenReady
+                        player.setMediaItems(
+                            sourceOrder.tracks.map { it.toMediaItem() },
+                            sourceOrder.currentIndex,
+                            positionMs,
+                        )
+                        player.prepare()
+                        if (playWhenReady) player.play()
+                    }
                 }
                 ShuffleMode.ON -> player.shuffleModeEnabled = true
                 ShuffleMode.SMART -> {
@@ -670,27 +738,41 @@ internal class AndroidPlaybackController(
                     ).ifEmpty {
                         player.currentMediaItem?.mediaId?.let(::trackById)?.let(::listOf).orEmpty()
                     }
-                    val positionMs = player.currentPosition.coerceAtLeast(0L)
-                    val playWhenReady = player.playWhenReady
                     player.shuffleModeEnabled = false
-                    // Reinstall actual traversal history as a linear SMART queue. Physical index
-                    // truncation is wrong under shuffle because it preserves source predecessors,
-                    // not rows the listener really traversed.
+                    // Reinstall actual traversal history as a linear SMART queue without removing
+                    // the already-decoding current item. Physical truncation is wrong under
+                    // shuffle because it preserves source predecessors, not played traversal.
                     if (retainedHistory.isNotEmpty()) {
-                        player.setMediaItems(
-                            retainedHistory.map { it.toMediaItem() },
-                            retainedHistory.lastIndex,
-                            positionMs,
+                        val smartOrder = PlaybackQueueOrder(
+                            tracks = retainedHistory,
+                            currentIndex = retainedHistory.lastIndex,
                         )
-                        player.prepare()
-                        if (playWhenReady) player.play()
+                        if (!replaceQueueAroundCurrent(
+                            player = player,
+                            order = smartOrder,
+                        )) {
+                            val positionMs = player.currentPosition.coerceAtLeast(0L)
+                            val playWhenReady = player.playWhenReady
+                            player.setMediaItems(
+                                retainedHistory.map { it.toMediaItem() },
+                                retainedHistory.lastIndex,
+                                positionMs,
+                            )
+                            player.prepare()
+                            if (playWhenReady) player.play()
+                        }
                     }
-                    appendSmartNextIfNeeded()
+                    // This queue was rebuilt from history only; every new row uses current policy.
+                    smartFutureInvalidationPending = false
+                    topUpSmartQueue = true
                 }
             }
             rebuildQueueSnapshot()
         }
         pushState()
+        // Queue planning can load local models. It is not part of the transport-mode transaction:
+        // publish the mode/current item immediately and fill the future asynchronously.
+        if (topUpSmartQueue) mainScope.launch { appendSmartNextIfNeeded() }
     }
 
     /**
@@ -700,6 +782,44 @@ internal class AndroidPlaybackController(
      * concurrent callers duplicate each other's work. See [appendMutex].
      */
     private suspend fun appendSmartNextIfNeeded() = appendMutex.withLock { appendSmartNext() }
+
+    /** Main-thread only. Keeps physical SMART history/current and removes every later row. */
+    private fun removeUnplayedSmartFuture(player: Player) {
+        if (player.mediaItemCount == 0) return
+        val keepThrough = player.currentMediaItemIndex
+            .takeIf { it in 0 until player.mediaItemCount }
+            ?: 0
+        for (index in player.mediaItemCount - 1 downTo keepThrough + 1) {
+            player.removeMediaItem(index)
+        }
+    }
+
+    /**
+     * Replaces every non-current Media3 row while retaining the native current MediaItem itself.
+     * Media3 documents playlist edits around the current item as continuous; no seek or prepare is
+     * issued here, so decoder state, position, playWhenReady and repeat survive the mode switch.
+     */
+    private fun replaceQueueAroundCurrent(player: Player, order: PlaybackQueueOrder): Boolean {
+        val splice = playbackQueueSplice(order) ?: return false
+        val currentIndex = player.currentMediaItemIndex
+        if (currentIndex !in 0 until player.mediaItemCount) return false
+        if (player.getMediaItemAt(currentIndex).mediaId != splice.current.id.value) return false
+
+        // Replace ranges on either side of current, never the active row itself. Media3 applies
+        // each range atomically and keeps its active Period/decoder. Suffix first leaves the
+        // current physical index stable while the prefix replacement is calculated/applied.
+        player.replaceMediaItems(
+            currentIndex + 1,
+            player.mediaItemCount,
+            splice.afterCurrent.map { it.toMediaItem() },
+        )
+        player.replaceMediaItems(
+            0,
+            currentIndex,
+            splice.beforeCurrent.map { it.toMediaItem() },
+        )
+        return true
+    }
 
     private suspend fun appendSmartNext() {
         val player = controller ?: return
@@ -713,7 +833,11 @@ internal class AndroidPlaybackController(
         var guard = smartLookahead
         while (
             guard-- > 0 &&
-            player.mediaItemCount - 1 - player.currentMediaItemIndex < smartLookahead
+            smartQueueNeedsTopUp(
+                queueSize = player.mediaItemCount,
+                currentIndex = player.currentMediaItemIndex,
+                lookahead = smartLookahead,
+            )
         ) {
             // The walk continues from the END of the queue, not from what is playing. The tail is
             // the last thing the chain decided, so seeding with it is what lets the chooser
@@ -850,6 +974,7 @@ internal class AndroidPlaybackController(
                 ?.let(cachedQueueMediaIndices::indexOf)
                 ?.takeIf { it >= 0 }
                 ?: -1,
+            sourceQueue = pool,
         )
     }
 
@@ -971,20 +1096,31 @@ internal class AndroidPlaybackController(
                 item.toBundleIncludeLocalConfiguration(MediaLibraryInfo.INTERFACE_VERSION),
             )
         }
-        return suspendCancellableCoroutine { continuation ->
-            val future = player.sendCustomCommand(InsertShufflePlayNextCommand, args)
-            val mainExecutor = java.util.concurrent.Executor { runnable ->
-                Handler(Looper.getMainLooper()).post(runnable)
-            }
-            future.addListener({
-                if (!continuation.isActive) return@addListener
-                val succeeded = runCatching {
-                    future.get().resultCode == SessionResult.RESULT_SUCCESS
-                }.getOrDefault(false)
-                continuation.resume(succeeded)
-            }, mainExecutor)
-            continuation.invokeOnCancellation { future.cancel(true) }
+        return awaitSessionCommandResult(player.sendCustomCommand(InsertShufflePlayNextCommand, args))
+    }
+
+    /** Installs identity ShuffleOrder for a physically materialized saved ON traversal. */
+    private suspend fun materializeRestoredShuffleOrder(player: MediaController): Boolean {
+        if (!player.isSessionCommandAvailable(MaterializeRestoredShuffleOrderCommand)) return false
+        return awaitSessionCommandResult(
+            player.sendCustomCommand(MaterializeRestoredShuffleOrderCommand, Bundle.EMPTY),
+        )
+    }
+
+    private suspend fun awaitSessionCommandResult(
+        future: com.google.common.util.concurrent.ListenableFuture<SessionResult>,
+    ): Boolean = suspendCancellableCoroutine { continuation ->
+        val mainExecutor = java.util.concurrent.Executor { runnable ->
+            Handler(Looper.getMainLooper()).post(runnable)
         }
+        future.addListener({
+            if (!continuation.isActive) return@addListener
+            val succeeded = runCatching {
+                future.get().resultCode == SessionResult.RESULT_SUCCESS
+            }.getOrDefault(false)
+            continuation.resume(succeeded)
+        }, mainExecutor)
+        continuation.invokeOnCancellation { future.cancel(true) }
     }
 
     private fun TrackDescriptor.toMediaItem(): MediaItem = MediaItem.Builder()

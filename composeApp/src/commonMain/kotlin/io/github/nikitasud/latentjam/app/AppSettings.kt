@@ -66,6 +66,102 @@ internal fun recordingPreferenceFromPersisted(value: Boolean?): Boolean = value 
 /** Novelty/effects mixes are an explicit opt-in; a missing or corrupt value stays off. */
 internal fun noveltyMixPreferenceFromPersisted(value: Boolean?): Boolean = value ?: false
 
+/** Live SMART queue plus its independent canonical source, persisted as one atomic value. */
+internal data class ResumeQueueState(
+    val queueTrackIds: List<String>,
+    val sourceQueueTrackIds: List<String>,
+    val queueIndex: Int,
+    val sourceQueuePersisted: Boolean = true,
+)
+
+/**
+ * Collision-safe queue codec.
+ *
+ * Track ids are opaque (imported file identities can legally contain commas), so each id is
+ * length-prefixed instead of delimiter-escaped. Both lists and the current index share one encoded
+ * value, preventing a crash between separate writes from pairing a new SMART queue with an old
+ * source playlist.
+ */
+internal fun encodeResumeQueueState(state: ResumeQueueState): String = buildString {
+    val sourceIds = state.sourceQueueTrackIds.takeIf { state.sourceQueuePersisted }.orEmpty()
+    append(RESUME_QUEUE_STATE_PREFIX)
+    append(state.queueIndex)
+    append('|')
+    append(state.queueTrackIds.size)
+    append('|')
+    state.queueTrackIds.forEach { id ->
+        append(id.length)
+        append(':')
+        append(id)
+    }
+    append('|')
+    append(if (state.sourceQueuePersisted) 1 else 0)
+    append('|')
+    append(sourceIds.size)
+    append('|')
+    sourceIds.forEach { id ->
+        append(id.length)
+        append(':')
+        append(id)
+    }
+}
+
+/** Returns null for a different version or any truncated/type-corrupt payload. */
+internal fun decodeResumeQueueState(value: String): ResumeQueueState? {
+    if (!value.startsWith(RESUME_QUEUE_STATE_PREFIX)) return null
+    var offset = RESUME_QUEUE_STATE_PREFIX.length
+
+    fun readIntToken(): Int? {
+        val delimiter = value.indexOf('|', startIndex = offset)
+        if (delimiter < 0) return null
+        val parsed = value.substring(offset, delimiter).toIntOrNull()
+        offset = delimiter + 1
+        return parsed
+    }
+
+    fun readIds(count: Int): List<String>? {
+        if (count !in 0..MAX_DECODED_RESUME_QUEUE_IDS) return null
+        val ids = ArrayList<String>(count)
+        repeat(count) {
+            val colon = value.indexOf(':', startIndex = offset)
+            if (colon < 0) return null
+            val length = value.substring(offset, colon).toIntOrNull()
+                ?.takeIf { it >= 0 }
+                ?: return null
+            val start = colon + 1
+            if (length > value.length - start) return null
+            val end = start + length
+            ids += value.substring(start, end)
+            offset = end
+        }
+        return ids
+    }
+
+    val queueIndex = readIntToken() ?: return null
+    val queueCount = readIntToken() ?: return null
+    val queueIds = readIds(queueCount) ?: return null
+    if (value.getOrNull(offset) != '|') return null
+    offset++
+    val sourcePersisted = when (readIntToken()) {
+        0 -> false
+        1 -> true
+        else -> return null
+    }
+    val sourceCount = readIntToken() ?: return null
+    val sourceIds = readIds(sourceCount) ?: return null
+    if (!sourcePersisted && sourceIds.isNotEmpty()) return null
+    if (offset != value.length) return null
+    return ResumeQueueState(
+        queueTrackIds = queueIds,
+        sourceQueueTrackIds = sourceIds,
+        queueIndex = queueIndex,
+        sourceQueuePersisted = sourcePersisted,
+    )
+}
+
+private const val RESUME_QUEUE_STATE_PREFIX = "LJQ2|"
+private const val MAX_DECODED_RESUME_QUEUE_IDS = 10_000
+
 /**
  * User preferences that belong to the app shell rather than to any one feature.
  *
@@ -137,6 +233,8 @@ data class ResumePlayback(
     val sourceKind: String? = null,
     /** Display name for name-bearing sources (collection title, search query). */
     val sourceName: String? = null,
+    /** Stable source identity used to reconstruct an omitted oversized queue when available. */
+    val sourceReference: String? = null,
     /**
      * The queue's track ids in play order, so a restart restores the queue that was actually
      * playing — a playlist stays that playlist — instead of wrapping the track in the whole
@@ -144,6 +242,15 @@ data class ResumePlayback(
      * to be worth persisting; restore falls back to the whole-library wrap then.
      */
     val queueTrackIds: List<String> = emptyList(),
+    /** Index of the saved current row in [queueTrackIds], or -1 for legacy sessions. */
+    val queueIndex: Int = -1,
+    /**
+     * Canonical natural-order source retained independently from a generated SMART queue. Empty
+     * for legacy sessions or when an oversized source is reconstructed from [sourceReference].
+     */
+    val sourceQueueTrackIds: List<String> = emptyList(),
+    /** Whether [sourceQueueTrackIds] was explicitly saved; distinguishes known empty from absent. */
+    val sourceQueuePersisted: Boolean = false,
 )
 
 expect fun appSettingsModule(): Module

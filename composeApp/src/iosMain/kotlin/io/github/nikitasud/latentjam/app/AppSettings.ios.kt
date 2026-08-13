@@ -96,6 +96,16 @@ internal class IosAppSettings : AppSettings {
         val trackId = defaults.objectForKey(KEY_RESUME_TRACK) as? String ?: return null
         val mode = defaults.objectForKey(KEY_RESUME_MODE) as? String ?: return null
         val position = (defaults.objectForKey(KEY_RESUME_POSITION) as? NSNumber)?.longLongValue ?: 0L
+        val encodedQueueState = defaults.objectForKey(KEY_RESUME_QUEUE_STATE) as? String
+        val queueState = encodedQueueState?.let(::decodeResumeQueueState)
+        val legacyQueueIds = if (encodedQueueState == null) {
+            (defaults.objectForKey(KEY_RESUME_QUEUE) as? String)
+                ?.split(',')
+                ?.filter { it.isNotEmpty() }
+                .orEmpty()
+        } else {
+            emptyList()
+        }
         return ResumePlayback(
             trackId = trackId,
             shuffleMode = mode,
@@ -103,10 +113,11 @@ internal class IosAppSettings : AppSettings {
             // Absent on sessions saved before queue sources existed; null simply hides the label.
             sourceKind = defaults.objectForKey(KEY_RESUME_SOURCE_KIND) as? String,
             sourceName = defaults.objectForKey(KEY_RESUME_SOURCE_NAME) as? String,
-            queueTrackIds = (defaults.objectForKey(KEY_RESUME_QUEUE) as? String)
-                ?.split(',')
-                ?.filter { it.isNotEmpty() }
-                .orEmpty(),
+            sourceReference = defaults.objectForKey(KEY_RESUME_SOURCE_REFERENCE) as? String,
+            queueTrackIds = queueState?.queueTrackIds ?: legacyQueueIds,
+            queueIndex = queueState?.queueIndex ?: -1,
+            sourceQueueTrackIds = queueState?.sourceQueueTrackIds.orEmpty(),
+            sourceQueuePersisted = queueState?.sourceQueuePersisted ?: false,
         )
     }
 
@@ -117,6 +128,9 @@ internal class IosAppSettings : AppSettings {
             defaults.removeObjectForKey(KEY_RESUME_POSITION)
             defaults.removeObjectForKey(KEY_RESUME_SOURCE_KIND)
             defaults.removeObjectForKey(KEY_RESUME_SOURCE_NAME)
+            defaults.removeObjectForKey(KEY_RESUME_SOURCE_REFERENCE)
+            defaults.removeObjectForKey(KEY_RESUME_QUEUE_STATE)
+            defaults.removeObjectForKey(KEY_RESUME_QUEUE)
         } else {
             defaults.setObject(state.trackId, KEY_RESUME_TRACK)
             defaults.setObject(state.shuffleMode, KEY_RESUME_MODE)
@@ -131,12 +145,28 @@ internal class IosAppSettings : AppSettings {
             } else {
                 defaults.setObject(state.sourceName, KEY_RESUME_SOURCE_NAME)
             }
-            // Ids are opaque but comma-free in practice; a queue that breaks that assumption is
-            // simply not persisted rather than corrupted.
-            if (state.queueTrackIds.isEmpty() || state.queueTrackIds.any { ',' in it }) {
-                defaults.removeObjectForKey(KEY_RESUME_QUEUE)
+            if (state.sourceReference == null) {
+                defaults.removeObjectForKey(KEY_RESUME_SOURCE_REFERENCE)
             } else {
-                defaults.setObject(state.queueTrackIds.joinToString(","), KEY_RESUME_QUEUE)
+                defaults.setObject(state.sourceReference, KEY_RESUME_SOURCE_REFERENCE)
+            }
+            // One versioned value keeps live/source queue state paired and length-prefixes opaque
+            // ids, including imported paths containing commas or delimiter characters.
+            defaults.removeObjectForKey(KEY_RESUME_QUEUE)
+            if (state.queueTrackIds.isEmpty()) {
+                defaults.removeObjectForKey(KEY_RESUME_QUEUE_STATE)
+            } else {
+                defaults.setObject(
+                    encodeResumeQueueState(
+                        ResumeQueueState(
+                            queueTrackIds = state.queueTrackIds,
+                            sourceQueueTrackIds = state.sourceQueueTrackIds,
+                            queueIndex = state.queueIndex,
+                            sourceQueuePersisted = state.sourceQueuePersisted,
+                        ),
+                    ),
+                    KEY_RESUME_QUEUE_STATE,
+                )
             }
         }
         mutableResumePlayback.value = state
@@ -167,11 +197,14 @@ internal class IosAppSettings : AppSettings {
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"
         const val KEY_SAVE_HISTORY = "save_listening_history"
         const val KEY_REMEMBER_SEARCHES = "remember_searches"
-            const val KEY_RESUME_TRACK = "resume_track_id"
+        const val KEY_RESUME_TRACK = "resume_track_id"
         const val KEY_RESUME_MODE = "resume_shuffle_mode"
         const val KEY_RESUME_POSITION = "resume_position_ms"
         const val KEY_RESUME_SOURCE_KIND = "resume_source_kind"
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
+        const val KEY_RESUME_SOURCE_REFERENCE = "resume_source_reference"
+        const val KEY_RESUME_QUEUE_STATE = "resume_queue_state_v2"
+        /** Read-only migration key used by builds before collision-safe queue state. */
         const val KEY_RESUME_QUEUE = "resume_queue_track_ids"
     }
 }

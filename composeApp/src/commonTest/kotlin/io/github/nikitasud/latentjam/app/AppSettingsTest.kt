@@ -4,8 +4,13 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.library.Playlist
+import io.github.nikitasud.latentjam.playback.ShuffleMode
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class AppSettingsTest {
 
@@ -67,5 +72,125 @@ class AppSettingsTest {
         assertEquals(false, noveltyMixPreferenceFromPersisted(null))
         assertEquals(true, noveltyMixPreferenceFromPersisted(true))
         assertEquals(false, noveltyMixPreferenceFromPersisted(false))
+    }
+
+    @Test
+    fun `resume queue codec round trips opaque live and source ids atomically`() {
+        val state = ResumeQueueState(
+            queueTrackIds = listOf("plain", "imported,file|with:delimiters", "音楽/曲"),
+            sourceQueueTrackIds = listOf("playlist,first", "playlist:second|tail"),
+            queueIndex = 1,
+            sourceQueuePersisted = true,
+        )
+
+        assertEquals(state, decodeResumeQueueState(encodeResumeQueueState(state)))
+    }
+
+    @Test
+    fun `resume queue codec distinguishes a known empty source from legacy absence`() {
+        val knownEmpty = ResumeQueueState(
+            queueTrackIds = listOf("generated-current"),
+            sourceQueueTrackIds = emptyList(),
+            queueIndex = 0,
+            sourceQueuePersisted = true,
+        )
+        val legacyAbsent = knownEmpty.copy(sourceQueuePersisted = false)
+
+        assertEquals(knownEmpty, decodeResumeQueueState(encodeResumeQueueState(knownEmpty)))
+        assertEquals(legacyAbsent, decodeResumeQueueState(encodeResumeQueueState(legacyAbsent)))
+    }
+
+    @Test
+    fun `resume queue codec rejects legacy versions and truncated payloads`() {
+        assertNull(decodeResumeQueueState("a,b,c"))
+        assertNull(decodeResumeQueueState("LJQ2|0|1|4:abc"))
+        assertNull(decodeResumeQueueState("LJQ2|0|10001||1|0|"))
+        assertNull(decodeResumeQueueState("LJQ2|0|0||0|1|1:a"))
+    }
+
+    @Test
+    fun `omitted oversized source reconstructs tracks or stable user playlist`() {
+        val a = TrackDescriptor(TrackId("a"))
+        val b = TrackDescriptor(TrackId("b"))
+        val library = listOf(a, b)
+
+        assertEquals(
+            library,
+            resolveResumeSourceQueue(
+                saved = ResumePlayback(
+                    trackId = "a",
+                    shuffleMode = "SMART",
+                    positionMs = 0,
+                    sourceKind = QueueSourceKind.TRACKS.name,
+                ),
+                library = library,
+                playlists = emptyList(),
+            ),
+        )
+        assertEquals(
+            listOf(b),
+            resolveResumeSourceQueue(
+                saved = ResumePlayback(
+                    trackId = "a",
+                    shuffleMode = "SMART",
+                    positionMs = 0,
+                    sourceKind = QueueSourceKind.COLLECTION.name,
+                    sourceReference = "playlist-id",
+                ),
+                library = library,
+                playlists = listOf(
+                    Playlist(id = "playlist-id", name = "Huge", trackIds = listOf("b")),
+                ),
+            ),
+        )
+        assertEquals(
+            emptyList(),
+            resolveResumeSourceQueue(
+                saved = ResumePlayback(
+                    trackId = "a",
+                    shuffleMode = "SMART",
+                    positionMs = 0,
+                    sourceKind = QueueSourceKind.COLLECTION.name,
+                    sourceReference = "deleted-playlist",
+                ),
+                library = library,
+                playlists = emptyList(),
+            ),
+        )
+        assertNull(
+            resolveResumeSourceQueue(
+                saved = ResumePlayback(
+                    trackId = "a",
+                    shuffleMode = "SMART",
+                    positionMs = 0,
+                    sourceKind = QueueSourceKind.COLLECTION.name,
+                    sourceReference = "temporarily-unreadable",
+                ),
+                library = library,
+                playlists = emptyList(),
+                playlistsAvailable = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `missing legacy live queue never disguises a source as a smart future`() {
+        val current = TrackDescriptor(TrackId("current"))
+        val a = TrackDescriptor(TrackId("a"))
+        val b = TrackDescriptor(TrackId("b"))
+        val source = listOf(a, current, b)
+
+        assertEquals(
+            ResumeFallbackQueue(listOf(current), 0),
+            fallbackResumeQueue(ShuffleMode.SMART, current, source),
+        )
+        assertEquals(
+            ResumeFallbackQueue(listOf(current, b, a), 0),
+            fallbackResumeQueue(ShuffleMode.ON, current, source) { it.reversed() },
+        )
+        assertEquals(
+            ResumeFallbackQueue(source, 1),
+            fallbackResumeQueue(ShuffleMode.OFF, current, source),
+        )
     }
 }

@@ -37,6 +37,49 @@ internal class PlaybackQueueTransitionsTest {
     }
 
     @Test
+    fun `seamless source restoration splices rows around the existing current item`() {
+        assertEquals(
+            PlaybackQueueSplice(
+                beforeCurrent = listOf(a),
+                current = b,
+                afterCurrent = listOf(c),
+            ),
+            playbackQueueSplice(
+                PlaybackQueueOrder(tracks = listOf(a, b, c), currentIndex = 1),
+            ),
+        )
+        assertEquals(
+            PlaybackQueueSplice(
+                beforeCurrent = listOf(c, a),
+                current = manual,
+                afterCurrent = emptyList(),
+            ),
+            playbackQueueSplice(
+                PlaybackQueueOrder(tracks = listOf(c, a, manual), currentIndex = 2),
+            ),
+        )
+    }
+
+    @Test
+    fun `restored on command failure remains native shuffle on instead of throwing`() {
+        assertEquals(
+            RestoredOnShufflePolicy(
+                order = RestoredOnShuffleOrder.SAVED_IDENTITY,
+                nativeShuffleEnabled = true,
+            ),
+            restoredOnShufflePolicy(identityOrderInstalled = true),
+        )
+        assertEquals(
+            RestoredOnShufflePolicy(
+                order = RestoredOnShuffleOrder.NATIVE_RANDOM_FALLBACK,
+                nativeShuffleEnabled = true,
+            ),
+            restoredOnShufflePolicy(identityOrderInstalled = false),
+        )
+        assertContentEquals(intArrayOf(0, 1, 2), restoredOnIdentityTraversal(queueSize = 3))
+    }
+
+    @Test
     fun `smart to off requests the complete source queue at the current track`() {
         assertEquals(
             PlaybackQueueOrder(tracks = listOf(a, b, c), currentIndex = 1),
@@ -45,6 +88,54 @@ internal class PlaybackQueueTransitionsTest {
                 requestedMode = ShuffleMode.OFF,
                 source = listOf(a, b, c),
                 current = b,
+            ),
+        )
+    }
+
+    @Test
+    fun `resume retains the complete smart queue and its independent playlist source`() {
+        assertEquals(
+            PlaybackResumePlan(
+                liveQueue = listOf(a, manual, c),
+                sourceQueue = listOf(a, b, c),
+                currentIndex = 1,
+            ),
+            playbackResumePlan(
+                liveQueue = listOf(a, manual, c),
+                currentIndex = 1,
+                sourceQueue = listOf(a, b, c),
+            ),
+        )
+    }
+
+    @Test
+    fun `legacy resume treats the saved live queue as its source`() {
+        assertEquals(
+            PlaybackResumePlan(
+                liveQueue = listOf(a, b),
+                sourceQueue = listOf(a, b),
+                currentIndex = 1,
+            ),
+            playbackResumePlan(
+                liveQueue = listOf(a, b),
+                currentIndex = 99,
+                sourceQueue = null,
+            ),
+        )
+    }
+
+    @Test
+    fun `resume preserves a known source that became empty after deletion`() {
+        assertEquals(
+            PlaybackResumePlan(
+                liveQueue = listOf(manual),
+                sourceQueue = emptyList(),
+                currentIndex = 0,
+            ),
+            playbackResumePlan(
+                liveQueue = listOf(manual),
+                currentIndex = 0,
+                sourceQueue = emptyList(),
             ),
         )
     }
@@ -63,9 +154,22 @@ internal class PlaybackQueueTransitionsTest {
     }
 
     @Test
-    fun `ordinary shuffle off does not replace the platform queue`() {
+    fun `smart to off with a deleted empty source keeps only current`() {
         assertEquals(
-            null,
+            PlaybackQueueOrder(tracks = listOf(manual), currentIndex = 0),
+            sourceOrderForShuffleTransition(
+                previousMode = ShuffleMode.SMART,
+                requestedMode = ShuffleMode.OFF,
+                source = emptyList(),
+                current = manual,
+            ),
+        )
+    }
+
+    @Test
+    fun `ordinary shuffle off restores canonical source after a materialized resume`() {
+        assertEquals(
+            PlaybackQueueOrder(tracks = listOf(a, b, c), currentIndex = 1),
             sourceOrderForShuffleTransition(
                 previousMode = ShuffleMode.ON,
                 requestedMode = ShuffleMode.OFF,
@@ -124,6 +228,30 @@ internal class PlaybackQueueTransitionsTest {
     }
 
     @Test
+    fun `off reorder becomes canonical source order`() {
+        assertEquals(
+            listOf(c, a, b),
+            sourceQueueAfterVisibleReorder(
+                source = listOf(a, b, c),
+                visibleQueue = listOf(c, a, b),
+                mode = ShuffleMode.OFF,
+            ),
+        )
+    }
+
+    @Test
+    fun `smart reorder does not replace the original source with generated traversal`() {
+        assertEquals(
+            listOf(a, b, c),
+            sourceQueueAfterVisibleReorder(
+                source = listOf(a, b, c),
+                visibleQueue = listOf(c, manual, a),
+                mode = ShuffleMode.SMART,
+            ),
+        )
+    }
+
+    @Test
     fun `smart retains actual shuffled history through current`() {
         // Physical [a,b,c,manual], actual traversal [c,a,manual,b], current manual.
         assertEquals(
@@ -137,6 +265,30 @@ internal class PlaybackQueueTransitionsTest {
             emptyList(),
             traversalHistoryThroughCurrent(rows = listOf(a, b), currentRowIndex = -1),
         )
+    }
+
+    @Test
+    fun `smart policy invalidation preserves history and current but removes future`() {
+        assertEquals(
+            listOf(a, b, c),
+            smartHistoryThroughCurrent(
+                rows = listOf(a, b, c, manual),
+                currentRowIndex = 2,
+            ),
+        )
+        assertEquals(
+            listOf(a),
+            smartHistoryThroughCurrent(rows = listOf(a, b), currentRowIndex = -1),
+        )
+        assertEquals(emptyList(), smartHistoryThroughCurrent(emptyList(), currentRowIndex = -1))
+    }
+
+    @Test
+    fun `restored smart queue invokes chooser only when its saved future is short`() {
+        assertFalse(smartQueueNeedsTopUp(queueSize = 21, currentIndex = 0, lookahead = 20))
+        assertTrue(smartQueueNeedsTopUp(queueSize = 20, currentIndex = 0, lookahead = 20))
+        assertTrue(smartQueueNeedsTopUp(queueSize = 21, currentIndex = 1, lookahead = 20))
+        assertFalse(smartQueueNeedsTopUp(queueSize = 0, currentIndex = -1, lookahead = 20))
     }
 
     @Test

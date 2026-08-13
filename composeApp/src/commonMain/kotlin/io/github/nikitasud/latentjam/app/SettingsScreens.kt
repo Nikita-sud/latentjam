@@ -1536,7 +1536,8 @@ private fun actionableIndexingFailures(
         // Music-library providers can expose playable protected items without a file URL. Their
         // metadata still participates in search, mixes and SMART ranking, so repeatedly presenting
         // them as a broken analysis is both unactionable and misleading.
-        error is EngineError.AudioUnavailable && byId[id]?.audioUri == null
+        (error is EngineError.AudioUnavailable || error is EngineError.InvalidAudio) &&
+            byId[id]?.audioUri == null
     }
 }
 
@@ -2702,6 +2703,7 @@ private fun EngineError.toUserMessage(): String = when (this) {
     EngineError.ModelUnavailable -> stringResource(Res.string.engine_error_model_unavailable)
     EngineError.NotIndexed -> stringResource(Res.string.engine_error_not_indexed)
     is EngineError.AudioUnavailable -> stringResource(Res.string.engine_error_audio_unavailable)
+    is EngineError.InvalidAudio -> stringResource(Res.string.engine_error_audio_unavailable)
     is EngineError.BackendFailure -> stringResource(Res.string.engine_error_backend)
 }
 

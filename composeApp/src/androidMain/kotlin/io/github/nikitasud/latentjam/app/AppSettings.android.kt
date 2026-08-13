@@ -102,6 +102,18 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         val trackId = readString(KEY_RESUME_TRACK) ?: return null
         val mode = readString(KEY_RESUME_MODE) ?: return null
         val position = runCatching { preferences.getLong(KEY_RESUME_POSITION, 0L) }.getOrNull() ?: 0L
+        val encodedQueueState = readString(KEY_RESUME_QUEUE_STATE)
+        val queueState = encodedQueueState?.let(::decodeResumeQueueState)
+        // The former comma codec is read only when no v2 value exists. A malformed v2 payload must
+        // not silently pair with a stale legacy queue left by an interrupted migration.
+        val legacyQueueIds = if (encodedQueueState == null) {
+            readString(KEY_RESUME_QUEUE)
+                ?.split(',')
+                ?.filter { it.isNotEmpty() }
+                .orEmpty()
+        } else {
+            emptyList()
+        }
         return ResumePlayback(
             trackId = trackId,
             shuffleMode = mode,
@@ -109,10 +121,11 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
             // Absent on sessions saved before queue sources existed; null simply hides the label.
             sourceKind = readString(KEY_RESUME_SOURCE_KIND),
             sourceName = readString(KEY_RESUME_SOURCE_NAME),
-            queueTrackIds = readString(KEY_RESUME_QUEUE)
-                ?.split(',')
-                ?.filter { it.isNotEmpty() }
-                .orEmpty(),
+            sourceReference = readString(KEY_RESUME_SOURCE_REFERENCE),
+            queueTrackIds = queueState?.queueTrackIds ?: legacyQueueIds,
+            queueIndex = queueState?.queueIndex ?: -1,
+            sourceQueueTrackIds = queueState?.sourceQueueTrackIds.orEmpty(),
+            sourceQueuePersisted = queueState?.sourceQueuePersisted ?: false,
         )
     }
 
@@ -121,6 +134,8 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
             if (state == null) {
                 remove(KEY_RESUME_TRACK).remove(KEY_RESUME_MODE).remove(KEY_RESUME_POSITION)
                 remove(KEY_RESUME_SOURCE_KIND).remove(KEY_RESUME_SOURCE_NAME)
+                remove(KEY_RESUME_SOURCE_REFERENCE)
+                remove(KEY_RESUME_QUEUE_STATE).remove(KEY_RESUME_QUEUE)
             } else {
                 putString(KEY_RESUME_TRACK, state.trackId)
                 putString(KEY_RESUME_MODE, state.shuffleMode)
@@ -131,12 +146,26 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
                 if (state.sourceName == null) remove(KEY_RESUME_SOURCE_NAME) else {
                     putString(KEY_RESUME_SOURCE_NAME, state.sourceName)
                 }
-                // MediaStore ids are numeric, so the comma is a safe join; an id that somehow
-                // carries one would corrupt the list, so such a queue is simply not persisted.
-                if (state.queueTrackIds.isEmpty() || state.queueTrackIds.any { ',' in it }) {
-                    remove(KEY_RESUME_QUEUE)
+                if (state.sourceReference == null) remove(KEY_RESUME_SOURCE_REFERENCE) else {
+                    putString(KEY_RESUME_SOURCE_REFERENCE, state.sourceReference)
+                }
+                // Live and source queues are one length-prefixed value: opaque ids cannot collide
+                // with separators and SharedPreferences commits the pair in this editor update.
+                remove(KEY_RESUME_QUEUE)
+                if (state.queueTrackIds.isEmpty()) {
+                    remove(KEY_RESUME_QUEUE_STATE)
                 } else {
-                    putString(KEY_RESUME_QUEUE, state.queueTrackIds.joinToString(","))
+                    putString(
+                        KEY_RESUME_QUEUE_STATE,
+                        encodeResumeQueueState(
+                            ResumeQueueState(
+                                queueTrackIds = state.queueTrackIds,
+                                sourceQueueTrackIds = state.sourceQueueTrackIds,
+                                queueIndex = state.queueIndex,
+                                sourceQueuePersisted = state.sourceQueuePersisted,
+                            ),
+                        ),
+                    )
                 }
             }
         }.apply()
@@ -169,6 +198,9 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_RESUME_POSITION = "resume_position_ms"
         const val KEY_RESUME_SOURCE_KIND = "resume_source_kind"
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
+        const val KEY_RESUME_SOURCE_REFERENCE = "resume_source_reference"
+        const val KEY_RESUME_QUEUE_STATE = "resume_queue_state_v2"
+        /** Read-only migration key used by builds before collision-safe queue state. */
         const val KEY_RESUME_QUEUE = "resume_queue_track_ids"
     }
 }
