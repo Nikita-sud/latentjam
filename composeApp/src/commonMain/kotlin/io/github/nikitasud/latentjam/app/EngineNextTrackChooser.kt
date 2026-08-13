@@ -41,6 +41,7 @@ class EngineNextTrackChooser(
     private val mutex = Mutex()
     private var planned = ArrayDeque<TrackId>()
     private var expectedNext: TrackId? = null
+    private var plannedWithGroups: List<Set<TrackId>> = emptyList()
 
     override suspend fun choose(
         current: TrackDescriptor,
@@ -49,6 +50,13 @@ class EngineNextTrackChooser(
     ): TrackDescriptor? = mutex.withLock {
         if (expectedNext != null && expectedNext != current.id) {
             // Playback went somewhere the plan did not predict; the current track is the new intent.
+            planned.clear()
+        }
+        // Marking or unmarking a playlist takes effect on the NEXT hop, not after the previous
+        // plan (up to CHAIN_LENGTH tracks) has run dry — the stale plan is discarded.
+        val groups = companionGroups()
+        if (groups != plannedWithGroups) {
+            plannedWithGroups = groups
             planned.clear()
         }
         if (planned.isEmpty()) {

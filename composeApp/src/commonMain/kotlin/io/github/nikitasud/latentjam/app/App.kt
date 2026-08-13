@@ -521,6 +521,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             tracks = library.tracks()
             hasHiddenTracks = library.hasHiddenTracks()
             favoriteIds = AppGraph.favorites.all()
+            // Playlists load at launch, not first tab visit: the SMART companion groups and mix
+            // names derive from them, and both must work in a session that never opens the tab.
+            try {
+                playlists = AppGraph.playlists.all()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                println("Playlists: could not load at launch: $failure")
+            }
         }
         // A track downloaded while the app sat in the background shows up on return instead of
         // on the next cold start. An unchanged library re-queries into an equal list, which the

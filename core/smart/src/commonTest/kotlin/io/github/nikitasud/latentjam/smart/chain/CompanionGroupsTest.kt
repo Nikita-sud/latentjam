@@ -70,4 +70,37 @@ internal class CompanionGroupsTest {
             firstPick(listOf(setOf(TrackId("0"), TrackId("3")))),
         )
     }
+
+    @Test
+    fun `a remote companion still enters the candidate pool`() {
+        // 120 tracks around the seed overflow the 100-slot pool; the one marked companion is the
+        // single farthest track, which retrieval alone would never surface. With its group
+        // marked it must be IN the pool — visible to the bonus — even if it never wins a hop.
+        fun track(row: Int, seedComponent: Float, noiseDim: Int): SmartTrack {
+            val audio = FloatArray(PredictorRuntime.EMBEDDING_DIM)
+            audio[0] = seedComponent
+            audio[noiseDim] = sqrt(1f - seedComponent * seedComponent)
+            return SmartTrack(
+                id = TrackId(row.toString()),
+                audio = audio,
+                meta = TrackMeta("title$row", "artist$row", null, null, null),
+            )
+        }
+        val library = buildList {
+            add(track(0, 1f, 1))
+            for (row in 1 until 120) add(track(row, 0.9f - row * 0.001f, 100 + row))
+            add(track(120, 0.05f, 400))
+        }
+        val snapshot = requireNotNull(SmartSnapshot.build(library))
+        val companion = setOf(TrackId("0"), TrackId("120"))
+
+        val without = SmartChain(snapshot, runtime = null)
+            .build(seedId = TrackId("0"), length = 1, timeFeatures = FloatArray(5))
+        val with = SmartChain(snapshot, runtime = null, companionGroups = listOf(companion))
+            .build(seedId = TrackId("0"), length = 1, timeFeatures = FloatArray(5))
+
+        val remoteRow = library.indexOfFirst { it.id == TrackId("120") }
+        assertEquals(false, remoteRow in without.pool)
+        assertEquals(true, remoteRow in with.pool)
+    }
 }

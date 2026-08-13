@@ -32,6 +32,13 @@ internal object ChainConfig {
      */
     const val COMPANION_BONUS = 0.17f
 
+    /**
+     * How many of the seed's marked-group members may be injected into the candidate pool when
+     * the retrieval channels left them out. Bounded so companions enrich the pool rather than
+     * replace it: the scorer still sees mostly what actually sounds like the seed.
+     */
+    const val COMPANION_POOL_SLOTS = 16
+
     /** Pull toward the seed for the whole walk, so one off-genre hop can't capture the chain. */
     const val CHAIN_SEED_GRAVITY = 2.5f
 
@@ -661,6 +668,27 @@ internal class SmartChain(
                 pool.add(textOrder[i])
             }
             i++
+        }
+
+        // A companion the bonus never sees is a companion the bonus cannot keep: members of the
+        // seed's marked groups that the three rankings left out are injected over the pool's
+        // tail (best-sounding first, bounded), so "keep together" reaches tracks the retrieval
+        // channels alone would never surface. No marked groups — untouched pool, which is what
+        // the parity fixtures pin.
+        val seedBits = companionBits[seedRow]
+        if (seedBits != 0L) {
+            val missingCompanions = (0 until n)
+                .filter { row ->
+                    row != seedRow && eligibleRows[row] && row !in excluded &&
+                        row !in seen && (companionBits[row] and seedBits) != 0L
+                }
+                .sortedByDescending { anchorScores[it] }
+                .take(ChainConfig.COMPANION_POOL_SLOTS)
+            if (missingCompanions.isNotEmpty()) {
+                val keep = (pool.size - missingCompanions.size).coerceAtLeast(0)
+                while (pool.size > keep) pool.removeAt(pool.size - 1)
+                pool.addAll(missingCompanions)
+            }
         }
         return pool
     }
