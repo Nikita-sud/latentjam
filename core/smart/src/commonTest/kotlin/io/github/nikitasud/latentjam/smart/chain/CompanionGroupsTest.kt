@@ -83,6 +83,26 @@ internal class CompanionGroupsTest {
     }
 
     @Test
+    fun `a group after the sixty fourth is still honored`() {
+        // All first 64 groups are distinct, live memberships containing row 1. Their fixed row 3
+        // plus a six-bit subset of rows 4..9 makes 64 unique groups, each broader than the tight
+        // 65th group. A machine-word cap would hide the more-specific row-2 preference.
+        val groupsBeforeIt = List(64) { mask ->
+            buildSet {
+                add(TrackId("0"))
+                add(TrackId("1"))
+                add(TrackId("3"))
+                for (bit in 0 until 6) {
+                    if (mask and (1 shl bit) != 0) add(TrackId((4 + bit).toString()))
+                }
+            }
+        }
+        val sixtyFifth = setOf(TrackId("0"), TrackId("2"))
+
+        assertEquals(TrackId("2"), firstPick(groupsBeforeIt + listOf(sixtyFifth)))
+    }
+
+    @Test
     fun `a remote companion still enters the candidate pool`() {
         // 120 tracks around the seed overflow the 100-slot pool; the one marked companion is the
         // single farthest track, which retrieval alone would never surface. With its group
@@ -123,5 +143,45 @@ internal class CompanionGroupsTest {
         val plainWalk = SmartChain(snapshot, runtime = null)
             .build(seedId = TrackId("0"), length = 6, timeFeatures = FloatArray(5))
         assertEquals(false, plainWalk.rows.any { library[it].id == TrackId("120") })
+    }
+
+    @Test
+    fun `quota rotates between an overlapping super group and tight group`() {
+        fun track(row: Int, seedComponent: Float, noiseDim: Int): SmartTrack {
+            val audio = FloatArray(PredictorRuntime.EMBEDDING_DIM)
+            audio[0] = seedComponent
+            audio[noiseDim] = sqrt(1f - seedComponent * seedComponent)
+            return SmartTrack(
+                id = TrackId(row.toString()),
+                audio = audio,
+                meta = TrackMeta("title$row", "artist$row", null, null, null),
+            )
+        }
+        val library = buildList {
+            add(track(0, 1f, 1))
+            for (row in 1 until 120) add(track(row, 0.95f - row * 0.001f, 100 + row))
+            add(track(120, 0.05f, 400))
+        }
+        val snapshot = requireNotNull(SmartSnapshot.build(library))
+        val superGroup = (listOf(TrackId("0")) + (100 until 120).map { TrackId(it.toString()) }).toSet()
+        val tightGroup = setOf(TrackId("0"), TrackId("120"))
+        val result = SmartChain(
+            snapshot,
+            runtime = null,
+            // Duplicate memberships must collapse; otherwise the super group would own both of
+            // the first two quota turns and starve the tight playlist until hop nine.
+            companionGroups = listOf(superGroup, superGroup.toSet(), tightGroup),
+        ).build(seedId = TrackId("0"), length = 6, timeFeatures = FloatArray(5))
+        val ids = result.rows.map { snapshot.tracks[it].id }
+        val reorderedIds = SmartChain(
+            snapshot,
+            runtime = null,
+            companionGroups = listOf(tightGroup, superGroup),
+        ).build(seedId = TrackId("0"), length = 6, timeFeatures = FloatArray(5))
+            .rows.map { snapshot.tracks[it].id }
+
+        assertEquals(true, ids[2] in superGroup)
+        assertEquals(TrackId("120"), ids[5])
+        assertEquals(ids, reorderedIds, "playlist drag order is not SMART policy")
     }
 }

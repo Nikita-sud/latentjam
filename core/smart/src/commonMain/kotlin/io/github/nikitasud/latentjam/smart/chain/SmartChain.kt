@@ -131,43 +131,10 @@ internal class SmartChain(
         require(eligibleRows.size == snapshot.size) { "eligible row mask must match snapshot" }
     }
 
-    /** Per-row membership bitmask over the first 64 groups; two rows share a group iff AND != 0. */
-    private val companionBits: LongArray = LongArray(snapshot.size).also { bits ->
-        companionGroups.take(64).forEachIndexed { groupIndex, group ->
-            if (group.isEmpty()) return@forEachIndexed
-            for (row in 0 until snapshot.size) {
-                if (snapshot.tracks[row].id in group) {
-                    bits[row] = bits[row] or (1L shl groupIndex)
-                }
-            }
-        }
-    }
-
-    /** Rows of this snapshot inside each group, indexed like the bitmask bits. */
-    private val companionGroupSizes: IntArray = IntArray(minOf(companionGroups.size, 64)).also {
-        for (row in 0 until snapshot.size) {
-            var bits = companionBits[row]
-            while (bits != 0L) {
-                val bit = bits.countTrailingZeroBits()
-                it[bit]++
-                bits = bits and (bits - 1)
-            }
-        }
-    }
-
-    /** Specificity weight of the smallest group [a] and [b] share, or 0 when they share none. */
-    private fun companionWeight(a: Int, b: Int): Float {
-        var shared = companionBits[a] and companionBits[b]
-        if (shared == 0L) return 0f
-        var minSize = Int.MAX_VALUE
-        while (shared != 0L) {
-            val bit = shared.countTrailingZeroBits()
-            if (companionGroupSizes[bit] < minSize) minSize = companionGroupSizes[bit]
-            shared = shared and (shared - 1)
-        }
-        return (1f - minSize.toFloat() / snapshot.size)
-            .coerceIn(ChainConfig.COMPANION_SPECIFICITY_FLOOR, 1f)
-    }
+    private val companions = CompanionMembership.build(
+        rowIds = snapshot.tracks.map { it.id },
+        groups = companionGroups,
+    )
 
     /**
      * @param seedId the track the user picked
@@ -240,6 +207,14 @@ internal class SmartChain(
         )
         val recency = RecencyRerank(historyEvents)
         var seedFamilyPicks = 0
+        // Quota turns rotate through the seed's marked groups. A single union-wide best candidate
+        // lets one acoustically strong playlist win every quota and starve another forever.
+        val seedCompanionGroups = companions.groupsOf(seedRow)
+        val quotaPositionByGroup = IntArray(companions.groupCount) { -1 }
+        seedCompanionGroups.forEachIndexed { position, group ->
+            quotaPositionByGroup[group] = position
+        }
+        var nextQuotaGroupPosition = 0
         val recentArtists = ArrayDeque<String>()
         // The listener's seed is allowed to lead into one closely related track by the same
         // artist. Once such a track is picked it enters this window normally, preventing an
@@ -336,8 +311,10 @@ internal class SmartChain(
 
             var bestIndex = -1
             var bestScore = Float.NEGATIVE_INFINITY
-            var bestCompanionIndex = -1
-            var bestCompanionScore = Float.NEGATIVE_INFINITY
+            val bestCompanionIndexes = IntArray(seedCompanionGroups.size) { -1 }
+            val bestCompanionScores = FloatArray(seedCompanionGroups.size) {
+                Float.NEGATIVE_INFINITY
+            }
             for (i in pool.indices) {
                 if (!isEligible(i)) continue
                 val row = pool[i]
@@ -362,8 +339,8 @@ internal class SmartChain(
                 // The listener's own "keep these together": a nudge for candidates sharing a
                 // marked group with the current anchor, weighted by how SPECIFIC the smallest
                 // shared group is. No groups — no term, see COMPANION_BONUS.
-                if (companionBits[anchorRow] and companionBits[row] != 0L) {
-                    score += ChainConfig.COMPANION_BONUS * companionWeight(anchorRow, row)
+                if (companions.sharesGroup(anchorRow, row)) {
+                    score += ChainConfig.COMPANION_BONUS * companions.weight(anchorRow, row)
                 }
                 var multiplier = MetadataRerank.adjustMultiplier(anchorMeta, meta)
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)
@@ -392,23 +369,31 @@ internal class SmartChain(
                     bestScore = score
                     bestIndex = i
                 }
-                if (companionBits[row] and companionBits[seedRow] != 0L &&
-                    score > bestCompanionScore
-                ) {
-                    bestCompanionScore = score
-                    bestCompanionIndex = i
+                for (group in companions.groupsOf(row)) {
+                    val position = quotaPositionByGroup[group]
+                    if (position >= 0 && score > bestCompanionScores[position]) {
+                        bestCompanionScores[position] = score
+                        bestCompanionIndexes[position] = i
+                    }
                 }
             }
             if (bestIndex < 0) break
 
             // The quota hop: see COMPANION_QUOTA_STRIDE. Falls through to the normal pick when
             // the seed has no marked groups or no member survived this hop's eligibility.
-            val quotaHop = companionBits[seedRow] != 0L &&
+            val quotaHop = seedCompanionGroups.isNotEmpty() &&
                 (chain.size + 1) % ChainConfig.COMPANION_QUOTA_STRIDE == 0
-            val chosenIndex = if (quotaHop && bestCompanionIndex >= 0) {
-                bestCompanionIndex
-            } else {
-                bestIndex
+            var chosenIndex = bestIndex
+            if (quotaHop) {
+                for (offset in seedCompanionGroups.indices) {
+                    val position = (nextQuotaGroupPosition + offset) % seedCompanionGroups.size
+                    val companionIndex = bestCompanionIndexes[position]
+                    if (companionIndex >= 0) {
+                        chosenIndex = companionIndex
+                        nextQuotaGroupPosition = (position + 1) % seedCompanionGroups.size
+                        break
+                    }
+                }
             }
 
             val pickedRow = pool[chosenIndex]
@@ -738,15 +723,43 @@ internal class SmartChain(
         // tail (best-sounding first, bounded), so "keep together" reaches tracks the retrieval
         // channels alone would never surface. No marked groups — untouched pool, which is what
         // the parity fixtures pin.
-        val seedBits = companionBits[seedRow]
-        if (seedBits != 0L) {
-            val missingCompanions = (0 until n)
-                .filter { row ->
-                    row != seedRow && eligibleRows[row] && row !in excluded &&
-                        row !in seen && (companionBits[row] and seedBits) != 0L
+        val seedGroups = companions.groupsOf(seedRow)
+        if (seedGroups.isNotEmpty()) {
+            // Allocate the bounded companion tail round-robin across the seed's groups. Filling it
+            // from one union-wide ranking lets a large/strong first playlist consume all 16 slots
+            // before a tighter second playlist gets even one candidate.
+            val rankedByGroup = seedGroups.map { group ->
+                companions.rowsOf(group)
+                    .asSequence()
+                    .filter { row ->
+                        row != seedRow && eligibleRows[row] && row !in excluded && row !in seen
+                    }
+                    .sortedByDescending { anchorScores[it] }
+                    .toList()
+            }
+            val cursors = IntArray(rankedByGroup.size)
+            val missingCompanions = ArrayList<Int>(ChainConfig.COMPANION_POOL_SLOTS)
+            while (missingCompanions.size < ChainConfig.COMPANION_POOL_SLOTS) {
+                var addedThisRound = false
+                for (groupPosition in rankedByGroup.indices) {
+                    val ranked = rankedByGroup[groupPosition]
+                    while (
+                        cursors[groupPosition] < ranked.size &&
+                        ranked[cursors[groupPosition]] in seen
+                    ) {
+                        cursors[groupPosition]++
+                    }
+                    if (cursors[groupPosition] < ranked.size) {
+                        val row = ranked[cursors[groupPosition]++]
+                        if (seen.add(row)) {
+                            missingCompanions += row
+                            addedThisRound = true
+                            if (missingCompanions.size >= ChainConfig.COMPANION_POOL_SLOTS) break
+                        }
+                    }
                 }
-                .sortedByDescending { anchorScores[it] }
-                .take(ChainConfig.COMPANION_POOL_SLOTS)
+                if (!addedThisRound) break
+            }
             if (missingCompanions.isNotEmpty()) {
                 val keep = (pool.size - missingCompanions.size).coerceAtLeast(0)
                 while (pool.size > keep) pool.removeAt(pool.size - 1)

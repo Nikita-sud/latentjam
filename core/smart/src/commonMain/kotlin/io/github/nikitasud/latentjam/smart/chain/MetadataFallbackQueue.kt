@@ -26,12 +26,20 @@ internal object MetadataFallbackQueue {
         length: Int,
         textIndex: VectorIndex?,
         historyEvents: List<SmartHistoryEvent> = emptyList(),
+        companionGroups: List<Set<TrackId>> = emptyList(),
     ): List<TrackId> {
         if (length <= 0 || textIndex == null) return emptyList()
         val seedVector = textIndex.vector(seed.id) ?: return emptyList()
-        val candidates = library.mapNotNull { track ->
-            if (track.id == seed.id) return@mapNotNull null
-            textIndex.vector(track.id)?.let { vector -> Candidate(track, vector) }
+        val candidateTracks = library.distinctBy { it.id }.filterNot { it.id == seed.id }
+        val companions = CompanionMembership.build(
+            rowIds = listOf(seed.id) + candidateTracks.map { it.id },
+            groups = companionGroups,
+        )
+        val seedRow = 0
+        val candidates = candidateTracks.mapIndexedNotNull { candidateIndex, track ->
+            textIndex.vector(track.id)?.let { vector ->
+                Candidate(track, vector, companionRow = candidateIndex + 1)
+            }
         }
         if (candidates.isEmpty()) return emptyList()
 
@@ -41,6 +49,13 @@ internal object MetadataFallbackQueue {
         val recency = RecencyRerank(historyEvents)
         var anchorMeta = seedMeta
         var anchorVector = seedVector
+        var anchorCompanionRow = seedRow
+        val seedCompanionGroups = companions.groupsOf(seedRow)
+        val quotaPositionByGroup = IntArray(companions.groupCount) { -1 }
+        seedCompanionGroups.forEachIndexed { position, group ->
+            quotaPositionByGroup[group] = position
+        }
+        var nextQuotaGroupPosition = 0
         val recentArtists = ArrayDeque<String>()
         recentArtists.addLast(seedMeta.artistKey)
         val seenTitles = HashSet<String>()
@@ -49,6 +64,10 @@ internal object MetadataFallbackQueue {
         while (result.size < length) {
             var best: Candidate? = null
             var bestScore = Float.NEGATIVE_INFINITY
+            val bestCompanions = arrayOfNulls<Candidate>(seedCompanionGroups.size)
+            val bestCompanionScores = FloatArray(seedCompanionGroups.size) {
+                Float.NEGATIVE_INFINITY
+            }
             for (candidate in candidates) {
                 if (candidate.track.id in used) continue
                 val meta = candidate.track.toMeta()
@@ -60,13 +79,39 @@ internal object MetadataFallbackQueue {
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)
                 val score = ChainConfig.COSINE_BLEND_WEIGHT * cosine(anchorVector, candidate.vector) +
                     ChainConfig.CHAIN_SEED_GRAVITY * cosine(seedVector, candidate.vector) +
-                    ln(multiplier)
+                    ln(multiplier) +
+                    if (companions.sharesGroup(anchorCompanionRow, candidate.companionRow)) {
+                        ChainConfig.COMPANION_BONUS *
+                            companions.weight(anchorCompanionRow, candidate.companionRow)
+                    } else {
+                        0f
+                    }
                 if (score > bestScore) {
                     best = candidate
                     bestScore = score
                 }
+                for (group in companions.groupsOf(candidate.companionRow)) {
+                    val position = quotaPositionByGroup[group]
+                    if (position >= 0 && score > bestCompanionScores[position]) {
+                        bestCompanionScores[position] = score
+                        bestCompanions[position] = candidate
+                    }
+                }
             }
-            val picked = best ?: break
+            var picked = best ?: break
+            val quotaHop = seedCompanionGroups.isNotEmpty() &&
+                (result.size + 1) % ChainConfig.COMPANION_QUOTA_STRIDE == 0
+            if (quotaHop) {
+                for (offset in seedCompanionGroups.indices) {
+                    val position = (nextQuotaGroupPosition + offset) % seedCompanionGroups.size
+                    val companion = bestCompanions[position]
+                    if (companion != null) {
+                        picked = companion
+                        nextQuotaGroupPosition = (position + 1) % seedCompanionGroups.size
+                        break
+                    }
+                }
+            }
             val meta = picked.track.toMeta()
             result += picked.track.id
             used += picked.track.id
@@ -77,6 +122,7 @@ internal object MetadataFallbackQueue {
             }
             anchorMeta = meta
             anchorVector = picked.vector
+            anchorCompanionRow = picked.companionRow
         }
         return result
     }
@@ -99,5 +145,6 @@ internal object MetadataFallbackQueue {
     private data class Candidate(
         val track: TrackDescriptor,
         val vector: FloatArray,
+        val companionRow: Int,
     )
 }

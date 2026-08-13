@@ -84,6 +84,59 @@ internal class MetadataFallbackQueueTest {
         assertEquals(fresh.id, queue.first())
     }
 
+    @Test
+    fun `a marked companion wins a metadata tie`() {
+        val seed = track("seed", "Seed Artist", "Rock")
+        val plain = track("plain", "Plain Artist", "Rock")
+        val companion = track("companion", "Companion Artist", "Rock")
+        val index = InMemoryVectorIndex(dim = 3).apply {
+            upsert(seed.id, floatArrayOf(1f, 0f, 0f))
+            upsert(plain.id, floatArrayOf(1f, 0f, 0f))
+            upsert(companion.id, floatArrayOf(1f, 0f, 0f))
+        }
+
+        val queue = MetadataFallbackQueue.build(
+            seed = seed,
+            library = listOf(plain, companion),
+            length = 1,
+            textIndex = index,
+            companionGroups = listOf(setOf(seed.id, companion.id)),
+        )
+
+        assertEquals(listOf(companion.id), queue)
+    }
+
+    @Test
+    fun `metadata quotas fairly rotate distinct groups and collapse duplicate membership`() {
+        val seed = track("seed", "Seed Artist", "Rock")
+        val ordinary = (0 until 6).map { row ->
+            track("ordinary-$row", "Ordinary Artist $row", "Rock")
+        }
+        val firstGroup = track("group-a", "Group A Artist", "Dance")
+        val secondGroup = track("group-b", "Group B Artist", "Jazz")
+        val index = InMemoryVectorIndex(dim = 3).apply {
+            upsert(seed.id, floatArrayOf(1f, 0f, 0f))
+            ordinary.forEach { upsert(it.id, floatArrayOf(1f, 0f, 0f)) }
+            upsert(firstGroup.id, floatArrayOf(0f, 1f, 0f))
+            upsert(secondGroup.id, floatArrayOf(0f, 0f, 1f))
+        }
+        val groupA = setOf(seed.id, firstGroup.id)
+        val groupB = setOf(seed.id, secondGroup.id)
+
+        val queue = MetadataFallbackQueue.build(
+            seed = seed,
+            library = ordinary + firstGroup + secondGroup,
+            length = 6,
+            textIndex = index,
+            // Identical playlists are legal. They express one membership preference, not two
+            // quota votes that may starve a different marked playlist.
+            companionGroups = listOf(groupA, groupA.toSet(), groupB),
+        )
+
+        assertEquals(firstGroup.id, queue[2])
+        assertEquals(secondGroup.id, queue[5])
+    }
+
     private fun historyEvent(id: TrackId, at: Long) = SmartHistoryEvent(
         trackId = id,
         startedAtMs = at,
