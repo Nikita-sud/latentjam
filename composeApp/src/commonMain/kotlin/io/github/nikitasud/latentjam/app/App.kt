@@ -17,6 +17,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -111,6 +112,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -3590,7 +3592,27 @@ private fun MiniPlayerPill(
                 // some Android renderers its boundary is visible as a full-width grey hairline.
                 // A shaped background paints the same pill without that extra surface boundary.
                 .background(accent.container, playerShape)
-                .clickable(onClick = onOpen),
+                .clickable(onClick = onOpen)
+                // The pill answers a flick the way every player taught thumbs to expect:
+                // left for the next track, right for the previous one. Decided on release
+                // from the accumulated travel, so a wobbly tap never skips.
+                .pointerInput(Unit) {
+                    var travelled = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { travelled = 0f },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            travelled += dragAmount
+                        },
+                        onDragEnd = {
+                            val threshold = 56.dp.toPx()
+                            when {
+                                travelled <= -threshold -> onNext()
+                                travelled >= threshold -> onPrevious()
+                            }
+                        },
+                    )
+                },
         ) {
             Box(modifier = Modifier.navigationBarsPadding()) {
                 Row(
