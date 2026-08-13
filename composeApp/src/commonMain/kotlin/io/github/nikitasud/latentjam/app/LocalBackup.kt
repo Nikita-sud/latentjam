@@ -13,6 +13,7 @@ import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.library.Playlists
+import io.github.nikitasud.latentjam.playback.MAX_CROSSFADE_SECONDS
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
@@ -40,6 +41,12 @@ internal data class LocalBackupSettings(
     val smartQueueLength: Int,
     val saveListeningHistory: Boolean,
     val rememberSearches: Boolean,
+    /** Added in backup v3; legacy snapshots restore the safe disabled default. */
+    val includeNoveltyMixes: Boolean = false,
+    /** Added in backup v3; legacy snapshots restore the safe disabled default. */
+    val normalizeVolume: Boolean = false,
+    /** Added in backup v3; legacy snapshots restore the safe disabled default. */
+    val crossfadeSeconds: Int = 0,
 )
 
 /**
@@ -73,6 +80,8 @@ internal data class LocalBackupListenEvent(
     val completed: Boolean,
     val skipped: Boolean,
     val shuffleMode: String?,
+    /** Added in backup v3; null means the legacy playhead approximation must be used. */
+    val listenedMs: Long? = null,
 )
 
 /** Versioned, platform-neutral state. It contains no music files and implies no cloud storage. */
@@ -128,7 +137,7 @@ internal class LocalBackupFormatException(message: String) : IllegalArgumentExce
  * validation make an arbitrary document-picker input safe to reject before any app state changes.
  */
 internal object LocalBackupCodec {
-    const val FORMAT_VERSION: Int = 2
+    const val FORMAT_VERSION: Int = 3
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -155,6 +164,15 @@ internal object LocalBackupCodec {
                     smartQueueLength.toString(),
                     saveListeningHistory.toBit(),
                     rememberSearches.toBit(),
+                    *if (snapshot.formatVersion >= 3) {
+                        arrayOf(
+                            includeNoveltyMixes.toBit(),
+                            normalizeVolume.toBit(),
+                            crossfadeSeconds.toString(),
+                        )
+                    } else {
+                        emptyArray()
+                    },
                 )
             }
             snapshot.tracks.sortedBy(LocalBackupTrackReference::originalId).forEach { track ->
@@ -181,14 +199,17 @@ internal object LocalBackupCodec {
             }
             snapshot.listeningHistory.forEach { event ->
                 appendRecord(
-                    "H",
-                    event.trackReferenceId.encodeField(),
-                    event.startedAtMs.toString(),
-                    event.playedMs.toString(),
-                    event.trackDurationMs.encodeNullableLong(),
-                    event.completed.toBit(),
-                    event.skipped.toBit(),
-                    event.shuffleMode.encodeNullableField(),
+                    buildList {
+                        add("H")
+                        add(event.trackReferenceId.encodeField())
+                        add(event.startedAtMs.toString())
+                        add(event.playedMs.toString())
+                        add(event.trackDurationMs.encodeNullableLong())
+                        add(event.completed.toBit())
+                        add(event.skipped.toBit())
+                        add(event.shuffleMode.encodeNullableField())
+                        if (snapshot.formatVersion >= 3) add(event.listenedMs.encodeNullableLong())
+                    },
                 )
             }
             snapshot.recentSearches.forEach { appendRecord("Q", it.encodeField()) }
@@ -236,7 +257,7 @@ internal object LocalBackupCodec {
                     createdAtMs = record.nextField().parseLong("creation time")
                 }
                 "S" -> {
-                    record.requireFieldCount(7)
+                    record.requireFieldCount(if (version >= 3) 10 else 7)
                     if (settings != null) formatError("Duplicate settings record")
                     settings = LocalBackupSettings(
                         themeMode = enumValue<ThemeMode>(record.nextField(), "theme"),
@@ -253,6 +274,21 @@ internal object LocalBackupCodec {
                         smartQueueLength = record.nextField().parseInt("SMART queue length"),
                         saveListeningHistory = record.nextField().parseBit("save listening history"),
                         rememberSearches = record.nextField().parseBit("remember searches"),
+                        includeNoveltyMixes = if (version >= 3) {
+                            record.nextField().parseBit("include novelty mixes")
+                        } else {
+                            false
+                        },
+                        normalizeVolume = if (version >= 3) {
+                            record.nextField().parseBit("normalize volume")
+                        } else {
+                            false
+                        },
+                        crossfadeSeconds = if (version >= 3) {
+                            record.nextField().parseInt("crossfade seconds")
+                        } else {
+                            0
+                        },
                     )
                 }
                 "T" -> {
@@ -292,7 +328,7 @@ internal object LocalBackupCodec {
                     )
                 }
                 "H" -> {
-                    record.requireFieldCount(8)
+                    record.requireFieldCount(if (version >= 3) 9 else 8)
                     if (history.size >= MAX_HISTORY_EVENTS) formatError("Too many history events")
                     history += LocalBackupListenEvent(
                         trackReferenceId = record.nextField().decodeField("history track id"),
@@ -302,6 +338,11 @@ internal object LocalBackupCodec {
                         completed = record.nextField().parseBit("history completed flag"),
                         skipped = record.nextField().parseBit("history skipped flag"),
                         shuffleMode = record.nextField().decodeNullableField("history shuffle mode"),
+                        listenedMs = if (version >= 3) {
+                            record.nextField().decodeNullableLong("history listened time")
+                        } else {
+                            null
+                        },
                     )
                 }
                 "Q" -> {
@@ -359,6 +400,16 @@ internal object LocalBackupCodec {
         if (snapshot.settings.smartQueueLength !in SMART_QUEUE_LENGTH_OPTIONS) {
             formatError("Unsupported SMART queue length")
         }
+        if (snapshot.settings.crossfadeSeconds !in 0..MAX_CROSSFADE_SECONDS) {
+            formatError("Unsupported crossfade duration")
+        }
+        if (
+            snapshot.formatVersion < 3 &&
+            (snapshot.settings.includeNoveltyMixes || snapshot.settings.normalizeVolume ||
+                snapshot.settings.crossfadeSeconds != 0)
+        ) {
+            formatError("Legacy backups cannot encode playback processing settings")
+        }
         if (snapshot.tracks.size > MAX_TRACKS) formatError("Too many track references")
         if (snapshot.playlists.size > MAX_PLAYLISTS) formatError("Too many playlists")
         if (
@@ -395,7 +446,8 @@ internal object LocalBackupCodec {
         }
         snapshot.listeningHistory.forEach { event ->
             if (event.trackReferenceId !in knownTracks || event.startedAtMs < 0 || event.playedMs < 0 ||
-                (event.trackDurationMs != null && event.trackDurationMs < 0)
+                (event.trackDurationMs != null && event.trackDurationMs < 0) ||
+                (event.listenedMs != null && event.listenedMs < 0)
             ) {
                 formatError("Invalid listening event")
             }
@@ -588,6 +640,9 @@ internal class LocalBackupService(
                 smartQueueLength = settings.smartQueueLength.value,
                 saveListeningHistory = settings.saveListeningHistory.value,
                 rememberSearches = settings.rememberSearches.value,
+                includeNoveltyMixes = settings.includeNoveltyMixes.value,
+                normalizeVolume = settings.normalizeVolume.value,
+                crossfadeSeconds = settings.crossfadeSeconds.value,
             ),
             tracks = references,
             playlists = storedPlaylists.map { playlist ->
@@ -713,6 +768,9 @@ internal class LocalBackupService(
                 settings.setStartPage(snapshot.settings.startPage)
                 settings.setTrackColorMode(snapshot.settings.trackColorMode)
                 settings.setSmartQueueLength(snapshot.settings.smartQueueLength)
+                settings.setIncludeNoveltyMixes(snapshot.settings.includeNoveltyMixes)
+                settings.setNormalizeVolume(snapshot.settings.normalizeVolume)
+                settings.setCrossfadeSeconds(snapshot.settings.crossfadeSeconds)
                 completed += LocalBackupSection.SETTINGS
             }
         } catch (failure: Throwable) {
@@ -898,6 +956,7 @@ internal class LocalBackupService(
         completed = completed,
         skipped = skipped,
         shuffleMode = shuffleMode,
+        listenedMs = listenedMs,
     )
 
     private fun LocalBackupListenEvent.toListenEvent(trackId: TrackId): ListenEvent = ListenEvent(
@@ -908,6 +967,7 @@ internal class LocalBackupService(
         completed = completed,
         skipped = skipped,
         shuffleMode = shuffleMode,
+        listenedMs = listenedMs,
     )
 
     private companion object {

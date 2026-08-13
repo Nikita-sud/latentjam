@@ -384,6 +384,7 @@
     <string name="settings_duplicates_body">Aynı kaydın kopyalarını etiketlere bakmadan sesten bulur</string>
     <string name="settings_duplicates_scanning">Tüm parça çiftleri karşılaştırılıyor…</string>
     <string name="settings_duplicates_empty">Kopya yok — her parça benzersiz</string>
+    <string name="settings_duplicates_merge_confirm">Bu işlem bir kopyayı tutar, çalma listeleri ile favorileri onu kullanacak şekilde günceller ve diğer %1$d kopyayı gizler.</string>
     <string name="settings_restore">Geri yükle</string>
     <string name="settings_restore_all">Tümünü geri yükle</string>
     <string name="settings_library_manage_failed">Arşiv güncellenemedi. Yeniden deneyin.</string>
@@ -462,8 +463,9 @@
     <string name="stats_top_artists">En çok dinlenen sanatçılar</string>
     <string name="stats_top_tracks">En çok dinlenen parçalar</string>
     <string name="stats_empty">Bu dönemde henüz hiçbir şey çalınmadı.</string>
+    <string name="stats_load_failed">Dinleme istatistikleri yüklenemedi.</string>
     <string name="settings_normalize_volume">Ses normalleştirme</string>
-    <string name="settings_normalize_volume_subtitle">Kısık ve yüksek parçalar benzer seviyede çalar</string>
+    <string name="settings_normalize_volume_subtitle">Yüksek parçaları tutarlı bir seviyeye düşürür</string>
     <string name="settings_crossfade">Yumuşak geçişler</string>
     <string name="settings_crossfade_subtitle">Parça sınırlarında sesi yumuşatır</string>
     <string name="settings_crossfade_value">%1$d sn</string>

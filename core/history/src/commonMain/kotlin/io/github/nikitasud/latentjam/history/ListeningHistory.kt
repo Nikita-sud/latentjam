@@ -26,6 +26,17 @@ public interface ListeningHistory {
     public suspend fun recentEvents(limit: Int): List<ListenEvent>
 
     /**
+     * Complete local log, oldest first.
+     *
+     * Statistics needs an honest all-time view and streaks must not silently lose the oldest
+     * portion of a long-lived log. The default keeps third-party/test implementations compatible;
+     * [DefaultListeningHistory] overrides it to copy its already-loaded list directly rather than
+     * requesting an artificial, unbounded "recent" count.
+     */
+    public suspend fun allEvents(): List<ListenEvent> =
+        recentEvents(Int.MAX_VALUE).asReversed()
+
+    /**
      * Replaces the complete local log with [events], ordered oldest first.
      *
      * This is intentionally a bulk operation for local backup restore: implementations can write
@@ -82,7 +93,10 @@ public class DefaultListeningHistory(
                 plays = (previous?.plays ?: 0) + 1,
                 completions = (previous?.completions ?: 0) + if (event.completed) 1 else 0,
                 skips = (previous?.skips ?: 0) + if (event.skipped) 1 else 0,
-                totalPlayedMs = (previous?.totalPlayedMs ?: 0) + event.playedMs,
+                totalPlayedMs = saturatingDurationAdd(
+                    previous?.totalPlayedMs ?: 0,
+                    event.effectiveListenedMs.coerceAtLeast(0),
+                ),
                 lastPlayedAtMs = maxOf(previous?.lastPlayedAtMs ?: 0, event.startedAtMs),
             )
         }
@@ -92,6 +106,11 @@ public class DefaultListeningHistory(
     override suspend fun recentEvents(limit: Int): List<ListenEvent> = mutex.withLock {
         ensureLoaded()
         events.takeLast(limit.coerceAtLeast(0)).reversed()
+    }
+
+    override suspend fun allEvents(): List<ListenEvent> = mutex.withLock {
+        ensureLoaded()
+        events.toList()
     }
 
     override suspend fun replace(events: List<ListenEvent>): Unit = mutex.withLock {

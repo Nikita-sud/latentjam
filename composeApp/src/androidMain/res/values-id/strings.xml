@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Pemutaran</string>
+    <string name="widget_previous">Sebelumnya</string>
+    <string name="widget_play_pause">Putar / Jeda</string>
+    <string name="widget_next">Berikutnya</string>
+    <string name="browse_playlists">Playlist</string>
+    <string name="browse_tracks">Lagu</string>
+</resources>

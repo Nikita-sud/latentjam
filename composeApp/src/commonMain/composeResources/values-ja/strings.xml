@@ -377,6 +377,7 @@
     <string name="settings_duplicates_body">タグに関係なく、同じ録音のコピーを音で見つけます</string>
     <string name="settings_duplicates_scanning">全トラックを比較中…</string>
     <string name="settings_duplicates_empty">重複はありません — どのトラックも固有の音です</string>
+    <string name="settings_duplicates_merge_confirm">1つのコピーを残し、プレイリストとお気に入りをそのコピーに更新して、他の%1$d個のコピーを非表示にします。</string>
     <string name="settings_restore">復元</string>
     <string name="settings_restore_all">すべて復元</string>
     <string name="settings_library_manage_failed">ライブラリを更新できませんでした。もう一度お試しください。</string>
@@ -455,8 +456,9 @@
     <string name="stats_top_artists">トップアーティスト</string>
     <string name="stats_top_tracks">トップ曲</string>
     <string name="stats_empty">この期間はまだ何も再生されていません。</string>
+    <string name="stats_load_failed">再生統計を読み込めませんでした。</string>
     <string name="settings_normalize_volume">音量ノーマライズ</string>
-    <string name="settings_normalize_volume_subtitle">静かな曲と大きな曲をほぼ同じ音量で再生します</string>
+    <string name="settings_normalize_volume_subtitle">音量の大きい曲を一定のレベルまで下げます</string>
     <string name="settings_crossfade">なめらかな曲間</string>
     <string name="settings_crossfade_subtitle">曲の境目で音量をフェードします</string>
     <string name="settings_crossfade_value">%1$d 秒</string>

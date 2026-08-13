@@ -48,12 +48,11 @@ import io.github.nikitasud.latentjam.app.generated.resources.permission_notifica
 import io.github.nikitasud.latentjam.app.generated.resources.permission_notifications_title
 import io.github.nikitasud.latentjam.app.generated.resources.permission_open_settings
 import org.jetbrains.compose.resources.stringResource
-import org.koin.dsl.module
 
 /**
- * Android entry point: starts the shared [AppGraph] (contributing the
- * [Context] binding the MediaStore-backed library needs), gates on the
- * audio-media permission, then hosts the shared [App] composable.
+ * Android UI entry point: gates on the audio-media permission, then hosts the shared [App]
+ * composable. [LatentJamApplication] starts [AppGraph] before any Activity, service, receiver,
+ * or Android Auto browser can enter the process.
  *
  * Lives in :composeApp's androidMain (not :androidApp) because AGP 9's
  * application plugin cannot host Kotlin alongside the KMP toolchain; the
@@ -68,12 +67,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyStoredWindowTheme()
-        installMediaBrowseCatalog(this)
-        AppGraph.start(
-            platformModule = module {
-                single<Context> { applicationContext }
-            },
-        )
         audioPermissionGranted = hasAudioPermission()
         audioPermissionGateDismissed = getSharedPreferences(
             AUDIO_GATE_PREFERENCES,

@@ -82,6 +82,7 @@ internal fun TrackInfoSheet(
     onSaved: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
+    val lyricsSource = track.lyricsSourceIdentity()
     var editing by remember(track.id) { mutableStateOf(false) }
     var title by remember(track.id) { mutableStateOf(track.title.orEmpty()) }
     var artist by remember(track.id) { mutableStateOf(track.artist.orEmpty()) }
@@ -90,9 +91,12 @@ internal fun TrackInfoSheet(
     var year by remember(track.id) { mutableStateOf(track.year?.toString().orEmpty()) }
     var saving by remember(track.id) { mutableStateOf(false) }
     var failure by remember(track.id) { mutableStateOf<TagWriteOutcome?>(null) }
-    var lyrics by remember(track.id) { mutableStateOf<String?>(null) }
+    var lyrics by remember(lyricsSource) { mutableStateOf<String?>(null) }
     val readLyrics = rememberLyricsReader()
-    LaunchedEffect(track.id) { lyrics = readLyrics(track) }
+    LaunchedEffect(lyricsSource) {
+        lyrics = null
+        lyrics = readLyrics(track)
+    }
 
     val saveTags = rememberTagWriter { outcome ->
         saving = false
@@ -235,6 +239,10 @@ internal fun TrackInfoSheet(
         }
     }
 }
+
+/** Changes whenever the bytes/location capable of supplying embedded lyrics may have changed. */
+internal fun TrackDescriptor.lyricsSourceIdentity(): List<String?> =
+    listOf(id.value, audioUri, sourceRevision)
 
 /**
  * Says what went wrong in the user's terms.

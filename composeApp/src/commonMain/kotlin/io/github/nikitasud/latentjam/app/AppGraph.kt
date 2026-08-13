@@ -159,15 +159,17 @@ object AppGraph {
                     },
                 )
             }
-            // Volume normalization measures lazily as tracks play and pushes the gain map.
-            LoudnessNormalizer(
-                settings = settings,
-                playback = playback,
-                meter = koin.get(),
-            ).start(appScope)
-            // Boundary fades follow the preference for the app's whole lifetime.
-            appScope.launch {
-                settings.crossfadeSeconds.collect { playback.setCrossfadeSeconds(it) }
+            if (playbackGainControlsAvailable) {
+                // Volume normalization measures lazily as tracks play and pushes the gain map.
+                LoudnessNormalizer(
+                    settings = settings,
+                    playback = playback,
+                    meter = koin.get(),
+                ).start(appScope)
+                // Boundary fades follow the preference for the app's whole lifetime.
+                appScope.launch {
+                    settings.crossfadeSeconds.collect { playback.setCrossfadeSeconds(it) }
+                }
             }
             // History observes playback for the app's whole lifetime.
             appScope.launchPlaybackHistoryRecorder(

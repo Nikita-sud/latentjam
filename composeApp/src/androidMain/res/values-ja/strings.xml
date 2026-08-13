@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">再生</string>
+    <string name="widget_previous">前の曲</string>
+    <string name="widget_play_pause">再生 / 一時停止</string>
+    <string name="widget_next">次の曲</string>
+    <string name="browse_playlists">プレイリスト</string>
+    <string name="browse_tracks">曲</string>
+</resources>

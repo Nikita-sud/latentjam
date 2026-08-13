@@ -25,6 +25,7 @@
 
     <!-- State leaves the device only through the user's explicit backup export. -->
     <application
+        android:name="io.github.nikitasud.latentjam.app.LatentJamApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
@@ -62,6 +63,9 @@
             tools:ignore="ExportedService">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="androidx.media3.session.MediaLibraryService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
             </intent-filter>
         </service>
 
@@ -85,6 +89,18 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <!-- Lets Bluetooth/headset and System UI media buttons restart the Media3 service after
+             the app process has been reclaimed. PlaybackService supplies the saved resumption
+             media items; the receiver itself performs no library or trust decisions. -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true"
+            tools:ignore="MissingClass">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
 
         <!-- Home-screen transport widget. Its buttons post plain media-button
              key events to the playback service; no extra process involved. -->

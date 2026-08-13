@@ -382,6 +382,7 @@
     <string name="settings_duplicates_body">Găsește copii ale aceleiași înregistrări după sunet, indiferent de etichete</string>
     <string name="settings_duplicates_scanning">Se compară toate perechile de piese…</string>
     <string name="settings_duplicates_empty">Fără dubluri — fiecare piesă sună unic</string>
+    <string name="settings_duplicates_merge_confirm">Această acțiune păstrează o copie, actualizează listele și favoritele pentru a o folosi și ascunde celelalte %1$d copii.</string>
     <string name="settings_restore">Restabilește</string>
     <string name="settings_restore_all">Restabilește tot</string>
     <string name="settings_library_manage_failed">Biblioteca nu a putut fi actualizată. Încearcă din nou.</string>
@@ -461,8 +462,9 @@
     <string name="stats_top_artists">Top artiști</string>
     <string name="stats_top_tracks">Top piese</string>
     <string name="stats_empty">Nimic redat încă în această perioadă.</string>
+    <string name="stats_load_failed">Statisticile de ascultare nu au putut fi încărcate.</string>
     <string name="settings_normalize_volume">Egalizarea volumului</string>
-    <string name="settings_normalize_volume_subtitle">Piesele încete și cele tari sună la un nivel apropiat</string>
+    <string name="settings_normalize_volume_subtitle">Reduce piesele tari spre un nivel uniform</string>
     <string name="settings_crossfade">Tranziții line</string>
     <string name="settings_crossfade_subtitle">Atenuează volumul la granițele pieselor</string>
     <string name="settings_crossfade_value">%1$d s</string>

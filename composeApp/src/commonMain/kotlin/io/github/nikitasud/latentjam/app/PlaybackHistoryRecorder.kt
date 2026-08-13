@@ -44,17 +44,17 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
     // coroutine, so the gate needs no synchronization.
     merge(
         playback.state.combine(enabled) { now, isEnabled -> HistoryCommand.Snapshot(now, isEnabled) },
-        flushRequests.map { HistoryCommand.Flush },
+        flushRequests.map { HistoryCommand.Flush(epochMillis()) },
     ).collect { command ->
         val finished = when (command) {
             is HistoryCommand.Snapshot ->
                 gate.onSnapshot(command.now, command.enabled, epochMillis())
-            HistoryCommand.Flush ->
+            is HistoryCommand.Flush ->
                 // A flush while sound is still playing is premature: the foreground service
                 // keeps the process alive and the eventual transition records the session
                 // with its full played time. Backgrounding while PAUSED is the real signal
                 // that the sitting is over.
-                if (playback.state.value.isPlaying) null else gate.flush()
+                if (playback.state.value.isPlaying) null else gate.flush(command.nowMs)
         }
         finished?.let { event ->
             try {
@@ -129,14 +129,14 @@ internal class PlaybackHistoryGate(initiallyEnabled: Boolean) {
      * recording is off, and a track that is being ignored until the next one stays ignored —
      * the tracker simply has no session open for it.
      */
-    fun flush(): ListenEvent? {
+    fun flush(nowMs: Long? = null): ListenEvent? {
         if (!recording) return null
-        return tracker.flush()
+        return tracker.flush(nowMs)
     }
 }
 
 /** The recorder's single-collector input alphabet: a playback snapshot or a flush request. */
 private sealed interface HistoryCommand {
     data class Snapshot(val now: NowPlaying, val enabled: Boolean) : HistoryCommand
-    data object Flush : HistoryCommand
+    data class Flush(val nowMs: Long) : HistoryCommand
 }

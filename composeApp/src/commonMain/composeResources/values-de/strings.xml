@@ -394,6 +394,7 @@
     <string name="settings_duplicates_body">Findet Kopien derselben Aufnahme am Klang, unabhängig von den Tags</string>
     <string name="settings_duplicates_scanning">Alle Titelpaare werden verglichen…</string>
     <string name="settings_duplicates_empty">Keine Duplikate — jeder Titel klingt einzigartig</string>
+    <string name="settings_duplicates_merge_confirm">Dadurch bleibt eine Kopie erhalten, Playlists und Favoriten werden auf sie umgestellt und die anderen %1$d Kopien werden ausgeblendet.</string>
     <string name="settings_restore">Wiederherstellen</string>
     <string name="settings_restore_all">Alle wiederherstellen</string>
     <string name="settings_library_manage_failed">Die Mediathek konnte nicht aktualisiert werden. Versuche es erneut.</string>
@@ -472,8 +473,9 @@
     <string name="stats_top_artists">Top-Künstler</string>
     <string name="stats_top_tracks">Top-Titel</string>
     <string name="stats_empty">In diesem Zeitraum wurde noch nichts abgespielt.</string>
+    <string name="stats_load_failed">Die Hörstatistik konnte nicht geladen werden.</string>
     <string name="settings_normalize_volume">Lautstärkeangleichung</string>
-    <string name="settings_normalize_volume_subtitle">Leise und laute Titel klingen ähnlich laut</string>
+    <string name="settings_normalize_volume_subtitle">Senkt laute Titel auf ein einheitlicheres Niveau</string>
     <string name="settings_crossfade">Weiche Übergänge</string>
     <string name="settings_crossfade_subtitle">Lautstärke an Titelgrenzen ausblenden</string>
     <string name="settings_crossfade_value">%1$d s</string>

@@ -25,6 +25,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 internal class LocalBackupTest {
@@ -40,6 +41,9 @@ internal class LocalBackupTest {
                 smartQueueLength = 40,
                 saveListeningHistory = false,
                 rememberSearches = true,
+                includeNoveltyMixes = true,
+                normalizeVolume = true,
+                crossfadeSeconds = 7,
             ),
             tracks = listOf(
                 LocalBackupTrackReference(
@@ -68,6 +72,7 @@ internal class LocalBackupTest {
                     completed = true,
                     skipped = false,
                     shuffleMode = "SMART\tlocal",
+                    listenedMs = 275_000,
                 ),
             ),
             recentSearches = listOf("русский рок\n80-е"),
@@ -79,7 +84,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t2\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t3\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
     }
 
@@ -118,13 +123,37 @@ internal class LocalBackupTest {
         assertEquals("legacy", decoded.playlists.single().id)
         assertEquals("Legacy mix", decoded.playlists.single().name)
         assertFalse(decoded.playlists.single().includeInSmart)
+        assertFalse(decoded.settings.includeNoveltyMixes)
+        assertFalse(decoded.settings.normalizeVolume)
+        assertEquals(0, decoded.settings.crossfadeSeconds)
+        assertNull(decoded.listeningHistory.firstOrNull()?.listenedMs)
+    }
+
+    @Test
+    fun codecReadsAFrozenHistoricalV2FixtureWithNewSettingsDisabled() {
+        val fixture =
+                "LATENTJAM-LOCAL-BACKUP\t2\n" +
+                "C\t1\n" +
+                "S\tSYSTEM\ttracks\tdynamic\t20\t1\t1\n" +
+                "T\ts747261636b\tn\tn\tn\tn\n" +
+                "P\ts6964\ts6d6978\t2\t1\n" +
+                "H\ts747261636b\t10\t20\tn\t0\t0\tn\n"
+
+        val decoded = LocalBackupCodec.decode(fixture)
+
+        assertEquals(2, decoded.formatVersion)
+        assertTrue(decoded.playlists.single().includeInSmart)
+        assertFalse(decoded.settings.includeNoveltyMixes)
+        assertFalse(decoded.settings.normalizeVolume)
+        assertEquals(0, decoded.settings.crossfadeSeconds)
+        assertNull(decoded.listeningHistory.single().listenedMs)
     }
 
     @Test
     fun codecRejectsFutureVersionsCorruptionAndDanglingReferences() {
         val valid = LocalBackupCodec.encode(emptySnapshot())
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t2", "LOCAL-BACKUP\t9"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t3", "LOCAL-BACKUP\t9"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
@@ -140,6 +169,15 @@ internal class LocalBackupTest {
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.validate(
                 emptySnapshot().copy(hiddenTrackReferenceIds = setOf("missing")),
+            )
+        }
+        assertFailsWith<LocalBackupFormatException> {
+            val base = emptySnapshot()
+            LocalBackupCodec.validate(
+                base.copy(
+                    formatVersion = 2,
+                    settings = base.settings.copy(includeNoveltyMixes = true),
+                ),
             )
         }
     }
@@ -184,6 +222,9 @@ internal class LocalBackupTest {
         source.settings.setStartPage(StartPage.FOR_YOU)
         source.settings.setTrackColorMode(TrackColorMode.SMART)
         source.settings.setSmartQueueLength(40)
+        source.settings.setIncludeNoveltyMixes(true)
+        source.settings.setNormalizeVolume(true)
+        source.settings.setCrossfadeSeconds(9)
         source.settings.setSaveListeningHistory(false).getOrThrow()
 
         val encoded = source.service.exportEncoded()
@@ -225,6 +266,9 @@ internal class LocalBackupTest {
         assertEquals(StartPage.FOR_YOU, destination.settings.startPage.value)
         assertEquals(TrackColorMode.SMART, destination.settings.trackColorMode.value)
         assertEquals(40, destination.settings.smartQueueLength.value)
+        assertTrue(destination.settings.includeNoveltyMixes.value)
+        assertTrue(destination.settings.normalizeVolume.value)
+        assertEquals(9, destination.settings.crossfadeSeconds.value)
         assertFalse(destination.settings.saveListeningHistory.value)
     }
 
@@ -521,5 +565,6 @@ internal class LocalBackupTest {
         completed = completed,
         skipped = skipped,
         shuffleMode = shuffleMode,
+        listenedMs = listenedMs,
     )
 }

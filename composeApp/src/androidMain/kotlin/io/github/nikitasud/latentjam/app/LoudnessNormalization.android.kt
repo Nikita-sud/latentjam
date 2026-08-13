@@ -14,6 +14,8 @@ internal actual fun loudnessMeterModule(): Module = module {
     single<TrackLoudnessMeter> { AndroidTrackLoudnessMeter(context = get()) }
 }
 
+internal actual val playbackGainControlsAvailable: Boolean = true
+
 private class AndroidTrackLoudnessMeter(context: Context) : TrackLoudnessMeter {
 
     private val meter = AndroidAudioLoudnessMeter(context)

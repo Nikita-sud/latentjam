@@ -47,4 +47,23 @@ internal class CrossfadeTest {
         assertEquals(7, sanitizeCrossfadeSeconds(7))
         assertEquals(MAX_CROSSFADE_SECONDS, sanitizeCrossfadeSeconds(99))
     }
+
+    @Test
+    fun schedulerSleepsThroughConstantGainButTicksInsideBothFades() {
+        val duration = 180_000L
+        val fade = 4_000L
+
+        assertEquals(GAIN_RAMP_TICK_MS, crossfadeUpdateDelayMs(2_000, duration, fade))
+        assertEquals(86_000L, crossfadeUpdateDelayMs(90_000, duration, fade))
+        assertEquals(GAIN_RAMP_TICK_MS, crossfadeUpdateDelayMs(178_000, duration, fade))
+        assertEquals(500L, crossfadeUpdateDelayMs(8_000, durationMs = 0, fadeMs = fade))
+    }
+
+    @Test
+    fun normalizationGainMovesSmoothlyInDbAndEndsExactlyAtTarget() {
+        assertEquals(1f, normalizationRampVolume(1f, 0.25f, elapsedMs = 0))
+        assertEquals(0.5f, normalizationRampVolume(1f, 0.25f, elapsedMs = 200))
+        assertEquals(0.25f, normalizationRampVolume(1f, 0.25f, elapsedMs = 400))
+        assertEquals(1f, normalizationRampVolume(0.25f, 1f, elapsedMs = 400))
+    }
 }

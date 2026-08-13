@@ -211,6 +211,7 @@ import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.library.PlaylistTrackChange
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.SongSorting
+import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.IndexStore
@@ -346,6 +347,10 @@ internal fun shouldInvalidateSmartFuture(
     previous: List<Set<TrackId>>,
     updated: List<Set<TrackId>>,
 ): Boolean = policyInitialized && previous != updated
+
+/** An externally resumed platform queue always wins over reloading and pausing the saved queue. */
+internal fun shouldApplySavedPlaybackAfterPlatformSync(now: NowPlaying): Boolean =
+    now.track == null
 
 /** Resolves a canonical resume source without mistaking generated SMART rows for that source. */
 internal fun resolveResumeSourceQueue(
@@ -569,6 +574,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
         var playCounts by remember { mutableStateOf<Map<TrackId, Int>>(emptyMap()) }
         var lastPlayedAt by remember { mutableStateOf<Map<TrackId, Long>>(emptyMap()) }
+        // Rediscover is time-derived even when the library and history are unchanged. Refresh the
+        // clock when the listener revisits Playlists or returns to the foreground so a track that
+        // crossed the rest threshold while the app was idle appears without a process restart.
+        var autoPlaylistClockMs by remember { mutableLongStateOf(epochMillis()) }
         var showCreatePlaylist by remember { mutableStateOf(false) }
         var renameTarget by remember { mutableStateOf<Playlist?>(null) }
         var addToPlaylistSelection by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
@@ -704,6 +713,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             onLeave = { AppGraph.flushListeningSession() },
         ) {
             scope.launch {
+                if (selectedTab == PLAYLISTS_TAB) autoPlaylistClockMs = epochMillis()
                 scanLibrary()
                 hasHiddenTracks = library.hasHiddenTracks()
             }
@@ -998,8 +1008,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             if (loaded.isEmpty()) return@LaunchedEffect
             resumeAttempted = true
             val saved = AppGraph.settings.resumePlayback.value ?: return@LaunchedEffect
-            // Something already sounding (a media-notification start, a fast user) wins outright.
-            if (playback.state.value.track != null) return@LaunchedEffect
+            // A widget, Quick Settings, Bluetooth, or Android Auto may have resumed the platform
+            // session before this composition existed. Import that state before deciding whether
+            // launch restore is needed; replacing it here would pause live playback.
+            playback.synchronizeWithPlatformSession()
+            // Something already sounding (an external controller, a fast user) wins outright.
+            if (!shouldApplySavedPlaybackAfterPlatformSync(playback.state.value)) {
+                return@LaunchedEffect
+            }
             // The mode is the more important half — restore it even when the track is gone
             // (deleted, SD card unmounted): SMART being on is what the user asked to keep.
             val savedMode = ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode }
@@ -1540,7 +1556,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // Auto playlists are derived from listening, so refresh them whenever
         // the user comes back to the tab rather than only at startup.
         LaunchedEffect(selectedTab) {
-            if (selectedTab == PLAYLISTS_TAB) refreshPlaylistsWithFeedback()
+            if (selectedTab == PLAYLISTS_TAB) {
+                autoPlaylistClockMs = epochMillis()
+                refreshPlaylistsWithFeedback()
+            }
+        }
+        // A listen can complete while this tab stays visible. Republish the derived auto lists
+        // immediately instead of requiring a tab round-trip before Never Played/Rediscover move.
+        LaunchedEffect(historyRevision) {
+            if (selectedTab == PLAYLISTS_TAB) refreshPlaylistStatsBestEffort()
         }
 
         // Every SMART planner (in-app and the playback chooser) reads the marked playlists from
@@ -1569,13 +1593,19 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
         var autoPlaylists by remember { mutableStateOf<List<AutoPlaylist>>(emptyList()) }
-        LaunchedEffect(catalog, playCounts, lastPlayedAt, favoriteIds) {
+        LaunchedEffect(catalog, playCounts, lastPlayedAt, favoriteIds, autoPlaylistClockMs) {
             val songs = catalog?.songs
             autoPlaylists = if (songs == null) {
                 emptyList()
             } else {
                 withContext(Dispatchers.Default) {
-                    AutoPlaylists.build(songs, playCounts, lastPlayedAt, favoriteIds, epochMillis())
+                    AutoPlaylists.build(
+                        songs,
+                        playCounts,
+                        lastPlayedAt,
+                        favoriteIds,
+                        autoPlaylistClockMs,
+                    )
                 }
             }
         }
@@ -3276,6 +3306,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         ).takeIf { remaining.isNotEmpty() }
                     })
                     invalidateSmartRecommendationCaches()
+                },
+                onDuplicateDataChanged = {
+                    favoriteIds = AppGraph.favorites.all()
+                    refreshPlaylistMemberships()
                 },
                 onBackupRestored = {
                     scanLibrary()

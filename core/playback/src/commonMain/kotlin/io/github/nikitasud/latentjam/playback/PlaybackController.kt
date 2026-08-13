@@ -78,6 +78,13 @@ public interface PlaybackController {
     public val state: StateFlow<NowPlaying>
 
     /**
+     * Synchronizes [state] with an already-running platform session before launch restore decides
+     * whether the saved queue is still needed. Platforms whose player state is already local can
+     * keep the default no-op.
+     */
+    public suspend fun synchronizeWithPlatformSession(): Unit = Unit
+
+    /**
      * Supplies the complete on-device library SMART may recommend from.
      *
      * This is deliberately separate from [play]: a tap in Search can start from a one-result

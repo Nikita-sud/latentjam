@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">播放</string>
+    <string name="widget_previous">上一首</string>
+    <string name="widget_play_pause">播放 / 暂停</string>
+    <string name="widget_next">下一首</string>
+    <string name="browse_playlists">播放列表</string>
+    <string name="browse_tracks">歌曲</string>
+</resources>

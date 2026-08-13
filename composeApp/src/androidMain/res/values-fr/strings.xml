@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Lecture</string>
+    <string name="widget_previous">Précédent</string>
+    <string name="widget_play_pause">Lire / Pause</string>
+    <string name="widget_next">Suivant</string>
+    <string name="browse_playlists">Playlists</string>
+    <string name="browse_tracks">Morceaux</string>
+</resources>

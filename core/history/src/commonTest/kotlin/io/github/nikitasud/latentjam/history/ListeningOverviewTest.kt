@@ -137,4 +137,76 @@ internal class ListeningOverviewTest {
         assertEquals(0, overview.longestStreakDays)
         assertEquals(List(24) { 0 }, overview.playsByHour)
     }
+
+    @Test
+    fun futureClockSkewDoesNotCountOrBreakTheCurrentStreak() {
+        val overview = ListeningOverviews.summarize(
+            events = listOf(
+                event("today", startedAtMs = 8 * day),
+                event("future", startedAtMs = 20 * day),
+            ),
+            artistOf = { null },
+            sinceMs = null,
+            nowMs = 8 * day + hour,
+            timePointOf = utc,
+        )
+
+        assertEquals(1, overview.plays)
+        assertEquals(1, overview.currentStreakDays)
+        assertEquals(1, overview.longestStreakDays)
+    }
+
+    @Test
+    fun playedDurationsSaturateInsteadOfOverflowing() {
+        val overview = ListeningOverviews.summarize(
+            events = listOf(
+                event("a", startedAtMs = day, playedMs = Long.MAX_VALUE),
+                event("a", startedAtMs = day + 1, playedMs = 1),
+            ),
+            artistOf = { "Artist" },
+            sinceMs = null,
+            nowMs = 2 * day,
+            timePointOf = utc,
+        )
+
+        assertEquals(Long.MAX_VALUE, overview.playedMs)
+        assertEquals(Long.MAX_VALUE, overview.topTracks.single().playedMs)
+        assertEquals(Long.MAX_VALUE, overview.topArtists.single().playedMs)
+    }
+
+    @Test
+    fun topTrackLimitIsAppliedAfterUnavailableTracksAreExcluded() {
+        val events = (0..10).flatMap { index ->
+            List(20 - index) { event("track-$index", startedAtMs = day + it) }
+        }
+        val overview = ListeningOverviews.summarize(
+            events = events,
+            artistOf = { null },
+            sinceMs = null,
+            nowMs = 2 * day,
+            timePointOf = utc,
+            includeTrack = { it.value == "track-10" },
+        )
+
+        assertEquals(listOf(TrackId("track-10")), overview.topTracks.map { it.trackId })
+    }
+
+    @Test
+    fun calendarConversionRunsOncePerEventPlusTheCurrentClock() {
+        val events = List(50) { index -> event("a", startedAtMs = day + index) }
+        var conversions = 0
+
+        ListeningOverviews.summarize(
+            events = events,
+            artistOf = { null },
+            sinceMs = day + 25,
+            nowMs = 2 * day,
+            timePointOf = { timestamp ->
+                conversions++
+                utc(timestamp)
+            },
+        )
+
+        assertEquals(events.size + 1, conversions)
+    }
 }

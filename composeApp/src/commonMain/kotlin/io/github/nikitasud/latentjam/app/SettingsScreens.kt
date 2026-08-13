@@ -58,6 +58,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -228,6 +230,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_hidden_tra
 import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates
 import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_empty
+import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_merge_confirm
 import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_scanning
 import io.github.nikitasud.latentjam.app.generated.resources.settings_hidden_tracks_empty
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_manage_failed
@@ -301,6 +304,8 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
@@ -344,6 +349,7 @@ fun SettingsScreen(
     onRetryIndexing: () -> Unit,
     onRebuildAnalysis: suspend () -> Unit,
     onHideTrack: suspend (TrackDescriptor) -> Unit,
+    onDuplicateDataChanged: suspend () -> Unit,
     onBackupRestored: suspend () -> Unit,
     onClearListeningHistory: suspend () -> Unit,
     onClearRecentSearches: suspend () -> Unit,
@@ -425,6 +431,7 @@ fun SettingsScreen(
                     SettingsPage.DUPLICATES -> DuplicatesSettings(
                         tracks = tracks,
                         onHideTrack = onHideTrack,
+                        onDuplicateDataChanged = onDuplicateDataChanged,
                         snackbarHostState = snackbarHostState,
                     )
                     SettingsPage.STATS -> ListeningStatsSettings(
@@ -1078,70 +1085,72 @@ private fun EqualizerSettings(equalizer: EqualizerController, settings: AppSetti
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
-        // Normalization is our own gain stage, deliberately independent of the system
-        // equalizer's availability.
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .toggleable(
-                        value = normalizeVolume,
-                        role = Role.Switch,
-                        onValueChange = settings::setNormalizeVolume,
-                    )
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(Res.string.settings_normalize_volume),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Text(
-                        text = stringResource(Res.string.settings_normalize_volume_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(checked = normalizeVolume, onCheckedChange = null)
-            }
-        }
-
-        item {
-            val crossfade by settings.crossfadeSeconds.collectAsState()
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+        if (playbackGainControlsAvailable) {
+            // Normalization is our own gain stage, deliberately independent of the system
+            // equalizer's availability.
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = normalizeVolume,
+                            role = Role.Switch,
+                            onValueChange = settings::setNormalizeVolume,
+                        )
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = stringResource(Res.string.settings_crossfade),
+                            text = stringResource(Res.string.settings_normalize_volume),
                             style = MaterialTheme.typography.bodyLarge,
                         )
                         Text(
-                            text = stringResource(Res.string.settings_crossfade_subtitle),
+                            text = stringResource(Res.string.settings_normalize_volume_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Text(
-                        text = if (crossfade == 0) {
-                            stringResource(Res.string.state_off)
-                        } else {
-                            stringResource(Res.string.settings_crossfade_value, crossfade)
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Switch(checked = normalizeVolume, onCheckedChange = null)
+                }
+            }
+
+            item {
+                val crossfade by settings.crossfadeSeconds.collectAsState()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(Res.string.settings_crossfade),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            Text(
+                                text = stringResource(Res.string.settings_crossfade_subtitle),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            text = if (crossfade == 0) {
+                                stringResource(Res.string.state_off)
+                            } else {
+                                stringResource(Res.string.settings_crossfade_value, crossfade)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Slider(
+                        value = crossfade.toFloat(),
+                        onValueChange = { settings.setCrossfadeSeconds(it.roundToInt()) },
+                        valueRange = 0f..MAX_CROSSFADE_SECONDS.toFloat(),
+                        steps = MAX_CROSSFADE_SECONDS - 1,
                     )
                 }
-                Slider(
-                    value = crossfade.toFloat(),
-                    onValueChange = { settings.setCrossfadeSeconds(it.roundToInt()) },
-                    valueRange = 0f..MAX_CROSSFADE_SECONDS.toFloat(),
-                    steps = MAX_CROSSFADE_SECONDS - 1,
-                )
             }
         }
 
@@ -1713,28 +1722,66 @@ private fun IntelligenceProblemsSettings(
 private fun DuplicatesSettings(
     tracks: List<TrackDescriptor>,
     onHideTrack: suspend (TrackDescriptor) -> Unit,
+    onDuplicateDataChanged: suspend () -> Unit,
     snackbarHostState: SnackbarHostState,
 ) {
     val scope = rememberCoroutineScope()
     var scanning by remember { mutableStateOf(true) }
     var groups by remember { mutableStateOf<List<List<TrackDescriptor>>>(emptyList()) }
     var removing by remember { mutableStateOf<TrackId?>(null) }
+    var scanFailed by remember { mutableStateOf(false) }
+    var scanRevision by remember { mutableIntStateOf(0) }
+    var scanGeneration by remember { mutableLongStateOf(0L) }
+    var pendingMerge by remember {
+        mutableStateOf<Pair<List<TrackDescriptor>, TrackDescriptor>?>(null)
+    }
     val manageFailed = stringResource(Res.string.settings_library_manage_failed)
     val removedMessage = stringResource(Res.string.snack_removed_from_latentjam)
     val mergedMessage = stringResource(Res.string.snack_duplicates_merged)
 
-    LaunchedEffect(tracks) {
+    LaunchedEffect(tracks, scanRevision) {
+        val generation = scanGeneration + 1L
+        scanGeneration = generation
         scanning = true
-        // Indexing may still be running; tracks without a vector simply sit this scan out.
-        val vectors = LinkedHashMap<TrackId, FloatArray>(tracks.size)
-        for (track in tracks) {
-            AppGraph.engine.embedding(track.id)?.let { vectors[track.id] = it }
+        scanFailed = false
+        // Results describe one exact library/index snapshot. Never leave old destructive actions
+        // tappable while a replacement snapshot is being assembled.
+        groups = emptyList()
+        pendingMerge = null
+        var showFailure = false
+        try {
+            // Indexing may still be running; tracks without a vector simply sit this scan out.
+            val vectors = LinkedHashMap<TrackId, FloatArray>(tracks.size)
+            for (track in tracks) {
+                currentCoroutineContext().ensureActive()
+                AppGraph.engine.embedding(track.id)?.let { vectors[track.id] = it }
+            }
+            val byId = tracks.associateBy(TrackDescriptor::id)
+            val durations = tracks.associate { track -> track.id to track.durationMs }
+            val computed = withContext(Dispatchers.Default) {
+                val scanContext = currentCoroutineContext()
+                audioDuplicateGroups(
+                    vectors = vectors,
+                    durationsMs = durations,
+                    cancellationCheck = { scanContext.ensureActive() },
+                ).map { group -> group.mapNotNull(byId::get) }
+            }
+            if (scanGeneration == generation) groups = computed
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            if (scanGeneration == generation) {
+                groups = emptyList()
+                scanFailed = true
+                showFailure = true
+            }
+        } finally {
+            // A cancelled predecessor must not hide a newer scan's progress indicator.
+            if (scanGeneration == generation) scanning = false
         }
-        val byId = tracks.associateBy(TrackDescriptor::id)
-        groups = withContext(Dispatchers.Default) {
-            audioDuplicateGroups(vectors).map { group -> group.mapNotNull(byId::get) }
+        if (showFailure && scanGeneration == generation) {
+            snackbarHostState.showSnackbar(manageFailed)
         }
-        scanning = false
     }
 
     LazyColumn(
@@ -1751,6 +1798,14 @@ private fun DuplicatesSettings(
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp, vertical = 12.dp),
                     )
+                } else if (scanFailed) {
+                    SettingsBody(manageFailed)
+                    OutlinedButton(
+                        onClick = { scanRevision += 1 },
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    ) {
+                        Text(stringResource(Res.string.action_retry))
+                    }
                 } else if (groups.isEmpty()) {
                     SettingsBody(stringResource(Res.string.settings_duplicates_empty))
                 }
@@ -1787,54 +1842,61 @@ private fun DuplicatesSettings(
                             }
                         }
                     },
-                    onKeep = {
-                        scope.launch {
-                            removing = track.id
-                            try {
-                                mergeDuplicateGroup(
-                                    group = group,
-                                    survivor = track,
-                                    onHideTrack = onHideTrack,
-                                )
-                                groups = groups.filterNot { it === group }
-                                snackbarHostState.showSnackbar(mergedMessage)
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (_: Throwable) {
-                                snackbarHostState.showSnackbar(manageFailed)
-                            } finally {
-                                removing = null
-                            }
-                        }
-                    },
+                    onKeep = { pendingMerge = group to track },
                 )
             }
         }
     }
-}
 
-/**
- * Merges a duplicate group into [survivor]: playlists and favorites are rewritten first (while
- * every copy still exists, so an interruption loses nothing), then the other copies are hidden
- * the same reversible way as a manual remove.
- */
-private suspend fun mergeDuplicateGroup(
-    group: List<TrackDescriptor>,
-    survivor: TrackDescriptor,
-    onHideTrack: suspend (TrackDescriptor) -> Unit,
-) {
-    val losers = group.filter { it.id != survivor.id }
-    val duplicateIds = losers.mapTo(mutableSetOf()) { it.id }
-    for (playlist in AppGraph.playlists.all()) {
-        val current = playlist.trackIds.map(::TrackId)
-        val replacement = mergedMembership(current, duplicateIds, survivor.id) ?: continue
-        // Compare-and-set: a concurrent edit simply wins and this playlist keeps its rows.
-        AppGraph.playlists.replaceTracksIfUnchanged(playlist.id, current, replacement)
+    pendingMerge?.let { (group, track) ->
+        ConfirmSettingsAction(
+            title = stringResource(Res.string.settings_duplicates),
+            body = stringResource(
+                Res.string.settings_duplicates_merge_confirm,
+                (group.size - 1).coerceAtLeast(1),
+            ),
+            confirmLabel = stringResource(Res.string.duplicates_keep_this),
+            onConfirm = {
+                pendingMerge = null
+                scope.launch {
+                            removing = track.id
+                            var failure: Throwable? = null
+                            try {
+                                mergeDuplicateGroup(
+                                    group = group,
+                                    survivor = track,
+                                    playlists = AppGraph.playlists,
+                                    favorites = AppGraph.favorites,
+                                    onHideTrack = onHideTrack,
+                                )
+                            } catch (cancelled: CancellationException) {
+                                failure = cancelled
+                            } catch (problem: Throwable) {
+                                failure = problem
+                            }
+                            // A late playlist/favorites CAS failure can leave earlier playlists
+                            // safely rewritten even though nothing was hidden. Always republish
+                            // durable state so the app and SMART companion groups cannot go stale.
+                            try {
+                                withContext(kotlinx.coroutines.NonCancellable) {
+                                    onDuplicateDataChanged()
+                                }
+                            } catch (problem: Throwable) {
+                                if (failure == null) failure = problem
+                            }
+                            removing = null
+                            if (failure is CancellationException) throw failure
+                            if (failure == null) {
+                                groups = groups.filterNot { it === group }
+                                snackbarHostState.showSnackbar(mergedMessage)
+                            } else {
+                                snackbarHostState.showSnackbar(manageFailed)
+                            }
+                }
+            },
+            onDismiss = { pendingMerge = null },
+        )
     }
-    mergedMembership(AppGraph.favorites.all(), duplicateIds, survivor.id)?.let { favorites ->
-        AppGraph.favorites.replace(favorites)
-    }
-    losers.forEach { onHideTrack(it) }
 }
 
 @Composable

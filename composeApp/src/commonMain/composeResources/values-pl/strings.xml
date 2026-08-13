@@ -402,6 +402,7 @@
     <string name="settings_duplicates_body">Znajduje kopie tego samego nagrania po dźwięku, niezależnie od tagów</string>
     <string name="settings_duplicates_scanning">Porównywanie wszystkich par utworów…</string>
     <string name="settings_duplicates_empty">Brak duplikatów — każdy utwór brzmi wyjątkowo</string>
+    <string name="settings_duplicates_merge_confirm">Ta operacja zachowa jedną kopię, zaktualizuje playlisty i ulubione, aby jej używały, oraz ukryje pozostałe kopie (%1$d).</string>
     <string name="settings_restore">Przywróć</string>
     <string name="settings_restore_all">Przywróć wszystkie</string>
     <string name="settings_library_manage_failed">Nie udało się zaktualizować biblioteki. Spróbuj ponownie.</string>
@@ -482,8 +483,9 @@
     <string name="stats_top_artists">Najczęściej słuchani artyści</string>
     <string name="stats_top_tracks">Najczęściej słuchane utwory</string>
     <string name="stats_empty">W tym okresie nic jeszcze nie odtworzono.</string>
+    <string name="stats_load_failed">Nie udało się wczytać statystyk słuchania.</string>
     <string name="settings_normalize_volume">Normalizacja głośności</string>
-    <string name="settings_normalize_volume_subtitle">Ciche i głośne utwory grają na podobnym poziomie</string>
+    <string name="settings_normalize_volume_subtitle">Ścisza głośne utwory do bardziej równego poziomu</string>
     <string name="settings_crossfade">Płynne przejścia</string>
     <string name="settings_crossfade_subtitle">Wyciszanie głośności na granicach utworów</string>
     <string name="settings_crossfade_value">%1$d s</string>

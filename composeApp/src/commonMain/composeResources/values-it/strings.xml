@@ -391,6 +391,7 @@
     <string name="settings_duplicates_body">Trova copie della stessa registrazione dal suono, qualunque cosa dicano i tag</string>
     <string name="settings_duplicates_scanning">Confronto di tutte le coppie di brani…</string>
     <string name="settings_duplicates_empty">Nessun duplicato: ogni brano suona unico</string>
+    <string name="settings_duplicates_merge_confirm">Questa azione mantiene una copia, aggiorna playlist e preferiti per usarla e nasconde le altre %1$d copie.</string>
     <string name="settings_restore">Ripristina</string>
     <string name="settings_restore_all">Ripristina tutto</string>
     <string name="settings_library_manage_failed">Impossibile aggiornare la libreria. Riprova.</string>
@@ -469,8 +470,9 @@
     <string name="stats_top_artists">Artisti più ascoltati</string>
     <string name="stats_top_tracks">Brani più ascoltati</string>
     <string name="stats_empty">In questo periodo non è stato ancora riprodotto nulla.</string>
+    <string name="stats_load_failed">Impossibile caricare le statistiche di ascolto.</string>
     <string name="settings_normalize_volume">Normalizzazione del volume</string>
-    <string name="settings_normalize_volume_subtitle">I brani piano e forte suonano a un livello simile</string>
+    <string name="settings_normalize_volume_subtitle">Riduce i brani forti verso un livello uniforme</string>
     <string name="settings_crossfade">Transizioni morbide</string>
     <string name="settings_crossfade_subtitle">Dissolvenza del volume tra i brani</string>
     <string name="settings_crossfade_value">%1$d s</string>

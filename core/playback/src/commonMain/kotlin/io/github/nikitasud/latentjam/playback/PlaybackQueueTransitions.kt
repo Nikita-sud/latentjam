@@ -365,6 +365,32 @@ internal data class PlaybackQueueSnapshot<T : Any>(
     val currentRowIndex: Int,
 )
 
+/** Descriptor recovered from a platform session before the app's complete library is available. */
+internal fun provisionalTrackDescriptor(
+    mediaId: String,
+    title: String?,
+    artist: String?,
+    album: String?,
+    genre: String?,
+    durationMs: Long?,
+    audioUri: String?,
+    artworkUri: String?,
+    year: Int?,
+): TrackDescriptor? {
+    if (mediaId.isBlank()) return null
+    return TrackDescriptor(
+        id = TrackId(mediaId),
+        title = title,
+        artist = artist,
+        album = album,
+        genre = genre,
+        durationMs = durationMs?.takeIf { it > 0L },
+        audioUri = audioUri,
+        artworkUri = artworkUri,
+        year = year,
+    )
+}
+
 /**
  * Projects physical playlist entries into the order the transport actually traverses.
  *

@@ -384,6 +384,7 @@
     <string name="settings_duplicates_body">टैग चाहे जो कहें, एक ही रिकॉर्डिंग की प्रतियाँ ध्वनि से खोजता है</string>
     <string name="settings_duplicates_scanning">सभी ट्रैक की तुलना हो रही है…</string>
     <string name="settings_duplicates_empty">कोई डुप्लिकेट नहीं — हर ट्रैक अलग है</string>
+    <string name="settings_duplicates_merge_confirm">यह एक कॉपी रखेगा, प्लेलिस्ट और पसंदीदा को उसका उपयोग करने के लिए अपडेट करेगा और बाकी %1$d कॉपियाँ छिपा देगा।</string>
     <string name="settings_restore">वापस लाएँ</string>
     <string name="settings_restore_all">सभी वापस लाएँ</string>
     <string name="settings_library_manage_failed">लाइब्रेरी अपडेट नहीं की जा सकी। फिर से कोशिश करें।</string>
@@ -462,8 +463,9 @@
     <string name="stats_top_artists">शीर्ष कलाकार</string>
     <string name="stats_top_tracks">शीर्ष ट्रैक</string>
     <string name="stats_empty">इस अवधि में अभी तक कुछ नहीं चलाया गया।</string>
+    <string name="stats_load_failed">सुनने के आँकड़े लोड नहीं किए जा सके।</string>
     <string name="settings_normalize_volume">वॉल्यूम सामान्यीकरण</string>
-    <string name="settings_normalize_volume_subtitle">धीमे और तेज़ ट्रैक लगभग एक जैसे स्तर पर बजते हैं</string>
+    <string name="settings_normalize_volume_subtitle">तेज़ ट्रैक को एक समान स्तर की ओर कम करता है</string>
     <string name="settings_crossfade">सहज बदलाव</string>
     <string name="settings_crossfade_subtitle">ट्रैक की सीमाओं पर आवाज़ धीमी होती है</string>
     <string name="settings_crossfade_value">%1$d से.</string>

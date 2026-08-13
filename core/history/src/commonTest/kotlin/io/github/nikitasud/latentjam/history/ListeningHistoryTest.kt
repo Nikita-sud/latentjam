@@ -105,6 +105,15 @@ internal class ListeningHistoryTest {
     }
 
     @Test
+    fun negativeNumbersAndInvalidFlagsAreCorrupt() {
+        val valid = event("valid", startedAt = 1).serialize()
+        assertNull(ListenEvent.parse(valid.replace("|1|60000|", "|-1|60000|")))
+        assertNull(ListenEvent.parse(valid.replace("|60000|200000|", "|-1|200000|")))
+        assertNull(ListenEvent.parse(valid.replace("|200000|0|", "|-1|0|")))
+        assertNull(ListenEvent.parse("v1|track|1|2||maybe|0|SMART"))
+    }
+
+    @Test
     fun statsAggregateAcrossEvents() = runTest {
         val history = DefaultListeningHistory(FakeStore())
         history.record(event("1", startedAt = 100, played = 30_000, skipped = true))
@@ -119,6 +128,15 @@ internal class ListeningHistoryTest {
         assertEquals(220_000, one.totalPlayedMs)
         assertEquals(200, one.lastPlayedAtMs)
         assertEquals(1, stats[TrackId("2")]?.plays)
+    }
+
+    @Test
+    fun statsPlayedDurationSaturatesInsteadOfOverflowing() = runTest {
+        val history = DefaultListeningHistory(FakeStore())
+        history.record(event("1", startedAt = 100, played = Long.MAX_VALUE))
+        history.record(event("1", startedAt = 200, played = 1))
+
+        assertEquals(Long.MAX_VALUE, history.stats()[TrackId("1")]?.totalPlayedMs)
     }
 
     @Test
@@ -143,6 +161,11 @@ internal class ListeningHistoryTest {
             history.recentEvents(2).map { it.trackId.value },
         )
         assertNull(history.recentEvents(0).firstOrNull())
+        assertEquals(
+            listOf("1", "2", "3"),
+            history.allEvents().map { it.trackId.value },
+            "the full-log API is complete and chronological",
+        )
     }
 
     @Test

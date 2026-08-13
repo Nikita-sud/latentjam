@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Redare</string>
+    <string name="widget_previous">Piesa anterioară</string>
+    <string name="widget_play_pause">Redă / Pauză</string>
+    <string name="widget_next">Piesa următoare</string>
+    <string name="browse_playlists">Playlisturi</string>
+    <string name="browse_tracks">Piese</string>
+</resources>

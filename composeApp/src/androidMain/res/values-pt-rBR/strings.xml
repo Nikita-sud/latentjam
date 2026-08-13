@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Reprodução</string>
+    <string name="widget_previous">Anterior</string>
+    <string name="widget_play_pause">Reproduzir / Pausar</string>
+    <string name="widget_next">Próxima</string>
+    <string name="browse_playlists">Playlists</string>
+    <string name="browse_tracks">Músicas</string>
+</resources>

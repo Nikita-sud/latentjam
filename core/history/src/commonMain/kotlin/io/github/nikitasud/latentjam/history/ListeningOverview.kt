@@ -65,29 +65,48 @@ public object ListeningOverviews {
         sinceMs: Long?,
         nowMs: Long,
         timePointOf: (Long) -> LocalTimePoint = ::localTimePoint,
+        includeTrack: (TrackId) -> Boolean = { true },
+        cancellationCheck: () -> Unit = {},
     ): ListeningOverview {
-        val inPeriod = if (sinceMs == null) events else events.filter { it.startedAtMs >= sinceMs }
+        // A device clock correction can leave a persisted event in the future. It must not break
+        // today's streak or count toward a period until wall time catches up.
+        val eligibleEvents = events.filter { it.startedAtMs in 0..nowMs }
+        val inPeriod = if (sinceMs == null) {
+            eligibleEvents
+        } else {
+            eligibleEvents.filter { it.startedAtMs >= sinceMs }
+        }
 
         val plays = inPeriod.size
         val completions = inPeriod.count { it.completed }
         val skips = inPeriod.count { it.skipped }
 
         val byHour = IntArray(24)
-        for (event in inPeriod) {
-            val hour = timePointOf(event.startedAtMs).hourOfDay
-            if (hour in 0..23) byHour[hour]++
+        val listeningDays = HashSet<Long>()
+        eligibleEvents.forEachIndexed { index, event ->
+            if (index and CANCELLATION_CHECK_MASK == 0) cancellationCheck()
+            val point = timePointOf(event.startedAtMs)
+            listeningDays += point.epochDay
+            if ((sinceMs == null || event.startedAtMs >= sinceMs) && point.hourOfDay in 0..23) {
+                byHour[point.hourOfDay]++
+            }
         }
 
         val perTrack = LinkedHashMap<TrackId, TrackListening>()
-        for (event in inPeriod) {
+        for ((index, event) in inPeriod.withIndex()) {
+            if (index and CANCELLATION_CHECK_MASK == 0) cancellationCheck()
             val previous = perTrack[event.trackId]
             perTrack[event.trackId] = TrackListening(
                 trackId = event.trackId,
                 plays = (previous?.plays ?: 0) + 1,
-                playedMs = (previous?.playedMs ?: 0L) + event.playedMs,
+                playedMs = saturatingDurationAdd(
+                    previous?.playedMs ?: 0L,
+                    event.effectiveListenedMs.coerceAtLeast(0),
+                ),
             )
         }
         val topTracks = perTrack.values
+            .filter { includeTrack(it.trackId) }
             .sortedWith(
                 compareByDescending<TrackListening> { it.plays }.thenByDescending { it.playedMs },
             )
@@ -100,7 +119,7 @@ public object ListeningOverviews {
             perArtist[artist] = ArtistListening(
                 artist = artist,
                 plays = (previous?.plays ?: 0) + track.plays,
-                playedMs = (previous?.playedMs ?: 0L) + track.playedMs,
+                playedMs = saturatingDurationAdd(previous?.playedMs ?: 0L, track.playedMs),
             )
         }
         val topArtists = perArtist.values
@@ -109,11 +128,16 @@ public object ListeningOverviews {
             )
             .take(TOP_LIMIT)
 
-        val (current, longest) = streaks(events, nowMs, timePointOf)
+        val (current, longest) = streaks(
+            days = listeningDays,
+            today = timePointOf(nowMs).epochDay,
+        )
 
         return ListeningOverview(
             plays = plays,
-            playedMs = inPeriod.sumOf { it.playedMs },
+            playedMs = inPeriod.fold(0L) { total, event ->
+                saturatingDurationAdd(total, event.effectiveListenedMs.coerceAtLeast(0))
+            },
             distinctTracks = perTrack.size,
             completionRate = if (plays == 0) 0f else completions.toFloat() / plays,
             skipRate = if (plays == 0) 0f else skips.toFloat() / plays,
@@ -130,35 +154,33 @@ public object ListeningOverviews {
      * unfinished today: not having listened YET must not read as a broken habit at breakfast.
      */
     private fun streaks(
-        events: List<ListenEvent>,
-        nowMs: Long,
-        timePointOf: (Long) -> LocalTimePoint,
+        days: Set<Long>,
+        today: Long,
     ): Pair<Int, Int> {
-        val days = events.mapTo(HashSet()) { timePointOf(it.startedAtMs).epochDay }
-            .toLongArray()
+        val sortedDays = days.toLongArray()
             .also { it.sort() }
-        if (days.isEmpty()) return 0 to 0
+        if (sortedDays.isEmpty()) return 0 to 0
 
         var longest = 1
         var run = 1
-        for (index in 1 until days.size) {
-            run = if (days[index] == days[index - 1] + 1) run + 1 else 1
+        for (index in 1 until sortedDays.size) {
+            run = if (sortedDays[index] == sortedDays[index - 1] + 1) run + 1 else 1
             if (run > longest) longest = run
         }
 
-        val today = timePointOf(nowMs).epochDay
         val anchor = when {
-            days.last() == today -> today
-            days.last() == today - 1 -> today - 1
+            sortedDays.last() == today -> today
+            sortedDays.last() == today - 1 -> today - 1
             else -> return 0 to longest
         }
-        val daySet = days.toHashSet()
         var current = 0
         var cursor = anchor
-        while (cursor in daySet) {
+        while (cursor in days) {
             current++
             cursor--
         }
         return current to longest
     }
+
+    private const val CANCELLATION_CHECK_MASK = 1023
 }

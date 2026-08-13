@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">प्लेबैक</string>
+    <string name="widget_previous">पिछला</string>
+    <string name="widget_play_pause">चलाएं / रोकें</string>
+    <string name="widget_next">अगला</string>
+    <string name="browse_playlists">प्लेलिस्ट</string>
+    <string name="browse_tracks">गाने</string>
+</resources>

@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import io.github.nikitasud.latentjam.library.tags.Id3Tags
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -23,7 +24,13 @@ internal actual fun rememberLyricsReader(): suspend (TrackDescriptor) -> String?
     return remember(context) {
         { track ->
             withContext(Dispatchers.IO) {
-                runCatching { readEmbeddedLyrics(context, track) }.getOrNull()
+                try {
+                    readEmbeddedLyrics(context, track)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Throwable) {
+                    null
+                }
             }
         }
     }
@@ -35,11 +42,11 @@ private fun readEmbeddedLyrics(context: Context, track: TrackDescriptor): String
         val header = ByteArray(Id3Tags.HEADER_SIZE)
         if (!readFully(input, header, header.size)) return null
         val tagLength = Id3Tags.tagLength(header) ?: return null
-        if (tagLength <= header.size) return null
-        val prefix = ByteArray(tagLength.coerceAtMost(MAX_TAG_BYTES))
+        if (tagLength <= header.size || tagLength > MAX_TAG_BYTES) return null
+        val prefix = ByteArray(tagLength)
         header.copyInto(prefix)
         // A short read means a truncated tag; the parser refuses it rather than misreading.
-        readFully(input, prefix, prefix.size - header.size, offset = header.size)
+        if (!readFully(input, prefix, prefix.size - header.size, offset = header.size)) return null
         Id3Tags.lyrics(prefix)
     }
 }

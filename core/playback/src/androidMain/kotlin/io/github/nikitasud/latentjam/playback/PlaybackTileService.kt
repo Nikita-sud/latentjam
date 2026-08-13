@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.playback
 
 import android.content.ComponentName
+import android.os.Handler
+import android.os.Looper
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import androidx.media3.session.MediaController
@@ -28,14 +30,23 @@ public class PlaybackTileService : TileService() {
 
     override fun onClick() {
         withController { controller ->
-            if (controller.isPlaying) controller.pause() else controller.play()
-            updateTile(controller.isPlaying)
+            val shouldPlay = !controller.playWhenReady
+            if (shouldPlay) controller.play() else controller.pause()
+            // MediaController commands are asynchronous. Reflect the requested state now; the
+            // next listening callback reconciles it with the session's authoritative state.
+            updateTile(shouldPlay)
         }
     }
 
     override fun onStopListening() {
         pending?.cancel(true)
         pending = null
+    }
+
+    override fun onDestroy() {
+        pending?.cancel(true)
+        pending = null
+        super.onDestroy()
     }
 
     private fun updateTile(playing: Boolean) {
@@ -51,7 +62,7 @@ public class PlaybackTileService : TileService() {
         pending = future
         future.addListener({
             if (future.isCancelled) return@addListener
-            runCatching {
+            val result = runCatching {
                 val controller = future.get()
                 try {
                     block(controller)
@@ -59,6 +70,19 @@ public class PlaybackTileService : TileService() {
                     controller.release()
                 }
             }
-        }, mainExecutor)
+            if (result.isFailure) updateUnavailable()
+            if (pending === future) pending = null
+        }, mainThreadExecutor)
+    }
+
+    private fun updateUnavailable() {
+        val tile = qsTile ?: return
+        tile.state = Tile.STATE_UNAVAILABLE
+        tile.updateTile()
+    }
+
+    // Context.getMainExecutor() was added in API 28; LatentJam supports API 24.
+    private val mainThreadExecutor = java.util.concurrent.Executor { runnable ->
+        Handler(Looper.getMainLooper()).post(runnable)
     }
 }

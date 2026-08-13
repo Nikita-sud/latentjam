@@ -383,6 +383,7 @@
     <string name="settings_duplicates_body">Menemukan salinan rekaman yang sama dari suaranya, apa pun tag-nya</string>
     <string name="settings_duplicates_scanning">Membandingkan semua pasangan trek…</string>
     <string name="settings_duplicates_empty">Tidak ada duplikat — setiap trek terdengar unik</string>
+    <string name="settings_duplicates_merge_confirm">Tindakan ini menyimpan satu salinan, memperbarui playlist dan favorit agar menggunakannya, lalu menyembunyikan %1$d salinan lainnya.</string>
     <string name="settings_restore">Pulihkan</string>
     <string name="settings_restore_all">Pulihkan semua</string>
     <string name="settings_library_manage_failed">Tidak dapat memperbarui pustaka. Coba lagi.</string>
@@ -461,8 +462,9 @@
     <string name="stats_top_artists">Artis teratas</string>
     <string name="stats_top_tracks">Lagu teratas</string>
     <string name="stats_empty">Belum ada yang diputar dalam periode ini.</string>
+    <string name="stats_load_failed">Statistik mendengarkan tidak dapat dimuat.</string>
     <string name="settings_normalize_volume">Normalisasi volume</string>
-    <string name="settings_normalize_volume_subtitle">Lagu pelan dan keras diputar pada tingkat yang mirip</string>
+    <string name="settings_normalize_volume_subtitle">Mengurangi lagu keras menuju tingkat yang konsisten</string>
     <string name="settings_crossfade">Transisi mulus</string>
     <string name="settings_crossfade_subtitle">Volume memudar di batas lagu</string>
     <string name="settings_crossfade_value">%1$d dtk</string>

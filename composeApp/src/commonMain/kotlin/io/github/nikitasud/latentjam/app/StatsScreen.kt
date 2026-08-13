@@ -8,38 +8,47 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.action_retry
 import io.github.nikitasud.latentjam.app.generated.resources.stats_by_hour
 import io.github.nikitasud.latentjam.app.generated.resources.stats_days_short
 import io.github.nikitasud.latentjam.app.generated.resources.stats_distinct_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.stats_empty
 import io.github.nikitasud.latentjam.app.generated.resources.stats_finished_share
+import io.github.nikitasud.latentjam.app.generated.resources.stats_load_failed
 import io.github.nikitasud.latentjam.app.generated.resources.stats_hours_short
 import io.github.nikitasud.latentjam.app.generated.resources.stats_minutes_short
 import io.github.nikitasud.latentjam.app.generated.resources.stats_period_all
@@ -59,12 +68,11 @@ import io.github.nikitasud.latentjam.history.ListeningOverviews
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
-
-/** Enough for many years of sessions while still bounding one screen's read. */
-private const val MAX_STATS_EVENTS = 200_000
 
 private enum class StatsPeriod(val days: Int?) { WEEK(7), MONTH(30), ALL(null) }
 
@@ -83,29 +91,46 @@ internal fun ListeningStatsSettings(
     val historyRevision by AppGraph.historyRevision.collectAsState()
     val tracksById = remember(tracks) { tracks.associateBy { it.id } }
     var overview by remember { mutableStateOf<ListeningOverview?>(null) }
+    var loadedRequest by remember { mutableStateOf<Any?>(null) }
+    var failedRequest by remember { mutableStateOf<Any?>(null) }
+    var retryRevision by remember { mutableIntStateOf(0) }
+    // Object identity makes the rendered result belong to one exact chip/log/catalog request.
+    // The old period can never appear under a newly selected chip, even for one frame.
+    val request = remember(historyRevision, period, tracksById, retryRevision) { Any() }
 
-    LaunchedEffect(historyRevision, period, tracksById) {
-        val events = history.recentEvents(MAX_STATS_EVENTS)
-        val now = epochMillis()
-        overview = withContext(Dispatchers.Default) {
-            ListeningOverviews.summarize(
-                events = events,
-                artistOf = { tracksById[it]?.artist },
-                sinceMs = period.days?.let { now - it * 24L * 60 * 60 * 1000 },
-                nowMs = now,
-            )
+    LaunchedEffect(request) {
+        failedRequest = null
+        try {
+            val now = epochMillis()
+            val loadContext = kotlinx.coroutines.currentCoroutineContext()
+            val loaded = withContext(Dispatchers.Default) {
+                ListeningOverviews.summarize(
+                    events = history.allEvents(),
+                    artistOf = { tracksById[it]?.artist },
+                    sinceMs = period.days?.let { now - it * 24L * 60 * 60 * 1000 },
+                    nowMs = now,
+                    includeTrack = tracksById::containsKey,
+                    cancellationCheck = { loadContext.ensureActive() },
+                )
+            }
+            overview = loaded
+            loadedRequest = request
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            failedRequest = request
         }
     }
 
-    val current = overview ?: return
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
         item {
-            Row(
+            FlowRow(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 StatsPeriod.entries.forEach { candidate ->
                     FilterChip(
@@ -116,6 +141,37 @@ internal fun ListeningStatsSettings(
                 }
             }
         }
+        if (loadedRequest !== request && failedRequest !== request) {
+            item {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+            return@LazyColumn
+        }
+        if (failedRequest === request) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.stats_load_failed),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedButton(onClick = { retryRevision += 1 }) {
+                        Text(stringResource(Res.string.action_retry))
+                    }
+                }
+            }
+            return@LazyColumn
+        }
+        val current = overview.takeIf { loadedRequest === request } ?: return@LazyColumn
         if (current.plays == 0) {
             item {
                 Text(
@@ -128,46 +184,54 @@ internal fun ListeningStatsSettings(
             return@LazyColumn
         }
         item {
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Headline(
                     value = formatListenedTime(current.playedMs),
                     label = stringResource(Res.string.stats_time_listened),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(140.dp),
                 )
                 Headline(
                     value = current.plays.toString(),
                     label = stringResource(Res.string.stats_plays),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(140.dp),
                 )
                 Headline(
                     value = current.distinctTracks.toString(),
                     label = stringResource(Res.string.stats_distinct_tracks),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(140.dp),
                 )
             }
         }
         item {
             val days = stringResource(Res.string.stats_days_short)
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Headline(
                     value = "${current.currentStreakDays} $days",
                     label = stringResource(Res.string.stats_streak_current),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(140.dp),
                 )
                 Headline(
                     value = "${current.longestStreakDays} $days",
                     label = stringResource(Res.string.stats_streak_longest),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(140.dp),
                 )
                 Headline(
                     value = "${(current.completionRate * 100).roundToInt()} %",
                     label = stringResource(Res.string.stats_finished_share),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(140.dp),
                 )
                 Headline(
                     value = "${(current.skipRate * 100).roundToInt()} %",
                     label = stringResource(Res.string.stats_skipped_share),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(140.dp),
                 )
             }
         }
@@ -187,7 +251,7 @@ internal fun ListeningStatsSettings(
                 )
             }
         }
-        val visibleTopTracks = current.topTracks.filter { it.trackId in tracksById }
+        val visibleTopTracks = current.topTracks
         if (visibleTopTracks.isNotEmpty()) {
             item { SectionTitle(stringResource(Res.string.stats_top_tracks)) }
             items(visibleTopTracks.size) { index ->
@@ -225,7 +289,7 @@ private fun Headline(value: String, label: String, modifier: Modifier = Modifier
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            maxLines = 2,
         )
     }
 }
@@ -246,7 +310,16 @@ private fun SectionTitle(text: String) {
 @Composable
 private fun HourBars(playsByHour: List<Int>) {
     val max = playsByHour.maxOrNull()?.takeIf { it > 0 } ?: return
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+    val chartLabel = stringResource(Res.string.stats_by_hour)
+    val playsLabel = stringResource(Res.string.stats_plays)
+    val chartDescription = playsByHour.mapIndexedNotNull { hour, plays ->
+        if (plays > 0) "$hour: $plays $playsLabel" else null
+    }.joinToString(", ")
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .clearAndSetSemantics { contentDescription = "$chartLabel. $chartDescription" },
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().height(72.dp),
             verticalAlignment = Alignment.Bottom,

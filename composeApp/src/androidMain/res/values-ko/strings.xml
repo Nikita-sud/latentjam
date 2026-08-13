@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">재생</string>
+    <string name="widget_previous">이전 곡</string>
+    <string name="widget_play_pause">재생 / 일시정지</string>
+    <string name="widget_next">다음 곡</string>
+    <string name="browse_playlists">플레이리스트</string>
+    <string name="browse_tracks">곡</string>
+</resources>

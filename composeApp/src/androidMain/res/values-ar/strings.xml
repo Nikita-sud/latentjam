@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">التشغيل</string>
+    <string name="widget_previous">السابق</string>
+    <string name="widget_play_pause">تشغيل / إيقاف مؤقت</string>
+    <string name="widget_next">التالي</string>
+    <string name="browse_playlists">قوائم التشغيل</string>
+    <string name="browse_tracks">المقاطع</string>
+</resources>

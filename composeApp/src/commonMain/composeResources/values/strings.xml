@@ -446,6 +446,7 @@
     <string name="settings_duplicates_body">Finds copies of the same recording by sound, whatever their tags say</string>
     <string name="settings_duplicates_scanning">Comparing every pair of tracks…</string>
     <string name="settings_duplicates_empty">No duplicates — every track sounds unique</string>
+    <string name="settings_duplicates_merge_confirm">This keeps one copy, updates playlists and favorites to use it, and hides the other %1$d copies.</string>
     <string name="settings_restore">Restore</string>
     <string name="settings_restore_all">Restore all</string>
     <string name="settings_library_manage_failed">Could not update the library. Try again.</string>
@@ -524,8 +525,9 @@
     <string name="stats_top_artists">Top artists</string>
     <string name="stats_top_tracks">Top tracks</string>
     <string name="stats_empty">Nothing has been played in this period yet.</string>
+    <string name="stats_load_failed">Could not load listening statistics.</string>
     <string name="settings_normalize_volume">Volume normalization</string>
-    <string name="settings_normalize_volume_subtitle">Quiet and loud tracks play at a similar level</string>
+    <string name="settings_normalize_volume_subtitle">Reduces loud tracks toward a consistent level</string>
     <string name="settings_crossfade">Smooth transitions</string>
     <string name="settings_crossfade_subtitle">Fade volume at track boundaries</string>
     <string name="settings_crossfade_value">%1$d s</string>

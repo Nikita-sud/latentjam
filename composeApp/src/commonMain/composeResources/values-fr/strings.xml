@@ -396,6 +396,7 @@
     <string name="settings_duplicates_body">Trouve les copies d’un même enregistrement au son, quelles que soient les étiquettes</string>
     <string name="settings_duplicates_scanning">Comparaison de toutes les paires de pistes…</string>
     <string name="settings_duplicates_empty">Aucun doublon — chaque piste a un son unique</string>
+    <string name="settings_duplicates_merge_confirm">Cette action conserve une copie, met à jour les playlists et les favoris pour l’utiliser, puis masque les %1$d autres copies.</string>
     <string name="settings_restore">Restaurer</string>
     <string name="settings_restore_all">Tout restaurer</string>
     <string name="settings_library_manage_failed">Impossible de mettre à jour la bibliothèque. Réessayez.</string>
@@ -474,8 +475,9 @@
     <string name="stats_top_artists">Top artistes</string>
     <string name="stats_top_tracks">Top titres</string>
     <string name="stats_empty">Rien n'a encore été lu sur cette période.</string>
+    <string name="stats_load_failed">Impossible de charger les statistiques d’écoute.</string>
     <string name="settings_normalize_volume">Normalisation du volume</string>
-    <string name="settings_normalize_volume_subtitle">Les titres faibles et forts jouent à un niveau proche</string>
+    <string name="settings_normalize_volume_subtitle">Réduit les titres forts vers un niveau uniforme</string>
     <string name="settings_crossfade">Transitions douces</string>
     <string name="settings_crossfade_subtitle">Fondu du volume entre les titres</string>
     <string name="settings_crossfade_value">%1$d s</string>

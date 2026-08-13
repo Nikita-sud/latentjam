@@ -393,6 +393,7 @@
     <string name="settings_duplicates_body">Ищет копии одной записи по звуку, независимо от тегов</string>
     <string name="settings_duplicates_scanning">Сравниваю треки между собой…</string>
     <string name="settings_duplicates_empty">Дубликатов нет — все треки звучат по-разному</string>
+    <string name="settings_duplicates_merge_confirm">Будет сохранена одна копия, плейлисты и избранное будут переключены на неё, а остальные копии (%1$d) — скрыты.</string>
     <string name="settings_restore">Восстановить</string>
     <string name="settings_restore_all">Восстановить все</string>
     <string name="settings_library_manage_failed">Не удалось обновить медиатеку. Повторите попытку.</string>
@@ -473,8 +474,9 @@
     <string name="stats_top_artists">Топ исполнителей</string>
     <string name="stats_top_tracks">Топ треков</string>
     <string name="stats_empty">За этот период пока ничего не сыграно.</string>
+    <string name="stats_load_failed">Не удалось загрузить статистику прослушивания.</string>
     <string name="settings_normalize_volume">Выравнивание громкости</string>
-    <string name="settings_normalize_volume_subtitle">Тихие и громкие треки звучат на одном уровне</string>
+    <string name="settings_normalize_volume_subtitle">Снижает громкие треки до более ровного уровня</string>
     <string name="settings_crossfade">Плавные переходы</string>
     <string name="settings_crossfade_subtitle">Затухание громкости на границах треков</string>
     <string name="settings_crossfade_value">%1$d с</string>

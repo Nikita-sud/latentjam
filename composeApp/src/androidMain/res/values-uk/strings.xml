@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Відтворення</string>
+    <string name="widget_previous">Попередній трек</string>
+    <string name="widget_play_pause">Відтворити / Пауза</string>
+    <string name="widget_next">Наступний трек</string>
+    <string name="browse_playlists">Плейлисти</string>
+    <string name="browse_tracks">Треки</string>
+</resources>

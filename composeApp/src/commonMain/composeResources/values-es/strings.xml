@@ -391,6 +391,7 @@
     <string name="settings_duplicates_body">Encuentra copias de la misma grabación por el sonido, digan lo que digan las etiquetas</string>
     <string name="settings_duplicates_scanning">Comparando todos los pares de pistas…</string>
     <string name="settings_duplicates_empty">Sin duplicados: cada pista suena única</string>
+    <string name="settings_duplicates_merge_confirm">Esto conservará una copia, actualizará las listas y los favoritos para usarla y ocultará las otras %1$d copias.</string>
     <string name="settings_restore">Restaurar</string>
     <string name="settings_restore_all">Restaurar todo</string>
     <string name="settings_library_manage_failed">No se pudo actualizar la biblioteca. Inténtalo de nuevo.</string>
@@ -469,8 +470,9 @@
     <string name="stats_top_artists">Artistas más escuchados</string>
     <string name="stats_top_tracks">Pistas más escuchadas</string>
     <string name="stats_empty">Todavía no se ha reproducido nada en este período.</string>
+    <string name="stats_load_failed">No se pudieron cargar las estadísticas de escucha.</string>
     <string name="settings_normalize_volume">Normalización de volumen</string>
-    <string name="settings_normalize_volume_subtitle">Las pistas silenciosas y fuertes suenan a un nivel similar</string>
+    <string name="settings_normalize_volume_subtitle">Reduce las pistas fuertes hacia un nivel uniforme</string>
     <string name="settings_crossfade">Transiciones suaves</string>
     <string name="settings_crossfade_subtitle">Atenúa el volumen entre pistas</string>
     <string name="settings_crossfade_value">%1$d s</string>

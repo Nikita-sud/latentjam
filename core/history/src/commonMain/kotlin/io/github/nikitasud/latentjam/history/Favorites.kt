@@ -26,6 +26,12 @@ public interface Favorites {
 
     /** Replaces the whole list (the restore path), keeping order, dropping duplicates. */
     public suspend fun replace(ids: List<TrackId>)
+
+    /** Exact ordered compare-and-set, used by duplicate merge without clobbering a newer heart. */
+    public suspend fun replaceIfUnchanged(
+        expected: List<TrackId>,
+        replacement: List<TrackId>,
+    ): Boolean
 }
 
 /** Whole-list storage — small enough that rewriting beats appending. */
@@ -72,6 +78,21 @@ public class DefaultFavorites(
         store.write(replacement.map { it.value })
         this.ids.clear()
         this.ids += replacement
+    }
+
+    override suspend fun replaceIfUnchanged(
+        expected: List<TrackId>,
+        replacement: List<TrackId>,
+    ): Boolean = mutex.withLock {
+        ensureLoaded()
+        if (ids != expected) return@withLock false
+        val normalized = replacement.distinct()
+        if (normalized != ids) {
+            store.write(normalized.map { it.value })
+            ids.clear()
+            ids += normalized
+        }
+        true
     }
 
     private suspend fun ensureLoaded() {

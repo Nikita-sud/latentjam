@@ -13,6 +13,8 @@ internal actual fun loudnessMeterModule(): Module = module {
     single<TrackLoudnessMeter> { NoopTrackLoudnessMeter }
 }
 
+internal actual val playbackGainControlsAvailable: Boolean = false
+
 private object NoopTrackLoudnessMeter : TrackLoudnessMeter {
     override suspend fun measureDb(track: TrackDescriptor): Float? = null
 }

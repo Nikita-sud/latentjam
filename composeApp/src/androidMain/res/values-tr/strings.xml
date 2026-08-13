@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Oynatma</string>
+    <string name="widget_previous">Önceki</string>
+    <string name="widget_play_pause">Çal / Duraklat</string>
+    <string name="widget_next">Sonraki</string>
+    <string name="browse_playlists">Çalma listeleri</string>
+    <string name="browse_tracks">Parçalar</string>
+</resources>

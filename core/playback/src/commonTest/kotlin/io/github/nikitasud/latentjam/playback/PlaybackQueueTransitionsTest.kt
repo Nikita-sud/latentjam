@@ -11,9 +11,32 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 internal class PlaybackQueueTransitionsTest {
+
+    @Test
+    fun provisionalSessionMetadataMakesAnExternalCurrentTrackVisible() {
+        val track = provisionalTrackDescriptor(
+            mediaId = "external-42",
+            title = "External track",
+            artist = "Artist",
+            album = "Album",
+            genre = "Genre",
+            durationMs = 123_000,
+            audioUri = "content://media/external-42",
+            artworkUri = "content://art/external-42",
+            year = 2026,
+        )
+
+        assertEquals(TrackId("external-42"), track?.id)
+        assertEquals("content://media/external-42", track?.audioUri)
+        assertEquals(123_000, track?.durationMs)
+        assertNull(
+            provisionalTrackDescriptor("", null, null, null, null, null, null, null, null),
+        )
+    }
 
     private val a = track("a")
     private val b = track("b")

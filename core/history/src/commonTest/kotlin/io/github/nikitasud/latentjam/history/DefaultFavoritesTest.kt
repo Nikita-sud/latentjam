@@ -66,4 +66,26 @@ internal class DefaultFavoritesTest {
         assertEquals(listOf(a, b), favorites.all())
         assertEquals(listOf("a", "b"), store.stored)
     }
+
+    @Test
+    fun compareAndSetPreservesANewerFavoriteEdit() = runTest {
+        val store = FakeStore(stored = listOf("a"))
+        val favorites = DefaultFavorites(store)
+        val snapshot = favorites.all()
+        favorites.toggle(b)
+
+        assertFalse(favorites.replaceIfUnchanged(snapshot, listOf(TrackId("replacement"))))
+        assertEquals(listOf(b, a), favorites.all())
+        assertEquals(listOf("b", "a"), store.stored)
+    }
+
+    @Test
+    fun compareAndSetPublishesTheExactOrderedReplacement() = runTest {
+        val store = FakeStore(stored = listOf("a", "b"))
+        val favorites = DefaultFavorites(store)
+
+        assertTrue(favorites.replaceIfUnchanged(listOf(a, b), listOf(b, a, b)))
+        assertEquals(listOf(b, a), favorites.all())
+        assertEquals(listOf("b", "a"), store.stored)
+    }
 }

@@ -417,6 +417,7 @@
     <string name="settings_duplicates_body">يعثر على نسخ التسجيل نفسه بالصوت، بغض النظر عن الوسوم</string>
     <string name="settings_duplicates_scanning">تتم مقارنة جميع المقاطع…</string>
     <string name="settings_duplicates_empty">لا تكرارات — كل مقطع فريد بصوته</string>
+    <string name="settings_duplicates_merge_confirm">سيؤدي هذا إلى الاحتفاظ بنسخة واحدة، وتحديث قوائم التشغيل والمفضلة لاستخدامها، وإخفاء النسخ الأخرى وعددها %1$d.</string>
     <string name="settings_restore">استعادة</string>
     <string name="settings_restore_all">استعادة الكل</string>
     <string name="settings_library_manage_failed">تعذر تحديث المكتبة. حاول مرة أخرى.</string>
@@ -495,8 +496,9 @@
     <string name="stats_top_artists">أكثر الفنانين استماعًا</string>
     <string name="stats_top_tracks">أكثر المقاطع استماعًا</string>
     <string name="stats_empty">لم يتم تشغيل أي شيء في هذه الفترة بعد.</string>
+    <string name="stats_load_failed">تعذر تحميل إحصاءات الاستماع.</string>
     <string name="settings_normalize_volume">موازنة مستوى الصوت</string>
-    <string name="settings_normalize_volume_subtitle">تُشغَّل المقاطع الهادئة والصاخبة بمستوى متقارب</string>
+    <string name="settings_normalize_volume_subtitle">يخفض المقاطع العالية نحو مستوى ثابت</string>
     <string name="settings_crossfade">انتقالات سلسة</string>
     <string name="settings_crossfade_subtitle">خفض تدريجي للصوت عند حدود المقاطع</string>
     <string name="settings_crossfade_value">%1$d ث</string>

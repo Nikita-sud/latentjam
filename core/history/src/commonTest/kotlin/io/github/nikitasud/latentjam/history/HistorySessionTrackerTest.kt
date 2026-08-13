@@ -34,6 +34,7 @@ internal class HistorySessionTrackerTest {
         assertTrue(event.completed, "180s of 200s is past the 85% threshold")
         assertFalse(event.skipped)
         assertEquals(180_000, event.playedMs)
+        assertEquals(181_000, event.listenedMs)
         assertEquals("SMART", event.shuffleMode)
         assertEquals(1_000, event.startedAtMs)
     }
@@ -141,6 +142,72 @@ internal class HistorySessionTrackerTest {
 
         val event = assertNotNull(tracker.flush())
         assertEquals(80_000, event.playedMs)
+        assertEquals(80_000, event.listenedMs)
         assertEquals(1_000, event.startedAtMs)
+    }
+
+    @Test
+    fun forwardSeekDoesNotInflateElapsedListeningTime() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 1_000)
+        tracker.onSnapshot(a, 180_000, 200_000, "OFF", nowMs = 2_000)
+
+        val event = assertNotNull(tracker.onSnapshot(b, 0, 100_000, "OFF", nowMs = 3_000))
+        assertEquals(180_000, event.playedMs, "furthest position still drives completion")
+        assertEquals(1_000, event.listenedMs, "the 180-second seek counts only one elapsed second")
+    }
+
+    @Test
+    fun pausedWallTimeIsNotCounted() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 1_000)
+        tracker.onSnapshot(a, 10_000, 200_000, "OFF", nowMs = 11_000, isPlaying = false)
+        tracker.onSnapshot(a, 10_000, 200_000, "OFF", nowMs = 111_000, isPlaying = true)
+        tracker.onSnapshot(a, 20_000, 200_000, "OFF", nowMs = 121_000, isPlaying = true)
+
+        val event = assertNotNull(tracker.flush())
+        assertEquals(20_000, event.listenedMs)
+    }
+
+    @Test
+    fun replayAfterBackwardSeekAddsOnlyNewForwardListening() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 1_000)
+        tracker.onSnapshot(a, 80_000, 200_000, "OFF", nowMs = 81_000)
+        tracker.onSnapshot(a, 20_000, 200_000, "OFF", nowMs = 82_000)
+        tracker.onSnapshot(a, 70_000, 200_000, "OFF", nowMs = 132_000)
+
+        val event = assertNotNull(tracker.flush())
+        assertEquals(80_000, event.playedMs)
+        assertEquals(130_000, event.listenedMs)
+    }
+
+    @Test
+    fun transitionIncludesAtMostOneUnobservedTickerTail() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 1_000)
+        tracker.onSnapshot(a, 10_000, 200_000, "OFF", nowMs = 11_000)
+
+        val event = assertNotNull(
+            tracker.onSnapshot(b, 0, 200_000, "OFF", nowMs = 11_500),
+        )
+        assertEquals(10_500, event.listenedMs)
+
+        tracker.onSnapshot(b, 10_000, 200_000, "OFF", nowMs = 21_500)
+        val capped = assertNotNull(
+            tracker.onSnapshot(null, 0, 0, null, nowMs = 1_000_000),
+        )
+        assertEquals(11_000, capped.listenedMs, "a stalled clock adds only the one-second cap")
+    }
+
+    @Test
+    fun queueEndConsumesTheSessionSoALaterTrackCannotRecordItAgain() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 100_000, "OFF", nowMs = 1_000)
+        tracker.onSnapshot(a, 50_000, 100_000, "OFF", nowMs = 51_000)
+
+        val ended = assertNotNull(tracker.onSnapshot(null, 0, 0, null, nowMs = 51_500))
+        assertEquals(a, ended.trackId)
+        assertNull(tracker.onSnapshot(b, 0, 100_000, "OFF", nowMs = 60_000))
     }
 }

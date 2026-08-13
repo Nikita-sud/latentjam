@@ -7,26 +7,28 @@ package io.github.nikitasud.latentjam.playback
 import android.app.PendingIntent
 import android.content.Intent
 import android.media.AudioManager
+import android.net.Uri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaLibraryInfo
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
 import androidx.media3.session.CommandButton
-import android.net.Uri
-import androidx.media3.common.MediaMetadata
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import com.google.common.collect.ImmutableList
-import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import com.google.common.util.concurrent.Futures
-import com.google.common.util.concurrent.SettableFuture
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.MoreExecutors
+import com.google.common.util.concurrent.SettableFuture
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -52,6 +54,7 @@ public class PlaybackService : MediaLibraryService() {
 
     private var mediaSession: MediaLibrarySession? = null
     private var playbackPlayer: ExoPlayer? = null
+    private var pendingResumptionMode: ShuffleMode? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val sessionCallback = object : MediaLibrarySession.Callback {
@@ -151,7 +154,22 @@ public class PlaybackService : MediaLibraryService() {
             pageSize: Int,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = browseFuture {
-            LibraryResult.ofItemList(ImmutableList.copyOf(childrenOf(parentId)), params)
+            val catalog = MediaBrowseRegistry.catalog?.invoke()
+                ?: return@browseFuture LibraryResult.ofError(
+                    LibraryResult.RESULT_ERROR_INVALID_STATE,
+                    params,
+                )
+            val children = childrenOf(catalog, parentId)
+                ?: return@browseFuture LibraryResult.ofError(
+                    LibraryResult.RESULT_ERROR_BAD_VALUE,
+                    params,
+                )
+            val resultPage = browsePage(children, page, pageSize)
+                ?: return@browseFuture LibraryResult.ofError(
+                    LibraryResult.RESULT_ERROR_BAD_VALUE,
+                    params,
+                )
+            LibraryResult.ofItemList(ImmutableList.copyOf(resultPage), params)
         }
 
         override fun onGetItem(
@@ -159,8 +177,59 @@ public class PlaybackService : MediaLibraryService() {
             browser: MediaSession.ControllerInfo,
             mediaId: String,
         ): ListenableFuture<LibraryResult<MediaItem>> = browseFuture {
-            resolvePlayable(mediaId)?.let { LibraryResult.ofItem(it, null) }
+            val catalog = MediaBrowseRegistry.catalog?.invoke()
+                ?: return@browseFuture LibraryResult.ofError(
+                    LibraryResult.RESULT_ERROR_INVALID_STATE,
+                )
+            resolveBrowseItem(catalog, mediaId)?.let { LibraryResult.ofItem(it, null) }
                 ?: LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
+        }
+
+        override fun onSearch(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            query: String,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<Void>> = browseFuture {
+            if (query.isBlank()) {
+                return@browseFuture LibraryResult.ofError(
+                    LibraryResult.RESULT_ERROR_BAD_VALUE,
+                    params,
+                )
+            }
+            val catalog = MediaBrowseRegistry.catalog?.invoke()
+                ?: return@browseFuture LibraryResult.ofError(
+                    LibraryResult.RESULT_ERROR_INVALID_STATE,
+                    params,
+                )
+            val count = rankMediaSearch(catalog.tracks, query).size
+            session.notifySearchResultChanged(browser, query, count, params)
+            LibraryResult.ofVoid(params)
+        }
+
+        override fun onGetSearchResult(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            query: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = browseFuture {
+            val catalog = MediaBrowseRegistry.catalog?.invoke()
+                ?: return@browseFuture LibraryResult.ofError(
+                    LibraryResult.RESULT_ERROR_INVALID_STATE,
+                    params,
+                )
+            val matches = rankMediaSearch(catalog.tracks, query)
+            val resultPage = browsePage(matches, page, pageSize)
+                ?: return@browseFuture LibraryResult.ofError(
+                    LibraryResult.RESULT_ERROR_BAD_VALUE,
+                    params,
+                )
+            LibraryResult.ofItemList(
+                ImmutableList.copyOf(resultPage.map(::playableItem)),
+                params,
+            )
         }
 
         // External browsers (Android Auto) send browse-only items with no URI. In-process items
@@ -170,9 +239,33 @@ public class PlaybackService : MediaLibraryService() {
             controller: MediaSession.ControllerInfo,
             mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> = browseFuture {
-            mediaItems.map { item ->
-                if (item.localConfiguration != null) item else resolvePlayable(item.mediaId) ?: item
+            val catalog = MediaBrowseRegistry.catalog?.invoke()
+            mediaItems.mapNotNull { item ->
+                if (item.localConfiguration != null) {
+                    item
+                } else {
+                    catalog?.let { available ->
+                        resolvePlayable(available, item.mediaId)
+                            ?: item.requestMetadata.searchQuery
+                                ?.let { query -> resolveSearchPlayable(available, query) }
+                    }
+                }
             }.toMutableList()
+        }
+
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            playWhenReady: Boolean,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = browseFuture {
+            val resume = MediaBrowseRegistry.resumption?.invoke()
+                ?: throw UnsupportedOperationException("No saved playback queue")
+            pendingResumptionMode = resume.shuffleMode
+            MediaSession.MediaItemsWithStartPosition(
+                resume.tracks.map(::playableItem),
+                resume.startIndex,
+                resume.positionMs,
+            )
         }
     }
 
@@ -180,40 +273,63 @@ public class PlaybackService : MediaLibraryService() {
     /** Bridges the coroutine-shaped catalog into Media3's ListenableFuture callbacks. */
     private fun <T : Any> browseFuture(block: suspend () -> T): ListenableFuture<T> {
         val future = SettableFuture.create<T>()
-        serviceScope.launch {
+        val job = serviceScope.launch {
             try {
                 future.set(block())
+            } catch (cancelled: CancellationException) {
+                future.cancel(false)
+                throw cancelled
             } catch (failure: Throwable) {
                 future.setException(failure)
             }
         }
+        future.addListener(
+            { if (future.isCancelled) job.cancel() },
+            MoreExecutors.directExecutor(),
+        )
+        job.invokeOnCompletion { failure ->
+            if (failure != null && !future.isDone) future.setException(failure)
+        }
         return future
     }
 
-    private suspend fun childrenOf(parentId: String): List<MediaItem> {
-        val catalog = MediaBrowseRegistry.catalog?.invoke() ?: return emptyList()
+    private fun childrenOf(catalog: MediaBrowseCatalog, parentId: String): List<MediaItem>? {
         return when (parentId) {
             BROWSE_ROOT_ID -> listOf(
                 folderItem(BROWSE_COLLECTIONS_ID, catalog.collectionsTitle),
                 folderItem(BROWSE_TRACKS_ID, catalog.tracksTitle),
             )
             BROWSE_COLLECTIONS_ID -> catalog.collections.map { folderItem(it.id, it.title) }
-            BROWSE_TRACKS_ID -> catalog.tracks.take(BROWSE_TRACK_LIMIT).map(::playableItem)
+            BROWSE_TRACKS_ID -> catalog.tracks.map(::playableItem)
             else -> catalog.collections.firstOrNull { it.id == parentId }
                 ?.tracks?.map(::playableItem)
-                .orEmpty()
         }
     }
 
-    private suspend fun resolvePlayable(mediaId: String): MediaItem? {
+    private fun resolveBrowseItem(catalog: MediaBrowseCatalog, mediaId: String): MediaItem? =
+        when (mediaId) {
+            BROWSE_ROOT_ID -> folderItem(BROWSE_ROOT_ID, "LatentJam")
+            BROWSE_COLLECTIONS_ID -> folderItem(
+                BROWSE_COLLECTIONS_ID,
+                catalog.collectionsTitle,
+            )
+            BROWSE_TRACKS_ID -> folderItem(BROWSE_TRACKS_ID, catalog.tracksTitle)
+            else -> catalog.collections.firstOrNull { it.id == mediaId }
+                ?.let { folderItem(it.id, it.title) }
+                ?: resolvePlayable(catalog, mediaId)
+        }
+
+    private fun resolvePlayable(catalog: MediaBrowseCatalog, mediaId: String): MediaItem? {
         if (mediaId.isBlank()) return null
-        val catalog = MediaBrowseRegistry.catalog?.invoke() ?: return null
         val track = catalog.tracks.firstOrNull { it.id.value == mediaId }
             ?: catalog.collections.asSequence()
                 .flatMap { it.tracks.asSequence() }
                 .firstOrNull { it.id.value == mediaId }
-        return track?.takeIf { it.audioUri != null }?.let(::playableItem)
+        return track?.takeIf { !it.audioUri.isNullOrBlank() }?.let(::playableItem)
     }
+
+    private fun resolveSearchPlayable(catalog: MediaBrowseCatalog, query: String): MediaItem? =
+        rankMediaSearch(catalog.tracks, query).firstOrNull()?.let(::playableItem)
 
     private fun folderItem(id: String, title: String): MediaItem = MediaItem.Builder()
         .setMediaId(id)
@@ -234,15 +350,25 @@ public class PlaybackService : MediaLibraryService() {
             MediaMetadata.Builder()
                 .setTitle(track.title ?: track.id.value)
                 .setArtist(track.artist)
+                .setAlbumTitle(track.album)
+                .setGenre(track.genre)
+                .setDurationMs(track.durationMs)
                 .setArtworkUri(track.artworkUri?.let(Uri::parse))
                 .setIsBrowsable(false)
                 .setIsPlayable(true)
+                .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
                 .build(),
         )
         .build()
 
     /** Keeps stateful notification icons in step with changes from either the app or System UI. */
     private val playerListener = object : Player.Listener {
+        override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            val installingResumption = pendingResumptionMode != null
+            applyPendingResumptionMode()
+            if (!installingResumption) clearStaleActiveResumption()
+        }
+
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
             val currentMode = AndroidShuffleModeRegistry.mode.value
             // SMART intentionally maps to ExoPlayer shuffle=false. An actual external change to
@@ -256,6 +382,39 @@ public class PlaybackService : MediaLibraryService() {
         }
 
         override fun onRepeatModeChanged(repeatMode: Int) = refreshMediaButtons()
+    }
+
+    /** Restores the saved logical queue order after Media3 installs resumption's media items. */
+    private fun applyPendingResumptionMode() {
+        val mode = pendingResumptionMode ?: return
+        val player = playbackPlayer?.takeIf { it.mediaItemCount > 0 } ?: return
+        pendingResumptionMode = null
+        AndroidShuffleModeRegistry.set(mode)
+        when (mode) {
+            ShuffleMode.ON -> {
+                // The persisted queue is already in traversal order. Identity shuffle preserves
+                // that exact Next chain while retaining native shuffle semantics and UI state.
+                player.setShuffleOrder(
+                    DefaultShuffleOrder(
+                        restoredOnIdentityTraversal(player.mediaItemCount),
+                        System.nanoTime(),
+                    ),
+                )
+                player.shuffleModeEnabled = true
+            }
+            ShuffleMode.OFF, ShuffleMode.SMART -> player.shuffleModeEnabled = false
+        }
+        refreshMediaButtons()
+    }
+
+    /** A later, unrelated queue must not leave the prior resumption handoff globally retained. */
+    private fun clearStaleActiveResumption() {
+        val resume = MediaBrowseRegistry.currentActiveResumption() ?: return
+        val player = playbackPlayer ?: return
+        val actualIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }
+        if (actualIds != resume.tracks.map { it.id.value }) {
+            MediaBrowseRegistry.clearActiveResumption(resume)
+        }
     }
 
     override fun onCreate() {
@@ -290,6 +449,7 @@ public class PlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         AudioSessionRegistry.publish(null)
+        MediaBrowseRegistry.clearActiveResumption()
         serviceScope.cancel()
         playbackPlayer?.removeListener(playerListener)
         mediaSession?.run {
@@ -423,9 +583,6 @@ public class PlaybackService : MediaLibraryService() {
         const val BROWSE_ROOT_ID = "browse-root"
         const val BROWSE_COLLECTIONS_ID = "browse-collections"
         const val BROWSE_TRACKS_ID = "browse-tracks"
-
-        /** Car screens are for glancing; a whole multi-thousand-track library is not. */
-        const val BROWSE_TRACK_LIMIT = 500
 
         const val MEDIA_NOTIFICATION_REQUEST_CODE = 4202
     }
