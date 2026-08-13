@@ -472,6 +472,8 @@ internal class LocalBackupTest {
         override fun setIncludeNoveltyMixes(enabled: Boolean) { includeNoveltyMixes.value = enabled }
         override val normalizeVolume: MutableStateFlow<Boolean> = MutableStateFlow(false)
         override fun setNormalizeVolume(enabled: Boolean) { normalizeVolume.value = enabled }
+        override val crossfadeSeconds: MutableStateFlow<Int> = MutableStateFlow(0)
+        override fun setCrossfadeSeconds(seconds: Int) { crossfadeSeconds.value = seconds }
         private var trackLoudnessPayload: String? = null
         override fun readTrackLoudnessPayload(): String? = trackLoudnessPayload
         override fun writeTrackLoudnessPayload(payload: String) { trackLoudnessPayload = payload }

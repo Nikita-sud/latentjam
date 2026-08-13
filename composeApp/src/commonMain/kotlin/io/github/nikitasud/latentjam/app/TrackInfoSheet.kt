@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +36,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.info_artist
 import io.github.nikitasud.latentjam.app.generated.resources.info_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.info_duration
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit
+import io.github.nikitasud.latentjam.app.generated.resources.info_lyrics
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit_failed
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit_note
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit_refused
@@ -88,6 +90,9 @@ internal fun TrackInfoSheet(
     var year by remember(track.id) { mutableStateOf(track.year?.toString().orEmpty()) }
     var saving by remember(track.id) { mutableStateOf(false) }
     var failure by remember(track.id) { mutableStateOf<TagWriteOutcome?>(null) }
+    var lyrics by remember(track.id) { mutableStateOf<String?>(null) }
+    val readLyrics = rememberLyricsReader()
+    LaunchedEffect(track.id) { lyrics = readLyrics(track) }
 
     val saveTags = rememberTagWriter { outcome ->
         saving = false
@@ -207,6 +212,19 @@ internal fun TrackInfoSheet(
                     track.durationMs?.let(::formatDuration),
                 )
                 InfoRow(stringResource(Res.string.info_location), track.audioUri)
+                lyrics?.let { text ->
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Text(
+                            text = stringResource(Res.string.info_lyrics),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = text,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 24.dp)) {
                     Button(onClick = { editing = true }) {
                         Text(stringResource(Res.string.info_edit))

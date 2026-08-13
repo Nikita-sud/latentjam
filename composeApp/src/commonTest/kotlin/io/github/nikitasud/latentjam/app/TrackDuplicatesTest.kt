@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 internal class TrackDuplicatesTest {
@@ -67,5 +68,42 @@ internal class TrackDuplicatesTest {
             ),
         )
         assertEquals(listOf(3, 2), groups.map { it.size })
+    }
+}
+
+internal class MergedMembershipTest {
+
+    private fun id(value: String) = io.github.nikitasud.latentjam.smart.TrackId(value)
+
+    @kotlin.test.Test
+    fun duplicatesBecomeTheSurvivorInPlaceAndRepeatsCollapse() {
+        val merged = mergedMembership(
+            current = listOf(id("a"), id("dup1"), id("b"), id("dup2"), id("keep")),
+            duplicates = setOf(id("dup1"), id("dup2")),
+            survivor = id("keep"),
+        )
+        // dup1 becomes the surviving row at its original position; the later copies collapse.
+        assertEquals(listOf(id("a"), id("keep"), id("b")), merged)
+    }
+
+    @kotlin.test.Test
+    fun listsWithoutTheGroupNeedNoWrite() {
+        assertNull(
+            mergedMembership(
+                current = listOf(id("a"), id("b")),
+                duplicates = setOf(id("dup")),
+                survivor = id("keep"),
+            ),
+        )
+    }
+
+    @kotlin.test.Test
+    fun survivorAlreadyFirstMeansTheDuplicateRowSimplyDrops() {
+        val merged = mergedMembership(
+            current = listOf(id("keep"), id("a"), id("dup")),
+            duplicates = setOf(id("dup")),
+            survivor = id("keep"),
+        )
+        assertEquals(listOf(id("keep"), id("a")), merged)
     }
 }

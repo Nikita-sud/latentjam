@@ -65,3 +65,18 @@ internal fun audioDuplicateGroups(
         .map { group -> group.map { ids[it] } }
         .sortedByDescending { it.size }
 }
+
+/**
+ * One membership list (playlist rows, favorites) after merging a duplicate group into
+ * [survivor]: every duplicate occurrence becomes the survivor, later repeats collapse, order
+ * is otherwise preserved. Null means the list never referenced the group and needs no write.
+ */
+internal fun mergedMembership(
+    current: List<TrackId>,
+    duplicates: Set<TrackId>,
+    survivor: TrackId,
+): List<TrackId>? {
+    if (current.none { it in duplicates }) return null
+    val rewritten = current.map { if (it in duplicates) survivor else it }.distinct()
+    return rewritten.takeIf { it != current }
+}

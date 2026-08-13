@@ -471,4 +471,10 @@
     <string name="stats_empty">Nada foi reproduzido neste período ainda.</string>
     <string name="settings_normalize_volume">Normalização de volume</string>
     <string name="settings_normalize_volume_subtitle">Faixas baixas e altas tocam em um nível parecido</string>
+    <string name="settings_crossfade">Transições suaves</string>
+    <string name="settings_crossfade_subtitle">Suaviza o volume entre as faixas</string>
+    <string name="settings_crossfade_value">%1$d s</string>
+    <string name="duplicates_keep_this">Manter esta</string>
+    <string name="snack_duplicates_merged">Duplicatas mescladas: as playlists agora apontam para a cópia mantida</string>
+    <string name="info_lyrics">Letra</string>
 </resources>

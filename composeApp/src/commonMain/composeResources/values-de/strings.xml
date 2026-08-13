@@ -474,4 +474,10 @@
     <string name="stats_empty">In diesem Zeitraum wurde noch nichts abgespielt.</string>
     <string name="settings_normalize_volume">Lautstärkeangleichung</string>
     <string name="settings_normalize_volume_subtitle">Leise und laute Titel klingen ähnlich laut</string>
+    <string name="settings_crossfade">Weiche Übergänge</string>
+    <string name="settings_crossfade_subtitle">Lautstärke an Titelgrenzen ausblenden</string>
+    <string name="settings_crossfade_value">%1$d s</string>
+    <string name="duplicates_keep_this">Diesen behalten</string>
+    <string name="snack_duplicates_merged">Duplikate zusammengeführt: Playlists zeigen jetzt auf die behaltene Kopie</string>
+    <string name="info_lyrics">Songtext</string>
 </resources>

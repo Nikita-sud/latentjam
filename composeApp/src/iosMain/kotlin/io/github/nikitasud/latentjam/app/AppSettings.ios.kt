@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.playback.sanitizeCrossfadeSeconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,6 +42,12 @@ internal class IosAppSettings : AppSettings {
         ),
     )
     override val normalizeVolume: StateFlow<Boolean> = mutableNormalizeVolume.asStateFlow()
+    private val mutableCrossfadeSeconds = MutableStateFlow(
+        sanitizeCrossfadeSeconds(
+            (defaults.objectForKey(KEY_CROSSFADE_SECONDS) as? NSNumber)?.intValue ?: 0,
+        ),
+    )
+    override val crossfadeSeconds: StateFlow<Int> = mutableCrossfadeSeconds.asStateFlow()
     private val mutableSaveListeningHistory = MutableStateFlow(readRecordingPreference(KEY_SAVE_HISTORY))
     override val saveListeningHistory: StateFlow<Boolean> = mutableSaveListeningHistory.asStateFlow()
     private val mutableRememberSearches = MutableStateFlow(readRecordingPreference(KEY_REMEMBER_SEARCHES))
@@ -77,6 +84,12 @@ internal class IosAppSettings : AppSettings {
     override fun setNormalizeVolume(enabled: Boolean) {
         defaults.setBool(enabled, KEY_NORMALIZE_VOLUME)
         mutableNormalizeVolume.value = enabled
+    }
+
+    override fun setCrossfadeSeconds(seconds: Int) {
+        val sanitized = sanitizeCrossfadeSeconds(seconds)
+        defaults.setInteger(sanitized.toLong(), KEY_CROSSFADE_SECONDS)
+        mutableCrossfadeSeconds.value = sanitized
     }
 
     override fun readTrackLoudnessPayload(): String? =
@@ -221,6 +234,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_RESUME_SOURCE_KIND = "resume_source_kind"
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
         const val KEY_NORMALIZE_VOLUME = "normalize_volume"
+        const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
         const val KEY_TRACK_LOUDNESS = "track_loudness_v1"
         const val KEY_RESUME_SOURCE_REFERENCE = "resume_source_reference"
         const val KEY_RESUME_QUEUE_STATE = "resume_queue_state_v2"

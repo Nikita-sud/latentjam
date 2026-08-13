@@ -457,4 +457,10 @@
     <string name="stats_empty">この期間はまだ何も再生されていません。</string>
     <string name="settings_normalize_volume">音量ノーマライズ</string>
     <string name="settings_normalize_volume_subtitle">静かな曲と大きな曲をほぼ同じ音量で再生します</string>
+    <string name="settings_crossfade">なめらかな曲間</string>
+    <string name="settings_crossfade_subtitle">曲の境目で音量をフェードします</string>
+    <string name="settings_crossfade_value">%1$d 秒</string>
+    <string name="duplicates_keep_this">これを残す</string>
+    <string name="snack_duplicates_merged">重複を統合しました。プレイリストは残したコピーを指します</string>
+    <string name="info_lyrics">歌詞</string>
 </resources>

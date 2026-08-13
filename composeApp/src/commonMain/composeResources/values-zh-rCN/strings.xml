@@ -457,4 +457,10 @@
     <string name="stats_empty">此时段还没有播放记录。</string>
     <string name="settings_normalize_volume">音量均衡</string>
     <string name="settings_normalize_volume_subtitle">安静和响亮的曲目以相近的音量播放</string>
+    <string name="settings_crossfade">平滑过渡</string>
+    <string name="settings_crossfade_subtitle">在曲目边界淡入淡出音量</string>
+    <string name="settings_crossfade_value">%1$d 秒</string>
+    <string name="duplicates_keep_this">保留此曲</string>
+    <string name="snack_duplicates_merged">已合并重复项：播放列表现在指向保留的副本</string>
+    <string name="info_lyrics">歌词</string>
 </resources>

@@ -113,6 +113,13 @@ public interface PlaybackController {
     public suspend fun setTrackVolumes(volumes: Map<String, Float>) {}
 
     /**
+     * Softens track boundaries by fading amplitude over the first/last [seconds] of each track;
+     * 0 restores hard cuts. Composes multiplicatively with [setTrackVolumes]. Platforms without
+     * an app-level gain stage keep the default no-op.
+     */
+    public suspend fun setCrossfadeSeconds(seconds: Int) {}
+
+    /**
      * Replaces the queue with [tracks] and starts playing the one at
      * [startIndex]. The list remains the natural OFF/ON playback source; SMART draws from the
      * complete library supplied by [setSmartLibrary].

@@ -484,4 +484,10 @@
     <string name="stats_empty">За цей період ще нічого не відтворено.</string>
     <string name="settings_normalize_volume">Вирівнювання гучності</string>
     <string name="settings_normalize_volume_subtitle">Тихі й гучні треки звучать на одному рівні</string>
+    <string name="settings_crossfade">Плавні переходи</string>
+    <string name="settings_crossfade_subtitle">Згасання гучності на межах треків</string>
+    <string name="settings_crossfade_value">%1$d с</string>
+    <string name="duplicates_keep_this">Залишити цей</string>
+    <string name="snack_duplicates_merged">Дублікати об'єднано: плейлисти тепер вказують на залишену копію</string>
+    <string name="info_lyrics">Текст пісні</string>
 </resources>

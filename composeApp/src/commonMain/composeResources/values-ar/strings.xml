@@ -497,4 +497,10 @@
     <string name="stats_empty">لم يتم تشغيل أي شيء في هذه الفترة بعد.</string>
     <string name="settings_normalize_volume">موازنة مستوى الصوت</string>
     <string name="settings_normalize_volume_subtitle">تُشغَّل المقاطع الهادئة والصاخبة بمستوى متقارب</string>
+    <string name="settings_crossfade">انتقالات سلسة</string>
+    <string name="settings_crossfade_subtitle">خفض تدريجي للصوت عند حدود المقاطع</string>
+    <string name="settings_crossfade_value">%1$d ث</string>
+    <string name="duplicates_keep_this">احتفظ بهذه</string>
+    <string name="snack_duplicates_merged">تم دمج التكرارات: تشير قوائم التشغيل الآن إلى النسخة المحتفَظ بها</string>
+    <string name="info_lyrics">كلمات الأغنية</string>
 </resources>

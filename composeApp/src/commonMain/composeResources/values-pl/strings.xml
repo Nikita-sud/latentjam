@@ -484,4 +484,10 @@
     <string name="stats_empty">W tym okresie nic jeszcze nie odtworzono.</string>
     <string name="settings_normalize_volume">Normalizacja głośności</string>
     <string name="settings_normalize_volume_subtitle">Ciche i głośne utwory grają na podobnym poziomie</string>
+    <string name="settings_crossfade">Płynne przejścia</string>
+    <string name="settings_crossfade_subtitle">Wyciszanie głośności na granicach utworów</string>
+    <string name="settings_crossfade_value">%1$d s</string>
+    <string name="duplicates_keep_this">Zachowaj ten</string>
+    <string name="snack_duplicates_merged">Duplikaty scalone: playlisty wskazują teraz zachowaną kopię</string>
+    <string name="info_lyrics">Tekst utworu</string>
 </resources>

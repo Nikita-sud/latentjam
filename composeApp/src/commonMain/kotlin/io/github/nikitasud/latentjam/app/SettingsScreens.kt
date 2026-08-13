@@ -252,6 +252,11 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_section_pr
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_privacy
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_keep_this
+import io.github.nikitasud.latentjam.app.generated.resources.snack_duplicates_merged
+import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade
+import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade_value
 import io.github.nikitasud.latentjam.app.generated.resources.settings_normalize_volume
 import io.github.nikitasud.latentjam.app.generated.resources.settings_normalize_volume_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_stats
@@ -285,6 +290,7 @@ import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.library.LibrarySource
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.playback.EqualizerController
+import io.github.nikitasud.latentjam.playback.MAX_CROSSFADE_SECONDS
 import io.github.nikitasud.latentjam.playback.EqualizerPreset
 import io.github.nikitasud.latentjam.playback.EqualizerPresetKind
 import io.github.nikitasud.latentjam.smart.EngineError
@@ -292,6 +298,7 @@ import io.github.nikitasud.latentjam.smart.EngineState
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -1100,6 +1107,44 @@ private fun EqualizerSettings(equalizer: EqualizerController, settings: AppSetti
             }
         }
 
+        item {
+            val crossfade by settings.crossfadeSeconds.collectAsState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(Res.string.settings_crossfade),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = stringResource(Res.string.settings_crossfade_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        text = if (crossfade == 0) {
+                            stringResource(Res.string.state_off)
+                        } else {
+                            stringResource(Res.string.settings_crossfade_value, crossfade)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Slider(
+                    value = crossfade.toFloat(),
+                    onValueChange = { settings.setCrossfadeSeconds(it.roundToInt()) },
+                    valueRange = 0f..MAX_CROSSFADE_SECONDS.toFloat(),
+                    steps = MAX_CROSSFADE_SECONDS - 1,
+                )
+            }
+        }
+
         if (!state.available) {
             item {
                 Text(
@@ -1676,6 +1721,7 @@ private fun DuplicatesSettings(
     var removing by remember { mutableStateOf<TrackId?>(null) }
     val manageFailed = stringResource(Res.string.settings_library_manage_failed)
     val removedMessage = stringResource(Res.string.snack_removed_from_latentjam)
+    val mergedMessage = stringResource(Res.string.snack_duplicates_merged)
 
     LaunchedEffect(tracks) {
         scanning = true
@@ -1741,10 +1787,54 @@ private fun DuplicatesSettings(
                             }
                         }
                     },
+                    onKeep = {
+                        scope.launch {
+                            removing = track.id
+                            try {
+                                mergeDuplicateGroup(
+                                    group = group,
+                                    survivor = track,
+                                    onHideTrack = onHideTrack,
+                                )
+                                groups = groups.filterNot { it === group }
+                                snackbarHostState.showSnackbar(mergedMessage)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Throwable) {
+                                snackbarHostState.showSnackbar(manageFailed)
+                            } finally {
+                                removing = null
+                            }
+                        }
+                    },
                 )
             }
         }
     }
+}
+
+/**
+ * Merges a duplicate group into [survivor]: playlists and favorites are rewritten first (while
+ * every copy still exists, so an interruption loses nothing), then the other copies are hidden
+ * the same reversible way as a manual remove.
+ */
+private suspend fun mergeDuplicateGroup(
+    group: List<TrackDescriptor>,
+    survivor: TrackDescriptor,
+    onHideTrack: suspend (TrackDescriptor) -> Unit,
+) {
+    val losers = group.filter { it.id != survivor.id }
+    val duplicateIds = losers.mapTo(mutableSetOf()) { it.id }
+    for (playlist in AppGraph.playlists.all()) {
+        val current = playlist.trackIds.map(::TrackId)
+        val replacement = mergedMembership(current, duplicateIds, survivor.id) ?: continue
+        // Compare-and-set: a concurrent edit simply wins and this playlist keeps its rows.
+        AppGraph.playlists.replaceTracksIfUnchanged(playlist.id, current, replacement)
+    }
+    mergedMembership(AppGraph.favorites.all(), duplicateIds, survivor.id)?.let { favorites ->
+        AppGraph.favorites.replace(favorites)
+    }
+    losers.forEach { onHideTrack(it) }
 }
 
 @Composable
@@ -1752,6 +1842,7 @@ private fun DuplicateRow(
     track: TrackDescriptor,
     canRemove: Boolean,
     onRemove: () -> Unit,
+    onKeep: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
@@ -1771,6 +1862,9 @@ private fun DuplicateRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        TextButton(onClick = onKeep, enabled = canRemove) {
+            Text(stringResource(Res.string.duplicates_keep_this))
         }
         TextButton(onClick = onRemove, enabled = canRemove) {
             Text(stringResource(Res.string.action_remove_from_latentjam))

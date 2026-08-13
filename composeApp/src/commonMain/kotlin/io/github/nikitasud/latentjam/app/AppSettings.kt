@@ -197,6 +197,10 @@ interface AppSettings {
     val normalizeVolume: StateFlow<Boolean>
     fun setNormalizeVolume(enabled: Boolean)
 
+    /** Seconds of amplitude fade at each track boundary; 0 (the default) keeps hard cuts. */
+    val crossfadeSeconds: StateFlow<Int>
+    fun setCrossfadeSeconds(seconds: Int)
+
     /** Raw persisted loudness measurements (see [encodeTrackLoudness]); null when none exist. */
     fun readTrackLoudnessPayload(): String?
     fun writeTrackLoudnessPayload(payload: String)

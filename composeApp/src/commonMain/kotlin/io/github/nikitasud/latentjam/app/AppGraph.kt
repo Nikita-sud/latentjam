@@ -165,6 +165,10 @@ object AppGraph {
                 playback = playback,
                 meter = koin.get(),
             ).start(appScope)
+            // Boundary fades follow the preference for the app's whole lifetime.
+            appScope.launch {
+                settings.crossfadeSeconds.collect { playback.setCrossfadeSeconds(it) }
+            }
             // History observes playback for the app's whole lifetime.
             appScope.launchPlaybackHistoryRecorder(
                 playback = playback,

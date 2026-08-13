@@ -526,4 +526,10 @@
     <string name="stats_empty">Nothing has been played in this period yet.</string>
     <string name="settings_normalize_volume">Volume normalization</string>
     <string name="settings_normalize_volume_subtitle">Quiet and loud tracks play at a similar level</string>
+    <string name="settings_crossfade">Smooth transitions</string>
+    <string name="settings_crossfade_subtitle">Fade volume at track boundaries</string>
+    <string name="settings_crossfade_value">%1$d s</string>
+    <string name="duplicates_keep_this">Keep this one</string>
+    <string name="snack_duplicates_merged">Duplicates merged: playlists now point at the kept copy</string>
+    <string name="info_lyrics">Lyrics</string>
 </resources>

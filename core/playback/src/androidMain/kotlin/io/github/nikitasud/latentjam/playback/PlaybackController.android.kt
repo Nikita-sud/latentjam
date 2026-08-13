@@ -152,7 +152,7 @@ internal class AndroidPlaybackController(
 
     private val playerListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            applyTrackVolume()
+            applyEffectiveVolume()
             rebuildQueueSnapshot()
             pushState()
             mainScope.launch {
@@ -168,6 +168,7 @@ internal class AndroidPlaybackController(
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             updateTicker(isPlaying)
+            updateFadeLoop(isPlaying)
             pushState()
         }
 
@@ -306,18 +307,63 @@ internal class AndroidPlaybackController(
     /** Main-thread-owned normalization volumes; empty means everything plays at full volume. */
     private var trackVolumes: Map<String, Float> = emptyMap()
 
+    /** Main-thread-owned crossfade width; 0 keeps hard track boundaries. */
+    private var crossfadeMs: Long = 0
+    private var fadeJob: Job? = null
+
     override suspend fun setTrackVolumes(volumes: Map<String, Float>) {
         withContext(Dispatchers.Main.immediate) {
             trackVolumes = volumes
-            applyTrackVolume()
+            applyEffectiveVolume()
         }
     }
 
-    /** Main-thread only. Applies the current item's normalization volume, if any. */
-    private fun applyTrackVolume() {
+    override suspend fun setCrossfadeSeconds(seconds: Int) {
+        withContext(Dispatchers.Main.immediate) {
+            crossfadeMs = sanitizeCrossfadeSeconds(seconds) * 1000L
+            updateFadeLoop(controller?.isPlaying == true)
+        }
+    }
+
+    /**
+     * Main-thread only. One gain stage: the current item's normalization volume multiplied by
+     * the boundary fade, so neither feature clobbers the other's contribution.
+     */
+    private fun applyEffectiveVolume() {
         val player = controller ?: return
-        val volume = player.currentMediaItem?.mediaId?.let(trackVolumes::get) ?: 1f
+        val base = player.currentMediaItem?.mediaId?.let(trackVolumes::get) ?: 1f
+        val fade = if (crossfadeMs > 0) {
+            crossfadeFactor(
+                positionMs = player.currentPosition,
+                durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L,
+                fadeMs = crossfadeMs,
+            )
+        } else {
+            1f
+        }
+        val volume = (base * fade).coerceIn(0f, 1f)
         if (player.volume != volume) player.volume = volume
+    }
+
+    /**
+     * The 2 Hz state ticker is too coarse for an audible ramp, so fading runs its own faster
+     * loop, alive only while audio actually plays with a nonzero width.
+     */
+    private fun updateFadeLoop(isPlaying: Boolean) {
+        if (isPlaying && crossfadeMs > 0) {
+            if (fadeJob == null) {
+                fadeJob = mainScope.launch {
+                    while (isActive) {
+                        applyEffectiveVolume()
+                        delay(CROSSFADE_TICK_MS)
+                    }
+                }
+            }
+        } else {
+            fadeJob?.cancel()
+            fadeJob = null
+            applyEffectiveVolume()
+        }
     }
 
     override suspend fun invalidateSmartFuture() {
@@ -1260,6 +1306,7 @@ internal class AndroidPlaybackController(
 
         /** Seek-bar refresh cadence while playing. */
         const val TICKER_INTERVAL_MS = 500L
+        const val CROSSFADE_TICK_MS = 100L
 
         const val FALLBACK_ARTWORK_SIZE = 256
         const val MAX_FALLBACK_ARTWORK_CACHE = 64

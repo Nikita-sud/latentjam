@@ -475,4 +475,10 @@
     <string name="stats_empty">За этот период пока ничего не сыграно.</string>
     <string name="settings_normalize_volume">Выравнивание громкости</string>
     <string name="settings_normalize_volume_subtitle">Тихие и громкие треки звучат на одном уровне</string>
+    <string name="settings_crossfade">Плавные переходы</string>
+    <string name="settings_crossfade_subtitle">Затухание громкости на границах треков</string>
+    <string name="settings_crossfade_value">%1$d с</string>
+    <string name="duplicates_keep_this">Оставить этот</string>
+    <string name="snack_duplicates_merged">Дубликаты объединены: плейлисты теперь указывают на оставленную копию</string>
+    <string name="info_lyrics">Текст песни</string>
 </resources>

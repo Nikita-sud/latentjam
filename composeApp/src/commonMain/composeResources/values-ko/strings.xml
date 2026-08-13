@@ -457,4 +457,10 @@
     <string name="stats_empty">이 기간에는 아직 재생된 곡이 없습니다.</string>
     <string name="settings_normalize_volume">음량 평준화</string>
     <string name="settings_normalize_volume_subtitle">조용한 곡과 큰 곡을 비슷한 음량으로 재생합니다</string>
+    <string name="settings_crossfade">부드러운 전환</string>
+    <string name="settings_crossfade_subtitle">곡 경계에서 음량을 서서히 줄입니다</string>
+    <string name="settings_crossfade_value">%1$d초</string>
+    <string name="duplicates_keep_this">이것을 유지</string>
+    <string name="snack_duplicates_merged">중복이 병합되었습니다. 재생목록이 유지된 복사본을 가리킵니다</string>
+    <string name="info_lyrics">가사</string>
 </resources>

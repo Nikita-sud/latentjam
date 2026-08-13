@@ -464,4 +464,10 @@
     <string name="stats_empty">Bu dönemde henüz hiçbir şey çalınmadı.</string>
     <string name="settings_normalize_volume">Ses normalleştirme</string>
     <string name="settings_normalize_volume_subtitle">Kısık ve yüksek parçalar benzer seviyede çalar</string>
+    <string name="settings_crossfade">Yumuşak geçişler</string>
+    <string name="settings_crossfade_subtitle">Parça sınırlarında sesi yumuşatır</string>
+    <string name="settings_crossfade_value">%1$d sn</string>
+    <string name="duplicates_keep_this">Bunu tut</string>
+    <string name="snack_duplicates_merged">Kopyalar birleştirildi: çalma listeleri artık tutulan kopyayı gösteriyor</string>
+    <string name="info_lyrics">Şarkı sözleri</string>
 </resources>

@@ -463,4 +463,10 @@
     <string name="stats_empty">Belum ada yang diputar dalam periode ini.</string>
     <string name="settings_normalize_volume">Normalisasi volume</string>
     <string name="settings_normalize_volume_subtitle">Lagu pelan dan keras diputar pada tingkat yang mirip</string>
+    <string name="settings_crossfade">Transisi mulus</string>
+    <string name="settings_crossfade_subtitle">Volume memudar di batas lagu</string>
+    <string name="settings_crossfade_value">%1$d dtk</string>
+    <string name="duplicates_keep_this">Simpan yang ini</string>
+    <string name="snack_duplicates_merged">Duplikat digabung: playlist kini menunjuk ke salinan yang disimpan</string>
+    <string name="info_lyrics">Lirik</string>
 </resources>

@@ -471,4 +471,10 @@
     <string name="stats_empty">Todavía no se ha reproducido nada en este período.</string>
     <string name="settings_normalize_volume">Normalización de volumen</string>
     <string name="settings_normalize_volume_subtitle">Las pistas silenciosas y fuertes suenan a un nivel similar</string>
+    <string name="settings_crossfade">Transiciones suaves</string>
+    <string name="settings_crossfade_subtitle">Atenúa el volumen entre pistas</string>
+    <string name="settings_crossfade_value">%1$d s</string>
+    <string name="duplicates_keep_this">Conservar esta</string>
+    <string name="snack_duplicates_merged">Duplicados combinados: las listas ahora apuntan a la copia conservada</string>
+    <string name="info_lyrics">Letra</string>
 </resources>
