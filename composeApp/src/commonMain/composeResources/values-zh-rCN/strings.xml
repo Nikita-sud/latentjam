@@ -116,6 +116,7 @@
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">暂无播放内容</string>
+    <string name="now_playing_source">播放来源：%1$s</string>
     <string name="queue_title">播放队列</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">播放队列 · %1$d</string>

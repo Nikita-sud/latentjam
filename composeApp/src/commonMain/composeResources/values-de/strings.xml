@@ -131,6 +131,7 @@
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Keine Wiedergabe</string>
+    <string name="now_playing_source">Wiedergabe aus: %1$s</string>
     <string name="queue_title">Warteschlange</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Warteschlange · %1$d</string>

@@ -454,7 +454,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             playback.state.map { it.isPlaying }.distinctUntilChanged()
         }.collectAsState(playback.state.value.isPlaying)
         val selectionMode = selectedTrackIds.isNotEmpty() && (
-            selectedTab == TRACKS_TAB || selectedTab in GROUP_TABS ||
+            selectedTab == TRACKS_TAB || selectedTab in GROUP_TABS || showSearch ||
                 selectedCollection?.allowsTrackSelection == true
         )
         val accent = rememberTrackAccent(
@@ -803,7 +803,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode }
                 ?.let { playback.setShuffleMode(it) }
             val index = loaded.indexOfFirst { it.id.value == saved.trackId }
-            if (index >= 0) playback.restoreQueue(loaded, index, saved.positionMs)
+            if (index >= 0) {
+                playback.restoreQueue(loaded, index, saved.positionMs)
+                // The restored player keeps saying where its queue came from. An unknown kind
+                // from another build degrades to no label, same as the mode above.
+                AppGraph.queueSource.value = saved.sourceKind
+                    ?.let { kind -> QueueSourceKind.entries.firstOrNull { it.name == kind } }
+                    ?.let { QueueSource(it, saved.sourceName) }
+            }
         }
 
         LaunchedEffect(tracks) {
@@ -1404,9 +1411,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 label = "player-morph",
             ) { expanded ->
                 if (expanded) {
+                    val queueSource by AppGraph.queueSource.collectAsState()
                     NowPlayingScreen(
                         playback = playback,
                         accent = accent,
+                        queueSourceLabel = queueSource?.let { source ->
+                            source.name ?: source.kind.fallbackLabelRes()?.let { stringResource(it) }
+                        },
                         sharedScope = sharedScope,
                         animatedScope = this@AnimatedContent,
                         sleepTimerState = sleepTimerState,
@@ -1578,6 +1589,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             },
                                             onPlay = { list, index ->
+                                                AppGraph.queueSource.value =
+                                                    QueueSource(QueueSourceKind.FOR_YOU)
                                                 scope.launch { playback.play(list, index) }
                                             },
                                             onPlayHero = { hero ->
@@ -1592,6 +1605,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     )
                                                     val byId = visibleCatalog.songs.associateBy { it.id }
                                                     val tail = queue.mapNotNull(byId::get)
+                                                    AppGraph.queueSource.value =
+                                                        QueueSource(QueueSourceKind.FOR_YOU)
                                                     playback.play(listOf(hero.track) + tail, 0)
                                                     hero.resumeAtMs?.let { playback.seekTo(it) }
                                                 }
@@ -1605,6 +1620,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             contentPadding = listPadding,
                                             onPlayRegion = { region ->
                                                 mapRegions.getOrNull(region)?.let { world ->
+                                                    AppGraph.queueSource.value =
+                                                        QueueSource(QueueSourceKind.MAP)
                                                     scope.launch { playback.play(world.tracks, 0) }
                                                 }
                                             },
@@ -1619,6 +1636,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                             smartHistoryFor(AppGraph.history, seed),
                                                         )
                                                         val tail = queue.mapNotNull(tracksById::get)
+                                                        AppGraph.queueSource.value =
+                                                            QueueSource(QueueSourceKind.MAP)
                                                         playback.play(listOf(seed) + tail, 0)
                                                     }
                                                 }
@@ -1696,11 +1715,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 enabled = !selectionMode,
                                                 onSortChange = { savedSongSort = it.name },
                                                 onShuffleAll = {
+                                                    AppGraph.queueSource.value =
+                                                        QueueSource(QueueSourceKind.TRACKS)
                                                     scope.launch {
                                                         playback.play(visibleCatalog.songs.shuffled(), 0)
                                                     }
                                                 },
                                                 onPlayAll = {
+                                                    AppGraph.queueSource.value =
+                                                        QueueSource(QueueSourceKind.TRACKS)
                                                     scope.launch {
                                                         playback.play(
                                                             SongSorting.sort(visibleCatalog.songs, songSort),
@@ -1727,6 +1750,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     updateTrackSelection(setOf(track.id))
                                                 },
                                                 onPlay = { queue, index ->
+                                                    AppGraph.queueSource.value =
+                                                        QueueSource(QueueSourceKind.TRACKS)
                                                     scope.launch { playback.play(queue, index) }
                                                 },
                                                 onTrackMenu = {
@@ -1917,9 +1942,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 })
                             },
                             onPlayTrack = { index ->
+                                AppGraph.queueSource.value =
+                                    QueueSource(QueueSourceKind.COLLECTION, selection.title)
                                 scope.launch { playback.play(selection.tracks, index) }
                             },
                             onShuffle = {
+                                AppGraph.queueSource.value =
+                                    QueueSource(QueueSourceKind.COLLECTION, selection.title)
                                 scope.launch { playback.play(selection.tracks.shuffled(), 0) }
                             },
                             onTrackMenu = { track ->
@@ -1947,9 +1976,26 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             songs = catalog?.songs.orEmpty(),
                             currentTrackId = currentTrack?.id,
                             currentTrackPlaying = currentTrackPlaying,
+                            selectedTrackIds = selectedTrackIds,
+                            onToggleSelection = { track ->
+                                updateTrackSelection(if (track.id in selectedTrackIds) {
+                                    selectedTrackIds - track.id
+                                } else {
+                                    selectedTrackIds + track.id
+                                })
+                            },
+                            onStartSelection = { track ->
+                                updateTrackSelection(setOf(track.id))
+                            },
+                            onClearSelection = { updateTrackSelection(emptySet()) },
                             onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
                             onTrackMenu = { trackMenuRequest = TrackMenuRequest(it) },
-                            onClose = { showSearch = false },
+                            // A selection made among search results has no surface to live on once
+                            // the results are gone.
+                            onClose = {
+                                updateTrackSelection(emptySet())
+                                showSearch = false
+                            },
                             bottomInset = floatingPlayerInset,
                         )
                     }
@@ -1962,6 +2008,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             removeFromPlaylist = selectedCollection?.playlistId != null,
                             onPlay = {
                                 val selection = selectedTracks
+                                // The surface the selection was made on: a hand-picked set from
+                                // search or a group tab has no single honest name.
+                                AppGraph.queueSource.value = when {
+                                    selectedCollection?.allowsTrackSelection == true ->
+                                        QueueSource(
+                                            QueueSourceKind.COLLECTION,
+                                            selectedCollection?.title,
+                                        )
+                                    showSearch || selectedTab in GROUP_TABS -> null
+                                    else -> QueueSource(QueueSourceKind.TRACKS)
+                                }
                                 updateTrackSelection(emptySet())
                                 scope.launch { playback.play(selection, 0) }
                             },
@@ -2138,7 +2195,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             val artistExcluded = smartExclusionState.excludesArtist(artist)
             TrackActionsSheet(
                 track = target,
-                onPlay = { scope.launch { playback.play(listOf(target), 0) } },
+                onPlay = {
+                    // A one-track queue from the menu has no browsing source to point at.
+                    AppGraph.queueSource.value = null
+                    scope.launch { playback.play(listOf(target), 0) }
+                },
                 onPlayNext = { scope.launch { playback.playNext(target) } },
                 onAddToQueue = { scope.launch { playback.addToQueue(target) } },
                 onAddToPlaylist = { addToPlaylistSelection = listOf(target) },
@@ -2478,6 +2539,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             smartHistoryFor(AppGraph.history, target.track),
                         )
                         val byId = songs.associateBy { it.id }
+                        AppGraph.queueSource.value = QueueSource(QueueSourceKind.FOR_YOU)
                         playback.play(listOf(target.track) + queue.mapNotNull(byId::get), 0)
                     }
                 },

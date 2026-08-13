@@ -146,6 +146,7 @@
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">لا يوجد تشغيل حاليًا</string>
+    <string name="now_playing_source">التشغيل من: %1$s</string>
     <string name="queue_title">قائمة الانتظار</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">قائمة الانتظار · %1$d</string>

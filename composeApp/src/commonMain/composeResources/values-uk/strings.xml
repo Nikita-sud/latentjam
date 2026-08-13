@@ -135,6 +135,7 @@
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Нічого не відтворюється</string>
+    <string name="now_playing_source">Грає з: %1$s</string>
     <string name="queue_title">Черга</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Черга · %1$d</string>

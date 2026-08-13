@@ -37,6 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
@@ -84,6 +85,13 @@ object AppGraph {
     val automaticIndexing: StateFlow<AutomaticIndexingState> =
         mutableAutomaticIndexing.asStateFlow()
     private val mutableHistoryRevision = MutableStateFlow(0L)
+
+    /**
+     * What the current queue was started from — set by the surface that starts a queue, shown as
+     * the player's "Playing from" line, and persisted with the resume session so the label
+     * survives a restart. Null means unknown, which simply shows nothing.
+     */
+    val queueSource = MutableStateFlow<QueueSource?>(null)
     /** Advances after each accepted listening event so For You can apply feedback next time it opens. */
     val historyRevision: StateFlow<Long> = mutableHistoryRevision.asStateFlow()
     private val historyFlushRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -153,16 +161,17 @@ object AppGraph {
             // saved session at that moment would defeat the restore it exists for. Position is
             // bucketed to 10 s so the ~2 Hz playback ticker does not become 2 Hz disk writes.
             appScope.launch {
-                playback.state
-                    .map { now ->
-                        now.track?.let { track ->
-                            ResumePlayback(
-                                trackId = track.id.value,
-                                shuffleMode = now.shuffleMode.name,
-                                positionMs = now.positionMs - (now.positionMs % 10_000),
-                            )
-                        }
+                combine(playback.state, queueSource) { now, source ->
+                    now.track?.let { track ->
+                        ResumePlayback(
+                            trackId = track.id.value,
+                            shuffleMode = now.shuffleMode.name,
+                            positionMs = now.positionMs - (now.positionMs % 10_000),
+                            sourceKind = source?.kind?.name,
+                            sourceName = source?.name,
+                        )
                     }
+                }
                     .filterNotNull()
                     .distinctUntilChanged()
                     .collect(settings::setResumePlayback)

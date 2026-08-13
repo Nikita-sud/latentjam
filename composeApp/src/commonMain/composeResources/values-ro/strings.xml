@@ -127,6 +127,7 @@
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nu se redă nimic</string>
+    <string name="now_playing_source">Se redă din: %1$s</string>
     <string name="queue_title">Coadă</string>
     <string name="queue_title_count">Coadă · %1$d</string>
     <string name="cd_repeat_off">Repetarea este dezactivată. Atinge pentru a repeta coada.</string>

@@ -128,6 +128,7 @@
 
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nessuna riproduzione in corso</string>
+    <string name="now_playing_source">In riproduzione da: %1$s</string>
     <string name="queue_title">Coda</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Coda · %1$d</string>

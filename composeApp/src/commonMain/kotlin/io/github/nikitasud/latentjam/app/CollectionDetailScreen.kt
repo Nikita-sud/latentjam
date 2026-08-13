@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -30,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Spacer
@@ -106,6 +108,17 @@ fun CollectionDetailScreen(
         if (selectionMode) onClearSelection() else onClose()
     }
 
+    // Opening a collection that contains the player's track lands on that track — the reason to
+    // open the album of what's playing is almost always to see where in it you are. Keyed on the
+    // title so reconciliation copies (a deleted track, a live playlist edit) never yank the list,
+    // while go-to-album from another collection re-anchors.
+    val listState = rememberLazyListState()
+    LaunchedEffect(selection.title) {
+        val index = selection.tracks.indexOfFirst { it.id == currentTrackId }
+        // +1 for the actions row, then two rows of context above the anchored track.
+        if (index >= 0) listState.scrollToItem((index - 1).coerceAtLeast(0))
+    }
+
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -156,7 +169,7 @@ fun CollectionDetailScreen(
                 }
             }
 
-            LazyColumn(contentPadding = PaddingValues(bottom = bottomInset)) {
+            LazyColumn(state = listState, contentPadding = PaddingValues(bottom = bottomInset)) {
                 item(key = "actions") {
                     // Shuffle and play live on their own rounded surface, mirroring the Tracks tab
                     // so the same two controls sit in the same place wherever a list is shown.

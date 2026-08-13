@@ -96,7 +96,14 @@ internal class IosAppSettings : AppSettings {
         val trackId = defaults.objectForKey(KEY_RESUME_TRACK) as? String ?: return null
         val mode = defaults.objectForKey(KEY_RESUME_MODE) as? String ?: return null
         val position = (defaults.objectForKey(KEY_RESUME_POSITION) as? NSNumber)?.longLongValue ?: 0L
-        return ResumePlayback(trackId = trackId, shuffleMode = mode, positionMs = position)
+        return ResumePlayback(
+            trackId = trackId,
+            shuffleMode = mode,
+            positionMs = position,
+            // Absent on sessions saved before queue sources existed; null simply hides the label.
+            sourceKind = defaults.objectForKey(KEY_RESUME_SOURCE_KIND) as? String,
+            sourceName = defaults.objectForKey(KEY_RESUME_SOURCE_NAME) as? String,
+        )
     }
 
     override fun setResumePlayback(state: ResumePlayback?) {
@@ -104,10 +111,22 @@ internal class IosAppSettings : AppSettings {
             defaults.removeObjectForKey(KEY_RESUME_TRACK)
             defaults.removeObjectForKey(KEY_RESUME_MODE)
             defaults.removeObjectForKey(KEY_RESUME_POSITION)
+            defaults.removeObjectForKey(KEY_RESUME_SOURCE_KIND)
+            defaults.removeObjectForKey(KEY_RESUME_SOURCE_NAME)
         } else {
             defaults.setObject(state.trackId, KEY_RESUME_TRACK)
             defaults.setObject(state.shuffleMode, KEY_RESUME_MODE)
             defaults.setInteger(state.positionMs, KEY_RESUME_POSITION)
+            if (state.sourceKind == null) {
+                defaults.removeObjectForKey(KEY_RESUME_SOURCE_KIND)
+            } else {
+                defaults.setObject(state.sourceKind, KEY_RESUME_SOURCE_KIND)
+            }
+            if (state.sourceName == null) {
+                defaults.removeObjectForKey(KEY_RESUME_SOURCE_NAME)
+            } else {
+                defaults.setObject(state.sourceName, KEY_RESUME_SOURCE_NAME)
+            }
         }
         mutableResumePlayback.value = state
     }
@@ -140,6 +159,8 @@ internal class IosAppSettings : AppSettings {
             const val KEY_RESUME_TRACK = "resume_track_id"
         const val KEY_RESUME_MODE = "resume_shuffle_mode"
         const val KEY_RESUME_POSITION = "resume_position_ms"
+        const val KEY_RESUME_SOURCE_KIND = "resume_source_kind"
+        const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
     }
 }
 

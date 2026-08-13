@@ -102,6 +102,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_off
 import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_on
 import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_smart
 import io.github.nikitasud.latentjam.app.generated.resources.now_playing_nothing
+import io.github.nikitasud.latentjam.app.generated.resources.now_playing_source
 import io.github.nikitasud.latentjam.app.generated.resources.queue_title
 import io.github.nikitasud.latentjam.app.generated.resources.queue_title_count
 import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer
@@ -142,6 +143,8 @@ private val SLEEP_TIMER_MINUTES = listOf(15, 30, 45, 60)
 fun NowPlayingScreen(
     playback: PlaybackController,
     accent: TrackAccent,
+    /** Resolved "Playing from" name — collection title, search query, or a surface label. */
+    queueSourceLabel: String? = null,
     sharedScope: SharedTransitionScope,
     animatedScope: AnimatedVisibilityScope,
     sleepTimerState: SleepTimerState,
@@ -330,6 +333,20 @@ fun NowPlayingScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (queueSourceLabel != null && now.track != null) {
+                            Text(
+                                text = stringResource(
+                                    Res.string.now_playing_source,
+                                    queueSourceLabel,
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
 
                         Spacer(modifier = Modifier.weight(1f))
 

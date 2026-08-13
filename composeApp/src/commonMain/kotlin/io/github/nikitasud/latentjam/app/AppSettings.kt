@@ -129,6 +129,14 @@ data class ResumePlayback(
     val trackId: String,
     val shuffleMode: String,
     val positionMs: Long,
+    /**
+     * [QueueSourceKind] name of what the queue was started from, or null when unknown — including
+     * every session saved before sources existed. Stored as a name for the same reason as
+     * [shuffleMode].
+     */
+    val sourceKind: String? = null,
+    /** Display name for name-bearing sources (collection title, search query). */
+    val sourceName: String? = null,
 )
 
 expect fun appSettingsModule(): Module

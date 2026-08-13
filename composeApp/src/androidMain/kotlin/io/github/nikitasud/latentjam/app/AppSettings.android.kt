@@ -102,17 +102,31 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         val trackId = readString(KEY_RESUME_TRACK) ?: return null
         val mode = readString(KEY_RESUME_MODE) ?: return null
         val position = runCatching { preferences.getLong(KEY_RESUME_POSITION, 0L) }.getOrNull() ?: 0L
-        return ResumePlayback(trackId = trackId, shuffleMode = mode, positionMs = position)
+        return ResumePlayback(
+            trackId = trackId,
+            shuffleMode = mode,
+            positionMs = position,
+            // Absent on sessions saved before queue sources existed; null simply hides the label.
+            sourceKind = readString(KEY_RESUME_SOURCE_KIND),
+            sourceName = readString(KEY_RESUME_SOURCE_NAME),
+        )
     }
 
     override fun setResumePlayback(state: ResumePlayback?) {
         preferences.edit().apply {
             if (state == null) {
                 remove(KEY_RESUME_TRACK).remove(KEY_RESUME_MODE).remove(KEY_RESUME_POSITION)
+                remove(KEY_RESUME_SOURCE_KIND).remove(KEY_RESUME_SOURCE_NAME)
             } else {
                 putString(KEY_RESUME_TRACK, state.trackId)
                 putString(KEY_RESUME_MODE, state.shuffleMode)
                 putLong(KEY_RESUME_POSITION, state.positionMs)
+                if (state.sourceKind == null) remove(KEY_RESUME_SOURCE_KIND) else {
+                    putString(KEY_RESUME_SOURCE_KIND, state.sourceKind)
+                }
+                if (state.sourceName == null) remove(KEY_RESUME_SOURCE_NAME) else {
+                    putString(KEY_RESUME_SOURCE_NAME, state.sourceName)
+                }
             }
         }.apply()
         mutableResumePlayback.value = state
@@ -142,6 +156,8 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_RESUME_TRACK = "resume_track_id"
         const val KEY_RESUME_MODE = "resume_shuffle_mode"
         const val KEY_RESUME_POSITION = "resume_position_ms"
+        const val KEY_RESUME_SOURCE_KIND = "resume_source_kind"
+        const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
     }
 }
 

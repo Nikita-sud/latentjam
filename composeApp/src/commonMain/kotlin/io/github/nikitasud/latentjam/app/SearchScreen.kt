@@ -99,13 +99,21 @@ internal fun SearchScreen(
     currentTrackId: TrackId?,
     /** Whether the player is audibly running; animates the current row's badge. */
     currentTrackPlaying: Boolean = false,
+    selectedTrackIds: Set<TrackId> = emptySet(),
+    onToggleSelection: (TrackDescriptor) -> Unit = {},
+    onStartSelection: (TrackDescriptor) -> Unit = {},
+    onClearSelection: () -> Unit = {},
     onPlay: (queue: List<TrackDescriptor>, index: Int) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
     onClose: () -> Unit,
     /** Room at the foot of the results for the mini-player floating over this screen. */
     bottomInset: Dp = 0.dp,
 ) {
-    PlatformBackHandler(enabled = true, onBack = onClose)
+    // The same long-press promise as every other track list: back leaves selection first.
+    val selectionMode = selectedTrackIds.isNotEmpty()
+    PlatformBackHandler(enabled = true) {
+        if (selectionMode) onClearSelection() else onClose()
+    }
 
     val scope = rememberCoroutineScope()
     // Search lives inside the browse stack, which leaves composition during the player morph.
@@ -309,10 +317,23 @@ internal fun SearchScreen(
                             isCurrent = track.id == currentTrackId,
                             isPlaying = currentTrackPlaying,
                             onClick = {
-                                remember(query)
-                                onPlay(results, index)
+                                if (selectionMode) {
+                                    onToggleSelection(track)
+                                } else {
+                                    remember(query)
+                                    // The query is the honest name of this queue's source.
+                                    AppGraph.queueSource.value = QueueSource(
+                                        QueueSourceKind.SEARCH,
+                                        query.trim().takeIf { it.isNotEmpty() },
+                                    )
+                                    onPlay(results, index)
+                                }
                             },
-                            onMenu = { onTrackMenu(track) },
+                            onLongClick = {
+                                if (selectionMode) onToggleSelection(track) else onStartSelection(track)
+                            },
+                            selectionState = if (selectionMode) track.id in selectedTrackIds else null,
+                            onMenu = if (selectionMode) null else ({ onTrackMenu(track) }),
                         )
                     }
                 }
