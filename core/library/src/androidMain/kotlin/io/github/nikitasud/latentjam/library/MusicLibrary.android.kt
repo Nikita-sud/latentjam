@@ -36,19 +36,23 @@ internal class MediaStoreMusicLibrary(
     private val hiddenFile = java.io.File(context.filesDir, HIDDEN_FILE_NAME)
     private val excludedSourcesFile = java.io.File(context.filesDir, EXCLUDED_SOURCES_FILE_NAME)
 
-    override suspend fun tracks(): List<TrackDescriptor> = withContext(Dispatchers.IO) {
+    override suspend fun scan(): LibraryScan = withContext(Dispatchers.IO) {
         val hidden = visibilityMutex.withLock { readHiddenIds() }
         val excludedSources = visibilityMutex.withLock { readExcludedSourceIds() }
-        queryTracks().filterNot { track ->
-            track.id.value in hidden || sourceId(track.folderPath) in excludedSources
-        }
+        val snapshot = queryTracks()
+        snapshot.copy(
+            tracks = snapshot.tracks.filterNot { track ->
+                track.id.value in hidden || sourceId(track.folderPath) in excludedSources
+            },
+        )
     }
 
-    override suspend fun allKnownTracks(): List<TrackDescriptor> = withContext(Dispatchers.IO) {
-        queryTracks()
-    }
+    override suspend fun tracks(): List<TrackDescriptor> = scan().tracks
 
-    private fun queryTracks(): List<TrackDescriptor> {
+    override suspend fun allKnownTracks(): List<TrackDescriptor> =
+        withContext(Dispatchers.IO) { queryTracks().tracks }
+
+    private fun queryTracks(): LibraryScan = mediaStoreLibraryScan {
         val tracks = mutableListOf<TrackDescriptor>()
         // GENRE joined into the audio table only since API 30.
         val genreSupported = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R
@@ -74,21 +78,14 @@ internal class MediaStoreMusicLibrary(
             }
             if (genreSupported) add(MediaStore.Audio.Media.GENRE)
         }.toTypedArray()
-        val cursor = try {
-            context.contentResolver.query(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                projection,
-                "${MediaStore.Audio.Media.IS_MUSIC} != 0",
-                null,
-                "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC",
-            )
-        } catch (_: SecurityException) {
-            // The listener may deliberately continue without MediaStore access, inspect the app,
-            // and recover later from Library settings. That is an empty device source, not a
-            // broken/infinite-loading library.
-            null
-        }
-        cursor?.use { cursor ->
+        val cursor = context.contentResolver.query(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            projection,
+            "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+            null,
+            "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC",
+        ) ?: return@mediaStoreLibraryScan null
+        cursor.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
@@ -146,7 +143,7 @@ internal class MediaStoreMusicLibrary(
                 )
             }
         }
-        return tracks
+        tracks
     }
 
     override suspend fun hide(trackId: TrackId): Unit = withContext(Dispatchers.IO) {
@@ -180,7 +177,7 @@ internal class MediaStoreMusicLibrary(
     override suspend fun hiddenTracks(): List<TrackDescriptor> = withContext(Dispatchers.IO) {
         val hidden = visibilityMutex.withLock { readHiddenIds() }
         if (hidden.isEmpty()) emptyList()
-        else queryTracks().filter { it.id.value in hidden }
+        else queryTracks().tracks.filter { it.id.value in hidden }
     }
 
     override suspend fun filePaths(ids: List<TrackId>): Map<TrackId, String> =
@@ -236,7 +233,7 @@ internal class MediaStoreMusicLibrary(
 
     override suspend fun sources(): List<LibrarySource> = withContext(Dispatchers.IO) {
         val excluded = visibilityMutex.withLock { readExcludedSourceIds() }
-        queryTracks()
+        queryTracks().tracks
             .groupBy { track -> sourceId(track.folderPath) }
             .map { (id, sourceTracks) ->
                 LibrarySource(
@@ -293,6 +290,20 @@ internal class MediaStoreMusicLibrary(
         const val EXCLUDED_SOURCES_FILE_NAME = "excluded_music_sources.txt"
         const val SOURCE_PREFIX = "folder:"
     }
+}
+
+/**
+ * Converts Android's two ambiguous provider outcomes into an explicitly incomplete snapshot.
+ * A successfully returned empty list remains complete and can prove that the library is empty.
+ */
+internal fun mediaStoreLibraryScan(
+    query: () -> List<TrackDescriptor>?,
+): LibraryScan = try {
+    val tracks = query()
+    if (tracks == null) LibraryScan(tracks = emptyList(), complete = false)
+    else LibraryScan(tracks = tracks, complete = true)
+} catch (_: SecurityException) {
+    LibraryScan(tracks = emptyList(), complete = false)
 }
 
 /** Pure MediaStore path projection, shared with host regressions for removable-volume paths. */

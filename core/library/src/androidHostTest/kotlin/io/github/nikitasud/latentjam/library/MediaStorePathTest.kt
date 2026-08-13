@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.library
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class MediaStorePathTest {
 
@@ -37,5 +39,29 @@ class MediaStorePathTest {
         kotlin.test.assertNotEquals(original, androidMediaSourceRevision(11, 20, 30))
         kotlin.test.assertNotEquals(original, androidMediaSourceRevision(10, 21, 30))
         kotlin.test.assertNotEquals(original, androidMediaSourceRevision(10, 20, 31))
+    }
+
+    @Test
+    fun `null MediaStore cursor is an incomplete empty scan`() {
+        val scan = mediaStoreLibraryScan { null }
+
+        assertEquals(emptyList(), scan.tracks)
+        assertFalse(scan.complete)
+    }
+
+    @Test
+    fun `MediaStore security failure is an incomplete empty scan`() {
+        val scan = mediaStoreLibraryScan { throw SecurityException("permission changed") }
+
+        assertEquals(emptyList(), scan.tracks)
+        assertFalse(scan.complete)
+    }
+
+    @Test
+    fun `successful empty MediaStore cursor is a complete scan`() {
+        val scan = mediaStoreLibraryScan { emptyList() }
+
+        assertEquals(emptyList(), scan.tracks)
+        assertTrue(scan.complete)
     }
 }

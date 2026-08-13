@@ -35,6 +35,24 @@ internal fun permissionStatus(
 }
 
 /**
+ * Whether a library scan may be treated as the complete device library.
+ *
+ * An empty (or partial, on platforms that also expose app-owned files) result while access is
+ * unavailable is not evidence that previously indexed tracks were deleted. Callers bind this
+ * value to the result of each completed scan rather than consulting the live permission flow
+ * later: a grant can arrive before the post-grant rescan and must not retroactively make the old
+ * empty result authoritative.
+ */
+internal fun AppPermissionStatus.authorizesCompleteLibraryScan(): Boolean =
+    this == AppPermissionStatus.GRANTED || this == AppPermissionStatus.NOT_REQUIRED
+
+/** Both the operating-system grant and the concrete source query must support deletion pruning. */
+internal fun authoritativeLibrarySnapshot(
+    scanCompleted: Boolean,
+    permissionStatus: AppPermissionStatus,
+): Boolean = scanCompleted && permissionStatus.authorizesCompleteLibraryScan()
+
+/**
  * Cross-platform permission state and recovery actions.
  *
  * Request launchers remain in the platform UI because Android requires an Activity. Keeping status

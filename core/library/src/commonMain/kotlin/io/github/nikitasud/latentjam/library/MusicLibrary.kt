@@ -23,6 +23,19 @@ public data class LibrarySource(
 )
 
 /**
+ * Rows produced by one library scan and whether the platform source was read completely.
+ *
+ * [complete] is deliberately independent of media permission. A platform query may still fail
+ * after permission was granted (for example, Android's provider can return a null cursor or throw
+ * a late [SecurityException]). Only a complete snapshot may be used as evidence that previously
+ * indexed rows disappeared.
+ */
+public data class LibraryScan(
+    public val tracks: List<TrackDescriptor>,
+    public val complete: Boolean,
+)
+
+/**
  * Read-only port onto the device's music collection.
  *
  * Deliberately tiny: the engine and UI only need track descriptors — how they
@@ -31,6 +44,15 @@ public data class LibrarySource(
  * this port never exposes platform or playback types.
  */
 public interface MusicLibrary {
+
+    /**
+     * Performs one visible-library scan and reports whether its platform source completed.
+     *
+     * The default preserves existing implementations whose [tracks] call either returns a full
+     * result or throws. Platforms that encode an unavailable source as an empty result must
+     * override this method and set [LibraryScan.complete] to false.
+     */
+    public suspend fun scan(): LibraryScan = LibraryScan(tracks = tracks(), complete = true)
 
     /**
      * Snapshot of all music tracks currently visible to the app, in stable
