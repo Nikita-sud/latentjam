@@ -22,34 +22,148 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         } catch { return error.localizedDescription }
     }
 
-    func embedAudio(uri: String, durationMs: Int64, outputDim: Int32) -> KotlinFloatArray? {
-        guard loadAudio() == nil, let audio else { return nil }
+    func embedAudio(
+        uri: String,
+        durationMs: Int64,
+        outputDim: Int32
+    ) -> SmartIosAudioEmbeddingResult {
+        guard loadAudio() == nil, let audio else {
+            return audioFailure(.backendFailure, "Audio model is unavailable")
+        }
         do {
-            let url = try localURL(uri)
+            let url: URL
+            do {
+                url = try localURL(uri)
+            } catch {
+                // A file can become reachable again without its library identity changing (for
+                // example after permission/storage restoration), so access failures are retryable.
+                return audioFailure(.unavailable, error.localizedDescription)
+            }
             let starts = windowStarts(durationMs: durationMs)
             var pooled = [Float](repeating: 0, count: Int(outputDim))
             var used = 0
+            var decoded = 0
+            var invalidEmbedding = false
+            var invalidDecode: String?
+            var unavailableDecode: String?
             for start in starts {
-                guard let waveform = try decodeWindow(url: url, startMs: start) else { continue }
+                let waveform: [Float]?
+                do {
+                    waveform = try decodeWindow(url: url, startMs: start)
+                } catch {
+                    switch classifyAudioDecodeError(error, url: url) {
+                    case .invalidAudio:
+                        invalidDecode = invalidDecode ?? error.localizedDescription
+                    case .unavailable:
+                        unavailableDecode = unavailableDecode ?? error.localizedDescription
+                    }
+                    continue
+                }
+                guard let waveform else { continue }
+                decoded += 1
                 guard let embedding = try stableAudioEmbedding(
                     audio, waveform: waveform, outputDim: Int(outputDim)
-                ) else { continue }
+                ) else {
+                    invalidEmbedding = true
+                    continue
+                }
                 for index in pooled.indices { pooled[index] += embedding[index] }
                 used += 1
             }
-            if used == 0, durationMs > 10_000,
-               let waveform = try decodeWindow(url: url, startMs: 0),
-               let embedding = try stableAudioEmbedding(
-                   audio, waveform: waveform, outputDim: Int(outputDim)
-               ) {
-                for index in pooled.indices { pooled[index] += embedding[index] }
-                used = 1
+            if used == 0, durationMs > 10_000 {
+                let waveform: [Float]?
+                do {
+                    waveform = try decodeWindow(url: url, startMs: 0)
+                } catch {
+                    switch classifyAudioDecodeError(error, url: url) {
+                    case .invalidAudio:
+                        invalidDecode = invalidDecode ?? error.localizedDescription
+                    case .unavailable:
+                        unavailableDecode = unavailableDecode ?? error.localizedDescription
+                    }
+                    waveform = nil
+                }
+                if let waveform {
+                    decoded += 1
+                    if let embedding = try stableAudioEmbedding(
+                        audio, waveform: waveform, outputDim: Int(outputDim)
+                    ) {
+                        for index in pooled.indices { pooled[index] += embedding[index] }
+                        used = 1
+                    } else {
+                        invalidEmbedding = true
+                    }
+                }
             }
-            guard used > 0 else { return nil }
+            guard used > 0 else {
+                // A single temporary crop failure prevents deterministic outcomes from other
+                // crops becoming a durable marker.
+                if let unavailableDecode {
+                    return audioFailure(.unavailable, unavailableDecode)
+                }
+                let detail = invalidEmbedding
+                    ? "Audio model produced no usable embedding"
+                    : invalidDecode != nil
+                        ? invalidDecode!
+                    : decoded == 0
+                        ? "Audio contained no decodable PCM window"
+                        : "Audio produced no usable window"
+                return audioFailure(.invalidAudio, detail)
+            }
             normalize(&pooled)
-            guard isUsable(pooled) else { return nil }
-            return KotlinFloatArray(pooled)
-        } catch { return nil }
+            guard isUsable(pooled) else {
+                return audioFailure(.invalidAudio, "Pooled audio embedding was unusable")
+            }
+            return SmartIosAudioEmbeddingResult(
+                status: .success,
+                embedding: KotlinFloatArray(pooled),
+                technicalDetail: nil
+            )
+        } catch {
+            // Only ORT inference throws from the remaining do scope. A session/runtime/model
+            // failure must stay retryable and must never create a per-track durable marker.
+            return audioFailure(.backendFailure, error.localizedDescription)
+        }
+    }
+
+    private func audioFailure(
+        _ status: SmartIosAudioEmbeddingStatus,
+        _ detail: String
+    ) -> SmartIosAudioEmbeddingResult {
+        SmartIosAudioEmbeddingResult(
+            status: status,
+            embedding: nil,
+            technicalDetail: detail
+        )
+    }
+
+    private enum DecodeFailureClass {
+        case invalidAudio
+        case unavailable
+    }
+
+    private func classifyAudioDecodeError(_ error: Error, url: URL) -> DecodeFailureClass {
+        let nsError = error as NSError
+        let fileManager = FileManager.default
+        // Missing/unreadable/protected storage and explicit permission failures may recover while
+        // the library descriptor remains unchanged.
+        if !fileManager.fileExists(atPath: url.path)
+            || !fileManager.isReadableFile(atPath: url.path)
+            || nsError.domain == NSCocoaErrorDomain && [
+                NSFileNoSuchFileError,
+                NSFileReadNoPermissionError,
+                NSFileReadNoSuchFileError,
+                NSFileReadUnknownError,
+            ].contains(nsError.code)
+        {
+            return .unavailable
+        }
+        // Allocation/resource pressure is also temporary. AVFoundation's remaining failures for
+        // a present, readable local file are media-format/read/conversion facts and are durable.
+        if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileReadTooLargeError {
+            return .unavailable
+        }
+        return .invalidAudio
     }
 
     func loadSemantic() -> String? {

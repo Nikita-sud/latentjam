@@ -25,12 +25,26 @@ public sealed interface EngineError {
     public data object NotIndexed : EngineError
 
     /**
-     * One track's audio could not be opened or decoded on this device.
+     * One track's audio is temporarily unavailable on this device.
      *
+     * This failure is deliberately retryable: permission changes, removable storage, decoder
+     * resource pressure, and timeouts can all make an unchanged track fail once and work later.
      * [technicalDetail] is for local logs only. UI must use a localized recovery message instead
      * of exposing codec names, file paths, or platform exception text.
      */
     public data class AudioUnavailable(
+        public val technicalDetail: String? = null,
+    ) : EngineError
+
+    /**
+     * The unchanged track is deterministically unusable by the audio model.
+     *
+     * Backends may return this only after a track-local condition such as no decodable audio,
+     * unsupported/corrupt media, or consistently invalid model output. The engine persists this
+     * identity so a bad track does not wake the lazy model on every launch; explicit retry and a
+     * descriptor identity change both clear that suppression.
+     */
+    public data class InvalidAudio(
         public val technicalDetail: String? = null,
     ) : EngineError
 

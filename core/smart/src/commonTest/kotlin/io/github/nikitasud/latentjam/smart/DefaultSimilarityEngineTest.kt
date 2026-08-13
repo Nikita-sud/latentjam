@@ -18,9 +18,9 @@ import kotlin.test.assertTrue
 
 internal class DefaultSimilarityEngineTest {
 
-    private val seed = TrackDescriptor(id = TrackId("seed"))
-    private val near = TrackDescriptor(id = TrackId("near"))
-    private val far = TrackDescriptor(id = TrackId("far"))
+    private val seed = TrackDescriptor(id = TrackId("seed"), audioUri = "test://seed")
+    private val near = TrackDescriptor(id = TrackId("near"), audioUri = "test://near")
+    private val far = TrackDescriptor(id = TrackId("far"), audioUri = "test://far")
 
     private class Harness {
         val backend = FakeEmbeddingBackend()
@@ -113,6 +113,11 @@ internal class DefaultSimilarityEngineTest {
         )
         harness.engine.initialize()
 
+        val features = assertNotNull(
+            harness.engine.libraryMixFeatures(listOf(seed.id, near.id, far.id)),
+        )
+        assertEquals(3, features.vectorSpace.size)
+        assertTrue(features.semantics.isEmpty())
         val report = harness.engine.indexLibrary(listOf(seed, near, far))
         assertEquals(3, report.skipped)
         val result = harness.engine.nextTrack(ListeningContext(seed = seed))
@@ -120,8 +125,26 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(
             0,
             harness.backend.loadModelCalls,
-            "a restored library answers every query from stored vectors",
+            "restored vectors and optional background mix semantics must keep the model lazy",
         )
+    }
+
+    @Test
+    fun explicitSemanticMixOptInMayLoadTheModelForUsefulClassification() = runTest {
+        val harness = Harness()
+        harness.store.snapshots["test-model"] = mapOf(
+            seed.id to floatArrayOf(1f, 0f, 0f),
+        )
+        harness.engine.initialize()
+
+        assertNotNull(
+            harness.engine.libraryMixFeatures(
+                ids = listOf(seed.id),
+                loadMissingSemantics = true,
+            ),
+        )
+
+        assertEquals(1, harness.backend.loadModelCalls)
     }
 
     @Test
@@ -147,7 +170,7 @@ internal class DefaultSimilarityEngineTest {
             sourceRevision = "android-mediastore-v1:100:200:3",
         )
         val firstBackend = FakeEmbeddingBackend().apply {
-            failures[broken.id] = EngineError.AudioUnavailable("decoder rejected test input")
+            failures[broken.id] = EngineError.InvalidAudio("decoder rejected test input")
         }
         val first = engine(firstBackend, store)
         first.initialize()
@@ -155,7 +178,7 @@ internal class DefaultSimilarityEngineTest {
         val firstReport = first.indexLibrary(listOf(broken))
 
         assertEquals(1, firstReport.failed)
-        assertIs<EngineError.AudioUnavailable>(firstReport.errors[broken.id])
+        assertIs<EngineError.InvalidAudio>(firstReport.errors[broken.id])
         assertEquals(1, firstBackend.loadModelCalls)
         assertEquals(1, firstBackend.embedCalls)
         assertEquals(setOf(broken.id), store.failureSnapshots["test-model"]?.keys)
@@ -170,9 +193,101 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(0, restarted.missingFromIndex(listOf(broken.id)))
         val rememberedReport = restarted.indexLibrary(listOf(broken))
         assertEquals(1, rememberedReport.failed)
-        assertIs<EngineError.AudioUnavailable>(rememberedReport.errors[broken.id])
+        assertIs<EngineError.InvalidAudio>(rememberedReport.errors[broken.id])
         assertEquals(0, restartedBackend.loadModelCalls)
         assertEquals(0, restartedBackend.embedCalls)
+    }
+
+    @Test
+    fun `tracks without audio URI never load the model and remain remembered`() = runTest {
+        val store = FakeIndexStore()
+        val protected = TrackDescriptor(
+            id = TrackId("protected-library-row"),
+            audioUri = null,
+            durationMs = 12_345,
+            sourceRevision = "protected-v1",
+        )
+        val firstBackend = FakeEmbeddingBackend()
+        val first = engine(firstBackend, store)
+        first.initialize()
+
+        val firstReport = first.indexLibrary(listOf(protected))
+
+        assertIs<EngineError.InvalidAudio>(firstReport.errors[protected.id])
+        assertEquals(0, firstBackend.loadModelCalls)
+        assertEquals(0, firstBackend.embedCalls)
+        assertEquals(setOf(protected.id), store.failureSnapshots["test-model"]?.keys)
+
+        val restartedBackend = FakeEmbeddingBackend()
+        val restarted = engine(restartedBackend, store)
+        restarted.initialize()
+        restarted.synchronizeLibrary(listOf(protected))
+        assertEquals(0, restarted.missingFromIndex(listOf(protected.id)))
+        assertIs<EngineError.InvalidAudio>(
+            restarted.indexLibrary(listOf(protected)).errors[protected.id],
+        )
+        assertEquals(0, restartedBackend.loadModelCalls)
+        assertEquals(0, restartedBackend.embedCalls)
+    }
+
+    @Test
+    fun `unindexed seed without audio URI never loads model for direct or smart query`() = runTest {
+        val store = FakeIndexStore().apply {
+            snapshots["test-model"] = mapOf(
+                near.id to floatArrayOf(0.9f, 0.1f, 0f),
+                far.id to floatArrayOf(0f, 1f, 0f),
+            )
+        }
+        val backend = FakeEmbeddingBackend()
+        val engine = engine(backend, store)
+        engine.initialize()
+        val protectedSeed = TrackDescriptor(
+            id = TrackId("protected-seed"),
+            title = "Protected seed",
+            genre = "Rock",
+            audioUri = null,
+        )
+
+        assertIs<EngineError.InvalidAudio>(
+            assertIs<NextTrackResult.Failure>(
+                engine.nextTrack(ListeningContext(seed = protectedSeed)),
+            ).error,
+        )
+        engine.smartQueue(protectedSeed, listOf(near, far), length = 1)
+        assertEquals(0, backend.loadModelCalls)
+        assertEquals(0, backend.embedCalls)
+    }
+
+    @Test
+    fun `ambiguous empty scan preserves remembered audio failure until authoritative scan`() = runTest {
+        val store = FakeIndexStore()
+        val broken = TrackDescriptor(
+            id = TrackId("permission-hidden-failure"),
+            audioUri = "content://media/73",
+            sourceRevision = "android-mediastore-v1:10:20:3",
+        )
+        val firstBackend = FakeEmbeddingBackend().apply {
+            failures[broken.id] = EngineError.InvalidAudio("unsupported stream")
+        }
+        val first = engine(firstBackend, store)
+        first.initialize()
+        first.indexLibrary(listOf(broken))
+
+        val restarted = engine(FakeEmbeddingBackend(), store)
+        restarted.initialize()
+        restarted.synchronizeLibrary(emptyList(), pruneMissing = false)
+
+        assertEquals(setOf(broken.id), store.failureSnapshots["test-model"]?.keys)
+        assertEquals(
+            1,
+            restarted.missingFromIndex(listOf(broken.id)),
+            "legacy untyped markers are intentionally retried after classification migration",
+        )
+
+        restarted.synchronizeLibrary(emptyList(), pruneMissing = true)
+
+        assertTrue(store.failureSnapshots["test-model"].orEmpty().isEmpty())
+        assertEquals(1, restarted.missingFromIndex(listOf(broken.id)))
     }
 
     @Test
@@ -185,7 +300,7 @@ internal class DefaultSimilarityEngineTest {
             sourceRevision = "size=10|mtime=20",
         )
         val firstBackend = FakeEmbeddingBackend().apply {
-            failures[original.id] = EngineError.AudioUnavailable("truncated")
+            failures[original.id] = EngineError.InvalidAudio("truncated")
         }
         val first = engine(firstBackend, store)
         first.initialize()
@@ -212,7 +327,10 @@ internal class DefaultSimilarityEngineTest {
     @Test
     fun `backend failures stay retryable across restart`() = runTest {
         val store = FakeIndexStore()
-        val track = TrackDescriptor(TrackId("transient-backend-failure"))
+        val track = TrackDescriptor(
+            TrackId("transient-backend-failure"),
+            audioUri = "test://transient-backend-failure",
+        )
         val first = engine(FakeEmbeddingBackend(), store)
         first.initialize()
         assertIs<EngineError.BackendFailure>(first.indexLibrary(listOf(track)).errors[track.id])
@@ -230,13 +348,94 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(1, restartedBackend.embedCalls)
     }
 
+    @Test
+    fun `temporary audio failure stays retryable across restart`() = runTest {
+        val store = FakeIndexStore()
+        val track = TrackDescriptor(
+            TrackId("temporarily-unreadable"),
+            audioUri = "test://temporarily-unreadable",
+        )
+        val firstBackend = FakeEmbeddingBackend().apply {
+            failures[track.id] = EngineError.AudioUnavailable("permission temporarily unavailable")
+        }
+        val first = engine(firstBackend, store)
+        first.initialize()
+
+        assertIs<EngineError.AudioUnavailable>(first.indexLibrary(listOf(track)).errors[track.id])
+        assertTrue(store.failureSnapshots["test-model"].orEmpty().isEmpty())
+
+        val restartedBackend = FakeEmbeddingBackend(
+            mutableMapOf(track.id to floatArrayOf(1f, 0f, 0f)),
+        )
+        val restarted = engine(restartedBackend, store)
+        restarted.initialize()
+        restarted.synchronizeLibrary(listOf(track))
+
+        assertEquals(1, restarted.missingFromIndex(listOf(track.id)))
+        assertEquals(1, restarted.indexLibrary(listOf(track)).indexed)
+        assertEquals(1, restartedBackend.loadModelCalls)
+        assertEquals(1, restartedBackend.embedCalls)
+    }
+
+    @Test
+    fun `explicit retry clears unchanged invalid-audio marker durably`() = runTest {
+        val store = FakeIndexStore()
+        val track = TrackDescriptor(
+            id = TrackId("retry-invalid-audio"),
+            audioUri = "file:///music/retry.mp3",
+            sourceRevision = "size=10|mtime=20",
+        )
+        val failedBackend = FakeEmbeddingBackend().apply {
+            failures[track.id] = EngineError.InvalidAudio("no decodable audio")
+        }
+        val first = engine(failedBackend, store)
+        first.initialize()
+        first.indexLibrary(listOf(track))
+        assertEquals(setOf(track.id), store.failureSnapshots["test-model"]?.keys)
+
+        val retryBackend = FakeEmbeddingBackend(
+            mutableMapOf(track.id to floatArrayOf(0f, 1f, 0f)),
+        )
+        val retrying = engine(retryBackend, store)
+        retrying.initialize()
+        retrying.synchronizeLibrary(listOf(track))
+
+        assertEquals(1, retrying.retryFailedTracks(listOf(track.id, track.id)))
+        assertTrue(store.failureSnapshots["test-model"].orEmpty().isEmpty())
+        assertEquals(1, retrying.missingFromIndex(listOf(track.id)))
+        assertEquals(1, retrying.indexLibrary(listOf(track)).indexed)
+        assertEquals(1, retryBackend.loadModelCalls)
+        assertEquals(1, retryBackend.embedCalls)
+    }
+
+    @Test
+    fun `legacy untyped failure marker is retried`() = runTest {
+        val store = FakeIndexStore().apply {
+            snapshots["test-model"] = emptyMap()
+            failureSnapshots["test-model"] = mapOf(
+                seed.id to "audio-v1|legacy-marker-from-untyped-failure-cache",
+            )
+        }
+        val backend = FakeEmbeddingBackend(
+            mutableMapOf(seed.id to floatArrayOf(1f, 0f, 0f)),
+        )
+        val restarted = engine(backend, store)
+        restarted.initialize()
+
+        restarted.synchronizeLibrary(listOf(seed))
+
+        assertEquals(1, restarted.missingFromIndex(listOf(seed.id)))
+        assertTrue(store.failureSnapshots["test-model"].orEmpty().isEmpty())
+        assertEquals(1, restarted.indexLibrary(listOf(seed)).indexed)
+    }
+
     // --------------------------------------------------------------- indexLibrary
 
     @Test
     fun indexLibraryEmbedsAndReports() = runTest {
         val harness = Harness()
         harness.registerTriangle()
-        val unknown = TrackDescriptor(id = TrackId("unknown"))
+        val unknown = TrackDescriptor(id = TrackId("unknown"), audioUri = "test://unknown")
         harness.engine.initialize()
 
         val report = harness.engine.indexLibrary(listOf(seed, near, far, unknown))
@@ -371,7 +570,10 @@ internal class DefaultSimilarityEngineTest {
         harness.engine.initialize()
         harness.engine.indexLibrary(listOf(near, far))
 
-        val unknownSeed = TrackDescriptor(id = TrackId("not-registered"))
+        val unknownSeed = TrackDescriptor(
+            id = TrackId("not-registered"),
+            audioUri = "test://not-registered",
+        )
         val result = harness.engine.nextTrack(ListeningContext(seed = unknownSeed))
 
         assertIs<EngineError.BackendFailure>(assertIs<NextTrackResult.Failure>(result).error)
@@ -480,6 +682,54 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(null, harness.engine.embedding(far.id))
         assertEquals(EngineState.Ready(indexedCount = 2), harness.engine.state.value)
         assertEquals(setOf(seed.id, near.id), harness.store.snapshots["test-model"]?.keys)
+    }
+
+    @Test
+    fun ambiguousPartialScanPreservesMissingVectorsButInvalidatesChangedVisibleRows() = runTest {
+        val harness = Harness()
+        harness.registerTriangle()
+        harness.engine.initialize()
+        harness.engine.indexLibrary(listOf(seed, near, far))
+        val changedSeed = seed.copy(audioUri = "file:///changed-seed.mp3")
+
+        val removed = harness.engine.synchronizeLibrary(
+            library = listOf(changedSeed),
+            pruneMissing = false,
+        )
+
+        assertEquals(1, removed, "the supplied changed row is still reconciled")
+        assertEquals(null, harness.engine.embedding(seed.id))
+        assertNotNull(harness.engine.embedding(near.id))
+        assertNotNull(harness.engine.embedding(far.id))
+        assertEquals(setOf(near.id, far.id), harness.store.snapshots["test-model"]?.keys)
+    }
+
+    @Test
+    fun ambiguousEmptyScanPreservesDurableVectors() = runTest {
+        val harness = Harness()
+        harness.registerTriangle()
+        harness.engine.initialize()
+        harness.engine.indexLibrary(listOf(seed, near, far))
+
+        val removed = harness.engine.synchronizeLibrary(emptyList(), pruneMissing = false)
+
+        assertEquals(0, removed)
+        assertEquals(EngineState.Ready(indexedCount = 3), harness.engine.state.value)
+        assertEquals(setOf(seed.id, near.id, far.id), harness.store.snapshots["test-model"]?.keys)
+    }
+
+    @Test
+    fun authoritativeEmptyScanClearsDurableVectors() = runTest {
+        val harness = Harness()
+        harness.registerTriangle()
+        harness.engine.initialize()
+        harness.engine.indexLibrary(listOf(seed, near, far))
+
+        val removed = harness.engine.synchronizeLibrary(emptyList(), pruneMissing = true)
+
+        assertEquals(3, removed)
+        assertEquals(EngineState.Ready(indexedCount = 0), harness.engine.state.value)
+        assertEquals(emptySet(), harness.store.snapshots["test-model"]?.keys)
     }
 
     @Test
@@ -855,12 +1105,52 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(0, predictor.scoreCalls)
     }
 
+    @Test
+    fun `under twenty four tracks metadata fallback still honors marked playlist quota`() = runTest {
+        val tracks = smartLibrary(23)
+        val remote = tracks.last().copy(genre = "Dance")
+        val library = tracks.dropLast(1) + remote
+        val backend = FakeEmbeddingBackend(
+            library.associateTo(mutableMapOf()) { track ->
+                track.id to FloatArray(PredictorRuntime.EMBEDDING_DIM).also { vector ->
+                    vector[track.id.value.removePrefix("smart-").toInt()] = 1f
+                }
+            },
+        )
+        val engine = DefaultSimilarityEngine(
+            backend = backend,
+            index = InMemoryVectorIndex(PredictorRuntime.EMBEDDING_DIM),
+            store = FakeIndexStore(),
+            config = SmartEngineConfig(
+                embeddingDim = PredictorRuntime.EMBEDDING_DIM,
+                modelVersion = "metadata-companion-test",
+            ),
+            dispatcher = Dispatchers.Default.limitedParallelism(1, "metadata-companion-test"),
+            textEncoder = FakeTextEncoder(),
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+            textStore = FakeIndexStore(),
+        )
+        engine.initialize()
+        engine.indexLibrary(library)
+        val seed = library.first()
+
+        val queue = engine.smartQueue(
+            seed = seed,
+            library = library.drop(1),
+            length = 3,
+            companionGroups = listOf(setOf(seed.id, remote.id)),
+        )
+
+        assertEquals(remote.id, queue[2])
+    }
+
     private fun smartLibrary(size: Int): List<TrackDescriptor> = (0 until size).map { row ->
         TrackDescriptor(
             id = TrackId("smart-$row"),
             title = "Track $row",
             artist = "Artist $row",
             genre = if (row % 2 == 0) "Rock" else "Electronic",
+            audioUri = "test://smart-$row",
         )
     }
 

@@ -10,6 +10,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -81,17 +82,75 @@ class IosInferenceLifecycleTest {
         assertEquals(1, replacement.closeCalls)
     }
 
+    @Test
+    fun `backend preserves native deterministic and transient audio classifications`(): Unit = runBlocking {
+        val provider = SpyProvider()
+        IosInferenceRegistry.install(provider)
+        val backend = IosEmbeddingBackend(SmartEngineConfig(embeddingDim = 3))
+        assertTrue(backend.loadModel().isSuccess)
+        val track = TrackDescriptor(id = TrackId("typed-ios-audio"), audioUri = "file:///song.m4a")
+
+        provider.audioResult = IosAudioEmbeddingResult(
+            status = IosAudioEmbeddingStatus.INVALID_AUDIO,
+            technicalDetail = "no decodable windows",
+        )
+        assertIs<EngineError.InvalidAudio>(
+            assertIs<SmartEngineException>(backend.embed(track).exceptionOrNull()).error,
+        )
+
+        provider.audioResult = IosAudioEmbeddingResult(
+            status = IosAudioEmbeddingStatus.UNAVAILABLE,
+            technicalDetail = "file access temporarily failed",
+        )
+        assertIs<EngineError.AudioUnavailable>(
+            assertIs<SmartEngineException>(backend.embed(track).exceptionOrNull()).error,
+        )
+
+        provider.audioResult = IosAudioEmbeddingResult(
+            status = IosAudioEmbeddingStatus.BACKEND_FAILURE,
+            technicalDetail = "ORT run failed",
+        )
+        assertIs<EngineError.BackendFailure>(
+            assertIs<SmartEngineException>(backend.embed(track).exceptionOrNull()).error,
+        )
+    }
+
+    @Test
+    fun `wrong-dimension native success remains global backend failure`(): Unit = runBlocking {
+        val provider = SpyProvider()
+        IosInferenceRegistry.install(provider)
+        val backend = IosEmbeddingBackend(SmartEngineConfig(embeddingDim = 3))
+        assertTrue(backend.loadModel().isSuccess)
+        provider.audioResult = IosAudioEmbeddingResult(
+            status = IosAudioEmbeddingStatus.SUCCESS,
+            embedding = floatArrayOf(1f, 0f),
+        )
+
+        val failure = backend.embed(
+            TrackDescriptor(id = TrackId("wrong-dim"), audioUri = "file:///song.m4a"),
+        ).exceptionOrNull()
+        assertIs<EngineError.BackendFailure>(assertIs<SmartEngineException>(failure).error)
+    }
+
     private class SpyProvider : IosInferenceProvider {
         var audioLoads: Int = 0
         var predictorLoads: Int = 0
         var closeCalls: Int = 0
+        var audioResult: IosAudioEmbeddingResult = IosAudioEmbeddingResult(
+            status = IosAudioEmbeddingStatus.INVALID_AUDIO,
+            technicalDetail = "test provider has no audio",
+        )
 
         override fun loadAudio(): String? {
             audioLoads++
             return null
         }
 
-        override fun embedAudio(uri: String, durationMs: Long, outputDim: Int): FloatArray? = null
+        override fun embedAudio(
+            uri: String,
+            durationMs: Long,
+            outputDim: Int,
+        ): IosAudioEmbeddingResult = audioResult
 
         override fun loadSemantic(): String? = null
 

@@ -66,16 +66,19 @@ public interface SimilarityEngine {
     public suspend fun initialize(): Result<Unit>
 
     /**
-     * Reconciles both persisted indexes with the complete, currently visible library.
+     * Reconciles both persisted indexes with the currently visible library.
      *
-     * Call this after a library scan and before indexing chunks. Tracks that were deleted or
-     * hidden must not remain recommendation candidates or inflate [EngineState.Ready.indexedCount].
-     * The argument is intentionally the complete library; a partial batch would make pruning
-     * ambiguous.
+     * Call this after a library scan and before indexing chunks. Changed identities among the
+     * supplied rows are always invalidated. When [pruneMissing] is true, tracks absent from the
+     * argument are also removed; pass false for a partial/ambiguous scan (for example while media
+     * permission is unavailable) so it cannot erase durable rows or remembered audio failures.
      *
      * @return number of stale audio fingerprints removed
      */
-    public suspend fun synchronizeLibrary(library: List<TrackDescriptor>): Int
+    public suspend fun synchronizeLibrary(
+        library: List<TrackDescriptor>,
+        pruneMissing: Boolean = true,
+    ): Int
 
     /**
      * Embeds and indexes the given tracks, replacing any previous vector for
@@ -88,6 +91,19 @@ public interface SimilarityEngine {
      * returned [IndexReport].
      */
     public suspend fun indexLibrary(tracks: List<TrackDescriptor>): IndexReport
+
+    /**
+     * Clears durable invalid-audio markers for [ids], making those unchanged tracks eligible for
+     * the next [indexLibrary] call again.
+     *
+     * This is the explicit user-retry seam. Merely restarting a background indexing job must not
+     * silently defeat the failure cache, while a visible Retry action must be able to recover from
+     * a codec/platform update or an earlier misclassification without requiring the media to be
+     * edited. The cleared snapshot is persisted before this method returns.
+     *
+     * @return number of remembered track failures cleared
+     */
+    public suspend fun retryFailedTracks(ids: List<TrackId>): Int
 
     /**
      * Returns the nearest neighbor of [ListeningContext.seed] among indexed
@@ -146,7 +162,11 @@ public interface SimilarityEngine {
      * The semantics map may be sparse when audio is unavailable or the optional head cannot run;
      * clustering remains usable through [LibraryMixFeatures.vectorSpace].
      */
-    public suspend fun libraryMixFeatures(ids: List<TrackId>): LibraryMixFeatures?
+    public suspend fun libraryMixFeatures(
+        ids: List<TrackId>,
+        /** Explicitly permits loading the audio model to fill optional semantic classifications. */
+        loadMissingSemantics: Boolean = false,
+    ): LibraryMixFeatures?
 
     /**
      * Encodes any missing metadata-text vectors for [library], and persists them.

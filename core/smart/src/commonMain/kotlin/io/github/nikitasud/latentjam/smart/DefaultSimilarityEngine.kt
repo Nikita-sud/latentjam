@@ -154,11 +154,25 @@ internal class DefaultSimilarityEngine(
                 track.id !in index && hasRememberedAudioFailure(track)
             }
             val rememberedFailureIds = rememberedFailures.mapTo(HashSet()) { it.id }
-            val toEmbed = tracks.filter { it.id !in index && it.id !in rememberedFailureIds }
+            // A descriptor with no playable URI is a deterministic track-local miss that can be
+            // remembered without loading the model even once (notably protected Music.app rows).
+            val missingAudio = tracks.filter { track ->
+                track.id !in index &&
+                    track.id !in rememberedFailureIds &&
+                    track.audioUri == null
+            }
+            val missingAudioIds = missingAudio.mapTo(HashSet()) { it.id }
+            val toEmbed = tracks.filter {
+                it.id !in index && it.id !in rememberedFailureIds && it.id !in missingAudioIds
+            }
             var indexed = 0
             val errors = LinkedHashMap<TrackId, EngineError>()
             rememberedFailures.forEach { track ->
-                errors[track.id] = EngineError.AudioUnavailable()
+                errors[track.id] = EngineError.InvalidAudio()
+            }
+            missingAudio.forEach { track ->
+                errors[track.id] = EngineError.InvalidAudio("No audio URI")
+                rememberAudioFailure(track)
             }
             val modelFailure = if (toEmbed.isEmpty()) {
                 null // Nothing to embed — the audio model stays unloaded.
@@ -177,7 +191,7 @@ internal class DefaultSimilarityEngine(
                         onFailure = { throwable ->
                             val error = throwable.toEngineError()
                             errors[track.id] = error
-                            if (error is EngineError.AudioUnavailable) {
+                            if (error is EngineError.InvalidAudio) {
                                 rememberAudioFailure(track)
                             } else {
                                 forgetAudioFailure(track.id)
@@ -214,14 +228,46 @@ internal class DefaultSimilarityEngine(
         }
     }
 
-    override suspend fun synchronizeLibrary(library: List<TrackDescriptor>): Int =
+    override suspend fun retryFailedTracks(ids: List<TrackId>): Int = withContext(dispatcher) {
+        mutex.withLock {
+            if (mutableState.value !is EngineState.Ready) return@withLock 0
+            var cleared = 0
+            for (id in ids.toSet()) {
+                if (audioFailureIdentities.remove(id) != null) {
+                    audioIndexDirty = true
+                    cleared++
+                }
+            }
+            // Persist before returning so cancellation of the replacement indexing job cannot
+            // resurrect the old marker on process restart.
+            persistAudioIndex()
+            cleared
+        }
+    }
+
+    override suspend fun synchronizeLibrary(
+        library: List<TrackDescriptor>,
+        pruneMissing: Boolean,
+    ): Int =
         withContext(dispatcher) {
             mutex.withLock {
                 if (mutableState.value !is EngineState.Ready) return@withLock 0
                 val liveIds = library.mapTo(HashSet(library.size)) { it.id }
-                val staleAudio = index.entries().keys.filterNot(liveIds::contains)
-                val staleText = textIndex?.entries()?.keys?.filterNot(liveIds::contains).orEmpty()
-                val staleAudioFailures = audioFailureIdentities.keys.filterNot(liveIds::contains)
+                val staleAudio = if (pruneMissing) {
+                    index.entries().keys.filterNot(liveIds::contains)
+                } else {
+                    emptyList()
+                }
+                val staleText = if (pruneMissing) {
+                    textIndex?.entries()?.keys?.filterNot(liveIds::contains).orEmpty()
+                } else {
+                    emptyList()
+                }
+                val staleAudioFailures = if (pruneMissing) {
+                    audioFailureIdentities.keys.filterNot(liveIds::contains)
+                } else {
+                    emptyList()
+                }
 
                 // Compare against the identity persisted WITH each vector, not against
                 // knownTracks: that map is intentionally empty after process death. Missing
@@ -239,7 +285,7 @@ internal class DefaultSimilarityEngine(
                 }
                 val changedAudioFailures = library.mapNotNull { track ->
                     track.id.takeIf { id ->
-                        audioFailureIdentities[id]?.let { it != track.audioVectorIdentity() } == true
+                        audioFailureIdentities[id]?.let { it != track.audioFailureIdentity() } == true
                     }
                 }
 
@@ -251,7 +297,7 @@ internal class DefaultSimilarityEngine(
                 (staleAudioFailures + changedAudioFailures).forEach(audioFailureIdentities::remove)
                 (staleText + changedText).forEach(textVectorIdentities::remove)
                 (staleAudio + changedAudio).forEach(semanticCache::remove)
-                knownTracks.keys.retainAll(liveIds)
+                if (pruneMissing) knownTracks.keys.retainAll(liveIds)
 
                 if (
                     staleAudio.isNotEmpty() || changedAudio.isNotEmpty() ||
@@ -294,14 +340,21 @@ internal class DefaultSimilarityEngine(
             val seedVector = index.vector(seed.id)
                 ?: run {
                     if (hasRememberedAudioFailure(seed)) {
-                        return@withLock NextTrackResult.Failure(EngineError.AudioUnavailable())
+                        return@withLock NextTrackResult.Failure(EngineError.InvalidAudio())
+                    }
+                    if (seed.audioUri.isNullOrBlank()) {
+                        rememberAudioFailure(seed)
+                        persistAudioIndex()
+                        return@withLock NextTrackResult.Failure(
+                            EngineError.InvalidAudio("No audio URI"),
+                        )
                     }
                     ensureAudioModel().onFailure { throwable ->
                         return@withLock NextTrackResult.Failure(throwable.toEngineError())
                     }
                     backend.embed(seed).getOrElse { throwable ->
                         val error = throwable.toEngineError()
-                        if (error is EngineError.AudioUnavailable) {
+                        if (error is EngineError.InvalidAudio) {
                             rememberAudioFailure(seed)
                             persistAudioIndex()
                         }
@@ -368,7 +421,10 @@ internal class DefaultSimilarityEngine(
             }
         }
 
-    override suspend fun libraryMixFeatures(ids: List<TrackId>): LibraryMixFeatures? =
+    override suspend fun libraryMixFeatures(
+        ids: List<TrackId>,
+        loadMissingSemantics: Boolean,
+    ): LibraryMixFeatures? =
         withContext(dispatcher) {
             mutex.withLock {
                 if (mutableState.value !is EngineState.Ready) return@withLock null
@@ -380,25 +436,29 @@ internal class DefaultSimilarityEngine(
                     metadataDim = TextEncoder.TEXT_DIM,
                 ) ?: return@withLock null
                 val requested = ids.distinct()
-                var missing = requested.mapNotNull { id ->
+                val missing = requested.mapNotNull { id ->
                     if (id in semanticCache) return@mapNotNull null
                     index.vector(id)?.let { id to it }
                 }
-                // The semantic head shares the audio model's lazy load. Semantics are optional —
-                // when the model cannot load, the vector space alone still serves the mix build.
-                if (missing.isNotEmpty() && ensureAudioModel().isFailure) {
-                    missing = emptyList()
-                }
-                for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
-                    val outputs = backend.classify(batch.map { it.second }).getOrNull()
-                        ?.takeIf { it.size == batch.size }
-                        ?: continue
-                    for (row in batch.indices) {
-                        TrackSemantics.fromModelOutput(outputs[row])?.let { prediction ->
-                            semanticCache[batch[row].first] = prediction
+                // Semantic routing is optional decoration for library worlds. Never wake the
+                // heavyweight audio model solely to rebuild a background Map/For You page: a
+                // fully restored library (or one containing only remembered bad files) must keep
+                // lazy loading intact. If real embedding/query work already loaded the model,
+                // opportunistically fill the process cache on this or a later call.
+                val semanticsAvailable = audioModelLoaded ||
+                    (loadMissingSemantics && missing.isNotEmpty() && ensureAudioModel().isSuccess)
+                if (semanticsAvailable) {
+                    for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
+                        val outputs = backend.classify(batch.map { it.second }).getOrNull()
+                            ?.takeIf { it.size == batch.size }
+                            ?: continue
+                        for (row in batch.indices) {
+                            TrackSemantics.fromModelOutput(outputs[row])?.let { prediction ->
+                                semanticCache[batch[row].first] = prediction
+                            }
                         }
+                        yield()
                     }
-                    yield()
                 }
                 LibraryMixFeatures(
                     vectorSpace = vectorSpace,
@@ -466,22 +526,35 @@ internal class DefaultSimilarityEngine(
             // must still be a valid anchor even when its background batch has not reached it yet.
             if (index.vector(seed.id) == null) {
                 if (hasRememberedAudioFailure(seed)) {
-                    return@withLock metadataFallback(seed, library, length, history)
+                    return@withLock metadataFallback(
+                        seed, library, length, history, companionGroups,
+                    )
+                }
+                if (seed.audioUri.isNullOrBlank()) {
+                    rememberAudioFailure(seed)
+                    persistAudioIndex()
+                    return@withLock metadataFallback(
+                        seed, library, length, history, companionGroups,
+                    )
                 }
                 val vector = ensureAudioModel().getOrNull()?.let {
                     backend.embed(seed).fold(
                         onSuccess = { it },
                         onFailure = { throwable ->
-                            if (throwable.toEngineError() is EngineError.AudioUnavailable) {
+                            if (throwable.toEngineError() is EngineError.InvalidAudio) {
                                 rememberAudioFailure(seed)
                                 persistAudioIndex()
                             }
                             null
                         },
                     )
-                } ?: return@withLock metadataFallback(seed, library, length, history)
+                } ?: return@withLock metadataFallback(
+                    seed, library, length, history, companionGroups,
+                )
                 if (validateAndUpsert(seed, vector) != null) {
-                    return@withLock metadataFallback(seed, library, length, history)
+                    return@withLock metadataFallback(
+                        seed, library, length, history, companionGroups,
+                    )
                 }
                 persistAudioIndex()
                 mutableState.value = EngineState.Ready(indexedCount = index.size)
@@ -498,14 +571,18 @@ internal class DefaultSimilarityEngine(
                     "SMART: queue=metadata indexed=$indexedEligible/${eligibleIds.size}, " +
                         "required=$requiredAudio",
                 )
-                return@withLock metadataFallback(seed, library, length, history)
+                return@withLock metadataFallback(
+                    seed, library, length, history, companionGroups,
+                )
             }
 
             // The seed anchors every distance the walk measures, so it must be in the snapshot even
             // when the caller left it out — and callers reasonably do, since it is the one track
             // the queue must not repeat. The chain excludes it from its own output regardless.
             val snapshot = snapshotFor(history)
-                ?: return@withLock metadataFallback(seed, library, length, history)
+                ?: return@withLock metadataFallback(
+                    seed, library, length, history, companionGroups,
+                )
             val eligibleRows = BooleanArray(snapshot.size) { row ->
                 snapshot.tracks[row].id in eligibleIds
             }
@@ -528,7 +605,9 @@ internal class DefaultSimilarityEngine(
                 historyEvents = history,
             )
             chain.rows.map { snapshot.tracks[it].id }
-                .ifEmpty { metadataFallback(seed, library, length, history) }
+                .ifEmpty {
+                    metadataFallback(seed, library, length, history, companionGroups)
+                }
         }
     }
 
@@ -728,6 +807,13 @@ internal class DefaultSimilarityEngine(
         sourceRevision,
     )
 
+    private fun TrackDescriptor.audioFailureIdentity(): String = vectorIdentity(
+        AUDIO_FAILURE_IDENTITY_VERSION,
+        audioUri,
+        durationMs?.toString(),
+        sourceRevision,
+    )
+
     private fun TrackDescriptor.textVectorIdentity(): String = vectorIdentity(
         TEXT_IDENTITY_VERSION,
         title,
@@ -737,10 +823,10 @@ internal class DefaultSimilarityEngine(
     )
 
     private fun hasRememberedAudioFailure(track: TrackDescriptor): Boolean =
-        audioFailureIdentities[track.id] == track.audioVectorIdentity()
+        audioFailureIdentities[track.id] == track.audioFailureIdentity()
 
     private fun rememberAudioFailure(track: TrackDescriptor) {
-        val identity = track.audioVectorIdentity()
+        val identity = track.audioFailureIdentity()
         if (audioFailureIdentities.put(track.id, identity) != identity) {
             audioIndexDirty = true
         }
@@ -830,7 +916,15 @@ internal class DefaultSimilarityEngine(
         library: List<TrackDescriptor>,
         length: Int,
         history: List<SmartHistoryEvent>,
-    ): List<TrackId> = MetadataFallbackQueue.build(seed, library, length, textIndex, history)
+        companionGroups: List<Set<TrackId>>,
+    ): List<TrackId> = MetadataFallbackQueue.build(
+        seed,
+        library,
+        length,
+        textIndex,
+        history,
+        companionGroups,
+    )
 
     private data class SnapshotCache(
         val revision: Long,
@@ -851,6 +945,9 @@ internal class DefaultSimilarityEngine(
         const val SEMANTIC_BATCH_SIZE = 128
 
         const val AUDIO_IDENTITY_VERSION = "audio-v1"
+        // v2 deliberately invalidates markers written before transient and deterministic audio
+        // failures were separated. Existing vectors keep AUDIO_IDENTITY_VERSION and remain warm.
+        const val AUDIO_FAILURE_IDENTITY_VERSION = "audio-failure-v2"
         const val TEXT_IDENTITY_VERSION = "text-v1"
 
         /** Small libraries promote only when at least 80% of their tracks have usable audio. */

@@ -11,7 +11,7 @@ package io.github.nikitasud.latentjam.smart
  * treats such rows as cache misses on its first complete-library synchronization, preventing an
  * old vector from being trusted merely because its opaque [TrackId] still exists.
  *
- * [failedIdentities] remembers only track-local, deterministic audio decode/open failures. The
+ * [failedIdentities] remembers only track-local [EngineError.InvalidAudio] failures. The
  * value is the same content identity used for vectors, so replacing or editing the media makes
  * the marker stale and the engine tries that track again. Error details are deliberately not
  * persisted: paths and codec diagnostics belong in local logs, not in the cache.

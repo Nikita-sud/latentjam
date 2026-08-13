@@ -87,7 +87,7 @@ internal class OnnxEmbeddingBackend(
         val activeSession = session
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
         val audioUri = descriptor.audioUri
-            ?: return backendFailure("No audioUri for ${descriptor.id.value}")
+            ?: return invalidAudio("No audio URI for ${descriptor.id.value}")
 
         return try {
             val uri = Uri.parse(audioUri)
@@ -95,7 +95,9 @@ internal class OnnxEmbeddingBackend(
             val isDecodeCancelled = { !decodeContext.isActive }
             val pooled = FloatArray(config.embeddingDim)
             var windows = 0
-            var lastModelFailure: String? = null
+            var invalidAudioFailure: String? = null
+            var unavailableFailure: String? = null
+            var backendContractFailure: String? = null
 
             fun inferStable(waveform: FloatArray, startMs: Long): FloatArray? {
                 var appliedGain = 1f
@@ -107,63 +109,69 @@ internal class OnnxEmbeddingBackend(
                     appliedGain = targetGain
                     val embedding = runWindow(activeSession, waveform)
                     if (embedding.size != config.embeddingDim) {
-                        lastModelFailure =
+                        backendContractFailure =
                             "Model produced ${embedding.size}-dim embedding, expected " +
                             config.embeddingDim
                         return null
                     }
                     if (isUsableEmbedding(embedding)) return embedding
                 }
-                lastModelFailure =
+                // Decoding and inference both completed normally, and gain retries make this
+                // stable for the current bytes. Treat it like an invalid track, not a transient
+                // model/session failure, so the unchanged media does not wake the model forever.
+                invalidAudioFailure =
                     "Model produced a non-finite or zero-norm embedding at ${startMs}ms " +
                     waveformSummary(waveform, appliedGain)
                 return null
             }
 
-            for (startMs in windowStartsMs(descriptor.durationMs)) {
+            suspend fun tryWindow(startMs: Long) {
                 currentCoroutineContext().ensureActive()
-                val waveform = decoder.decodeWindowMono(
+                when (val decoded = decoder.decodeWindowMono(
                     uri = uri,
                     startMs = startMs,
                     targetSampleRate = SAMPLE_RATE,
                     targetSamples = WINDOW_SAMPLES,
                     isCancelled = isDecodeCancelled,
-                ) ?: continue
-                currentCoroutineContext().ensureActive()
-                val embedding = inferStable(waveform, startMs) ?: continue
-                for (i in pooled.indices) pooled[i] += embedding[i]
-                windows++
+                )) {
+                    is AudioDecodeResult.Success -> {
+                        currentCoroutineContext().ensureActive()
+                        val embedding = inferStable(decoded.waveform, startMs) ?: return
+                        for (i in pooled.indices) pooled[i] += embedding[i]
+                        windows++
+                    }
+                    is AudioDecodeResult.InvalidAudio -> {
+                        if (invalidAudioFailure == null) invalidAudioFailure = decoded.detail
+                    }
+                    is AudioDecodeResult.Unavailable -> {
+                        if (unavailableFailure == null) unavailableFailure = decoded.detail
+                    }
+                }
+            }
+
+            for (startMs in windowStartsMs(descriptor.durationMs)) {
+                tryWindow(startMs)
             }
             // Several otherwise playable MP3/M4A files on real devices reject random access even
             // though decoding from the head works. Retry the beginning only after every preferred
             // 20/50/80% crop failed; successful tracks keep the original three-window contract and
             // pay no extra inference cost.
             if (windows == 0 && descriptor.durationMs?.let { it > WINDOW_MS } == true) {
-                decoder.decodeWindowMono(
-                    uri = uri,
-                    startMs = 0L,
-                    targetSampleRate = SAMPLE_RATE,
-                    targetSamples = WINDOW_SAMPLES,
-                    isCancelled = isDecodeCancelled,
-                )?.let { waveform ->
-                    currentCoroutineContext().ensureActive()
-                    val embedding = inferStable(waveform, 0L)
-                    if (embedding != null) {
-                        for (i in pooled.indices) pooled[i] += embedding[i]
-                        windows++
-                    }
-                }
+                tryWindow(0L)
             }
             if (windows == 0) {
-                if (lastModelFailure != null) return backendFailure(lastModelFailure)
                 return Result.failure(
                     SmartEngineException(
-                        EngineError.AudioUnavailable(decoder.lastFailure),
+                        zeroSuccessfulAudioWindowsError(
+                            backendContractFailure = backendContractFailure,
+                            unavailableFailure = unavailableFailure,
+                            invalidAudioFailure = invalidAudioFailure,
+                        ),
                     ),
                 )
             }
             if (!l2NormalizeInPlace(pooled)) {
-                return backendFailure("Model produced a non-finite or zero-norm embedding")
+                return invalidAudio("Pooled embedding was non-finite or zero-norm")
             }
             Result.success(pooled)
         } catch (cancellation: CancellationException) {
@@ -285,8 +293,8 @@ internal class OnnxEmbeddingBackend(
         return "(peak=${peak * inverse}, rms=${rms * inverse}, nonZero=$nonZero)"
     }
 
-    private fun backendFailure(message: String): Result<FloatArray> =
-        Result.failure(SmartEngineException(EngineError.BackendFailure(message)))
+    private fun invalidAudio(detail: String): Result<FloatArray> =
+        Result.failure(SmartEngineException(EngineError.InvalidAudio(detail)))
 
     private fun backendSemanticFailure(
         message: String,
@@ -308,6 +316,23 @@ internal class OnnxEmbeddingBackend(
         val WINDOW_POSITIONS = listOf(0.2, 0.5, 0.8)
         val INFERENCE_GAINS = listOf(1f, 0.5f, 0.25f)
     }
+}
+
+/**
+ * Chooses the final typed failure only after every deterministic crop (including the head retry)
+ * has failed. Backend contract violations win first. A single transient decoder outcome wins over
+ * deterministic failures from other crops, preventing a temporary codec/storage problem from
+ * becoming a durable per-track marker.
+ */
+internal fun zeroSuccessfulAudioWindowsError(
+    backendContractFailure: String?,
+    unavailableFailure: String?,
+    invalidAudioFailure: String?,
+): EngineError = when {
+    backendContractFailure != null -> EngineError.BackendFailure(backendContractFailure)
+    unavailableFailure != null -> EngineError.AudioUnavailable(unavailableFailure)
+    invalidAudioFailure != null -> EngineError.InvalidAudio(invalidAudioFailure)
+    else -> EngineError.AudioUnavailable("No audio decode attempt completed")
 }
 
 public actual fun smartEngineBackendModule(): Module = module {

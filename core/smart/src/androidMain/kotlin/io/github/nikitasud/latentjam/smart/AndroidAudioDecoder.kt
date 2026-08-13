@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.smart
 import android.content.Context
 import android.media.AudioFormat
 import android.media.MediaCodec
+import android.media.MediaCodecList
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
@@ -17,6 +18,62 @@ internal enum class DecodeLoopGuardResult {
     CANCELLED,
     WALL_TIMEOUT,
     IDLE_TIMEOUT,
+}
+
+/**
+ * One window decode outcome, kept typed until the embedding backend has considered every crop.
+ *
+ * [InvalidAudio] is reserved for deterministic facts about the current media bytes: there is no
+ * audio stream, Android has no decoder for the declared stream, or a decoder reaches end of stream
+ * without producing valid PCM. [Unavailable] covers failures that may disappear on a later run:
+ * permission/storage access, codec allocation/configuration, liveness timeouts, and other platform
+ * exceptions. This distinction is load-bearing because only deterministic track-local failures are
+ * persisted by the engine.
+ */
+internal sealed interface AudioDecodeResult {
+    data class Success(val waveform: FloatArray) : AudioDecodeResult
+    data class InvalidAudio(val detail: String) : AudioDecodeResult
+    data class Unavailable(val detail: String) : AudioDecodeResult
+}
+
+/** The operation that failed, used to keep parser rejection separate from transient access/codec. */
+internal enum class AudioDecodeFailureStage {
+    SOURCE_OPEN,
+    SOURCE_PARSE,
+    CODEC,
+}
+
+/** Pure classification seam covered by host tests; only a readable source's parser failure sticks. */
+internal fun classifyAudioDecodeException(
+    stage: AudioDecodeFailureStage,
+    error: Throwable,
+    startMs: Long,
+): AudioDecodeResult {
+    val detail = buildString {
+        append(error.javaClass.simpleName.ifBlank { "Audio decode failure" })
+        error.message?.takeIf(String::isNotBlank)?.let { append(": ").append(it) }
+        append(" at ").append(startMs).append("ms")
+    }
+    return if (
+        stage == AudioDecodeFailureStage.SOURCE_PARSE &&
+        !error.isSourceAccessFailure()
+    ) {
+        AudioDecodeResult.InvalidAudio(detail)
+    } else {
+        AudioDecodeResult.Unavailable(detail)
+    }
+}
+
+/** Permission and disappearance stay retryable even if the descriptor became invalid after open. */
+private fun Throwable.isSourceAccessFailure(): Boolean {
+    var cursor: Throwable? = this
+    while (cursor != null) {
+        if (cursor is SecurityException || cursor is java.io.FileNotFoundException) return true
+        val next = cursor.cause
+        if (next === cursor) return false
+        cursor = next
+    }
+    return false
 }
 
 /**
@@ -71,14 +128,9 @@ internal class DecodeLoopGuard(
  */
 internal class AndroidAudioDecoder(private val context: Context) {
 
-    /** Diagnostic for the most recent null result; embedding calls are serialized by the engine. */
-    var lastFailure: String? = null
-        private set
-
     /**
-     * Returns exactly [targetSamples] mono float samples in `[-1, 1]` at
-     * [targetSampleRate], starting near [startMs]; `null` if the track can't
-     * be decoded at all.
+     * Returns exactly [targetSamples] mono float samples in `[-1, 1]` at [targetSampleRate],
+     * starting near [startMs], or a typed track-local/platform failure.
      */
     fun decodeWindowMono(
         uri: Uri,
@@ -86,51 +138,108 @@ internal class AndroidAudioDecoder(private val context: Context) {
         targetSampleRate: Int,
         targetSamples: Int,
         isCancelled: () -> Boolean,
-    ): FloatArray? {
-        lastFailure = null
+    ): AudioDecodeResult {
         if (isCancelled()) throw CancellationException("Audio decoding cancelled")
-        val extractor = MediaExtractor()
-        return try {
-            extractor.setDataSource(context, uri, null)
-            if (isCancelled()) throw CancellationException("Audio decoding cancelled")
-            val trackIndex = (0 until extractor.trackCount).firstOrNull { index ->
-                extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
-                    ?.startsWith("audio/") == true
-            } ?: return failed("No audio stream")
-            extractor.selectTrack(trackIndex)
-            val inputFormat = extractor.getTrackFormat(trackIndex)
-            val mime = inputFormat.getString(MediaFormat.KEY_MIME) ?: return failed("Missing audio MIME")
-            if (startMs > 0) {
-                extractor.seekTo(startMs * 1000L, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
-            }
-            val codec = MediaCodec.createDecoderByType(mime)
-            try {
-                codec.configure(inputFormat, null, null, 0)
-                codec.start()
-                decodeLoop(codec, extractor, targetSampleRate, targetSamples, isCancelled)
-                    ?: failed("Decoder produced no PCM at ${startMs}ms ($mime)")
-            } finally {
-                runCatching { codec.stop() }
-                runCatching { codec.release() }
-            }
+        val source = try {
+            context.contentResolver.openAssetFileDescriptor(uri, "r")
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (error: Exception) {
-            failed(
-                buildString {
-                    append(error.javaClass.simpleName)
-                    error.message?.takeIf(String::isNotBlank)?.let { append(": ").append(it) }
-                    append(" at ").append(startMs).append("ms")
-                },
+            return classifyAudioDecodeException(
+                AudioDecodeFailureStage.SOURCE_OPEN,
+                error,
+                startMs,
             )
+        } ?: return AudioDecodeResult.Unavailable(
+            "Audio source is not locally readable at ${startMs}ms",
+        )
+
+        val extractor = try {
+            MediaExtractor()
+        } catch (cancellation: CancellationException) {
+            runCatching { source.close() }
+            throw cancellation
+        } catch (error: Exception) {
+            runCatching { source.close() }
+            return classifyAudioDecodeException(
+                AudioDecodeFailureStage.CODEC,
+                error,
+                startMs,
+            )
+        }
+        var failureStage = AudioDecodeFailureStage.SOURCE_PARSE
+        return try {
+            source.let { descriptor ->
+                // Opening the descriptor is the readability preflight. Once local bytes are open,
+                // MediaExtractor rejecting their container is deterministic for this unchanged
+                // source; permission/missing/unmounted failures returned before this point do not
+                // poison the durable track identity.
+                if (!descriptor.fileDescriptor.valid()) {
+                    return AudioDecodeResult.Unavailable(
+                        "Audio source returned an invalid descriptor at ${startMs}ms",
+                    )
+                }
+                if (descriptor.declaredLength >= 0L) {
+                    extractor.setDataSource(
+                        descriptor.fileDescriptor,
+                        descriptor.startOffset,
+                        descriptor.declaredLength,
+                    )
+                } else {
+                    extractor.setDataSource(descriptor.fileDescriptor)
+                }
+                if (isCancelled()) throw CancellationException("Audio decoding cancelled")
+                val trackIndex = (0 until extractor.trackCount).firstOrNull { index ->
+                    extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
+                        ?.startsWith("audio/") == true
+                } ?: return AudioDecodeResult.InvalidAudio("No audio stream")
+                extractor.selectTrack(trackIndex)
+                val inputFormat = extractor.getTrackFormat(trackIndex)
+                val mime = inputFormat.getString(MediaFormat.KEY_MIME)
+                    ?: return AudioDecodeResult.InvalidAudio("Missing audio MIME")
+                if (startMs > 0) {
+                    extractor.seekTo(startMs * 1000L, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+                }
+                failureStage = AudioDecodeFailureStage.CODEC
+                // Resolve support separately from allocation. A null result is a stable property of
+                // this device + stream format and may be remembered for unchanged bytes; failures
+                // while creating/starting the chosen codec remain retryable availability failures.
+                val decoderName = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+                    .findDecoderForFormat(inputFormat)
+                    ?: return AudioDecodeResult.InvalidAudio("No decoder for $mime")
+                val codec = MediaCodec.createByCodecName(decoderName)
+                try {
+                    codec.configure(inputFormat, null, null, 0)
+                    codec.start()
+                    val waveform = decodeLoop(
+                        codec,
+                        extractor,
+                        targetSampleRate,
+                        targetSamples,
+                        isCancelled,
+                    ) ?: return AudioDecodeResult.InvalidAudio(
+                        "Decoder produced no valid PCM at ${startMs}ms ($mime)",
+                    )
+                    AudioDecodeResult.Success(waveform)
+                } finally {
+                    runCatching { codec.stop() }
+                    runCatching { codec.release() }
+                }
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (parseFailure: ReadableSourceParseException) {
+            classifyAudioDecodeException(
+                AudioDecodeFailureStage.SOURCE_PARSE,
+                parseFailure.cause ?: parseFailure,
+                startMs,
+            )
+        } catch (error: Exception) {
+            classifyAudioDecodeException(failureStage, error, startMs)
         } finally {
             runCatching { extractor.release() }
+            runCatching { source.close() }
         }
-    }
-
-    private fun failed(reason: String): FloatArray? {
-        lastFailure = reason
-        return null
     }
 
     private fun decodeLoop(
@@ -172,13 +281,35 @@ internal class AndroidAudioDecoder(private val context: Context) {
 
         fun readOutputFormat() {
             val format = codec.outputFormat
+            if (
+                !format.containsKey(MediaFormat.KEY_SAMPLE_RATE) ||
+                !format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)
+            ) {
+                error("Decoder reported incomplete PCM format")
+            }
             sourceRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             sourceChannels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+            if (sourceRate <= 0 || sourceChannels <= 0) {
+                error(
+                    "Decoder reported invalid PCM format: rate=$sourceRate channels=$sourceChannels",
+                )
+            }
             pcmFloat = format.containsKey(MediaFormat.KEY_PCM_ENCODING) &&
                 format.getInteger(MediaFormat.KEY_PCM_ENCODING) == AudioFormat.ENCODING_PCM_FLOAT
             // +100 ms margin so interpolation never reads past the end.
             sourceNeeded = (targetSamples.toLong() * sourceRate / targetSampleRate).toInt() +
                 sourceRate / 10
+        }
+
+        fun <T> readSource(operation: () -> T): T = try {
+            operation()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Exception) {
+            // The source descriptor was already opened and MediaExtractor accepted its container.
+            // A later extractor read/advance rejection is still a deterministic property of these
+            // bytes; keep it distinct from MediaCodec allocation/configuration/runtime failures.
+            throw ReadableSourceParseException(error)
         }
 
         while (!outputDone) {
@@ -187,8 +318,9 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 val inputIndex = codec.dequeueInputBuffer(DEQUEUE_TIMEOUT_US)
                 checkLiveness()
                 if (inputIndex >= 0) {
-                    val buffer = codec.getInputBuffer(inputIndex) ?: return null
-                    val size = extractor.readSampleData(buffer, 0)
+                    val buffer = codec.getInputBuffer(inputIndex)
+                        ?: error("Codec returned no input buffer for index $inputIndex")
+                    val size = readSource { extractor.readSampleData(buffer, 0) }
                     checkLiveness()
                     if (size < 0) {
                         codec.queueInputBuffer(
@@ -196,8 +328,9 @@ internal class AndroidAudioDecoder(private val context: Context) {
                         )
                         inputDone = true
                     } else {
-                        codec.queueInputBuffer(inputIndex, 0, size, extractor.sampleTime, 0)
-                        extractor.advance()
+                        val sampleTime = readSource { extractor.sampleTime }
+                        codec.queueInputBuffer(inputIndex, 0, size, sampleTime, 0)
+                        readSource { extractor.advance() }
                     }
                     checkLiveness(madeProgress = true)
                 }
@@ -213,7 +346,8 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 outputIndex >= 0 -> {
                     if (sourceRate == 0) readOutputFormat()
                     if (info.size > 0) {
-                        val buffer = codec.getOutputBuffer(outputIndex) ?: return null
+                        val buffer = codec.getOutputBuffer(outputIndex)
+                            ?: error("Codec returned no output buffer for index $outputIndex")
                         buffer.position(info.offset)
                         buffer.limit(info.offset + info.size)
                         val mono = if (pcmFloat) {
@@ -309,3 +443,6 @@ internal class AndroidAudioDecoder(private val context: Context) {
 }
 
 private class DecodeLoopTimeoutException(message: String) : Exception(message)
+
+/** Wraps extractor rejection after a descriptor has already proven locally readable. */
+private class ReadableSourceParseException(cause: Throwable) : Exception(cause)

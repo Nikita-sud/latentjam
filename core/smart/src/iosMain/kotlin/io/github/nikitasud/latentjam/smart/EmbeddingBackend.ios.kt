@@ -42,9 +42,18 @@ internal class IosEmbeddingBackend(
         val provider = lease?.currentProvider()
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
         val uri = descriptor.audioUri
-            ?: return audioUnavailable("No audio URI")
-        val output = provider.embedAudio(uri, descriptor.durationMs ?: -1L, config.embeddingDim)
-            ?: return audioUnavailable("Could not decode or embed audio")
+            ?: return invalidAudio("No audio URI")
+        val native = provider.embedAudio(uri, descriptor.durationMs ?: -1L, config.embeddingDim)
+        val output = when (native.status) {
+            IosAudioEmbeddingStatus.SUCCESS -> native.embedding
+                ?: return backendFailure("Native audio provider returned success without output")
+            IosAudioEmbeddingStatus.INVALID_AUDIO ->
+                return invalidAudio(native.technicalDetail ?: "Audio is not decodable")
+            IosAudioEmbeddingStatus.UNAVAILABLE ->
+                return audioUnavailable(native.technicalDetail ?: "Audio is temporarily unavailable")
+            IosAudioEmbeddingStatus.BACKEND_FAILURE ->
+                return backendFailure(native.technicalDetail ?: "Audio inference failed")
+        }
         if (output.size != config.embeddingDim || !output.all(Float::isFinite)) {
             return backendFailure(
                 "Model produced an invalid embedding (size=${output.size}, " +
@@ -98,6 +107,9 @@ internal class IosEmbeddingBackend(
 
     private fun <T> audioUnavailable(detail: String): Result<T> =
         Result.failure(SmartEngineException(EngineError.AudioUnavailable(detail)))
+
+    private fun <T> invalidAudio(detail: String): Result<T> =
+        Result.failure(SmartEngineException(EngineError.InvalidAudio(detail)))
 }
 
 public actual fun smartEngineBackendModule(): Module = module {

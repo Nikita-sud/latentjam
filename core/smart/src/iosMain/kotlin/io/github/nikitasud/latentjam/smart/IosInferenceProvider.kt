@@ -16,8 +16,18 @@ public interface IosInferenceProvider {
     /** Returns null on success, otherwise a human-readable local error. */
     public fun loadAudio(): String?
 
-    /** Three-window pooled audio embedding for a local file URL/path. */
-    public fun embedAudio(uri: String, durationMs: Long, outputDim: Int): FloatArray?
+    /**
+     * Three-window pooled audio embedding for a local file URL/path.
+     *
+     * Native code returns a typed result so deterministic media failures can be remembered while
+     * temporary file/decoder/ORT failures stay retryable. [IosAudioEmbeddingStatus.SUCCESS]
+     * requires a non-null [IosAudioEmbeddingResult.embedding].
+     */
+    public fun embedAudio(
+        uri: String,
+        durationMs: Long,
+        outputDim: Int,
+    ): IosAudioEmbeddingResult
 
     /** Returns null on success, otherwise a human-readable local error. */
     public fun loadSemantic(): String?
@@ -58,6 +68,24 @@ public interface IosInferenceProvider {
 
     public fun close()
 }
+
+/** Native iOS audio-embedding result classification. */
+public enum class IosAudioEmbeddingStatus {
+    SUCCESS,
+    INVALID_AUDIO,
+    UNAVAILABLE,
+    BACKEND_FAILURE,
+}
+
+/**
+ * Value result used instead of collapsing every Swift error to a nullable array.
+ * [technicalDetail] is local diagnostics only and must never be rendered directly in UI.
+ */
+public data class IosAudioEmbeddingResult(
+    public val status: IosAudioEmbeddingStatus,
+    public val embedding: FloatArray? = null,
+    public val technicalDetail: String? = null,
+)
 
 /** Process-local handoff installed by the Swift app before Compose starts. */
 public object IosInferenceRegistry {
