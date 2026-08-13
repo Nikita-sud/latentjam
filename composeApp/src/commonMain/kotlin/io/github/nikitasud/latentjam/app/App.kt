@@ -848,12 +848,20 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         semanticsCount = features.semantics.size,
                     )
                     if (worldsKey == builtWorldsKey) return@collect
+                    // Snapshot for the background pass; a world mostly inside one of the
+                    // listener's playlists takes that playlist's name.
+                    val namedGroups = playlists.map { playlist ->
+                        playlist.name to playlist.trackIds.mapTo(HashSet()) { TrackId(it) }
+                    }
                     val discovered = withContext(Dispatchers.Default) {
                         val started = TimeSource.Monotonic.markNow()
-                        LibraryWorlds.discover(
-                            library = loaded,
-                            vectorSpace = features.vectorSpace,
-                            semantics = features.semantics,
+                        LibraryWorlds.namedAfterGroups(
+                            LibraryWorlds.discover(
+                                library = loaded,
+                                vectorSpace = features.vectorSpace,
+                                semantics = features.semantics,
+                            ),
+                            namedGroups,
                         ).also { mixes ->
                             val routed = mixes.groupingBy { it.content }.eachCount()
                             println(

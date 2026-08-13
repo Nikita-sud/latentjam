@@ -45,6 +45,7 @@ public data class LibraryWorld(
                 representative.artist?.trim()?.takeIf(String::isNotEmpty)
         LibraryWorldNameSource.SEMANTIC -> true
         LibraryWorldNameSource.GENERIC -> true
+        LibraryWorldNameSource.PLAYLIST -> true
     }
 }
 
@@ -54,6 +55,9 @@ public enum class LibraryWorldNameSource {
     ARTIST,
     SEMANTIC,
     GENERIC,
+
+    /** Named after the listener's own playlist that contains most of this world. */
+    PLAYLIST,
 }
 
 /** Mutually exclusive content route used to keep non-music out of ordinary mixes. */
@@ -90,6 +94,52 @@ public object LibraryWorlds {
     /** Large libraries need more focused mixes; small ones keep enough cards to offer variety. */
     public const val TARGET_TRACKS_PER_MIX: Int = 60
     public const val MAX_MIXES: Int = 16
+
+    /** How much of a world must lie inside one named group before the group may name it. */
+    public const val GROUP_NAME_CONTAINMENT: Double = 0.6
+
+    /**
+     * Renames worlds after the listener's own vocabulary: a world whose tracks lie mostly
+     * inside one named group (a playlist) takes that group's name. Containment rather than
+     * Jaccard — a large playlist may legitimately name a small cluster carved out of it.
+     * Applied AFTER discovery, so clustering itself stays blind to curation. Each group names
+     * at most its best-contained world, and each world takes at most one name: two cards with
+     * the same title would be indistinguishable.
+     */
+    public fun namedAfterGroups(
+        worlds: List<LibraryWorld>,
+        groups: List<Pair<String, Set<TrackId>>>,
+        minContainment: Double = GROUP_NAME_CONTAINMENT,
+    ): List<LibraryWorld> {
+        if (worlds.isEmpty() || groups.isEmpty()) return worlds
+        data class Claim(val worldIndex: Int, val groupName: String, val containment: Double)
+
+        val claims = mutableListOf<Claim>()
+        worlds.forEachIndexed { worldIndex, world ->
+            for ((groupName, members) in groups) {
+                if (groupName.isBlank() || members.isEmpty()) continue
+                val inside = world.tracks.count { it.id in members }
+                val containment = inside.toDouble() / world.tracks.size
+                if (containment >= minContainment) {
+                    claims += Claim(worldIndex, groupName, containment)
+                }
+            }
+        }
+        val renamed = worlds.toMutableList()
+        val takenWorlds = HashSet<Int>()
+        val takenNames = HashSet<String>()
+        for (claim in claims.sortedByDescending { it.containment }) {
+            if (claim.worldIndex in takenWorlds || claim.groupName in takenNames) continue
+            takenWorlds += claim.worldIndex
+            takenNames += claim.groupName
+            renamed[claim.worldIndex] = renamed[claim.worldIndex].copy(
+                name = claim.groupName,
+                nameSource = LibraryWorldNameSource.PLAYLIST,
+                semanticTitle = null,
+            )
+        }
+        return renamed
+    }
 
     /**
      * How much of a cluster a genre, subtype, decade, or artist must cover before the mix may claim
