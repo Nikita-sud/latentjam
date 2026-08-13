@@ -363,6 +363,10 @@
     <string name="settings_hidden_tracks">非表示の曲</string>
     <string name="settings_hidden_tracks_body">LatentJam 内でのみ非表示にした曲です。ファイルを変更せずに個別に復元できます。</string>
     <string name="settings_hidden_tracks_empty">LatentJam で非表示になっている曲はありません。</string>
+    <string name="settings_duplicates">音声の重複</string>
+    <string name="settings_duplicates_body">タグに関係なく、同じ録音のコピーを音で見つけます</string>
+    <string name="settings_duplicates_scanning">全トラックを比較中…</string>
+    <string name="settings_duplicates_empty">重複はありません — どのトラックも固有の音です</string>
     <string name="settings_restore">復元</string>
     <string name="settings_restore_all">すべて復元</string>
     <string name="settings_library_manage_failed">ライブラリを更新できませんでした。もう一度お試しください。</string>

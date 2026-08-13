@@ -363,6 +363,10 @@
     <string name="settings_hidden_tracks">숨긴 트랙</string>
     <string name="settings_hidden_tracks_body">LatentJam에서만 숨긴 트랙입니다. 파일을 변경하지 않고 트랙을 복원할 수 있습니다.</string>
     <string name="settings_hidden_tracks_empty">LatentJam에 숨긴 트랙이 없습니다.</string>
+    <string name="settings_duplicates">오디오 중복</string>
+    <string name="settings_duplicates_body">태그와 상관없이 같은 녹음의 복사본을 소리로 찾습니다</string>
+    <string name="settings_duplicates_scanning">모든 트랙 쌍을 비교하는 중…</string>
+    <string name="settings_duplicates_empty">중복 없음 — 모든 트랙이 고유합니다</string>
     <string name="settings_restore">복원</string>
     <string name="settings_restore_all">모두 복원</string>
     <string name="settings_library_manage_failed">보관함을 업데이트하지 못했습니다. 다시 시도하세요.</string>

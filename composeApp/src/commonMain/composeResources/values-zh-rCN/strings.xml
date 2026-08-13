@@ -363,6 +363,10 @@
     <string name="settings_hidden_tracks">隐藏的曲目</string>
     <string name="settings_hidden_tracks_body">仅在 LatentJam 中隐藏的曲目。恢复曲目不会更改其文件。</string>
     <string name="settings_hidden_tracks_empty">LatentJam 中没有隐藏的曲目。</string>
+    <string name="settings_duplicates">音频重复</string>
+    <string name="settings_duplicates_body">按声音查找同一录音的副本，与标签无关</string>
+    <string name="settings_duplicates_scanning">正在比较所有曲目…</string>
+    <string name="settings_duplicates_empty">没有重复 — 每首曲目都独一无二</string>
     <string name="settings_restore">恢复</string>
     <string name="settings_restore_all">全部恢复</string>
     <string name="settings_library_manage_failed">无法更新音乐库。请重试。</string>

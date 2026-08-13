@@ -369,6 +369,10 @@
     <string name="settings_hidden_tracks">Trek tersembunyi</string>
     <string name="settings_hidden_tracks_body">Trek yang disembunyikan hanya di LatentJam. Pulihkan trek tanpa mengubah filenya.</string>
     <string name="settings_hidden_tracks_empty">Tidak ada trek yang disembunyikan di LatentJam.</string>
+    <string name="settings_duplicates">Duplikat audio</string>
+    <string name="settings_duplicates_body">Menemukan salinan rekaman yang sama dari suaranya, apa pun tag-nya</string>
+    <string name="settings_duplicates_scanning">Membandingkan semua pasangan trek…</string>
+    <string name="settings_duplicates_empty">Tidak ada duplikat — setiap trek terdengar unik</string>
     <string name="settings_restore">Pulihkan</string>
     <string name="settings_restore_all">Pulihkan semua</string>
     <string name="settings_library_manage_failed">Tidak dapat memperbarui pustaka. Coba lagi.</string>

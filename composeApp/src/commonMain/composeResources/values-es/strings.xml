@@ -377,6 +377,10 @@
     <string name="settings_hidden_tracks">Canciones ocultas</string>
     <string name="settings_hidden_tracks_body">Canciones ocultas solo en LatentJam. Restaura cualquier canción sin modificar su archivo.</string>
     <string name="settings_hidden_tracks_empty">No hay canciones ocultas en LatentJam.</string>
+    <string name="settings_duplicates">Duplicados de audio</string>
+    <string name="settings_duplicates_body">Encuentra copias de la misma grabación por el sonido, digan lo que digan las etiquetas</string>
+    <string name="settings_duplicates_scanning">Comparando todos los pares de pistas…</string>
+    <string name="settings_duplicates_empty">Sin duplicados: cada pista suena única</string>
     <string name="settings_restore">Restaurar</string>
     <string name="settings_restore_all">Restaurar todo</string>
     <string name="settings_library_manage_failed">No se pudo actualizar la biblioteca. Inténtalo de nuevo.</string>

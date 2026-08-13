@@ -432,6 +432,10 @@
     <string name="settings_hidden_tracks">Hidden tracks</string>
     <string name="settings_hidden_tracks_body">Tracks hidden only in LatentJam. Restore any track without changing its file.</string>
     <string name="settings_hidden_tracks_empty">No tracks are hidden in LatentJam.</string>
+    <string name="settings_duplicates">Audio duplicates</string>
+    <string name="settings_duplicates_body">Finds copies of the same recording by sound, whatever their tags say</string>
+    <string name="settings_duplicates_scanning">Comparing every pair of tracks…</string>
+    <string name="settings_duplicates_empty">No duplicates — every track sounds unique</string>
     <string name="settings_restore">Restore</string>
     <string name="settings_restore_all">Restore all</string>
     <string name="settings_library_manage_failed">Could not update the library. Try again.</string>

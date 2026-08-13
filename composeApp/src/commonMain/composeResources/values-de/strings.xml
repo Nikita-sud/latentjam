@@ -380,6 +380,10 @@
     <string name="settings_hidden_tracks">Ausgeblendete Titel</string>
     <string name="settings_hidden_tracks_body">Titel, die nur in LatentJam ausgeblendet sind. Stelle jeden Titel wieder her, ohne seine Datei zu ändern.</string>
     <string name="settings_hidden_tracks_empty">In LatentJam sind keine Titel ausgeblendet.</string>
+    <string name="settings_duplicates">Audio-Duplikate</string>
+    <string name="settings_duplicates_body">Findet Kopien derselben Aufnahme am Klang, unabhängig von den Tags</string>
+    <string name="settings_duplicates_scanning">Alle Titelpaare werden verglichen…</string>
+    <string name="settings_duplicates_empty">Keine Duplikate — jeder Titel klingt einzigartig</string>
     <string name="settings_restore">Wiederherstellen</string>
     <string name="settings_restore_all">Alle wiederherstellen</string>
     <string name="settings_library_manage_failed">Die Mediathek konnte nicht aktualisiert werden. Versuche es erneut.</string>

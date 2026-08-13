@@ -225,6 +225,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_audio_acce
 import io.github.nikitasud.latentjam.app.generated.resources.settings_audio_access_not_requested
 import io.github.nikitasud.latentjam.app.generated.resources.settings_hidden_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.settings_hidden_tracks_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates
+import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_empty
+import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_scanning
 import io.github.nikitasud.latentjam.app.generated.resources.settings_hidden_tracks_empty
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_manage_failed
 import io.github.nikitasud.latentjam.app.generated.resources.settings_restore
@@ -285,7 +289,9 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -296,6 +302,7 @@ private enum class SettingsPage {
     LIBRARY,
     SOURCES,
     HIDDEN_TRACKS,
+    DUPLICATES,
     EQUALIZER,
     INTELLIGENCE,
     INTELLIGENCE_PROBLEMS,
@@ -403,6 +410,11 @@ fun SettingsScreen(
                         onRefreshLibrary = onRefreshLibrary,
                         snackbarHostState = snackbarHostState,
                     )
+                    SettingsPage.DUPLICATES -> DuplicatesSettings(
+                        tracks = tracks,
+                        onHideTrack = onHideTrack,
+                        snackbarHostState = snackbarHostState,
+                    )
                     SettingsPage.EQUALIZER -> EqualizerSettings(equalizer)
                     SettingsPage.INTELLIGENCE -> IntelligenceSettings(
                         settings = settings,
@@ -457,6 +469,7 @@ private fun SettingsPage.titleResource(): StringResource = when (this) {
     SettingsPage.LIBRARY -> Res.string.settings_library
     SettingsPage.SOURCES -> Res.string.settings_sources
     SettingsPage.HIDDEN_TRACKS -> Res.string.settings_hidden_tracks
+    SettingsPage.DUPLICATES -> Res.string.settings_duplicates
     SettingsPage.EQUALIZER -> Res.string.settings_equalizer
     SettingsPage.INTELLIGENCE -> Res.string.settings_intelligence
     SettingsPage.INTELLIGENCE_PROBLEMS -> Res.string.intelligence_problems
@@ -757,6 +770,11 @@ private fun LibrarySettings(
                         },
                     ),
                     onClick = { onOpen(SettingsPage.HIDDEN_TRACKS) },
+                )
+                SettingsRow(
+                    title = stringResource(Res.string.settings_duplicates),
+                    subtitle = stringResource(Res.string.settings_duplicates_body),
+                    onClick = { onOpen(SettingsPage.DUPLICATES) },
                 )
             }
         }
@@ -1593,6 +1611,125 @@ private fun IntelligenceProblemsSettings(
                     }
                 },
             )
+        }
+    }
+}
+
+/**
+ * The tag-blind duplicate report: tracks whose stored audio embeddings are near-identical are
+ * the same recording, whatever their files are named. Runs entirely from the SMART index — no
+ * decoding, no network — so the scan is a background pass of dot products.
+ */
+@Composable
+private fun DuplicatesSettings(
+    tracks: List<TrackDescriptor>,
+    onHideTrack: suspend (TrackDescriptor) -> Unit,
+    snackbarHostState: SnackbarHostState,
+) {
+    val scope = rememberCoroutineScope()
+    var scanning by remember { mutableStateOf(true) }
+    var groups by remember { mutableStateOf<List<List<TrackDescriptor>>>(emptyList()) }
+    var removing by remember { mutableStateOf<TrackId?>(null) }
+    val manageFailed = stringResource(Res.string.settings_library_manage_failed)
+    val removedMessage = stringResource(Res.string.snack_removed_from_latentjam)
+
+    LaunchedEffect(tracks) {
+        scanning = true
+        // Indexing may still be running; tracks without a vector simply sit this scan out.
+        val vectors = LinkedHashMap<TrackId, FloatArray>(tracks.size)
+        for (track in tracks) {
+            AppGraph.engine.embedding(track.id)?.let { vectors[track.id] = it }
+        }
+        val byId = tracks.associateBy(TrackDescriptor::id)
+        groups = withContext(Dispatchers.Default) {
+            audioDuplicateGroups(vectors).map { group -> group.mapNotNull(byId::get) }
+        }
+        scanning = false
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
+        item {
+            SettingsSection(stringResource(Res.string.settings_duplicates)) {
+                SettingsBody(stringResource(Res.string.settings_duplicates_body))
+                if (scanning) {
+                    SettingsBody(stringResource(Res.string.settings_duplicates_scanning))
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                    )
+                } else if (groups.isEmpty()) {
+                    SettingsBody(stringResource(Res.string.settings_duplicates_empty))
+                }
+            }
+        }
+        groups.forEachIndexed { groupIndex, group ->
+            item(key = "duplicate-header-$groupIndex") {
+                SettingsSection(
+                    pluralStringResource(Res.plurals.count_tracks, group.size, group.size),
+                ) {}
+            }
+            items(
+                items = group,
+                key = { "duplicate-$groupIndex-${it.id.value}" },
+            ) { track ->
+                DuplicateRow(
+                    track = track,
+                    canRemove = removing == null,
+                    onRemove = {
+                        scope.launch {
+                            removing = track.id
+                            try {
+                                onHideTrack(track)
+                                groups = groups
+                                    .map { candidates -> candidates.filterNot { it.id == track.id } }
+                                    .filter { it.size > 1 }
+                                snackbarHostState.showSnackbar(removedMessage)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Throwable) {
+                                snackbarHostState.showSnackbar(manageFailed)
+                            } finally {
+                                removing = null
+                            }
+                        }
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DuplicateRow(
+    track: TrackDescriptor,
+    canRemove: Boolean,
+    onRemove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+            Text(
+                text = track.title ?: stringResource(Res.string.track_untitled),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                // The folder is what tells two copies of one recording apart.
+                text = listOfNotNull(
+                    track.artist ?: stringResource(Res.string.track_unknown_artist),
+                    track.folderPath,
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(onClick = onRemove, enabled = canRemove) {
+            Text(stringResource(Res.string.action_remove_from_latentjam))
         }
     }
 }

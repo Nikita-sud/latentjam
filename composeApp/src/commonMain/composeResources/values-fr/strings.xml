@@ -382,6 +382,10 @@
     <string name="settings_hidden_tracks">Morceaux masqués</string>
     <string name="settings_hidden_tracks_body">Morceaux masqués uniquement dans LatentJam. Restaurez un morceau sans modifier son fichier.</string>
     <string name="settings_hidden_tracks_empty">Aucun morceau n’est masqué dans LatentJam.</string>
+    <string name="settings_duplicates">Doublons audio</string>
+    <string name="settings_duplicates_body">Trouve les copies d’un même enregistrement au son, quelles que soient les étiquettes</string>
+    <string name="settings_duplicates_scanning">Comparaison de toutes les paires de pistes…</string>
+    <string name="settings_duplicates_empty">Aucun doublon — chaque piste a un son unique</string>
     <string name="settings_restore">Restaurer</string>
     <string name="settings_restore_all">Tout restaurer</string>
     <string name="settings_library_manage_failed">Impossible de mettre à jour la bibliothèque. Réessayez.</string>

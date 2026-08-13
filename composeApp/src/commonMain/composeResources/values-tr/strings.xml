@@ -370,6 +370,10 @@
     <string name="settings_hidden_tracks">Gizli parçalar</string>
     <string name="settings_hidden_tracks_body">Yalnızca LatentJam’de gizlenen parçalar. Dosyayı değiştirmeden istediğiniz parçayı geri yükleyin.</string>
     <string name="settings_hidden_tracks_empty">LatentJam’de gizli parça yok.</string>
+    <string name="settings_duplicates">Ses kopyaları</string>
+    <string name="settings_duplicates_body">Aynı kaydın kopyalarını etiketlere bakmadan sesten bulur</string>
+    <string name="settings_duplicates_scanning">Tüm parça çiftleri karşılaştırılıyor…</string>
+    <string name="settings_duplicates_empty">Kopya yok — her parça benzersiz</string>
     <string name="settings_restore">Geri yükle</string>
     <string name="settings_restore_all">Tümünü geri yükle</string>
     <string name="settings_library_manage_failed">Arşiv güncellenemedi. Yeniden deneyin.</string>

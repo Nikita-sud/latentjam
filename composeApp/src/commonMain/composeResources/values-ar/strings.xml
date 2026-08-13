@@ -403,6 +403,10 @@
     <string name="settings_hidden_tracks">المقاطع المخفية</string>
     <string name="settings_hidden_tracks_body">مقاطع مخفية في LatentJam فقط. يمكنك استعادة أي مقطع من دون تغيير ملفه.</string>
     <string name="settings_hidden_tracks_empty">لا توجد مقاطع مخفية في LatentJam.</string>
+    <string name="settings_duplicates">التكرارات الصوتية</string>
+    <string name="settings_duplicates_body">يعثر على نسخ التسجيل نفسه بالصوت، بغض النظر عن الوسوم</string>
+    <string name="settings_duplicates_scanning">تتم مقارنة جميع المقاطع…</string>
+    <string name="settings_duplicates_empty">لا تكرارات — كل مقطع فريد بصوته</string>
     <string name="settings_restore">استعادة</string>
     <string name="settings_restore_all">استعادة الكل</string>
     <string name="settings_library_manage_failed">تعذر تحديث المكتبة. حاول مرة أخرى.</string>

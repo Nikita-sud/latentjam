@@ -370,6 +370,10 @@
     <string name="settings_hidden_tracks">छिपाए गए ट्रैक</string>
     <string name="settings_hidden_tracks_body">ट्रैक केवल LatentJam में छिपाए गए हैं। फ़ाइल बदले बिना किसी भी ट्रैक को वापस लाएँ।</string>
     <string name="settings_hidden_tracks_empty">LatentJam में कोई ट्रैक छिपा नहीं है।</string>
+    <string name="settings_duplicates">ऑडियो डुप्लिकेट</string>
+    <string name="settings_duplicates_body">टैग चाहे जो कहें, एक ही रिकॉर्डिंग की प्रतियाँ ध्वनि से खोजता है</string>
+    <string name="settings_duplicates_scanning">सभी ट्रैक की तुलना हो रही है…</string>
+    <string name="settings_duplicates_empty">कोई डुप्लिकेट नहीं — हर ट्रैक अलग है</string>
     <string name="settings_restore">वापस लाएँ</string>
     <string name="settings_restore_all">सभी वापस लाएँ</string>
     <string name="settings_library_manage_failed">लाइब्रेरी अपडेट नहीं की जा सकी। फिर से कोशिश करें।</string>

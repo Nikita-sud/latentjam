@@ -388,6 +388,10 @@
     <string name="settings_hidden_tracks">Ukryte utwory</string>
     <string name="settings_hidden_tracks_body">Utwory ukryte tylko w LatentJam. Przywróć dowolny utwór bez zmiany jego pliku.</string>
     <string name="settings_hidden_tracks_empty">W LatentJam nie ma ukrytych utworów.</string>
+    <string name="settings_duplicates">Duplikaty audio</string>
+    <string name="settings_duplicates_body">Znajduje kopie tego samego nagrania po dźwięku, niezależnie od tagów</string>
+    <string name="settings_duplicates_scanning">Porównywanie wszystkich par utworów…</string>
+    <string name="settings_duplicates_empty">Brak duplikatów — każdy utwór brzmi wyjątkowo</string>
     <string name="settings_restore">Przywróć</string>
     <string name="settings_restore_all">Przywróć wszystkie</string>
     <string name="settings_library_manage_failed">Nie udało się zaktualizować biblioteki. Spróbuj ponownie.</string>

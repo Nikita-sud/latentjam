@@ -379,6 +379,10 @@
     <string name="settings_hidden_tracks">Скрытые треки</string>
     <string name="settings_hidden_tracks_body">Треки, скрытые только в LatentJam. Любой трек можно вернуть, не изменяя его файл.</string>
     <string name="settings_hidden_tracks_empty">В LatentJam нет скрытых треков.</string>
+    <string name="settings_duplicates">Дубликаты по звуку</string>
+    <string name="settings_duplicates_body">Ищет копии одной записи по звуку, независимо от тегов</string>
+    <string name="settings_duplicates_scanning">Сравниваю треки между собой…</string>
+    <string name="settings_duplicates_empty">Дубликатов нет — все треки звучат по-разному</string>
     <string name="settings_restore">Восстановить</string>
     <string name="settings_restore_all">Восстановить все</string>
     <string name="settings_library_manage_failed">Не удалось обновить медиатеку. Повторите попытку.</string>

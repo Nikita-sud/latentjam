@@ -368,6 +368,10 @@
     <string name="settings_hidden_tracks">Piese ascunse</string>
     <string name="settings_hidden_tracks_body">Piese ascunse doar în LatentJam. Restabilește orice piesă fără a-i modifica fișierul.</string>
     <string name="settings_hidden_tracks_empty">Nu există piese ascunse în LatentJam.</string>
+    <string name="settings_duplicates">Dubluri audio</string>
+    <string name="settings_duplicates_body">Găsește copii ale aceleiași înregistrări după sunet, indiferent de etichete</string>
+    <string name="settings_duplicates_scanning">Se compară toate perechile de piese…</string>
+    <string name="settings_duplicates_empty">Fără dubluri — fiecare piesă sună unic</string>
     <string name="settings_restore">Restabilește</string>
     <string name="settings_restore_all">Restabilește tot</string>
     <string name="settings_library_manage_failed">Biblioteca nu a putut fi actualizată. Încearcă din nou.</string>

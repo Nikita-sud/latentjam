@@ -377,6 +377,10 @@
     <string name="settings_hidden_tracks">Brani nascosti</string>
     <string name="settings_hidden_tracks_body">Brani nascosti solo in LatentJam. Ripristina un brano senza modificarne il file.</string>
     <string name="settings_hidden_tracks_empty">Nessun brano è nascosto in LatentJam.</string>
+    <string name="settings_duplicates">Duplicati audio</string>
+    <string name="settings_duplicates_body">Trova copie della stessa registrazione dal suono, qualunque cosa dicano i tag</string>
+    <string name="settings_duplicates_scanning">Confronto di tutte le coppie di brani…</string>
+    <string name="settings_duplicates_empty">Nessun duplicato: ogni brano suona unico</string>
     <string name="settings_restore">Ripristina</string>
     <string name="settings_restore_all">Ripristina tutto</string>
     <string name="settings_library_manage_failed">Impossibile aggiornare la libreria. Riprova.</string>

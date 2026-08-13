@@ -377,6 +377,10 @@
     <string name="settings_hidden_tracks">Faixas ocultas</string>
     <string name="settings_hidden_tracks_body">Faixas ocultas apenas no LatentJam. Restaure qualquer faixa sem alterar o arquivo.</string>
     <string name="settings_hidden_tracks_empty">Não há faixas ocultas no LatentJam.</string>
+    <string name="settings_duplicates">Duplicatas de áudio</string>
+    <string name="settings_duplicates_body">Encontra cópias da mesma gravação pelo som, independentemente das tags</string>
+    <string name="settings_duplicates_scanning">Comparando todos os pares de faixas…</string>
+    <string name="settings_duplicates_empty">Sem duplicatas — cada faixa soa única</string>
     <string name="settings_restore">Restaurar</string>
     <string name="settings_restore_all">Restaurar tudo</string>
     <string name="settings_library_manage_failed">Não foi possível atualizar a biblioteca. Tente novamente.</string>
