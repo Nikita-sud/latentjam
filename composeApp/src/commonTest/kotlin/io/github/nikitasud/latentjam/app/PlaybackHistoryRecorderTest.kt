@@ -157,6 +157,8 @@ internal class PlaybackHistoryRecorderTest {
         override suspend fun retainQueue(trackIds: Set<TrackId>) = Unit
         override suspend fun playNext(track: TrackDescriptor) = Unit
         override suspend fun addToQueue(track: TrackDescriptor) = Unit
+        override suspend fun moveQueueItem(from: Int, to: Int) = Unit
+        override suspend fun removeQueueItem(index: Int) = Unit
     }
 
     // The log records a session only when playback moves OFF a track, so the final track of

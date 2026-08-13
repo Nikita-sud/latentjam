@@ -444,6 +444,59 @@ internal class IosPlaybackController(
         pushState()
     }
 
+    override suspend fun moveQueueItem(from: Int, to: Int): Unit = withContext(Dispatchers.Main) {
+        if (from !in queue.indices || to !in queue.indices || from == to) return@withContext
+        queue = queue.toMutableList().apply { add(to, removeAt(from)) }
+        queueGeneration++
+        // The current entry is tracked by index; arithmetic (not id search) keeps the right one
+        // anchored even when the same track sits in the queue twice.
+        queueIndex = when {
+            queueIndex == from -> to
+            from < queueIndex && to >= queueIndex -> queueIndex - 1
+            from > queueIndex && to <= queueIndex -> queueIndex + 1
+            else -> queueIndex
+        }
+        pushState()
+    }
+
+    override suspend fun removeQueueItem(index: Int): Unit = withContext(Dispatchers.Main) {
+        if (index !in queue.indices) return@withContext
+        val removed = queue[index]
+        val wasCurrent = index == queueIndex
+        val wasPlaying = playing
+        queue = queue.toMutableList().apply { removeAt(index) }
+        queueGeneration++
+        if (queue.none { it.id == removed.id }) {
+            pool = pool.filter { it.id != removed.id }
+        }
+        when {
+            queue.isEmpty() -> {
+                stopBackendsAndClearCurrent()
+            }
+            wasCurrent -> {
+                // Behave like the track ended: the next track now occupies this slot, keeping
+                // whether we were playing — the same contract as retainQueue's deletion path.
+                val startIndex = index.coerceIn(0, queue.lastIndex)
+                val loaded = loadPlayableFrom(
+                    startIndex = startIndex,
+                    direction = 1,
+                    autoPlay = wasPlaying,
+                    wrap = false,
+                )
+                if (!loaded && startIndex > 0) {
+                    loadPlayableFrom(
+                        startIndex = startIndex - 1,
+                        direction = -1,
+                        autoPlay = wasPlaying,
+                        wrap = false,
+                    )
+                }
+            }
+            index < queueIndex -> queueIndex--
+        }
+        pushState()
+    }
+
     /**
      * Makes the first queued track current when the queue was empty.
      *

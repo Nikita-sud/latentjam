@@ -38,8 +38,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Pause
@@ -61,6 +64,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetScaffoldState
@@ -80,6 +86,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -92,6 +102,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.action_close
 import io.github.nikitasud.latentjam.app.generated.resources.action_next
 import io.github.nikitasud.latentjam.app.generated.resources.action_pause
+import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_previous
 import io.github.nikitasud.latentjam.app.generated.resources.action_track_options
@@ -118,6 +129,7 @@ import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.SleepTimerState
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -152,6 +164,8 @@ fun NowPlayingScreen(
     onSleepAtEndOfTrack: () -> Unit,
     onCancelSleepTimer: () -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
+    /** Raised by the queue sheet's save affordance with the CURRENT queue as the selection. */
+    onAddQueueToPlaylist: () -> Unit,
     onClose: () -> Unit,
 ) {
     // Position is intentionally projected out. It changes twice per second, while artwork, queue,
@@ -231,8 +245,14 @@ fun NowPlayingScreen(
                         queue = now.queue,
                         currentIndex = now.queueIndex,
                         isPlaying = now.isPlaying,
+                        canReorder = now.shuffleMode != ShuffleMode.ON,
                         onPlayAt = { index -> scope.launch { playback.playAt(index) } },
                         onTrackMenu = onTrackMenu,
+                        onRemoveAt = { index -> scope.launch { playback.removeQueueItem(index) } },
+                        onMove = { from, to ->
+                            scope.launch { playback.moveQueueItem(from, to) }
+                        },
+                        onSaveQueue = onAddQueueToPlaylist,
                     )
                 },
             ) { sheetPadding ->
@@ -753,24 +773,50 @@ private fun QueueSheetContent(
     queue: List<TrackDescriptor>,
     currentIndex: Int,
     isPlaying: Boolean,
+    /** False under random shuffle: the sheet shows a traversal, not the player's list. */
+    canReorder: Boolean,
     onPlayAt: (Int) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
+    onRemoveAt: (Int) -> Unit,
+    onMove: (from: Int, to: Int) -> Unit,
+    onSaveQueue: () -> Unit,
 ) {
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = currentIndex.coerceAtLeast(0),
     )
+    val haptics = LocalHapticFeedback.current
+    // Reordering floats the pressed row and commits ONE move on drop. Mutating the list mid-drag
+    // would re-key every row under the finger (keys are positional) and kill the gesture.
+    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+    var dragTargetIndex by remember { mutableStateOf<Int?>(null) }
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = if (queue.isEmpty()) {
-                stringResource(Res.string.queue_title)
-            } else {
-                stringResource(Res.string.queue_title_count, queue.size)
-            },
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-        )
+        Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+            Text(
+                text = if (queue.isEmpty()) {
+                    stringResource(Res.string.queue_title)
+                } else {
+                    stringResource(Res.string.queue_title_count, queue.size)
+                },
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.align(Alignment.Center),
+            )
+            if (queue.isNotEmpty()) {
+                // A queue worth keeping — often SMART's work — becomes a playlist in two taps.
+                Icon(
+                    imageVector = Icons.Rounded.LibraryAdd,
+                    contentDescription = stringResource(Res.string.action_add_to_playlist),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 20.dp)
+                        .size(22.dp)
+                        .clickable(onClick = onSaveQueue),
+                )
+            }
+        }
         LazyColumn(state = listState) {
             // Keyed by POSITION as well as identity. A queue may legitimately hold the same track
             // more than once — added by hand, or repeated across a long session — and a key that is
@@ -779,16 +825,102 @@ private fun QueueSheetContent(
                 queue,
                 key = { index, track -> "$index:${track.id.value}" },
             ) { index, track ->
-                QueueRow(
-                    track = track,
-                    isCurrent = index == currentIndex,
-                    // Everything above the playhead has been heard this session.
-                    isPlayed = index < currentIndex,
-                    isPlaying = isPlaying,
-                    onClick = { onPlayAt(index) },
-                    onMenu = { onTrackMenu(track) },
-                    modifier = Modifier.animateItem(),
+                val dismissState = rememberSwipeToDismissBoxState(
+                    confirmValueChange = { value ->
+                        if (value != SwipeToDismissBoxValue.Settled) {
+                            onRemoveAt(index)
+                            true
+                        } else {
+                            false
+                        }
+                    },
                 )
+                Box(
+                    modifier = Modifier
+                        .animateItem()
+                        .then(
+                            if (draggingIndex == index) {
+                                Modifier
+                                    .zIndex(1f)
+                                    .graphicsLayer { translationY = dragOffsetY }
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .pointerInput(canReorder, index, queue.size) {
+                            if (!canReorder) return@pointerInput
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    draggingIndex = index
+                                    dragTargetIndex = index
+                                    dragOffsetY = 0f
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    dragOffsetY += dragAmount.y
+                                    val rowHeight = listState.layoutInfo.visibleItemsInfo
+                                        .firstOrNull { it.index == index }
+                                        ?.size
+                                        ?.takeIf { it > 0 }
+                                    if (rowHeight != null) {
+                                        val shift = (dragOffsetY / rowHeight).roundToInt()
+                                        dragTargetIndex =
+                                            (index + shift).coerceIn(0, queue.lastIndex)
+                                    }
+                                },
+                                onDragEnd = {
+                                    val from = draggingIndex
+                                    val to = dragTargetIndex
+                                    draggingIndex = null
+                                    dragTargetIndex = null
+                                    dragOffsetY = 0f
+                                    if (from != null && to != null && from != to) onMove(from, to)
+                                },
+                                onDragCancel = {
+                                    draggingIndex = null
+                                    dragTargetIndex = null
+                                    dragOffsetY = 0f
+                                },
+                            )
+                        },
+                ) {
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        backgroundContent = {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.errorContainer),
+                                contentAlignment = when (dismissState.dismissDirection) {
+                                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                    else -> Alignment.CenterEnd
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.padding(horizontal = 24.dp),
+                                )
+                            }
+                        },
+                    ) {
+                        QueueRow(
+                            track = track,
+                            isCurrent = index == currentIndex,
+                            // Everything above the playhead has been heard this session.
+                            isPlayed = index < currentIndex,
+                            isPlaying = isPlaying,
+                            onClick = { onPlayAt(index) },
+                            onMenu = { onTrackMenu(track) },
+                            // Opaque, or the removal background bleeds through while swiping.
+                            modifier = Modifier.background(
+                                MaterialTheme.colorScheme.surfaceContainerHigh,
+                            ),
+                        )
+                    }
+                }
             }
         }
     }

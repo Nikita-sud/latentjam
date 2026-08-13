@@ -129,4 +129,6 @@ private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackControl
     override suspend fun cycleRepeatMode(): RepeatMode = RepeatMode.OFF
     override suspend fun playNext(track: TrackDescriptor) = Unit
     override suspend fun addToQueue(track: TrackDescriptor) = Unit
+    override suspend fun moveQueueItem(from: Int, to: Int) = Unit
+    override suspend fun removeQueueItem(index: Int) = Unit
 }

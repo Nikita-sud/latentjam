@@ -151,6 +151,20 @@ public interface PlaybackController {
 
     /** Appends [track] to the end of the queue. */
     public suspend fun addToQueue(track: TrackDescriptor)
+
+    /**
+     * Moves the queue entry at [from] to position [to], both in [NowPlaying.queue] order.
+     * Out-of-range indices are ignored. Under the random shuffle mode the visible order is a
+     * traversal over a differently-ordered player, so implementations may ignore the request —
+     * callers hide the reorder affordance there.
+     */
+    public suspend fun moveQueueItem(from: Int, to: Int)
+
+    /**
+     * Removes the queue entry at [index] ([NowPlaying.queue] order). Removing the current entry
+     * behaves like that track ending: playback advances on its own.
+     */
+    public suspend fun removeQueueItem(index: Int)
 }
 
 /**

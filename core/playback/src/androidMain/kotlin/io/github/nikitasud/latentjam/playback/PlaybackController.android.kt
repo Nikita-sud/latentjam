@@ -522,6 +522,40 @@ internal class AndroidPlaybackController(
         pushState()
     }
 
+    override suspend fun moveQueueItem(from: Int, to: Int): Unit = withContext(Dispatchers.Main) {
+        val player = controller ?: return@withContext
+        // Under random shuffle the sheet shows traversal order while Media3 moves operate on
+        // physical order; the two disagree, so the call is inert and the UI hides the affordance.
+        if (player.shuffleModeEnabled) return@withContext
+        val count = player.mediaItemCount
+        if (from !in 0 until count || to !in 0 until count || from == to) return@withContext
+        queueGeneration++
+        player.moveMediaItem(from, to)
+        rebuildQueueSnapshot()
+        pushState()
+    }
+
+    override suspend fun removeQueueItem(index: Int): Unit = withContext(Dispatchers.Main) {
+        val player = controller ?: return@withContext
+        val mediaItemIndex = cachedQueueMediaIndices.getOrNull(index) ?: return@withContext
+        if (mediaItemIndex !in 0 until player.mediaItemCount) return@withContext
+        val removedId = player.getMediaItemAt(mediaItemIndex).mediaId
+        queueGeneration++
+        // Media3 treats removing the current item as that item ending: playback advances alone.
+        player.removeMediaItem(mediaItemIndex)
+        val stillQueued = (0 until player.mediaItemCount).any {
+            player.getMediaItemAt(it).mediaId == removedId
+        }
+        // A queue may hold the same track twice; the source pool row leaves only with its last
+        // queue occurrence, mirroring retainQueue.
+        if (!stillQueued) {
+            pool = pool.filter { it.id.value != removedId }
+            poolById = poolById - removedId
+        }
+        rebuildQueueSnapshot()
+        pushState()
+    }
+
     override suspend fun cycleShuffleMode(): ShuffleMode = withContext(Dispatchers.Main) {
         val nextMode = AndroidShuffleModeRegistry.cycle()
         applyShuffleMode(nextMode)

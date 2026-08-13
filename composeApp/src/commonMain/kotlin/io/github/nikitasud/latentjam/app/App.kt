@@ -1425,6 +1425,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         onSleepAtEndOfTrack = sleepTimer::startAtEndOfTrack,
                         onCancelSleepTimer = sleepTimer::cancel,
                         onTrackMenu = { track -> trackMenuRequest = TrackMenuRequest(track) },
+                        onAddQueueToPlaylist = {
+                            playback.state.value.queue
+                                .takeIf { it.isNotEmpty() }
+                                ?.let { addToPlaylistSelection = it }
+                        },
                         onClose = { showNowPlaying = false },
                     )
                 } else {
