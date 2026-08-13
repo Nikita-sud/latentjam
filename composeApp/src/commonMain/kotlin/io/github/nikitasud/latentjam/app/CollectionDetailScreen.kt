@@ -61,11 +61,22 @@ import org.jetbrains.compose.resources.stringResource
  * What the user drilled into from a browse tab; playing from here scopes the
  * queue to exactly these tracks.
  */
+/** One labelled stretch of a collection's track list — an artist's album, for instance. */
+data class CollectionSection(
+    val title: String,
+    val tracks: List<TrackDescriptor>,
+)
+
 data class CollectionSelection(
     val title: String,
     val subtitle: String?,
     val artworkUri: String?,
     val tracks: List<TrackDescriptor>,
+    /**
+     * When set, the list renders under these headers. Their concatenation IS [tracks] — playback
+     * and selection keep working in flat indices, only the presentation gains structure.
+     */
+    val sections: List<CollectionSection>? = null,
     /**
      * Whether long-pressing a track starts checkbox multi-selection. True for every drill-in
      * today — playlists, albums, artists, genres, folders — so the same gesture means the same
@@ -114,9 +125,25 @@ fun CollectionDetailScreen(
     // while go-to-album from another collection re-anchors.
     val listState = rememberLazyListState()
     LaunchedEffect(selection.title) {
-        val index = selection.tracks.indexOfFirst { it.id == currentTrackId }
-        // +1 for the actions row, then two rows of context above the anchored track.
-        if (index >= 0) listState.scrollToItem((index - 1).coerceAtLeast(0))
+        val flat = selection.tracks.indexOfFirst { it.id == currentTrackId }
+        if (flat < 0) return@LaunchedEffect
+        // Translate the flat track position into a list-item position: the actions row comes
+        // first, and sectioned lists interleave one header before each section.
+        val sections = selection.sections
+        val item = if (sections == null) {
+            flat + 1
+        } else {
+            var running = 0
+            var headers = 1
+            for (section in sections) {
+                if (flat < running + section.tracks.size) break
+                running += section.tracks.size
+                headers++
+            }
+            flat + headers + 1
+        }
+        // Two rows of context above the anchored track.
+        listState.scrollToItem((item - 2).coerceAtLeast(0))
     }
 
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -205,44 +232,117 @@ fun CollectionDetailScreen(
                         }
                     }
                 }
-                itemsIndexed(
-                    selection.tracks,
-                    key = { _, track -> track.id.value },
-                ) { index, track ->
-                    TrackRow(
-                        track = track,
-                        isCurrent = track.id == currentTrackId,
-                        isPlaying = currentTrackPlaying,
-                        onClick = {
-                            if (selectionMode) onToggleSelection(track) else onPlayTrack(index)
-                        },
-                        onLongClick = if (selection.allowsTrackSelection) {
-                            {
-                                if (selectionMode) {
-                                    onToggleSelection(track)
-                                } else {
-                                    onStartSelection(track)
-                                }
-                            }
-                        } else {
-                            { onTrackMenu(track) }
-                        },
-                        selectionState = if (selectionMode) {
-                            track.id in selectedTrackIds
-                        } else {
-                            null
-                        },
-                        onMenu = if (selectionMode) null else ({ onTrackMenu(track) }),
-                    )
-                    if (index < selection.tracks.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 88.dp, end = 16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
+                val sections = selection.sections
+                if (sections == null) {
+                    itemsIndexed(
+                        selection.tracks,
+                        key = { _, track -> track.id.value },
+                    ) { index, track ->
+                        CollectionTrackRow(
+                            track = track,
+                            flatIndex = index,
+                            showDivider = index < selection.tracks.lastIndex,
+                            selection = selection,
+                            selectionMode = selectionMode,
+                            selectedTrackIds = selectedTrackIds,
+                            currentTrackId = currentTrackId,
+                            currentTrackPlaying = currentTrackPlaying,
+                            onToggleSelection = onToggleSelection,
+                            onStartSelection = onStartSelection,
+                            onPlayTrack = onPlayTrack,
+                            onTrackMenu = onTrackMenu,
                         )
+                    }
+                } else {
+                    var base = 0
+                    sections.forEachIndexed { sectionIndex, section ->
+                        val sectionBase = base
+                        item(key = "section-$sectionIndex") {
+                            Text(
+                                text = section.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(
+                                    start = 16.dp,
+                                    end = 16.dp,
+                                    top = 16.dp,
+                                    bottom = 4.dp,
+                                ),
+                            )
+                        }
+                        itemsIndexed(
+                            section.tracks,
+                            key = { _, track -> "$sectionIndex:${track.id.value}" },
+                        ) { indexInSection, track ->
+                            CollectionTrackRow(
+                                track = track,
+                                flatIndex = sectionBase + indexInSection,
+                                showDivider = indexInSection < section.tracks.lastIndex,
+                                selection = selection,
+                                selectionMode = selectionMode,
+                                selectedTrackIds = selectedTrackIds,
+                                currentTrackId = currentTrackId,
+                                currentTrackPlaying = currentTrackPlaying,
+                                onToggleSelection = onToggleSelection,
+                                onStartSelection = onStartSelection,
+                                onPlayTrack = onPlayTrack,
+                                onTrackMenu = onTrackMenu,
+                            )
+                        }
+                        base += section.tracks.size
                     }
                 }
             }
         }
+    }
+}
+
+/** One track row of a collection, flat or sectioned — the selection wiring is identical. */
+@Composable
+private fun CollectionTrackRow(
+    track: TrackDescriptor,
+    flatIndex: Int,
+    showDivider: Boolean,
+    selection: CollectionSelection,
+    selectionMode: Boolean,
+    selectedTrackIds: Set<TrackId>,
+    currentTrackId: TrackId?,
+    currentTrackPlaying: Boolean,
+    onToggleSelection: (TrackDescriptor) -> Unit,
+    onStartSelection: (TrackDescriptor) -> Unit,
+    onPlayTrack: (Int) -> Unit,
+    onTrackMenu: (TrackDescriptor) -> Unit,
+) {
+    TrackRow(
+        track = track,
+        isCurrent = track.id == currentTrackId,
+        isPlaying = currentTrackPlaying,
+        onClick = {
+            if (selectionMode) onToggleSelection(track) else onPlayTrack(flatIndex)
+        },
+        onLongClick = if (selection.allowsTrackSelection) {
+            {
+                if (selectionMode) {
+                    onToggleSelection(track)
+                } else {
+                    onStartSelection(track)
+                }
+            }
+        } else {
+            { onTrackMenu(track) }
+        },
+        selectionState = if (selectionMode) {
+            track.id in selectedTrackIds
+        } else {
+            null
+        },
+        onMenu = if (selectionMode) null else ({ onTrackMenu(track) }),
+    )
+    if (showDivider) {
+        HorizontalDivider(
+            modifier = Modifier.padding(start = 88.dp, end = 16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        )
     }
 }
 

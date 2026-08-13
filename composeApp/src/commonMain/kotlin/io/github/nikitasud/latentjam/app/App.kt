@@ -2926,15 +2926,32 @@ private suspend fun AlbumGroup.toSelection() = CollectionSelection(
     allowsTrackSelection = true,
 )
 
-private suspend fun ArtistGroup.toSelection() = CollectionSelection(
-    title = name ?: getString(Res.string.track_unknown_artist),
-    subtitle = getPluralString(Res.plurals.count_tracks, tracks.size, tracks.size) +
-        SUBTITLE_SEPARATOR +
-        getPluralString(Res.plurals.count_albums, albumCount, albumCount),
-    artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
-    tracks = tracks,
-    allowsTrackSelection = true,
-)
+private suspend fun ArtistGroup.toSelection(): CollectionSelection {
+    // Albums are an artist's natural chapters. The flat list stays exactly the sections'
+    // concatenation, so playback and selection keep working in flat indices.
+    val sections = tracks
+        .groupBy { it.album }
+        .entries
+        .sortedWith(compareBy(nullsLast(naturalOrder())) { it.key?.lowercase() })
+        .map { (album, grouped) ->
+            CollectionSection(
+                title = album ?: getString(Res.string.track_unknown_album),
+                tracks = grouped,
+            )
+        }
+    val ordered = sections.flatMap { it.tracks }
+    return CollectionSelection(
+        title = name ?: getString(Res.string.track_unknown_artist),
+        subtitle = getPluralString(Res.plurals.count_tracks, tracks.size, tracks.size) +
+            SUBTITLE_SEPARATOR +
+            getPluralString(Res.plurals.count_albums, albumCount, albumCount),
+        artworkUri = ordered.firstNotNullOfOrNull { it.artworkUri },
+        tracks = ordered,
+        // A single bucket is a flat list wearing a pointless header.
+        sections = sections.takeIf { it.size > 1 },
+        allowsTrackSelection = true,
+    )
+}
 
 private suspend fun GenreGroup.toSelection() = CollectionSelection(
     title = name ?: getString(Res.string.track_unknown_genre),
