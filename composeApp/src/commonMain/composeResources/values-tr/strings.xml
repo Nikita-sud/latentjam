@@ -176,6 +176,7 @@
     <string name="snack_playlist_track_removed">"%1$s" listesinden kaldırıldı</string>
     <string name="action_go_to_album">Albüme git</string>
     <string name="action_go_to_artist">Sanatçıya git</string>
+    <string name="action_show_on_map">Haritada göster</string>
     <string name="action_information">Bilgi</string>
     <string name="action_delete_from_device">Cihazdan sil</string>
     <string name="dialog_delete_tracks_message">Seçilen %1$d parça bu cihazdan kaldırılacak. Bu işlem geri alınamaz.</string>

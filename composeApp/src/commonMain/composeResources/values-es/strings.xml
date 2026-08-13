@@ -183,6 +183,7 @@
     <string name="snack_playlist_track_removed">Quitado de "%1$s"</string>
     <string name="action_go_to_album">Ir al álbum</string>
     <string name="action_go_to_artist">Ir al artista</string>
+    <string name="action_show_on_map">Mostrar en el mapa</string>
     <string name="action_information">Información</string>
     <string name="action_delete_from_device">Eliminar del dispositivo</string>
     <string name="dialog_delete_tracks_message">Las pistas seleccionadas (%1$d) se eliminarán de este dispositivo. Esta acción no se puede deshacer.</string>

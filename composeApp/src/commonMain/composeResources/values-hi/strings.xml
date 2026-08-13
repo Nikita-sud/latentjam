@@ -176,6 +176,7 @@
     <string name="snack_playlist_track_removed">"%1$s" से हटाया गया</string>
     <string name="action_go_to_album">एल्बम पर जाएं</string>
     <string name="action_go_to_artist">कलाकार पर जाएं</string>
+    <string name="action_show_on_map">मानचित्र पर दिखाएँ</string>
     <string name="action_information">जानकारी</string>
     <string name="action_delete_from_device">डिवाइस से मिटाएं</string>
     <string name="dialog_delete_tracks_message">चुने गए ट्रैक (%1$d) इस डिवाइस से हटा दिए जाएँगे। इसे पहले जैसा नहीं किया जा सकता।</string>

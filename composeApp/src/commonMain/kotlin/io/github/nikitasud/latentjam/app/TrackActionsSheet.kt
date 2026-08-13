@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -47,6 +48,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_favorite
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_favorite
+import io.github.nikitasud.latentjam.app.generated.resources.action_show_on_map
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_queue
 import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.action_delete
@@ -93,6 +95,8 @@ internal fun TrackActionsSheet(
     onRemoveFromPlaylist: (() -> Unit)?,
     onGoToAlbum: (() -> Unit)?,
     onGoToArtist: (() -> Unit)?,
+    /** Non-null only when the Map has actually drawn this track's dot. */
+    onShowOnMap: (() -> Unit)? = null,
     onInfo: () -> Unit,
     isTrackExcludedFromSmart: Boolean,
     isArtistExcludedFromSmart: Boolean,
@@ -184,6 +188,12 @@ internal fun TrackActionsSheet(
                     Icons.Rounded.Person,
                     stringResource(Res.string.action_go_to_artist),
                 ) { onDismiss(); goToArtist() }
+            }
+            onShowOnMap?.let { showOnMap ->
+                SheetAction(
+                    Icons.Rounded.Map,
+                    stringResource(Res.string.action_show_on_map),
+                ) { onDismiss(); showOnMap() }
             }
             SheetAction(
                 Icons.Rounded.Info,

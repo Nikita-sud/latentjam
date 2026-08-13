@@ -192,6 +192,7 @@
     <string name="snack_playlist_track_removed">Прибрано з "%1$s"</string>
     <string name="action_go_to_album">Перейти до альбому</string>
     <string name="action_go_to_artist">Перейти до виконавця</string>
+    <string name="action_show_on_map">Показати на карті</string>
     <string name="action_information">Відомості</string>
     <string name="action_delete_from_device">Видалити з пристрою</string>
     <string name="dialog_delete_tracks_message">Вибрані треки (%1$d) буде видалено з цього пристрою. Скасувати цю дію не вдасться.</string>

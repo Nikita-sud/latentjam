@@ -931,6 +931,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // `remember(page)` value on it -- lens, selected region, zoom, pan) the moment it scrolls
         // out of view, so there is no reader state left to disturb by the next time this fires.
         var mapState by remember { mutableStateOf<MapPageState>(MapPageState.Indexing) }
+        // "Show on the Map" carries a track from any list to its dot; cleared by the next request.
+        var mapFocusTrackId by remember { mutableStateOf<TrackId?>(null) }
         // The regions actually behind the currently shown MapPage. Not always `worlds` itself --
         // spec section 8's smallest-library fallback (mapFallbackRegions) can stand in for it -- so
         // the "Play region"/"SMART from here" callbacks below read this, not `worlds` directly, or
@@ -1635,6 +1637,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         MAP_TAB -> MapTab(
                                             state = mapState,
                                             contentPadding = listPadding,
+                                            focusTrackId = mapFocusTrackId,
                                             onPlayRegion = { region ->
                                                 mapRegions.getOrNull(region)?.let { world ->
                                                     AppGraph.queueSource.value =
@@ -2221,6 +2224,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onAddToQueue = { scope.launch { playback.addToQueue(target) } },
                 isFavorite = target.id in favoriteIds,
                 onToggleFavorite = { toggleFavorite(target.id) },
+                // The page assembles on arrival at the tab, and MapTab's focus effect fires as
+                // soon as it is ready — so the action works even before the first Map visit.
+                onShowOnMap = {
+                    mapFocusTrackId = target.id
+                    updateTrackSelection(emptySet())
+                    updateSelectedCollection(null)
+                    showSearch = false
+                    showNowPlaying = false
+                    navigateToRootTab(MAP_TAB)
+                },
                 onAddToPlaylist = { addToPlaylistSelection = listOf(target) },
                 // Only from inside a user playlist whose list actually holds this track. The
                 // sheet can be raised over a playlist from other surfaces (the queue sheet, For

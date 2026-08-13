@@ -186,6 +186,7 @@
     <string name="snack_playlist_track_removed">Aus "%1$s" entfernt</string>
     <string name="action_go_to_album">Zum Album</string>
     <string name="action_go_to_artist">Zum Künstler</string>
+    <string name="action_show_on_map">Auf der Karte zeigen</string>
     <string name="action_information">Informationen</string>
     <string name="action_delete_from_device">Vom Gerät löschen</string>
     <string name="dialog_delete_tracks_message">Die ausgewählten Titel (%1$d) werden von diesem Gerät entfernt. Das lässt sich nicht rückgängig machen.</string>

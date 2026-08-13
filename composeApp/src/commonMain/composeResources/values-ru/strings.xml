@@ -179,6 +179,7 @@
     <string name="snack_playlist_track_removed">Убрано из "%1$s"</string>
     <string name="action_go_to_album">Перейти к альбому</string>
     <string name="action_go_to_artist">Перейти к исполнителю</string>
+    <string name="action_show_on_map">Показать на карте</string>
     <string name="action_information">Информация</string>
     <string name="action_delete_from_device">Удалить с устройства</string>
     <string name="dialog_delete_tracks_message">Выбранные треки (%1$d) будут удалены с этого устройства. Это действие нельзя отменить.</string>

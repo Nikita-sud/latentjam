@@ -188,6 +188,7 @@
     <string name="snack_playlist_track_removed">Retiré de "%1$s"</string>
     <string name="action_go_to_album">Aller à l’album</string>
     <string name="action_go_to_artist">Aller à l’artiste</string>
+    <string name="action_show_on_map">Afficher sur la carte</string>
     <string name="action_information">Informations</string>
     <string name="action_delete_from_device">Supprimer de l’appareil</string>
     <string name="dialog_delete_tracks_message">Les morceaux sélectionnés (%1$d) seront supprimés de cet appareil. Cette action est irréversible.</string>

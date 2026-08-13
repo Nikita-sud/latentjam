@@ -228,6 +228,7 @@
     <string name="snack_playlist_track_removed">Removed from "%1$s"</string>
     <string name="action_go_to_album">Go to album</string>
     <string name="action_go_to_artist">Go to artist</string>
+    <string name="action_show_on_map">Show on the Map</string>
     <string name="action_information">Information</string>
     <string name="action_exclude_track_from_smart">Don’t recommend this track</string>
     <string name="action_exclude_artist_from_smart">Don’t recommend this artist</string>

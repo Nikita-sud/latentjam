@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -179,6 +181,8 @@ internal fun MapPageState.duringMapBuild(): MapPageState = when (this) {
 fun MapTab(
     state: MapPageState,
     contentPadding: PaddingValues,
+    /** A track to spotlight: its region gets selected and its dot wears a ring. */
+    focusTrackId: TrackId? = null,
     onPlayRegion: (Int) -> Unit,
     onSmartFromRegion: (Int) -> Unit,
     onOpenTrack: (TrackId) -> Unit,
@@ -220,6 +224,13 @@ fun MapTab(
     val lenses = remember(page.listening) { MapLenses.availableLenses(page.listening) }
     var lens by remember(page) { mutableStateOf(MapLens.WORLDS) }
     var selectedRegion by remember(page) { mutableIntStateOf(largestRegion(page)) }
+    // "Show on the Map" arrives as a track id; the dot answers where that track lives.
+    val focusedDot = remember(page, focusTrackId) {
+        focusTrackId?.let { id -> page.dots.firstOrNull { it.trackId == id } }
+    }
+    LaunchedEffect(page, focusTrackId) {
+        focusedDot?.takeIf(MapDot::claimed)?.let { selectedRegion = it.region }
+    }
     var zoom by remember(page) { mutableFloatStateOf(1f) }
     var panX by remember(page) { mutableFloatStateOf(0f) }
     var panY by remember(page) { mutableFloatStateOf(0f) }
@@ -415,6 +426,15 @@ fun MapTab(
                     // separate two dots that started on top of each other.
                     radius = MapLenses.radius(lens, dot, selectedRegion).dp.toPx(),
                     center = screenPosition(dot, size.width, size.height, zoom, panX, panY),
+                )
+            }
+            // The spotlighted track wears a ring: a filled dot would just join the crowd.
+            focusedDot?.let { dot ->
+                drawCircle(
+                    color = accent,
+                    radius = (MapLenses.radius(lens, dot, selectedRegion) + 5f).dp.toPx(),
+                    center = screenPosition(dot, size.width, size.height, zoom, panX, panY),
+                    style = Stroke(width = 2.dp.toPx()),
                 )
             }
             // Spec section 5: regions are named on the map, because colour cannot carry identity

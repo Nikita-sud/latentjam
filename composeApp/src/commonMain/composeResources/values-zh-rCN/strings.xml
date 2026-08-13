@@ -170,6 +170,7 @@
     <string name="snack_playlist_track_removed">已从"%1$s"中移除</string>
     <string name="action_go_to_album">转到专辑</string>
     <string name="action_go_to_artist">转到艺人</string>
+    <string name="action_show_on_map">在地图中显示</string>
     <string name="action_information">详细信息</string>
     <string name="action_delete_from_device">从设备中删除</string>
     <string name="dialog_delete_tracks_message">将从此设备删除所选的 %1$d 首歌曲。此操作无法撤销。</string>
