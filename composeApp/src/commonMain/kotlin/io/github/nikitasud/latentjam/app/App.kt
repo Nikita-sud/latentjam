@@ -1709,6 +1709,26 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     ))
                                                 }
                                             },
+                                            onMove = { from, to ->
+                                                val moving = playlists.getOrNull(from)
+                                                if (moving != null) {
+                                                    // Optimistic: the row lands where it was
+                                                    // dropped; a failed write restores truth.
+                                                    playlists = playlists.toMutableList()
+                                                        .apply { add(to, removeAt(from)) }
+                                                    scope.launch {
+                                                        if (!runPlaylistMutation {
+                                                                AppGraph.playlists.move(
+                                                                    moving.id,
+                                                                    to,
+                                                                )
+                                                            }
+                                                        ) {
+                                                            refreshPlaylistMembershipsBestEffort()
+                                                        }
+                                                    }
+                                                }
+                                            },
                                             onRename = { renameTarget = it },
                                             onDelete = { playlist ->
                                                 scope.launch {

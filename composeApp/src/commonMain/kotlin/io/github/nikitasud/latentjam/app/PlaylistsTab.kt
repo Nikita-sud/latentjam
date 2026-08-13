@@ -17,10 +17,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
@@ -44,6 +46,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.zIndex
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -73,6 +80,7 @@ import io.github.nikitasud.latentjam.library.AutoPlaylist
 import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -92,6 +100,8 @@ internal fun PlaylistsTabContent(
     onOpenPlaylist: (Playlist) -> Unit,
     onRename: (Playlist) -> Unit,
     onDelete: (Playlist) -> Unit,
+    /** Commits a long-press drag: the playlist at [from] drops at [to], both list positions. */
+    onMove: (from: Int, to: Int) -> Unit = { _, _ -> },
     /** Whether the pager is currently settled on this tab; drives the entry scroll reset. */
     settledOnTab: Boolean = true,
 ) {
@@ -106,6 +116,12 @@ internal fun PlaylistsTabContent(
     LaunchedEffect(settledOnTab) {
         if (settledOnTab) listState.scrollToItem(0)
     }
+    val haptics = LocalHapticFeedback.current
+    // Same float-and-drop contract as the player's queue: the pressed row floats, ONE move
+    // commits on release — mutating mid-drag would re-key the row under the finger.
+    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+    var dragTargetIndex by remember { mutableStateOf<Int?>(null) }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -145,14 +161,64 @@ internal fun PlaylistsTabContent(
             }
         }
 
-        items(playlists, key = { it.id }) { playlist ->
-            PlaylistRow(
-                playlist = playlist,
-                tracks = tracksOf(playlist),
-                onClick = { onOpenPlaylist(playlist) },
-                onRename = { onRename(playlist) },
-                onDelete = { onDelete(playlist) },
-            )
+        itemsIndexed(playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
+            Box(
+                modifier = Modifier
+                    .animateItem()
+                    .then(
+                        if (draggingIndex == index) {
+                            Modifier
+                                .zIndex(1f)
+                                .graphicsLayer { translationY = dragOffsetY }
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .pointerInput(index, playlists.size) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                draggingIndex = index
+                                dragTargetIndex = index
+                                dragOffsetY = 0f
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragOffsetY += dragAmount.y
+                                val rowHeight = listState.layoutInfo.visibleItemsInfo
+                                    .firstOrNull { it.key == playlist.id }
+                                    ?.size
+                                    ?.takeIf { it > 0 }
+                                if (rowHeight != null) {
+                                    dragTargetIndex =
+                                        (index + (dragOffsetY / rowHeight).roundToInt())
+                                            .coerceIn(0, playlists.lastIndex)
+                                }
+                            },
+                            onDragEnd = {
+                                val from = draggingIndex
+                                val to = dragTargetIndex
+                                draggingIndex = null
+                                dragTargetIndex = null
+                                dragOffsetY = 0f
+                                if (from != null && to != null && from != to) onMove(from, to)
+                            },
+                            onDragCancel = {
+                                draggingIndex = null
+                                dragTargetIndex = null
+                                dragOffsetY = 0f
+                            },
+                        )
+                    },
+            ) {
+                PlaylistRow(
+                    playlist = playlist,
+                    tracks = tracksOf(playlist),
+                    onClick = { onOpenPlaylist(playlist) },
+                    onRename = { onRename(playlist) },
+                    onDelete = { onDelete(playlist) },
+                )
+            }
         }
     }
 }

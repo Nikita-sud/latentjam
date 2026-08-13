@@ -51,6 +51,9 @@ public interface Playlists {
         replacement: List<TrackId>,
     ): Boolean
 
+    /** Moves playlist [id] to [toIndex] in the user's ordering; out-of-range indices clamp. */
+    public suspend fun move(id: String, toIndex: Int)
+
     /** Replaces all user playlists in one durable write, primarily for local backup restore. */
     public suspend fun replaceAll(playlists: List<Playlist>)
 }
@@ -115,6 +118,18 @@ public class DefaultPlaylists(
             persist(replacement)
             playlists.removeAll { it.id == id }
         }
+    }
+
+    override suspend fun move(id: String, toIndex: Int): Unit = mutex.withLock {
+        ensureLoaded()
+        val from = playlists.indexOfFirst { it.id == id }
+        if (from < 0 || playlists.isEmpty()) return@withLock
+        val target = toIndex.coerceIn(0, playlists.lastIndex)
+        if (from == target) return@withLock
+        val reordered = playlists.toMutableList().apply { add(target, removeAt(from)) }
+        persist(reordered)
+        playlists.clear()
+        playlists += reordered
     }
 
     override suspend fun addTracks(id: String, trackIds: List<TrackId>): Unit = mutex.withLock {
