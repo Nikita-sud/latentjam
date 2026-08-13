@@ -75,6 +75,9 @@ public data class LibraryCatalog(
                     .sortedBy { it.second }
                     .map { it.first }
 
+            // Real albums first: a library assembled from loose downloads is mostly one-track
+            // pseudo-albums, and alphabetizing them together drowns the actual albums the tab
+            // exists to browse. Two alphabetical blocks — multi-track, then singles.
             val albums = tracks
                 .albumGroups()
                 .map { (identity, grouped) ->
@@ -86,7 +89,9 @@ public data class LibraryCatalog(
                         tracks = grouped.byTitle(),
                     )
                 }
-                .sortedByKey { it.title?.lowercase() ?: UNKNOWN_LAST }
+                .map { Triple(it, it.tracks.size < 2, it.title?.lowercase() ?: UNKNOWN_LAST) }
+                .sortedWith(compareBy({ it.second }, { it.third }))
+                .map { it.first }
 
             val albumCountByArtist = albums
                 .groupingBy { it.artist }
