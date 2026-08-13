@@ -137,6 +137,13 @@ data class ResumePlayback(
     val sourceKind: String? = null,
     /** Display name for name-bearing sources (collection title, search query). */
     val sourceName: String? = null,
+    /**
+     * The queue's track ids in play order, so a restart restores the queue that was actually
+     * playing — a playlist stays that playlist — instead of wrapping the track in the whole
+     * library. Empty for sessions saved before this existed, or when the queue was too large
+     * to be worth persisting; restore falls back to the whole-library wrap then.
+     */
+    val queueTrackIds: List<String> = emptyList(),
 )
 
 expect fun appSettingsModule(): Module

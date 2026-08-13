@@ -818,9 +818,20 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // (deleted, SD card unmounted): SMART being on is what the user asked to keep.
             ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode }
                 ?.let { playback.setShuffleMode(it) }
+            // Prefer the queue that was ACTUALLY playing — a playlist stays that playlist across
+            // a restart. Tracks deleted meanwhile drop out; if the saved track itself is gone or
+            // no queue was saved, fall back to wrapping the track in the whole library.
+            val byId = loaded.associateBy { it.id.value }
+            val savedQueue = saved.queueTrackIds.mapNotNull(byId::get)
+            val savedQueueIndex = savedQueue.indexOfFirst { it.id.value == saved.trackId }
+            if (savedQueueIndex >= 0) {
+                playback.restoreQueue(savedQueue, savedQueueIndex, saved.positionMs)
+            }
             val index = loaded.indexOfFirst { it.id.value == saved.trackId }
-            if (index >= 0) {
+            if (savedQueueIndex < 0 && index >= 0) {
                 playback.restoreQueue(loaded, index, saved.positionMs)
+            }
+            if (savedQueueIndex >= 0 || index >= 0) {
                 // The restored player keeps saying where its queue came from. An unknown kind
                 // from another build degrades to no label, same as the mode above.
                 AppGraph.queueSource.value = saved.sourceKind
@@ -848,20 +859,27 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         semanticsCount = features.semantics.size,
                     )
                     if (worldsKey == builtWorldsKey) return@collect
-                    // Snapshot for the background pass; a world mostly inside one of the
-                    // listener's playlists takes that playlist's name.
-                    val namedGroups = playlists.map { playlist ->
+                    // Snapshot for the background pass; a world mostly inside one named group
+                    // takes that group's name. Playlists come first — the listener's own word
+                    // outranks the artist's on a containment tie — then real (multi-track)
+                    // albums, whose titles are the artist's own curation.
+                    val playlistGroups = playlists.map { playlist ->
                         playlist.name to playlist.trackIds.mapTo(HashSet()) { TrackId(it) }
                     }
                     val discovered = withContext(Dispatchers.Default) {
                         val started = TimeSource.Monotonic.markNow()
+                        val albumGroups = LibraryCatalog.build(loaded).albums
+                            .filter { it.tracks.size > 1 && !it.title.isNullOrBlank() }
+                            .map { album ->
+                                album.title.orEmpty() to album.tracks.mapTo(HashSet()) { it.id }
+                            }
                         LibraryWorlds.namedAfterGroups(
                             LibraryWorlds.discover(
                                 library = loaded,
                                 vectorSpace = features.vectorSpace,
                                 semantics = features.semantics,
                             ),
-                            namedGroups,
+                            playlistGroups + albumGroups,
                         ).also { mixes ->
                             val routed = mixes.groupingBy { it.content }.eachCount()
                             println(

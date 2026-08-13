@@ -180,6 +180,13 @@ object AppGraph {
                             positionMs = now.positionMs - (now.positionMs % 10_000),
                             sourceKind = source?.kind?.name,
                             sourceName = source?.name,
+                            // The queue itself, so a restart resumes the playlist that was
+                            // actually playing. A whole-library queue is exactly what the
+                            // fallback restore rebuilds anyway, so oversized ones are skipped.
+                            queueTrackIds = now.queue
+                                .takeIf { it.size in 1..MAX_RESUME_QUEUE }
+                                ?.map { it.id.value }
+                                .orEmpty(),
                         )
                     }
                 }
@@ -412,3 +419,6 @@ data class AutomaticIndexingState(
 // SMART/search request can wait behind first-run indexing while retaining frequent checkpoints.
 private const val AUTOMATIC_INDEX_CHUNK_SIZE = 8
 private const val AUTOMATIC_INDEX_YIELD_MS = 75L
+
+/** Queues beyond this are effectively "the whole library" and are cheaper to rebuild than store. */
+private const val MAX_RESUME_QUEUE = 2000

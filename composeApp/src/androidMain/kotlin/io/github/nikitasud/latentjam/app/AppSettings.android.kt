@@ -109,6 +109,10 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
             // Absent on sessions saved before queue sources existed; null simply hides the label.
             sourceKind = readString(KEY_RESUME_SOURCE_KIND),
             sourceName = readString(KEY_RESUME_SOURCE_NAME),
+            queueTrackIds = readString(KEY_RESUME_QUEUE)
+                ?.split(',')
+                ?.filter { it.isNotEmpty() }
+                .orEmpty(),
         )
     }
 
@@ -126,6 +130,13 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
                 }
                 if (state.sourceName == null) remove(KEY_RESUME_SOURCE_NAME) else {
                     putString(KEY_RESUME_SOURCE_NAME, state.sourceName)
+                }
+                // MediaStore ids are numeric, so the comma is a safe join; an id that somehow
+                // carries one would corrupt the list, so such a queue is simply not persisted.
+                if (state.queueTrackIds.isEmpty() || state.queueTrackIds.any { ',' in it }) {
+                    remove(KEY_RESUME_QUEUE)
+                } else {
+                    putString(KEY_RESUME_QUEUE, state.queueTrackIds.joinToString(","))
                 }
             }
         }.apply()
@@ -158,6 +169,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_RESUME_POSITION = "resume_position_ms"
         const val KEY_RESUME_SOURCE_KIND = "resume_source_kind"
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
+        const val KEY_RESUME_QUEUE = "resume_queue_track_ids"
     }
 }
 

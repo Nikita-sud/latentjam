@@ -103,6 +103,10 @@ internal class IosAppSettings : AppSettings {
             // Absent on sessions saved before queue sources existed; null simply hides the label.
             sourceKind = defaults.objectForKey(KEY_RESUME_SOURCE_KIND) as? String,
             sourceName = defaults.objectForKey(KEY_RESUME_SOURCE_NAME) as? String,
+            queueTrackIds = (defaults.objectForKey(KEY_RESUME_QUEUE) as? String)
+                ?.split(',')
+                ?.filter { it.isNotEmpty() }
+                .orEmpty(),
         )
     }
 
@@ -126,6 +130,13 @@ internal class IosAppSettings : AppSettings {
                 defaults.removeObjectForKey(KEY_RESUME_SOURCE_NAME)
             } else {
                 defaults.setObject(state.sourceName, KEY_RESUME_SOURCE_NAME)
+            }
+            // Ids are opaque but comma-free in practice; a queue that breaks that assumption is
+            // simply not persisted rather than corrupted.
+            if (state.queueTrackIds.isEmpty() || state.queueTrackIds.any { ',' in it }) {
+                defaults.removeObjectForKey(KEY_RESUME_QUEUE)
+            } else {
+                defaults.setObject(state.queueTrackIds.joinToString(","), KEY_RESUME_QUEUE)
             }
         }
         mutableResumePlayback.value = state
@@ -161,6 +172,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_RESUME_POSITION = "resume_position_ms"
         const val KEY_RESUME_SOURCE_KIND = "resume_source_kind"
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
+        const val KEY_RESUME_QUEUE = "resume_queue_track_ids"
     }
 }
 
