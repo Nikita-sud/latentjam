@@ -178,6 +178,8 @@
     <string name="auto_playlist_recently_added">Ajoutés récemment</string>
     <string name="auto_playlist_most_played">Les plus écoutés</string>
     <string name="auto_playlist_recently_played">Écoutés récemment</string>
+    <string name="auto_playlist_never_played">Jamais écoutés</string>
+    <string name="auto_playlist_rediscover">À redécouvrir</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Lire ensuite</string>
@@ -453,4 +455,25 @@
     <string name="backup_failed">Impossible de terminer l’opération de sauvegarde.</string>
     <string name="backup_invalid">Ce fichier n’est pas une sauvegarde LatentJam valide.</string>
     <string name="backup_destination_warning">La sauvegarde contient des données privées de l’application. Une destination cloud ou tierce choisie dans le sélecteur système peut les synchroniser.</string>
+    <string name="settings_stats">Statistiques</string>
+    <string name="settings_stats_subtitle">Votre écoute en chiffres</string>
+    <string name="stats_period_week">7 jours</string>
+    <string name="stats_period_month">30 jours</string>
+    <string name="stats_period_all">Tout</string>
+    <string name="stats_time_listened">Écouté</string>
+    <string name="stats_plays">Lectures</string>
+    <string name="stats_distinct_tracks">Titres</string>
+    <string name="stats_streak_current">Série</string>
+    <string name="stats_streak_longest">Record</string>
+    <string name="stats_days_short">j</string>
+    <string name="stats_hours_short">h</string>
+    <string name="stats_minutes_short">min</string>
+    <string name="stats_finished_share">Terminés</string>
+    <string name="stats_skipped_share">Passés</string>
+    <string name="stats_by_hour">Par heure de la journée</string>
+    <string name="stats_top_artists">Top artistes</string>
+    <string name="stats_top_tracks">Top titres</string>
+    <string name="stats_empty">Rien n'a encore été lu sur cette période.</string>
+    <string name="settings_normalize_volume">Normalisation du volume</string>
+    <string name="settings_normalize_volume_subtitle">Les titres faibles et forts jouent à un niveau proche</string>
 </resources>

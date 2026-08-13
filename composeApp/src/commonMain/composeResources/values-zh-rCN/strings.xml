@@ -160,6 +160,8 @@
     <string name="auto_playlist_recently_added">最近添加</string>
     <string name="auto_playlist_most_played">最常播放</string>
     <string name="auto_playlist_recently_played">最近播放</string>
+    <string name="auto_playlist_never_played">从未播放</string>
+    <string name="auto_playlist_rediscover">重新发现</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">下一首播放</string>
@@ -434,4 +436,25 @@
     <string name="backup_failed">无法完成备份操作。</string>
     <string name="backup_invalid">这不是有效的 LatentJam 备份。</string>
     <string name="backup_destination_warning">备份包含私密应用数据。在系统选择器中选取的云端或第三方位置可能会同步这些数据。</string>
+    <string name="settings_stats">统计</string>
+    <string name="settings_stats_subtitle">用数字看你的收听</string>
+    <string name="stats_period_week">7 天</string>
+    <string name="stats_period_month">30 天</string>
+    <string name="stats_period_all">全部时间</string>
+    <string name="stats_time_listened">收听时长</string>
+    <string name="stats_plays">播放次数</string>
+    <string name="stats_distinct_tracks">曲目数</string>
+    <string name="stats_streak_current">连续天数</string>
+    <string name="stats_streak_longest">最长纪录</string>
+    <string name="stats_days_short">天</string>
+    <string name="stats_hours_short">小时</string>
+    <string name="stats_minutes_short">分钟</string>
+    <string name="stats_finished_share">完整播放</string>
+    <string name="stats_skipped_share">跳过</string>
+    <string name="stats_by_hour">按时段</string>
+    <string name="stats_top_artists">最常听的艺术家</string>
+    <string name="stats_top_tracks">最常听的曲目</string>
+    <string name="stats_empty">此时段还没有播放记录。</string>
+    <string name="settings_normalize_volume">音量均衡</string>
+    <string name="settings_normalize_volume_subtitle">安静和响亮的曲目以相近的音量播放</string>
 </resources>

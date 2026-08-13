@@ -182,6 +182,8 @@
     <string name="auto_playlist_recently_added">Нещодавно додані</string>
     <string name="auto_playlist_most_played">Найчастіше прослухані</string>
     <string name="auto_playlist_recently_played">Нещодавно прослухані</string>
+    <string name="auto_playlist_never_played">Жодного разу не слухали</string>
+    <string name="auto_playlist_rediscover">Згадати забуте</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Відтворити наступним</string>
@@ -461,4 +463,25 @@
     <string name="backup_failed">Не вдалося завершити операцію з резервною копією.</string>
     <string name="backup_invalid">Це не дійсна резервна копія LatentJam.</string>
     <string name="backup_destination_warning">Резервна копія містить приватні дані застосунку. Хмарне або стороннє сховище, вибране в системному вікні, може синхронізувати їх.</string>
+    <string name="settings_stats">Статистика</string>
+    <string name="settings_stats_subtitle">Ваше прослуховування в цифрах</string>
+    <string name="stats_period_week">7 днів</string>
+    <string name="stats_period_month">30 днів</string>
+    <string name="stats_period_all">Увесь час</string>
+    <string name="stats_time_listened">Прослухано</string>
+    <string name="stats_plays">Відтворень</string>
+    <string name="stats_distinct_tracks">Треків</string>
+    <string name="stats_streak_current">Серія</string>
+    <string name="stats_streak_longest">Рекорд</string>
+    <string name="stats_days_short">дн.</string>
+    <string name="stats_hours_short">год</string>
+    <string name="stats_minutes_short">хв</string>
+    <string name="stats_finished_share">Дослухано</string>
+    <string name="stats_skipped_share">Пропущено</string>
+    <string name="stats_by_hour">За часом доби</string>
+    <string name="stats_top_artists">Топ виконавців</string>
+    <string name="stats_top_tracks">Топ треків</string>
+    <string name="stats_empty">За цей період ще нічого не відтворено.</string>
+    <string name="settings_normalize_volume">Вирівнювання гучності</string>
+    <string name="settings_normalize_volume_subtitle">Тихі й гучні треки звучать на одному рівні</string>
 </resources>

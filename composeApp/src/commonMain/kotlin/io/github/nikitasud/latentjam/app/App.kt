@@ -1575,7 +1575,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 emptyList()
             } else {
                 withContext(Dispatchers.Default) {
-                    AutoPlaylists.build(songs, playCounts, lastPlayedAt, favoriteIds)
+                    AutoPlaylists.build(songs, playCounts, lastPlayedAt, favoriteIds, epochMillis())
                 }
             }
         }

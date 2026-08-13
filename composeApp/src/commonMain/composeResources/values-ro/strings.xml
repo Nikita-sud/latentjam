@@ -166,6 +166,8 @@
     <string name="auto_playlist_recently_added">Adăugate recent</string>
     <string name="auto_playlist_most_played">Cele mai ascultate</string>
     <string name="auto_playlist_recently_played">Ascultate recent</string>
+    <string name="auto_playlist_never_played">Neascultate încă</string>
+    <string name="auto_playlist_rediscover">De redescoperit</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Redă în continuare</string>
@@ -440,4 +442,25 @@
     <string name="backup_failed">Operațiunea de backup nu a putut fi finalizată.</string>
     <string name="backup_invalid">Aceasta nu este o copie LatentJam validă.</string>
     <string name="backup_destination_warning">Copia de rezervă conține date private ale aplicației. O destinație cloud sau terță aleasă în selectorul sistemului le poate sincroniza.</string>
+    <string name="settings_stats">Statistici</string>
+    <string name="settings_stats_subtitle">Ascultarea ta în cifre</string>
+    <string name="stats_period_week">7 zile</string>
+    <string name="stats_period_month">30 de zile</string>
+    <string name="stats_period_all">Tot timpul</string>
+    <string name="stats_time_listened">Ascultat</string>
+    <string name="stats_plays">Redări</string>
+    <string name="stats_distinct_tracks">Piese</string>
+    <string name="stats_streak_current">Serie</string>
+    <string name="stats_streak_longest">Record</string>
+    <string name="stats_days_short">z</string>
+    <string name="stats_hours_short">h</string>
+    <string name="stats_minutes_short">min</string>
+    <string name="stats_finished_share">Ascultate până la capăt</string>
+    <string name="stats_skipped_share">Sărite</string>
+    <string name="stats_by_hour">După ora zilei</string>
+    <string name="stats_top_artists">Top artiști</string>
+    <string name="stats_top_tracks">Top piese</string>
+    <string name="stats_empty">Nimic redat încă în această perioadă.</string>
+    <string name="settings_normalize_volume">Egalizarea volumului</string>
+    <string name="settings_normalize_volume_subtitle">Piesele încete și cele tari sună la un nivel apropiat</string>
 </resources>

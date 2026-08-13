@@ -182,6 +182,8 @@
     <string name="auto_playlist_recently_added">Ostatnio dodane</string>
     <string name="auto_playlist_most_played">Najczęściej odtwarzane</string>
     <string name="auto_playlist_recently_played">Ostatnio odtwarzane</string>
+    <string name="auto_playlist_never_played">Nigdy nie odtworzone</string>
+    <string name="auto_playlist_rediscover">Odkryj na nowo</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Odtwórz jako następny</string>
@@ -461,4 +463,25 @@
     <string name="backup_failed">Nie udało się ukończyć operacji kopii zapasowej.</string>
     <string name="backup_invalid">To nie jest prawidłowa kopia LatentJam.</string>
     <string name="backup_destination_warning">Kopia zawiera prywatne dane aplikacji. Miejsce w chmurze lub usłudze zewnętrznej wybrane w oknie systemowym może je synchronizować.</string>
+    <string name="settings_stats">Statystyki</string>
+    <string name="settings_stats_subtitle">Twoje słuchanie w liczbach</string>
+    <string name="stats_period_week">7 dni</string>
+    <string name="stats_period_month">30 dni</string>
+    <string name="stats_period_all">Cały czas</string>
+    <string name="stats_time_listened">Przesłuchano</string>
+    <string name="stats_plays">Odtworzenia</string>
+    <string name="stats_distinct_tracks">Utwory</string>
+    <string name="stats_streak_current">Seria</string>
+    <string name="stats_streak_longest">Rekord</string>
+    <string name="stats_days_short">dn.</string>
+    <string name="stats_hours_short">godz.</string>
+    <string name="stats_minutes_short">min</string>
+    <string name="stats_finished_share">Ukończone</string>
+    <string name="stats_skipped_share">Pominięte</string>
+    <string name="stats_by_hour">Według pory dnia</string>
+    <string name="stats_top_artists">Najczęściej słuchani artyści</string>
+    <string name="stats_top_tracks">Najczęściej słuchane utwory</string>
+    <string name="stats_empty">W tym okresie nic jeszcze nie odtworzono.</string>
+    <string name="settings_normalize_volume">Normalizacja głośności</string>
+    <string name="settings_normalize_volume_subtitle">Ciche i głośne utwory grają na podobnym poziomie</string>
 </resources>

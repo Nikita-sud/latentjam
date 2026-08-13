@@ -160,6 +160,8 @@
     <string name="auto_playlist_recently_added">최근 추가한 곡</string>
     <string name="auto_playlist_most_played">자주 재생한 곡</string>
     <string name="auto_playlist_recently_played">최근 재생한 곡</string>
+    <string name="auto_playlist_never_played">재생한 적 없음</string>
+    <string name="auto_playlist_rediscover">다시 발견</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">다음에 재생</string>
@@ -434,4 +436,25 @@
     <string name="backup_failed">백업 작업을 완료하지 못했습니다.</string>
     <string name="backup_invalid">유효한 LatentJam 백업이 아닙니다.</string>
     <string name="backup_destination_warning">백업에는 비공개 앱 데이터가 포함됩니다. 시스템 선택 화면에서 고른 클라우드 또는 타사 위치가 이를 동기화할 수 있습니다.</string>
+    <string name="settings_stats">통계</string>
+    <string name="settings_stats_subtitle">숫자로 보는 나의 감상</string>
+    <string name="stats_period_week">7일</string>
+    <string name="stats_period_month">30일</string>
+    <string name="stats_period_all">전체 기간</string>
+    <string name="stats_time_listened">감상 시간</string>
+    <string name="stats_plays">재생 횟수</string>
+    <string name="stats_distinct_tracks">곡 수</string>
+    <string name="stats_streak_current">연속 일수</string>
+    <string name="stats_streak_longest">최고 기록</string>
+    <string name="stats_days_short">일</string>
+    <string name="stats_hours_short">시간</string>
+    <string name="stats_minutes_short">분</string>
+    <string name="stats_finished_share">끝까지 감상</string>
+    <string name="stats_skipped_share">건너뜀</string>
+    <string name="stats_by_hour">시간대별</string>
+    <string name="stats_top_artists">톱 아티스트</string>
+    <string name="stats_top_tracks">톱 곡</string>
+    <string name="stats_empty">이 기간에는 아직 재생된 곡이 없습니다.</string>
+    <string name="settings_normalize_volume">음량 평준화</string>
+    <string name="settings_normalize_volume_subtitle">조용한 곡과 큰 곡을 비슷한 음량으로 재생합니다</string>
 </resources>

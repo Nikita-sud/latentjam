@@ -173,6 +173,8 @@
     <string name="auto_playlist_recently_added">Adicionadas recentemente</string>
     <string name="auto_playlist_most_played">Mais tocadas</string>
     <string name="auto_playlist_recently_played">Tocadas recentemente</string>
+    <string name="auto_playlist_never_played">Nunca tocadas</string>
+    <string name="auto_playlist_rediscover">Redescobrir</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Reproduzir a seguir</string>
@@ -448,4 +450,25 @@
     <string name="backup_failed">Não foi possível concluir a operação de backup.</string>
     <string name="backup_invalid">Este não é um backup válido do LatentJam.</string>
     <string name="backup_destination_warning">O backup contém dados privados do app. Um destino na nuvem ou de terceiros escolhido no seletor do sistema pode sincronizá-los.</string>
+    <string name="settings_stats">Estatísticas</string>
+    <string name="settings_stats_subtitle">Sua escuta em números</string>
+    <string name="stats_period_week">7 dias</string>
+    <string name="stats_period_month">30 dias</string>
+    <string name="stats_period_all">Todo o período</string>
+    <string name="stats_time_listened">Ouvido</string>
+    <string name="stats_plays">Reproduções</string>
+    <string name="stats_distinct_tracks">Faixas</string>
+    <string name="stats_streak_current">Sequência</string>
+    <string name="stats_streak_longest">Recorde</string>
+    <string name="stats_days_short">d</string>
+    <string name="stats_hours_short">h</string>
+    <string name="stats_minutes_short">min</string>
+    <string name="stats_finished_share">Concluídas</string>
+    <string name="stats_skipped_share">Puladas</string>
+    <string name="stats_by_hour">Por hora do dia</string>
+    <string name="stats_top_artists">Principais artistas</string>
+    <string name="stats_top_tracks">Principais faixas</string>
+    <string name="stats_empty">Nada foi reproduzido neste período ainda.</string>
+    <string name="settings_normalize_volume">Normalização de volume</string>
+    <string name="settings_normalize_volume_subtitle">Faixas baixas e altas tocam em um nível parecido</string>
 </resources>

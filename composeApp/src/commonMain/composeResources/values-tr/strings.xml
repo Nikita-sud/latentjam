@@ -166,6 +166,8 @@
     <string name="auto_playlist_recently_added">Son eklenenler</string>
     <string name="auto_playlist_most_played">En çok dinlenenler</string>
     <string name="auto_playlist_recently_played">Son dinlenenler</string>
+    <string name="auto_playlist_never_played">Hiç çalınmamış</string>
+    <string name="auto_playlist_rediscover">Yeniden keşfet</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Sıradaki olarak çal</string>
@@ -441,4 +443,25 @@
     <string name="backup_failed">Yedekleme işlemi tamamlanamadı.</string>
     <string name="backup_invalid">Bu geçerli bir LatentJam yedeği değil.</string>
     <string name="backup_destination_warning">Yedek, özel uygulama verileri içerir. Sistem seçicisinde belirlenen bulut veya üçüncü taraf hedefi bu verileri eşitleyebilir.</string>
+    <string name="settings_stats">İstatistikler</string>
+    <string name="settings_stats_subtitle">Dinlemeleriniz rakamlarla</string>
+    <string name="stats_period_week">7 gün</string>
+    <string name="stats_period_month">30 gün</string>
+    <string name="stats_period_all">Tüm zamanlar</string>
+    <string name="stats_time_listened">Dinlenen</string>
+    <string name="stats_plays">Çalma</string>
+    <string name="stats_distinct_tracks">Parça</string>
+    <string name="stats_streak_current">Seri</string>
+    <string name="stats_streak_longest">Rekor</string>
+    <string name="stats_days_short">g</string>
+    <string name="stats_hours_short">sa</string>
+    <string name="stats_minutes_short">dk</string>
+    <string name="stats_finished_share">Tamamlanan</string>
+    <string name="stats_skipped_share">Atlanan</string>
+    <string name="stats_by_hour">Günün saatine göre</string>
+    <string name="stats_top_artists">En çok dinlenen sanatçılar</string>
+    <string name="stats_top_tracks">En çok dinlenen parçalar</string>
+    <string name="stats_empty">Bu dönemde henüz hiçbir şey çalınmadı.</string>
+    <string name="settings_normalize_volume">Ses normalleştirme</string>
+    <string name="settings_normalize_volume_subtitle">Kısık ve yüksek parçalar benzer seviyede çalar</string>
 </resources>

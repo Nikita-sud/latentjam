@@ -218,6 +218,8 @@
     <string name="auto_playlist_recently_added">Recently added</string>
     <string name="auto_playlist_most_played">Most played</string>
     <string name="auto_playlist_recently_played">Recently played</string>
+    <string name="auto_playlist_never_played">Never played</string>
+    <string name="auto_playlist_rediscover">Rediscover</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Play next</string>
@@ -503,4 +505,25 @@
     <string name="backup_failed">Could not complete the backup operation.</string>
     <string name="backup_invalid">This is not a valid LatentJam backup.</string>
     <string name="backup_destination_warning">The backup contains private app data. A cloud or third-party destination selected in the system picker may sync it.</string>
+    <string name="settings_stats">Statistics</string>
+    <string name="settings_stats_subtitle">Your listening in numbers</string>
+    <string name="stats_period_week">7 days</string>
+    <string name="stats_period_month">30 days</string>
+    <string name="stats_period_all">All time</string>
+    <string name="stats_time_listened">Listened</string>
+    <string name="stats_plays">Plays</string>
+    <string name="stats_distinct_tracks">Tracks</string>
+    <string name="stats_streak_current">Streak</string>
+    <string name="stats_streak_longest">Record</string>
+    <string name="stats_days_short">d</string>
+    <string name="stats_hours_short">h</string>
+    <string name="stats_minutes_short">min</string>
+    <string name="stats_finished_share">Finished</string>
+    <string name="stats_skipped_share">Skipped</string>
+    <string name="stats_by_hour">By time of day</string>
+    <string name="stats_top_artists">Top artists</string>
+    <string name="stats_top_tracks">Top tracks</string>
+    <string name="stats_empty">Nothing has been played in this period yet.</string>
+    <string name="settings_normalize_volume">Volume normalization</string>
+    <string name="settings_normalize_volume_subtitle">Quiet and loud tracks play at a similar level</string>
 </resources>

@@ -166,6 +166,8 @@
     <string name="auto_playlist_recently_added">Baru ditambahkan</string>
     <string name="auto_playlist_most_played">Paling sering diputar</string>
     <string name="auto_playlist_recently_played">Baru diputar</string>
+    <string name="auto_playlist_never_played">Belum pernah diputar</string>
+    <string name="auto_playlist_rediscover">Temukan kembali</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Putar berikutnya</string>
@@ -440,4 +442,25 @@
     <string name="backup_failed">Tidak dapat menyelesaikan operasi pencadangan.</string>
     <string name="backup_invalid">Ini bukan cadangan LatentJam yang valid.</string>
     <string name="backup_destination_warning">Cadangan berisi data pribadi aplikasi. Tujuan cloud atau pihak ketiga yang dipilih di pemilih sistem dapat menyinkronkannya.</string>
+    <string name="settings_stats">Statistik</string>
+    <string name="settings_stats_subtitle">Pendengaran Anda dalam angka</string>
+    <string name="stats_period_week">7 hari</string>
+    <string name="stats_period_month">30 hari</string>
+    <string name="stats_period_all">Sepanjang waktu</string>
+    <string name="stats_time_listened">Didengarkan</string>
+    <string name="stats_plays">Pemutaran</string>
+    <string name="stats_distinct_tracks">Lagu</string>
+    <string name="stats_streak_current">Rentetan</string>
+    <string name="stats_streak_longest">Rekor</string>
+    <string name="stats_days_short">hr</string>
+    <string name="stats_hours_short">j</string>
+    <string name="stats_minutes_short">mnt</string>
+    <string name="stats_finished_share">Selesai</string>
+    <string name="stats_skipped_share">Dilewati</string>
+    <string name="stats_by_hour">Menurut waktu dalam sehari</string>
+    <string name="stats_top_artists">Artis teratas</string>
+    <string name="stats_top_tracks">Lagu teratas</string>
+    <string name="stats_empty">Belum ada yang diputar dalam periode ini.</string>
+    <string name="settings_normalize_volume">Normalisasi volume</string>
+    <string name="settings_normalize_volume_subtitle">Lagu pelan dan keras diputar pada tingkat yang mirip</string>
 </resources>

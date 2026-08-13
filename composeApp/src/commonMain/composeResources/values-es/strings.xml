@@ -173,6 +173,8 @@
     <string name="auto_playlist_recently_added">Añadidas recientemente</string>
     <string name="auto_playlist_most_played">Más reproducidas</string>
     <string name="auto_playlist_recently_played">Reproducidas recientemente</string>
+    <string name="auto_playlist_never_played">Nunca escuchadas</string>
+    <string name="auto_playlist_rediscover">Redescubrir</string>
 
     <!-- ============================================== track actions + sheet -->
     <string name="action_play_next">Reproducir a continuación</string>
@@ -448,4 +450,25 @@
     <string name="backup_failed">No se pudo completar la operación de copia de seguridad.</string>
     <string name="backup_invalid">Esta no es una copia de seguridad válida de LatentJam.</string>
     <string name="backup_destination_warning">La copia contiene datos privados de la aplicación. Un destino en la nube o de terceros elegido en el selector del sistema puede sincronizarlos.</string>
+    <string name="settings_stats">Estadísticas</string>
+    <string name="settings_stats_subtitle">Tu escucha en cifras</string>
+    <string name="stats_period_week">7 días</string>
+    <string name="stats_period_month">30 días</string>
+    <string name="stats_period_all">Todo el tiempo</string>
+    <string name="stats_time_listened">Escuchado</string>
+    <string name="stats_plays">Reproducciones</string>
+    <string name="stats_distinct_tracks">Pistas</string>
+    <string name="stats_streak_current">Racha</string>
+    <string name="stats_streak_longest">Récord</string>
+    <string name="stats_days_short">d</string>
+    <string name="stats_hours_short">h</string>
+    <string name="stats_minutes_short">min</string>
+    <string name="stats_finished_share">Completadas</string>
+    <string name="stats_skipped_share">Saltadas</string>
+    <string name="stats_by_hour">Por hora del día</string>
+    <string name="stats_top_artists">Artistas más escuchados</string>
+    <string name="stats_top_tracks">Pistas más escuchadas</string>
+    <string name="stats_empty">Todavía no se ha reproducido nada en este período.</string>
+    <string name="settings_normalize_volume">Normalización de volumen</string>
+    <string name="settings_normalize_volume_subtitle">Las pistas silenciosas y fuertes suenan a un nivel similar</string>
 </resources>

@@ -72,8 +72,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_smart_keep_t
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_most_played
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_favorites
+import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_never_played
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_recently_added
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_recently_played
+import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_rediscover
 import io.github.nikitasud.latentjam.app.generated.resources.cd_playlist_options
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_add_to_title
@@ -246,6 +248,8 @@ internal fun AutoPlaylistKind.titleRes(): StringResource = when (this) {
     AutoPlaylistKind.RECENTLY_ADDED -> Res.string.auto_playlist_recently_added
     AutoPlaylistKind.MOST_PLAYED -> Res.string.auto_playlist_most_played
     AutoPlaylistKind.RECENTLY_PLAYED -> Res.string.auto_playlist_recently_played
+    AutoPlaylistKind.NEVER_PLAYED -> Res.string.auto_playlist_never_played
+    AutoPlaylistKind.REDISCOVER -> Res.string.auto_playlist_rediscover
 }
 
 @Composable
