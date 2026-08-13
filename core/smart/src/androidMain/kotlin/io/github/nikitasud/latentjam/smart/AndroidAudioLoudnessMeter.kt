@@ -34,6 +34,7 @@ public class AndroidAudioLoudnessMeter(context: Context) {
                         startMs = startMs,
                         targetSampleRate = SAMPLE_RATE,
                         targetSamples = WINDOW_SAMPLES,
+                        downmixMode = AudioDownmixMode.PRESERVE_CHANNEL_POWER,
                         isCancelled = { !context.isActive },
                     )
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -41,7 +42,9 @@ public class AndroidAudioLoudnessMeter(context: Context) {
                 } catch (_: Throwable) {
                     null
                 }
-                (decoded as? AudioDecodeResult.Success)?.waveform
+                (decoded as? AudioDecodeResult.Success)?.let { success ->
+                    Loudness.Window(success.waveform, success.validSamples)
+                }
             }
             Loudness.measureDb(windows)
         }

@@ -17,22 +17,32 @@ internal class LoudnessTest {
     @Test
     fun aConstantToneMeasuresItsExactPower() {
         // amplitude 0.5 -> mean square 0.25 -> 10*log10(0.25) ~ -6.02 dB
-        val db = Loudness.measureDb(listOf(tone(0.5f)))!!
+        val db = Loudness.measureDb(listOf(Loudness.Window(tone(0.5f))))!!
         assertTrue(abs(db - (-6.02f)) < 0.05f, "got $db")
     }
 
     @Test
     fun trailingDecoderPaddingDoesNotDiluteTheMeasurement() {
         val padded = FloatArray(32_000) { if (it < 16_000) 0.5f else 0f }
-        val db = Loudness.measureDb(listOf(padded))!!
+        val db = Loudness.measureDb(listOf(Loudness.Window(padded, validSamples = 16_000)))!!
         assertTrue(abs(db - (-6.02f)) < 0.05f, "got $db")
+    }
+
+    @Test
+    fun genuineTrailingSilenceContributesToTheMeasuredWindow() {
+        val toneThenSilence = FloatArray(80_000) { if (it < 16_000) 0.5f else 0f }
+
+        val db = Loudness.measureDb(listOf(Loudness.Window(toneThenSilence)))!!
+
+        // 20% of the window has power 0.25: mean square 0.05 -> -13.01 dBFS.
+        assertTrue(abs(db - (-13.01f)) < 0.05f, "got $db")
     }
 
     @Test
     fun silenceAndTinyWindowsAreNotMeasurements() {
         assertNull(Loudness.measureDb(emptyList()))
-        assertNull(Loudness.measureDb(listOf(FloatArray(32_000))))
-        assertNull(Loudness.measureDb(listOf(tone(0.5f, samples = 100))))
+        assertNull(Loudness.measureDb(listOf(Loudness.Window(FloatArray(32_000)))))
+        assertNull(Loudness.measureDb(listOf(Loudness.Window(tone(0.5f, samples = 100)))))
     }
 
     @Test

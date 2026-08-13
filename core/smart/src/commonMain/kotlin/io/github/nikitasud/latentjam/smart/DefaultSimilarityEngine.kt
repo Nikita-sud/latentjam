@@ -77,6 +77,7 @@ internal class DefaultSimilarityEngine(
     private var predictorLoaded = false
     private var textEncoderLoaded = false
     private var audioModelLoaded = false
+    private var semanticModelLoaded = false
     private val semanticCache = LinkedHashMap<TrackId, TrackSemantics>()
 
     override val state: StateFlow<EngineState> = mutableState.asStateFlow()
@@ -132,6 +133,15 @@ internal class DefaultSimilarityEngine(
         return backend.loadModel().onSuccess {
             audioModelLoaded = true
             println("SMART: audio model loaded on first use")
+        }
+    }
+
+    /** Loads the small semantic head without paying for the audio encoder on restored libraries. */
+    private suspend fun ensureSemanticModel(): Result<Unit> {
+        if (semanticModelLoaded) return Result.success(Unit)
+        return backend.loadSemanticModel().onSuccess {
+            semanticModelLoaded = true
+            println("SMART: semantic model loaded for mix classification")
         }
     }
 
@@ -445,8 +455,10 @@ internal class DefaultSimilarityEngine(
                 // fully restored library (or one containing only remembered bad files) must keep
                 // lazy loading intact. If real embedding/query work already loaded the model,
                 // opportunistically fill the process cache on this or a later call.
-                val semanticsAvailable = audioModelLoaded ||
-                    (loadMissingSemantics && missing.isNotEmpty() && ensureAudioModel().isSuccess)
+                val shouldLoadSemantics = missing.isNotEmpty() &&
+                    (loadMissingSemantics || audioModelLoaded)
+                val semanticsAvailable = semanticModelLoaded ||
+                    (shouldLoadSemantics && ensureSemanticModel().isSuccess)
                 if (semanticsAvailable) {
                     for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
                         val outputs = backend.classify(batch.map { it.second }).getOrNull()
@@ -685,6 +697,7 @@ internal class DefaultSimilarityEngine(
                 predictorLoaded = false
                 textEncoderLoaded = false
                 audioModelLoaded = false
+                semanticModelLoaded = false
                 mutableState.value = EngineState.Uninitialized
             }
         }

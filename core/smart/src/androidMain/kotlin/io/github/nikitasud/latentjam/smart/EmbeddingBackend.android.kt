@@ -60,24 +60,34 @@ internal class OnnxEmbeddingBackend(
                 options.setInterOpNumThreads(1)
                 OrtEnvironment.getEnvironment().createSession(modelBytes, options)
             }
-            // Semantic routing improves My Mixes but is not required for audio similarity. Keep
-            // startup usable if an older/debug package is missing the optional head.
-            runCatching {
-                val semanticBytes = context.assets.open(SEMANTIC_ASSET_PATH).use { it.readBytes() }
-                semanticSession = OrtSession.SessionOptions().use { options ->
-                    options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
-                    options.setIntraOpNumThreads(1)
-                    options.setInterOpNumThreads(1)
-                    OrtEnvironment.getEnvironment().createSession(semanticBytes, options)
-                }
-            }.onFailure { failure ->
-                println("SMART: semantic head unavailable (${failure.message})")
-            }
             Result.success(Unit)
         } catch (t: Throwable) {
             Result.failure(
                 SmartEngineException(
                     EngineError.BackendFailure("Failed to load similarity model: ${t.message}", t),
+                ),
+            )
+        }
+    }
+
+    override suspend fun loadSemanticModel(): Result<Unit> {
+        if (semanticSession != null) return Result.success(Unit)
+        return try {
+            val semanticBytes = context.assets.open(SEMANTIC_ASSET_PATH).use { it.readBytes() }
+            semanticSession = OrtSession.SessionOptions().use { options ->
+                options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
+                options.setIntraOpNumThreads(1)
+                options.setInterOpNumThreads(1)
+                OrtEnvironment.getEnvironment().createSession(semanticBytes, options)
+            }
+            Result.success(Unit)
+        } catch (failure: Throwable) {
+            Result.failure(
+                SmartEngineException(
+                    EngineError.BackendFailure(
+                        "Failed to load semantic model: ${failure.message}",
+                        failure,
+                    ),
                 ),
             )
         }

@@ -38,6 +38,28 @@ internal class IosEmbeddingBackend(
         }
     }
 
+    override suspend fun loadSemanticModel(): Result<Unit> {
+        val existingLease = lease?.takeIf { it.currentProvider() != null }
+        if (existingLease == null) {
+            lease?.release()
+            lease = null
+        }
+        val activeLease = existingLease ?: IosInferenceRegistry.acquire()
+            ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        val provider = activeLease.currentProvider() ?: run {
+            if (existingLease == null) activeLease.release()
+            return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        }
+        val error = provider.loadSemantic()
+        return if (error == null) {
+            lease = activeLease
+            Result.success(Unit)
+        } else {
+            if (existingLease == null) activeLease.release()
+            backendFailure(error)
+        }
+    }
+
     override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
         val provider = lease?.currentProvider()
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))

@@ -21,6 +21,7 @@ internal class FakeEmbeddingBackend(
 
     var loadModelResult: Result<Unit> = Result.success(Unit)
     var loadModelCalls: Int = 0
+    var loadSemanticModelCalls: Int = 0
     var embedCalls: Int = 0
     var closed: Boolean = false
     val failures: MutableMap<TrackId, EngineError> = mutableMapOf()
@@ -29,6 +30,11 @@ internal class FakeEmbeddingBackend(
     override suspend fun loadModel(): Result<Unit> {
         loadModelCalls++
         return loadModelResult.onSuccess { modelLoaded = true }
+    }
+
+    override suspend fun loadSemanticModel(): Result<Unit> {
+        loadSemanticModelCalls++
+        return Result.success(Unit)
     }
 
     override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {

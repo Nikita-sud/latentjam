@@ -29,10 +29,17 @@ public interface EmbeddingBackend {
      * Loads the model referenced by [SmartEngineConfig.modelLocator] into
      * memory, ready for [embed] calls. Heavy by design (tens of MB of
      * weights), which is why the engine calls it lazily — on the first
-     * operation that needs [embed] or [classify], not at initialization —
+     * operation that needs [embed], not at initialization —
      * and at most once per successful load.
      */
     public suspend fun loadModel(): Result<Unit>
+
+    /**
+     * Loads only the compact classifier used by [classify]. Production backends override this so
+     * classifying already-persisted embeddings does not wake the much larger audio encoder. The
+     * default preserves compatibility for simple alternate backends that package both together.
+     */
+    public suspend fun loadSemanticModel(): Result<Unit> = loadModel()
 
     /**
      * Encodes one track into its embedding vector.

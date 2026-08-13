@@ -12,6 +12,37 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.abs
+import kotlin.math.sqrt
+
+/** Arithmetic mono is for embeddings; loudness must retain the power in every output channel. */
+internal enum class AudioDownmixMode {
+    AVERAGE,
+    PRESERVE_CHANNEL_POWER,
+}
+
+/**
+ * Collapses one interleaved frame without allowing opposite-phase channels to cancel its power.
+ *
+ * The dominant channel supplies only the sign; the magnitude is the RMS across channels. Keeping a
+ * sign carrier avoids turning every waveform into a rectified envelope before resampling.
+ */
+internal inline fun channelPowerDownmix(
+    channelCount: Int,
+    sampleAt: (Int) -> Float,
+): Float {
+    if (channelCount <= 0) return 0f
+    var sumSquares = 0.0
+    var dominant = 0f
+    repeat(channelCount) { channel ->
+        val raw = sampleAt(channel)
+        val sample = if (raw.isFinite()) raw.coerceIn(-1f, 1f) else 0f
+        sumSquares += sample.toDouble() * sample
+        if (abs(sample) > abs(dominant)) dominant = sample
+    }
+    val magnitude = sqrt(sumSquares / channelCount).toFloat()
+    return if (dominant < 0f) -magnitude else magnitude
+}
 
 internal enum class DecodeLoopGuardResult {
     CONTINUE,
@@ -31,7 +62,7 @@ internal enum class DecodeLoopGuardResult {
  * persisted by the engine.
  */
 internal sealed interface AudioDecodeResult {
-    data class Success(val waveform: FloatArray) : AudioDecodeResult
+    data class Success(val waveform: FloatArray, val validSamples: Int) : AudioDecodeResult
     data class InvalidAudio(val detail: String) : AudioDecodeResult
     data class Unavailable(val detail: String) : AudioDecodeResult
 }
@@ -128,6 +159,11 @@ internal class DecodeLoopGuard(
  */
 internal class AndroidAudioDecoder(private val context: Context) {
 
+    private data class DecodedWindow(
+        val waveform: FloatArray,
+        val validSamples: Int,
+    )
+
     /**
      * Returns exactly [targetSamples] mono float samples in `[-1, 1]` at [targetSampleRate],
      * starting near [startMs], or a typed track-local/platform failure.
@@ -137,6 +173,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
         startMs: Long,
         targetSampleRate: Int,
         targetSamples: Int,
+        downmixMode: AudioDownmixMode = AudioDownmixMode.AVERAGE,
         isCancelled: () -> Boolean,
     ): AudioDecodeResult {
         if (isCancelled()) throw CancellationException("Audio decoding cancelled")
@@ -211,16 +248,17 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 try {
                     codec.configure(inputFormat, null, null, 0)
                     codec.start()
-                    val waveform = decodeLoop(
+                    val decoded = decodeLoop(
                         codec,
                         extractor,
                         targetSampleRate,
                         targetSamples,
+                        downmixMode,
                         isCancelled,
                     ) ?: return AudioDecodeResult.InvalidAudio(
                         "Decoder produced no valid PCM at ${startMs}ms ($mime)",
                     )
-                    AudioDecodeResult.Success(waveform)
+                    AudioDecodeResult.Success(decoded.waveform, decoded.validSamples)
                 } finally {
                     runCatching { codec.stop() }
                     runCatching { codec.release() }
@@ -247,8 +285,9 @@ internal class AndroidAudioDecoder(private val context: Context) {
         extractor: MediaExtractor,
         targetSampleRate: Int,
         targetSamples: Int,
+        downmixMode: AudioDownmixMode,
         isCancelled: () -> Boolean,
-    ): FloatArray? {
+    ): DecodedWindow? {
         var sourceRate = 0
         var sourceChannels = 0
         var pcmFloat = false
@@ -351,9 +390,9 @@ internal class AndroidAudioDecoder(private val context: Context) {
                         buffer.position(info.offset)
                         buffer.limit(info.offset + info.size)
                         val mono = if (pcmFloat) {
-                            monoFromFloat(buffer, sourceChannels)
+                            monoFromFloat(buffer, sourceChannels, downmixMode)
                         } else {
-                            monoFromPcm16(buffer, sourceChannels)
+                            monoFromPcm16(buffer, sourceChannels, downmixMode)
                         }
                         chunks.add(mono)
                         collected += mono.size
@@ -381,34 +420,55 @@ internal class AndroidAudioDecoder(private val context: Context) {
         return resampleLinear(source, sourceRate, targetSampleRate, targetSamples)
     }
 
-    private fun monoFromPcm16(buffer: java.nio.ByteBuffer, channels: Int): FloatArray {
+    private fun monoFromPcm16(
+        buffer: java.nio.ByteBuffer,
+        channels: Int,
+        downmixMode: AudioDownmixMode,
+    ): FloatArray {
         val shorts = buffer.order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer()
         val frames = shorts.remaining() / channels
         val mono = FloatArray(frames)
         for (frame in 0 until frames) {
-            var sum = 0f
-            for (channel in 0 until channels) {
-                sum += shorts.get(frame * channels + channel) / 32768f
+            mono[frame] = when (downmixMode) {
+                AudioDownmixMode.AVERAGE -> {
+                    var sum = 0f
+                    for (channel in 0 until channels) {
+                        sum += shorts.get(frame * channels + channel) / 32768f
+                    }
+                    sum / channels
+                }
+                AudioDownmixMode.PRESERVE_CHANNEL_POWER -> channelPowerDownmix(channels) { channel ->
+                    shorts.get(frame * channels + channel) / 32768f
+                }
             }
-            mono[frame] = sum / channels
         }
         return mono
     }
 
-    private fun monoFromFloat(buffer: java.nio.ByteBuffer, channels: Int): FloatArray {
+    private fun monoFromFloat(
+        buffer: java.nio.ByteBuffer,
+        channels: Int,
+        downmixMode: AudioDownmixMode,
+    ): FloatArray {
         val floats = buffer.order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
         val frames = floats.remaining() / channels
         val mono = FloatArray(frames)
         for (frame in 0 until frames) {
-            var sum = 0f
-            for (channel in 0 until channels) {
-                sum += floats.get(frame * channels + channel)
+            mono[frame] = when (downmixMode) {
+                AudioDownmixMode.AVERAGE -> {
+                    var sum = 0f
+                    for (channel in 0 until channels) {
+                        sum += floats.get(frame * channels + channel)
+                    }
+                    // Float decoders may legally overshoot full scale. The embedding graph's
+                    // trained contract is strictly finite [-1, 1].
+                    val sample = sum / channels
+                    if (sample.isFinite()) sample.coerceIn(-1f, 1f) else 0f
+                }
+                AudioDownmixMode.PRESERVE_CHANNEL_POWER -> channelPowerDownmix(channels) { channel ->
+                    floats.get(frame * channels + channel)
+                }
             }
-            // Float decoders may legally overshoot full scale. The graph's trained contract is
-            // strictly finite [-1, 1]; feeding hot samples into FP16 weights can overflow the
-            // whole embedding to NaN/zero (observed on slowed/ultra-slowed files on Samsung).
-            val sample = sum / channels
-            mono[frame] = if (sample.isFinite()) sample.coerceIn(-1f, 1f) else 0f
         }
         return mono
     }
@@ -418,21 +478,24 @@ internal class AndroidAudioDecoder(private val context: Context) {
         sourceRate: Int,
         targetRate: Int,
         targetSamples: Int,
-    ): FloatArray {
+    ): DecodedWindow {
         val output = FloatArray(targetSamples) // zero-padded past the source end
         if (sourceRate == targetRate) {
-            source.copyInto(output, 0, 0, minOf(source.size, targetSamples))
-            return output
+            val validSamples = minOf(source.size, targetSamples)
+            source.copyInto(output, 0, 0, validSamples)
+            return DecodedWindow(output, validSamples)
         }
         val ratio = sourceRate.toDouble() / targetRate
+        var validSamples = 0
         for (i in 0 until targetSamples) {
             val sourcePosition = i * ratio
             val index = sourcePosition.toInt()
             if (index >= source.size - 1) break
             val fraction = (sourcePosition - index).toFloat()
             output[i] = source[index] * (1f - fraction) + source[index + 1] * fraction
+            validSamples = i + 1
         }
-        return output
+        return DecodedWindow(output, validSamples)
     }
 
     private companion object {

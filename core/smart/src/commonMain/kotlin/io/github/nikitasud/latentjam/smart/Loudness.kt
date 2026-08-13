@@ -17,6 +17,12 @@ import kotlin.math.pow
  */
 public object Loudness {
 
+    /** Decoded samples plus how many came from media rather than decoder zero-padding. */
+    public data class Window(
+        public val samples: FloatArray,
+        public val validSamples: Int = samples.size,
+    )
+
     /**
      * Reference level playback normalizes toward. Attenuation-only: tracks quieter than this play
      * untouched rather than being digitally boosted into clipping.
@@ -30,26 +36,24 @@ public object Loudness {
     public const val MIN_VOLUME: Float = 0.05f
 
     /**
-     * Mean-square loudness of [windows] in dBFS, or null for silence/too little signal.
-     *
-     * Trailing zero runs are decoder padding for short tracks and are excluded — padding would
-     * otherwise report a short track as quieter than its actual audio.
+     * Mean-square loudness of [windows] in dBFS, or null for silence/too little signal. Explicit
+     * valid lengths exclude decoder padding without mistaking genuine digital silence for padding.
      */
-    public fun measureDb(windows: List<FloatArray>): Float? {
+    public fun measureDb(windows: List<Window>): Float? {
         var energy = 0.0
         var samples = 0L
         for (window in windows) {
-            var end = window.size
-            while (end > 0 && window[end - 1] == 0f) end--
-            for (index in 0 until end) {
-                val sample = window[index]
+            val validSamples = window.validSamples.coerceIn(0, window.samples.size)
+            for (index in 0 until validSamples) {
+                val sample = window.samples[index]
+                if (!sample.isFinite()) return null
                 energy += sample.toDouble() * sample
             }
-            samples += end
+            samples += validSamples
         }
         if (samples < MIN_MEASURED_SAMPLES) return null
         val meanSquare = energy / samples
-        if (meanSquare <= 1e-10) return null
+        if (!meanSquare.isFinite() || meanSquare <= 1e-10) return null
         return (10.0 * log10(meanSquare)).toFloat()
     }
 

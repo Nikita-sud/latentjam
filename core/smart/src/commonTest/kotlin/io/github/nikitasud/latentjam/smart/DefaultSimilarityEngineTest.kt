@@ -127,6 +127,7 @@ internal class DefaultSimilarityEngineTest {
             harness.backend.loadModelCalls,
             "restored vectors and optional background mix semantics must keep the model lazy",
         )
+        assertEquals(0, harness.backend.loadSemanticModelCalls)
     }
 
     @Test
@@ -144,7 +145,8 @@ internal class DefaultSimilarityEngineTest {
             ),
         )
 
-        assertEquals(1, harness.backend.loadModelCalls)
+        assertEquals(0, harness.backend.loadModelCalls, "semantic routing must not load audio")
+        assertEquals(1, harness.backend.loadSemanticModelCalls)
     }
 
     @Test
