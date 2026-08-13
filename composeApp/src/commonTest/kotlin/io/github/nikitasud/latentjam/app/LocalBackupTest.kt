@@ -56,6 +56,7 @@ internal class LocalBackupTest {
                     name = "Для дороги\n🚗",
                     createdAtMs = 1_000,
                     trackReferenceIds = listOf("file:\nКИНО\t1"),
+                    includeInSmart = true,
                 ),
             ),
             listeningHistory = listOf(
@@ -78,18 +79,63 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t1\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t2\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
+    }
+
+    @Test
+    fun codecImportsV1PlaylistsAsNotOptedIn() {
+        val legacy = emptySnapshot().copy(
+            formatVersion = 1,
+            playlists = listOf(
+                LocalBackupPlaylist(
+                    id = "legacy",
+                    name = "Legacy mix",
+                    createdAtMs = 2,
+                    trackReferenceIds = emptyList(),
+                ),
+            ),
+        )
+
+        val decoded = LocalBackupCodec.decode(LocalBackupCodec.encode(legacy))
+
+        assertEquals(1, decoded.formatVersion)
+        assertFalse(decoded.playlists.single().includeInSmart)
+    }
+
+    @Test
+    fun codecReadsAFrozenHistoricalV1PlaylistFixture() {
+        // A literal fixture catches accidental agreement between today's v1 encoder and decoder.
+        val fixture =
+            "LATENTJAM-LOCAL-BACKUP\t1\n" +
+                "C\t1\n" +
+                "S\tSYSTEM\ttracks\tdynamic\t20\t1\t1\n" +
+                "P\ts6c6567616379\ts4c6567616379206d6978\t2\n"
+
+        val decoded = LocalBackupCodec.decode(fixture)
+
+        assertEquals(1, decoded.formatVersion)
+        assertEquals("legacy", decoded.playlists.single().id)
+        assertEquals("Legacy mix", decoded.playlists.single().name)
+        assertFalse(decoded.playlists.single().includeInSmart)
     }
 
     @Test
     fun codecRejectsFutureVersionsCorruptionAndDanglingReferences() {
         val valid = LocalBackupCodec.encode(emptySnapshot())
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t1", "LOCAL-BACKUP\t9"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t2", "LOCAL-BACKUP\t9"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
+        }
+        assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.decode(
+                "LATENTJAM-LOCAL-BACKUP\t2\n" +
+                    "C\t1\n" +
+                    "S\tSYSTEM\ttracks\tdynamic\t20\t1\t1\n" +
+                    "P\ts6964\ts6e616d65\t2\tmaybe\n",
+            )
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.validate(
@@ -127,6 +173,7 @@ internal class LocalBackupTest {
         val source = fixture(listOf(sourceTrack))
         val playlist = source.playlists.create("Русский рок")
         source.playlists.addTracks(playlist.id, listOf(sourceTrack.id, TrackId("missing-old-id")))
+        assertTrue(source.playlists.toggleIncludeInSmart(playlist.id))
         source.history.record(event(sourceTrack.id, 100))
         source.history.record(event(TrackId("missing-old-id"), 200))
         source.searches.record("Виктор Цой")
@@ -165,6 +212,7 @@ internal class LocalBackupTest {
             listOf("new-kino-id"),
             destination.playlists.all().single().trackIds,
         )
+        assertTrue(destination.playlists.all().single().includeInSmart)
         assertContentEquals(
             listOf("new-kino-id"),
             destination.history.recentEvents(Int.MAX_VALUE).map { it.trackId.value },
@@ -192,7 +240,15 @@ internal class LocalBackupTest {
 
         val snapshot = emptySnapshot().copy(
             tracks = listOf(imported.toReference()),
-            playlists = listOf(LocalBackupPlaylist("foreign", "mix", 5, listOf(imported.id.value))),
+            playlists = listOf(
+                LocalBackupPlaylist(
+                    id = "foreign",
+                    name = "mix",
+                    createdAtMs = 5,
+                    trackReferenceIds = listOf(imported.id.value),
+                    includeInSmart = true,
+                ),
+            ),
             listeningHistory = listOf(event(imported.id, 200).toBackup()),
         )
 
@@ -201,6 +257,7 @@ internal class LocalBackupTest {
 
         val mergedPlaylist = fixture.playlists.all().single()
         assertContentEquals(listOf("current", "imported"), mergedPlaylist.trackIds)
+        assertTrue(mergedPlaylist.includeInSmart)
         assertContentEquals(
             listOf(existingEvent, event(imported.id, 200)),
             fixture.history.recentEvents(Int.MAX_VALUE).asReversed(),

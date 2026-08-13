@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.library
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 
@@ -52,5 +53,14 @@ internal class PlaylistSmartOptInTest {
         assertFalse(reloaded.includeInSmart)
         assertEquals(created.id, reloaded.id)
         assertEquals(listOf("a"), reloaded.trackIds)
+    }
+
+    @Test
+    fun v3RejectsCorruptSmartFlag() {
+        val valid = PlaylistSerializer.serialize(
+            Playlist(id = "id", name = "Mood", includeInSmart = true),
+        )
+
+        assertNull(PlaylistSerializer.parse(valid.replaceAfterLast('\u001f', "yes")))
     }
 }

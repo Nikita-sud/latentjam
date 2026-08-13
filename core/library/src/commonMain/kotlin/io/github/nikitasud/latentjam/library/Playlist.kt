@@ -276,6 +276,7 @@ internal object PlaylistSerializer {
     /** v3 = v2 plus the SMART opt-in flag; a v2 line simply reads as "not opted in". */
     private fun parseV3(parts: List<String>): Playlist? {
         if (parts.size != 6) return null
+        if (parts[5] != "0" && parts[5] != "1") return null
         return parseV2(parts.subList(0, 5))?.copy(includeInSmart = parts[5] == "1")
     }
 

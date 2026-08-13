@@ -62,6 +62,7 @@ internal data class LocalBackupPlaylist(
     val name: String,
     val createdAtMs: Long,
     val trackReferenceIds: List<String>,
+    val includeInSmart: Boolean = false,
 )
 
 internal data class LocalBackupListenEvent(
@@ -127,7 +128,8 @@ internal class LocalBackupFormatException(message: String) : IllegalArgumentExce
  * validation make an arbitrary document-picker input safe to reject before any app state changes.
  */
 internal object LocalBackupCodec {
-    const val FORMAT_VERSION: Int = 1
+    const val FORMAT_VERSION: Int = 2
+    private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
     private const val MAX_TRACKS = 200_000
@@ -166,13 +168,15 @@ internal object LocalBackupCodec {
                 )
             }
             snapshot.playlists.forEach { playlist ->
+                val fixedFields = buildList {
+                    add("P")
+                    add(playlist.id.encodeField())
+                    add(playlist.name.encodeField())
+                    add(playlist.createdAtMs.toString())
+                    if (snapshot.formatVersion >= 2) add(playlist.includeInSmart.toBit())
+                }
                 appendRecord(
-                    listOf(
-                        "P",
-                        playlist.id.encodeField(),
-                        playlist.name.encodeField(),
-                        playlist.createdAtMs.toString(),
-                    ) + playlist.trackReferenceIds.map { it.encodeField() },
+                    fixedFields + playlist.trackReferenceIds.map { it.encodeField() },
                 )
             }
             snapshot.listeningHistory.forEach { event ->
@@ -205,7 +209,9 @@ internal object LocalBackupCodec {
         header.requireFieldCount(2)
         if (header.nextField() != HEADER) formatError("Not a LatentJam local backup")
         val version = header.nextField().parseInt("format version")
-        if (version != FORMAT_VERSION) formatError("Unsupported backup version: $version")
+        if (version !in LEGACY_FORMAT_VERSION..FORMAT_VERSION) {
+            formatError("Unsupported backup version: $version")
+        }
 
         var createdAtMs: Long? = null
         var settings: LocalBackupSettings? = null
@@ -261,7 +267,8 @@ internal object LocalBackupCodec {
                     )
                 }
                 "P" -> {
-                    val trackCount = record.fieldCount - 4
+                    val fixedFieldCount = if (version >= 2) 5 else 4
+                    val trackCount = record.fieldCount - fixedFieldCount
                     if (trackCount < 0) record.invalid()
                     if (playlists.size >= MAX_PLAYLISTS) formatError("Too many playlists")
                     if (trackCount > MAX_PLAYLIST_TRACKS - playlistTrackCount) {
@@ -272,6 +279,11 @@ internal object LocalBackupCodec {
                         id = record.nextField().decodeField("playlist id"),
                         name = record.nextField().decodeField("playlist name"),
                         createdAtMs = record.nextField().parseLong("playlist creation time"),
+                        includeInSmart = if (version >= 2) {
+                            record.nextField().parseBit("playlist SMART flag")
+                        } else {
+                            false
+                        },
                         trackReferenceIds = buildList(trackCount) {
                             repeat(trackCount) {
                                 add(record.nextField().decodeField("playlist track id"))
@@ -340,13 +352,21 @@ internal object LocalBackupCodec {
     }
 
     fun validate(snapshot: LocalBackupSnapshot) {
-        if (snapshot.formatVersion != FORMAT_VERSION) formatError("Unsupported backup version")
+        if (snapshot.formatVersion !in LEGACY_FORMAT_VERSION..FORMAT_VERSION) {
+            formatError("Unsupported backup version")
+        }
         if (snapshot.createdAtMs < 0) formatError("Invalid backup creation time")
         if (snapshot.settings.smartQueueLength !in SMART_QUEUE_LENGTH_OPTIONS) {
             formatError("Unsupported SMART queue length")
         }
         if (snapshot.tracks.size > MAX_TRACKS) formatError("Too many track references")
         if (snapshot.playlists.size > MAX_PLAYLISTS) formatError("Too many playlists")
+        if (
+            snapshot.formatVersion == LEGACY_FORMAT_VERSION &&
+            snapshot.playlists.any(LocalBackupPlaylist::includeInSmart)
+        ) {
+            formatError("Legacy backups cannot encode playlist SMART flags")
+        }
         if (snapshot.playlists.sumOf { it.trackReferenceIds.size.toLong() } > MAX_PLAYLIST_TRACKS) {
             formatError("Too many playlist entries")
         }
@@ -576,6 +596,7 @@ internal class LocalBackupService(
                     name = playlist.name,
                     createdAtMs = playlist.createdAtMs,
                     trackReferenceIds = playlist.trackIds,
+                    includeInSmart = playlist.includeInSmart,
                 )
             },
             listeningHistory = chronologicalEvents.map { it.toBackupEvent() },
@@ -613,6 +634,7 @@ internal class LocalBackupService(
                         name = backup.name,
                         createdAtMs = backup.createdAtMs,
                         trackIds = backup.trackReferenceIds.mapNotNull { resolved[it]?.value }.distinct(),
+                        includeInSmart = backup.includeInSmart,
                     )
                 }
                 val target = when (mode) {
@@ -844,7 +866,10 @@ internal class LocalBackupService(
             val sameNameIndex = result.indexOfFirst { it.name.equals(playlist.name, ignoreCase = true) }
             if (sameNameIndex >= 0) {
                 val current = result[sameNameIndex]
-                result[sameNameIndex] = current.copy(trackIds = (current.trackIds + playlist.trackIds).distinct())
+                result[sameNameIndex] = current.copy(
+                    trackIds = (current.trackIds + playlist.trackIds).distinct(),
+                    includeInSmart = current.includeInSmart || playlist.includeInSmart,
+                )
             } else {
                 val usedIds = result.mapTo(hashSetOf(), Playlist::id)
                 val uniqueId = if (playlist.id !in usedIds) playlist.id else {
