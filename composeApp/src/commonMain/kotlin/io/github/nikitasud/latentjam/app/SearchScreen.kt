@@ -97,6 +97,8 @@ import org.jetbrains.compose.resources.stringResource
 internal fun SearchScreen(
     songs: List<TrackDescriptor>,
     currentTrackId: TrackId?,
+    /** Whether the player is audibly running; animates the current row's badge. */
+    currentTrackPlaying: Boolean = false,
     onPlay: (queue: List<TrackDescriptor>, index: Int) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
     onClose: () -> Unit,
@@ -305,6 +307,7 @@ internal fun SearchScreen(
                         TrackRow(
                             track = track,
                             isCurrent = track.id == currentTrackId,
+                            isPlaying = currentTrackPlaying,
                             onClick = {
                                 remember(query)
                                 onPlay(results, index)

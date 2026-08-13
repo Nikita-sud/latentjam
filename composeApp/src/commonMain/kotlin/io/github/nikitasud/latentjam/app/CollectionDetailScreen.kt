@@ -64,7 +64,11 @@ data class CollectionSelection(
     val subtitle: String?,
     val artworkUri: String?,
     val tracks: List<TrackDescriptor>,
-    /** True for collections opened from the Playlists tab. */
+    /**
+     * Whether long-pressing a track starts checkbox multi-selection. True for every drill-in
+     * today — playlists, albums, artists, genres, folders — so the same gesture means the same
+     * thing on every track list. Kept as a flag for future read-only surfaces.
+     */
     val allowsTrackSelection: Boolean = false,
     /**
      * Set only when this collection IS a user playlist. Albums, artists, genres, folders and
@@ -83,6 +87,8 @@ data class CollectionSelection(
 fun CollectionDetailScreen(
     selection: CollectionSelection,
     currentTrackId: TrackId?,
+    /** Whether the player is audibly running; animates the current row's badge. */
+    currentTrackPlaying: Boolean = false,
     selectedTrackIds: Set<TrackId> = emptySet(),
     onToggleSelection: (TrackDescriptor) -> Unit = {},
     onStartSelection: (TrackDescriptor) -> Unit = {},
@@ -193,6 +199,7 @@ fun CollectionDetailScreen(
                     TrackRow(
                         track = track,
                         isCurrent = track.id == currentTrackId,
+                        isPlaying = currentTrackPlaying,
                         onClick = {
                             if (selectionMode) onToggleSelection(track) else onPlayTrack(index)
                         },

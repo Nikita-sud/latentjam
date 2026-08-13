@@ -69,6 +69,8 @@ internal fun SectionedSongsList(
     songs: List<TrackDescriptor>,
     sort: SongSort,
     currentTrackId: TrackId?,
+    /** Whether the player is audibly running; animates the current row's badge. */
+    currentTrackPlaying: Boolean = false,
     contentPadding: PaddingValues,
     selectedTrackIds: Set<TrackId> = emptySet(),
     onToggleSelection: (TrackDescriptor) -> Unit = {},
@@ -114,6 +116,7 @@ internal fun SectionedSongsList(
                     TrackRow(
                         track = track,
                         isCurrent = track.id == currentTrackId,
+                        isPlaying = currentTrackPlaying,
                         onClick = {
                             if (selectionMode) {
                                 onToggleSelection(track)

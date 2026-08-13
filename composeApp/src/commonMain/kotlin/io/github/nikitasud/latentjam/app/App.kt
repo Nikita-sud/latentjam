@@ -13,8 +13,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -52,6 +54,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.LibraryAdd
@@ -60,6 +63,7 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PlaylistRemove
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
@@ -106,8 +110,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -439,8 +448,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val currentTrack by remember(playback) {
             playback.state.map { it.track }.distinctUntilChanged()
         }.collectAsState(playback.state.value.track)
+        // Play/pause transitions only — never the position ticks — so the now-playing badge's
+        // motion state recomposes exactly when sound starts or stops.
+        val currentTrackPlaying by remember(playback) {
+            playback.state.map { it.isPlaying }.distinctUntilChanged()
+        }.collectAsState(playback.state.value.isPlaying)
         val selectionMode = selectedTrackIds.isNotEmpty() && (
-            selectedTab == TRACKS_TAB || selectedCollection?.allowsTrackSelection == true
+            selectedTab == TRACKS_TAB || selectedTab in GROUP_TABS ||
+                selectedCollection?.allowsTrackSelection == true
         )
         val accent = rememberTrackAccent(
             track = currentTrack,
@@ -1141,10 +1156,22 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
         val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
-        val selectedTracks = remember(catalog, songSort, selectedTrackIds, selectedCollection) {
+        val selectedTracks = remember(
+            catalog, songSort, selectedTrackIds, selectedCollection, selectedTab,
+        ) {
+            // On a group tab the selection was made album-by-album (folder-by-folder, …), so it
+            // plays in group order — a selected album keeps its own track order instead of being
+            // reshuffled into the Songs sort.
             val source = selectedCollection
                 ?.takeIf { it.allowsTrackSelection }
                 ?.tracks
+                ?: when (selectedTab) {
+                    ALBUMS_TAB -> catalog?.albums?.flatMap { it.tracks }
+                    ARTISTS_TAB -> catalog?.artists?.flatMap { it.tracks }
+                    GENRES_TAB -> catalog?.genres?.flatMap { it.tracks }
+                    FOLDERS_TAB -> catalog?.folders?.flatMap { it.tracks }
+                    else -> null
+                }
                 ?: SongSorting.sort(catalog?.songs.orEmpty(), songSort)
             source.filter { it.id in selectedTrackIds }
         }
@@ -1686,6 +1713,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 songs = visibleCatalog.songs,
                                                 sort = songSort,
                                                 currentTrackId = currentTrack?.id,
+                                                currentTrackPlaying = currentTrackPlaying,
                                                 contentPadding = listPadding,
                                                 selectedTrackIds = selectedTrackIds,
                                                 onToggleSelection = { track ->
@@ -1718,9 +1746,27 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             ),
                                         ) {
                                             items(visibleCatalog.albums, key = { it.key }) { album ->
-                                                AlbumCard(album) {
-                                                    scope.launch {
-                                                        updateSelectedCollection(album.toSelection())
+                                                AlbumCard(
+                                                    album = album,
+                                                    onLongClick = {
+                                                        updateTrackSelection(
+                                                            selectedTrackIds.toggleTracks(album.tracks),
+                                                        )
+                                                    },
+                                                    selectionState = if (selectionMode) {
+                                                        selectedTrackIds.selectsAllOf(album.tracks)
+                                                    } else {
+                                                        null
+                                                    },
+                                                ) {
+                                                    if (selectionMode) {
+                                                        updateTrackSelection(
+                                                            selectedTrackIds.toggleTracks(album.tracks),
+                                                        )
+                                                    } else {
+                                                        scope.launch {
+                                                            updateSelectedCollection(album.toSelection())
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1740,9 +1786,25 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     ),
                                                     artworkUri = artist.tracks
                                                         .firstNotNullOfOrNull { it.artworkUri },
+                                                    onLongClick = {
+                                                        updateTrackSelection(
+                                                            selectedTrackIds.toggleTracks(artist.tracks),
+                                                        )
+                                                    },
+                                                    selectionState = if (selectionMode) {
+                                                        selectedTrackIds.selectsAllOf(artist.tracks)
+                                                    } else {
+                                                        null
+                                                    },
                                                 ) {
-                                                    scope.launch {
-                                                        updateSelectedCollection(artist.toSelection())
+                                                    if (selectionMode) {
+                                                        updateTrackSelection(
+                                                            selectedTrackIds.toggleTracks(artist.tracks),
+                                                        )
+                                                    } else {
+                                                        scope.launch {
+                                                            updateSelectedCollection(artist.toSelection())
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1763,9 +1825,25 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     ),
                                                     artworkUri = genre.tracks
                                                         .firstNotNullOfOrNull { it.artworkUri },
+                                                    onLongClick = {
+                                                        updateTrackSelection(
+                                                            selectedTrackIds.toggleTracks(genre.tracks),
+                                                        )
+                                                    },
+                                                    selectionState = if (selectionMode) {
+                                                        selectedTrackIds.selectsAllOf(genre.tracks)
+                                                    } else {
+                                                        null
+                                                    },
                                                 ) {
-                                                    scope.launch {
-                                                        updateSelectedCollection(genre.toSelection())
+                                                    if (selectionMode) {
+                                                        updateTrackSelection(
+                                                            selectedTrackIds.toggleTracks(genre.tracks),
+                                                        )
+                                                    } else {
+                                                        scope.launch {
+                                                            updateSelectedCollection(genre.toSelection())
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1783,9 +1861,25 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                         folder.tracks.size,
                                                         folder.tracks.size,
                                                     ),
+                                                    onLongClick = {
+                                                        updateTrackSelection(
+                                                            selectedTrackIds.toggleTracks(folder.tracks),
+                                                        )
+                                                    },
+                                                    selectionState = if (selectionMode) {
+                                                        selectedTrackIds.selectsAllOf(folder.tracks)
+                                                    } else {
+                                                        null
+                                                    },
                                                 ) {
-                                                    scope.launch {
-                                                        updateSelectedCollection(folder.toSelection())
+                                                    if (selectionMode) {
+                                                        updateTrackSelection(
+                                                            selectedTrackIds.toggleTracks(folder.tracks),
+                                                        )
+                                                    } else {
+                                                        scope.launch {
+                                                            updateSelectedCollection(folder.toSelection())
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1801,6 +1895,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         CollectionDetailScreen(
                             selection = selection,
                             currentTrackId = currentTrack?.id,
+                            currentTrackPlaying = currentTrackPlaying,
                             selectedTrackIds = selectedTrackIds,
                             onToggleSelection = { track ->
                                 updateTrackSelection(if (track.id in selectedTrackIds) {
@@ -1851,6 +1946,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         SearchScreen(
                             songs = catalog?.songs.orEmpty(),
                             currentTrackId = currentTrack?.id,
+                            currentTrackPlaying = currentTrackPlaying,
                             onPlay = { queue, index -> scope.launch { playback.play(queue, index) } },
                             onTrackMenu = { trackMenuRequest = TrackMenuRequest(it) },
                             onClose = { showSearch = false },
@@ -2697,6 +2793,9 @@ private const val ARTISTS_TAB = 5
 private const val GENRES_TAB = 6
 private const val FOLDERS_TAB = 7
 
+/** The browse tabs whose group items (albums, artists, genres, folders) support selection. */
+private val GROUP_TABS = ALBUMS_TAB..FOLDERS_TAB
+
 private fun StartPage.tabIndex(): Int = when (this) {
     StartPage.FOR_YOU -> FOR_YOU_TAB
     StartPage.MAP -> MAP_TAB
@@ -2745,6 +2844,7 @@ private suspend fun AlbumGroup.toSelection() = CollectionSelection(
     subtitle = artist,
     artworkUri = artworkUri,
     tracks = tracks,
+    allowsTrackSelection = true,
 )
 
 private suspend fun ArtistGroup.toSelection() = CollectionSelection(
@@ -2754,6 +2854,7 @@ private suspend fun ArtistGroup.toSelection() = CollectionSelection(
         getPluralString(Res.plurals.count_albums, albumCount, albumCount),
     artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
     tracks = tracks,
+    allowsTrackSelection = true,
 )
 
 private suspend fun GenreGroup.toSelection() = CollectionSelection(
@@ -2761,6 +2862,7 @@ private suspend fun GenreGroup.toSelection() = CollectionSelection(
     subtitle = trackCountLabel(tracks.size),
     artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
     tracks = tracks,
+    allowsTrackSelection = true,
 )
 
 private suspend fun FolderGroup.toSelection() = CollectionSelection(
@@ -2768,6 +2870,7 @@ private suspend fun FolderGroup.toSelection() = CollectionSelection(
     subtitle = path + SUBTITLE_SEPARATOR + trackCountLabel(tracks.size),
     artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
     tracks = tracks,
+    allowsTrackSelection = true,
 )
 
 private suspend fun trackCountLabel(count: Int): String =
@@ -3114,11 +3217,63 @@ private fun SongSort.label(): String = stringResource(
     },
 )
 
+/** The shared browse-group gesture: tap, plus [TrackRow]'s long-press haptic when selectable. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AlbumCard(album: AlbumGroup, onClick: () -> Unit) {
+private fun Modifier.groupClickable(onClick: () -> Unit, onLongClick: (() -> Unit)?): Modifier {
+    val haptics = LocalHapticFeedback.current
+    return combinedClickable(
+        onClick = onClick,
+        onLongClick = onLongClick?.let { longClick ->
+            {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                longClick()
+            }
+        },
+    )
+}
+
+/** The leading check ring group rows share with [TrackRow]; absent outside selection mode. */
+@Composable
+private fun GroupSelectionMark(selectionState: Boolean?) {
+    if (selectionState == null) return
+    Icon(
+        imageVector = if (selectionState) {
+            Icons.Rounded.CheckCircle
+        } else {
+            Icons.Rounded.RadioButtonUnchecked
+        },
+        contentDescription = null,
+        tint = if (selectionState) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        modifier = Modifier.size(28.dp),
+    )
+}
+
+@Composable
+private fun AlbumCard(
+    album: AlbumGroup,
+    onLongClick: (() -> Unit)? = null,
+    /** `null` outside selection mode; otherwise whether every track of this album is selected. */
+    selectionState: Boolean? = null,
+    onClick: () -> Unit,
+) {
     Column(
         modifier = Modifier
-            .clickable(onClick = onClick)
+            .then(
+                if (selectionState != null) {
+                    Modifier.semantics {
+                        selected = selectionState
+                        role = Role.Checkbox
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .groupClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(8.dp),
     ) {
         Box(
@@ -3142,6 +3297,32 @@ private fun AlbumCard(album: AlbumGroup, onClick: () -> Unit) {
                     contentScale = ContentScale.Crop,
                 )
             }
+            if (selectionState != null) {
+                // A grid card has no leading slot, so the check sits on the artwork; the scrim
+                // circle keeps the unchecked outline visible over any cover.
+                Icon(
+                    imageVector = if (selectionState) {
+                        Icons.Rounded.CheckCircle
+                    } else {
+                        Icons.Rounded.RadioButtonUnchecked
+                    },
+                    contentDescription = null,
+                    tint = if (selectionState) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                            CircleShape,
+                        )
+                        .padding(2.dp)
+                        .size(24.dp),
+                )
+            }
         }
         Text(
             text = album.title ?: stringResource(Res.string.track_unknown_album),
@@ -3161,15 +3342,34 @@ private fun AlbumCard(album: AlbumGroup, onClick: () -> Unit) {
 }
 
 @Composable
-private fun GroupRow(title: String, subtitle: String, artworkUri: String?, onClick: () -> Unit) {
+private fun GroupRow(
+    title: String,
+    subtitle: String,
+    artworkUri: String?,
+    onLongClick: (() -> Unit)? = null,
+    /** `null` outside selection mode; otherwise whether every track of this group is selected. */
+    selectionState: Boolean? = null,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(
+                if (selectionState != null) {
+                    Modifier.semantics {
+                        selected = selectionState
+                        role = Role.Checkbox
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .groupClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        GroupSelectionMark(selectionState)
         Artwork(uri = artworkUri, size = 48.dp, cornerRadius = 24.dp)
         Column {
             Text(
@@ -3189,15 +3389,33 @@ private fun GroupRow(title: String, subtitle: String, artworkUri: String?, onCli
 
 /** Folder rows use a stable folder glyph; an arbitrary first cover would misrepresent the source. */
 @Composable
-private fun FolderRow(folder: FolderGroup, subtitle: String, onClick: () -> Unit) {
+private fun FolderRow(
+    folder: FolderGroup,
+    subtitle: String,
+    onLongClick: (() -> Unit)? = null,
+    /** `null` outside selection mode; otherwise whether every track of this folder is selected. */
+    selectionState: Boolean? = null,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(
+                if (selectionState != null) {
+                    Modifier.semantics {
+                        selected = selectionState
+                        role = Role.Checkbox
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .groupClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        GroupSelectionMark(selectionState)
         Box(
             modifier = Modifier
                 .size(48.dp)

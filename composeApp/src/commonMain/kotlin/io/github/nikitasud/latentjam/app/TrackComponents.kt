@@ -4,6 +4,13 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -11,9 +18,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MoreVert
@@ -89,6 +99,8 @@ internal fun TrackRow(
     track: TrackDescriptor,
     isCurrent: Boolean,
     onClick: () -> Unit,
+    /** Whether audio is actually running; drives the badge's motion on the current row. */
+    isPlaying: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     /** `null` outside selection mode; otherwise whether this row is selected. */
     selectionState: Boolean? = null,
@@ -137,7 +149,22 @@ internal fun TrackRow(
                 modifier = Modifier.size(28.dp),
             )
         }
-        Artwork(uri = track.artworkUri, size = 48.dp)
+        Box {
+            Artwork(uri = track.artworkUri, size = 48.dp)
+            if (isCurrent) {
+                // The player's track wears its badge on the artwork: a tinted title alone
+                // proved too quiet to spot while scanning a list.
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.45f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    NowPlayingIndicator(animating = isPlaying)
+                }
+            }
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = track.title ?: stringResource(Res.string.track_untitled),
@@ -187,3 +214,52 @@ internal fun formatDuration(durationMs: Long): String {
     val seconds = totalSeconds % 60
     return "$minutes:${seconds.toString().padStart(2, '0')}"
 }
+
+/**
+ * The "this row is the player's track" badge: three bars over the artwork, moving while audio
+ * runs and frozen mid-pose while paused. The distinction is deliberate — motion promises sound,
+ * and a paused player keeping a dancing row would promise wrong.
+ *
+ * White on the artwork scrim rather than the theme accent: the scrim is dark in both themes,
+ * and a light-theme primary can be too dark to read against it.
+ */
+@Composable
+private fun NowPlayingIndicator(animating: Boolean) {
+    val fractions = if (animating) {
+        val transition = rememberInfiniteTransition(label = "now-playing")
+        BAR_PHASES_MS.map { phase ->
+            transition.animateFloat(
+                initialValue = 0.3f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse,
+                    initialStartOffset = StartOffset(phase),
+                ),
+                label = "bar",
+            ).value
+        }
+    } else {
+        PAUSED_BAR_FRACTIONS
+    }
+    Row(
+        modifier = Modifier.height(16.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        for (fraction in fractions) {
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .fillMaxHeight(fraction)
+                    .background(Color.White, RoundedCornerShape(1.5.dp)),
+            )
+        }
+    }
+}
+
+/** Staggered starts keep the three bars out of phase, like a level meter rather than a blink. */
+private val BAR_PHASES_MS = listOf(0, 140, 280)
+
+/** A believable frozen pose: unequal heights read as "stopped mid-song", not as a glyph. */
+private val PAUSED_BAR_FRACTIONS = listOf(0.55f, 0.3f, 0.75f)
