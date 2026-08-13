@@ -48,6 +48,15 @@ internal object ChainConfig {
      */
     const val COMPANION_SPECIFICITY_FLOOR = 0.25f
 
+    /**
+     * Every this-many hops is GUARANTEED to the seed's marked groups when any member is still
+     * available: the bonus orders, the quota represents. Without it, a marked playlist whose
+     * members sit far from the seed acoustically could lose every single hop to closer
+     * outsiders — "keep together" that never actually shows the playlist. Members compete
+     * among themselves on the full score, so the best-sounding companion goes first.
+     */
+    const val COMPANION_QUOTA_STRIDE = 3
+
     /** Pull toward the seed for the whole walk, so one off-genre hop can't capture the chain. */
     const val CHAIN_SEED_GRAVITY = 2.5f
 
@@ -327,6 +336,8 @@ internal class SmartChain(
 
             var bestIndex = -1
             var bestScore = Float.NEGATIVE_INFINITY
+            var bestCompanionIndex = -1
+            var bestCompanionScore = Float.NEGATIVE_INFINITY
             for (i in pool.indices) {
                 if (!isEligible(i)) continue
                 val row = pool[i]
@@ -381,12 +392,28 @@ internal class SmartChain(
                     bestScore = score
                     bestIndex = i
                 }
+                if (companionBits[row] and companionBits[seedRow] != 0L &&
+                    score > bestCompanionScore
+                ) {
+                    bestCompanionScore = score
+                    bestCompanionIndex = i
+                }
             }
             if (bestIndex < 0) break
 
-            val pickedRow = pool[bestIndex]
+            // The quota hop: see COMPANION_QUOTA_STRIDE. Falls through to the normal pick when
+            // the seed has no marked groups or no member survived this hop's eligibility.
+            val quotaHop = companionBits[seedRow] != 0L &&
+                (chain.size + 1) % ChainConfig.COMPANION_QUOTA_STRIDE == 0
+            val chosenIndex = if (quotaHop && bestCompanionIndex >= 0) {
+                bestCompanionIndex
+            } else {
+                bestIndex
+            }
+
+            val pickedRow = pool[chosenIndex]
             chain.add(pickedRow)
-            used.add(bestIndex)
+            used.add(chosenIndex)
             val pickedMeta = snapshot.tracks[pickedRow].meta
             if (MetadataRerank.normalizeGenre(pickedMeta.genre) == seedGenre) seedFamilyPicks++
             if (pickedMeta.normalizedTitle.isNotEmpty()) seenTitles.add(pickedMeta.normalizedTitle)

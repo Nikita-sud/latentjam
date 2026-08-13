@@ -113,5 +113,15 @@ internal class CompanionGroupsTest {
         val remoteRow = library.indexOfFirst { it.id == TrackId("120") }
         assertEquals(false, remoteRow in without.pool)
         assertEquals(true, remoteRow in with.pool)
+
+        // And the quota guarantees the marked group actually SOUNDS in the queue: every third
+        // hop goes to its best available member, so even this remote-only companion appears in
+        // a six-track walk — the bonus orders, the quota represents.
+        val walk = SmartChain(snapshot, runtime = null, companionGroups = listOf(companion))
+            .build(seedId = TrackId("0"), length = 6, timeFeatures = FloatArray(5))
+        assertEquals(true, walk.rows.any { library[it].id == TrackId("120") })
+        val plainWalk = SmartChain(snapshot, runtime = null)
+            .build(seedId = TrackId("0"), length = 6, timeFeatures = FloatArray(5))
+        assertEquals(false, plainWalk.rows.any { library[it].id == TrackId("120") })
     }
 }
