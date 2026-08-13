@@ -38,6 +38,10 @@ private enum class PickerPurpose { IMPORT, EXPORT }
 @OptIn(ExperimentalForeignApi::class)
 @Composable
 internal actual fun rememberLocalBackupFileExchange(
+    // The document picker works by file name/extension; MIME filtering has no iOS equivalent
+    // here, so both parameters are accepted for the shared contract and intentionally unused.
+    exportMimeType: String,
+    importMimeTypes: List<String>,
     onExportResult: (LocalBackupFileResult<Unit>) -> Unit,
     onImportResult: (LocalBackupFileResult<String>) -> Unit,
 ): LocalBackupFileExchange {

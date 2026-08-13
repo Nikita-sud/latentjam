@@ -190,6 +190,11 @@
     <string name="action_go_to_album">Aller à l’album</string>
     <string name="action_go_to_artist">Aller à l’artiste</string>
     <string name="action_show_on_map">Afficher sur la carte</string>
+    <string name="action_export_m3u">Exporter en M3U</string>
+    <string name="action_import_m3u">Importer un M3U</string>
+    <string name="snack_m3u_imported">%1$d piste(s) sur %2$d importée(s)</string>
+    <string name="snack_m3u_import_failed">Impossible d’importer la playlist</string>
+    <string name="playlist_imported_name">Playlist importée</string>
     <string name="action_information">Informations</string>
     <string name="action_delete_from_device">Supprimer de l’appareil</string>
     <string name="dialog_delete_tracks_message">Les morceaux sélectionnés (%1$d) seront supprimés de cet appareil. Cette action est irréversible.</string>

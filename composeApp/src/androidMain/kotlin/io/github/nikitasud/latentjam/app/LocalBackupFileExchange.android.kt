@@ -24,6 +24,8 @@ private data class PendingExport(val encoded: String)
 
 @Composable
 internal actual fun rememberLocalBackupFileExchange(
+    exportMimeType: String,
+    importMimeTypes: List<String>,
     onExportResult: (LocalBackupFileResult<Unit>) -> Unit,
     onImportResult: (LocalBackupFileResult<String>) -> Unit,
 ): LocalBackupFileExchange {
@@ -35,7 +37,7 @@ internal actual fun rememberLocalBackupFileExchange(
     var pendingExport by remember { mutableStateOf<PendingExport?>(null) }
 
     val createDocument = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument(LOCAL_BACKUP_MIME_TYPE),
+        ActivityResultContracts.CreateDocument(exportMimeType),
     ) { uri ->
         val pending = pendingExport
         pendingExport = null
@@ -78,7 +80,7 @@ internal actual fun rememberLocalBackupFileExchange(
                     createDocument.launch(fileName)
                 }
             },
-            import = { openDocument.launch(arrayOf(LOCAL_BACKUP_MIME_TYPE, "application/octet-stream")) },
+            import = { openDocument.launch(importMimeTypes.toTypedArray()) },
         )
     }
 }

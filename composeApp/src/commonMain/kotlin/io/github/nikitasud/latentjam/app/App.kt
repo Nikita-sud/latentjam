@@ -57,6 +57,7 @@ import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.MoreVert
@@ -135,6 +136,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_play_all
 import io.github.nikitasud.latentjam.app.generated.resources.action_previous
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
+import io.github.nikitasud.latentjam.app.generated.resources.action_import_m3u
 import io.github.nikitasud.latentjam.app.generated.resources.action_undo
 import io.github.nikitasud.latentjam.app.generated.resources.action_shuffle_all
 import io.github.nikitasud.latentjam.app.generated.resources.action_share
@@ -159,7 +161,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.library_import_none
 import io.github.nikitasud.latentjam.app.generated.resources.library_import_partial
 import io.github.nikitasud.latentjam.app.generated.resources.library_imported
 import io.github.nikitasud.latentjam.app.generated.resources.folder_content_description
+import io.github.nikitasud.latentjam.app.generated.resources.playlist_imported_name
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_new
+import io.github.nikitasud.latentjam.app.generated.resources.snack_m3u_import_failed
+import io.github.nikitasud.latentjam.app.generated.resources.snack_m3u_imported
 import io.github.nikitasud.latentjam.app.generated.resources.playlist_rename_title
 import io.github.nikitasud.latentjam.app.generated.resources.settings_title
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_manage_failed
@@ -1290,6 +1295,77 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         fun tracksOf(playlist: Playlist): List<TrackDescriptor> =
             playlist.trackIds.mapNotNull { tracksById[TrackId(it)] }
 
+        // Playlists as an open format: export goes through the platform's document picker with
+        // real file paths where the platform has them; import matches entries back against the
+        // library by what survives a device change (filenames and metadata, not paths).
+        val m3uExchange = rememberLocalBackupFileExchange(
+            exportMimeType = M3U_MIME_TYPE,
+            importMimeTypes = listOf(
+                M3U_MIME_TYPE,
+                "audio/mpegurl",
+                "application/x-mpegurl",
+                "application/vnd.apple.mpegurl",
+                "text/plain",
+                "application/octet-stream",
+            ),
+            onExportResult = { result ->
+                if (result is LocalBackupFileResult.Failure) {
+                    scope.launch {
+                        snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
+                    }
+                }
+            },
+            onImportResult = { result ->
+                when (result) {
+                    is LocalBackupFileResult.Success -> scope.launch {
+                        val text = result.value
+                        val entries = parseM3u(text)
+                        val matched = matchM3uEntries(entries, catalog?.songs.orEmpty())
+                            .filterNotNull()
+                            .distinctBy { it.id }
+                        if (entries.isEmpty() || matched.isEmpty()) {
+                            snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
+                            return@launch
+                        }
+                        val name = parseM3uName(text)
+                            ?: getString(Res.string.playlist_imported_name)
+                        if (!runPlaylistMutation {
+                                AppGraph.playlists.create(name, matched.map { it.id })
+                            }
+                        ) {
+                            return@launch
+                        }
+                        refreshPlaylistMembershipsBestEffort()
+                        snackbar.showSnackbar(
+                            getString(
+                                Res.string.snack_m3u_imported,
+                                matched.size,
+                                entries.size,
+                            ),
+                        )
+                    }
+                    is LocalBackupFileResult.Failure -> scope.launch {
+                        snackbar.showSnackbar(getString(Res.string.snack_m3u_import_failed))
+                    }
+                    LocalBackupFileResult.Cancelled -> Unit
+                }
+            },
+        )
+        fun exportPlaylistAsM3u(playlist: Playlist) {
+            scope.launch {
+                val resolved = tracksOf(playlist)
+                val paths = runCatching { library.filePaths(resolved.map { it.id }) }
+                    .getOrDefault(emptyMap())
+                val safeName = playlist.name
+                    .trim()
+                    .replace('/', '-')
+                    .replace('\\', '-')
+                    .take(120)
+                    .ifEmpty { "playlist" }
+                m3uExchange.export(encodeM3u(playlist.name, resolved, paths), "$safeName.m3u8")
+            }
+        }
+
         // Rescan after a delete so the removed track leaves every list at once.
         val deleteTrack = rememberTrackDeleter {
             scope.launch {
@@ -1491,6 +1567,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         // Creating belongs to the tab that shows
                                         // what you'd create, so it appears there.
                                         if (selectedTab == PLAYLISTS_TAB) {
+                                            IconButton(onClick = { m3uExchange.import() }) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.FileOpen,
+                                                    contentDescription =
+                                                        stringResource(Res.string.action_import_m3u),
+                                                )
+                                            }
                                             IconButton(onClick = { showCreatePlaylist = true }) {
                                                 Icon(
                                                     imageVector = Icons.Rounded.Add,
@@ -1709,6 +1792,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     ))
                                                 }
                                             },
+                                            onExport = ::exportPlaylistAsM3u,
                                             onMove = { from, to ->
                                                 val moving = playlists.getOrNull(from)
                                                 if (moving != null) {

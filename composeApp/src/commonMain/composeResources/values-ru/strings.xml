@@ -181,6 +181,11 @@
     <string name="action_go_to_album">Перейти к альбому</string>
     <string name="action_go_to_artist">Перейти к исполнителю</string>
     <string name="action_show_on_map">Показать на карте</string>
+    <string name="action_export_m3u">Экспорт в M3U</string>
+    <string name="action_import_m3u">Импорт M3U</string>
+    <string name="snack_m3u_imported">Импортировано треков: %1$d из %2$d</string>
+    <string name="snack_m3u_import_failed">Не удалось импортировать плейлист</string>
+    <string name="playlist_imported_name">Импортированный плейлист</string>
     <string name="action_information">Информация</string>
     <string name="action_delete_from_device">Удалить с устройства</string>
     <string name="dialog_delete_tracks_message">Выбранные треки (%1$d) будут удалены с этого устройства. Это действие нельзя отменить.</string>

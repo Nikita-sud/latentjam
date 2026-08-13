@@ -178,6 +178,11 @@
     <string name="action_go_to_album">एल्बम पर जाएं</string>
     <string name="action_go_to_artist">कलाकार पर जाएं</string>
     <string name="action_show_on_map">मानचित्र पर दिखाएँ</string>
+    <string name="action_export_m3u">M3U के रूप में निर्यात करें</string>
+    <string name="action_import_m3u">M3U आयात करें</string>
+    <string name="snack_m3u_imported">%2$d में से %1$d ट्रैक आयात किए गए</string>
+    <string name="snack_m3u_import_failed">प्लेलिस्ट आयात नहीं हो सकी</string>
+    <string name="playlist_imported_name">आयातित प्लेलिस्ट</string>
     <string name="action_information">जानकारी</string>
     <string name="action_delete_from_device">डिवाइस से मिटाएं</string>
     <string name="dialog_delete_tracks_message">चुने गए ट्रैक (%1$d) इस डिवाइस से हटा दिए जाएँगे। इसे पहले जैसा नहीं किया जा सकता।</string>

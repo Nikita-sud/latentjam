@@ -52,6 +52,13 @@ public interface MusicLibrary {
     public suspend fun allKnownTracks(): List<TrackDescriptor> =
         (tracks() + hiddenTracks()).distinctBy { it.id }
 
+    /**
+     * Absolute file paths for [ids], for open-format export (M3U). Best-effort by contract:
+     * platforms without stable user-visible file paths return an empty map and callers fall
+     * back to metadata-only entries.
+     */
+    public suspend fun filePaths(ids: List<TrackId>): Map<TrackId, String> = emptyMap()
+
     /** Hides [trackId] in LatentJam without modifying the source file on the device. */
     public suspend fun hide(trackId: TrackId)
 

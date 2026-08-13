@@ -178,6 +178,11 @@
     <string name="action_go_to_album">Buka album</string>
     <string name="action_go_to_artist">Buka artis</string>
     <string name="action_show_on_map">Tampilkan di peta</string>
+    <string name="action_export_m3u">Ekspor sebagai M3U</string>
+    <string name="action_import_m3u">Impor M3U</string>
+    <string name="snack_m3u_imported">%1$d dari %2$d trek diimpor</string>
+    <string name="snack_m3u_import_failed">Tidak dapat mengimpor playlist</string>
+    <string name="playlist_imported_name">Playlist impor</string>
     <string name="action_information">Informasi</string>
     <string name="action_delete_from_device">Hapus dari perangkat</string>
     <string name="dialog_delete_tracks_message">Trek yang dipilih (%1$d) akan dihapus dari perangkat ini. Tindakan ini tidak dapat dibatalkan.</string>

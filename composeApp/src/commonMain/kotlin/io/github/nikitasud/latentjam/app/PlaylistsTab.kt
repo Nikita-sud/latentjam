@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.DriveFileRenameOutline
+import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.AlertDialog
@@ -64,6 +65,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_delete
+import io.github.nikitasud.latentjam.app.generated.resources.action_export_m3u
 import io.github.nikitasud.latentjam.app.generated.resources.action_rename
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_most_played
 import io.github.nikitasud.latentjam.app.generated.resources.auto_playlist_favorites
@@ -99,6 +101,7 @@ internal fun PlaylistsTabContent(
     onOpenAuto: (AutoPlaylist) -> Unit,
     onOpenPlaylist: (Playlist) -> Unit,
     onRename: (Playlist) -> Unit,
+    onExport: (Playlist) -> Unit = {},
     onDelete: (Playlist) -> Unit,
     /** Commits a long-press drag: the playlist at [from] drops at [to], both list positions. */
     onMove: (from: Int, to: Int) -> Unit = { _, _ -> },
@@ -216,6 +219,7 @@ internal fun PlaylistsTabContent(
                     tracks = tracksOf(playlist),
                     onClick = { onOpenPlaylist(playlist) },
                     onRename = { onRename(playlist) },
+                    onExport = { onExport(playlist) },
                     onDelete = { onDelete(playlist) },
                 )
             }
@@ -290,6 +294,7 @@ private fun PlaylistRow(
     tracks: List<TrackDescriptor>,
     onClick: () -> Unit,
     onRename: () -> Unit,
+    onExport: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -339,6 +344,16 @@ private fun PlaylistRow(
                     onClick = {
                         menuOpen = false
                         onRename()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.action_export_m3u)) },
+                    leadingIcon = {
+                        Icon(Icons.Rounded.IosShare, contentDescription = null)
+                    },
+                    onClick = {
+                        menuOpen = false
+                        onExport()
                     },
                 )
                 DropdownMenuItem(

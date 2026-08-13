@@ -29,6 +29,10 @@ internal data class LocalBackupFileExchange(
  */
 @Composable
 internal expect fun rememberLocalBackupFileExchange(
+    /** MIME the export document is created under; pickers may also derive it from the name. */
+    exportMimeType: String = LOCAL_BACKUP_MIME_TYPE,
+    /** MIME filter the import picker offers; platforms without MIME filtering may ignore it. */
+    importMimeTypes: List<String> = listOf(LOCAL_BACKUP_MIME_TYPE, "application/octet-stream"),
     onExportResult: (LocalBackupFileResult<Unit>) -> Unit,
     onImportResult: (LocalBackupFileResult<String>) -> Unit,
 ): LocalBackupFileExchange
@@ -40,9 +44,7 @@ internal fun normalizedBackupFileName(suggestedName: String): String {
         .replace('\\', '-')
         .take(120)
         .ifEmpty { "latentjam-backup" }
-    return if (safe.endsWith(".$LOCAL_BACKUP_FILE_EXTENSION", ignoreCase = true)) {
-        safe
-    } else {
-        "$safe.$LOCAL_BACKUP_FILE_EXTENSION"
-    }
+    // A caller-supplied extension (an .m3u8 playlist, say) is respected; only extensionless
+    // names — the backup flow's own "latentjam-backup-<millis>" — get the backup extension.
+    return if ('.' in safe) safe else "$safe.$LOCAL_BACKUP_FILE_EXTENSION"
 }

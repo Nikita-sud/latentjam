@@ -172,6 +172,11 @@
     <string name="action_go_to_album">アルバムを表示</string>
     <string name="action_go_to_artist">アーティストを表示</string>
     <string name="action_show_on_map">マップに表示</string>
+    <string name="action_export_m3u">M3Uとして書き出す</string>
+    <string name="action_import_m3u">M3Uを読み込む</string>
+    <string name="snack_m3u_imported">%2$d曲中%1$d曲を読み込みました</string>
+    <string name="snack_m3u_import_failed">プレイリストを読み込めませんでした</string>
+    <string name="playlist_imported_name">読み込んだプレイリスト</string>
     <string name="action_information">情報</string>
     <string name="action_delete_from_device">デバイスから削除</string>
     <string name="dialog_delete_tracks_message">選択した%1$d曲をこのデバイスから削除します。この操作は取り消せません。</string>

@@ -183,6 +183,39 @@ internal class MediaStoreMusicLibrary(
         else queryTracks().filter { it.id.value in hidden }
     }
 
+    override suspend fun filePaths(ids: List<TrackId>): Map<TrackId, String> =
+        withContext(Dispatchers.IO) {
+            if (ids.isEmpty()) return@withContext emptyMap()
+            val wanted = ids.mapTo(HashSet(), TrackId::value)
+            val paths = LinkedHashMap<TrackId, String>(ids.size)
+            runCatching {
+                context.contentResolver.query(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(
+                        MediaStore.Audio.Media._ID,
+                        @Suppress("DEPRECATION") MediaStore.Audio.Media.DATA,
+                    ),
+                    null,
+                    null,
+                    null,
+                )?.use { cursor ->
+                    val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                    val dataColumn = cursor.getColumnIndex(
+                        @Suppress("DEPRECATION") MediaStore.Audio.Media.DATA,
+                    )
+                    if (dataColumn < 0) return@use
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(idColumn).toString()
+                        if (id !in wanted) continue
+                        cursor.getString(dataColumn)
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { paths[TrackId(id)] = it }
+                    }
+                }
+            }
+            paths
+        }
+
     override suspend fun hiddenTrackIds(): Set<TrackId> = withContext(Dispatchers.IO) {
         visibilityMutex.withLock { readHiddenIds().mapTo(linkedSetOf(), ::TrackId) }
     }

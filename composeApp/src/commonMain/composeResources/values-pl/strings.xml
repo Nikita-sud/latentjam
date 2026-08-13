@@ -194,6 +194,11 @@
     <string name="action_go_to_album">Przejdź do albumu</string>
     <string name="action_go_to_artist">Przejdź do wykonawcy</string>
     <string name="action_show_on_map">Pokaż na mapie</string>
+    <string name="action_export_m3u">Eksportuj jako M3U</string>
+    <string name="action_import_m3u">Importuj M3U</string>
+    <string name="snack_m3u_imported">Zaimportowano %1$d z %2$d utworów</string>
+    <string name="snack_m3u_import_failed">Nie udało się zaimportować playlisty</string>
+    <string name="playlist_imported_name">Zaimportowana playlista</string>
     <string name="action_information">Informacje</string>
     <string name="action_delete_from_device">Usuń z urządzenia</string>
     <string name="dialog_delete_tracks_message">Wybrane utwory (%1$d) zostaną usunięte z tego urządzenia. Tej operacji nie można cofnąć.</string>

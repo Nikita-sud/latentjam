@@ -178,6 +178,11 @@
     <string name="action_go_to_album">Mergi la album</string>
     <string name="action_go_to_artist">Mergi la artist</string>
     <string name="action_show_on_map">Arată pe hartă</string>
+    <string name="action_export_m3u">Exportă ca M3U</string>
+    <string name="action_import_m3u">Importă M3U</string>
+    <string name="snack_m3u_imported">S-au importat %1$d din %2$d piese</string>
+    <string name="snack_m3u_import_failed">Playlistul nu a putut fi importat</string>
+    <string name="playlist_imported_name">Playlist importat</string>
     <string name="action_information">Informații</string>
     <string name="action_delete_from_device">Șterge de pe dispozitiv</string>
     <string name="dialog_delete_tracks_message">Piesele selectate (%1$d) vor fi șterse de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>

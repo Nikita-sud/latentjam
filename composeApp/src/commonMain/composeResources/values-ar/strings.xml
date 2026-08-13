@@ -207,6 +207,11 @@
     <string name="action_go_to_album">الانتقال إلى الألبوم</string>
     <string name="action_go_to_artist">الانتقال إلى الفنان</string>
     <string name="action_show_on_map">عرض على الخريطة</string>
+    <string name="action_export_m3u">تصدير كملف M3U</string>
+    <string name="action_import_m3u">استيراد M3U</string>
+    <string name="snack_m3u_imported">تم استيراد %1$d من %2$d مقطعًا</string>
+    <string name="snack_m3u_import_failed">تعذّر استيراد قائمة التشغيل</string>
+    <string name="playlist_imported_name">قائمة مستوردة</string>
     <string name="action_information">معلومات</string>
     <string name="action_delete_from_device">حذف من الجهاز</string>
     <string name="dialog_delete_tracks_message">ستتم إزالة المقاطع المحددة (%1$d) من هذا الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>
