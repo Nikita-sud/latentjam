@@ -1817,9 +1817,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             }
                                         }
 
-                                        ARTISTS_TAB -> LazyColumn(
-                                            modifier = Modifier.fillMaxSize(),
+                                        ARTISTS_TAB -> GroupListWithRail(
+                                            names = visibleCatalog.artists.map { it.name },
                                             contentPadding = listPadding,
+                                        ) { railPadding, listState ->
+                                            LazyColumn(
+                                            state = listState,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentPadding = railPadding,
                                         ) {
                                             items(visibleCatalog.artists, key = { it.name ?: "?" }) { artist ->
                                                 GroupRow(
@@ -1854,10 +1859,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             }
                                         }
+                                        }
 
-                                        GENRES_TAB -> LazyColumn(
-                                            modifier = Modifier.fillMaxSize(),
+                                        GENRES_TAB -> GroupListWithRail(
+                                            names = visibleCatalog.genres.map { it.name },
                                             contentPadding = listPadding,
+                                        ) { railPadding, listState ->
+                                            LazyColumn(
+                                            state = listState,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentPadding = railPadding,
                                         ) {
                                             items(visibleCatalog.genres, key = { it.name ?: "?" }) { genre ->
                                                 GroupRow(
@@ -1893,10 +1904,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             }
                                         }
+                                        }
 
-                                        FOLDERS_TAB -> LazyColumn(
-                                            modifier = Modifier.fillMaxSize(),
+                                        FOLDERS_TAB -> GroupListWithRail(
+                                            names = visibleCatalog.folders.map { it.name },
                                             contentPadding = listPadding,
+                                        ) { railPadding, listState ->
+                                            LazyColumn(
+                                            state = listState,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentPadding = railPadding,
                                         ) {
                                             items(visibleCatalog.folders, key = { it.path }) { folder ->
                                                 FolderRow(
@@ -1928,6 +1945,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     }
                                                 }
                                             }
+                                        }
                                         }
                                         }
                                     }

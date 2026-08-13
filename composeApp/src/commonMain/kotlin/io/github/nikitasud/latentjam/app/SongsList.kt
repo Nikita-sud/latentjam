@@ -50,10 +50,6 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
-private val RailWidth = 26.dp
-private val RailGap = 10.dp
-private val BubbleSize = 56.dp
-
 /**
  * The Songs tab for large libraries: sorted per [sort], sticky index headers,
  * and an A–Z rail in its own pill — position-based navigation instead of
@@ -83,9 +79,6 @@ internal fun SectionedSongsList(
     val indexed = remember(sections) { indexSections(sections) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    var previewBucket by remember { mutableStateOf<String?>(null) }
-    var touchY by remember { mutableStateOf(0f) }
-    var railTopPx by remember { mutableStateOf(0f) }
     val showIndex = sort != SongSort.RECENT && sections.size > 1
     val selectionMode = selectedTrackIds.isNotEmpty()
 
@@ -135,47 +128,13 @@ internal fun SectionedSongsList(
         }
 
         if (showIndex) {
-            AlphabetRail(
+            AlphabetRailOverlay(
                 buckets = indexed.map { it.bucket },
-                activeBucket = previewBucket,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .padding(bottom = contentPadding.calculateBottomPadding())
-                    .padding(vertical = 8.dp, horizontal = 2.dp)
-                    .onGloballyPositioned { railTopPx = it.positionInParent().y },
-                onSelect = { bucketIndex, y ->
-                    touchY = y
-                    previewBucket = indexed[bucketIndex].bucket
+                bottomPadding = contentPadding.calculateBottomPadding(),
+                onJump = { bucketIndex ->
                     scope.launch { listState.scrollToItem(indexed[bucketIndex].emitStartIndex) }
                 },
-                onSelectionEnd = { previewBucket = null },
             )
-
-            // Letter bubble tracks the finger and sits beside the rail.
-            previewBucket?.let { bucket ->
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset {
-                            IntOffset(
-                                x = -(RailWidth + RailGap).roundToPx(),
-                                y = (railTopPx + touchY - (BubbleSize / 2).toPx()).roundToInt(),
-                            )
-                        }
-                        .size(BubbleSize),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.82f),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = bucket,
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.inverseOnSurface,
-                        )
-                    }
-                }
-            }
         }
     }
 }
@@ -191,73 +150,6 @@ private fun SectionHeader(bucket: String) {
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .padding(horizontal = 16.dp, vertical = 4.dp),
     )
-}
-
-/** Letter rail inside a soft pill; drag or tap maps y-position to a bucket. */
-@Composable
-private fun AlphabetRail(
-    buckets: List<String>,
-    activeBucket: String?,
-    modifier: Modifier = Modifier,
-    onSelect: (index: Int, y: Float) -> Unit,
-    onSelectionEnd: () -> Unit,
-) {
-    var railHeightPx by remember { mutableStateOf(0) }
-
-    fun bucketIndexAt(y: Float): Int? {
-        if (railHeightPx <= 0 || buckets.isEmpty()) return null
-        return ((y / railHeightPx) * buckets.size).toInt().coerceIn(0, buckets.lastIndex)
-    }
-
-    Surface(
-        modifier = modifier.width(RailWidth),
-        shape = RoundedCornerShape(percent = 50),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-    ) {
-        Column(
-            modifier = Modifier
-                .onSizeChanged { railHeightPx = it.height }
-                .pointerInput(buckets) {
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            bucketIndexAt(offset.y)?.let { onSelect(it, offset.y) }
-                        },
-                        onDrag = { change, _ ->
-                            bucketIndexAt(change.position.y)?.let { onSelect(it, change.position.y) }
-                        },
-                        onDragEnd = onSelectionEnd,
-                        onDragCancel = onSelectionEnd,
-                    )
-                }
-                .pointerInput(buckets) {
-                    detectTapGestures(
-                        onPress = { offset ->
-                            bucketIndexAt(offset.y)?.let { onSelect(it, offset.y) }
-                            tryAwaitRelease()
-                            onSelectionEnd()
-                        },
-                    )
-                }
-                .padding(vertical = 6.dp),
-            verticalArrangement = Arrangement.SpaceEvenly,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            buckets.forEach { bucket ->
-                val active = bucket == activeBucket
-                Text(
-                    text = bucket,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                    color = if (active) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
-    }
 }
 
 // ------------------------------------------------------------------ indexing
