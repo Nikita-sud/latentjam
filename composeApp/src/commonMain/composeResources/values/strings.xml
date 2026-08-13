@@ -170,6 +170,7 @@
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Nothing playing</string>
     <string name="now_playing_source">Playing from %1$s</string>
+    <string name="cd_now_playing">Now playing</string>
     <string name="queue_title">Queue</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Queue · %1$d</string>

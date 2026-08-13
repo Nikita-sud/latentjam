@@ -46,11 +46,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.cd_now_playing
 import io.github.nikitasud.latentjam.app.generated.resources.cd_track_options_for
 import io.github.nikitasud.latentjam.app.generated.resources.cd_track_options_generic
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
@@ -107,14 +109,26 @@ internal fun TrackRow(
     onMenu: (() -> Unit)? = null,
 ) {
     val haptics = LocalHapticFeedback.current
+    // The badge is visual; this is the same fact for ears. Resolved before the modifier chain
+    // because stringResource is composable.
+    val nowPlayingDescription = if (isCurrent) {
+        stringResource(Res.string.cd_now_playing)
+    } else {
+        null
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (selectionState != null) {
+                if (selectionState != null || nowPlayingDescription != null) {
                     Modifier.semantics {
-                        selected = selectionState
-                        role = Role.Checkbox
+                        if (selectionState != null) {
+                            selected = selectionState
+                            role = Role.Checkbox
+                        }
+                        if (nowPlayingDescription != null) {
+                            stateDescription = nowPlayingDescription
+                        }
                     }
                 } else {
                     Modifier

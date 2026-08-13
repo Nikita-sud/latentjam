@@ -117,6 +117,7 @@
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">再生中の曲はありません</string>
     <string name="now_playing_source">再生元: %1$s</string>
+    <string name="cd_now_playing">再生中</string>
     <string name="queue_title">再生キュー</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">再生キュー · %1$d</string>

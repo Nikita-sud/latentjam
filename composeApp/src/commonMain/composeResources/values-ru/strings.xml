@@ -130,6 +130,7 @@
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Ничего не играет</string>
     <string name="now_playing_source">Играет из: %1$s</string>
+    <string name="cd_now_playing">Сейчас играет</string>
     <string name="queue_title">Очередь</string>
     <string name="queue_title_count">Очередь · %1$d</string>
     <string name="cd_repeat_off">Повтор выключен. Нажмите, чтобы повторять очередь.</string>

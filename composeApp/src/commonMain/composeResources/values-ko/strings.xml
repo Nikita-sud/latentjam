@@ -117,6 +117,7 @@
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">재생 중인 곡 없음</string>
     <string name="now_playing_source">재생 출처: %1$s</string>
+    <string name="cd_now_playing">지금 재생 중</string>
     <string name="queue_title">재생 대기열</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">재생 대기열 · %1$d</string>

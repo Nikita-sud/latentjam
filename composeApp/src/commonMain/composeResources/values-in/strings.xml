@@ -123,6 +123,7 @@
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Tidak ada yang diputar</string>
     <string name="now_playing_source">Diputar dari: %1$s</string>
+    <string name="cd_now_playing">Sedang diputar</string>
     <string name="queue_title">Antrean</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Antrean · %1$d</string>

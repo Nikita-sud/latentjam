@@ -122,6 +122,7 @@
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">कुछ भी नहीं चल रहा</string>
     <string name="now_playing_source">यहाँ से चल रहा है: %1$s</string>
+    <string name="cd_now_playing">अभी चल रहा है</string>
     <string name="queue_title">क्यू</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">क्यू · %1$d</string>

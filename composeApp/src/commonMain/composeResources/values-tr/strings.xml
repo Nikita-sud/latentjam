@@ -122,6 +122,7 @@
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Çalan bir şey yok</string>
     <string name="now_playing_source">Şu kaynaktan çalınıyor: %1$s</string>
+    <string name="cd_now_playing">Şu an çalıyor</string>
     <string name="queue_title">Sıra</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Sıra · %1$d</string>

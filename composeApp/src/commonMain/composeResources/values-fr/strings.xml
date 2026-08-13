@@ -134,6 +134,7 @@
     <!-- ================================================== now playing/queue -->
     <string name="now_playing_nothing">Aucune lecture en cours</string>
     <string name="now_playing_source">Lecture depuis : %1$s</string>
+    <string name="cd_now_playing">En cours de lecture</string>
     <string name="queue_title">File d’attente</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">File d’attente · %1$d</string>
