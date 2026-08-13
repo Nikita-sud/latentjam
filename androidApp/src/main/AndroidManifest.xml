@@ -66,5 +66,32 @@
             android:exported="false"
             android:foregroundServiceType="dataSync"
             android:stopWithTask="false" />
+
+        <!-- Quick Settings tile: play/pause from the shade. Class compiled in
+             :core:playback (androidMain). -->
+        <service
+            android:name="io.github.nikitasud.latentjam.playback.PlaybackTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_music_mark"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Home-screen transport widget. Its buttons post plain media-button
+             key events to the playback service; no extra process involved. -->
+        <receiver
+            android:name="io.github.nikitasud.latentjam.app.PlaybackWidgetProvider"
+            android:exported="false"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_playback_info" />
+        </receiver>
     </application>
 </manifest>

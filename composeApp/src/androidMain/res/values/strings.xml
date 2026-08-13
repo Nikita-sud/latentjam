@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Android-framework-facing strings only (widget/tile). In-app UI strings live
+  in composeResources.
+-->
+<resources>
+    <string name="widget_app_label">LatentJam</string>
+    <string name="widget_description">Playback controls</string>
+    <string name="widget_previous">Previous track</string>
+    <string name="widget_play_pause">Play or pause</string>
+    <string name="widget_next">Next track</string>
+</resources>
