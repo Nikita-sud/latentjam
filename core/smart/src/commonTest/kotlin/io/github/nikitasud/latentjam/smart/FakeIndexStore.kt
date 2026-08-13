@@ -13,6 +13,7 @@ internal class FakeIndexStore : IndexStore {
 
     val snapshots = mutableMapOf<String, Map<TrackId, FloatArray>>()
     val identitySnapshots = mutableMapOf<String, Map<TrackId, String>>()
+    val failureSnapshots = mutableMapOf<String, Map<TrackId, String>>()
     var loadCalls: Int = 0
     var saveCalls: Int = 0
     var clearCalls: Int = 0
@@ -28,7 +29,11 @@ internal class FakeIndexStore : IndexStore {
     override suspend fun loadSnapshot(modelVersion: String): StoredIndexSnapshot? {
         loadCalls++
         return snapshots[modelVersion]?.let { entries ->
-            StoredIndexSnapshot(entries, identitySnapshots[modelVersion].orEmpty())
+            StoredIndexSnapshot(
+                entries = entries,
+                identities = identitySnapshots[modelVersion].orEmpty(),
+                failedIdentities = failureSnapshots[modelVersion].orEmpty(),
+            )
         }
     }
 
@@ -37,6 +42,7 @@ internal class FakeIndexStore : IndexStore {
         failNextSaveIfConfigured()
         snapshots[modelVersion] = entries
         identitySnapshots.remove(modelVersion)
+        failureSnapshots.remove(modelVersion)
     }
 
     override suspend fun saveSnapshot(modelVersion: String, snapshot: StoredIndexSnapshot) {
@@ -44,6 +50,7 @@ internal class FakeIndexStore : IndexStore {
         failNextSaveIfConfigured()
         snapshots[modelVersion] = snapshot.entries
         identitySnapshots[modelVersion] = snapshot.identities
+        failureSnapshots[modelVersion] = snapshot.failedIdentities
     }
 
     override suspend fun clear() {
@@ -54,6 +61,7 @@ internal class FakeIndexStore : IndexStore {
         }
         snapshots.clear()
         identitySnapshots.clear()
+        failureSnapshots.clear()
         if (clearFailuresRemaining > 0) {
             clearFailuresRemaining--
             error("configured clear failure after deletion")

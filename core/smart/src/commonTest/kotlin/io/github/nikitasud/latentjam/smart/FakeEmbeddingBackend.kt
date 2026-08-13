@@ -23,6 +23,7 @@ internal class FakeEmbeddingBackend(
     var loadModelCalls: Int = 0
     var embedCalls: Int = 0
     var closed: Boolean = false
+    val failures: MutableMap<TrackId, EngineError> = mutableMapOf()
     private var modelLoaded = false
 
     override suspend fun loadModel(): Result<Unit> {
@@ -34,6 +35,9 @@ internal class FakeEmbeddingBackend(
         embedCalls++
         if (!modelLoaded) {
             return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
+        }
+        failures[descriptor.id]?.let { error ->
+            return Result.failure(SmartEngineException(error))
         }
         val vector = vectors[descriptor.id]
             ?: return Result.failure(

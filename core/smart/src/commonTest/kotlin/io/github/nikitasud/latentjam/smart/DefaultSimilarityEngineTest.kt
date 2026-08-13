@@ -137,6 +137,99 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(EngineState.Ready(indexedCount = 3), harness.engine.state.value)
     }
 
+    @Test
+    fun `unchanged audio decode failure survives restart without loading model again`() = runTest {
+        val store = FakeIndexStore()
+        val broken = TrackDescriptor(
+            id = TrackId("broken-file"),
+            audioUri = "content://media/42",
+            durationMs = 12_345,
+            sourceRevision = "android-mediastore-v1:100:200:3",
+        )
+        val firstBackend = FakeEmbeddingBackend().apply {
+            failures[broken.id] = EngineError.AudioUnavailable("decoder rejected test input")
+        }
+        val first = engine(firstBackend, store)
+        first.initialize()
+
+        val firstReport = first.indexLibrary(listOf(broken))
+
+        assertEquals(1, firstReport.failed)
+        assertIs<EngineError.AudioUnavailable>(firstReport.errors[broken.id])
+        assertEquals(1, firstBackend.loadModelCalls)
+        assertEquals(1, firstBackend.embedCalls)
+        assertEquals(setOf(broken.id), store.failureSnapshots["test-model"]?.keys)
+
+        val restartedBackend = FakeEmbeddingBackend(
+            mutableMapOf(broken.id to floatArrayOf(1f, 0f, 0f)),
+        )
+        val restarted = engine(restartedBackend, store)
+        restarted.initialize()
+        restarted.synchronizeLibrary(listOf(broken))
+
+        assertEquals(0, restarted.missingFromIndex(listOf(broken.id)))
+        val rememberedReport = restarted.indexLibrary(listOf(broken))
+        assertEquals(1, rememberedReport.failed)
+        assertIs<EngineError.AudioUnavailable>(rememberedReport.errors[broken.id])
+        assertEquals(0, restartedBackend.loadModelCalls)
+        assertEquals(0, restartedBackend.embedCalls)
+    }
+
+    @Test
+    fun `changed failed track is retried and replaces its failure marker`() = runTest {
+        val store = FakeIndexStore()
+        val original = TrackDescriptor(
+            id = TrackId("replaced-file"),
+            audioUri = "file:///music/replaced.mp3",
+            durationMs = 1_000,
+            sourceRevision = "size=10|mtime=20",
+        )
+        val firstBackend = FakeEmbeddingBackend().apply {
+            failures[original.id] = EngineError.AudioUnavailable("truncated")
+        }
+        val first = engine(firstBackend, store)
+        first.initialize()
+        first.indexLibrary(listOf(original))
+
+        val changed = original.copy(sourceRevision = "size=12|mtime=21")
+        val restartedBackend = FakeEmbeddingBackend(
+            mutableMapOf(changed.id to floatArrayOf(0f, 1f, 0f)),
+        )
+        val restarted = engine(restartedBackend, store)
+        restarted.initialize()
+        restarted.synchronizeLibrary(listOf(changed))
+
+        assertEquals(1, restarted.missingFromIndex(listOf(changed.id)))
+        val report = restarted.indexLibrary(listOf(changed))
+        assertEquals(1, report.indexed)
+        assertEquals(0, report.failed)
+        assertEquals(1, restartedBackend.loadModelCalls)
+        assertEquals(1, restartedBackend.embedCalls)
+        assertTrue(store.failureSnapshots["test-model"].orEmpty().isEmpty())
+        assertContentEquals(floatArrayOf(0f, 1f, 0f), restarted.embedding(changed.id))
+    }
+
+    @Test
+    fun `backend failures stay retryable across restart`() = runTest {
+        val store = FakeIndexStore()
+        val track = TrackDescriptor(TrackId("transient-backend-failure"))
+        val first = engine(FakeEmbeddingBackend(), store)
+        first.initialize()
+        assertIs<EngineError.BackendFailure>(first.indexLibrary(listOf(track)).errors[track.id])
+        assertTrue(store.failureSnapshots["test-model"].orEmpty().isEmpty())
+
+        val restartedBackend = FakeEmbeddingBackend(
+            mutableMapOf(track.id to floatArrayOf(1f, 0f, 0f)),
+        )
+        val restarted = engine(restartedBackend, store)
+        restarted.initialize()
+        restarted.synchronizeLibrary(listOf(track))
+
+        assertEquals(1, restarted.indexLibrary(listOf(track)).indexed)
+        assertEquals(1, restartedBackend.loadModelCalls)
+        assertEquals(1, restartedBackend.embedCalls)
+    }
+
     // --------------------------------------------------------------- indexLibrary
 
     @Test

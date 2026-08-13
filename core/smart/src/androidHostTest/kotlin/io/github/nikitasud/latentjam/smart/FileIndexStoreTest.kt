@@ -44,9 +44,11 @@ internal class FileIndexStoreTest {
     fun identitiesAndOpaqueLongIdsRoundTripWithoutDelimiterCollisions() = runTest {
         val store = FileIndexStore(directory.toFile())
         val id = TrackId("opaque|,\u0000:" + "x".repeat(70_000))
+        val failedId = TrackId("failed|,\u0000:" + "y".repeat(70_000))
         val snapshot = StoredIndexSnapshot(
             entries = mapOf(id to floatArrayOf(1f, 2f)),
             identities = mapOf(id to "audio-v1|5:a|b:c|3:x,y"),
+            failedIdentities = mapOf(failedId to "audio-v1|failure-content-identity"),
         )
 
         store.saveSnapshot("model", snapshot)
@@ -55,6 +57,28 @@ internal class FileIndexStoreTest {
         assertEquals(setOf(id), loaded.entries.keys)
         assertContentEquals(floatArrayOf(1f, 2f), loaded.entries.getValue(id))
         assertEquals(snapshot.identities, loaded.identities)
+        assertEquals(snapshot.failedIdentities, loaded.failedIdentities)
+    }
+
+    @Test
+    fun v2IdentitySnapshotRemainsReadableWithoutFailureMetadata() = runTest {
+        val file = directory.resolve(FileIndexStore.FILE_NAME).toFile()
+        DataOutputStream(file.outputStream().buffered()).use { output ->
+            writeHeader(
+                output,
+                dim = 2,
+                count = 1,
+                formatVersion = FileIndexStore.IDENTITY_FORMAT_VERSION,
+            )
+            writeV2String(output, "v2")
+            output.writeFloat(1f)
+            output.writeFloat(0f)
+            writeV2String(output, "audio-v1|old-identity")
+        }
+
+        val loaded = checkNotNull(FileIndexStore(directory.toFile()).loadSnapshot("model"))
+        assertEquals("audio-v1|old-identity", loaded.identities[TrackId("v2")])
+        assertTrue(loaded.failedIdentities.isEmpty())
     }
 
     @Test
@@ -178,7 +202,7 @@ internal class FileIndexStoreTest {
         output: DataOutputStream,
         dim: Int,
         count: Int,
-        formatVersion: Int = FileIndexStore.FORMAT_VERSION,
+        formatVersion: Int = FileIndexStore.IDENTITY_FORMAT_VERSION,
     ) {
         output.writeInt(FileIndexStore.MAGIC)
         output.writeInt(formatVersion)

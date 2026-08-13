@@ -10,10 +10,16 @@ package io.github.nikitasud.latentjam.smart
  * [identities] may be empty when reading the legacy vector-only format. The engine deliberately
  * treats such rows as cache misses on its first complete-library synchronization, preventing an
  * old vector from being trusted merely because its opaque [TrackId] still exists.
+ *
+ * [failedIdentities] remembers only track-local, deterministic audio decode/open failures. The
+ * value is the same content identity used for vectors, so replacing or editing the media makes
+ * the marker stale and the engine tries that track again. Error details are deliberately not
+ * persisted: paths and codec diagnostics belong in local logs, not in the cache.
  */
 public data class StoredIndexSnapshot(
     public val entries: Map<TrackId, FloatArray>,
     public val identities: Map<TrackId, String> = emptyMap(),
+    public val failedIdentities: Map<TrackId, String> = emptyMap(),
 )
 
 /**

@@ -35,7 +35,7 @@ internal class IosFileIndexStore(
         withContext(Dispatchers.Default) {
             val path = indexPath(fileName) ?: return@withContext null
             val bytes = readBoundedSnapshot(path) ?: return@withContext null
-            runCatching { decodeSnapshot(bytes, modelVersion) }.getOrNull()
+            runCatching { decodeIosIndexSnapshot(bytes, modelVersion) }.getOrNull()
         }
 
     override suspend fun save(
@@ -123,8 +123,18 @@ internal fun encodeIosIndexSnapshot(
         "Snapshot byte limit must be positive and fit in a ByteArray"
     }
     val entries = snapshot.entries
+    val failedIdentities = snapshot.failedIdentities
     val dim = entries.values.firstOrNull()?.size ?: 0
     require(entries.size <= MAX_ENTRIES) { "Index has too many entries: ${entries.size}" }
+    require(failedIdentities.size <= MAX_ENTRIES) {
+        "Index has too many failure entries: ${failedIdentities.size}"
+    }
+    require(entries.size.toLong() + failedIdentities.size <= MAX_ENTRIES.toLong()) {
+        "Index has too many vector and failure entries"
+    }
+    require(failedIdentities.keys.none(entries::containsKey)) {
+        "A track cannot have both a vector and a failed identity"
+    }
     require(entries.isEmpty() || dim in 1..MAX_DIMENSION) {
         "Index dimension must be in 1..$MAX_DIMENSION, got $dim"
     }
@@ -135,7 +145,9 @@ internal fun encodeIosIndexSnapshot(
     require(versionBytes.size <= MAX_STRING_BYTES) { "Model version is too large" }
     val ids = LinkedHashMap<TrackId, ByteArray>(minOf(entries.size, 1_024))
     val identityBytes = LinkedHashMap<TrackId, ByteArray?>(minOf(entries.size, 1_024))
-    var total = HEADER_BYTES.toLong() + versionBytes.size.toLong()
+    val failedIds = LinkedHashMap<TrackId, ByteArray>(minOf(failedIdentities.size, 1_024))
+    val failedIdentityBytes = LinkedHashMap<TrackId, ByteArray>(minOf(failedIdentities.size, 1_024))
+    var total = HEADER_BYTES.toLong() + versionBytes.size.toLong() + Int.SIZE_BYTES
 
     fun requireSupportedSize(candidate: Long) {
         require(isLoadableIosIndexSnapshotSize(candidate, maximumSnapshotBytes)) {
@@ -159,6 +171,17 @@ internal fun encodeIosIndexSnapshot(
         ids[id] = idBytes
         identityBytes[id] = identity
     }
+    for ((id, identity) in failedIdentities) {
+        val idBytes = id.value.encodeToByteArray()
+        val identity = identity.encodeToByteArray()
+        require(idBytes.size <= MAX_STRING_BYTES) { "Track id is too large" }
+        require(identity.size <= MAX_STRING_BYTES) { "Failure identity is too large" }
+        val rowBytes = 2L * Int.SIZE_BYTES.toLong() + idBytes.size + identity.size
+        requireSupportedSize(total + rowBytes)
+        total += rowBytes
+        failedIds[id] = idBytes
+        failedIdentityBytes[id] = identity
+    }
 
     // The same envelope guards reads and writes. Check it before allocating the contiguous output
     // buffer so the app can never write a cache that it will reject on the next launch.
@@ -173,17 +196,26 @@ internal fun encodeIosIndexSnapshot(
         for (component in vector) writer.int(component.toBits())
         writer.nullableBytesWithLength(identityBytes.getValue(id))
     }
+    writer.int(failedIdentities.size)
+    for (id in failedIdentities.keys) {
+        writer.bytesWithLength(failedIds.getValue(id))
+        writer.bytesWithLength(failedIdentityBytes.getValue(id))
+    }
     return writer.result()
 }
 
-private fun decodeSnapshot(
+internal fun decodeIosIndexSnapshot(
     bytes: ByteArray,
     expectedModelVersion: String,
 ): StoredIndexSnapshot? {
     val reader = SnapshotReader(bytes)
     if (reader.int() != MAGIC) return null
     val formatVersion = reader.int()
-    if (formatVersion != LEGACY_FORMAT_VERSION && formatVersion != FORMAT_VERSION) return null
+    if (
+        formatVersion != LEGACY_FORMAT_VERSION &&
+        formatVersion != IDENTITY_FORMAT_VERSION &&
+        formatVersion != FORMAT_VERSION
+    ) return null
     if (reader.bytesWithLength().decodeToString() != expectedModelVersion) return null
     val dim = reader.int()
     val count = reader.int()
@@ -197,7 +229,7 @@ private fun decodeSnapshot(
     repeat(count) {
         val id = TrackId(reader.bytesWithLength().decodeToString())
         val vector = FloatArray(dim) { Float.fromBits(reader.int()) }
-        val identity = if (formatVersion == FORMAT_VERSION) {
+        val identity = if (formatVersion >= IDENTITY_FORMAT_VERSION) {
             reader.nullableBytesWithLength()?.decodeToString()
         } else {
             null
@@ -208,8 +240,19 @@ private fun decodeSnapshot(
             if (identity != null) identities[id] = identity
         }
     }
+    val failedIdentities = LinkedHashMap<TrackId, String>()
+    if (formatVersion == FORMAT_VERSION) {
+        val failedCount = reader.int()
+        if (failedCount !in 0..MAX_ENTRIES || count + failedCount > MAX_ENTRIES) return null
+        repeat(failedCount) {
+            val id = TrackId(reader.bytesWithLength().decodeToString())
+            val identity = reader.bytesWithLength().decodeToString()
+            if (!seen.add(id)) return null
+            failedIdentities[id] = identity
+        }
+    }
     if (!reader.atEnd()) return null
-    return StoredIndexSnapshot(result, identities)
+    return StoredIndexSnapshot(result, identities, failedIdentities)
 }
 
 private class SnapshotWriter(private val output: ByteArray) {
@@ -288,7 +331,8 @@ private fun ByteArray.toNSData(): NSData {
 
 private const val MAGIC = 0x4C4A4958 // "LJIX"
 private const val LEGACY_FORMAT_VERSION = 1
-private const val FORMAT_VERSION = 2
+private const val IDENTITY_FORMAT_VERSION = 2
+private const val FORMAT_VERSION = 3
 private const val HEADER_BYTES = Int.SIZE_BYTES * 5
 private const val MAX_DIMENSION = 4096
 private const val MAX_ENTRIES = 1_000_000

@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
  * File-backed [IndexStore] in the app's private files directory.
  *
  * Simple length-prefixed binary format (magic, format version, model version,
- * dim, count, then id/vector pairs); ~3.3 MB for 854 tracks at 960 dims —
+ * dim, vector rows, then content-keyed failure rows); ~3.3 MB for 854 tracks at 960 dims —
  * loads in tens of milliseconds versus ~an hour of re-embedding. Writes go to
  * a temp file first and are atomically renamed, so a crash mid-save leaves
  * the previous snapshot intact. Any parse problem or version mismatch simply
@@ -93,15 +93,25 @@ internal class FileIndexStore private constructor(
     ): Unit =
         withContext(Dispatchers.IO) {
             val entries = snapshot.entries
+            val failedIdentities = snapshot.failedIdentities
             val dim = entries.values.firstOrNull()?.size ?: 0
             require(entries.size <= MAX_ENTRIES) { "Index has too many entries: ${entries.size}" }
+            require(failedIdentities.size <= MAX_ENTRIES) {
+                "Index has too many failure entries: ${failedIdentities.size}"
+            }
+            require(entries.size.toLong() + failedIdentities.size <= MAX_ENTRIES.toLong()) {
+                "Index has too many vector and failure entries"
+            }
+            require(failedIdentities.keys.none(entries::containsKey)) {
+                "A track cannot have both a vector and a failed identity"
+            }
             require(entries.isEmpty() || dim in 1..MAX_DIMENSION) {
                 "Index dimension must be in 1..$MAX_DIMENSION, got $dim"
             }
             require(entries.values.all { vector ->
                 vector.size == dim && vector.all(Float::isFinite)
             }) { "Index vectors must have one finite, consistent dimension" }
-            val encodedSize = encodedV2SnapshotSize(modelVersion, snapshot, dim)
+            val encodedSize = encodedV3SnapshotSize(modelVersion, snapshot, dim)
             require(isLoadableAndroidIndexSnapshotSize(encodedSize, maximumSnapshotBytes)) {
                 "Index snapshot is too large: $encodedSize bytes (limit $maximumSnapshotBytes)"
             }
@@ -118,6 +128,11 @@ internal class FileIndexStore private constructor(
                         output.writeSizedUtf8(id.value)
                         for (component in vector) output.writeFloat(component)
                         output.writeNullableSizedUtf8(snapshot.identities[id])
+                    }
+                    output.writeInt(failedIdentities.size)
+                    for ((id, identity) in failedIdentities) {
+                        output.writeSizedUtf8(id.value)
+                        output.writeSizedUtf8(identity)
                     }
                     output.flush()
                     raw.fd.sync()
@@ -137,7 +152,8 @@ internal class FileIndexStore private constructor(
         const val FILE_NAME = "smart_index.bin"
         const val MAGIC = 0x4C4A4958 // "LJIX"
         const val LEGACY_FORMAT_VERSION = 1
-        const val FORMAT_VERSION = 2
+        const val IDENTITY_FORMAT_VERSION = 2
+        const val FORMAT_VERSION = 3
         const val MAX_DIMENSION = 4096
         const val MAX_ENTRIES = 1_000_000
         const val MAX_STRING_BYTES = 1_048_576
@@ -156,7 +172,7 @@ internal fun decodeIndexSnapshot(
     encodedSizeBytes = encodedSizeBytes,
 )?.entries
 
-/** Versioned decoder; v1 rows deliberately return no descriptor identities. */
+/** Versioned decoder; v1 has vectors only, v2 adds identities, and v3 adds failure identities. */
 internal fun decodeStoredIndexSnapshot(
     input: DataInputStream,
     expectedModelVersion: String,
@@ -167,6 +183,7 @@ internal fun decodeStoredIndexSnapshot(
     if (input.readInt() != FileIndexStore.MAGIC) return null
     val formatVersion = input.readInt()
     if (formatVersion != FileIndexStore.LEGACY_FORMAT_VERSION &&
+        formatVersion != FileIndexStore.IDENTITY_FORMAT_VERSION &&
         formatVersion != FileIndexStore.FORMAT_VERSION
     ) {
         return null
@@ -203,7 +220,7 @@ internal fun decodeStoredIndexSnapshot(
             else input.readSizedUtf8(),
         )
         val vector = FloatArray(dim) { input.readFloat() }
-        val identity = if (formatVersion == FileIndexStore.FORMAT_VERSION) {
+        val identity = if (formatVersion >= FileIndexStore.IDENTITY_FORMAT_VERSION) {
             input.readNullableSizedUtf8()
         } else {
             null
@@ -214,8 +231,21 @@ internal fun decodeStoredIndexSnapshot(
             if (identity != null) identities[id] = identity
         }
     }
+    val failedIdentities = LinkedHashMap<TrackId, String>()
+    if (formatVersion == FileIndexStore.FORMAT_VERSION) {
+        val failedCount = input.readInt()
+        if (failedCount !in 0..FileIndexStore.MAX_ENTRIES || count + failedCount > FileIndexStore.MAX_ENTRIES) {
+            return null
+        }
+        repeat(failedCount) {
+            val id = TrackId(input.readSizedUtf8())
+            val identity = input.readSizedUtf8()
+            if (!seen.add(id)) return null
+            failedIdentities[id] = identity
+        }
+    }
     if (input.read() != -1) return null
-    return StoredIndexSnapshot(result, identities)
+    return StoredIndexSnapshot(result, identities, failedIdentities)
 }
 
 private fun DataOutputStream.writeSizedUtf8(value: String) {
@@ -254,14 +284,14 @@ internal fun isLoadableAndroidIndexSnapshotSize(
     maximumSnapshotBytes: Long = MAX_ANDROID_INDEX_SNAPSHOT_BYTES,
 ): Boolean = sizeBytes in 0L..maximumSnapshotBytes
 
-private fun encodedV2SnapshotSize(
+private fun encodedV3SnapshotSize(
     modelVersion: String,
     snapshot: StoredIndexSnapshot,
     dimension: Int,
 ): Long {
     val modelBytes = modelVersion.encodeToByteArray()
     require(modelBytes.size <= FileIndexStore.MAX_STRING_BYTES) { "Model version is too large" }
-    var total = FileIndexStore.HEADER_BYTES.toLong() + modelBytes.size.toLong()
+    var total = FileIndexStore.HEADER_BYTES.toLong() + modelBytes.size.toLong() + Int.SIZE_BYTES
     val vectorBytes = dimension.toLong() * Float.SIZE_BYTES.toLong()
     for (id in snapshot.entries.keys) {
         val idBytes = id.value.encodeToByteArray()
@@ -272,6 +302,15 @@ private fun encodedV2SnapshotSize(
         }
         total += Int.SIZE_BYTES.toLong() + idBytes.size.toLong() + vectorBytes +
             Int.SIZE_BYTES.toLong() + (identityBytes?.size ?: 0).toLong()
+    }
+    for ((id, identity) in snapshot.failedIdentities) {
+        val idBytes = id.value.encodeToByteArray()
+        val identityBytes = identity.encodeToByteArray()
+        require(idBytes.size <= FileIndexStore.MAX_STRING_BYTES) { "Track id is too large" }
+        require(identityBytes.size <= FileIndexStore.MAX_STRING_BYTES) {
+            "Failure identity is too large"
+        }
+        total += 2L * Int.SIZE_BYTES.toLong() + idBytes.size + identityBytes.size
     }
     return total
 }

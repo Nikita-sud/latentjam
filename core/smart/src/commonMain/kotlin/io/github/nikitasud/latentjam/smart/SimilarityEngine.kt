@@ -101,10 +101,11 @@ public interface SimilarityEngine {
     public suspend fun nextTrack(context: ListeningContext): NextTrackResult
 
     /**
-     * How many of [ids] have no audio embedding yet — the cheap "is there any indexing work"
+     * How many of [ids] still need an audio embedding — the cheap "is there any indexing work"
      * question, so launch paths can decide whether a foreground service and its notification
-     * are warranted before committing to them. Pure index-membership lookups under the engine
-     * lock; never touches the backend.
+     * are warranted before committing to them. An unchanged track with a remembered local decode
+     * failure is not work until its descriptor identity changes. Callers synchronize the current
+     * library first so those identities can be reconciled. Never touches the backend.
      */
     public suspend fun missingFromIndex(ids: List<TrackId>): Int
 
