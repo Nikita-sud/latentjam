@@ -124,6 +124,7 @@ object AppGraph {
                     appSettingsModule(),
                     appPermissionsModule(),
                     indexingNotifierModule(),
+                    loudnessMeterModule(),
                     listeningHistoryModule(),
                     module {
                         // Experimental retrieval-distilled FP16 MNv4 audio + 960-d SMART
@@ -158,6 +159,12 @@ object AppGraph {
                     },
                 )
             }
+            // Volume normalization measures lazily as tracks play and pushes the gain map.
+            LoudnessNormalizer(
+                settings = settings,
+                playback = playback,
+                meter = koin.get(),
+            ).start(appScope)
             // History observes playback for the app's whole lifetime.
             appScope.launchPlaybackHistoryRecorder(
                 playback = playback,

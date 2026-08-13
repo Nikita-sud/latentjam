@@ -66,6 +66,9 @@ internal fun recordingPreferenceFromPersisted(value: Boolean?): Boolean = value 
 /** Novelty/effects mixes are an explicit opt-in; a missing or corrupt value stays off. */
 internal fun noveltyMixPreferenceFromPersisted(value: Boolean?): Boolean = value ?: false
 
+/** Volume normalization audibly changes playback, so it too is an explicit opt-in. */
+internal fun normalizeVolumePreferenceFromPersisted(value: Boolean?): Boolean = value ?: false
+
 /** Live SMART queue plus its independent canonical source, persisted as one atomic value. */
 internal data class ResumeQueueState(
     val queueTrackIds: List<String>,
@@ -189,6 +192,14 @@ interface AppSettings {
      */
     val includeNoveltyMixes: StateFlow<Boolean>
     fun setIncludeNoveltyMixes(enabled: Boolean)
+
+    /** Whether playback attenuates loud tracks toward a common level. Off by default. */
+    val normalizeVolume: StateFlow<Boolean>
+    fun setNormalizeVolume(enabled: Boolean)
+
+    /** Raw persisted loudness measurements (see [encodeTrackLoudness]); null when none exist. */
+    fun readTrackLoudnessPayload(): String?
+    fun writeTrackLoudnessPayload(payload: String)
 
     /** Whether new playback sessions are written to the private on-device listening log. */
     val saveListeningHistory: StateFlow<Boolean>

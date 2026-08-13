@@ -35,6 +35,12 @@ internal class IosAppSettings : AppSettings {
     override val smartQueueLength: StateFlow<Int> = mutableSmartQueueLength.asStateFlow()
     private val mutableIncludeNoveltyMixes = MutableStateFlow(readNoveltyMixPreference())
     override val includeNoveltyMixes: StateFlow<Boolean> = mutableIncludeNoveltyMixes.asStateFlow()
+    private val mutableNormalizeVolume = MutableStateFlow(
+        normalizeVolumePreferenceFromPersisted(
+            (defaults.objectForKey(KEY_NORMALIZE_VOLUME) as? NSNumber)?.boolValue,
+        ),
+    )
+    override val normalizeVolume: StateFlow<Boolean> = mutableNormalizeVolume.asStateFlow()
     private val mutableSaveListeningHistory = MutableStateFlow(readRecordingPreference(KEY_SAVE_HISTORY))
     override val saveListeningHistory: StateFlow<Boolean> = mutableSaveListeningHistory.asStateFlow()
     private val mutableRememberSearches = MutableStateFlow(readRecordingPreference(KEY_REMEMBER_SEARCHES))
@@ -66,6 +72,18 @@ internal class IosAppSettings : AppSettings {
     override fun setIncludeNoveltyMixes(enabled: Boolean) {
         defaults.setBool(enabled, KEY_INCLUDE_NOVELTY_MIXES)
         mutableIncludeNoveltyMixes.value = enabled
+    }
+
+    override fun setNormalizeVolume(enabled: Boolean) {
+        defaults.setBool(enabled, KEY_NORMALIZE_VOLUME)
+        mutableNormalizeVolume.value = enabled
+    }
+
+    override fun readTrackLoudnessPayload(): String? =
+        defaults.objectForKey(KEY_TRACK_LOUDNESS) as? String
+
+    override fun writeTrackLoudnessPayload(payload: String) {
+        defaults.setObject(payload, KEY_TRACK_LOUDNESS)
     }
 
     override suspend fun setSaveListeningHistory(enabled: Boolean): Result<Unit> =
@@ -202,6 +220,8 @@ internal class IosAppSettings : AppSettings {
         const val KEY_RESUME_POSITION = "resume_position_ms"
         const val KEY_RESUME_SOURCE_KIND = "resume_source_kind"
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
+        const val KEY_NORMALIZE_VOLUME = "normalize_volume"
+        const val KEY_TRACK_LOUDNESS = "track_loudness_v1"
         const val KEY_RESUME_SOURCE_REFERENCE = "resume_source_reference"
         const val KEY_RESUME_QUEUE_STATE = "resume_queue_state_v2"
         /** Read-only migration key used by builds before collision-safe queue state. */

@@ -252,6 +252,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_section_pr
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_privacy
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.settings_normalize_volume
+import io.github.nikitasud.latentjam.app.generated.resources.settings_normalize_volume_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.settings_stats
+import io.github.nikitasud.latentjam.app.generated.resources.settings_stats_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_start_page
 import io.github.nikitasud.latentjam.app.generated.resources.settings_start_page_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_theme
@@ -303,6 +307,7 @@ private enum class SettingsPage {
     SOURCES,
     HIDDEN_TRACKS,
     DUPLICATES,
+    STATS,
     EQUALIZER,
     INTELLIGENCE,
     INTELLIGENCE_PROBLEMS,
@@ -415,7 +420,11 @@ fun SettingsScreen(
                         onHideTrack = onHideTrack,
                         snackbarHostState = snackbarHostState,
                     )
-                    SettingsPage.EQUALIZER -> EqualizerSettings(equalizer)
+                    SettingsPage.STATS -> ListeningStatsSettings(
+                        history = history,
+                        tracks = tracks,
+                    )
+                    SettingsPage.EQUALIZER -> EqualizerSettings(equalizer, settings)
                     SettingsPage.INTELLIGENCE -> IntelligenceSettings(
                         settings = settings,
                         engine = engine,
@@ -470,6 +479,7 @@ private fun SettingsPage.titleResource(): StringResource = when (this) {
     SettingsPage.SOURCES -> Res.string.settings_sources
     SettingsPage.HIDDEN_TRACKS -> Res.string.settings_hidden_tracks
     SettingsPage.DUPLICATES -> Res.string.settings_duplicates
+    SettingsPage.STATS -> Res.string.settings_stats
     SettingsPage.EQUALIZER -> Res.string.settings_equalizer
     SettingsPage.INTELLIGENCE -> Res.string.settings_intelligence
     SettingsPage.INTELLIGENCE_PROBLEMS -> Res.string.intelligence_problems
@@ -522,6 +532,11 @@ private fun SettingsRoot(
                     title = stringResource(Res.string.settings_smart_engine),
                     subtitle = stringResource(Res.string.settings_smart_engine_subtitle),
                     onClick = { onOpen(SettingsPage.INTELLIGENCE) },
+                )
+                SettingsRow(
+                    title = stringResource(Res.string.settings_stats),
+                    subtitle = stringResource(Res.string.settings_stats_subtitle),
+                    onClick = { onOpen(SettingsPage.STATS) },
                 )
             }
         }
@@ -1047,28 +1062,56 @@ private fun HiddenTrackRow(
 // ------------------------------------------------------------------ equalizer
 
 @Composable
-private fun EqualizerSettings(equalizer: EqualizerController) {
+private fun EqualizerSettings(equalizer: EqualizerController, settings: AppSettings) {
     val state by equalizer.state.collectAsState()
     val scope = rememberCoroutineScope()
-
-    if (!state.available) {
-        Box(
-            modifier = Modifier.fillMaxSize().padding(32.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = stringResource(Res.string.equalizer_unavailable_body),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        return
-    }
+    val normalizeVolume by settings.normalizeVolume.collectAsState()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
+        // Normalization is our own gain stage, deliberately independent of the system
+        // equalizer's availability.
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = normalizeVolume,
+                        role = Role.Switch,
+                        onValueChange = settings::setNormalizeVolume,
+                    )
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(Res.string.settings_normalize_volume),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text = stringResource(Res.string.settings_normalize_volume_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = normalizeVolume, onCheckedChange = null)
+            }
+        }
+
+        if (!state.available) {
+            item {
+                Text(
+                    text = stringResource(Res.string.equalizer_unavailable_body),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
+                )
+            }
+            return@LazyColumn
+        }
+
         item {
             Row(
                 modifier = Modifier

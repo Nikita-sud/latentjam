@@ -152,6 +152,7 @@ internal class AndroidPlaybackController(
 
     private val playerListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            applyTrackVolume()
             rebuildQueueSnapshot()
             pushState()
             mainScope.launch {
@@ -300,6 +301,23 @@ internal class AndroidPlaybackController(
             smartLookahead = length.coerceIn(1, MAX_SMART_LOOKAHEAD)
             appendSmartNextIfNeeded()
         }
+    }
+
+    /** Main-thread-owned normalization volumes; empty means everything plays at full volume. */
+    private var trackVolumes: Map<String, Float> = emptyMap()
+
+    override suspend fun setTrackVolumes(volumes: Map<String, Float>) {
+        withContext(Dispatchers.Main.immediate) {
+            trackVolumes = volumes
+            applyTrackVolume()
+        }
+    }
+
+    /** Main-thread only. Applies the current item's normalization volume, if any. */
+    private fun applyTrackVolume() {
+        val player = controller ?: return
+        val volume = player.currentMediaItem?.mediaId?.let(trackVolumes::get) ?: 1f
+        if (player.volume != volume) player.volume = volume
     }
 
     override suspend fun invalidateSmartFuture() {

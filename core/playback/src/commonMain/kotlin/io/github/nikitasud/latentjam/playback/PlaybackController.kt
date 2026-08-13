@@ -105,6 +105,14 @@ public interface PlaybackController {
     public suspend fun invalidateSmartFuture()
 
     /**
+     * Per-track playback volume multipliers in `(0, 1]`, keyed by track id; a missing id plays at
+     * full volume. Volume-normalization support: the app computes attenuation from measured
+     * loudness and pushes the complete map here. Platforms without an app-level gain stage keep
+     * the default no-op and simply play unnormalized.
+     */
+    public suspend fun setTrackVolumes(volumes: Map<String, Float>) {}
+
+    /**
      * Replaces the queue with [tracks] and starts playing the one at
      * [startIndex]. The list remains the natural OFF/ON playback source; SMART draws from the
      * complete library supplied by [setSmartLibrary].

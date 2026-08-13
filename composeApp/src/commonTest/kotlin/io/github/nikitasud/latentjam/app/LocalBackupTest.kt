@@ -470,6 +470,11 @@ internal class LocalBackupTest {
         override fun setSmartQueueLength(length: Int) { smartQueueLength.value = sanitizeSmartQueueLength(length) }
         override val includeNoveltyMixes: MutableStateFlow<Boolean> = MutableStateFlow(false)
         override fun setIncludeNoveltyMixes(enabled: Boolean) { includeNoveltyMixes.value = enabled }
+        override val normalizeVolume: MutableStateFlow<Boolean> = MutableStateFlow(false)
+        override fun setNormalizeVolume(enabled: Boolean) { normalizeVolume.value = enabled }
+        private var trackLoudnessPayload: String? = null
+        override fun readTrackLoudnessPayload(): String? = trackLoudnessPayload
+        override fun writeTrackLoudnessPayload(payload: String) { trackLoudnessPayload = payload }
         override val saveListeningHistory: MutableStateFlow<Boolean> = MutableStateFlow(true)
         override suspend fun setSaveListeningHistory(enabled: Boolean): Result<Unit> =
             Result.success(Unit).also { saveListeningHistory.value = enabled }
