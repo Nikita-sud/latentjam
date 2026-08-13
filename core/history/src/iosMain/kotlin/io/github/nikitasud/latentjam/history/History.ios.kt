@@ -21,6 +21,7 @@ import org.koin.dsl.module
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSData
 import platform.Foundation.NSDate
+import platform.Foundation.NSTimeIntervalSince1970
 import platform.Foundation.NSError
 import platform.Foundation.NSFileHandle
 import platform.Foundation.NSFileManager
@@ -250,3 +251,13 @@ public actual fun listeningHistoryModule(): Module = module {
 }
 
 public actual fun epochMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()
+
+public actual fun localTimePoint(epochMs: Long): LocalTimePoint {
+    val date = NSDate(timeIntervalSinceReferenceDate = epochMs / 1000.0 - NSTimeIntervalSince1970)
+    val calendar = platform.Foundation.NSCalendar.currentCalendar
+    val zoneOffsetMs = calendar.timeZone.secondsFromGMTForDate(date) * 1000L
+    return LocalTimePoint(
+        epochDay = (epochMs + zoneOffsetMs).floorDiv(86_400_000L),
+        hourOfDay = calendar.component(platform.Foundation.NSCalendarUnitHour, fromDate = date).toInt(),
+    )
+}

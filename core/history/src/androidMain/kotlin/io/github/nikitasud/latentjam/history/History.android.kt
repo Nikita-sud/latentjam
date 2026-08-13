@@ -105,3 +105,14 @@ public actual fun listeningHistoryModule(): Module = module {
 }
 
 public actual fun epochMillis(): Long = System.currentTimeMillis()
+
+public actual fun localTimePoint(epochMs: Long): LocalTimePoint {
+    val calendar = java.util.Calendar.getInstance()
+    calendar.timeInMillis = epochMs
+    val zoneOffsetMs = calendar.get(java.util.Calendar.ZONE_OFFSET) +
+        calendar.get(java.util.Calendar.DST_OFFSET)
+    return LocalTimePoint(
+        epochDay = (epochMs + zoneOffsetMs).floorDiv(86_400_000L),
+        hourOfDay = calendar.get(java.util.Calendar.HOUR_OF_DAY),
+    )
+}
