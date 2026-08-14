@@ -246,12 +246,13 @@ private object WidgetUpdateCoordinator {
                     }
                 }
                 val manager = AppWidgetManager.getInstance(context)
+                val accent = accentFor(current, artwork)
                 targets.forEach { (style, ids) ->
                     ids.forEach { id ->
                         runCatching {
                             manager.updateAppWidget(
                                 id,
-                                buildViews(context, style, id, current, artwork),
+                                buildViews(context, style, id, current, artwork, accent),
                             )
                         }.onFailure { failure ->
                             Log.w(WIDGET_LOG_TAG, "Unable to update ${style.name} widget $id", failure)
@@ -262,6 +263,20 @@ private object WidgetUpdateCoordinator {
                 onComplete()
             }
         }
+    }
+
+    private val accentCache = object : LinkedHashMap<String, Int?>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Int?>?): Boolean =
+            size > MAX_ARTWORK_CACHE * 2
+    }
+
+    /** The player's own accent, sampled from the exact bitmap this widget displays. */
+    private fun accentFor(snapshot: PlaybackWidgetSnapshot, artwork: Bitmap): Int? {
+        val key = "${snapshot.mediaId}\u0000${snapshot.artworkUri.orEmpty()}"
+        synchronized(accentCache) { if (accentCache.containsKey(key)) return accentCache[key] }
+        val sampled = runCatching { sampleArtworkAccentArgb(artwork) }.getOrNull()
+        synchronized(accentCache) { accentCache[key] = sampled }
+        return sampled
     }
 
     private fun artworkFor(context: Context, snapshot: PlaybackWidgetSnapshot): Bitmap {
@@ -281,6 +296,7 @@ private fun buildViews(
     appWidgetId: Int,
     snapshot: PlaybackWidgetSnapshot,
     artwork: Bitmap,
+    accentArgb: Int?,
 ): RemoteViews {
     val hasTrack = snapshot.mediaId.isNotBlank()
     val bootCount = currentBootCount(context)
@@ -300,6 +316,7 @@ private fun buildViews(
             ?: context.getString(if (hasTrack) R.string.widget_app_label else R.string.widget_ready),
     )
     bindTransport(context, views, style, appWidgetId, snapshot, hasTrack, livePlaying)
+    applyTrackAccent(views, style, accentArgb)
     if (style == WidgetStyle.DECK) {
         // A listener can stretch the deck well past its 4x2 design height. Let the artwork
         // absorb the extra rows instead of leaving hollow bands; pre-S launchers keep 96dp.
@@ -371,6 +388,50 @@ private fun buildViews(
         views.setInt(R.id.widget_shuffle, "setImageAlpha", snapshot.shuffleMode.activeAlpha())
     }
     return views
+}
+
+
+/**
+ * Dresses the widget in the playing track's colour, exactly as the in-app player does: the raw
+ * sampled seed becomes a dark container (`lerp(seed, black, 0.45)`), the glyph flips black/white
+ * on the container's luminance. Without a seed the XML system-accent defaults stay — the same
+ * fallback order the app's theme uses.
+ */
+private fun applyTrackAccent(views: RemoteViews, style: WidgetStyle, accentArgb: Int?) {
+    val seed = accentArgb ?: return
+    if (android.os.Build.VERSION.SDK_INT >= 31) {
+        val pill = blendToward(seed, 0xFF000000.toInt(), 0.45f)
+        val onPill = if (relativeLuminance(pill) > 0.45f) 0xDE000000.toInt() else 0xFFFFFFFF.toInt()
+        views.setColorStateList(
+            R.id.widget_play_pause,
+            "setBackgroundTintList",
+            android.content.res.ColorStateList.valueOf(pill),
+        )
+        views.setInt(R.id.widget_play_pause, "setColorFilter", onPill)
+    }
+    if (style == WidgetStyle.DECK) {
+        views.setTextColor(R.id.widget_elapsed, blendToward(seed, 0xFFFFFFFF.toInt(), 0.35f))
+    }
+}
+
+private fun blendToward(from: Int, to: Int, fraction: Float): Int {
+    fun channel(shift: Int): Int {
+        val a = (from shr shift) and 0xFF
+        val b = (to shr shift) and 0xFF
+        return (a + ((b - a) * fraction)).toInt().coerceIn(0, 255)
+    }
+    return (0xFF shl 24) or (channel(16) shl 16) or (channel(8) shl 8) or channel(0)
+}
+
+private fun relativeLuminance(argb: Int): Float {
+    fun linear(value: Int): Float {
+        val c = value / 255f
+        return if (c <= 0.03928f) c / 12.92f else Math.pow(((c + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+    }
+    val r = linear((argb shr 16) and 0xFF)
+    val g = linear((argb shr 8) and 0xFF)
+    val b = linear(argb and 0xFF)
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b
 }
 
 private fun bindTransport(

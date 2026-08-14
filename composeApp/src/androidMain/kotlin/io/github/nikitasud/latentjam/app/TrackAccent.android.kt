@@ -86,7 +86,20 @@ private fun sampleArtwork(context: Context, uri: String): Color? = runCatching {
     accent
 }.getOrNull()
 
-private fun dominantAccent(bitmap: Bitmap): Color? {
+private fun dominantAccent(bitmap: Bitmap): Color? =
+    sampleArtworkAccentArgb(bitmap)?.let { argb ->
+        Color(
+            red = ((argb shr 16) and 0xFF) / 255f,
+            green = ((argb shr 8) and 0xFF) / 255f,
+            blue = (argb and 0xFF) / 255f,
+        )
+    }
+
+/**
+ * The app's accent sampler as raw ARGB, shared with the widgets so the home screen wears the
+ * SAME colour the player derives for the same cover.
+ */
+internal fun sampleArtworkAccentArgb(bitmap: Bitmap): Int? {
     val width = bitmap.width
     val height = bitmap.height
     if (width == 0 || height == 0) return null
@@ -127,11 +140,7 @@ private fun dominantAccent(bitmap: Bitmap): Color? {
 
     val count = counts.getValue(best)
     val sum = sums.getValue(best)
-    return Color(
-        red = sum[0] / count / 255f,
-        green = sum[1] / count / 255f,
-        blue = sum[2] / count / 255f,
-    )
+    return (0xFF shl 24) or ((sum[0] / count) shl 16) or ((sum[1] / count) shl 8) or (sum[2] / count)
 }
 
 private data class CachedArtworkColor(val value: Color?, val storedAt: TimeMark)
