@@ -268,4 +268,16 @@ data class ResumePlayback(
     val sourceQueuePersisted: Boolean = false,
 )
 
+/** True when persistence can update only the small position field and retain queue metadata. */
+internal fun ResumePlayback.sameSessionExceptPosition(other: ResumePlayback): Boolean =
+    trackId == other.trackId &&
+        shuffleMode == other.shuffleMode &&
+        sourceKind == other.sourceKind &&
+        sourceName == other.sourceName &&
+        sourceReference == other.sourceReference &&
+        queueTrackIds == other.queueTrackIds &&
+        queueIndex == other.queueIndex &&
+        sourceQueueTrackIds == other.sourceQueueTrackIds &&
+        sourceQueuePersisted == other.sourceQueuePersisted
+
 expect fun appSettingsModule(): Module

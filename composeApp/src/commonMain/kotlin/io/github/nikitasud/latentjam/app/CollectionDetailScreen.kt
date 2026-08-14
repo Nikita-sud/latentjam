@@ -4,7 +4,10 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -34,6 +37,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -89,6 +94,12 @@ data class CollectionSelection(
      * "remove from this playlist" would be a lie the UI cannot honour.
      */
     val playlistId: String? = null,
+    /**
+     * Stable, kind-qualified navigation identity. A data-class [copy] retains the resolved value
+     * while live edits reconcile without replaying the page transition.
+     */
+    val routeId: String = playlistId?.let { "playlist:$it" }
+        ?: "collection:$title:${tracks.firstOrNull()?.id?.value.orEmpty()}",
 )
 
 /**
@@ -115,16 +126,17 @@ fun CollectionDetailScreen(
     bottomInset: Dp = 0.dp,
 ) {
     val selectionMode = selection.allowsTrackSelection && selectedTrackIds.isNotEmpty()
+    val reduceMotion = rememberReduceMotion()
     PlatformBackHandler(enabled = true) {
         if (selectionMode) onClearSelection() else onClose()
     }
 
     // Opening a collection that contains the player's track lands on that track — the reason to
-    // open the album of what's playing is almost always to see where in it you are. Keyed on the
-    // title so reconciliation copies (a deleted track, a live playlist edit) never yank the list,
-    // while go-to-album from another collection re-anchors.
+    // open the album of what's playing is almost always to see where in it you are. Keyed on route
+    // identity so reconciliation copies (a deleted track, a live playlist edit) never yank the
+    // list, while go-to-album from another collection re-anchors.
     val listState = rememberLazyListState()
-    LaunchedEffect(selection.title) {
+    LaunchedEffect(selection.routeId) {
         val flat = selection.tracks.indexOfFirst { it.id == currentTrackId }
         if (flat < 0) return@LaunchedEffect
         // Translate the flat track position into a list-item position: the actions row comes
@@ -154,45 +166,62 @@ fun CollectionDetailScreen(
         ) {
             // Title and count sit in the bar itself rather than under a large cover: this screen
             // is a list you came to play, and a hero image would push the first track off-screen.
-            if (selectionMode) {
-                SelectionTopAppBar(
+            AnimatedContent(
+                targetState = SelectionBarPresentation(
+                    selecting = selectionMode,
                     count = selectedTrackIds.size,
                     allSelected = selection.tracks.all { it.id in selectedTrackIds },
-                    onClose = onClearSelection,
-                    onToggleAll = onToggleAllSelection,
-                )
-            } else {
-                Row(
+                ),
+                contentKey = { it.selecting },
+                transitionSpec = { motionFadeThrough(reduceMotion) },
+                label = "collection-contextual-app-bar",
+            ) { bar ->
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(start = 4.dp, end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .inactiveForMotion(bar.selecting != selectionMode),
                 ) {
-                    IconButton(onClick = onClose) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(Res.string.action_back),
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
-                        Text(
-                            text = selection.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        selection.subtitle?.let { subtitle ->
+                if (bar.selecting) {
+                    SelectionTopAppBar(
+                        count = bar.count,
+                        allSelected = bar.allSelected,
+                        onClose = onClearSelection,
+                        onToggleAll = onToggleAllSelection,
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(start = 4.dp, end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = onClose) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(Res.string.action_back),
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
                             Text(
-                                text = subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                text = selection.title,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
+                            selection.subtitle?.let { subtitle ->
+                                Text(
+                                    text = subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
+                }
                 }
             }
 
@@ -238,20 +267,36 @@ fun CollectionDetailScreen(
                         selection.tracks,
                         key = { _, track -> track.id.value },
                     ) { index, track ->
-                        CollectionTrackRow(
-                            track = track,
-                            flatIndex = index,
-                            showDivider = index < selection.tracks.lastIndex,
-                            selection = selection,
-                            selectionMode = selectionMode,
-                            selectedTrackIds = selectedTrackIds,
-                            currentTrackId = currentTrackId,
-                            currentTrackPlaying = currentTrackPlaying,
-                            onToggleSelection = onToggleSelection,
-                            onStartSelection = onStartSelection,
-                            onPlayTrack = onPlayTrack,
-                            onTrackMenu = onTrackMenu,
-                        )
+                        Box(
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(
+                                    if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                                ),
+                                placementSpec = if (reduceMotion) {
+                                    null
+                                } else {
+                                    tween(Motion.APPEAR_MS)
+                                },
+                                fadeOutSpec = tween(
+                                    if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                                ),
+                            ),
+                        ) {
+                            CollectionTrackRow(
+                                track = track,
+                                flatIndex = index,
+                                showDivider = index < selection.tracks.lastIndex,
+                                selection = selection,
+                                selectionMode = selectionMode,
+                                selectedTrackIds = selectedTrackIds,
+                                currentTrackId = currentTrackId,
+                                currentTrackPlaying = currentTrackPlaying,
+                                onToggleSelection = onToggleSelection,
+                                onStartSelection = onStartSelection,
+                                onPlayTrack = onPlayTrack,
+                                onTrackMenu = onTrackMenu,
+                            )
+                        }
                     }
                 } else {
                     var base = 0
@@ -274,20 +319,36 @@ fun CollectionDetailScreen(
                             section.tracks,
                             key = { _, track -> "$sectionIndex:${track.id.value}" },
                         ) { indexInSection, track ->
-                            CollectionTrackRow(
-                                track = track,
-                                flatIndex = sectionBase + indexInSection,
-                                showDivider = indexInSection < section.tracks.lastIndex,
-                                selection = selection,
-                                selectionMode = selectionMode,
-                                selectedTrackIds = selectedTrackIds,
-                                currentTrackId = currentTrackId,
-                                currentTrackPlaying = currentTrackPlaying,
-                                onToggleSelection = onToggleSelection,
-                                onStartSelection = onStartSelection,
-                                onPlayTrack = onPlayTrack,
-                                onTrackMenu = onTrackMenu,
-                            )
+                            Box(
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(
+                                        if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                                    ),
+                                    placementSpec = if (reduceMotion) {
+                                        null
+                                    } else {
+                                        tween(Motion.APPEAR_MS)
+                                    },
+                                    fadeOutSpec = tween(
+                                        if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                                    ),
+                                ),
+                            ) {
+                                CollectionTrackRow(
+                                    track = track,
+                                    flatIndex = sectionBase + indexInSection,
+                                    showDivider = indexInSection < section.tracks.lastIndex,
+                                    selection = selection,
+                                    selectionMode = selectionMode,
+                                    selectedTrackIds = selectedTrackIds,
+                                    currentTrackId = currentTrackId,
+                                    currentTrackPlaying = currentTrackPlaying,
+                                    onToggleSelection = onToggleSelection,
+                                    onStartSelection = onStartSelection,
+                                    onPlayTrack = onPlayTrack,
+                                    onTrackMenu = onTrackMenu,
+                                )
+                            }
                         }
                         base += section.tracks.size
                     }
@@ -346,6 +407,13 @@ private fun CollectionTrackRow(
     }
 }
 
+/** Data retained with a contextual bar while it exits, avoiding a visible "0 selected" frame. */
+internal data class SelectionBarPresentation(
+    val selecting: Boolean,
+    val count: Int,
+    val allSelected: Boolean,
+)
+
 /** Contextual app bar shared by the Tracks page and user-playlist multi-selection. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -355,8 +423,20 @@ internal fun SelectionTopAppBar(
     onClose: () -> Unit,
     onToggleAll: () -> Unit,
 ) {
+    val reduceMotion = rememberReduceMotion()
     TopAppBar(
-        title = { Text(stringResource(Res.string.selection_count, count)) },
+        title = {
+            AnimatedContent(
+                targetState = count,
+                transitionSpec = { motionFadeThrough(reduceMotion) },
+                label = "selection-count",
+            ) { currentCount ->
+                Text(
+                    text = stringResource(Res.string.selection_count, currentCount),
+                    modifier = Modifier.inactiveForMotion(currentCount != count),
+                )
+            }
+        },
         navigationIcon = {
             IconButton(onClick = onClose) {
                 Icon(
@@ -366,18 +446,32 @@ internal fun SelectionTopAppBar(
             }
         },
         actions = {
-            val label = stringResource(
-                if (allSelected) Res.string.action_deselect_all else Res.string.action_select_all,
+            val description = stringResource(
+                if (allSelected) {
+                    Res.string.action_deselect_all
+                } else {
+                    Res.string.action_select_all
+                },
             )
-            IconButton(onClick = onToggleAll) {
-                Icon(
-                    imageVector = if (allSelected) {
-                        Icons.Rounded.CheckCircle
-                    } else {
-                        Icons.Rounded.RadioButtonUnchecked
-                    },
-                    contentDescription = label,
-                )
+            IconButton(
+                onClick = onToggleAll,
+                modifier = Modifier.semantics { contentDescription = description },
+            ) {
+                AnimatedContent(
+                    targetState = allSelected,
+                    transitionSpec = { motionIconTransform(reduceMotion) },
+                    label = "select-all-glyph",
+                ) { selected ->
+                    Icon(
+                        imageVector = if (selected) {
+                            Icons.Rounded.CheckCircle
+                        } else {
+                            Icons.Rounded.RadioButtonUnchecked
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.inactiveForMotion(selected != allSelected),
+                    )
+                }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(

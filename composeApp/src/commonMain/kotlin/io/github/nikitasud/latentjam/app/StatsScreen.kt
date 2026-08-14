@@ -6,14 +6,14 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.foundation.background
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -293,15 +293,19 @@ private fun Headline(value: String, label: String, modifier: Modifier = Modifier
             targetState = value,
             transitionSpec = {
                 if (reduceMotion) {
-                    fadeIn(tween(90)) togetherWith fadeOut(tween(60))
+                    ContentTransform(
+                        targetContentEnter = fadeIn(tween(Motion.REDUCED_MS)),
+                        initialContentExit = fadeOut(tween(Motion.REDUCED_MS)),
+                        sizeTransform = motionSizeTransform(true, Motion.REDUCED_MS),
+                    )
                 } else {
-                    (
-                        fadeIn(tween(Motion.APPEAR_MS)) +
-                            slideInVertically(tween(Motion.APPEAR_MS)) { it / 3 }
-                        ) togetherWith (
-                        fadeOut(tween(Motion.REPLACE_MS)) +
-                            slideOutVertically(tween(Motion.REPLACE_MS)) { -it / 3 }
-                        )
+                    ContentTransform(
+                        targetContentEnter = fadeIn(tween(Motion.APPEAR_MS)) +
+                            slideInVertically(tween(Motion.APPEAR_MS)) { it / 3 },
+                        initialContentExit = fadeOut(tween(Motion.REPLACE_MS)) +
+                            slideOutVertically(tween(Motion.REPLACE_MS)) { -it / 3 },
+                        sizeTransform = motionSizeTransform(false, Motion.APPEAR_MS),
+                    )
                 }
             },
             label = "stat-headline",
@@ -340,6 +344,7 @@ private fun HourBars(playsByHour: List<Int>) {
     val max = playsByHour.maxOrNull()?.takeIf { it > 0 } ?: return
     val chartLabel = stringResource(Res.string.stats_by_hour)
     val playsLabel = stringResource(Res.string.stats_plays)
+    val reduceMotion = rememberReduceMotion()
     val chartDescription = playsByHour.mapIndexedNotNull { hour, plays ->
         if (plays > 0) "$hour: $plays $playsLabel" else null
     }.joinToString(", ")
@@ -355,15 +360,25 @@ private fun HourBars(playsByHour: List<Int>) {
         ) {
             playsByHour.forEach { plays ->
                 val share = plays.toFloat() / max
-                val height by animateDpAsState(
-                    targetValue = (70 * share).coerceAtLeast(if (plays > 0) 3f else 1f).dp,
-                    animationSpec = tween(Motion.APPEAR_MS * 2, easing = FastOutSlowInEasing),
-                    label = "hour-bar",
-                )
+                val targetHeight = (70 * share).coerceAtLeast(if (plays > 0) 3f else 1f)
+                val height = remember { Animatable(if (reduceMotion) targetHeight else 0f) }
+                LaunchedEffect(targetHeight, reduceMotion) {
+                    if (reduceMotion) {
+                        height.snapTo(targetHeight)
+                    } else {
+                        height.animateTo(
+                            targetValue = targetHeight,
+                            animationSpec = tween(
+                                Motion.EMPHASIZED_MS,
+                                easing = FastOutSlowInEasing,
+                            ),
+                        )
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(height)
+                        .height(height.value.dp)
                         .background(
                             color = if (plays > 0) {
                                 MaterialTheme.colorScheme.primary

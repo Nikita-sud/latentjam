@@ -84,9 +84,9 @@ public object SongSorting {
             .lowercase()
             .ifEmpty { "￿" }
 
-    /** Index bucket: an uppercase initial letter, or "#" for digits/symbols. */
+    /** Index bucket: uppercase initial, "#" for digits, or "?" when no indexable name exists. */
     public fun bucket(value: String?): String {
-        val first = value?.firstOrNull { it.isLetterOrDigit() } ?: return "#"
+        val first = value?.firstOrNull { it.isLetterOrDigit() } ?: return "?"
         return if (first.isLetter()) first.uppercaseChar().toString() else "#"
     }
 }

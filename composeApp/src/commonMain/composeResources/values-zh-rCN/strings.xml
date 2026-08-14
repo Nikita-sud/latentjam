@@ -32,6 +32,7 @@
     <string name="action_add">添加</string>
     <string name="cd_more_options">更多选项</string>
     <string name="cd_search_library">搜索音乐库</string>
+    <string name="cd_alphabet_index">字母索引</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">歌曲</string>

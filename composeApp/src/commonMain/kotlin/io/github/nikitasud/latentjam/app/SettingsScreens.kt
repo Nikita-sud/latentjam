@@ -5,12 +5,6 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -79,6 +73,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
@@ -369,8 +364,9 @@ fun SettingsScreen(
     val stack = savedStack.split(ROUTE_SEPARATOR)
         .mapNotNull { name -> SettingsPage.entries.firstOrNull { it.name == name } }
         .ifEmpty { listOf(SettingsPage.ROOT) }
-    val page = stack.last()
     val rootListState = rememberLazyListState()
+    val reduceMotion = rememberReduceMotion()
+    val layoutDirection = LocalLayoutDirection.current
 
     fun open(next: SettingsPage) {
         savedStack = (stack + next).joinToString(ROUTE_SEPARATOR)
@@ -391,7 +387,27 @@ fun SettingsScreen(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
-                    title = { Text(stringResource(page.titleResource())) },
+                    title = {
+                        AnimatedContent(
+                            targetState = stack,
+                            contentKey = { it.last() },
+                            transitionSpec = {
+                                motionPageTransform(
+                                    forward = targetState.size >= initialState.size,
+                                    reduceMotion = reduceMotion,
+                                    layoutDirection = layoutDirection,
+                                )
+                            },
+                            label = "settings-title",
+                        ) { animatedStack ->
+                            Text(
+                                text = stringResource(animatedStack.last().titleResource()),
+                                modifier = Modifier.inactiveForMotion(
+                                    animatedStack.last() != stack.last(),
+                                ),
+                            )
+                        }
+                    },
                     navigationIcon = {
                         IconButton(onClick = ::goBack) {
                             Icon(
@@ -404,28 +420,25 @@ fun SettingsScreen(
             },
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-                val reduceMotion = rememberReduceMotion()
                 // Direction-aware: drilling in slides forward, backing out slides back — the axis
                 // carries the navigation model, so depth is legible without reading the title.
                 AnimatedContent(
                     targetState = stack,
                     contentKey = { it.last() },
                     transitionSpec = {
-                        if (reduceMotion) {
-                            fadeIn(tween(120)) togetherWith fadeOut(tween(90))
-                        } else {
-                            val direction = if (targetState.size >= initialState.size) 1 else -1
-                            (
-                                slideInHorizontally(tween(Motion.APPEAR_MS)) { it / 5 * direction } +
-                                    fadeIn(tween(Motion.APPEAR_MS))
-                                ) togetherWith (
-                                slideOutHorizontally(tween(Motion.REPLACE_MS)) { -it / 6 * direction } +
-                                    fadeOut(tween(Motion.REPLACE_MS))
-                                )
-                        }
+                        motionPageTransform(
+                            forward = targetState.size >= initialState.size,
+                            reduceMotion = reduceMotion,
+                            layoutDirection = layoutDirection,
+                        )
                     },
                     label = "settings-page",
                 ) { animatedStack ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .inactiveForMotion(animatedStack.last() != stack.last()),
+                ) {
                 when (animatedStack.last()) {
                     SettingsPage.ROOT -> SettingsRoot(
                         listState = rootListState,
@@ -509,6 +522,7 @@ fun SettingsScreen(
                         open(SettingsPage.LICENSES)
                     })
                     SettingsPage.LICENSES -> LicensesSettings()
+                }
                 }
                 }
             }
@@ -1486,8 +1500,11 @@ private fun IntelligenceSettings(
     } else {
         0
     }
-    val failures = if (!libraryLoading && indexingMatchesLibrary) {
+    val actionableFailures = remember(indexing.failures, tracks) {
         actionableIndexingFailures(indexing.failures, tracks)
+    }
+    val failures = if (!libraryLoading && indexingMatchesLibrary) {
+        actionableFailures
     } else {
         emptyMap()
     }
@@ -1679,11 +1696,15 @@ private fun IntelligenceProblemsSettings(
     val scope = rememberCoroutineScope()
     val indexing by AppGraph.automaticIndexing.collectAsState()
     val ids = remember(tracks) { tracks.map(TrackDescriptor::id) }
-    val failures = if (!libraryLoading && indexing.trackIds == ids) {
+    val actionableFailures = remember(indexing.failures, tracks) {
         actionableIndexingFailures(indexing.failures, tracks)
+    }
+    val failures = if (!libraryLoading && indexing.trackIds == ids) {
+        actionableFailures
     } else {
         emptyMap()
     }
+    val failureEntries = remember(failures) { failures.entries.toList() }
     val byId = remember(tracks) { tracks.associateBy(TrackDescriptor::id) }
     var removing by remember { mutableStateOf<TrackId?>(null) }
     val manageFailed = stringResource(Res.string.settings_library_manage_failed)
@@ -1713,7 +1734,7 @@ private fun IntelligenceProblemsSettings(
             }
         }
         items(
-            items = failures.entries.toList(),
+            items = failureEntries,
             key = { it.key.value },
         ) { (id, error) ->
             val track = byId[id]

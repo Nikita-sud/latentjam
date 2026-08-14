@@ -10,3 +10,7 @@ import kotlinx.coroutines.Dispatchers
 /** Kotlin/Native's shared pool, confined so ONNX work remains strictly serial. */
 internal actual fun createPlatformSmartEngineDispatcher(): CoroutineDispatcher =
     Dispatchers.Default.limitedParallelism(1, "smart-engine")
+
+/** A separate serial lane prevents layout work from blocking engine calls. */
+internal actual fun createPlatformMapLayoutDispatcher(): CoroutineDispatcher =
+    Dispatchers.Default.limitedParallelism(1, "smart-map-layout")

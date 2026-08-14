@@ -4,6 +4,10 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -106,6 +110,12 @@ data class MapPage(
     val dots: List<MapDot>,
     val regionNames: List<String>,
     val listening: LibraryListening,
+)
+
+/** Per-dot facts that change with a lens/selection, but never while the map is panned or zoomed. */
+private class MapDotVisuals(
+    val inks: List<MapInk>,
+    val radiiPx: FloatArray,
 )
 
 /**
@@ -220,6 +230,7 @@ fun MapTab(
     // `page` is only non-null when `state` is Ready (see the assignment above), which the compiler
     // tracks well enough to smart-cast `state` here without an explicit cast.
     val rebuilding = state.rebuilding
+    val reduceMotion = rememberReduceMotion()
 
     val lenses = remember(page.listening) { MapLenses.availableLenses(page.listening) }
     var lens by remember(page) { mutableStateOf(MapLens.WORLDS) }
@@ -244,6 +255,16 @@ fun MapTab(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     val centroids = remember(page) { largestRegionCentroids(page, limit = 5) }
+    // Text measurement performs paragraph layout. The Canvas is invalidated for every pan/zoom
+    // frame, but neither a region's name nor its typography changes during that gesture, so keep
+    // the five layouts outside the draw loop and only recompute them when those real inputs change.
+    val measuredCentroidLabels = remember(page.regionNames, centroids, labelStyle, measurer) {
+        centroids.mapNotNull { (region, centre) ->
+            page.regionNames.getOrNull(region)?.let { name ->
+                centre to measurer.measure(name, labelStyle)
+            }
+        }
+    }
     val mapDescription = stringResource(Res.string.tab_map)
     val selectedRegionDescription = page.regionNames.getOrNull(selectedRegion).orEmpty()
     // A Canvas otherwise collapses to one opaque, gesture-only accessibility node: TalkBack can
@@ -300,6 +321,25 @@ fun MapTab(
         val headlines = lenses.associateWith { headline(it, page) }
         val headlineStyle = MaterialTheme.typography.bodyMedium
         val density = LocalDensity.current
+        // Pan and pinch invalidate the Canvas at frame rate. Colour classification (including the
+        // play-count power curve) and dp-to-px radii only depend on the page, lens and selection,
+        // so compute them once per visual state rather than once per dot in every gesture frame.
+        val dotVisuals = remember(page, lens, selectedRegion, density.density) {
+            val inks = ArrayList<MapInk>(page.dots.size)
+            val radiiPx = FloatArray(page.dots.size)
+            page.dots.forEachIndexed { index, dot ->
+                inks += MapLenses.ink(
+                    lens = lens,
+                    dot = dot,
+                    selectedRegion = selectedRegion,
+                    maxPlays = page.listening.maxPlays,
+                )
+                radiiPx[index] = with(density) {
+                    MapLenses.radius(lens, dot, selectedRegion).dp.toPx()
+                }
+            }
+            MapDotVisuals(inks, radiiPx)
+        }
         BoxWithConstraints(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
@@ -339,7 +379,15 @@ fun MapTab(
                 // headline and resize the map underneath it, which is the very thing this block
                 // exists to prevent.
                 Box(Modifier.size(INDICATOR_SLOT_DP), contentAlignment = Alignment.Center) {
-                    if (rebuilding) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = rebuilding,
+                        enter = fadeIn(tween(
+                            if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                        )),
+                        exit = fadeOut(tween(
+                            if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                        )),
+                    ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(INDICATOR_SLOT_DP),
                             strokeWidth = 2.dp,
@@ -405,8 +453,18 @@ fun MapTab(
                     )
                 },
         ) {
-            for (dot in page.dots) {
-                val ink = MapLenses.ink(lens, dot, selectedRegion, page.listening.maxPlays)
+            page.dots.forEachIndexed { index, dot ->
+                val ink = dotVisuals.inks[index]
+                val radius = dotVisuals.radiiPx[index]
+                val centre = screenPosition(dot, size.width, size.height, zoom, panX, panY)
+                // At 6x zoom most of the map is outside the viewport. Canvas clips those circles
+                // eventually, but issuing thousands of invisible draw calls still costs a frame.
+                if (
+                    centre.x + radius < 0f || centre.x - radius > size.width ||
+                    centre.y + radius < 0f || centre.y - radius > size.height
+                ) {
+                    return@forEachIndexed
+                }
                 drawCircle(
                     color = when (ink) {
                         MapInk.Neutral -> neutral
@@ -424,8 +482,8 @@ fun MapTab(
                     // another dot" at rest). Holding the mark size constant on screen is the usual
                     // convention for a zoomable scatter, and it is what actually lets zooming in
                     // separate two dots that started on top of each other.
-                    radius = MapLenses.radius(lens, dot, selectedRegion).dp.toPx(),
-                    center = screenPosition(dot, size.width, size.height, zoom, panX, panY),
+                    radius = radius,
+                    center = centre,
                 )
             }
             // The spotlighted track wears a ring: a filled dot would just join the crowd.
@@ -440,9 +498,7 @@ fun MapTab(
             // Spec section 5: regions are named on the map, because colour cannot carry identity
             // here. Only the five largest are labelled — past that the labels collide and the map
             // becomes a word cloud.
-            for ((region, centre) in centroids) {
-                val name = page.regionNames.getOrNull(region) ?: continue
-                val measured = measurer.measure(name, labelStyle)
+            for ((centre, measured) in measuredCentroidLabels) {
                 val topLeft = visibleLabelTopLeft(
                     centre = centre,
                     labelWidth = measured.size.width.toFloat(),

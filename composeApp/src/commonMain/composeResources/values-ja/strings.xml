@@ -32,6 +32,7 @@
     <string name="action_add">追加</string>
     <string name="cd_more_options">その他のオプション</string>
     <string name="cd_search_library">ライブラリを検索</string>
+    <string name="cd_alphabet_index">アルファベット索引</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">曲</string>

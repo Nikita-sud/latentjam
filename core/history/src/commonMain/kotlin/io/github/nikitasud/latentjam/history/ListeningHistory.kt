@@ -5,8 +5,10 @@
 package io.github.nikitasud.latentjam.history
 
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.koin.core.module.Module
 
 /**
@@ -75,6 +77,12 @@ public class DefaultListeningHistory(
     private val mutex = Mutex()
     private var loaded = false
     private val events = mutableListOf<ListenEvent>()
+    /**
+     * Updated with [events] under the same mutex so repeated For You/Search/playlist reads do not
+     * replay the complete append-only log on their caller's dispatcher. A returned [stats] map is
+     * still copied, so callers never observe later records mutating an older snapshot.
+     */
+    private val aggregates = mutableMapOf<TrackId, TrackStats>()
 
     override suspend fun record(event: ListenEvent): Unit = mutex.withLock {
         ensureLoaded()
@@ -82,25 +90,12 @@ public class DefaultListeningHistory(
         // session that silently disappears at the next launch.
         store.append(event.serialize())
         events += event
+        aggregate(event)
     }
 
     override suspend fun stats(): Map<TrackId, TrackStats> = mutex.withLock {
         ensureLoaded()
-        val aggregates = mutableMapOf<TrackId, TrackStats>()
-        for (event in events) {
-            val previous = aggregates[event.trackId]
-            aggregates[event.trackId] = TrackStats(
-                plays = (previous?.plays ?: 0) + 1,
-                completions = (previous?.completions ?: 0) + if (event.completed) 1 else 0,
-                skips = (previous?.skips ?: 0) + if (event.skipped) 1 else 0,
-                totalPlayedMs = saturatingDurationAdd(
-                    previous?.totalPlayedMs ?: 0,
-                    event.effectiveListenedMs.coerceAtLeast(0),
-                ),
-                lastPlayedAtMs = maxOf(previous?.lastPlayedAtMs ?: 0, event.startedAtMs),
-            )
-        }
-        aggregates
+        aggregates.toMap()
     }
 
     override suspend fun recentEvents(limit: Int): List<ListenEvent> = mutex.withLock {
@@ -119,20 +114,56 @@ public class DefaultListeningHistory(
         store.replaceAll(replacement.map(ListenEvent::serialize))
         this.events.clear()
         this.events += replacement
+        aggregates.clear()
+        replacement.forEach(::aggregate)
     }
 
     override suspend fun clear(): Unit = mutex.withLock {
         ensureLoaded()
         store.clear()
         events.clear()
+        aggregates.clear()
     }
 
     private suspend fun ensureLoaded() {
         if (loaded) return
         val lines = store.readAll()
-        lines.mapNotNullTo(events, ListenEvent::parse)
+        // File stores confine their read to IO, but the continuation resumes on the caller. The
+        // first stats()/For You request commonly comes from a Main LaunchedEffect, and parsing plus
+        // folding a long-lived history there is avoidable launch jank.
+        val restored = withContext(Dispatchers.Default) {
+            val parsed = lines.mapNotNull(ListenEvent::parse)
+            val folded = mutableMapOf<TrackId, TrackStats>()
+            parsed.forEach { folded.aggregate(it) }
+            RestoredHistory(parsed, folded)
+        }
+        events += restored.events
+        aggregates.putAll(restored.aggregates)
         loaded = true
     }
+
+    private fun aggregate(event: ListenEvent) {
+        aggregates.aggregate(event)
+    }
+
+    private data class RestoredHistory(
+        val events: List<ListenEvent>,
+        val aggregates: Map<TrackId, TrackStats>,
+    )
+}
+
+private fun MutableMap<TrackId, TrackStats>.aggregate(event: ListenEvent) {
+    val previous = this[event.trackId]
+    this[event.trackId] = TrackStats(
+        plays = (previous?.plays ?: 0) + 1,
+        completions = (previous?.completions ?: 0) + if (event.completed) 1 else 0,
+        skips = (previous?.skips ?: 0) + if (event.skipped) 1 else 0,
+        totalPlayedMs = saturatingDurationAdd(
+            previous?.totalPlayedMs ?: 0,
+            event.effectiveListenedMs.coerceAtLeast(0),
+        ),
+        lastPlayedAtMs = maxOf(previous?.lastPlayedAtMs ?: 0, event.startedAtMs),
+    )
 }
 
 /** Koin bindings for [ListeningHistory] on this platform. */

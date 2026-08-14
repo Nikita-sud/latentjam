@@ -109,6 +109,29 @@ class AppSettingsTest {
     }
 
     @Test
+    fun `resume snapshot detects a position-only update`() {
+        val saved = ResumePlayback(
+            trackId = "current",
+            shuffleMode = "SMART",
+            positionMs = 10_000,
+            sourceKind = QueueSourceKind.COLLECTION.name,
+            sourceName = "Album",
+            sourceReference = "album-id",
+            queueTrackIds = listOf("current", "next"),
+            queueIndex = 0,
+            sourceQueueTrackIds = listOf("current", "next", "later"),
+            sourceQueuePersisted = true,
+        )
+
+        assertEquals(true, saved.sameSessionExceptPosition(saved.copy(positionMs = 20_000)))
+        assertEquals(false, saved.sameSessionExceptPosition(saved.copy(queueIndex = 1)))
+        assertEquals(
+            false,
+            saved.sameSessionExceptPosition(saved.copy(queueTrackIds = listOf("current", "other"))),
+        )
+    }
+
+    @Test
     fun `omitted oversized source reconstructs tracks or stable user playlist`() {
         val a = TrackDescriptor(TrackId("a"))
         val b = TrackDescriptor(TrackId("b"))

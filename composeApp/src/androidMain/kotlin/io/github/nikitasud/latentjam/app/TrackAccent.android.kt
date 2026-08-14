@@ -35,11 +35,13 @@ import kotlinx.coroutines.withContext
  * album-art row, unreadable file) simply yield `null`.
  */
 @Composable
-actual fun rememberArtworkColor(uri: String?): Color? {
+actual fun rememberArtworkColor(uri: String?): ArtworkColorState {
     val context = LocalContext.current
-    var color by remember(uri) { mutableStateOf<Color?>(null) }
+    var state by remember(uri) {
+        mutableStateOf(ArtworkColorState(color = null, resolved = uri == null))
+    }
     LaunchedEffect(uri) {
-        color = uri?.let { artworkUri ->
+        val color = uri?.let { artworkUri ->
             val cached = artworkColorCache[artworkUri]?.takeIf { entry ->
                 entry.value != null || entry.storedAt.elapsedNow() < NEGATIVE_CACHE_TTL
             }
@@ -59,8 +61,9 @@ actual fun rememberArtworkColor(uri: String?): Color? {
                 }
             }
         }
+        state = ArtworkColorState(color = color, resolved = true)
     }
-    return color
+    return state
 }
 
 private fun sampleArtwork(context: Context, uri: String): Color? = runCatching {

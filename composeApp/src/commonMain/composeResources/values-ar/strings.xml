@@ -36,6 +36,7 @@
     <string name="action_add">إضافة</string>
     <string name="cd_more_options">خيارات أخرى</string>
     <string name="cd_search_library">البحث في المكتبة</string>
+    <string name="cd_alphabet_index">الفهرس الأبجدي</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">مقطع صوتي</string>

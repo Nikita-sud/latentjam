@@ -37,7 +37,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -73,6 +79,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.pluralStringResource
 
@@ -107,7 +114,47 @@ internal fun TrackActionsSheet(
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    val reduceMotion = rememberReduceMotion()
+    var dismissalInFlight by remember { mutableStateOf(false) }
+
+    fun dismissThen(action: () -> Unit) {
+        if (dismissalInFlight) return
+        dismissalInFlight = true
+        if (reduceMotion) {
+            onDismiss()
+            action()
+        } else {
+            scope.launch {
+                sheetState.hide()
+                onDismiss()
+                action()
+            }
+        }
+    }
+
+    fun dismissWhile(action: () -> Unit) {
+        if (dismissalInFlight) return
+        dismissalInFlight = true
+        // Transport and local-state actions should acknowledge the tap immediately; the sheet can
+        // leave in parallel. Navigation/modal handoffs continue to use dismissThen above.
+        action()
+        if (reduceMotion) {
+            onDismiss()
+        } else {
+            scope.launch {
+                sheetState.hide()
+                onDismiss()
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = { dismissThen {} },
+        sheetState = sheetState,
+        sheetGesturesEnabled = !dismissalInFlight,
+    ) {
         // The complete action set is taller than compact phones (and grows further with large
         // accessibility text). Let the sheet and this content negotiate nested scrolling so the
         // non-destructive visibility action and delete confirmation can never be stranded below
@@ -148,19 +195,19 @@ internal fun TrackActionsSheet(
             SheetAction(
                 Icons.Rounded.PlayArrow,
                 stringResource(Res.string.action_play),
-            ) { onDismiss(); onPlay() }
+            ) { dismissWhile(onPlay) }
             SheetAction(
                 Icons.AutoMirrored.Rounded.PlaylistAdd,
                 stringResource(Res.string.action_play_next),
-            ) { onDismiss(); onPlayNext() }
+            ) { dismissWhile(onPlayNext) }
             SheetAction(
                 Icons.AutoMirrored.Rounded.QueueMusic,
                 stringResource(Res.string.action_add_to_queue),
-            ) { onDismiss(); onAddToQueue() }
+            ) { dismissWhile(onAddToQueue) }
             SheetAction(
                 Icons.Rounded.LibraryAdd,
                 stringResource(Res.string.action_add_to_playlist),
-            ) { onDismiss(); onAddToPlaylist() }
+            ) { dismissThen(onAddToPlaylist) }
             SheetAction(
                 if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                 stringResource(
@@ -170,35 +217,35 @@ internal fun TrackActionsSheet(
                         Res.string.action_add_favorite
                     },
                 ),
-            ) { onDismiss(); onToggleFavorite() }
+            ) { dismissWhile(onToggleFavorite) }
             onRemoveFromPlaylist?.let { removeFromPlaylist ->
                 SheetAction(
                     Icons.Rounded.PlaylistRemove,
                     stringResource(Res.string.action_remove_from_playlist),
-                ) { onDismiss(); removeFromPlaylist() }
+                ) { dismissWhile(removeFromPlaylist) }
             }
             onGoToAlbum?.let { goToAlbum ->
                 SheetAction(
                     Icons.Rounded.Album,
                     stringResource(Res.string.action_go_to_album),
-                ) { onDismiss(); goToAlbum() }
+                ) { dismissThen(goToAlbum) }
             }
             onGoToArtist?.let { goToArtist ->
                 SheetAction(
                     Icons.Rounded.Person,
                     stringResource(Res.string.action_go_to_artist),
-                ) { onDismiss(); goToArtist() }
+                ) { dismissThen(goToArtist) }
             }
             onShowOnMap?.let { showOnMap ->
                 SheetAction(
                     Icons.Rounded.Map,
                     stringResource(Res.string.action_show_on_map),
-                ) { onDismiss(); showOnMap() }
+                ) { dismissThen(showOnMap) }
             }
             SheetAction(
                 Icons.Rounded.Info,
                 stringResource(Res.string.action_information),
-            ) { onDismiss(); onInfo() }
+            ) { dismissThen(onInfo) }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             // An artist-level exclusion already covers every one of their tracks. Surface its
             // restore action first; a dormant track-specific rule appears after the artist returns.
@@ -212,7 +259,7 @@ internal fun TrackActionsSheet(
                             Res.string.action_exclude_track_from_smart
                         },
                     ),
-                ) { onDismiss(); onToggleTrackSmartExclusion() }
+                ) { dismissWhile(onToggleTrackSmartExclusion) }
             }
             onToggleArtistSmartExclusion?.let { toggleArtist ->
                 SheetAction(
@@ -224,20 +271,20 @@ internal fun TrackActionsSheet(
                             Res.string.action_exclude_artist_from_smart
                         },
                     ),
-                ) { onDismiss(); toggleArtist() }
+                ) { dismissWhile(toggleArtist) }
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             SheetAction(
                 Icons.Rounded.VisibilityOff,
                 stringResource(Res.string.action_remove_from_latentjam),
-            ) { onDismiss(); onHide() }
+            ) { dismissWhile(onHide) }
             if (canDelete) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 SheetAction(
                     icon = Icons.Rounded.DeleteOutline,
                     label = stringResource(Res.string.action_delete_from_device),
                     tint = MaterialTheme.colorScheme.error,
-                ) { onDismiss(); onDelete() }
+                ) { dismissThen(onDelete) }
             }
         }
     }
@@ -290,7 +337,45 @@ internal fun SelectionRemovalSheet(
     onDeleteFromDevice: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    val reduceMotion = rememberReduceMotion()
+    var dismissalInFlight by remember { mutableStateOf(false) }
+
+    fun dismissThen(action: () -> Unit) {
+        if (dismissalInFlight) return
+        dismissalInFlight = true
+        if (reduceMotion) {
+            onDismiss()
+            action()
+        } else {
+            scope.launch {
+                sheetState.hide()
+                onDismiss()
+                action()
+            }
+        }
+    }
+
+    fun dismissWhile(action: () -> Unit) {
+        if (dismissalInFlight) return
+        dismissalInFlight = true
+        action()
+        if (reduceMotion) {
+            onDismiss()
+        } else {
+            scope.launch {
+                sheetState.hide()
+                onDismiss()
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = { dismissThen {} },
+        sheetState = sheetState,
+        sheetGesturesEnabled = !dismissalInFlight,
+    ) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             Text(
                 text = pluralStringResource(Res.plurals.count_tracks, count, count),
@@ -300,20 +385,14 @@ internal fun SelectionRemovalSheet(
             SheetAction(
                 icon = Icons.Rounded.VisibilityOff,
                 label = stringResource(Res.string.action_remove_from_latentjam),
-            ) {
-                onDismiss()
-                onHide()
-            }
+            ) { dismissWhile(onHide) }
             if (canDeleteFromDevice) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 SheetAction(
                     icon = Icons.Rounded.DeleteOutline,
                     label = stringResource(Res.string.action_delete_from_device),
                     tint = MaterialTheme.colorScheme.error,
-                ) {
-                    onDismiss()
-                    onDeleteFromDevice()
-                }
+                ) { dismissThen(onDeleteFromDevice) }
             }
         }
     }

@@ -160,6 +160,15 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     }
 
     override fun setResumePlayback(state: ResumePlayback?) {
+        val previous = mutableResumePlayback.value
+        if (state != null && previous?.sameSessionExceptPosition(state) == true) {
+            // Position advances every 10 seconds while the queue usually stays unchanged for many
+            // minutes. Re-encoding a potentially 10k-row queue here created avoidable CPU, GC and
+            // a large SharedPreferences value write for every position bucket.
+            preferences.edit().putLong(KEY_RESUME_POSITION, state.positionMs).apply()
+            mutableResumePlayback.value = state
+            return
+        }
         preferences.edit().apply {
             if (state == null) {
                 remove(KEY_RESUME_TRACK).remove(KEY_RESUME_MODE).remove(KEY_RESUME_POSITION)

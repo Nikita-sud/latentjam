@@ -32,6 +32,7 @@
     <string name="action_add">추가</string>
     <string name="cd_more_options">옵션 더보기</string>
     <string name="cd_search_library">라이브러리 검색</string>
+    <string name="cd_alphabet_index">알파벳 색인</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">곡</string>

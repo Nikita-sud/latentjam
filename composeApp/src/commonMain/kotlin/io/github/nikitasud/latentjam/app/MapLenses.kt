@@ -85,6 +85,11 @@ object MapLenses {
      */
     private const val UNCLAIMED_RADIUS = 1.8f
 
+    // A pan/zoom redraw can classify thousands of dots every frame. Reuse the finite ramp values
+    // instead of allocating one data-class instance per coloured dot per frame.
+    private val rampInks = List(RAMP_STEPS, MapInk::Ramp)
+    private val warmRampInks = List(RAMP_STEPS, MapInk::WarmRamp)
+
     fun ink(lens: MapLens, dot: MapDot, selectedRegion: Int, maxPlays: Int): MapInk =
         // An unclaimed track is drawn on every lens but counted by none of them: the listening
         // figures each headline quotes come from LibraryListeningStats.summarize, which is keyed by
@@ -108,13 +113,13 @@ object MapLenses {
         } else {
             // Compressed so the long tail of once-played tracks still separates from the top.
             val fraction = (dot.plays.toFloat() / maxOf(maxPlays, 1)).coerceIn(0f, 1f)
-            MapInk.Ramp(step(fraction.pow(0.4f)))
+            rampInks[step(fraction.pow(0.4f))]
         }
         MapLens.NEVER_PLAYED -> if (dot.plays <= 0) MapInk.Accent else MapInk.Neutral
         MapLens.SKIPS -> if (dot.plays <= 0) {
             MapInk.Neutral
         } else {
-            MapInk.WarmRamp(step(dot.skipRate.coerceIn(0f, 1f)))
+            warmRampInks[step(dot.skipRate.coerceIn(0f, 1f))]
         }
     }
 

@@ -5,8 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.indication
@@ -34,12 +33,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +67,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.foryou_world_smart
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -89,6 +94,7 @@ fun ForYouTab(
     onTrackMenu: (TrackDescriptor) -> Unit,
     onOpenWorld: (ForYouCard) -> Unit = {},
 ) {
+    val reduceMotion = rememberReduceMotion()
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
@@ -106,22 +112,36 @@ fun ForYouTab(
                 )
             }
         } else {
-            val entrance = remember { MutableTransitionState(false).apply { targetState = true } }
-            AnimatedVisibility(
-                visibleState = entrance,
-                enter = motionAppearEnter(),
-                exit = motionAppearExit(),
-            ) {
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
                 page.hero?.let { hero ->
                     item(key = "hero") {
-                        Box(modifier = Modifier.animateItem()) {
+                        Box(
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(
+                                    if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                                ),
+                                placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
+                                fadeOutSpec = tween(
+                                    if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                                ),
+                            ),
+                        ) {
                             HeroCard(hero, onPlay = { onPlayHero(hero) })
                         }
                     }
                 }
                 items(page.sections, key = { it.kind.name }) { section ->
-                    Column(modifier = Modifier.animateItem()) {
+                    Column(
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = tween(
+                                if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                            ),
+                            placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
+                            fadeOutSpec = tween(
+                                if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                            ),
+                        ),
+                    ) {
                     Text(
                         text = section.kind.title(),
                         style = MaterialTheme.typography.titleMedium,
@@ -138,7 +158,21 @@ fun ForYouTab(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                     ) {
                         items(section.cards, key = { it.track.id.value }) { card ->
-                            Box(modifier = Modifier.animateItem()) {
+                            Box(
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(
+                                        if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                                    ),
+                                    placementSpec = if (reduceMotion) {
+                                        null
+                                    } else {
+                                        tween(Motion.APPEAR_MS)
+                                    },
+                                    fadeOutSpec = tween(
+                                        if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                                    ),
+                                ),
+                            ) {
                             ForYouCardItem(
                                 card = card,
                                 onClick = {
@@ -171,7 +205,6 @@ fun ForYouTab(
                     }
                     }
                 }
-            }
             }
         }
     }
@@ -210,7 +243,45 @@ internal fun WorldActionsSheet(
     onDismiss: () -> Unit,
 ) {
     val world = card.collection ?: return
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    val reduceMotion = rememberReduceMotion()
+    var dismissalInFlight by remember { mutableStateOf(false) }
+
+    fun dismissThen(action: () -> Unit) {
+        if (dismissalInFlight) return
+        dismissalInFlight = true
+        if (reduceMotion) {
+            onDismiss()
+            action()
+        } else {
+            scope.launch {
+                sheetState.hide()
+                onDismiss()
+                action()
+            }
+        }
+    }
+
+    fun dismissWhile(action: () -> Unit) {
+        if (dismissalInFlight) return
+        dismissalInFlight = true
+        action()
+        if (reduceMotion) {
+            onDismiss()
+        } else {
+            scope.launch {
+                sheetState.hide()
+                onDismiss()
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = { dismissThen {} },
+        sheetState = sheetState,
+        sheetGesturesEnabled = !dismissalInFlight,
+    ) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             Row(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
@@ -240,20 +311,14 @@ internal fun WorldActionsSheet(
             SheetAction(
                 icon = Icons.AutoMirrored.Rounded.QueueMusic,
                 label = stringResource(Res.string.foryou_world_open),
-                onClick = {
-                    onDismiss()
-                    onOpen()
-                },
+                onClick = { dismissThen(onOpen) },
             )
             // Seeded from the cover, which is the world's most central track — so the journey
             // starts from the middle of the region rather than from its edge.
             SheetAction(
                 icon = Icons.Rounded.AutoAwesome,
                 label = stringResource(Res.string.foryou_world_smart),
-                onClick = {
-                    onDismiss()
-                    onStartSmart()
-                },
+                onClick = { dismissWhile(onStartSmart) },
             )
         }
     }

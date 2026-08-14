@@ -40,10 +40,12 @@ import kotlin.time.TimeSource
  * artwork through the model merely to colour the player.
  */
 @Composable
-actual fun rememberArtworkColor(uri: String?): Color? {
-    var color by remember(uri) { mutableStateOf<Color?>(null) }
+actual fun rememberArtworkColor(uri: String?): ArtworkColorState {
+    var state by remember(uri) {
+        mutableStateOf(ArtworkColorState(color = null, resolved = uri == null))
+    }
     LaunchedEffect(uri) {
-        color = uri?.let { artworkUri ->
+        val color = uri?.let { artworkUri ->
             val cached = artworkColorCache[artworkUri]?.takeIf { entry ->
                 entry.value != null || entry.storedAt.elapsedNow() < NEGATIVE_CACHE_TTL
             }
@@ -61,8 +63,9 @@ actual fun rememberArtworkColor(uri: String?): Color? {
                 }
             }
         }
+        state = ArtworkColorState(color = color, resolved = true)
     }
-    return color
+    return state
 }
 
 @OptIn(ExperimentalForeignApi::class)

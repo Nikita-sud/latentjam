@@ -131,6 +131,38 @@ internal class ListeningHistoryTest {
     }
 
     @Test
+    fun statsSnapshotsStayImmutableWhileCachedAggregateAdvances() = runTest {
+        val history = DefaultListeningHistory(FakeStore())
+        history.record(event("1", startedAt = 100, played = 30_000, skipped = true))
+
+        val firstSnapshot = history.stats()
+        history.record(event("1", startedAt = 200, played = 190_000, completed = true))
+        val secondSnapshot = history.stats()
+
+        assertEquals(1, firstSnapshot.getValue(TrackId("1")).plays)
+        assertEquals(30_000, firstSnapshot.getValue(TrackId("1")).totalPlayedMs)
+        assertEquals(2, secondSnapshot.getValue(TrackId("1")).plays)
+        assertEquals(220_000, secondSnapshot.getValue(TrackId("1")).totalPlayedMs)
+    }
+
+    @Test
+    fun replacingHistoryRebuildsTheCachedAggregate() = runTest {
+        val history = DefaultListeningHistory(FakeStore())
+        history.record(event("old", startedAt = 100))
+
+        history.replace(
+            listOf(
+                event("new", startedAt = 200, played = 10_000),
+                event("new", startedAt = 300, played = 20_000, completed = true),
+            ),
+        )
+
+        assertEquals(setOf(TrackId("new")), history.stats().keys)
+        assertEquals(2, history.stats().getValue(TrackId("new")).plays)
+        assertEquals(30_000, history.stats().getValue(TrackId("new")).totalPlayedMs)
+    }
+
+    @Test
     fun statsPlayedDurationSaturatesInsteadOfOverflowing() = runTest {
         val history = DefaultListeningHistory(FakeStore())
         history.record(event("1", startedAt = 100, played = Long.MAX_VALUE))

@@ -39,6 +39,7 @@
     <string name="action_add">Aggiungi</string>
     <string name="cd_more_options">Altre opzioni</string>
     <string name="cd_search_library">Cerca nella libreria</string>
+    <string name="cd_alphabet_index">Indice alfabetico</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Brano</string>

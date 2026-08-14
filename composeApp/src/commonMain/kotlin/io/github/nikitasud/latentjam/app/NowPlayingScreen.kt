@@ -6,15 +6,11 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.RepeatMode as AnimationRepeatMode
 import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
@@ -89,6 +85,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -106,6 +103,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -145,6 +144,7 @@ import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.SleepTimerState
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -155,6 +155,36 @@ import org.jetbrains.compose.resources.stringResource
 /** How much of the queue sheet stays visible under the player. */
 private val QueuePeekHeight = 84.dp
 private val SLEEP_TIMER_MINUTES = listOf(15, 30, 45, 60)
+private data class TrackMetadataPresentation(
+    val track: TrackDescriptor?,
+    val sourceLabel: String?,
+)
+
+/**
+ * One cheap identity token for a queue snapshot.
+ *
+ * The instance deliberately keeps reference equality: queue rows can use it as a Compose key to
+ * reset gesture state after a structural change without hashing/comparing the whole queue once per
+ * visible row. Duplicate detection is folded into the same single pass that creates the token.
+ */
+internal class QueueIdentitySnapshot internal constructor(
+    internal val hasDuplicateTrackIds: Boolean,
+)
+
+internal fun queueIdentitySnapshot(queue: List<TrackDescriptor>): QueueIdentitySnapshot {
+    val seen = HashSet<TrackId>()
+    for (track in queue) {
+        if (!seen.add(track.id)) return QueueIdentitySnapshot(hasDuplicateTrackIds = true)
+    }
+    return QueueIdentitySnapshot(hasDuplicateTrackIds = false)
+}
+
+/** Stable IDs animate safely; duplicate queues use guaranteed-unique positional keys instead. */
+internal fun queueLazyItemKey(
+    snapshot: QueueIdentitySnapshot,
+    index: Int,
+    track: TrackDescriptor,
+): Any = if (snapshot.hasDuplicateTrackIds) index else track.id.value
 
 /**
  * Full-screen now-playing view. The background carries the track's accent —
@@ -195,15 +225,22 @@ fun NowPlayingScreen(
     val scope = rememberCoroutineScope()
     val sheetState = rememberBottomSheetScaffoldState()
     var showSleepTimer by remember { mutableStateOf(false) }
+    val reduceMotion = rememberReduceMotion()
     PlatformBackHandler(enabled = true, onBack = onClose)
 
     Surface(
         // Same shared container as the mini-player pill: the pill grows into
         // this screen instead of being swapped for it.
-        modifier = with(sharedScope) {
+        modifier = if (reduceMotion) {
+            Modifier.fillMaxSize()
+        } else with(sharedScope) {
             Modifier
                 .fillMaxSize()
-                .sharedBounds(rememberSharedContentState(PLAYER_SURFACE_KEY), animatedScope)
+                .sharedBounds(
+                    rememberSharedContentState(PLAYER_SURFACE_KEY),
+                    animatedScope,
+                    boundsTransform = motionBoundsTransform(),
+                )
         },
     ) {
         Box(
@@ -301,10 +338,10 @@ fun NowPlayingScreen(
                             IconButton(onClick = onToggleFavorite) {
                                 // A like bounces once under the finger; removing one stays calm,
                                 // and entering the screen with an old favourite stays still too.
-                                val reduceMotion = rememberReduceMotion()
-                                val heartScale = remember { Animatable(1f) }
-                                var wasFavorite by remember { mutableStateOf(isFavorite) }
-                                LaunchedEffect(isFavorite) {
+                                val trackId = checkNotNull(now.track).id
+                                val heartScale = remember(trackId) { Animatable(1f) }
+                                var wasFavorite by remember(trackId) { mutableStateOf(isFavorite) }
+                                LaunchedEffect(trackId, isFavorite, reduceMotion) {
                                     val turnedOn = isFavorite && !wasFavorite
                                     wasFavorite = isFavorite
                                     if (turnedOn && !reduceMotion) {
@@ -316,6 +353,10 @@ fun NowPlayingScreen(
                                                 stiffness = Spring.StiffnessMedium,
                                             ),
                                         )
+                                    } else {
+                                        // An unlike, a canceled bounce, or Reduce Motion changing
+                                        // mid-flight always restores the stable resting scale.
+                                        heartScale.snapTo(1f)
                                     }
                                 }
                                 Icon(
@@ -392,44 +433,68 @@ fun NowPlayingScreen(
                     ) {
                         LargeArtwork(
                             uri = now.track?.artworkUri,
-                            modifier = with(sharedScope) {
+                            modifier = if (reduceMotion) Modifier else with(sharedScope) {
                                 Modifier.sharedElement(
                                     rememberSharedContentState(ARTWORK_KEY),
                                     animatedScope,
+                                    boundsTransform = motionBoundsTransform(),
                                 )
                             },
                         )
                         Spacer(modifier = Modifier.weight(1f))
 
-                        Text(
-                            text = now.track?.title ?: stringResource(Res.string.now_playing_nothing),
-                            style = MaterialTheme.typography.headlineSmall,
-                            textAlign = TextAlign.Center,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = listOfNotNull(now.track?.artist, now.track?.album)
-                                .joinToString(" — "),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (queueSourceLabel != null && now.track != null) {
-                            Text(
-                                text = stringResource(
-                                    Res.string.now_playing_source,
-                                    queueSourceLabel,
+                        // Cover, colour and words now change as one event when the queue advances.
+                        // The small fade-through keeps a skip legible without sending the whole
+                        // player sideways like another page navigation.
+                        AnimatedContent(
+                            targetState = TrackMetadataPresentation(
+                                track = now.track,
+                                sourceLabel = queueSourceLabel,
+                            ),
+                            contentKey = { it.track?.id },
+                            transitionSpec = { motionFadeThrough(reduceMotion) },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = "track-metadata",
+                        ) { shown ->
+                            val shownTrack = shown.track
+                            Column(
+                                modifier = Modifier.inactiveForMotion(
+                                    shownTrack?.id != now.track?.id,
                                 ),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(
+                                    text = shownTrack?.title
+                                        ?: stringResource(Res.string.now_playing_nothing),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = listOfNotNull(shownTrack?.artist, shownTrack?.album)
+                                        .joinToString(" — "),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (shown.sourceLabel != null && shownTrack != null) {
+                                    Text(
+                                        text = stringResource(
+                                            Res.string.now_playing_source,
+                                            shown.sourceLabel,
+                                        ),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(top = 4.dp),
+                                    )
+                                }
+                            }
                         }
 
                         Spacer(modifier = Modifier.weight(1f))
@@ -456,18 +521,22 @@ fun NowPlayingScreen(
                                     modifier = Modifier.size(36.dp),
                                 )
                             }
+                            val playPauseDescription = stringResource(
+                                if (now.isPlaying) {
+                                    Res.string.action_pause
+                                } else {
+                                    Res.string.action_play
+                                },
+                            )
                             FilledIconButton(
                                 onClick = { scope.launch { playback.togglePlayPause() } },
-                                modifier = Modifier.size(72.dp),
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .semantics { contentDescription = playPauseDescription },
                             ) {
                                 AnimatedContent(
                                     targetState = now.isPlaying,
-                                    transitionSpec = {
-                                        (
-                                            fadeIn(tween(120)) +
-                                                scaleIn(tween(120), initialScale = 0.7f)
-                                            ) togetherWith fadeOut(tween(90))
-                                    },
+                                    transitionSpec = { motionIconTransform(reduceMotion) },
                                     label = "play-pause",
                                 ) { playing ->
                                 Icon(
@@ -476,12 +545,10 @@ fun NowPlayingScreen(
                                     } else {
                                         Icons.Rounded.PlayArrow
                                     },
-                                    contentDescription = if (playing) {
-                                        stringResource(Res.string.action_pause)
-                                    } else {
-                                        stringResource(Res.string.action_play)
-                                    },
-                                    modifier = Modifier.size(36.dp),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .inactiveForMotion(playing != now.isPlaying),
                                 )
                                 }
                             }
@@ -578,20 +645,13 @@ private fun LargeArtwork(uri: String?, modifier: Modifier = Modifier) {
             modifier = Modifier.size(96.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Crossfade(
-            targetState = uri,
-            animationSpec = tween(300),
-            modifier = Modifier.matchParentSize(),
-            label = "cover",
-        ) { shownUri ->
-            if (shownUri != null) {
-                AsyncImage(
-                    model = shownUri,
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.Crop,
-                )
-            }
+        if (uri != null) {
+            AsyncImage(
+                model = uri,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
         }
     }
 }
@@ -657,35 +717,43 @@ private fun SleepTimerChoice(label: String, onClick: () -> Unit) {
 @Composable
 private fun RepeatButton(mode: RepeatMode, onClick: () -> Unit) {
     val active = mode != RepeatMode.OFF
+    val reduceMotion = rememberReduceMotion()
+    val tint by animateColorAsState(
+        targetValue = if (active) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = tween(
+            if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+        ),
+        label = "repeat-tint",
+    )
+    val description = stringResource(
+        when (mode) {
+            RepeatMode.OFF -> Res.string.cd_repeat_off
+            RepeatMode.ALL -> Res.string.cd_repeat_all
+            RepeatMode.ONE -> Res.string.cd_repeat_one
+        },
+    )
     IconButton(
         onClick = onClick,
-        modifier = Modifier.size(48.dp),
+        modifier = Modifier
+            .size(48.dp)
+            .semantics { contentDescription = description },
         colors = IconButtonDefaults.iconButtonColors(
-            contentColor = if (active) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
+            contentColor = tint,
         ),
     ) {
         AnimatedContent(
             targetState = mode,
-            transitionSpec = {
-                (
-                    fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.7f)
-                    ) togetherWith fadeOut(tween(90))
-            },
+            transitionSpec = { motionIconTransform(reduceMotion) },
             label = "repeat-mode",
         ) { shownMode ->
         Icon(
             imageVector = if (shownMode == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
-            contentDescription = stringResource(
-                when (shownMode) {
-                    RepeatMode.OFF -> Res.string.cd_repeat_off
-                    RepeatMode.ALL -> Res.string.cd_repeat_all
-                    RepeatMode.ONE -> Res.string.cd_repeat_one
-                },
-            ),
+            contentDescription = null,
+            modifier = Modifier.inactiveForMotion(shownMode != mode),
         )
         }
     }
@@ -693,39 +761,43 @@ private fun RepeatButton(mode: RepeatMode, onClick: () -> Unit) {
 
 @Composable
 private fun ShuffleButton(mode: ShuffleMode, onClick: () -> Unit) {
+    val reduceMotion = rememberReduceMotion()
     val tint by animateColorAsState(
         targetValue = when (mode) {
             ShuffleMode.OFF -> MaterialTheme.colorScheme.onSurfaceVariant
             ShuffleMode.ON -> MaterialTheme.colorScheme.primary
             ShuffleMode.SMART -> MaterialTheme.colorScheme.tertiary
         },
-        animationSpec = tween(Motion.APPEAR_MS),
+        animationSpec = tween(
+            if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+        ),
         label = "shuffle-tint",
     )
-    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+    val description = stringResource(
+        when (mode) {
+            ShuffleMode.OFF -> Res.string.cd_shuffle_off
+            ShuffleMode.ON -> Res.string.cd_shuffle_on
+            ShuffleMode.SMART -> Res.string.cd_shuffle_smart
+        },
+    )
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .size(48.dp)
+            .semantics { contentDescription = description },
+    ) {
         AnimatedContent(
             targetState = mode,
-            transitionSpec = {
-                (
-                    fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.7f)
-                    ) togetherWith fadeOut(tween(90))
-            },
+            transitionSpec = { motionIconTransform(reduceMotion) },
             label = "shuffle-mode",
         ) { shownMode ->
         Icon(
             // SMART wears the app's own mark; plain shuffle keeps the
             // standard glyph, so the three states never rely on tint alone.
             imageVector = if (shownMode == ShuffleMode.SMART) LatentJamMark else Icons.Rounded.Shuffle,
-            // One string per state rather than an interpolated enum name: the enum
-            // is English source code, and a screen reader would have read it out.
-            contentDescription = stringResource(
-                when (shownMode) {
-                    ShuffleMode.OFF -> Res.string.cd_shuffle_off
-                    ShuffleMode.ON -> Res.string.cd_shuffle_on
-                    ShuffleMode.SMART -> Res.string.cd_shuffle_smart
-                },
-            ),
+            contentDescription = null,
             tint = tint,
+            modifier = Modifier.inactiveForMotion(shownMode != mode),
         )
         }
     }
@@ -750,20 +822,36 @@ private fun QueueRow(
     onMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val reduceMotion = rememberReduceMotion()
+    val rowAlpha by animateFloatAsState(
+        targetValue = if (isPlayed) 0.45f else 1f,
+        animationSpec = tween(
+            if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+        ),
+        label = "queue-row-alpha",
+    )
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             // Dim the whole row, not just the text: a full-contrast cover next to greyed labels
             // still reads as "up next".
-            .alpha(if (isPlayed) 0.45f else 1f)
+            .alpha(rowAlpha)
             .padding(start = 20.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Artwork(uri = track.artworkUri, size = 48.dp)
-            if (isCurrent) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isCurrent,
+                enter = androidx.compose.animation.fadeIn(tween(
+                    if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS,
+                )),
+                exit = androidx.compose.animation.fadeOut(tween(
+                    if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS,
+                )),
+            ) {
                 Box(
                     modifier = Modifier
                         .size(48.dp)
@@ -890,46 +978,70 @@ private fun QueueSheetContent(
         initialFirstVisibleItemIndex = currentIndex.coerceAtLeast(0),
     )
     val haptics = LocalHapticFeedback.current
+    val reduceMotion = rememberReduceMotion()
+    val queueIdentity = remember(queue) { queueIdentitySnapshot(queue) }
+    val hasDuplicateIds = queueIdentity.hasDuplicateTrackIds
+    var previouslyHadDuplicateIds by remember { mutableStateOf(hasDuplicateIds) }
+    val ambiguousItemIdentity = hasDuplicateIds || previouslyHadDuplicateIds
+    SideEffect { previouslyHadDuplicateIds = hasDuplicateIds }
     // Reordering floats the pressed row and commits ONE move on drop. Mutating the list mid-drag
-    // would re-key every row under the finger (keys are positional) and kill the gesture.
+    // would still replace the model under the finger and kill the gesture.
     var draggingIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
     var dragTargetIndex by remember { mutableStateOf<Int?>(null) }
     Column(modifier = Modifier.fillMaxWidth()) {
         Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-            Text(
-                text = if (queue.isEmpty()) {
-                    stringResource(Res.string.queue_title)
-                } else {
-                    stringResource(Res.string.queue_title_count, queue.size)
-                },
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
+            AnimatedContent(
+                targetState = queue.size,
+                transitionSpec = { motionFadeThrough(reduceMotion) },
                 modifier = Modifier.align(Alignment.Center),
-            )
-            if (queue.isNotEmpty()) {
-                // A queue worth keeping — often SMART's work — becomes a playlist in two taps.
-                Icon(
-                    imageVector = Icons.Rounded.LibraryAdd,
-                    contentDescription = stringResource(Res.string.action_add_to_playlist),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 20.dp)
-                        .size(22.dp)
-                        .clickable(onClick = onSaveQueue),
+                label = "queue-count",
+            ) { count ->
+                Text(
+                    text = if (count == 0) {
+                        stringResource(Res.string.queue_title)
+                    } else {
+                        stringResource(Res.string.queue_title_count, count)
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
                 )
+            }
+            AnimatedContent(
+                targetState = queue.isNotEmpty(),
+                transitionSpec = { motionIconTransform(reduceMotion) },
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 7.dp),
+                label = "save-queue",
+            ) { canSave ->
+                Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    if (canSave) {
+                        // A queue worth keeping — often SMART's work — becomes a playlist in two taps.
+                        IconButton(onClick = onSaveQueue) {
+                            Icon(
+                                imageVector = Icons.Rounded.LibraryAdd,
+                                contentDescription =
+                                    stringResource(Res.string.action_add_to_playlist),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
         LazyColumn(state = listState) {
-            // Keyed by POSITION as well as identity. A queue may legitimately hold the same track
-            // more than once — added by hand, or repeated across a long session — and a key that is
-            // only the track id turns that into a crash during measurement.
+            // Stable IDs preserve row identity across ordinary reorders. Duplicate IDs cannot do
+            // that safely, so those queues use positional keys and disable item animations.
             itemsIndexed(
                 queue,
-                key = { index, track -> "$index:${track.id.value}" },
+                key = { index, track -> queueLazyItemKey(queueIdentity, index, track) },
             ) { index, track ->
+                // Duplicate occurrences cannot be distinguished by TrackId alone. Reset gesture
+                // state on any structural queue change so a survivor never inherits a removed
+                // duplicate's dismissed anchor. queueIdentity is reference-equal and therefore
+                // avoids hashing/comparing the entire queue once for every visible row.
+                androidx.compose.runtime.key(queueIdentity) {
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = { value ->
                         if (value != SwipeToDismissBoxValue.Settled) {
@@ -942,7 +1054,19 @@ private fun QueueSheetContent(
                 )
                 Box(
                     modifier = Modifier
-                        .animateItem()
+                        .animateItem(
+                            fadeInSpec = if (ambiguousItemIdentity) null else tween(
+                                if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                            ),
+                            placementSpec = if (reduceMotion || ambiguousItemIdentity) {
+                                null
+                            } else {
+                                tween(Motion.APPEAR_MS)
+                            },
+                            fadeOutSpec = if (ambiguousItemIdentity) null else tween(
+                                if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                            ),
+                        )
                         .then(
                             if (draggingIndex == index) {
                                 Modifier
@@ -1025,6 +1149,7 @@ private fun QueueSheetContent(
                             ),
                         )
                     }
+                }
                 }
             }
         }

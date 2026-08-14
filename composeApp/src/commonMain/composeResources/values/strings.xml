@@ -40,6 +40,7 @@
     <string name="cd_more_options">More options</string>
     <!-- Content descriptions for the top bar. -->
     <string name="cd_search_library">Search library</string>
+    <string name="cd_alphabet_index">Alphabet index</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Track</string>

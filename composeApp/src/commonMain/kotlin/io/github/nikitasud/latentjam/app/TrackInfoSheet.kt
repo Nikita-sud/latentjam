@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -83,6 +84,7 @@ internal fun TrackInfoSheet(
     onDismiss: () -> Unit,
 ) {
     val lyricsSource = track.lyricsSourceIdentity()
+    val reduceMotion = rememberReduceMotion()
     var editing by remember(track.id) { mutableStateOf(false) }
     var title by remember(track.id) { mutableStateOf(track.title.orEmpty()) }
     var artist by remember(track.id) { mutableStateOf(track.artist.orEmpty()) }
@@ -141,97 +143,129 @@ internal fun TrackInfoSheet(
                 }
             }
 
-            if (editing) {
-                MetadataField(stringResource(Res.string.info_title), title) { title = it }
-                MetadataField(stringResource(Res.string.info_artist), artist) { artist = it }
-                MetadataField(stringResource(Res.string.info_album), album) { album = it }
-                MetadataField(stringResource(Res.string.info_genre), genre) { genre = it }
-                MetadataField(stringResource(Res.string.info_year), year) { input ->
-                    // Filtered at entry rather than validated on save: a year is digits, and
-                    // rejecting the field afterwards would lose the rest of the edit.
-                    year = input.filter(Char::isDigit).take(4)
-                }
-
-                failure?.let { outcome ->
-                    Text(
-                        text = failureMessage(outcome),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                }
-
-                Text(
-                    text = stringResource(Res.string.info_edit_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 12.dp),
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Button(
-                        enabled = !saving,
-                        onClick = {
-                            // An untouched field sends null, which leaves that frame exactly as it
-                            // is. A field the user emptied sends "", which removes it — the two
-                            // have to stay distinguishable all the way down to the writer.
-                            val edits = TagEdits(
-                                title = title.trim().takeIf { it != track.title.orEmpty() },
-                                artist = artist.trim().takeIf { it != track.artist.orEmpty() },
-                                album = album.trim().takeIf { it != track.album.orEmpty() },
-                                genre = genre.trim().takeIf { it != track.genre.orEmpty() },
-                                year = year.trim().takeIf { it != track.year?.toString().orEmpty() },
-                            )
-                            if (edits.isEmpty) {
-                                onDismiss()
-                            } else {
-                                failure = null
-                                saving = true
-                                saveTags(track, edits)
-                            }
-                        },
+            AnimatedContent(
+                targetState = editing,
+                transitionSpec = { motionFadeThrough(reduceMotion) },
+                label = "track-info-mode",
+            ) { isEditing ->
+                if (isEditing) {
+                    Column(
+                        modifier = Modifier.inactiveForMotion(isEditing != editing),
                     ) {
-                        Text(
-                            stringResource(
-                                if (saving) Res.string.info_saving else Res.string.info_save,
-                            ),
-                        )
+                    MetadataField(stringResource(Res.string.info_title), title) { title = it }
+                    MetadataField(stringResource(Res.string.info_artist), artist) { artist = it }
+                    MetadataField(stringResource(Res.string.info_album), album) { album = it }
+                    MetadataField(stringResource(Res.string.info_genre), genre) { genre = it }
+                    MetadataField(stringResource(Res.string.info_year), year) { input ->
+                        // Filtered at entry rather than validated on save: a year is digits, and
+                        // rejecting the field afterwards would lose the rest of the edit.
+                        year = input.filter(Char::isDigit).take(4)
                     }
-                    TextButton(
-                        enabled = !saving,
-                        onClick = { editing = false },
-                    ) { Text(stringResource(Res.string.info_cancel)) }
-                }
-            } else {
-                InfoRow(stringResource(Res.string.info_title), track.title)
-                InfoRow(stringResource(Res.string.info_artist), track.artist)
-                InfoRow(stringResource(Res.string.info_album), track.album)
-                InfoRow(stringResource(Res.string.info_genre), track.genre)
-                InfoRow(stringResource(Res.string.info_year), track.year?.toString())
-                InfoRow(
-                    stringResource(Res.string.info_duration),
-                    track.durationMs?.let(::formatDuration),
-                )
-                InfoRow(stringResource(Res.string.info_location), track.audioUri)
-                lyrics?.let { text ->
-                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                        Text(
-                            text = stringResource(Res.string.info_lyrics),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = text,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+
+                    AnimatedContent(
+                        targetState = failure,
+                        transitionSpec = { motionFadeThrough(reduceMotion) },
+                        label = "track-info-failure",
+                    ) { outcome ->
+                        outcome?.let {
+                            Text(
+                                text = failureMessage(it),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 12.dp),
+                            )
+                        }
                     }
-                }
-                Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 24.dp)) {
-                    Button(onClick = { editing = true }) {
-                        Text(stringResource(Res.string.info_edit))
+
+                    Text(
+                        text = stringResource(Res.string.info_edit_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 12.dp),
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Button(
+                            enabled = !saving,
+                            onClick = {
+                                // An untouched field sends null, which leaves that frame exactly as
+                                // it is. A field the user emptied sends "", which removes it — the
+                                // two have to stay distinguishable all the way down to the writer.
+                                val edits = TagEdits(
+                                    title = title.trim().takeIf { it != track.title.orEmpty() },
+                                    artist = artist.trim().takeIf { it != track.artist.orEmpty() },
+                                    album = album.trim().takeIf { it != track.album.orEmpty() },
+                                    genre = genre.trim().takeIf { it != track.genre.orEmpty() },
+                                    year = year.trim()
+                                        .takeIf { it != track.year?.toString().orEmpty() },
+                                )
+                                if (edits.isEmpty) {
+                                    onDismiss()
+                                } else {
+                                    failure = null
+                                    saving = true
+                                    saveTags(track, edits)
+                                }
+                            },
+                        ) {
+                            AnimatedContent(
+                                targetState = saving,
+                                transitionSpec = { motionFadeThrough(reduceMotion) },
+                                label = "track-info-save-state",
+                            ) { isSaving ->
+                                Text(
+                                    stringResource(
+                                        if (isSaving) {
+                                            Res.string.info_saving
+                                        } else {
+                                            Res.string.info_save
+                                        },
+                                    ),
+                                    modifier = Modifier.inactiveForMotion(isSaving != saving),
+                                )
+                            }
+                        }
+                        TextButton(
+                            enabled = !saving,
+                            onClick = { editing = false },
+                        ) { Text(stringResource(Res.string.info_cancel)) }
+                    }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.inactiveForMotion(isEditing != editing),
+                    ) {
+                    InfoRow(stringResource(Res.string.info_title), track.title)
+                    InfoRow(stringResource(Res.string.info_artist), track.artist)
+                    InfoRow(stringResource(Res.string.info_album), track.album)
+                    InfoRow(stringResource(Res.string.info_genre), track.genre)
+                    InfoRow(stringResource(Res.string.info_year), track.year?.toString())
+                    InfoRow(
+                        stringResource(Res.string.info_duration),
+                        track.durationMs?.let(::formatDuration),
+                    )
+                    InfoRow(stringResource(Res.string.info_location), track.audioUri)
+                    lyrics?.let { text ->
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                            Text(
+                                text = stringResource(Res.string.info_lyrics),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = text,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 24.dp)) {
+                        Button(onClick = { editing = true }) {
+                            Text(stringResource(Res.string.info_edit))
+                        }
+                    }
                     }
                 }
             }

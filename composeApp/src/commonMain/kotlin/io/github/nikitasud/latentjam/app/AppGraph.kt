@@ -27,14 +27,17 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.di.smartEngineModule
 import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
+import io.github.nikitasud.latentjam.smart.di.smartMapLayoutDispatcherQualifier
 import io.github.nikitasud.latentjam.smart.chain.smartPredictorModule
 import io.github.nikitasud.latentjam.smart.smartChainInputsModule
 import io.github.nikitasud.latentjam.smart.smartEngineBackendModule
 import io.github.nikitasud.latentjam.smart.text.smartTextEncoderModule
 import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -47,6 +50,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
 import org.koin.core.module.Module
@@ -185,17 +189,55 @@ object AppGraph {
             // saved session at that moment would defeat the restore it exists for. Position is
             // bucketed to 10 s so the ~2 Hz playback ticker does not become 2 Hz disk writes.
             appScope.launch {
+                // Android's ticker reuses immutable queue snapshots between actual queue edits.
+                // Preserve their projected ids too: otherwise a 10k-row queue allocates 20k string
+                // references every half-second merely because playback position advanced.
+                var cachedLiveQueue: List<TrackDescriptor>? = null
+                var cachedLiveQueueIds: List<String> = emptyList()
+                var cachedSourceQueue: List<TrackDescriptor>? = null
+                var cachedSourceQueueIds: List<String> = emptyList()
                 combine(playback.state, queueSource) { now, source ->
+                    if (now.track == null) {
+                        // Keep the durable resume record, but do not retain a stopped session's
+                        // potentially 10k-row descriptor graphs merely to accelerate a ticker
+                        // that no longer exists.
+                        cachedLiveQueue = null
+                        cachedLiveQueueIds = emptyList()
+                        cachedSourceQueue = null
+                        cachedSourceQueueIds = emptyList()
+                    }
                     now.track?.let { track ->
-                        val liveQueueIds = now.queue
+                        val persistableLiveQueue = now.queue
                             .takeIf { it.size in 1..MAX_RESUME_QUEUE }
-                            ?.map { it.id.value }
-                            .orEmpty()
+                        val liveQueueIds = if (persistableLiveQueue == null) {
+                            cachedLiveQueue = null
+                            cachedLiveQueueIds = emptyList()
+                            cachedLiveQueueIds
+                        } else if (persistableLiveQueue === cachedLiveQueue) {
+                            cachedLiveQueueIds
+                        } else {
+                            cachedLiveQueue = persistableLiveQueue
+                            persistableLiveQueue.mapTo(ArrayList(persistableLiveQueue.size)) {
+                                it.id.value
+                            }.also { cachedLiveQueueIds = it }
+                        }
                         // Empty is a real source after every original playlist row was deleted;
                         // null means an oversized source was deliberately omitted and restore must
                         // use its backward-compatible fallback instead.
                         val persistedSourceQueue = now.sourceQueue
                             .takeIf { it.size <= MAX_RESUME_QUEUE }
+                        val sourceQueueIds = if (persistedSourceQueue == null) {
+                            cachedSourceQueue = null
+                            cachedSourceQueueIds = emptyList()
+                            cachedSourceQueueIds
+                        } else if (persistedSourceQueue === cachedSourceQueue) {
+                            cachedSourceQueueIds
+                        } else {
+                            cachedSourceQueue = persistedSourceQueue
+                            persistedSourceQueue.mapTo(ArrayList(persistedSourceQueue.size)) {
+                                it.id.value
+                            }.also { cachedSourceQueueIds = it }
+                        }
                         ResumePlayback(
                             trackId = track.id.value,
                             shuffleMode = now.shuffleMode.name,
@@ -211,9 +253,7 @@ object AppGraph {
                             // SMART's live queue is a generated path, not its durable source. Save
                             // the latter independently so SMART -> OFF after restart returns to the
                             // originating playlist/collection instead of the recommendation tail.
-                            sourceQueueTrackIds = persistedSourceQueue
-                                ?.map { it.id.value }
-                                .orEmpty(),
+                            sourceQueueTrackIds = sourceQueueIds,
                             sourceQueuePersisted = persistedSourceQueue != null,
                         )
                     }
@@ -247,6 +287,10 @@ object AppGraph {
     /** Where the Map's 2-D layout is cached between visits. */
     val layoutStore: IndexStore
         get() = koin.get(smartLayoutQualifier)
+
+    /** Dedicated low-priority serial lane for the Map's potentially minute-long O(n²) layout. */
+    val mapLayoutDispatcher: CoroutineDispatcher
+        get() = koin.get(smartMapLayoutDispatcherQualifier)
 
     /** Previously searched queries. */
     val recentSearches: RecentSearches
@@ -309,8 +353,9 @@ object AppGraph {
      * foreground service. Consequently changing screen, locking the phone, or swiping the task
      * away does not cancel a half-finished library scan.
      *
-     * Chunks are persisted by [SimilarityEngine], so a genuine process death is also harmless:
-     * the next launch presents the same key again and already-indexed tracks are skipped.
+     * Work stays in small interactive chunks, while full snapshots are checkpointed at a bounded
+     * cadence. A genuine process death can therefore lose at most one checkpoint window; the next
+     * launch presents the same key again and already-persisted tracks are skipped.
      */
     fun ensureAutomaticIndexing(
         tracks: List<TrackDescriptor>,
@@ -344,6 +389,9 @@ object AppGraph {
             val total = tracks.size
             var reportProgress = false
             val eta = IndexingEta(nowMillis())
+            val checkpointCadence = AutomaticIndexCheckpointCadence(
+                tracksPerCheckpoint = AUTOMATIC_INDEX_CHECKPOINT_TRACKS,
+            )
             mutableAutomaticIndexing.value = AutomaticIndexingState(
                 trackIds = trackIds,
                 running = true,
@@ -379,18 +427,23 @@ object AppGraph {
                     )
                 }
                 tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
-                    val added = engine.ensureMetadataVectors(chunk)
+                    val added = engine.stageMetadataVectors(chunk)
+                    checkpointCadence.afterBatch(chunk.size, engine::persistPendingAnalysis)
                     if (added > 0) delay(AUTOMATIC_INDEX_YIELD_MS)
                 }
+                // metadataReady promises more than an in-memory process cache: a restart should
+                // see every vector encoded by this phase, including a short final window.
+                checkpointCadence.flush(engine::persistPendingAnalysis)
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                     metadataReady = true,
                 )
 
                 var done = 0
                 tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
-                    val report = engine.indexLibrary(chunk)
+                    val report = engine.stageLibraryIndex(chunk)
                     failures.putAll(report.errors)
                     done += chunk.size
+                    checkpointCadence.afterBatch(chunk.size, engine::persistPendingAnalysis)
                     val remaining = eta.remainingMs(done, total, nowMillis())
                     if (reportProgress) {
                         notifier.show(
@@ -409,12 +462,14 @@ object AppGraph {
                         failures = failures.toMap(),
                     )
                     // A short scheduling gap also gives thermal management a chance to settle;
-                    // 75 ms per checkpoint is invisible beside audio inference but materially
+                    // 75 ms per model batch is invisible beside audio inference but materially
                     // improves gesture latency on mid-range phones.
                     if (report.indexed > 0 || report.failed > 0) {
                         delay(AUTOMATIC_INDEX_YIELD_MS)
                     }
                 }
+                // Completion is published only after the short final checkpoint is durable.
+                checkpointCadence.flush(engine::persistPendingAnalysis)
                 mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
                     running = false,
                     complete = true,
@@ -422,6 +477,19 @@ object AppGraph {
                     failures = failures.toMap(),
                 )
             } finally {
+                // A batch can be cancelled after installing some vectors but before it returns to
+                // afterBatch. Finish that small dirty window outside the cancelled Job so ordinary
+                // navigation/library replacement loses no work. A hard process kill is still
+                // bounded by the regular 32-track checkpoints above.
+                withContext(NonCancellable) {
+                    try {
+                        engine.persistPendingAnalysis()
+                    } catch (failure: Exception) {
+                        // The engine keeps its dirty flags set on save failure; a replacement job
+                        // or the next durable operation will retry. Cleanup must still run.
+                        println("SMART: final indexing checkpoint failed: $failure")
+                    }
+                }
                 if (reportProgress) notifier.finish()
                 permissions.cancelNotificationPrompt()
                 // Cancellation is not completion. The replacement job (or the next process
@@ -463,9 +531,39 @@ data class AutomaticIndexingState(
 )
 
 // The engine serialises a batch under its model/index lock. Eight bounds how long an interactive
-// SMART/search request can wait behind first-run indexing while retaining frequent checkpoints.
+// SMART/search request can wait; the separate cadence coalesces four such batches per snapshot.
 private const val AUTOMATIC_INDEX_CHUNK_SIZE = 8
+private const val AUTOMATIC_INDEX_CHECKPOINT_TRACKS = 32
 private const val AUTOMATIC_INDEX_YIELD_MS = 75L
+
+/** Coalesces small model-lock batches without allowing an unbounded crash-loss window. */
+internal class AutomaticIndexCheckpointCadence(
+    private val tracksPerCheckpoint: Int,
+) {
+    private var tracksSinceCheckpoint: Int = 0
+
+    init {
+        require(tracksPerCheckpoint > 0)
+    }
+
+    suspend fun afterBatch(
+        trackCount: Int,
+        checkpoint: suspend () -> Unit,
+    ) {
+        require(trackCount in 0..tracksPerCheckpoint)
+        tracksSinceCheckpoint += trackCount
+        if (tracksSinceCheckpoint >= tracksPerCheckpoint) {
+            checkpoint()
+            tracksSinceCheckpoint = 0
+        }
+    }
+
+    /** Always attempts a checkpoint so partially completed/cancelled batches are included too. */
+    suspend fun flush(checkpoint: suspend () -> Unit) {
+        checkpoint()
+        tracksSinceCheckpoint = 0
+    }
+}
 
 /** Queues beyond this are effectively "the whole library" and are cheaper to rebuild than store. */
 // Keep this aligned with the collision-safe decoder cap. A 10k-id source is still a modest

@@ -93,6 +93,17 @@ public interface SimilarityEngine {
     public suspend fun indexLibrary(tracks: List<TrackDescriptor>): IndexReport
 
     /**
+     * Performs the same in-memory work as [indexLibrary], but permits the durable snapshot to be
+     * coalesced with later batches through [persistPendingAnalysis].
+     *
+     * Intended only for a long-running scheduler that supplies its own bounded checkpoint cadence.
+     * The default keeps the ordinary durable-per-call contract, so alternate implementations stay
+     * safe without opting into deferred persistence.
+     */
+    public suspend fun stageLibraryIndex(tracks: List<TrackDescriptor>): IndexReport =
+        indexLibrary(tracks)
+
+    /**
      * Clears durable invalid-audio markers for [ids], making those unchanged tracks eligible for
      * the next [indexLibrary] call again.
      *
@@ -179,6 +190,25 @@ public interface SimilarityEngine {
      * @return how many vectors were added
      */
     public suspend fun ensureMetadataVectors(library: List<TrackDescriptor>): Int
+
+    /**
+     * Performs the same in-memory work as [ensureMetadataVectors], while allowing a scheduler to
+     * combine several small interactive batches into one durable snapshot checkpoint.
+     *
+     * The default delegates to the durable operation. Implementations that defer the write must
+     * retain dirty state until [persistPendingAnalysis] returns successfully.
+     */
+    public suspend fun stageMetadataVectors(library: List<TrackDescriptor>): Int =
+        ensureMetadataVectors(library)
+
+    /**
+     * Persists all analysis mutations staged since the last successful checkpoint.
+     *
+     * Idempotent and main-safe. A scheduler should call this at a bounded interval and at every
+     * normal-completion or cancellation boundary. The default is a no-op because the default
+     * staging methods above already persist each call.
+     */
+    public suspend fun persistPendingAnalysis(): Unit = Unit
 
     /**
      * A snapshot of every stored metadata-text vector, by track.

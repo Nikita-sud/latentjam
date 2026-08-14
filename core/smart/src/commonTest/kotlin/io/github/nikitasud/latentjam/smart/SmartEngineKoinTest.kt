@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart
 
 import io.github.nikitasud.latentjam.smart.di.smartEngineDispatcherQualifier
 import io.github.nikitasud.latentjam.smart.di.smartEngineModule
+import io.github.nikitasud.latentjam.smart.di.smartMapLayoutDispatcherQualifier
 import kotlinx.coroutines.CoroutineDispatcher
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
@@ -40,6 +41,7 @@ internal class SmartEngineKoinTest {
             assertIs<FakeEmbeddingBackend>(koin.get<EmbeddingBackend>())
             assertIs<InMemoryVectorIndex>(koin.get<VectorIndex>())
             assertNotNull(koin.get<CoroutineDispatcher>(smartEngineDispatcherQualifier))
+            assertNotNull(koin.get<CoroutineDispatcher>(smartMapLayoutDispatcherQualifier))
             assertEquals(3, koin.get<SmartEngineConfig>().embeddingDim)
         } finally {
             app.close()

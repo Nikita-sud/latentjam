@@ -11,8 +11,10 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlin.time.TimeSource
 
 /**
@@ -104,7 +106,10 @@ class EngineNextTrackChooser(
 internal suspend fun smartHistoryFor(
     history: ListeningHistory,
     current: TrackDescriptor,
-): List<SmartHistoryEvent> {
+): List<SmartHistoryEvent> = withContext(Dispatchers.Default) {
+    // This can project up to 10k persisted events. Queue top-up is launched by the playback
+    // controller's main-thread scope, so doing the copy/map before the engine's own dispatcher is
+    // entered made a track transition capable of consuming a UI frame on a large history log.
     val observed = history.recentEvents(SMART_HISTORY_LIMIT).asReversed().map { event ->
         val fraction = event.trackDurationMs
             ?.takeIf { it > 0 }
@@ -125,7 +130,7 @@ internal suspend fun smartHistoryFor(
     // The history recorder emits only when playback leaves a track. Queue planning happens while
     // [current] is still playing, so add it as the latest positive intent explicitly.
     val now = maxOf(epochMillis(), (observed.lastOrNull()?.startedAtMs ?: Long.MIN_VALUE) + 1)
-    return observed + SmartHistoryEvent(
+    observed + SmartHistoryEvent(
         trackId = current.id,
         startedAtMs = now,
         playedFraction = 1f,

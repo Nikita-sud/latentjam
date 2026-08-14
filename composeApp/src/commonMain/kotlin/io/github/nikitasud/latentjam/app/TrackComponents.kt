@@ -15,13 +15,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,9 +43,17 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -89,12 +96,61 @@ internal fun Artwork(
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        // Scrolling-list artwork stays direct: animating the URI can fade to an AsyncImage that is
+        // still loading, producing a blank frame followed by a bitmap pop. Player handoffs retain
+        // their old composed content and animate at the player level instead.
         if (uri != null) {
             AsyncImage(
                 model = uri,
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop,
+            )
+        }
+    }
+}
+
+/** Player artwork that keeps the old bitmap until the replacement has decoded successfully. */
+@Composable
+internal fun RetainedArtwork(
+    uri: String?,
+    size: Dp,
+    cornerRadius: Dp,
+    modifier: Modifier = Modifier,
+) {
+    val reduceMotion = rememberReduceMotion()
+    val requestedUri by rememberUpdatedState(uri)
+    var displayedUri by remember { mutableStateOf(uri) }
+    LaunchedEffect(uri) {
+        if (uri == null) displayedUri = null
+    }
+    Box(modifier = modifier.size(size)) {
+        if (uri != null && uri != displayedUri) {
+            val pendingUri = uri
+            AsyncImage(
+                model = pendingUri,
+                contentDescription = null,
+                modifier = Modifier.matchParentSize().alpha(0f),
+                contentScale = ContentScale.Crop,
+                onSuccess = {
+                    if (requestedUri == pendingUri) displayedUri = pendingUri
+                },
+                onError = {
+                    if (requestedUri == pendingUri) displayedUri = null
+                },
+            )
+        }
+        Crossfade(
+            targetState = displayedUri,
+            animationSpec = tween(
+                if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+            ),
+            label = "retained-artwork",
+        ) { shownUri ->
+            Artwork(
+                uri = shownUri,
+                size = size,
+                cornerRadius = cornerRadius,
             )
         }
     }
@@ -118,12 +174,29 @@ internal fun TrackRow(
     onMenu: (() -> Unit)? = null,
 ) {
     val haptics = LocalHapticFeedback.current
+    val reduceMotion = rememberReduceMotion()
+    val titleColor by animateColorAsState(
+        targetValue = if (isCurrent) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+        animationSpec = tween(
+            if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+        ),
+        label = "track-title-color",
+    )
     // The badge is visual; this is the same fact for ears. Resolved before the modifier chain
     // because stringResource is composable.
     val nowPlayingDescription = if (isCurrent) {
         stringResource(Res.string.cd_now_playing)
     } else {
         null
+    }
+    var lastSelectionValue by remember { mutableStateOf(selectionState ?: false) }
+    val shownSelectionValue = selectionState ?: lastSelectionValue
+    SideEffect {
+        selectionState?.let { lastSelectionValue = it }
     }
     Row(
         modifier = Modifier
@@ -158,17 +231,23 @@ internal fun TrackRow(
     ) {
         AnimatedVisibility(
             visible = selectionState != null,
-            enter = fadeIn(tween(Motion.APPEAR_MS)) + expandHorizontally(tween(Motion.APPEAR_MS)),
-            exit = fadeOut(tween(Motion.REPLACE_MS)) + shrinkHorizontally(tween(Motion.REPLACE_MS)),
+            enter = if (reduceMotion) {
+                fadeIn(tween(Motion.REDUCED_MS))
+            } else {
+                fadeIn(tween(Motion.APPEAR_MS)) +
+                    expandHorizontally(tween(Motion.APPEAR_MS))
+            },
+            exit = if (reduceMotion) {
+                fadeOut(tween(Motion.REDUCED_MS))
+            } else {
+                fadeOut(tween(Motion.REPLACE_MS)) +
+                    shrinkHorizontally(tween(Motion.REPLACE_MS))
+            },
         ) {
             // The tick itself pops when toggled; the container above handles mode enter/exit.
             AnimatedContent(
-                targetState = selectionState == true,
-                transitionSpec = {
-                    (
-                        fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f)
-                        ) togetherWith fadeOut(tween(90))
-                },
+                targetState = shownSelectionValue,
+                transitionSpec = { motionIconTransform(reduceMotion) },
                 label = "row-check",
             ) { checked ->
             Icon(
@@ -189,7 +268,15 @@ internal fun TrackRow(
         }
         Box {
             Artwork(uri = track.artworkUri, size = 48.dp)
-            if (isCurrent) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isCurrent,
+                enter = fadeIn(tween(
+                    if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS,
+                )),
+                exit = fadeOut(tween(
+                    if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS,
+                )),
+            ) {
                 // The player's track wears its badge on the artwork: a tinted title alone
                 // proved too quiet to spot while scanning a list.
                 Box(
@@ -207,7 +294,7 @@ internal fun TrackRow(
             Text(
                 text = track.title ?: stringResource(Res.string.track_untitled),
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                color = titleColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -263,7 +350,8 @@ internal fun formatDuration(durationMs: Long): String {
  */
 @Composable
 private fun NowPlayingIndicator(animating: Boolean) {
-    val fractions = if (animating) {
+    val reduceMotion = rememberReduceMotion()
+    val fractions = if (animating && !reduceMotion) {
         val transition = rememberInfiniteTransition(label = "now-playing")
         BAR_PHASES_MS.map { phase ->
             transition.animateFloat(

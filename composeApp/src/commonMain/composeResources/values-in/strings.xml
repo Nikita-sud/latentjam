@@ -37,6 +37,7 @@
     <string name="action_add">Tambahkan</string>
     <string name="cd_more_options">Opsi lainnya</string>
     <string name="cd_search_library">Cari di pustaka</string>
+    <string name="cd_alphabet_index">Indeks alfabet</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Lagu</string>

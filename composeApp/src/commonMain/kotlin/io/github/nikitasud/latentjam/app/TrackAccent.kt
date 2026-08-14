@@ -5,13 +5,14 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -21,6 +22,9 @@ import io.github.nikitasud.latentjam.playback.identityTrackColorSeed
 import io.github.nikitasud.latentjam.playback.latentTrackColorSeed
 import io.github.nikitasud.latentjam.smart.EngineState
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /** A track's accent colour plus a readable foreground for it. */
 data class TrackAccent(val container: Color, val onContainer: Color)
@@ -30,7 +34,10 @@ data class TrackAccent(val container: Color, val onContainer: Color)
  * `null` when there is no artwork (or no sampler on this platform).
  */
 @Composable
-expect fun rememberArtworkColor(uri: String?): Color?
+expect fun rememberArtworkColor(uri: String?): ArtworkColorState
+
+/** Distinguishes an in-flight sample from a completed cover with no usable accent. */
+data class ArtworkColorState(val color: Color?, val resolved: Boolean)
 
 /**
  * The colour that represents [track] in the UI.
@@ -48,27 +55,43 @@ fun rememberTrackAccent(
     darkTheme: Boolean,
 ): TrackAccent {
     val fallback = MaterialTheme.colorScheme.primaryContainer
-    val onFallback = MaterialTheme.colorScheme.onPrimaryContainer
 
-    val artworkColor = rememberArtworkColor(
+    val artwork = rememberArtworkColor(
         track?.artworkUri.takeIf { mode == TrackColorMode.DYNAMIC },
     )
     val seededColor = rememberSeededColor(
-        track.takeIf { mode != TrackColorMode.THEME && artworkColor == null },
+        track?.takeIf {
+            mode == TrackColorMode.SMART ||
+                (mode == TrackColorMode.DYNAMIC && it.artworkUri == null)
+        },
     )
 
     val seed = when (mode) {
-        TrackColorMode.DYNAMIC -> artworkColor ?: seededColor
+        TrackColorMode.DYNAMIC -> artwork.color ?: seededColor
         TrackColorMode.SMART -> seededColor
         TrackColorMode.THEME -> null
     }
-    val target = seed?.let { toContainer(it, darkTheme) } ?: fallback
-    val container by animateColorAsState(target, label = "accent-container")
-    val onContainer = if (seed == null) {
-        onFallback
-    } else {
-        if (container.luminance() > 0.45f) Color.Black.copy(alpha = 0.87f) else Color.White
+    val resolvedTarget = seed?.let { toContainer(it, darkTheme) } ?: fallback
+    val artworkPending = mode == TrackColorMode.DYNAMIC &&
+        track?.artworkUri != null && !artwork.resolved
+    // Sampling starts at null for every new URI. Preserve the settled surface during that pending
+    // frame so a track change produces one deliberate colour transition, not cover→theme→cover.
+    var settledTarget by remember { mutableStateOf(resolvedTarget) }
+    val target = if (artworkPending) settledTarget else resolvedTarget
+    SideEffect {
+        if (!artworkPending) settledTarget = resolvedTarget
     }
+    val reduceMotion = rememberReduceMotion()
+    val duration = if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS
+    val container by animateColorAsState(
+        targetValue = target,
+        animationSpec = tween(duration),
+        label = "accent-container",
+    )
+    // Pick from the animated surface on every frame. Interpolating black and white independently
+    // passes through mid-gray exactly while the background is changing, which can briefly erase
+    // control contrast. 0.179 is the luminance crossover where black and white have equal contrast.
+    val onContainer = if (container.luminance() > 0.179f) Color.Black else Color.White
     return TrackAccent(container, onContainer)
 }
 
@@ -77,7 +100,7 @@ fun rememberTrackAccent(
  * so an identity colour can still upgrade to the embedding's once indexing reaches the track,
  * while a latent colour — deterministic for a given embedding — is never re-resolved.
  */
-private class SeededAccent(val color: Color, val latent: Boolean)
+private data class SeededAccent(val color: Color, val latent: Boolean)
 
 /**
  * Process-wide, so a track wears ONE colour for the app's lifetime. Before this cache the
@@ -97,24 +120,34 @@ private val seededAccents = HashMap<String, SeededAccent>()
  */
 @Composable
 private fun rememberSeededColor(track: TrackDescriptor?): Color? {
-    val engineState by AppGraph.engine.state.collectAsState()
-    val indexRevision = (engineState as? EngineState.Ready)?.indexedCount ?: 0
     var accent by remember(track?.id) {
         mutableStateOf(track?.id?.value?.let(seededAccents::get))
     }
-    LaunchedEffect(track?.id, indexRevision) {
+    LaunchedEffect(track?.id) {
         val id = track?.id ?: return@LaunchedEffect
-        // A latent colour is final; only an identity placeholder can improve, and only after
-        // more of the library was indexed (indexRevision keys the retry).
+        // A latent colour is final. Do not keep observing the progressive index after the answer
+        // for this track is already cached.
         if (accent?.latent == true) return@LaunchedEffect
-        val embedding = AppGraph.engine.embedding(id)
-        val resolved = if (embedding != null) {
-            SeededAccent(latentTrackColorSeed(embedding).toComposeColor(), latent = true)
-        } else {
-            SeededAccent(identityTrackColorSeed(id.value).toComposeColor(), latent = false)
-        }
-        seededAccents[id.value] = resolved
-        accent = resolved
+        val engine = AppGraph.engine
+        // Automatic indexing advances Ready.indexedCount once per small persisted chunk. Observe
+        // that progress inside this effect instead of as Compose state: until THIS track gains an
+        // embedding the visible identity colour does not change, so those checkpoints must not
+        // invalidate the player UI. `first` ends the subscription as soon as the latent colour is
+        // available; a permanently unindexed track simply keeps its deterministic fallback.
+        engine.state
+            .map { state -> (state as? EngineState.Ready)?.indexedCount ?: 0 }
+            .distinctUntilChanged()
+            .first {
+                val embedding = engine.embedding(id)
+                val resolved = if (embedding != null) {
+                    SeededAccent(latentTrackColorSeed(embedding).toComposeColor(), latent = true)
+                } else {
+                    SeededAccent(identityTrackColorSeed(id.value).toComposeColor(), latent = false)
+                }
+                seededAccents[id.value] = resolved
+                if (accent != resolved) accent = resolved
+                resolved.latent
+            }
     }
     return accent?.color
 }

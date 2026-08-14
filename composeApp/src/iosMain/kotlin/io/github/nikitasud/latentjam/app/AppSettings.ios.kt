@@ -153,6 +153,12 @@ internal class IosAppSettings : AppSettings {
     }
 
     override fun setResumePlayback(state: ResumePlayback?) {
+        val previous = mutableResumePlayback.value
+        if (state != null && previous?.sameSessionExceptPosition(state) == true) {
+            defaults.setInteger(state.positionMs, KEY_RESUME_POSITION)
+            mutableResumePlayback.value = state
+            return
+        }
         if (state == null) {
             defaults.removeObjectForKey(KEY_RESUME_TRACK)
             defaults.removeObjectForKey(KEY_RESUME_MODE)

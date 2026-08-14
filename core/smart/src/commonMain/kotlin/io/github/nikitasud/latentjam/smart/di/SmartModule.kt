@@ -28,6 +28,12 @@ import org.koin.dsl.module
 public val smartEngineDispatcherQualifier: StringQualifier = named("smart-engine-dispatcher")
 
 /**
+ * Qualifier of the Map's long-running PCA/t-SNE worker. It is deliberately separate from the
+ * engine worker: a cold O(n²) layout must not hold up playback-time SMART queries or indexing.
+ */
+public val smartMapLayoutDispatcherQualifier: StringQualifier = named("smart-map-layout-dispatcher")
+
+/**
  * Qualifier of the chain's metadata-text vector index and its store. Separate from the audio
  * bindings because the two spaces differ in dimensionality and are persisted independently.
  */
@@ -85,6 +91,10 @@ public val smartEngineModule: Module = module {
         createPlatformSmartEngineDispatcher()
     }
 
+    single<CoroutineDispatcher>(smartMapLayoutDispatcherQualifier) {
+        createPlatformMapLayoutDispatcher()
+    }
+
     single<VectorIndex> {
         InMemoryVectorIndex(dim = get<SmartEngineConfig>().embeddingDim)
     }
@@ -119,3 +129,6 @@ public val smartEngineModule: Module = module {
 
 /** Platform scheduling policy for long-running local inference. */
 internal expect fun createPlatformSmartEngineDispatcher(): CoroutineDispatcher
+
+/** Platform scheduling policy for the Map's long-running derived layout. */
+internal expect fun createPlatformMapLayoutDispatcher(): CoroutineDispatcher

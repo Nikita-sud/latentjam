@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,6 +33,7 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -188,6 +192,7 @@ internal fun SearchScreen(
     }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    val reduceMotion = rememberReduceMotion()
 
     suspend fun refreshRecent(expectedRevision: Long = recentOperationRevision) {
         val loaded = try {
@@ -280,12 +285,26 @@ internal fun SearchScreen(
                         },
                     ),
                     trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            IconButton(onClick = { query = "" }) {
-                                Icon(
-                                    Icons.Rounded.Close,
-                                    contentDescription = stringResource(Res.string.cd_clear_query),
-                                )
+                        AnimatedContent(
+                            targetState = query.isNotEmpty(),
+                            transitionSpec = { motionIconTransform(reduceMotion) },
+                            label = "clear-query",
+                        ) { showClear ->
+                            // Keep both animation states the same size: the field text should not
+                            // slide sideways when the affordance appears or disappears.
+                            Box(
+                                modifier = Modifier.size(48.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (showClear) {
+                                    IconButton(onClick = { query = "" }) {
+                                        Icon(
+                                            Icons.Rounded.Close,
+                                            contentDescription =
+                                                stringResource(Res.string.cd_clear_query),
+                                        )
+                                    }
+                                }
                             }
                         }
                     },
@@ -301,83 +320,193 @@ internal fun SearchScreen(
             }
 
             val trimmedQuery = query.trim()
-            when {
-                query.isNotBlank() && (isSearching || resultQuery != trimmedQuery) ->
-                    SearchLoading()
-
-                query.isNotBlank() && results.isEmpty() ->
-                    CenteredHint(stringResource(Res.string.search_no_matches, query.trim()))
-
-                query.isNotBlank() -> LazyColumn(
-                    contentPadding = PaddingValues(bottom = bottomInset),
-                ) {
-                    itemsIndexed(results, key = { _, track -> track.id.value }) { index, track ->
-                        TrackRow(
-                            track = track,
-                            isCurrent = track.id == currentTrackId,
-                            isPlaying = currentTrackPlaying,
-                            onClick = {
-                                if (selectionMode) {
-                                    onToggleSelection(track)
-                                } else {
-                                    remember(query)
-                                    // The query is the honest name of this queue's source.
-                                    AppGraph.queueSource.value = QueueSource(
-                                        QueueSourceKind.SEARCH,
-                                        query.trim().takeIf { it.isNotEmpty() },
-                                    )
-                                    onPlay(results, index)
-                                }
-                            },
-                            onLongClick = {
-                                if (selectionMode) onToggleSelection(track) else onStartSelection(track)
-                            },
-                            selectionState = if (selectionMode) track.id in selectedTrackIds else null,
-                            onMenu = if (selectionMode) null else ({ onTrackMenu(track) }),
-                        )
-                    }
+            val searchPending = query.isNotBlank() &&
+                (isSearching || resultQuery != trimmedQuery)
+            var showSearchProgress by remember { mutableStateOf(false) }
+            LaunchedEffect(searchPending, trimmedQuery) {
+                showSearchProgress = false
+                if (searchPending) {
+                    // Most local metadata searches finish within a frame. Only disclose work that
+                    // lasts long enough to be perceived, otherwise the spinner itself is flicker.
+                    delay(SEARCH_PROGRESS_DELAY_MS)
+                    showSearchProgress = true
                 }
+            }
+            val contentMode = when {
+                // Preserve the last settled answer while a replacement is calculated. Its actions
+                // are freshness-gated below, and a thin progress line communicates the refresh.
+                searchPending && resultQuery.isNotBlank() -> if (results.isEmpty()) {
+                    SearchContentMode.NoMatches
+                } else {
+                    SearchContentMode.Results
+                }
+                searchPending && showSearchProgress -> SearchContentMode.Loading
+                searchPending && recent.isNotEmpty() -> SearchContentMode.Recent
+                searchPending -> SearchContentMode.Blank
+                query.isNotBlank() && results.isEmpty() -> SearchContentMode.NoMatches
+                query.isNotBlank() -> SearchContentMode.Results
+                recent.isNotEmpty() -> SearchContentMode.Recent
+                else -> SearchContentMode.Blank
+            }
+            // The mode is deliberately the animation key. Results can be recomputed or reordered
+            // many times while somebody types; those updates stay immediate instead of repeatedly
+            // fading the whole list. Only a meaningful content-state boundary gets motion.
+            val presentation = SearchPresentation(
+                mode = contentMode,
+                query = if (searchPending && resultQuery.isNotBlank()) {
+                    resultQuery
+                } else {
+                    trimmedQuery
+                },
+                results = results,
+                recent = recent,
+            )
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                AnimatedContent(
+                    targetState = presentation,
+                    contentKey = { it.mode },
+                    transitionSpec = { motionFadeThrough(reduceMotion) },
+                    modifier = Modifier.fillMaxSize(),
+                    label = "search-content-mode",
+                ) { shown ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .inactiveForMotion(shown.mode != presentation.mode),
+                ) {
+                when (shown.mode) {
+                    SearchContentMode.Loading -> SearchLoading()
 
-                recent.isNotEmpty() -> RecentSearchList(
-                    recent = recent,
-                    onPick = { picked ->
-                        query = picked
-                        focusManager.clearFocus()
-                        remember(picked)
-                    },
-                    onRemove = { removed ->
-                        val operationRevision = ++recentOperationRevision
-                        scope.launch {
-                            try {
-                                AppGraph.recentSearches.remove(removed)
-                                refreshRecent(operationRevision)
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (failure: Throwable) {
-                                println("Search: could not remove recent search: $failure")
-                            }
-                        }
-                    },
-                    onClearAll = {
-                        val operationRevision = ++recentOperationRevision
-                        scope.launch {
-                            try {
-                                AppGraph.recentSearches.clear()
-                                refreshRecent(operationRevision)
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (failure: Throwable) {
-                                println("Search: could not clear recent searches: $failure")
-                            }
-                        }
-                    },
-                )
+                    SearchContentMode.NoMatches ->
+                        CenteredHint(stringResource(Res.string.search_no_matches, shown.query))
 
-                else -> CenteredHint(pluralStringResource(Res.plurals.search_hint_count, songs.size, songs.size))
+                    SearchContentMode.Results -> LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = bottomInset),
+                    ) {
+                        // Do not use animateItem here: search rank is allowed to change while the
+                        // query and semantic expansion settle, and rows chasing their old position
+                        // would make typing feel unstable.
+                        itemsIndexed(
+                            shown.results,
+                            key = { _, track -> track.id.value },
+                        ) { index, track ->
+                            TrackRow(
+                                track = track,
+                                isCurrent = track.id == currentTrackId,
+                                isPlaying = currentTrackPlaying,
+                                onClick = {
+                                    // A pending query deliberately keeps the settled snapshot
+                                    // usable. The visible row therefore plays the visible queue,
+                                    // rather than accepting a tap that silently does nothing.
+                                    if (selectionMode) {
+                                        onToggleSelection(track)
+                                    } else {
+                                        remember(shown.query)
+                                        AppGraph.queueSource.value = QueueSource(
+                                            QueueSourceKind.SEARCH,
+                                            shown.query.takeIf { it.isNotEmpty() },
+                                        )
+                                        onPlay(shown.results, index)
+                                    }
+                                },
+                                onLongClick = {
+                                    if (selectionMode) {
+                                        onToggleSelection(track)
+                                    } else {
+                                        onStartSelection(track)
+                                    }
+                                },
+                                selectionState =
+                                    if (selectionMode) track.id in selectedTrackIds else null,
+                                onMenu = if (selectionMode) {
+                                    null
+                                } else {
+                                    { onTrackMenu(track) }
+                                },
+                            )
+                        }
+                    }
+
+                    SearchContentMode.Recent -> RecentSearchList(
+                        recent = shown.recent,
+                        onPick = { picked ->
+                            query = picked
+                            focusManager.clearFocus()
+                            remember(picked)
+                        },
+                        onRemove = { removed ->
+                            val operationRevision = ++recentOperationRevision
+                            scope.launch {
+                                try {
+                                    AppGraph.recentSearches.remove(removed)
+                                    refreshRecent(operationRevision)
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (failure: Throwable) {
+                                    println("Search: could not remove recent search: $failure")
+                                }
+                            }
+                        },
+                        onClearAll = {
+                            val operationRevision = ++recentOperationRevision
+                            scope.launch {
+                                try {
+                                    AppGraph.recentSearches.clear()
+                                    refreshRecent(operationRevision)
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (failure: Throwable) {
+                                    println("Search: could not clear recent searches: $failure")
+                                }
+                            }
+                        },
+                    )
+
+                    SearchContentMode.Blank -> CenteredHint(
+                        pluralStringResource(
+                            Res.plurals.search_hint_count,
+                            songs.size,
+                            songs.size,
+                        ),
+                    )
+                }
+                }
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = searchPending && showSearchProgress && resultQuery.isNotBlank(),
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    enter = androidx.compose.animation.fadeIn(tween(
+                        if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS,
+                    )),
+                    exit = androidx.compose.animation.fadeOut(tween(
+                        if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS,
+                    )),
+                ) {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth().height(2.dp),
+                    )
+                }
             }
         }
     }
 }
+
+private enum class SearchContentMode {
+    Blank,
+    Recent,
+    Loading,
+    NoMatches,
+    Results,
+}
+
+/** Payload retained with an outgoing mode so its exit never recomposes into empty content. */
+private data class SearchPresentation(
+    val mode: SearchContentMode,
+    val query: String,
+    val results: List<TrackDescriptor>,
+    val recent: List<String>,
+)
 
 @Composable
 private fun RecentSearchList(
@@ -386,6 +515,7 @@ private fun RecentSearchList(
     onRemove: (String) -> Unit,
     onClearAll: () -> Unit,
 ) {
+    val reduceMotion = rememberReduceMotion()
     Column {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
@@ -408,6 +538,19 @@ private fun RecentSearchList(
                 items(recent, key = { it }) { entry ->
                     Row(
                         modifier = Modifier
+                            .animateItem(
+                                fadeInSpec = tween(
+                                    if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                                ),
+                                placementSpec = if (reduceMotion) {
+                                    null
+                                } else {
+                                    tween(Motion.APPEAR_MS)
+                                },
+                                fadeOutSpec = tween(
+                                    if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS,
+                                ),
+                            )
                             .fillMaxWidth()
                             .clickable { onPick(entry) }
                             .padding(start = 20.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
@@ -682,6 +825,9 @@ private class SearchIndex private constructor(
 
 private const val MIN_SEMANTIC_QUERY_CHARS = 2
 private const val SEMANTIC_DEBOUNCE_MS = 180L
+
+/** Avoid flashing progress UI for local searches that complete before somebody can perceive it. */
+private const val SEARCH_PROGRESS_DELAY_MS = 140L
 // The confidence gate measures a background band up to rank [SemanticGate.BG_HI]; fetch enough
 // candidates to fill it, or the section always declines. 200 gives the band real headroom.
 private const val SEMANTIC_CANDIDATE_LIMIT = 200

@@ -145,7 +145,16 @@ internal class DefaultSimilarityEngine(
         }
     }
 
-    override suspend fun indexLibrary(tracks: List<TrackDescriptor>): IndexReport = withContext(dispatcher) {
+    override suspend fun indexLibrary(tracks: List<TrackDescriptor>): IndexReport =
+        indexLibrary(tracks, persistAfterBatch = true)
+
+    override suspend fun stageLibraryIndex(tracks: List<TrackDescriptor>): IndexReport =
+        indexLibrary(tracks, persistAfterBatch = false)
+
+    private suspend fun indexLibrary(
+        tracks: List<TrackDescriptor>,
+        persistAfterBatch: Boolean,
+    ): IndexReport = withContext(dispatcher) {
         mutex.withLock {
             rememberTracks(tracks)
             if (mutableState.value !is EngineState.Ready) {
@@ -226,8 +235,10 @@ internal class DefaultSimilarityEngine(
             // Persist dirty work even when this invocation added nothing. A previous save may have
             // failed after the vectors were installed in memory, so `indexed == 0` is not proof
             // that the durable snapshot is current.
-            persistAudioIndex()
-            persistTextIndex()
+            if (persistAfterBatch) {
+                persistAudioIndex()
+                persistTextIndex()
+            }
             mutableState.value = EngineState.Ready(indexedCount = index.size)
             IndexReport(
                 indexed = indexed,
@@ -482,20 +493,39 @@ internal class DefaultSimilarityEngine(
         }
 
     override suspend fun ensureMetadataVectors(library: List<TrackDescriptor>): Int =
-        withContext(dispatcher) {
-            mutex.withLock {
-                if (mutableState.value !is EngineState.Ready) return@withLock 0
-                rememberTracks(library)
-                var added = 0
-                for (track in library) {
-                    if (indexTextVector(track)) added++
-                    yield()
-                }
-                // Also retries metadata that was installed before an earlier save failure.
-                persistTextIndex()
-                added
+        ensureMetadataVectors(library, persistAfterBatch = true)
+
+    override suspend fun stageMetadataVectors(library: List<TrackDescriptor>): Int =
+        ensureMetadataVectors(library, persistAfterBatch = false)
+
+    private suspend fun ensureMetadataVectors(
+        library: List<TrackDescriptor>,
+        persistAfterBatch: Boolean,
+    ): Int = withContext(dispatcher) {
+        mutex.withLock {
+            if (mutableState.value !is EngineState.Ready) return@withLock 0
+            rememberTracks(library)
+            var added = 0
+            for (track in library) {
+                if (indexTextVector(track)) added++
+                yield()
             }
+            // Also retries metadata that was installed before an earlier save failure when
+            // this is the ordinary durable operation. A staged scheduler checkpoints it with
+            // persistPendingAnalysis instead.
+            if (persistAfterBatch) persistTextIndex()
+            added
         }
+    }
+
+    override suspend fun persistPendingAnalysis(): Unit = withContext(dispatcher) {
+        mutex.withLock {
+            // Dirty flags are cleared only after their store returns normally. If either save
+            // fails, this (or any later durable operation) retries exactly the outstanding work.
+            persistAudioIndex()
+            persistTextIndex()
+        }
+    }
 
     override suspend fun metadataVectors(): Map<TrackId, FloatArray> = withContext(dispatcher) {
         mutex.withLock { textIndex?.entries().orEmpty() }

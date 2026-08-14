@@ -106,7 +106,7 @@ public data class LibraryCatalog(
                         albumCount = albumCountByArtist[name] ?: 0,
                     )
                 }
-                .sortedByKey { it.name?.lowercase() ?: UNKNOWN_LAST }
+                .sortedByKey { SongSorting.sortKey(it.name) }
 
             val genres = tracks
                 .groupBy { it.genre }
@@ -116,7 +116,7 @@ public data class LibraryCatalog(
                         tracks = grouped.byTitle(),
                     )
                 }
-                .sortedByKey { it.name?.lowercase() ?: UNKNOWN_LAST }
+                .sortedByKey { SongSorting.sortKey(it.name) }
 
             val folders = tracks
                 .groupBy { it.folderPath?.trim('/') ?: DEFAULT_FOLDER }
@@ -127,7 +127,13 @@ public data class LibraryCatalog(
                         tracks = grouped.byTitle(),
                     )
                 }
-                .map { Triple(it, it.name.lowercase(), it.path.lowercase()) }
+                .map {
+                    Triple(
+                        it,
+                        SongSorting.sortKey(it.name),
+                        SongSorting.sortKey(it.path),
+                    )
+                }
                 .sortedWith(compareBy({ it.second }, { it.third }))
                 .map { it.first }
 

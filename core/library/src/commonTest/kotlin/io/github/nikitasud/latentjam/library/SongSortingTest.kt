@@ -82,6 +82,25 @@ internal class SongSortingTest {
     }
 
     @Test
+    fun unknownTitlesStayAtTheEndInTheirOwnBucket() {
+        val sections = SongSorting.sections(
+            listOf(
+                track("unknown"),
+                track("number", title = "7 rings"),
+                track("alpha", title = "Alpha"),
+                track("punctuation", title = "!!!"),
+            ),
+            SongSort.TITLE,
+        )
+
+        assertEquals(listOf("#", "A", "?"), sections.map { it.bucket })
+        assertEquals(
+            listOf("number", "alpha", "unknown", "punctuation"),
+            sections.flatMap { section -> section.tracks.map { it.id.value } },
+        )
+    }
+
+    @Test
     fun artistSectionsBucketByArtistInitial() {
         val sections = SongSorting.sections(
             listOf(track("1", title = "Zebra", artist = "ABBA")),

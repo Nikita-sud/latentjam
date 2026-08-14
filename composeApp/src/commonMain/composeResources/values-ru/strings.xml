@@ -32,6 +32,7 @@
     <string name="action_add">Добавить</string>
     <string name="cd_more_options">Другие действия</string>
     <string name="cd_search_library">Поиск по медиатеке</string>
+    <string name="cd_alphabet_index">Алфавитный указатель</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Трек</string>

@@ -4,51 +4,29 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.SongSorting
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
-import kotlin.math.roundToInt
-import kotlinx.coroutines.launch
 
 /**
  * The Songs tab for large libraries: sorted per [sort], sticky index headers,
@@ -78,9 +56,21 @@ internal fun SectionedSongsList(
     val displayOrder = remember(sections) { sections.flatMap { it.tracks } }
     val indexed = remember(sections) { indexSections(sections) }
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
     val showIndex = sort != SongSort.RECENT && sections.size > 1
+    val sectionStarts = remember(indexed) { indexed.map(IndexedSection::emitStartIndex) }
+    val sectionBuckets = remember(indexed) { indexed.map(IndexedSection::bucket) }
+    val activeBucket by remember(indexed, listState) {
+        derivedStateOf {
+            currentRailBucketIndex(
+                itemIndex = listState.firstVisibleItemIndex,
+                startIndexes = sectionStarts,
+                atEnd = !listState.canScrollForward && listState.firstVisibleItemIndex > 0,
+            )
+                ?.let { indexed[it].bucket }
+        }
+    }
     val selectionMode = selectedTrackIds.isNotEmpty()
+    val reduceMotion = rememberReduceMotion()
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -106,7 +96,17 @@ internal fun SectionedSongsList(
                     key = { _, track -> track.id.value },
                     contentType = { _, _ -> "track" },
                 ) { indexInSection, track ->
-                    Box(modifier = Modifier.animateItem()) {
+                    Box(
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = tween(
+                                if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                            ),
+                            placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
+                            fadeOutSpec = tween(
+                                if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                            ),
+                        ),
+                    ) {
                     TrackRow(
                         track = track,
                         isCurrent = track.id == currentTrackId,
@@ -131,10 +131,11 @@ internal fun SectionedSongsList(
 
         if (showIndex) {
             AlphabetRailOverlay(
-                buckets = indexed.map { it.bucket },
+                buckets = sectionBuckets,
                 bottomPadding = contentPadding.calculateBottomPadding(),
+                activeBucket = activeBucket,
                 onJump = { bucketIndex ->
-                    scope.launch { listState.scrollToItem(indexed[bucketIndex].emitStartIndex) }
+                    listState.scrollToItem(indexed[bucketIndex].emitStartIndex)
                 },
             )
         }

@@ -35,6 +35,7 @@
     <string name="action_add">Dodaj</string>
     <string name="cd_more_options">Więcej opcji</string>
     <string name="cd_search_library">Szukaj w bibliotece</string>
+    <string name="cd_alphabet_index">Indeks alfabetyczny</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Utwór</string>

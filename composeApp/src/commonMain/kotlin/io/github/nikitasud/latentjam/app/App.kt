@@ -9,16 +9,19 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -110,6 +113,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -122,15 +126,19 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
@@ -443,6 +451,13 @@ private data class TrackMenuRequest(
     val sourcePlaylistTitle: String? = null,
 )
 
+/** Exit-frame styling retained without observable state: the live branch never reads it. */
+private class LastMiniPresentation(
+    var track: TrackDescriptor?,
+    var accent: TrackAccent,
+    var isPlaying: Boolean,
+)
+
 /** Map positions are a derived cache: storage trouble must never make the app or Map unusable. */
 private suspend fun IndexStore.loadMapLayoutOrEmpty(): StoredLibraryLayout = try {
     loadStoredLayout()
@@ -489,13 +504,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
     val historyRevision by AppGraph.historyRevision.collectAsState()
     val smartExclusions = AppGraph.smartExclusions
     val smartExclusionState by smartExclusions.state.collectAsState()
-    val reduceMotion = rememberReduceMotion()
+    val reduceMotion = rememberPlatformReduceMotion()
+    val layoutDirection = LocalLayoutDirection.current
     val darkTheme = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
     PlatformThemeEffect(darkTheme = darkTheme)
+    CompositionLocalProvider(LocalReduceMotion provides reduceMotion) {
     MaterialTheme(colorScheme = latentJamColorScheme(darkTheme = darkTheme)) {
         val scope = rememberCoroutineScope()
         val sleepTimer = remember { AppGraph.sleepTimer }
@@ -548,7 +565,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // Invalidate immediately so an Undo racing an animated tab change cannot restore a
             // detail page during the first frame, before currentPage has moved.
             rootTabNavigationRevision++
-            scope.launch { pagerState.animateScrollToPage(tab) }
+            scope.launch {
+                if (reduceMotion) pagerState.scrollToPage(tab) else pagerState.animateScrollToPage(tab)
+            }
         }
         LaunchedEffect(pagerState) {
             var previousSettledTab = pagerState.settledPage
@@ -640,6 +659,22 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             mode = trackColorMode,
             darkTheme = darkTheme,
         )
+        // AnimatedVisibility retains its composition for exit frames. Keep the last presentation
+        // in an ordinary main-thread holder: while a live track exists none of these fallback
+        // fields are read, so updating them must not itself invalidate the shell.
+        val lastMiniPresentation = remember {
+            LastMiniPresentation(currentTrack, accent, currentTrackPlaying)
+        }
+        SideEffect {
+            if (currentTrack != null) {
+                // Accent animates over several frames. This value is only consulted after the
+                // live track disappears, so ordinary fields retain the latest exit frame without
+                // scheduling a second whole-shell recomposition for every colour-animation tick.
+                lastMiniPresentation.track = currentTrack
+                lastMiniPresentation.accent = accent
+                lastMiniPresentation.isPlaying = currentTrackPlaying
+            }
+        }
         val shareTracks = rememberTrackSharer()
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         // The lists run to the bottom edge of an edge-to-edge window, so the navigation bar is
@@ -1121,7 +1156,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     }
                     val cachedDiscovery = builtDiscoveredWorlds
                         ?.takeIf { builtWorldDiscoveryKey == discoveryKey }
-                    val discovered = cachedDiscovery ?: withContext(Dispatchers.Default) {
+                    // Discovery is derived library work, not an interaction prerequisite. Keep it
+                    // on the Map's low-priority serial lane so a cold restore cannot make an
+                    // immediately opened page compete with clustering at normal CPU priority.
+                    val discovered = cachedDiscovery ?: withContext(AppGraph.mapLayoutDispatcher) {
                         val started = TimeSource.Monotonic.markNow()
                         LibraryWorlds.discover(
                             library = loaded,
@@ -1137,7 +1175,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             )
                         }
                     }
-                    val namedWorlds = withContext(Dispatchers.Default) {
+                    val namedWorlds = withContext(AppGraph.mapLayoutDispatcher) {
                         val albumGroups = LibraryCatalog.build(loaded).albums
                             .filter { it.tracks.size > 1 && !it.title.isNullOrBlank() }
                             .map { album ->
@@ -1156,50 +1194,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 }
         }
 
-        // Serializes layout computes between the background refresh below and the Map effect's
-        // own cache-miss branch, so the two can never run PCA+t-SNE concurrently over the same
-        // library. Whoever loses the race re-checks `covers` under the lock and finds the work
-        // already done.
+        // Serializes replacement layout computes when a keyed Map build is cancelled and a new
+        // one starts before the old CPU loop has observed cancellation.
         val mapLayoutRefresh = remember { Mutex() }
-        // Keeps the Map's layout fresh in the BACKGROUND, so settling on the tab is a cache hit.
-        // Before this, the O(n^2) PCA+t-SNE pass was gated on visiting the Map -- principled about
-        // not charging users who never open it, but the ones who do open it paid the whole pass in
-        // the foreground behind a "building" placeholder: measured 73 s for 852 tracks on an
-        // emulator cold cache. Keyed on `worlds` because a completed discovery is the proof the
-        // engine is Ready and the library settled; until then coverage would return null anyway.
-        LaunchedEffect(tracks, worlds, worldLibraryIds, builtWorldsKey) {
-            val loaded = tracks ?: return@LaunchedEffect
-            val loadedIds = loaded.map(TrackDescriptor::id)
-            if (worldLibraryIds != loadedIds) return@LaunchedEffect
-            withContext(Dispatchers.Default) {
-                val layoutStore = AppGraph.layoutStore
-                val coverage = engine.libraryMixCoverage(loadedIds) ?: return@withContext
-                // Above the ceiling the Map refuses to draw at all; precomputing a layout it
-                // will never show would be pure battery.
-                if (coverage.size > LibraryLayout.MAX_TRACKS) return@withContext
-                if (LibraryLayout.covers(layoutStore.loadMapLayoutOrEmpty(), coverage)) {
-                    return@withContext
-                }
-                mapLayoutRefresh.withLock {
-                    val stored = layoutStore.loadMapLayoutOrEmpty()
-                    if (LibraryLayout.covers(stored, coverage)) return@withLock
-                    val space = engine.libraryMixVectors(loadedIds) ?: return@withLock
-                    val started = TimeSource.Monotonic.markNow()
-                    val computed = LibraryLayout.compute(
-                        space,
-                        stored.positions,
-                        isActive = { isActive },
-                    )
-                    if (!isActive) return@withLock
-                    layoutStore.saveMapLayoutBestEffort(computed, space.fingerprint)
-                    println(
-                        "SMART: map layout refreshed in background " +
-                            "(${computed.size} tracks) in " +
-                            "${started.elapsedNow().inWholeMilliseconds} ms",
-                    )
-                }
-            }
-        }
 
         // The Map's positions. A SECOND libraryMixFeatures call on purpose: LibraryVectorSpace is
         // one-shot, and the instance above was consumed by LibraryWorlds.discover.
@@ -1331,7 +1328,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
 
             val built = try {
-                withContext(Dispatchers.Default) {
+                withContext(AppGraph.mapLayoutDispatcher) {
                     val positions = if (needsCompute) mapLayoutRefresh.withLock {
                     // Shared with the background refresh above. Losing the race to it is the GOOD
                     // case: block here while it finishes, then adopt its result below instead of
@@ -1811,6 +1808,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
+        val settingsVisibilityState = remember { MutableTransitionState(false) }
+        settingsVisibilityState.targetState = showSettings
+        val settingsOverlayActive = settingsVisibilityState.currentState ||
+            settingsVisibilityState.targetState
+
         // Opaque floor under the whole shell: during the morph the animating
         // content is smaller than the window, and without this the platform
         // window background shows through as a flash.
@@ -1824,11 +1826,19 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             AnimatedContent(
                 targetState = showNowPlaying,
                 transitionSpec = {
-                    val duration = if (reduceMotion) 0 else MORPH_MILLIS
+                    val duration = if (reduceMotion) 0 else Motion.EMPHASIZED_MS
                     fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))
                 },
+                modifier = Modifier.fillMaxSize(),
                 label = "player-morph",
             ) { expanded ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .inactiveDuringTransition(
+                            expanded != showNowPlaying || settingsOverlayActive,
+                        ),
+                ) {
                 if (expanded) {
                     val queueSource by AppGraph.queueSource.collectAsState()
                     NowPlayingScreen(
@@ -1862,21 +1872,53 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         // after them stays visible — which is how the pill reaches screens it used to
                         // disappear behind.
                         Box(modifier = Modifier.fillMaxSize()) {
+                    val searchVisibilityState = remember {
+                        MutableTransitionState(showSearch)
+                    }
+                    searchVisibilityState.targetState = showSearch
+                    val searchOverlayActive = searchVisibilityState.currentState ||
+                        searchVisibilityState.targetState
+                    val collectionTransition = updateTransition(
+                        targetState = selectedCollection,
+                        label = "collection-detail-state",
+                    )
+                    val collectionOverlayActive = collectionTransition.currentState != null ||
+                        collectionTransition.targetState != null
                     Scaffold(
                         // Collection detail and Search are full-screen layers drawn after this
                         // browse shell. Hide the covered tree from accessibility so TalkBack never
                         // reaches duplicate/underlying tabs and selection controls.
-                        modifier = if (selectedCollection != null || showSearch) {
+                        modifier = if (collectionOverlayActive || searchOverlayActive) {
                             Modifier.clearAndSetSemantics { }
                         } else {
                             Modifier
                         },
                         topBar = {
                             Column {
-                                if (selectionMode && selectedCollection == null) {
-                                    SelectionTopAppBar(
+                                AnimatedContent(
+                                    targetState = SelectionBarPresentation(
+                                        selecting = selectionMode && selectedCollection == null,
                                         count = selectedTrackIds.size,
-                                        allSelected = selectedTrackIds.size == catalog?.songs?.size,
+                                        allSelected =
+                                            selectedTrackIds.size == catalog?.songs?.size,
+                                    ),
+                                    contentKey = { it.selecting },
+                                    transitionSpec = { motionFadeThrough(reduceMotion) },
+                                    label = "root-contextual-app-bar",
+                                ) { bar ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .inactiveDuringTransition(
+                                            bar.selecting != (
+                                                selectionMode && selectedCollection == null
+                                            ),
+                                        ),
+                                ) {
+                                if (bar.selecting) {
+                                    SelectionTopAppBar(
+                                        count = bar.count,
+                                        allSelected = bar.allSelected,
                                         onClose = { updateTrackSelection(emptySet()) },
                                         onToggleAll = {
                                             updateTrackSelection(if (
@@ -1913,7 +1955,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     shrinkHorizontally(tween(Motion.REPLACE_MS))
                                             },
                                         ) {
-                                            Row {
+                                            Row(
+                                                modifier = Modifier.inactiveDuringTransition(
+                                                    selectedTab != PLAYLISTS_TAB,
+                                                ),
+                                            ) {
                                             IconButton(onClick = { m3uExchange.import() }) {
                                                 Icon(
                                                     imageVector = Icons.Rounded.FileOpen,
@@ -1946,10 +1992,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         SharedSettingsButton(
                                             sharedScope = sharedScope,
                                             animatedScope = animatedScope,
+                                            shareElement = !searchOverlayActive &&
+                                                !collectionOverlayActive,
                                             onClick = { showSettings = true },
                                         )
                                     },
                                 )
+                                }
+                                }
                                 BrowseCarousel(
                                     pagerState = pagerState,
                                     enabled = !selectionMode,
@@ -1983,13 +2033,33 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 ),
                         ) {
                             Box(modifier = Modifier.fillMaxSize()) {
-                                when {
-                                    visibleCatalog == null -> Box(
+                                val presentation = when {
+                                    visibleCatalog == null -> LibraryPresentation.LOADING
+                                    visibleCatalog.songs.isEmpty() -> LibraryPresentation.EMPTY
+                                    else -> LibraryPresentation.CONTENT
+                                }
+                                AnimatedContent(
+                                    // Keep the catalog that belongs to each transition frame. If
+                                    // the live value becomes null, the outgoing CONTENT page still
+                                    // has its rows available while it fades away.
+                                    targetState = presentation to visibleCatalog,
+                                    contentKey = { it.first },
+                                    transitionSpec = { motionFadeThrough(reduceMotion) },
+                                    modifier = Modifier.fillMaxSize(),
+                                    label = "library-presentation",
+                                ) { (shownPresentation, shownCatalog) ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .inactiveDuringTransition(shownPresentation != presentation),
+                                ) {
+                                when (shownPresentation) {
+                                    LibraryPresentation.LOADING -> Box(
                                         modifier = Modifier.fillMaxSize(),
                                         contentAlignment = Alignment.Center,
                                     ) { CircularProgressIndicator() }
 
-                                    visibleCatalog.songs.isEmpty() -> Column(
+                                    LibraryPresentation.EMPTY -> Column(
                                         modifier = Modifier.fillMaxSize(),
                                         verticalArrangement = Arrangement.Center,
                                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -2017,7 +2087,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     // Pages follow the finger. The carousel strip above reads the
                                     // same pager position, so label and content move together
                                     // rather than one chasing the other after the fact.
-                                    else -> HorizontalPager(
+                                    LibraryPresentation.CONTENT -> shownCatalog?.let { visibleCatalog ->
+                                    HorizontalPager(
                                         state = pagerState,
                                         modifier = Modifier.fillMaxSize(),
                                         userScrollEnabled = !selectionMode,
@@ -2028,8 +2099,22 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         key = { page -> page },
                                     ) { tab ->
                                         when (tab) {
-                                        FOR_YOU_TAB -> ForYouTab(
-                                            page = forYou,
+                                        FOR_YOU_TAB -> AnimatedContent(
+                                            targetState = forYou,
+                                            contentKey = { if (it.isEmpty) "empty" else "content" },
+                                            transitionSpec = { motionFadeThrough(reduceMotion) },
+                                            modifier = Modifier.fillMaxSize(),
+                                            label = "for-you-presentation",
+                                        ) { shownForYou ->
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .inactiveDuringTransition(
+                                                    shownForYou.isEmpty != forYou.isEmpty,
+                                                ),
+                                        ) {
+                                        ForYouTab(
+                                            page = shownForYou,
                                             contentPadding = listPadding,
                                             isRefreshing = forYouRefreshing,
                                             onRefresh = {
@@ -2065,9 +2150,28 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             onTrackMenu = { trackMenuRequest = TrackMenuRequest(it) },
                                             onOpenWorld = { worldTarget = it },
                                         )
+                                        }
+                                        }
 
-                                        MAP_TAB -> MapTab(
-                                            state = mapState,
+                                        MAP_TAB -> AnimatedContent(
+                                            targetState = mapState,
+                                            contentKey = { state: MapPageState ->
+                                                state.presentationKey()
+                                            },
+                                            transitionSpec = { motionFadeThrough(reduceMotion) },
+                                            modifier = Modifier.fillMaxSize(),
+                                            label = "map-presentation",
+                                        ) { shownMapState ->
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .inactiveDuringTransition(
+                                                    shownMapState.presentationKey() !=
+                                                        mapState.presentationKey(),
+                                                ),
+                                        ) {
+                                        MapTab(
+                                            state = shownMapState,
                                             contentPadding = listPadding,
                                             focusTrackId = mapFocusTrackId,
                                             onPlayRegion = { region ->
@@ -2101,6 +2205,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             },
                                         )
+                                        }
+                                        }
 
                                         PLAYLISTS_TAB -> PlaylistsTabContent(
                                             autoPlaylists = autoPlaylists,
@@ -2121,6 +2227,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                             .firstNotNullOfOrNull { it.artworkUri },
                                                         tracks = auto.tracks,
                                                         allowsTrackSelection = true,
+                                                        routeId = "auto:${auto.kind.name}",
                                                     ))
                                                 }
                                             },
@@ -2413,6 +2520,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
                                         }
                                     }
+                                    }
+                                }
+                                }
                                 }
                             }
                         }
@@ -2420,25 +2530,27 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
                     // Drilling into a collection slides forward; backing out releases the same
                     // way. AnimatedContent keeps the outgoing screen alive for its exit frames.
-                    AnimatedContent(
-                        targetState = selectedCollection,
+                    if (collectionOverlayActive) ModalPointerBlocker()
+                    collectionTransition.AnimatedContent(
+                        // Track removal, hide/undo, and subtitle reconciliation copy this value.
+                        // Route identity stays fixed so those data updates never replay a page push.
+                        contentKey = { it?.routeId },
                         transitionSpec = {
-                            if (reduceMotion) {
-                                fadeIn(tween(120)) togetherWith fadeOut(tween(90))
-                            } else if (targetState != null) {
-                                (
-                                    slideInHorizontally(tween(Motion.APPEAR_MS)) { it / 4 } +
-                                        fadeIn(tween(Motion.APPEAR_MS))
-                                    ) togetherWith fadeOut(tween(Motion.REPLACE_MS / 2))
-                            } else {
-                                fadeIn(tween(Motion.REPLACE_MS)) togetherWith (
-                                    slideOutHorizontally(tween(Motion.REPLACE_MS)) { it / 4 } +
-                                        fadeOut(tween(Motion.REPLACE_MS))
-                                    )
-                            }
+                            motionPageTransform(
+                                forward = targetState != null,
+                                reduceMotion = reduceMotion,
+                                layoutDirection = layoutDirection,
+                            )
                         },
-                        label = "collection-detail",
+                        modifier = Modifier.fillMaxSize(),
                     ) { animatedSelection ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .inactiveDuringTransition(
+                                animatedSelection?.routeId != selectedCollection?.routeId,
+                            ),
+                    ) {
                     animatedSelection?.let { selection ->
                         CollectionDetailScreen(
                             selection = selection,
@@ -2502,10 +2614,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         )
                     }
                     }
+                    }
 
                     // Search settles in from under the top bar rather than teleporting whole.
+                    if (searchOverlayActive) ModalPointerBlocker()
                     AnimatedVisibility(
-                        visible = showSearch,
+                        visibleState = searchVisibilityState,
                         enter = if (reduceMotion) {
                             fadeIn(tween(120))
                         } else {
@@ -2519,6 +2633,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 slideOutVertically(tween(Motion.REPLACE_MS)) { -it / 10 }
                         },
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .inactiveDuringTransition(!searchVisibilityState.targetState),
+                        ) {
                         SearchScreen(
                             songs = catalog?.songs.orEmpty(),
                             currentTrackId = currentTrack?.id,
@@ -2545,11 +2664,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             },
                             bottomInset = floatingPlayerInset,
                         )
+                        }
                     }
 
                     AnimatedVisibility(
                         visible = selectionMode,
-                        modifier = Modifier.align(Alignment.BottomCenter),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .zIndex(if (selectionMode) 1f else 0f),
                         enter = if (reduceMotion) {
                             fadeIn(tween(120))
                         } else {
@@ -2563,6 +2685,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 slideOutVertically(tween(Motion.REPLACE_MS)) { it / 2 }
                         },
                     ) {
+                        Box(
+                            modifier = Modifier.inactiveDuringTransition(!selectionMode),
+                        ) {
                         SelectionActionBar(
                             canAct = selectedTracks.isNotEmpty(),
                             canShare = selectedTracks.isNotEmpty() &&
@@ -2715,35 +2840,73 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             },
                             modifier = Modifier,
                         )
-                    }
-                    if (!selectionMode) currentTrack?.let { current ->
-                        MiniPlayerPill(
-                            track = current,
-                            accent = accent,
-                            playback = playback,
-                            sharedScope = sharedScope,
-                            animatedScope = animatedScope,
-                            onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
-                            onPrevious = { scope.launch { playback.previous() } },
-                            onNext = { scope.launch { playback.next() } },
-                            onOpen = { showNowPlaying = true },
-                            modifier = Modifier.align(Alignment.BottomCenter),
-                        )
-                    }
                         }
                     }
+                    AnimatedVisibility(
+                        visible = !selectionMode && currentTrack != null,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .zIndex(if (!selectionMode) 1f else 0f),
+                        enter = if (reduceMotion) {
+                            fadeIn(tween(Motion.REDUCED_MS))
+                        } else {
+                            fadeIn(tween(Motion.APPEAR_MS)) +
+                                slideInVertically(tween(Motion.APPEAR_MS)) { it / 3 }
+                        },
+                        exit = if (reduceMotion) {
+                            fadeOut(tween(Motion.REDUCED_MS))
+                        } else {
+                            fadeOut(tween(Motion.REPLACE_MS)) +
+                                slideOutVertically(tween(Motion.REPLACE_MS)) { it / 3 }
+                        },
+                    ) {
+                        Box(
+                            modifier = Modifier.inactiveDuringTransition(
+                                selectionMode || currentTrack == null,
+                            ),
+                        ) {
+                        (currentTrack ?: lastMiniPresentation.track)?.let { current ->
+                            MiniPlayerPill(
+                                track = current,
+                                accent = if (currentTrack != null) {
+                                    accent
+                                } else {
+                                    lastMiniPresentation.accent
+                                },
+                                isPlaying = if (currentTrack != null) {
+                                    currentTrackPlaying
+                                } else {
+                                    lastMiniPresentation.isPlaying
+                                },
+                                playback = playback,
+                                sharedScope = sharedScope,
+                                animatedScope = animatedScope,
+                                onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
+                                onPrevious = { scope.launch { playback.previous() } },
+                                onNext = { scope.launch { playback.next() } },
+                                onOpen = { showNowPlaying = true },
+                            )
+                    }
+                        }
+                        }
+                    }
+                }
+            }
                 }
             }
         }
             // One host above both AnimatedContent branches: collection/search surfaces and the
             // full player otherwise cover the Scaffold-owned host, making Undo technically exist
             // but impossible to see or tap.
-            SnackbarHost(
+            if (!settingsOverlayActive) SnackbarHost(
                 hostState = snackbar,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .zIndex(10f)
                     .padding(
-                        bottom = if (!showNowPlaying && currentTrack != null) {
+                        bottom = if (
+                            !settingsOverlayActive && !showNowPlaying && currentTrack != null
+                        ) {
                             MINI_PLAYER_HEIGHT + navBottom
                         } else {
                             navBottom
@@ -3110,6 +3273,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             subtitle = trackCountLabel(world?.tracks?.size ?: 0),
                             artworkUri = target.track.artworkUri,
                             tracks = world?.tracks.orEmpty(),
+                            routeId = "world:${target.track.id.value}",
                         ))
                     }
                 },
@@ -3332,7 +3496,24 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             )
         }
 
-        if (showSettings) {
+        AnimatedVisibility(
+            visibleState = settingsVisibilityState,
+            enter = motionPageEnter(
+                forward = true,
+                reduceMotion = reduceMotion,
+                layoutDirection = layoutDirection,
+            ),
+            exit = motionPageExit(
+                forward = false,
+                reduceMotion = reduceMotion,
+                layoutDirection = layoutDirection,
+            ),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .inactiveDuringTransition(!settingsVisibilityState.targetState),
+            ) {
             SettingsScreen(
                 settings = settings,
                 equalizer = AppGraph.equalizer,
@@ -3420,6 +3601,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             )
         }
     }
+    }
+}
 }
 
 /**
@@ -3436,6 +3619,48 @@ private val BROWSE_TABS: List<StringResource> = listOf(
     Res.string.tab_genres,
     Res.string.tab_folders,
 )
+
+/** Coarse library states only; catalog refreshes within CONTENT must never replay its entrance. */
+private enum class LibraryPresentation { LOADING, EMPTY, CONTENT }
+
+/** Outgoing full-screen content stays drawable but cannot retain focus or receive a late tap. */
+private fun Modifier.inactiveDuringTransition(inactive: Boolean): Modifier = if (!inactive) {
+    this
+} else {
+    clearAndSetSemantics { }
+        .pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                }
+            }
+        }
+}
+
+/** Static modal floor beneath a moving page, preventing taps through temporarily uncovered space. */
+@Composable
+private fun ModalPointerBlocker() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clearAndSetSemantics { }
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                    }
+                }
+            },
+    )
+}
+
+/** Map data may refresh within READY; only a real status boundary should fade the surface. */
+private fun MapPageState.presentationKey(): String = when (this) {
+    MapPageState.Indexing -> "indexing"
+    MapPageState.Building -> "building"
+    is MapPageState.TooLarge -> "too-large"
+    is MapPageState.Ready -> "ready"
+}
 
 /** Stable pager indices for the fixed browse destinations. */
 private const val FOR_YOU_TAB = 0
@@ -3464,12 +3689,9 @@ private fun StartPage.tabIndex(): Int = when (this) {
 /** Persist-and-report granularity for library indexing. */
 private const val RECENT_EVENTS_FOR_YOU = 500
 
-/** Duration of the mini-player ↔ now-playing morph. */
-private const val MORPH_MILLIS = 340
-
 // The full player owns precise seeking; the browse pill updates this glanceable hint less often so
 // playback does not invalidate the browse shell every 500 ms.
-private const val MINI_PLAYER_PROGRESS_STEP_MS = 5_000L
+private const val MINI_PLAYER_PROGRESS_STEP_MS = 1_000L
 
 /** Stable saveable-state bucket for the browse stack while the full player owns the screen. */
 private const val BROWSE_SHELL_STATE_KEY = "browse-shell"
@@ -3499,6 +3721,7 @@ private suspend fun AlbumGroup.toSelection() = CollectionSelection(
     artworkUri = artworkUri,
     tracks = tracks,
     allowsTrackSelection = true,
+    routeId = "album:$key",
 )
 
 private suspend fun ArtistGroup.toSelection(): CollectionSelection {
@@ -3525,6 +3748,7 @@ private suspend fun ArtistGroup.toSelection(): CollectionSelection {
         // A single bucket is a flat list wearing a pointless header.
         sections = sections.takeIf { it.size > 1 },
         allowsTrackSelection = true,
+        routeId = "artist:${name.orEmpty()}",
     )
 }
 
@@ -3534,6 +3758,7 @@ private suspend fun GenreGroup.toSelection() = CollectionSelection(
     artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
     tracks = tracks,
     allowsTrackSelection = true,
+    routeId = "genre:${name.orEmpty()}",
 )
 
 private suspend fun FolderGroup.toSelection() = CollectionSelection(
@@ -3542,6 +3767,7 @@ private suspend fun FolderGroup.toSelection() = CollectionSelection(
     artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
     tracks = tracks,
     allowsTrackSelection = true,
+    routeId = "folder:$path",
 )
 
 private suspend fun trackCountLabel(count: Int): String =
@@ -3765,10 +3991,13 @@ internal fun OverflowButton(
     menuItems: @Composable ColumnScope.(dismiss: () -> Unit) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
+    val reduceMotion = rememberReduceMotion()
     Box {
         IconButton(
             onClick = { open = true },
-            modifier = with(sharedScope) {
+            modifier = if (reduceMotion) {
+                Modifier
+            } else with(sharedScope) {
                 Modifier.sharedElement(
                     rememberSharedContentState(OVERFLOW_KEY),
                     animatedScope,
@@ -3792,11 +4021,15 @@ internal fun OverflowButton(
 private fun SharedSettingsButton(
     sharedScope: SharedTransitionScope,
     animatedScope: AnimatedVisibilityScope,
+    shareElement: Boolean,
     onClick: () -> Unit,
 ) {
+    val reduceMotion = rememberReduceMotion()
     IconButton(
         onClick = onClick,
-        modifier = with(sharedScope) {
+        modifier = if (reduceMotion || !shareElement) {
+            Modifier
+        } else with(sharedScope) {
             Modifier.sharedElement(
                 rememberSharedContentState(OVERFLOW_KEY),
                 animatedScope,
@@ -4136,6 +4369,7 @@ private fun FolderRow(
 private fun MiniPlayerPill(
     track: TrackDescriptor,
     accent: TrackAccent,
+    isPlaying: Boolean,
     playback: PlaybackController,
     sharedScope: SharedTransitionScope,
     animatedScope: AnimatedVisibilityScope,
@@ -4145,19 +4379,18 @@ private fun MiniPlayerPill(
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val isPlaying by remember(playback) {
-        playback.state.map { it.isPlaying }.distinctUntilChanged()
-    }.collectAsState(playback.state.value.isPlaying)
+    val reduceMotion = rememberReduceMotion()
     val playerShape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
     CompositionLocalProvider(LocalContentColor provides accent.onContainer) {
         Box(
             modifier = modifier
                 .fillMaxWidth()
                 .then(
-                    with(sharedScope) {
+                    if (reduceMotion) Modifier else with(sharedScope) {
                         Modifier.sharedBounds(
                             rememberSharedContentState(PLAYER_SURFACE_KEY),
                             animatedScope,
+                            boundsTransform = motionBoundsTransform(),
                         )
                     },
                 )
@@ -4195,31 +4428,44 @@ private fun MiniPlayerPill(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Artwork(
+                    RetainedArtwork(
                         uri = track.artworkUri,
                         size = 44.dp,
                         cornerRadius = 22.dp,
-                        modifier = with(sharedScope) {
+                        modifier = if (reduceMotion) Modifier else with(sharedScope) {
                             Modifier.sharedElement(
                                 rememberSharedContentState(ARTWORK_KEY),
                                 animatedScope,
+                                boundsTransform = motionBoundsTransform(),
                             )
                         },
                     )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = track.title ?: stringResource(Res.string.track_untitled),
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = track.artist ?: stringResource(Res.string.track_unknown_artist),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = accent.onContainer.copy(alpha = 0.72f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                    AnimatedContent(
+                        targetState = track,
+                        contentKey = { it.id },
+                        transitionSpec = { motionFadeThrough(reduceMotion) },
+                        modifier = Modifier.weight(1f),
+                        label = "mini-track-metadata",
+                    ) { shownTrack ->
+                        Column(
+                            modifier = Modifier.inactiveForMotion(shownTrack.id != track.id),
+                        ) {
+                            Text(
+                                text = shownTrack.title
+                                    ?: stringResource(Res.string.track_untitled),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = shownTrack.artist
+                                    ?: stringResource(Res.string.track_unknown_artist),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = accent.onContainer.copy(alpha = 0.72f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                     IconButton(onClick = onPrevious) {
                         Icon(
@@ -4227,23 +4473,24 @@ private fun MiniPlayerPill(
                             contentDescription = stringResource(Res.string.action_previous),
                         )
                     }
-                    IconButton(onClick = onTogglePlayPause) {
+                    val playPauseDescription = stringResource(
+                        if (isPlaying) Res.string.action_pause else Res.string.action_play,
+                    )
+                    IconButton(
+                        onClick = onTogglePlayPause,
+                        modifier = Modifier.semantics {
+                            contentDescription = playPauseDescription
+                        },
+                    ) {
                         AnimatedContent(
                             targetState = isPlaying,
-                            transitionSpec = {
-                                (
-                                    fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.7f)
-                                    ) togetherWith fadeOut(tween(90))
-                            },
+                            transitionSpec = { motionIconTransform(reduceMotion) },
                             label = "mini-play-pause",
                         ) { playing ->
                         Icon(
                             imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = if (playing) {
-                                stringResource(Res.string.action_pause)
-                            } else {
-                                stringResource(Res.string.action_play)
-                            },
+                            contentDescription = null,
+                            modifier = Modifier.inactiveForMotion(playing != isPlaying),
                         )
                         }
                     }
@@ -4276,9 +4523,9 @@ private fun MiniPlayerProgress(
     accent: TrackAccent,
     modifier: Modifier = Modifier,
 ) {
-    val progress by remember(playback) {
+    val liveProgressSample by remember(playback) {
         playback.state.map { now ->
-            if (now.durationMs > 0) {
+            now.track?.id to if (now.durationMs > 0) {
                 val coarsePosition =
                     now.positionMs / MINI_PLAYER_PROGRESS_STEP_MS * MINI_PLAYER_PROGRESS_STEP_MS
                 (coarsePosition.toFloat() / now.durationMs).coerceIn(0f, 1f)
@@ -4288,7 +4535,7 @@ private fun MiniPlayerProgress(
         }.distinctUntilChanged()
     }.collectAsState(
         playback.state.value.let { now ->
-            if (now.durationMs > 0) {
+            now.track?.id to if (now.durationMs > 0) {
                 val coarsePosition =
                     now.positionMs / MINI_PLAYER_PROGRESS_STEP_MS * MINI_PLAYER_PROGRESS_STEP_MS
                 (coarsePosition.toFloat() / now.durationMs).coerceIn(0f, 1f)
@@ -4297,11 +4544,34 @@ private fun MiniPlayerProgress(
             }
         },
     )
-    LinearProgressIndicator(
-        progress = { progress },
-        modifier = modifier,
-        color = accent.onContainer.copy(alpha = 0.9f),
-        trackColor = Color.Transparent,
-        drawStopIndicator = {},
-    )
+    var progressSample by remember { mutableStateOf(liveProgressSample) }
+    LaunchedEffect(liveProgressSample) {
+        if (liveProgressSample.first != null) progressSample = liveProgressSample
+    }
+    val reduceMotion = rememberReduceMotion()
+    androidx.compose.runtime.key(progressSample.first) {
+        val animatedProgress = remember { Animatable(progressSample.second) }
+        LaunchedEffect(progressSample.second, reduceMotion) {
+            if (reduceMotion || progressSample.second < animatedProgress.value) {
+                // Track replacement, repeat-one and explicit restart all regress. Sweeping the
+                // bar backward for a second misrepresents playback, so regressions snap.
+                animatedProgress.snapTo(progressSample.second)
+            } else {
+                animatedProgress.animateTo(
+                    targetValue = progressSample.second,
+                    animationSpec = tween(
+                        MINI_PLAYER_PROGRESS_STEP_MS.toInt(),
+                        easing = LinearEasing,
+                    ),
+                )
+            }
+        }
+        LinearProgressIndicator(
+            progress = { animatedProgress.value },
+            modifier = modifier,
+            color = accent.onContainer.copy(alpha = 0.9f),
+            trackColor = Color.Transparent,
+            drawStopIndicator = {},
+        )
+    }
 }

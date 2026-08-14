@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -47,10 +48,12 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -90,6 +93,7 @@ import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -128,6 +132,7 @@ internal fun PlaylistsTabContent(
         if (settledOnTab) listState.scrollToItem(0)
     }
     val haptics = LocalHapticFeedback.current
+    val reduceMotion = rememberReduceMotion()
     // Same float-and-drop contract as the player's queue: the pressed row floats, ONE move
     // commits on release — mutating mid-drag would re-key the row under the finger.
     var draggingIndex by remember { mutableStateOf<Int?>(null) }
@@ -145,7 +150,17 @@ internal fun PlaylistsTabContent(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(autoPlaylists, key = { it.kind.name }) { auto ->
-                        Box(modifier = Modifier.animateItem()) {
+                        Box(
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(
+                                    if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                                ),
+                                placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
+                                fadeOutSpec = tween(
+                                    if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                                ),
+                            ),
+                        ) {
                             AutoPlaylistCard(auto) { onOpenAuto(auto) }
                         }
                     }
@@ -156,7 +171,18 @@ internal fun PlaylistsTabContent(
         if (playlists.isEmpty()) {
             item(key = "empty") {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    modifier = Modifier
+                        .animateItem(
+                            fadeInSpec = tween(
+                                if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                            ),
+                            placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
+                            fadeOutSpec = tween(
+                                if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                            ),
+                        )
+                        .fillMaxWidth()
+                        .padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -177,7 +203,15 @@ internal fun PlaylistsTabContent(
         itemsIndexed(playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
             Box(
                 modifier = Modifier
-                    .animateItem()
+                    .animateItem(
+                        fadeInSpec = tween(
+                            if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                        ),
+                        placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
+                        fadeOutSpec = tween(
+                            if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                        ),
+                    )
                     .then(
                         if (draggingIndex == index) {
                             Modifier
@@ -478,7 +512,31 @@ internal fun AddToPlaylistSheet(
     busy: Boolean = false,
     errorMessage: String? = null,
 ) {
-    ModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() }) {
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    val reduceMotion = rememberReduceMotion()
+    var dismissalInFlight by remember { mutableStateOf(false) }
+
+    fun dismissThen(action: () -> Unit) {
+        if (dismissalInFlight || busy) return
+        dismissalInFlight = true
+        if (reduceMotion) {
+            onDismiss()
+            action()
+        } else {
+            scope.launch {
+                sheetState.hide()
+                onDismiss()
+                action()
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = { dismissThen {} },
+        sheetState = sheetState,
+        sheetGesturesEnabled = !busy && !dismissalInFlight,
+    ) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             // Two whole sentences rather than a fragment plus an interpolated
             // fallback noun: "track" would have had to decline with the verb in
@@ -509,9 +567,8 @@ internal fun AddToPlaylistSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = !busy) {
-                        onDismiss()
-                        onCreateNew()
+                    .clickable(enabled = !busy && !dismissalInFlight) {
+                        dismissThen(onCreateNew)
                     }
                     .padding(horizontal = 24.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -533,7 +590,9 @@ internal fun AddToPlaylistSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(enabled = !busy) { onAddTo(playlist) }
+                            .clickable(enabled = !busy && !dismissalInFlight) {
+                                onAddTo(playlist)
+                            }
                             .padding(horizontal = 24.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(20.dp),

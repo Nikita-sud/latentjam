@@ -32,6 +32,7 @@
     <string name="action_add">Ekle</string>
     <string name="cd_more_options">Diğer seçenekler</string>
     <string name="cd_search_library">Kitaplıkta ara</string>
+    <string name="cd_alphabet_index">Alfabetik dizin</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Parça</string>

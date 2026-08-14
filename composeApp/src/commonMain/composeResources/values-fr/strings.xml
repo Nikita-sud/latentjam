@@ -44,6 +44,7 @@
     <string name="action_add">Ajouter</string>
     <string name="cd_more_options">Plus d'options</string>
     <string name="cd_search_library">Rechercher dans la bibliothèque</string>
+    <string name="cd_alphabet_index">Index alphabétique</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">Morceau</string>

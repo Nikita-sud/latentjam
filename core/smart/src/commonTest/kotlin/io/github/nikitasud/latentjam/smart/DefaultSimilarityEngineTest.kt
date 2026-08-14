@@ -936,6 +936,57 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun `staged audio and metadata become restart durable at explicit checkpoint`() = runTest {
+        val audioStore = FakeIndexStore()
+        val textStore = FakeIndexStore()
+        val track = seed.copy(title = "Checkpoint", artist = "LatentJam", genre = "Electronic")
+        val first = engine(
+            backend = FakeEmbeddingBackend(
+                mutableMapOf(track.id to floatArrayOf(1f, 0f, 0f)),
+            ),
+            store = audioStore,
+            textEncoder = FakeTextEncoder(),
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+            textStore = textStore,
+        )
+        first.initialize()
+
+        assertEquals(1, first.stageMetadataVectors(listOf(track)))
+        assertEquals(1, first.stageLibraryIndex(listOf(track)).indexed)
+        assertEquals(0, audioStore.saveCalls)
+        assertEquals(0, textStore.saveCalls)
+
+        // Model a hard process death before the cadence boundary: a fresh engine cannot see the
+        // staged in-memory rows because no snapshot has been committed yet.
+        val beforeCheckpoint = engine(
+            backend = FakeEmbeddingBackend(),
+            store = audioStore,
+            textEncoder = FakeTextEncoder(),
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+            textStore = textStore,
+        )
+        beforeCheckpoint.initialize()
+        assertEquals(null, beforeCheckpoint.embedding(track.id))
+        assertTrue(beforeCheckpoint.metadataVectors().isEmpty())
+
+        first.persistPendingAnalysis()
+        assertEquals(1, audioStore.saveCalls)
+        assertEquals(1, textStore.saveCalls)
+
+        val restarted = engine(
+            backend = FakeEmbeddingBackend(),
+            store = audioStore,
+            textEncoder = FakeTextEncoder(),
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+            textStore = textStore,
+        )
+        restarted.initialize()
+
+        assertNotNull(restarted.embedding(track.id))
+        assertEquals(setOf(track.id), restarted.metadataVectors().keys)
+    }
+
+    @Test
     fun `failed audio snapshot save is retried even when every track is already indexed`() = runTest {
         val store = FakeIndexStore().apply { saveFailuresRemaining = 1 }
         val backend = FakeEmbeddingBackend(

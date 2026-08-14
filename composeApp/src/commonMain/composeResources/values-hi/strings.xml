@@ -32,6 +32,7 @@
     <string name="action_add">जोड़ें</string>
     <string name="cd_more_options">और विकल्प</string>
     <string name="cd_search_library">लाइब्रेरी में खोजें</string>
+    <string name="cd_alphabet_index">वर्णमाला सूचकांक</string>
 
     <!-- ======================================================= track labels -->
     <string name="label_track">गाना</string>
