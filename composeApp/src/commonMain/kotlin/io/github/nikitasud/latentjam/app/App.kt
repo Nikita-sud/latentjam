@@ -10,8 +10,14 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -2393,7 +2399,28 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         }
                     }
 
-                    selectedCollection?.let { selection ->
+                    // Drilling into a collection slides forward; backing out releases the same
+                    // way. AnimatedContent keeps the outgoing screen alive for its exit frames.
+                    AnimatedContent(
+                        targetState = selectedCollection,
+                        transitionSpec = {
+                            if (reduceMotion) {
+                                fadeIn(tween(120)) togetherWith fadeOut(tween(90))
+                            } else if (targetState != null) {
+                                (
+                                    slideInHorizontally(tween(Motion.APPEAR_MS)) { it / 4 } +
+                                        fadeIn(tween(Motion.APPEAR_MS))
+                                    ) togetherWith fadeOut(tween(Motion.REPLACE_MS / 2))
+                            } else {
+                                fadeIn(tween(Motion.REPLACE_MS)) togetherWith (
+                                    slideOutHorizontally(tween(Motion.REPLACE_MS)) { it / 4 } +
+                                        fadeOut(tween(Motion.REPLACE_MS))
+                                    )
+                            }
+                        },
+                        label = "collection-detail",
+                    ) { animatedSelection ->
+                    animatedSelection?.let { selection ->
                         CollectionDetailScreen(
                             selection = selection,
                             currentTrackId = currentTrack?.id,
@@ -2455,8 +2482,24 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             },
                         )
                     }
+                    }
 
-                    if (showSearch) {
+                    // Search settles in from under the top bar rather than teleporting whole.
+                    AnimatedVisibility(
+                        visible = showSearch,
+                        enter = if (reduceMotion) {
+                            fadeIn(tween(120))
+                        } else {
+                            fadeIn(tween(Motion.APPEAR_MS)) +
+                                slideInVertically(tween(Motion.APPEAR_MS)) { -it / 10 }
+                        },
+                        exit = if (reduceMotion) {
+                            fadeOut(tween(90))
+                        } else {
+                            fadeOut(tween(Motion.REPLACE_MS)) +
+                                slideOutVertically(tween(Motion.REPLACE_MS)) { -it / 10 }
+                        },
+                    ) {
                         SearchScreen(
                             songs = catalog?.songs.orEmpty(),
                             currentTrackId = currentTrack?.id,
@@ -4150,14 +4193,24 @@ private fun MiniPlayerPill(
                         )
                     }
                     IconButton(onClick = onTogglePlayPause) {
+                        AnimatedContent(
+                            targetState = isPlaying,
+                            transitionSpec = {
+                                (
+                                    fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.7f)
+                                    ) togetherWith fadeOut(tween(90))
+                            },
+                            label = "mini-play-pause",
+                        ) { playing ->
                         Icon(
-                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = if (isPlaying) {
+                            imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            contentDescription = if (playing) {
                                 stringResource(Res.string.action_pause)
                             } else {
                                 stringResource(Res.string.action_play)
                             },
                         )
+                        }
                     }
                     IconButton(onClick = onNext) {
                         Icon(

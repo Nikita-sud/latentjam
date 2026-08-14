@@ -5,6 +5,14 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.RepeatMode as AnimationRepeatMode
 import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
@@ -74,6 +82,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -288,7 +297,30 @@ fun NowPlayingScreen(
                         Spacer(modifier = Modifier.weight(1f))
                         if (now.track != null) {
                             IconButton(onClick = onToggleFavorite) {
+                                // A like bounces once under the finger; removing one stays calm,
+                                // and entering the screen with an old favourite stays still too.
+                                val reduceMotion = rememberReduceMotion()
+                                val heartScale = remember { Animatable(1f) }
+                                var wasFavorite by remember { mutableStateOf(isFavorite) }
+                                LaunchedEffect(isFavorite) {
+                                    val turnedOn = isFavorite && !wasFavorite
+                                    wasFavorite = isFavorite
+                                    if (turnedOn && !reduceMotion) {
+                                        heartScale.snapTo(0.6f)
+                                        heartScale.animateTo(
+                                            targetValue = 1f,
+                                            animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                stiffness = Spring.StiffnessMedium,
+                                            ),
+                                        )
+                                    }
+                                }
                                 Icon(
+                                    modifier = Modifier.graphicsLayer {
+                                        scaleX = heartScale.value
+                                        scaleY = heartScale.value
+                                    },
                                     imageVector = if (isFavorite) {
                                         Icons.Rounded.Favorite
                                     } else {
@@ -426,19 +458,30 @@ fun NowPlayingScreen(
                                 onClick = { scope.launch { playback.togglePlayPause() } },
                                 modifier = Modifier.size(72.dp),
                             ) {
+                                AnimatedContent(
+                                    targetState = now.isPlaying,
+                                    transitionSpec = {
+                                        (
+                                            fadeIn(tween(120)) +
+                                                scaleIn(tween(120), initialScale = 0.7f)
+                                            ) togetherWith fadeOut(tween(90))
+                                    },
+                                    label = "play-pause",
+                                ) { playing ->
                                 Icon(
-                                    imageVector = if (now.isPlaying) {
+                                    imageVector = if (playing) {
                                         Icons.Rounded.Pause
                                     } else {
                                         Icons.Rounded.PlayArrow
                                     },
-                                    contentDescription = if (now.isPlaying) {
+                                    contentDescription = if (playing) {
                                         stringResource(Res.string.action_pause)
                                     } else {
                                         stringResource(Res.string.action_play)
                                     },
                                     modifier = Modifier.size(36.dp),
                                 )
+                                }
                             }
                             IconButton(
                                 onClick = { scope.launch { playback.next() } },
