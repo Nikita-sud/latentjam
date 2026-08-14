@@ -4,10 +4,18 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -19,6 +27,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,8 +44,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -75,28 +88,42 @@ internal data class RailFinalJump(
     val bucketIndex: Int,
 )
 
-/** Pure gesture state: live preview is cheap, while list navigation is committed once on UP. */
+/** Pure gesture state: preview is cheap, while real list navigation is committed once on UP. */
 internal class RailScrubCoordinator {
     var generation: Int = 0
         private set
     private var finalBucketIndex: Int? = null
+    private var previewActive: Boolean = false
 
     fun begin() {
         generation += 1
         finalBucketIndex = null
+        previewActive = true
     }
 
+    /** Replaces any unrendered preview while always retaining the exact final finger position. */
     fun preview(bucketIndex: Int) {
+        if (!previewActive) return
         finalBucketIndex = bucketIndex
     }
 
     fun finish(): RailFinalJump? {
+        if (!previewActive) return null
+        previewActive = false
         val bucketIndex = finalBucketIndex ?: return null
         finalBucketIndex = null
         return RailFinalJump(generation, bucketIndex)
     }
 
+    /** Invalidates pointer/final work when the rail or its catalog leaves composition. */
+    fun cancel() {
+        generation += 1
+        finalBucketIndex = null
+        previewActive = false
+    }
+
     fun isCurrent(completedGeneration: Int): Boolean = completedGeneration == generation
+
 }
 
 /** A rail's worth of navigation over an already-ordered list of names. */
@@ -142,20 +169,76 @@ internal fun currentRailBucketIndex(
     return startIndexes.indexOfLast { it <= itemIndex }.coerceAtLeast(0)
 }
 
-/**
- * Hosts a browse list beside the shared rail. The content lambda receives the padding that
- * keeps rows clear of the rail and the list state the rail jumps through; the rail hides
- * itself when the names collapse into a single bucket.
- */
+/** Convenience adapter for a one-item-per-name alphabetic group list. */
 @Composable
 internal fun GroupListWithRail(
     names: List<String?>,
+    /** Optional artwork identities, one per row, used only for the bounded release handoff. */
+    artworkKeys: List<ArtworkLoadKey?> = emptyList(),
     contentPadding: PaddingValues,
-    content: @Composable BoxScope.(railPadding: PaddingValues, listState: LazyListState) -> Unit,
+    content: @Composable BoxScope.(
+        railPadding: PaddingValues,
+        listState: LazyListState,
+        artworkReporter: ((ArtworkLoadKey, ArtworkLoadState) -> Unit)?,
+    ) -> Unit,
 ) {
+    require(artworkKeys.isEmpty() || artworkKeys.size == names.size) {
+        "artworkKeys must be empty or aligned one-to-one with names"
+    }
     val rail = remember(names) { railIndexOf(names) }
-    val showRail = rail.buckets.size > 1
-    val listState = rememberLazyListState()
+    ListWithRail(
+        rail = rail,
+        catalogKey = names to artworkKeys,
+        artworkKeys = artworkKeys,
+        contentPadding = contentPadding,
+        content = { railPadding, listState, artworkReporter, _ ->
+            content(railPadding, listState, artworkReporter)
+        },
+    )
+}
+
+/**
+ * Hosts an explicitly indexed list beside the shared live-scrub rail. The same content is
+ * composed once for the real viewport and only while scrubbing for its exact visual mirror.
+ */
+@Composable
+internal fun ListWithRail(
+    rail: RailIndex,
+    catalogKey: Any,
+    artworkKeys: List<ArtworkLoadKey?>,
+    contentPadding: PaddingValues,
+    listState: LazyListState = rememberLazyListState(),
+    content: @Composable BoxScope.(
+        railPadding: PaddingValues,
+        listState: LazyListState,
+        artworkReporter: ((ArtworkLoadKey, ArtworkLoadState) -> Unit)?,
+        isPreview: Boolean,
+    ) -> Unit,
+) {
+    require(rail.buckets.size == rail.startIndexes.size) {
+        "rail buckets and anchors must stay aligned"
+    }
+    val railCandidate = rail.buckets.size > 1
+    val showRail by remember(railCandidate, listState) {
+        derivedStateOf {
+            railCandidate &&
+                listState.layoutInfo.totalItemsCount > 0 &&
+                (listState.canScrollForward || listState.canScrollBackward)
+        }
+    }
+    val previewListState = rememberLazyListState()
+    // Identity matters: labels/anchors may stay equal while backing rows or covers change.
+    val railCatalogKey = remember(catalogKey, rail, artworkKeys) { Any() }
+    val artworkLoadGate = remember(railCatalogKey) { ArtworkLoadGate() }
+    var railScrubbing by remember(railCatalogKey) { mutableStateOf(false) }
+    var previewBucketIndex by remember(railCatalogKey) { mutableStateOf<Int?>(null) }
+    val previewVisibility = remember(railCatalogKey) { MutableTransitionState(false) }
+    val previewRequested = railScrubbing && previewBucketIndex != null
+    previewVisibility.targetState = previewRequested
+    val previewOccluding = previewRequested ||
+        previewVisibility.currentState || previewVisibility.targetState
+    val reduceMotion = rememberReduceMotion()
+    val hasArtwork = remember(artworkKeys) { artworkKeys.any { it != null } }
     val activeBucket by remember(rail, listState) {
         derivedStateOf {
             currentRailBucketIndex(
@@ -166,20 +249,219 @@ internal fun GroupListWithRail(
                 ?.let(rail.buckets::get)
         }
     }
+    val layoutDirection = LocalLayoutDirection.current
     val inset = PaddingValues(
-        end = if (showRail) RailWidth + RailGap else 0.dp,
+        start = contentPadding.calculateStartPadding(layoutDirection),
+        top = contentPadding.calculateTopPadding(),
+        end = contentPadding.calculateEndPadding(layoutDirection) +
+            if (railCandidate) RailWidth + RailGap else 0.dp,
         bottom = contentPadding.calculateBottomPadding(),
     )
+    val artworkReporter: ((ArtworkLoadKey, ArtworkLoadState) -> Unit)? =
+        if (railScrubbing && hasArtwork) {
+            { key, state -> artworkLoadGate.record(key, state) }
+        } else {
+            null
+        }
     Box(modifier = Modifier.fillMaxSize()) {
-        content(inset, listState)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .inactiveForMotion(previewOccluding),
+        ) {
+            content(inset, listState, artworkReporter, false)
+        }
+
+        AnimatedVisibility(
+            visibleState = previewVisibility,
+            // Cover the old viewport immediately. Only revealing the committed list fades.
+            enter = EnterTransition.None,
+            exit = fadeOut(
+                tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
+            ),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clipToBounds()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .inactiveForMotion(true),
+            ) {
+                // This is the exact same list/layout as the real surface. Only its state differs,
+                // so bottom clamping and large-font row heights cannot shift during handoff.
+                content(inset, previewListState, null, true)
+            }
+        }
+
         if (showRail) {
             AlphabetRailOverlay(
                 buckets = rail.buckets,
+                catalogKey = railCatalogKey,
                 bottomPadding = contentPadding.calculateBottomPadding(),
                 activeBucket = activeBucket,
-                onJump = { bucketIndex ->
-                    listState.scrollToItem(rail.startIndexes[bucketIndex])
+                onPreviewJump = { bucketIndex ->
+                    rail.startIndexes.getOrNull(bucketIndex)?.let { targetIndex ->
+                        previewBucketIndex = bucketIndex
+                        // Requests before the next frame naturally coalesce to the latest finger.
+                        previewListState.requestScrollToItem(targetIndex)
+                    }
                 },
+                onJump = onJump@ { bucketIndex, _ ->
+                    val targetIndex = rail.startIndexes.getOrNull(bucketIndex)
+                        ?: return@onJump
+                    val loadCycle = artworkLoadGate.begin()
+                    try {
+                        withFrameNanos { }
+                        listState.scrollToItem(targetIndex)
+                        withFrameNanos { }
+                        val expectedArtwork = listState.layoutInfo.visibleItemsInfo
+                            .mapNotNull { itemInfo -> artworkKeys.getOrNull(itemInfo.index) }
+                            .toSet()
+                        artworkLoadGate.awaitFinished(
+                            cycle = loadCycle,
+                            expected = expectedArtwork,
+                            minimumWaitMillis = Motion.QUICK_MS.toLong(),
+                            maximumWaitMillis = Motion.APPEAR_MS.toLong(),
+                        )
+                        withFrameNanos { }
+                    } finally {
+                        artworkLoadGate.end(loadCycle)
+                    }
+                },
+                onScrubbingChange = { railScrubbing = it },
+            )
+        }
+    }
+}
+
+/**
+ * Grid counterpart of [GroupListWithRail]. Callers provide emitted-item anchors because a
+ * two-column alphabetic grid needs full-span section headers to keep every letter on a new row.
+ */
+@Composable
+internal fun GridListWithRail(
+    rail: RailIndex,
+    catalogKey: Any,
+    artworkKeys: List<ArtworkLoadKey?>,
+    contentPadding: PaddingValues,
+    content: @Composable BoxScope.(
+        railPadding: PaddingValues,
+        gridState: LazyGridState,
+        artworkReporter: ((ArtworkLoadKey, ArtworkLoadState) -> Unit)?,
+        isPreview: Boolean,
+    ) -> Unit,
+) {
+    require(rail.buckets.size == rail.startIndexes.size) {
+        "rail buckets and anchors must stay aligned"
+    }
+    val gridState = rememberLazyGridState()
+    val railCandidate = rail.buckets.size > 1
+    val showRail by remember(railCandidate, gridState) {
+        derivedStateOf {
+            railCandidate &&
+                gridState.layoutInfo.totalItemsCount > 0 &&
+                (gridState.canScrollForward || gridState.canScrollBackward)
+        }
+    }
+    val previewGridState = rememberLazyGridState()
+    val railCatalogKey = remember(catalogKey, rail, artworkKeys) { Any() }
+    val artworkLoadGate = remember(railCatalogKey) { ArtworkLoadGate() }
+    var railScrubbing by remember(railCatalogKey) { mutableStateOf(false) }
+    var previewBucketIndex by remember(railCatalogKey) { mutableStateOf<Int?>(null) }
+    val previewVisibility = remember(railCatalogKey) { MutableTransitionState(false) }
+    val previewRequested = railScrubbing && previewBucketIndex != null
+    previewVisibility.targetState = previewRequested
+    val previewOccluding = previewRequested ||
+        previewVisibility.currentState || previewVisibility.targetState
+    val reduceMotion = rememberReduceMotion()
+    val hasArtwork = remember(artworkKeys) { artworkKeys.any { it != null } }
+    val activeBucket by remember(rail, gridState) {
+        derivedStateOf {
+            currentRailBucketIndex(
+                itemIndex = gridState.firstVisibleItemIndex,
+                startIndexes = rail.startIndexes,
+                atEnd = !gridState.canScrollForward && gridState.firstVisibleItemIndex > 0,
+            )
+                ?.let(rail.buckets::get)
+        }
+    }
+    val layoutDirection = LocalLayoutDirection.current
+    val inset = PaddingValues(
+        start = contentPadding.calculateStartPadding(layoutDirection),
+        top = contentPadding.calculateTopPadding(),
+        end = contentPadding.calculateEndPadding(layoutDirection) +
+            if (railCandidate) RailWidth + RailGap else 0.dp,
+        bottom = contentPadding.calculateBottomPadding(),
+    )
+    val artworkReporter: ((ArtworkLoadKey, ArtworkLoadState) -> Unit)? =
+        if (railScrubbing && hasArtwork) {
+            { key, state -> artworkLoadGate.record(key, state) }
+        } else {
+            null
+        }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .inactiveForMotion(previewOccluding),
+        ) {
+            content(inset, gridState, artworkReporter, false)
+        }
+
+        AnimatedVisibility(
+            visibleState = previewVisibility,
+            enter = EnterTransition.None,
+            exit = fadeOut(
+                tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
+            ),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clipToBounds()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .inactiveForMotion(true),
+            ) {
+                content(inset, previewGridState, null, true)
+            }
+        }
+
+        if (showRail) {
+            AlphabetRailOverlay(
+                buckets = rail.buckets,
+                catalogKey = railCatalogKey,
+                bottomPadding = contentPadding.calculateBottomPadding(),
+                activeBucket = activeBucket,
+                onPreviewJump = { bucketIndex ->
+                    rail.startIndexes.getOrNull(bucketIndex)?.let { targetIndex ->
+                        previewBucketIndex = bucketIndex
+                        previewGridState.requestScrollToItem(targetIndex)
+                    }
+                },
+                onJump = onJump@ { bucketIndex, _ ->
+                    val targetIndex = rail.startIndexes.getOrNull(bucketIndex)
+                        ?: return@onJump
+                    val loadCycle = artworkLoadGate.begin()
+                    try {
+                        withFrameNanos { }
+                        gridState.scrollToItem(targetIndex)
+                        withFrameNanos { }
+                        val expectedArtwork = gridState.layoutInfo.visibleItemsInfo
+                            .mapNotNull { itemInfo -> artworkKeys.getOrNull(itemInfo.index) }
+                            .toSet()
+                        artworkLoadGate.awaitFinished(
+                            cycle = loadCycle,
+                            expected = expectedArtwork,
+                            minimumWaitMillis = Motion.QUICK_MS.toLong(),
+                            maximumWaitMillis = Motion.APPEAR_MS.toLong(),
+                        )
+                        withFrameNanos { }
+                    } finally {
+                        artworkLoadGate.end(loadCycle)
+                    }
+                },
+                onScrubbingChange = { railScrubbing = it },
             )
         }
     }
@@ -194,25 +476,50 @@ internal fun GroupListWithRail(
 @Composable
 internal fun BoxScope.AlphabetRailOverlay(
     buckets: List<String>,
+    catalogKey: Any = buckets,
     bottomPadding: Dp,
     activeBucket: String? = null,
-    onJump: suspend (bucketIndex: Int) -> Unit,
+    onPreviewJump: (bucketIndex: Int) -> Unit = {},
+    onJump: suspend (bucketIndex: Int, animated: Boolean) -> Unit,
+    onScrubbingChange: (Boolean) -> Unit = {},
 ) {
-    var previewIndex by remember(buckets) { mutableStateOf<Int?>(null) }
+    var previewIndex by remember(catalogKey) { mutableStateOf<Int?>(null) }
+    var settlingIndex by remember(catalogKey) { mutableStateOf<Int?>(null) }
     var touchY by remember { mutableStateOf(0f) }
     var railTopPx by remember { mutableStateOf(0f) }
     var railHeightPx by remember { mutableStateOf(0) }
     var finalJumpJob by remember { mutableStateOf<Job?>(null) }
+    val latestOnPreviewJump by rememberUpdatedState(onPreviewJump)
     val latestOnJump by rememberUpdatedState(onJump)
+    val latestOnScrubbingChange by rememberUpdatedState(onScrubbingChange)
     val scope = rememberCoroutineScope()
     val layoutDirection = LocalLayoutDirection.current
-    val previewBucket = previewIndex?.let(buckets::get)
-    val scrubCoordinator = remember(buckets) { RailScrubCoordinator() }
+    val density = LocalDensity.current
+    val bubbleDiameter = maxOf(
+        BubbleSize,
+        with(density) { MaterialTheme.typography.headlineSmall.fontSize.toDp() * 1.4f },
+    )
+    val previewBucket = previewIndex?.let { buckets.getOrNull(it) }
+    val settlingBucket = settlingIndex?.let { buckets.getOrNull(it) }
+    val scrubCoordinator = remember(catalogKey) { RailScrubCoordinator() }
+    val reduceMotion = rememberReduceMotion()
+
+    DisposableEffect(catalogKey) {
+        onDispose {
+            // Invalidate before cancelling: the cancelled job's finally block must not clear a
+            // newer gesture that may begin after a catalog/sort replacement.
+            scrubCoordinator.cancel()
+            finalJumpJob?.cancel()
+            latestOnScrubbingChange(false)
+        }
+    }
 
     fun beginSelection() {
         // Advance first: a cancelled previous job must observe itself as stale before it can jump.
         scrubCoordinator.begin()
         finalJumpJob?.cancel()
+        settlingIndex = null
+        latestOnScrubbingChange(true)
     }
 
     fun select(bucketIndex: Int, y: Float) {
@@ -220,26 +527,43 @@ internal fun BoxScope.AlphabetRailOverlay(
         if (previewIndex == bucketIndex) return
         previewIndex = bucketIndex
         scrubCoordinator.preview(bucketIndex)
+        // This callback updates only a lightweight visual mirror. Keeping it synchronous makes
+        // even a sub-frame top-to-bottom gesture show its exact target while the interactive
+        // LazyColumn remains frozen.
+        latestOnPreviewJump(bucketIndex)
     }
 
     fun endSelection() {
-        // Replacing a distant LazyColumn viewport is expensive even without animation. Keep the
-        // bubble fully live during the gesture and perform exactly one such replacement on UP.
+        // The host keeps its lightweight preview visible while exactly one underlying list jump
+        // and bounded artwork warm-up complete. Its callback returns only when it is safe to
+        // reveal the real list.
         val completion = scrubCoordinator.finish()
         previewIndex = null
         if (completion != null) {
+            settlingIndex = completion.bucketIndex
             finalJumpJob?.cancel()
             finalJumpJob = scope.launch {
-                if (scrubCoordinator.isCurrent(completion.generation)) {
-                    latestOnJump(completion.bucketIndex)
+                try {
+                    if (scrubCoordinator.isCurrent(completion.generation)) {
+                        latestOnJump(completion.bucketIndex, !reduceMotion)
+                    }
+                } finally {
+                    if (scrubCoordinator.isCurrent(completion.generation)) {
+                        settlingIndex = null
+                        latestOnScrubbingChange(false)
+                    }
                 }
             }
+        } else {
+            settlingIndex = null
+            latestOnScrubbingChange(false)
         }
     }
 
     AlphabetRail(
         buckets = buckets,
-        activeBucket = previewBucket ?: activeBucket,
+        gestureKey = catalogKey,
+        activeBucket = previewBucket ?: settlingBucket ?: activeBucket,
         modifier = Modifier
             .align(Alignment.CenterEnd)
             .fillMaxHeight()
@@ -260,7 +584,7 @@ internal fun BoxScope.AlphabetRailOverlay(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .offset {
-                    val bubblePx = BubbleSize.roundToPx()
+                    val bubblePx = bubbleDiameter.roundToPx()
                     val localTop = (touchY - bubblePx / 2f)
                         .roundToInt()
                         .coerceIn(0, (railHeightPx - bubblePx).coerceAtLeast(0))
@@ -273,7 +597,7 @@ internal fun BoxScope.AlphabetRailOverlay(
                         y = railTopPx.roundToInt() + localTop,
                     )
                 }
-                .size(BubbleSize),
+                .size(bubbleDiameter),
             shape = CircleShape,
             color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.82f),
         ) {
@@ -292,6 +616,7 @@ internal fun BoxScope.AlphabetRailOverlay(
 @Composable
 private fun AlphabetRail(
     buckets: List<String>,
+    gestureKey: Any,
     activeBucket: String?,
     modifier: Modifier = Modifier,
     onSelectionStart: () -> Unit,
@@ -302,7 +627,15 @@ private fun AlphabetRail(
     val activeIndex = buckets.indexOf(activeBucket).coerceAtLeast(0)
     val railDescription = stringResource(Res.string.cd_alphabet_index)
     val density = LocalDensity.current
-    val minimumLabelHeightPx = with(density) { RailLabelHeight.roundToPx() }
+    val labelHeight = maxOf(
+        RailLabelHeight,
+        with(density) { MaterialTheme.typography.labelSmall.fontSize.toDp() * 1.45f },
+    )
+    val railPillWidth = maxOf(
+        RailPillWidth,
+        with(density) { MaterialTheme.typography.labelSmall.fontSize.toDp() * 1.35f },
+    ).coerceAtMost(RailWidth)
+    val minimumLabelHeightPx = with(density) { labelHeight.roundToPx() }
     val condensed = railHeightPx > 0 && buckets.size * minimumLabelHeightPx > railHeightPx
 
     Box(
@@ -327,7 +660,7 @@ private fun AlphabetRail(
             }
             // One recognizer owns down/move/up. Separate tap and drag detectors race each other
             // and the surrounding pager, especially at Samsung's back-gesture edge.
-            .pointerInput(buckets) {
+            .pointerInput(buckets, gestureKey) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     down.consume()
@@ -360,7 +693,7 @@ private fun AlphabetRail(
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxHeight()
-                .width(RailPillWidth)
+                .width(railPillWidth)
                 // The outer adjustable node is the single TalkBack target; visual letters are
                 // decorative and must not become dozens of separate accessibility stops.
                 .clearAndSetSemantics { },
@@ -407,7 +740,7 @@ private fun AlphabetRail(
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(RailLabelHeight)
+                                    .height(labelHeight)
                                     .offset {
                                         IntOffset(
                                             x = 0,
@@ -426,7 +759,7 @@ private fun AlphabetRail(
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(RailLabelHeight)
+                            .height(labelHeight)
                             .offset {
                                 IntOffset(
                                     x = 0,

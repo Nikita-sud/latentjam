@@ -64,6 +64,12 @@ public class PlaybackService : MediaLibraryService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
         ): MediaSession.ConnectionResult {
+            if (controller.packageName != packageName) {
+                recordExternalMediaEvent(
+                    source = controller.packageName,
+                    what = "connect trusted=${controller.isTrusted}",
+                )
+            }
             // The service has to be exported so Android System UI, Bluetooth controls and the
             // app's own MediaController can reach the session. Media3 1.10's default callback,
             // however, builds an accepted result with DEFAULT_PLAYER_COMMANDS before it knows
@@ -83,6 +89,36 @@ public class PlaybackService : MediaLibraryService() {
                 )
                 .setAvailablePlayerCommands(result.availablePlayerCommands)
                 .build()
+        }
+
+
+        override fun onMediaButtonEvent(
+            session: MediaSession,
+            controllerInfo: MediaSession.ControllerInfo,
+            intent: Intent,
+        ): Boolean {
+            @Suppress("DEPRECATION")
+            val keyEvent =
+                intent.getParcelableExtra<android.view.KeyEvent>(Intent.EXTRA_KEY_EVENT)
+            recordExternalMediaEvent(
+                source = controllerInfo.packageName,
+                what = "key=${keyEvent?.keyCode} action=${keyEvent?.action}",
+            )
+            return super.onMediaButtonEvent(session, controllerInfo, intent)
+        }
+
+        override fun onPlayerCommandRequest(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            playerCommand: Int,
+        ): Int {
+            if (controller.packageName != packageName) {
+                recordExternalMediaEvent(
+                    source = controller.packageName,
+                    what = "playerCommand=$playerCommand",
+                )
+            }
+            return super.onPlayerCommandRequest(session, controller, playerCommand)
         }
 
         override fun onCustomCommand(
@@ -362,6 +398,25 @@ public class PlaybackService : MediaLibraryService() {
                 .build(),
         )
         .build()
+
+
+    /**
+     * Durable black box for the transport surface no test bench can reach: headphone taps,
+     * OEM Bluetooth stacks, System UI. One line per EXTERNAL command with the source package,
+     * what arrived, and whether audio was actually playing at that instant — so "my headphones
+     * did not pause it" becomes attributable days later instead of folklore. Bounded on disk
+     * and best-effort by design.
+     */
+    private fun recordExternalMediaEvent(source: String?, what: String) {
+        runCatching {
+            val file = java.io.File(filesDir, "media_commands.log")
+            if (file.length() > 128_000) file.delete()
+            file.appendText(
+                "${System.currentTimeMillis()} ${source ?: "?"} $what " +
+                    "playing=${playbackPlayer?.isPlaying}\n",
+            )
+        }
+    }
 
     /** Keeps stateful notification icons in step with changes from either the app or System UI. */
     private val playerListener = object : Player.Listener {

@@ -43,14 +43,18 @@ import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LibraryAdd
+import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Pause
@@ -62,6 +66,7 @@ import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -70,6 +75,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -79,6 +85,7 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetScaffoldState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -127,6 +134,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.cd_repeat_one
 import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_off
 import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_on
 import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_smart
+import io.github.nikitasud.latentjam.app.generated.resources.info_lyrics
+import io.github.nikitasud.latentjam.app.generated.resources.lyrics_not_found
 import io.github.nikitasud.latentjam.app.generated.resources.now_playing_nothing
 import io.github.nikitasud.latentjam.app.generated.resources.now_playing_source
 import io.github.nikitasud.latentjam.app.generated.resources.queue_title
@@ -159,6 +168,7 @@ private data class TrackMetadataPresentation(
     val track: TrackDescriptor?,
     val sourceLabel: String?,
 )
+private enum class PlayerLyricsContentState { LOADING, MISSING, AVAILABLE }
 
 /**
  * One cheap identity token for a queue snapshot.
@@ -225,8 +235,28 @@ fun NowPlayingScreen(
     val scope = rememberCoroutineScope()
     val sheetState = rememberBottomSheetScaffoldState()
     var showSleepTimer by remember { mutableStateOf(false) }
+    val currentTrack = now.track
+    val lyricsSource = currentTrack?.lyricsSourceIdentity()
+    val readLyrics = rememberLyricsReader()
+    var lyrics by remember(lyricsSource) { mutableStateOf<String?>(null) }
+    var lyricsReadRequested by remember(lyricsSource) { mutableStateOf(false) }
+    var lyricsReadComplete by remember(lyricsSource) { mutableStateOf(false) }
+    var showLyrics by remember(lyricsSource) { mutableStateOf(false) }
     val reduceMotion = rememberReduceMotion()
-    PlatformBackHandler(enabled = true, onBack = onClose)
+    // Merely opening the player must stay cheap: a tag can contain megabytes of artwork before its
+    // USLT frame. The bounded off-main read starts only after the explicit Lyrics tap, then remains
+    // cached for this source while the expanded player is alive.
+    LaunchedEffect(lyricsSource, lyricsReadRequested) {
+        if (!lyricsReadRequested) return@LaunchedEffect
+        lyricsReadComplete = false
+        lyrics = currentTrack?.let { track ->
+            readLyrics(track)?.takeIf { it.isNotBlank() }
+        }
+        lyricsReadComplete = true
+    }
+    // While lyrics are open, the modal sheet owns Back so it can finish its exit before the parent
+    // removes it. Otherwise Back collapses the full player as usual.
+    PlatformBackHandler(enabled = !showLyrics, onBack = onClose)
 
     Surface(
         // Same shared container as the mini-player pill: the pill grows into
@@ -335,6 +365,17 @@ fun NowPlayingScreen(
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         if (now.track != null) {
+                            IconButton(
+                                onClick = {
+                                    showLyrics = true
+                                    lyricsReadRequested = true
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Lyrics,
+                                    contentDescription = stringResource(Res.string.info_lyrics),
+                                )
+                            }
                             IconButton(onClick = onToggleFavorite) {
                                 // A like bounces once under the finger; removing one stays calm,
                                 // and entering the screen with an old favourite stays still too.
@@ -591,6 +632,146 @@ fun NowPlayingScreen(
             },
             onDismiss = { showSleepTimer = false },
         )
+    }
+
+    if (showLyrics) {
+        val shownTrack = currentTrack
+        if (shownTrack != null) {
+            PlayerLyricsSheet(
+                track = shownTrack,
+                lyrics = lyrics,
+                loading = !lyricsReadComplete,
+                onDismiss = { showLyrics = false },
+            )
+        }
+    }
+}
+
+/** A focused, selectable lyrics surface reached directly from the full player. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlayerLyricsSheet(
+    track: TrackDescriptor,
+    lyrics: String?,
+    loading: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    val reduceMotion = rememberReduceMotion()
+    var dismissalInFlight by remember { mutableStateOf(false) }
+    val contentState = when {
+        loading -> PlayerLyricsContentState.LOADING
+        lyrics == null -> PlayerLyricsContentState.MISSING
+        else -> PlayerLyricsContentState.AVAILABLE
+    }
+
+    fun dismiss() {
+        if (dismissalInFlight) return
+        dismissalInFlight = true
+        if (reduceMotion) {
+            // Reduced motion deliberately removes the surface in one state change.
+            onDismiss()
+        } else {
+            scope.launch {
+                sheetState.hide()
+                onDismiss()
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = ::dismiss,
+        sheetState = sheetState,
+        sheetGesturesEnabled = !dismissalInFlight,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 24.dp, end = 12.dp, bottom = 32.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(Res.string.info_lyrics),
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = ::dismiss, enabled = !dismissalInFlight) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = stringResource(Res.string.action_close),
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, end = 12.dp, bottom = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Artwork(uri = track.artworkUri, size = 56.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = track.title ?: stringResource(Res.string.track_untitled),
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = track.artist
+                            ?: stringResource(Res.string.track_unknown_artist),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            AnimatedContent(
+                targetState = contentState,
+                transitionSpec = { motionFadeThrough(reduceMotion) },
+                modifier = Modifier.fillMaxWidth(),
+                label = "player-lyrics-content",
+            ) { shownState ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .inactiveForMotion(shownState != contentState),
+                ) {
+                    when (shownState) {
+                        PlayerLyricsContentState.LOADING -> Box(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                        PlayerLyricsContentState.MISSING -> Text(
+                            text = stringResource(Res.string.lyrics_not_found),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 12.dp, bottom = 24.dp),
+                        )
+                        PlayerLyricsContentState.AVAILABLE -> SelectionContainer {
+                            Text(
+                                // The outgoing AVAILABLE subtree can live for one final frame if
+                                // its parent is disposed during a source change; keep that frame
+                                // drawable without asserting against the newer state.
+                                text = lyrics.orEmpty(),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

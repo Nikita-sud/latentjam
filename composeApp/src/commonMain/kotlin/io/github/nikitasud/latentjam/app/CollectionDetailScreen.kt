@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -35,6 +36,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -58,6 +60,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_select_all
 import io.github.nikitasud.latentjam.app.generated.resources.action_shuffle
 import io.github.nikitasud.latentjam.app.generated.resources.selection_count
+import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
+import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import org.jetbrains.compose.resources.stringResource
@@ -70,7 +74,16 @@ import org.jetbrains.compose.resources.stringResource
 data class CollectionSection(
     val title: String,
     val tracks: List<TrackDescriptor>,
+    /** Raw metadata used by the rail; null stays the final `?` bucket after localization. */
+    val railTitle: String? = title,
 )
+
+/** What the detail rail indexes; semantic/manual orders deliberately use [NONE]. */
+enum class CollectionRailMode {
+    NONE,
+    TRACK_TITLES,
+    SECTION_TITLES,
+}
 
 data class CollectionSelection(
     val title: String,
@@ -82,6 +95,8 @@ data class CollectionSelection(
      * and selection keep working in flat indices, only the presentation gains structure.
      */
     val sections: List<CollectionSection>? = null,
+    /** Explicit opt-in: not every collection order is alphabetic or safe to re-index. */
+    val railMode: CollectionRailMode = CollectionRailMode.NONE,
     /**
      * Whether long-pressing a track starts checkbox multi-selection. True for every drill-in
      * today — playlists, albums, artists, genres, folders — so the same gesture means the same
@@ -101,6 +116,103 @@ data class CollectionSelection(
     val routeId: String = playlistId?.let { "playlist:$it" }
         ?: "collection:$title:${tracks.firstOrNull()?.id?.value.orEmpty()}",
 )
+
+/**
+ * Reconciles a live collection atomically. Section rows and the flat playback queue must always
+ * describe the same tracks; updating just one side makes rail anchors and click indices stale.
+ */
+internal fun CollectionSelection.filterTracksForCollection(
+    retain: (TrackDescriptor) -> Boolean,
+): CollectionSelection? {
+    val retainedSections = sections?.mapNotNull { section ->
+        section.copy(tracks = section.tracks.filter(retain))
+            .takeIf { it.tracks.isNotEmpty() }
+    }
+    val retainedTracks = retainedSections
+        ?.flatMap { it.tracks }
+        ?: tracks.filter(retain)
+    if (retainedTracks.isEmpty()) return null
+
+    // A single section no longer needs a header; its tracks become the ordinary title rail.
+    val shownSections = retainedSections?.takeIf { it.size > 1 }
+    return copy(
+        tracks = retainedTracks,
+        sections = shownSections,
+        railMode = if (
+            railMode == CollectionRailMode.SECTION_TITLES && shownSections == null
+        ) {
+            CollectionRailMode.TRACK_TITLES
+        } else {
+            railMode
+        },
+    )
+}
+
+internal data class CollectionRailPresentation(
+    val rail: RailIndex,
+    /** One entry per LazyColumn emission: actions/header rows deliberately carry null. */
+    val artworkKeys: List<ArtworkLoadKey?>,
+)
+
+internal fun collectionRailPresentation(
+    selection: CollectionSelection,
+): CollectionRailPresentation {
+    if (selection.railMode == CollectionRailMode.NONE) {
+        return CollectionRailPresentation(RailIndex(emptyList(), emptyList()), emptyList())
+    }
+
+    val artworkKeys = buildList<ArtworkLoadKey?> {
+        add(null) // Actions row.
+        val sections = selection.sections
+        if (sections == null) {
+            selection.tracks.forEachIndexed { index, track ->
+                add(track.artworkUri?.let { uri ->
+                    ArtworkLoadKey(
+                        itemId = "${selection.routeId}:$index:${track.id.value}",
+                        uri = uri,
+                    )
+                })
+            }
+        } else {
+            var flatIndex = 0
+            sections.forEach { section ->
+                add(null) // Section header.
+                section.tracks.forEach { track ->
+                    add(track.artworkUri?.let { uri ->
+                        ArtworkLoadKey(
+                            itemId = "${selection.routeId}:$flatIndex:${track.id.value}",
+                            uri = uri,
+                        )
+                    })
+                    flatIndex++
+                }
+            }
+        }
+    }
+
+    val rail = when (selection.railMode) {
+        CollectionRailMode.NONE -> RailIndex(emptyList(), emptyList())
+        CollectionRailMode.TRACK_TITLES -> {
+            val direct = railIndexOf(selection.tracks.map { it.title })
+            direct.copy(startIndexes = direct.startIndexes.map { it + 1 })
+        }
+        CollectionRailMode.SECTION_TITLES -> {
+            val sections = selection.sections.orEmpty()
+            val headerIndexes = buildList {
+                var emitted = 1 // Actions row.
+                sections.forEach { section ->
+                    add(emitted)
+                    emitted += 1 + section.tracks.size
+                }
+            }
+            val direct = railIndexOf(sections.map { it.railTitle })
+            direct.copy(
+                startIndexes = direct.startIndexes.mapNotNull(headerIndexes::getOrNull),
+            )
+        }
+    }
+    return CollectionRailPresentation(rail = rail, artworkKeys = artworkKeys)
+}
 
 /**
  * Full-screen detail for one album / artist / genre: header with artwork and
@@ -225,52 +337,233 @@ fun CollectionDetailScreen(
                 }
             }
 
-            LazyColumn(state = listState, contentPadding = PaddingValues(bottom = bottomInset)) {
-                item(key = "actions") {
-                    // Shuffle and play live on their own rounded surface, mirroring the Tracks tab
-                    // so the same two controls sit in the same place wherever a list is shown.
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            val railPresentation = remember(
+                selection.routeId,
+                selection.tracks,
+                selection.sections,
+                selection.railMode,
+            ) {
+                collectionRailPresentation(selection)
+            }
+            val railCatalogKey = remember(railPresentation) { Any() }
+            val listContentPadding = PaddingValues(bottom = bottomInset)
+            if (selection.railMode != CollectionRailMode.NONE &&
+                railPresentation.rail.buckets.size > 1
+            ) {
+                ListWithRail(
+                    rail = railPresentation.rail,
+                    catalogKey = railCatalogKey,
+                    artworkKeys = railPresentation.artworkKeys,
+                    contentPadding = listContentPadding,
+                    listState = listState,
+                ) { railPadding, shownListState, artworkReporter, isPreview ->
+                    CollectionTrackLazyColumn(
+                        selection = selection,
+                        listState = shownListState,
+                        contentPadding = railPadding,
+                        selectionMode = selectionMode,
+                        selectedTrackIds = selectedTrackIds,
+                        currentTrackId = currentTrackId,
+                        currentTrackPlaying = currentTrackPlaying,
+                        isPreview = isPreview,
+                        artworkReporter = artworkReporter,
+                        onToggleSelection = onToggleSelection,
+                        onStartSelection = onStartSelection,
+                        onPlayTrack = onPlayTrack,
+                        onShuffle = onShuffle,
+                        onTrackMenu = onTrackMenu,
+                    )
+                }
+            } else {
+                CollectionTrackLazyColumn(
+                    selection = selection,
+                    listState = listState,
+                    contentPadding = listContentPadding,
+                    selectionMode = selectionMode,
+                    selectedTrackIds = selectedTrackIds,
+                    currentTrackId = currentTrackId,
+                    currentTrackPlaying = currentTrackPlaying,
+                    isPreview = false,
+                    artworkReporter = null,
+                    onToggleSelection = onToggleSelection,
+                    onStartSelection = onStartSelection,
+                    onPlayTrack = onPlayTrack,
+                    onShuffle = onShuffle,
+                    onTrackMenu = onTrackMenu,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollectionTrackLazyColumn(
+    selection: CollectionSelection,
+    listState: LazyListState,
+    contentPadding: PaddingValues,
+    selectionMode: Boolean,
+    selectedTrackIds: Set<TrackId>,
+    currentTrackId: TrackId?,
+    currentTrackPlaying: Boolean,
+    isPreview: Boolean,
+    artworkReporter: ((ArtworkLoadKey, ArtworkLoadState) -> Unit)?,
+    onToggleSelection: (TrackDescriptor) -> Unit,
+    onStartSelection: (TrackDescriptor) -> Unit,
+    onPlayTrack: (Int) -> Unit,
+    onShuffle: () -> Unit,
+    onTrackMenu: (TrackDescriptor) -> Unit,
+) {
+    val reduceMotion = rememberReduceMotion()
+    val unknownTitle = stringResource(Res.string.track_untitled)
+    val unknownArtist = stringResource(Res.string.track_unknown_artist)
+    LazyColumn(state = listState, contentPadding = contentPadding) {
+        item(key = "actions") {
+            // Shuffle and play live on their own rounded surface, mirroring the Tracks tab.
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FilledTonalIconButton(
+                        onClick = onShuffle,
+                        enabled = !selectionMode,
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            FilledTonalIconButton(
-                                onClick = onShuffle,
-                                enabled = !selectionMode,
-                            ) {
-                                Icon(
-                                    Icons.Rounded.Shuffle,
-                                    contentDescription = stringResource(Res.string.action_shuffle),
-                                )
-                            }
-                            Spacer(modifier = Modifier.padding(horizontal = 6.dp))
-                            FilledIconButton(
-                                onClick = { onPlayTrack(0) },
-                                enabled = !selectionMode,
-                            ) {
-                                Icon(
-                                    Icons.Rounded.PlayArrow,
-                                    contentDescription = stringResource(Res.string.action_play),
-                                )
-                            }
-                        }
+                        Icon(
+                            Icons.Rounded.Shuffle,
+                            contentDescription = stringResource(Res.string.action_shuffle),
+                        )
+                    }
+                    Spacer(modifier = Modifier.padding(horizontal = 6.dp))
+                    FilledIconButton(
+                        onClick = { onPlayTrack(0) },
+                        enabled = !selectionMode,
+                    ) {
+                        Icon(
+                            Icons.Rounded.PlayArrow,
+                            contentDescription = stringResource(Res.string.action_play),
+                        )
                     }
                 }
-                val sections = selection.sections
-                if (sections == null) {
-                    itemsIndexed(
-                        selection.tracks,
-                        key = { _, track -> track.id.value },
-                    ) { index, track ->
-                        Box(
-                            modifier = Modifier.animateItem(
+            }
+        }
+        val sections = selection.sections
+        if (sections == null) {
+            itemsIndexed(
+                selection.tracks,
+                key = { _, track -> track.id.value },
+            ) { index, track ->
+                val artworkKey = track.artworkUri?.let { uri ->
+                    ArtworkLoadKey(
+                        itemId = "${selection.routeId}:$index:${track.id.value}",
+                        uri = uri,
+                    )
+                }
+                Box(
+                    modifier = if (!isPreview) {
+                        Modifier.animateItem(
+                            fadeInSpec = tween(
+                                if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                            ),
+                            placementSpec = if (reduceMotion) {
+                                null
+                            } else {
+                                tween(Motion.APPEAR_MS)
+                            },
+                            fadeOutSpec = tween(
+                                if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                            ),
+                        )
+                    } else {
+                        Modifier
+                    },
+                ) {
+                    val showDivider = index < selection.tracks.lastIndex
+                    if (isPreview) {
+                        Column {
+                            RailScrubPreviewTrackRow(
+                                track = track,
+                                isCurrent = track.id == currentTrackId,
+                                selectionState = if (selectionMode) {
+                                    track.id in selectedTrackIds
+                                } else {
+                                    null
+                                },
+                                unknownTitle = unknownTitle,
+                                unknownArtist = unknownArtist,
+                            )
+                            if (showDivider) CollectionTrackDivider()
+                        }
+                    } else {
+                        CollectionTrackRow(
+                            track = track,
+                            flatIndex = index,
+                            showDivider = showDivider,
+                            selection = selection,
+                            selectionMode = selectionMode,
+                            selectedTrackIds = selectedTrackIds,
+                            currentTrackId = currentTrackId,
+                            currentTrackPlaying = currentTrackPlaying,
+                            onArtworkLoadStateChanged = artworkReporter?.let { report ->
+                                artworkKey?.let { expectedKey ->
+                                    { requestUri, state ->
+                                        report(expectedKey.copy(uri = requestUri), state)
+                                    }
+                                }
+                            },
+                            onToggleSelection = onToggleSelection,
+                            onStartSelection = onStartSelection,
+                            onPlayTrack = onPlayTrack,
+                            onTrackMenu = onTrackMenu,
+                        )
+                    }
+                }
+            }
+        } else {
+            var base = 0
+            sections.forEachIndexed { sectionIndex, section ->
+                val sectionBase = base
+                item(key = "section-$sectionIndex") {
+                    Text(
+                        text = section.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 16.dp,
+                            bottom = 4.dp,
+                        ),
+                    )
+                }
+                itemsIndexed(
+                    section.tracks,
+                    key = { _, track -> "$sectionIndex:${track.id.value}" },
+                ) { indexInSection, track ->
+                    val flatIndex = sectionBase + indexInSection
+                    val artworkKey = track.artworkUri?.let { uri ->
+                        ArtworkLoadKey(
+                            itemId = "${selection.routeId}:$flatIndex:${track.id.value}",
+                            uri = uri,
+                        )
+                    }
+                    Box(
+                        modifier = if (!isPreview) {
+                            Modifier.animateItem(
                                 fadeInSpec = tween(
-                                    if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                                    if (reduceMotion) {
+                                        Motion.REDUCED_MS
+                                    } else {
+                                        Motion.APPEAR_MS
+                                    },
                                 ),
                                 placementSpec = if (reduceMotion) {
                                     null
@@ -278,19 +571,50 @@ fun CollectionDetailScreen(
                                     tween(Motion.APPEAR_MS)
                                 },
                                 fadeOutSpec = tween(
-                                    if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                                    if (reduceMotion) {
+                                        Motion.REDUCED_MS
+                                    } else {
+                                        Motion.REPLACE_MS
+                                    },
                                 ),
-                            ),
-                        ) {
+                            )
+                        } else {
+                            Modifier
+                        },
+                    ) {
+                        val showDivider = indexInSection < section.tracks.lastIndex
+                        if (isPreview) {
+                            Column {
+                                RailScrubPreviewTrackRow(
+                                    track = track,
+                                    isCurrent = track.id == currentTrackId,
+                                    selectionState = if (selectionMode) {
+                                        track.id in selectedTrackIds
+                                    } else {
+                                        null
+                                    },
+                                    unknownTitle = unknownTitle,
+                                    unknownArtist = unknownArtist,
+                                )
+                                if (showDivider) CollectionTrackDivider()
+                            }
+                        } else {
                             CollectionTrackRow(
                                 track = track,
-                                flatIndex = index,
-                                showDivider = index < selection.tracks.lastIndex,
+                                flatIndex = flatIndex,
+                                showDivider = showDivider,
                                 selection = selection,
                                 selectionMode = selectionMode,
                                 selectedTrackIds = selectedTrackIds,
                                 currentTrackId = currentTrackId,
                                 currentTrackPlaying = currentTrackPlaying,
+                                onArtworkLoadStateChanged = artworkReporter?.let { report ->
+                                    artworkKey?.let { expectedKey ->
+                                        { requestUri, state ->
+                                            report(expectedKey.copy(uri = requestUri), state)
+                                        }
+                                    }
+                                },
                                 onToggleSelection = onToggleSelection,
                                 onStartSelection = onStartSelection,
                                 onPlayTrack = onPlayTrack,
@@ -298,61 +622,8 @@ fun CollectionDetailScreen(
                             )
                         }
                     }
-                } else {
-                    var base = 0
-                    sections.forEachIndexed { sectionIndex, section ->
-                        val sectionBase = base
-                        item(key = "section-$sectionIndex") {
-                            Text(
-                                text = section.title,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(
-                                    start = 16.dp,
-                                    end = 16.dp,
-                                    top = 16.dp,
-                                    bottom = 4.dp,
-                                ),
-                            )
-                        }
-                        itemsIndexed(
-                            section.tracks,
-                            key = { _, track -> "$sectionIndex:${track.id.value}" },
-                        ) { indexInSection, track ->
-                            Box(
-                                modifier = Modifier.animateItem(
-                                    fadeInSpec = tween(
-                                        if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
-                                    ),
-                                    placementSpec = if (reduceMotion) {
-                                        null
-                                    } else {
-                                        tween(Motion.APPEAR_MS)
-                                    },
-                                    fadeOutSpec = tween(
-                                        if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
-                                    ),
-                                ),
-                            ) {
-                                CollectionTrackRow(
-                                    track = track,
-                                    flatIndex = sectionBase + indexInSection,
-                                    showDivider = indexInSection < section.tracks.lastIndex,
-                                    selection = selection,
-                                    selectionMode = selectionMode,
-                                    selectedTrackIds = selectedTrackIds,
-                                    currentTrackId = currentTrackId,
-                                    currentTrackPlaying = currentTrackPlaying,
-                                    onToggleSelection = onToggleSelection,
-                                    onStartSelection = onStartSelection,
-                                    onPlayTrack = onPlayTrack,
-                                    onTrackMenu = onTrackMenu,
-                                )
-                            }
-                        }
-                        base += section.tracks.size
-                    }
                 }
+                base += section.tracks.size
             }
         }
     }
@@ -369,6 +640,7 @@ private fun CollectionTrackRow(
     selectedTrackIds: Set<TrackId>,
     currentTrackId: TrackId?,
     currentTrackPlaying: Boolean,
+    onArtworkLoadStateChanged: ((requestUri: String, state: ArtworkLoadState) -> Unit)?,
     onToggleSelection: (TrackDescriptor) -> Unit,
     onStartSelection: (TrackDescriptor) -> Unit,
     onPlayTrack: (Int) -> Unit,
@@ -378,6 +650,7 @@ private fun CollectionTrackRow(
         track = track,
         isCurrent = track.id == currentTrackId,
         isPlaying = currentTrackPlaying,
+        onArtworkLoadStateChanged = onArtworkLoadStateChanged,
         onClick = {
             if (selectionMode) onToggleSelection(track) else onPlayTrack(flatIndex)
         },
@@ -400,11 +673,16 @@ private fun CollectionTrackRow(
         onMenu = if (selectionMode) null else ({ onTrackMenu(track) }),
     )
     if (showDivider) {
-        HorizontalDivider(
-            modifier = Modifier.padding(start = 88.dp, end = 16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-        )
+        CollectionTrackDivider()
     }
+}
+
+@Composable
+private fun CollectionTrackDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 88.dp, end = 16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    )
 }
 
 /** Data retained with a contextual bar while it exits, avoiding a visible "0 selected" frame. */

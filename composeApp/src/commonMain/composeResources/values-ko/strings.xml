@@ -65,6 +65,8 @@
     <string name="library_empty">이 기기에서 음악을 찾을 수 없습니다.</string>
     <string name="action_rescan_library">라이브러리 새로고침</string>
     <string name="sort_recently_added">최근 추가순</string>
+    <string name="sort_direction_ascending">오름차순</string>
+    <string name="sort_direction_descending">내림차순</string>
     <string name="snack_track_deleted">곡을 삭제했습니다</string>
 
     <!-- =========================================================== for you -->
@@ -466,4 +468,5 @@
     <string name="duplicates_keep_this">이것을 유지</string>
     <string name="snack_duplicates_merged">중복이 병합되었습니다. 재생목록이 유지된 복사본을 가리킵니다</string>
     <string name="info_lyrics">가사</string>
+    <string name="lyrics_not_found">이 곡에 포함된 가사를 찾을 수 없습니다.</string>
 </resources>

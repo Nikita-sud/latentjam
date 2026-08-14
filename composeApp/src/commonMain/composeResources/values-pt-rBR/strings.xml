@@ -74,6 +74,8 @@
     <string name="library_empty">Nenhuma música encontrada neste dispositivo.</string>
     <string name="action_rescan_library">Atualizar biblioteca</string>
     <string name="sort_recently_added">Adicionadas recentemente</string>
+    <string name="sort_direction_ascending">Crescente</string>
+    <string name="sort_direction_descending">Decrescente</string>
     <string name="snack_track_deleted">Música excluída</string>
 
     <!-- =========================================================== for you -->
@@ -480,4 +482,5 @@
     <string name="duplicates_keep_this">Manter esta</string>
     <string name="snack_duplicates_merged">Duplicatas mescladas: as playlists agora apontam para a cópia mantida</string>
     <string name="info_lyrics">Letra</string>
+    <string name="lyrics_not_found">Nenhuma letra incorporada foi encontrada nesta faixa.</string>
 </resources>

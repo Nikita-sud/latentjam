@@ -71,6 +71,8 @@
     <string name="library_empty">Tidak ada musik yang ditemukan di perangkat ini.</string>
     <string name="action_rescan_library">Perbarui pustaka</string>
     <string name="sort_recently_added">Baru ditambahkan</string>
+    <string name="sort_direction_ascending">Menaik</string>
+    <string name="sort_direction_descending">Menurun</string>
     <string name="snack_track_deleted">Lagu dihapus</string>
 
     <!-- =========================================================== for you -->
@@ -472,4 +474,5 @@
     <string name="duplicates_keep_this">Simpan yang ini</string>
     <string name="snack_duplicates_merged">Duplikat digabung: playlist kini menunjuk ke salinan yang disimpan</string>
     <string name="info_lyrics">Lirik</string>
+    <string name="lyrics_not_found">Tidak ada lirik tertanam yang ditemukan untuk lagu ini.</string>
 </resources>

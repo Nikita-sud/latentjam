@@ -67,6 +67,8 @@
     <string name="library_empty">इस डिवाइस पर कोई संगीत नहीं मिला.</string>
     <string name="action_rescan_library">लाइब्रेरी रीफ़्रेश करें</string>
     <string name="sort_recently_added">हाल ही में जोड़े गए</string>
+    <string name="sort_direction_ascending">आरोही</string>
+    <string name="sort_direction_descending">अवरोही</string>
     <string name="snack_track_deleted">गाना मिटाया गया</string>
 
     <!-- =========================================================== for you -->
@@ -473,4 +475,5 @@
     <string name="duplicates_keep_this">इसे रखें</string>
     <string name="snack_duplicates_merged">डुप्लिकेट मिला दिए गए: प्लेलिस्ट अब रखी गई कॉपी की ओर इशारा करती हैं</string>
     <string name="info_lyrics">गीत के बोल</string>
+    <string name="lyrics_not_found">इस ट्रैक में एम्बेड किए गए बोल नहीं मिले।</string>
 </resources>

@@ -4,9 +4,17 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 internal class AlphabetRailTest {
 
     @Test
@@ -48,10 +56,9 @@ internal class AlphabetRailTest {
     }
 
     @Test
-    fun rapidDragPreviewsEveryBucketButJumpsOnlyOnceAtTheEnd() {
+    fun rapidDragPreviewsEveryBucketAndKeepsExactFinalBucket() {
         val coordinator = RailScrubCoordinator()
         val previews = mutableListOf<Int>()
-        val jumps = mutableListOf<Int>()
 
         coordinator.begin()
         (0..25).forEach { bucket ->
@@ -59,10 +66,10 @@ internal class AlphabetRailTest {
             previews += bucket
             coordinator.preview(bucket)
         }
-        coordinator.finish()?.let { jumps += it.bucketIndex }
+        val finalJump = coordinator.finish()
 
         assertEquals((0..25).toList(), previews)
-        assertEquals(listOf(25), jumps)
+        assertEquals(25, finalJump?.bucketIndex)
     }
 
     @Test
@@ -80,5 +87,125 @@ internal class AlphabetRailTest {
         assertEquals(true, coordinator.isCurrent(second.generation))
         assertEquals(19, second.bucketIndex)
         assertEquals(null, coordinator.finish())
+    }
+
+    @Test
+    fun cancelInvalidatesCatalogWorkAndIgnoresStalePointerEvents() {
+        val coordinator = RailScrubCoordinator()
+        coordinator.begin()
+        coordinator.preview(5)
+        val oldGeneration = coordinator.generation
+
+        coordinator.cancel()
+        coordinator.preview(17)
+
+        assertEquals(false, coordinator.isCurrent(oldGeneration))
+        assertEquals(null, coordinator.finish())
+    }
+
+    @Test
+    fun artworkGateWaitsForMinimumAndEveryVisibleTerminal() = runTest {
+        val gate = ArtworkLoadGate()
+        val first = ArtworkLoadKey("first", "cover:first")
+        val second = ArtworkLoadKey("second", "cover:second")
+        var revealed = false
+        val cycle = gate.begin()
+
+        launch {
+            gate.awaitFinished(
+                cycle = cycle,
+                expected = setOf(first, second),
+                minimumWaitMillis = 120L,
+                maximumWaitMillis = 220L,
+            )
+            revealed = true
+        }
+        runCurrent()
+        gate.record(first, ArtworkLoadState.TERMINAL)
+        advanceTimeBy(119L)
+        runCurrent()
+        assertFalse(revealed)
+
+        gate.record(second, ArtworkLoadState.TERMINAL)
+        runCurrent()
+        assertFalse(revealed)
+        advanceTimeBy(1L)
+        runCurrent()
+        assertTrue(revealed)
+    }
+
+    @Test
+    fun artworkGateCannotHangOnAnUnreportedRequest() = runTest {
+        val gate = ArtworkLoadGate()
+        val missing = ArtworkLoadKey("missing", "cover:missing")
+        var revealed = false
+        val cycle = gate.begin()
+
+        launch {
+            gate.awaitFinished(
+                cycle = cycle,
+                expected = setOf(missing),
+                minimumWaitMillis = 120L,
+                maximumWaitMillis = 220L,
+            )
+            revealed = true
+        }
+        advanceTimeBy(219L)
+        runCurrent()
+        assertFalse(revealed)
+        advanceTimeBy(1L)
+        runCurrent()
+        assertTrue(revealed)
+    }
+
+    @Test
+    fun aNewLoadingStateInvalidatesAnEarlierTerminalInTheSameCycle() = runTest {
+        val gate = ArtworkLoadGate()
+        val cover = ArtworkLoadKey("track", "cover")
+        val cycle = gate.begin()
+        gate.record(cover, ArtworkLoadState.TERMINAL)
+        gate.record(cover, ArtworkLoadState.LOADING)
+        var revealed = false
+
+        launch {
+            gate.awaitFinished(
+                cycle = cycle,
+                expected = setOf(cover),
+                minimumWaitMillis = 0L,
+                maximumWaitMillis = 20L,
+            )
+            revealed = true
+        }
+        advanceTimeBy(19L)
+        runCurrent()
+        assertFalse(revealed)
+        gate.record(cover, ArtworkLoadState.TERMINAL)
+        runCurrent()
+        assertTrue(revealed)
+    }
+
+    @Test
+    fun eventsOutsideTheActiveCycleAreIgnored() = runTest {
+        val gate = ArtworkLoadGate()
+        val cover = ArtworkLoadKey("track", "cover")
+        gate.record(cover, ArtworkLoadState.TERMINAL)
+        val cycle = gate.begin()
+        var revealed = false
+
+        launch {
+            gate.awaitFinished(
+                cycle = cycle,
+                expected = setOf(cover),
+                minimumWaitMillis = 0L,
+                maximumWaitMillis = 10L,
+            )
+            revealed = true
+        }
+        advanceTimeBy(9L)
+        runCurrent()
+        assertFalse(revealed)
+        advanceTimeBy(1L)
+        runCurrent()
+        assertTrue(revealed)
     }
 }

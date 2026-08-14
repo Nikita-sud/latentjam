@@ -75,6 +75,8 @@
     <string name="library_empty">Nie znaleziono muzyki na tym urządzeniu.</string>
     <string name="action_rescan_library">Odśwież bibliotekę</string>
     <string name="sort_recently_added">Ostatnio dodane</string>
+    <string name="sort_direction_ascending">Rosnąco</string>
+    <string name="sort_direction_descending">Malejąco</string>
     <string name="snack_track_deleted">Utwór usunięty</string>
 
     <!-- =========================================================== for you -->
@@ -493,4 +495,5 @@
     <string name="duplicates_keep_this">Zachowaj ten</string>
     <string name="snack_duplicates_merged">Duplikaty scalone: playlisty wskazują teraz zachowaną kopię</string>
     <string name="info_lyrics">Tekst utworu</string>
+    <string name="lyrics_not_found">Nie znaleziono osadzonego tekstu dla tego utworu.</string>
 </resources>

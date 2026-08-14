@@ -79,6 +79,8 @@
     <string name="library_empty">Aucune musique trouvée sur cet appareil.</string>
     <string name="action_rescan_library">Actualiser la bibliothèque</string>
     <string name="sort_recently_added">Ajoutés récemment</string>
+    <string name="sort_direction_ascending">Croissant</string>
+    <string name="sort_direction_descending">Décroissant</string>
     <string name="snack_track_deleted">Morceau supprimé</string>
 
     <!-- =========================================================== for you -->
@@ -485,4 +487,5 @@
     <string name="duplicates_keep_this">Garder celui-ci</string>
     <string name="snack_duplicates_merged">Doublons fusionnés : les playlists pointent vers la copie conservée</string>
     <string name="info_lyrics">Paroles</string>
+    <string name="lyrics_not_found">Aucune parole intégrée n’a été trouvée pour ce titre.</string>
 </resources>

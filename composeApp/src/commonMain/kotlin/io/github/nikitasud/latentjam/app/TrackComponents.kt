@@ -76,6 +76,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import org.jetbrains.compose.resources.stringResource
 
+internal enum class ArtworkLoadState { LOADING, TERMINAL }
+
 /** Square, rounded artwork with a music-note placeholder behind it. */
 @Composable
 internal fun Artwork(
@@ -83,6 +85,7 @@ internal fun Artwork(
     size: Dp,
     cornerRadius: Dp = 8.dp,
     modifier: Modifier = Modifier,
+    onLoadStateChanged: ((requestUri: String, state: ArtworkLoadState) -> Unit)? = null,
 ) {
     Box(
         modifier = modifier
@@ -100,11 +103,23 @@ internal fun Artwork(
         // still loading, producing a blank frame followed by a bitmap pop. Player handoffs retain
         // their old composed content and animate at the player level instead.
         if (uri != null) {
+            val requestUri = uri
             AsyncImage(
-                model = uri,
+                model = requestUri,
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop,
+                onLoading = {
+                    onLoadStateChanged?.invoke(requestUri, ArtworkLoadState.LOADING)
+                },
+                onSuccess = {
+                    onLoadStateChanged?.invoke(requestUri, ArtworkLoadState.TERMINAL)
+                },
+                // A terminal error is ready to reveal too: the music-note fallback is the
+                // correct final state and must never keep a rail handoff waiting indefinitely.
+                onError = {
+                    onLoadStateChanged?.invoke(requestUri, ArtworkLoadState.TERMINAL)
+                },
             )
         }
     }
@@ -172,6 +187,8 @@ internal fun TrackRow(
     /** `null` outside selection mode; otherwise whether this row is selected. */
     selectionState: Boolean? = null,
     onMenu: (() -> Unit)? = null,
+    /** Optional request-state callback used by the alphabet-rail reveal gate. */
+    onArtworkLoadStateChanged: ((requestUri: String, state: ArtworkLoadState) -> Unit)? = null,
 ) {
     val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
@@ -267,7 +284,11 @@ internal fun TrackRow(
             }
         }
         Box {
-            Artwork(uri = track.artworkUri, size = 48.dp)
+            Artwork(
+                uri = track.artworkUri,
+                size = 48.dp,
+                onLoadStateChanged = onArtworkLoadStateChanged,
+            )
             androidx.compose.animation.AnimatedVisibility(
                 visible = isCurrent,
                 enter = fadeIn(tween(

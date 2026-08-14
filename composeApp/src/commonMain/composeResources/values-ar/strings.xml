@@ -80,6 +80,8 @@
     <string name="library_empty">لم يتم العثور على موسيقى على هذا الجهاز.</string>
     <string name="action_rescan_library">تحديث المكتبة</string>
     <string name="sort_recently_added">المضافة حديثًا</string>
+    <string name="sort_direction_ascending">تصاعدي</string>
+    <string name="sort_direction_descending">تنازلي</string>
     <string name="snack_track_deleted">تم حذف المقطع</string>
 
     <!-- =========================================================== for you -->
@@ -506,4 +508,5 @@
     <string name="duplicates_keep_this">احتفظ بهذه</string>
     <string name="snack_duplicates_merged">تم دمج التكرارات: تشير قوائم التشغيل الآن إلى النسخة المحتفَظ بها</string>
     <string name="info_lyrics">كلمات الأغنية</string>
+    <string name="lyrics_not_found">لم يتم العثور على كلمات مضمّنة لهذه الأغنية.</string>
 </resources>

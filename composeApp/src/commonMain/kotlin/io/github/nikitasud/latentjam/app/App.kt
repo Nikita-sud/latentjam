@@ -52,6 +52,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -66,6 +67,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.FileOpen
@@ -140,6 +143,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_add
@@ -197,6 +202,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.snack_track_include
 import io.github.nikitasud.latentjam.app.generated.resources.snack_removed_from_latentjam
 import io.github.nikitasud.latentjam.app.generated.resources.snack_hidden_tracks_restored
 import io.github.nikitasud.latentjam.app.generated.resources.snack_library_refreshed
+import io.github.nikitasud.latentjam.app.generated.resources.sort_direction_ascending
+import io.github.nikitasud.latentjam.app.generated.resources.sort_direction_descending
 import io.github.nikitasud.latentjam.app.generated.resources.sort_recently_added
 import io.github.nikitasud.latentjam.app.generated.resources.tab_albums
 import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
@@ -226,7 +233,9 @@ import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.library.PlaylistTrackChange
 import io.github.nikitasud.latentjam.library.SongSort
+import io.github.nikitasud.latentjam.library.SongSortDirection
 import io.github.nikitasud.latentjam.library.SongSorting
+import io.github.nikitasud.latentjam.library.defaultDirection
 import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.ShuffleMode
@@ -249,6 +258,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -619,20 +629,56 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
         var savedSongSort by rememberSaveable { mutableStateOf(SongSort.TITLE.name) }
         val songSort = SongSort.entries.firstOrNull { it.name == savedSongSort } ?: SongSort.TITLE
+        var savedSongSortDirection by rememberSaveable {
+            mutableStateOf(songSort.defaultDirection.name)
+        }
+        val songSortDirection = SongSortDirection.entries
+            .firstOrNull { it.name == savedSongSortDirection }
+            ?: songSort.defaultDirection
+        var showSettings by rememberSaveable { mutableStateOf(false) }
+        var infoTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
+        var showNowPlaying by remember { mutableStateOf(false) }
+        var showSearch by remember { mutableStateOf(false) }
         var selectedCollection by remember { mutableStateOf<CollectionSelection?>(null) }
         var collectionRevision by remember { mutableLongStateOf(0L) }
-        fun updateSelectedCollection(value: CollectionSelection?) {
+        var collectionOpenJob by remember { mutableStateOf<Job?>(null) }
+        fun applySelectedCollection(value: CollectionSelection?) {
             if (selectedCollection !== value) {
                 selectedCollection = value
                 collectionRevision++
             }
         }
+        fun updateSelectedCollection(value: CollectionSelection?) {
+            collectionOpenJob?.cancel()
+            collectionOpenJob = null
+            applySelectedCollection(value)
+        }
+        fun openCollection(
+            build: suspend () -> CollectionSelection,
+            afterOpen: () -> Unit = {},
+        ) {
+            val sourceRoot = rootTabSnapshot()
+            val sourceTracks = tracks
+            val sourceSearch = showSearch
+            val sourceSettings = showSettings
+            val sourcePlayer = showNowPlaying
+            collectionOpenJob?.cancel()
+            collectionOpenJob = scope.launch {
+                val built = build()
+                if (
+                    !isActive ||
+                    rootTabSnapshot() != sourceRoot ||
+                    tracks !== sourceTracks ||
+                    showSearch != sourceSearch ||
+                    showSettings != sourceSettings ||
+                    showNowPlaying != sourcePlayer
+                ) return@launch
+                applySelectedCollection(built)
+                afterOpen()
+            }
+        }
         var playlistMutationInProgress by remember { mutableStateOf(false) }
         var playlistMutationFailed by remember { mutableStateOf(false) }
-        var showSettings by rememberSaveable { mutableStateOf(false) }
-        var infoTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
-        var showNowPlaying by remember { mutableStateOf(false) }
-        var showSearch by remember { mutableStateOf(false) }
         var trackMenuRequest by remember { mutableStateOf<TrackMenuRequest?>(null) }
         var deleteTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
         var deleteSelection by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
@@ -767,6 +813,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // only genuine deletion removes it. Keyed on the resolved list, so an unchanged
         // library (the common foreground return) runs nothing.
         LaunchedEffect(tracks) {
+            collectionOpenJob?.cancel()
+            collectionOpenJob = null
             val loaded = tracks ?: return@LaunchedEffect
             // The visible half of allKnownTracks() is the list already in hand; only the hidden
             // half needs a query, saving one full MediaStore pass per library change.
@@ -782,12 +830,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // alike, and a track hidden mid-visit should also stop being shown.
             selectedCollection?.let { selection ->
                 val visible = loaded.mapTo(mutableSetOf()) { it.id }
-                val remaining = selection.tracks.filter { it.id in visible }
-                if (remaining.size != selection.tracks.size) {
-                    updateSelectedCollection(selection.copy(
-                        subtitle = trackCountLabel(remaining.size),
-                        tracks = remaining,
-                    ))
+                val reconciled = selection.filterTracksForCollection { it.id in visible }
+                if (reconciled != selection) {
+                    updateSelectedCollection(
+                        reconciled?.copy(subtitle = trackCountLabel(reconciled.tracks.size)),
+                    )
                 }
             }
         }
@@ -805,6 +852,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         val smartEligibleTracks = remember(tracks, smartExclusionState) {
             tracks.orEmpty().filterNot { smartExclusionState.excludes(it) }
+        }
+
+        LaunchedEffect(rootTabNavigationRevision, showSearch, showSettings, showNowPlaying) {
+            // A pending background sort belongs to the page/overlay route that launched it.
+            // Navigating elsewhere must not install that old collection underneath the new route.
+            collectionOpenJob?.cancel()
+            collectionOpenJob = null
         }
 
         LaunchedEffect(selectedTab, selectedCollection) {
@@ -1449,6 +1503,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
 
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
+        var albumSections by remember { mutableStateOf<List<AlbumRailSection>>(emptyList()) }
+        var alphabeticAlbumTracks by remember {
+            mutableStateOf<List<TrackDescriptor>>(emptyList())
+        }
         LaunchedEffect(tracks) {
             val loaded = tracks
             // Rebuild in place — assign the finished catalog rather than clearing it first. Nulling
@@ -1457,31 +1515,53 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // finished catalog is swapped in atomically instead, and stable row keys keep every
             // surviving row exactly where it was. The sliver of time where a tap could land on a
             // just-deleted row resolves to a harmless no-op — a far better trade than the jump.
-            catalog = if (loaded != null) {
-                withContext(Dispatchers.Default) { LibraryCatalog.build(loaded) }
+            if (loaded != null) {
+                val derived = withContext(Dispatchers.Default) {
+                    val builtCatalog = LibraryCatalog.build(loaded)
+                    val sections = albumRailSections(builtCatalog.albums)
+                    val orderedAlbums = sections.flatMap { it.albums }
+                    LibraryBrowseDerivation(
+                        catalog = builtCatalog,
+                        albumSections = sections,
+                        alphabeticAlbumTracks = orderedAlbums.flatMap { it.tracks },
+                    )
+                }
+                catalog = derived.catalog
+                albumSections = derived.albumSections
+                alphabeticAlbumTracks = derived.alphabeticAlbumTracks
             } else {
-                null
+                catalog = null
+                albumSections = emptyList()
+                alphabeticAlbumTracks = emptyList()
             }
         }
         val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
         val selectedTracks = remember(
-            catalog, songSort, selectedTrackIds, selectedCollection, selectedTab,
+            catalog, alphabeticAlbumTracks, songSort, songSortDirection, selectedTrackIds,
+            selectedCollection, selectedTab,
         ) {
+            // Selection is empty during ordinary browsing. Avoid duplicating the Songs list's
+            // whole-library O(n log n) sort on every direction change just to produce emptyList().
+            if (selectedTrackIds.isEmpty()) return@remember emptyList()
             // On a group tab the selection was made album-by-album (folder-by-folder, …), so it
             // plays in group order — a selected album keeps its own track order instead of being
             // reshuffled into the Songs sort.
-            val source = selectedCollection
+            val groupOrderedSource = selectedCollection
                 ?.takeIf { it.allowsTrackSelection }
                 ?.tracks
                 ?: when (selectedTab) {
-                    ALBUMS_TAB -> catalog?.albums?.flatMap { it.tracks }
+                    ALBUMS_TAB -> alphabeticAlbumTracks
                     ARTISTS_TAB -> catalog?.artists?.flatMap { it.tracks }
                     GENRES_TAB -> catalog?.genres?.flatMap { it.tracks }
                     FOLDERS_TAB -> catalog?.folders?.flatMap { it.tracks }
                     else -> null
                 }
-                ?: SongSorting.sort(catalog?.songs.orEmpty(), songSort)
-            source.filter { it.id in selectedTrackIds }
+            groupOrderedSource?.filter { it.id in selectedTrackIds }
+                ?: SongSorting.sort(
+                    catalog?.songs.orEmpty().filter { it.id in selectedTrackIds },
+                    songSort,
+                    songSortDirection,
+                )
         }
         LaunchedEffect(catalog) {
             updateTrackSelection(selectedTrackIds.intersect(tracksById.keys))
@@ -1733,24 +1813,28 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         fun showAlbumOf(track: TrackDescriptor) {
             val album = catalog?.albums
                 ?.firstOrNull { group -> group.tracks.any { it.id == track.id } } ?: return
-            scope.launch {
-                updateSelectedCollection(album.toSelection())
+            openCollection(
+                build = { album.toSelection() },
+                afterOpen = {
                 // Going somewhere must also leave where you were: the collection renders in the
                 // browse branch, so a full player or search screen left open would keep covering
                 // the destination — the tap would look like it did nothing.
                 showNowPlaying = false
                 showSearch = false
-            }
+                },
+            )
         }
 
         fun showArtistOf(track: TrackDescriptor) {
             val artist = catalog?.artists?.firstOrNull { it.name == track.artist } ?: return
-            scope.launch {
-                updateSelectedCollection(artist.toSelection())
+            openCollection(
+                build = { artist.toSelection() },
+                afterOpen = {
                 // Same as showAlbumOf: navigation closes the surfaces above the destination.
                 showNowPlaying = false
                 showSearch = false
-            }
+                },
+            )
         }
 
         fun invalidateSmartRecommendationCaches() {
@@ -2303,8 +2387,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         TRACKS_TAB -> Column {
                                             SongsHeader(
                                                 sort = songSort,
+                                                direction = songSortDirection,
                                                 enabled = !selectionMode,
-                                                onSortChange = { savedSongSort = it.name },
+                                                onSortChange = { selectedSort ->
+                                                    val selectedDirection = directionAfterSongSortSelection(
+                                                        currentSort = songSort,
+                                                        currentDirection = songSortDirection,
+                                                        selectedSort = selectedSort,
+                                                    )
+                                                    savedSongSort = selectedSort.name
+                                                    savedSongSortDirection = selectedDirection.name
+                                                },
                                                 onShuffleAll = {
                                                     AppGraph.queueSource.value =
                                                         QueueSource(QueueSourceKind.TRACKS)
@@ -2317,7 +2410,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                         QueueSource(QueueSourceKind.TRACKS)
                                                     scope.launch {
                                                         playback.play(
-                                                            SongSorting.sort(visibleCatalog.songs, songSort),
+                                                            SongSorting.sort(
+                                                                visibleCatalog.songs,
+                                                                songSort,
+                                                                songSortDirection,
+                                                            ),
                                                             0,
                                                         )
                                                     }
@@ -2326,6 +2423,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             SectionedSongsList(
                                                 songs = visibleCatalog.songs,
                                                 sort = songSort,
+                                                sortDirection = songSortDirection,
                                                 currentTrackId = currentTrack?.id,
                                                 currentTrackPlaying = currentTrackPlaying,
                                                 contentPadding = listPadding,
@@ -2351,37 +2449,116 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             )
                                         }
 
-                                        ALBUMS_TAB -> LazyVerticalGrid(
-                                            columns = GridCells.Fixed(2),
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentPadding = PaddingValues(
-                                                start = 8.dp,
-                                                end = 8.dp,
-                                                top = 8.dp,
-                                                bottom = listPadding.calculateBottomPadding(),
-                                            ),
-                                        ) {
-                                            items(visibleCatalog.albums, key = { it.key }) { album ->
-                                                AlbumCard(
-                                                    album = album,
-                                                    onLongClick = {
-                                                        updateTrackSelection(
-                                                            selectedTrackIds.toggleTracks(album.tracks),
-                                                        )
+                                        ALBUMS_TAB -> {
+                                            val albumRail = remember(albumSections) {
+                                                RailIndex(
+                                                    buckets = albumSections.map { it.bucket },
+                                                    startIndexes = albumSections.map {
+                                                        it.emitStartIndex
                                                     },
-                                                    selectionState = if (selectionMode) {
-                                                        selectedTrackIds.selectsAllOf(album.tracks)
-                                                    } else {
-                                                        null
-                                                    },
+                                                )
+                                            }
+                                            val albumArtworkKeys = remember(albumSections) {
+                                                buildList<ArtworkLoadKey?> {
+                                                    albumSections.forEach { section ->
+                                                        add(null) // Full-span section header.
+                                                        section.albums.forEach { album ->
+                                                            add(album.artworkUri?.let { uri ->
+                                                                ArtworkLoadKey(
+                                                                    itemId = "album:${album.key}",
+                                                                    uri = uri,
+                                                                )
+                                                            })
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            GridListWithRail(
+                                                rail = albumRail,
+                                                catalogKey = albumSections,
+                                                artworkKeys = albumArtworkKeys,
+                                                contentPadding = PaddingValues(
+                                                    start = 8.dp,
+                                                    end = 8.dp,
+                                                    top = 8.dp,
+                                                    bottom = listPadding.calculateBottomPadding(),
+                                                ),
+                                            ) { railPadding, gridState, artworkReporter, isPreview ->
+                                                LazyVerticalGrid(
+                                                    columns = GridCells.Fixed(2),
+                                                    state = gridState,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentPadding = railPadding,
                                                 ) {
-                                                    if (selectionMode) {
-                                                        updateTrackSelection(
-                                                            selectedTrackIds.toggleTracks(album.tracks),
-                                                        )
-                                                    } else {
-                                                        scope.launch {
-                                                            updateSelectedCollection(album.toSelection())
+                                                    albumSections.forEach { section ->
+                                                        item(
+                                                            key = "album-header-${section.bucket}",
+                                                            span = { GridItemSpan(maxLineSpan) },
+                                                            contentType = "header",
+                                                        ) {
+                                                            AlbumSectionHeader(section.bucket)
+                                                        }
+                                                        items(
+                                                            section.albums,
+                                                            key = { it.key },
+                                                            contentType = { "album" },
+                                                        ) { album ->
+                                                            val expectedKey = album.artworkUri
+                                                                ?.let { uri ->
+                                                                    ArtworkLoadKey(
+                                                                        itemId = "album:${album.key}",
+                                                                        uri = uri,
+                                                                    )
+                                                                }
+                                                            AlbumCard(
+                                                                album = album,
+                                                                railPreview = isPreview,
+                                                                onArtworkLoadStateChanged =
+                                                                    if (isPreview) {
+                                                                        null
+                                                                    } else artworkReporter?.let { report ->
+                                                                        expectedKey?.let { key ->
+                                                                            { requestUri, state ->
+                                                                                report(
+                                                                                    key.copy(
+                                                                                        uri = requestUri,
+                                                                                    ),
+                                                                                    state,
+                                                                                )
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                onLongClick = {
+                                                                    updateTrackSelection(
+                                                                        selectedTrackIds
+                                                                            .toggleTracks(
+                                                                                album.tracks,
+                                                                            ),
+                                                                    )
+                                                                },
+                                                                selectionState =
+                                                                    if (selectionMode) {
+                                                                        selectedTrackIds
+                                                                            .selectsAllOf(
+                                                                                album.tracks,
+                                                                            )
+                                                                    } else {
+                                                                        null
+                                                                    },
+                                                            ) {
+                                                                if (selectionMode) {
+                                                                    updateTrackSelection(
+                                                                        selectedTrackIds
+                                                                            .toggleTracks(
+                                                                                album.tracks,
+                                                                            ),
+                                                                    )
+                                                                } else {
+                                                                    openCollection(
+                                                                        build = { album.toSelection() },
+                                                                    )
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -2390,14 +2567,40 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
                                         ARTISTS_TAB -> GroupListWithRail(
                                             names = visibleCatalog.artists.map { it.name },
+                                            artworkKeys = remember(visibleCatalog.artists) {
+                                                visibleCatalog.artists.map { artist ->
+                                                    artist.tracks
+                                                        .firstNotNullOfOrNull { it.artworkUri }
+                                                        ?.let { uri ->
+                                                            ArtworkLoadKey(
+                                                                itemId = stableGroupKey(
+                                                                    "artist",
+                                                                    artist.name,
+                                                                ),
+                                                                uri = uri,
+                                                            )
+                                                        }
+                                                }
+                                            },
                                             contentPadding = listPadding,
-                                        ) { railPadding, listState ->
+                                        ) { railPadding, listState, artworkReporter ->
                                             LazyColumn(
                                             state = listState,
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = railPadding,
                                         ) {
-                                            items(visibleCatalog.artists, key = { it.name ?: "?" }) { artist ->
+                                            items(
+                                                visibleCatalog.artists,
+                                                key = { artist -> stableGroupKey("artist", artist.name) },
+                                            ) { artist ->
+                                                val artworkKey = artist.tracks
+                                                    .firstNotNullOfOrNull { it.artworkUri }
+                                                    ?.let { uri ->
+                                                        ArtworkLoadKey(
+                                                            itemId = stableGroupKey("artist", artist.name),
+                                                            uri = uri,
+                                                        )
+                                                    }
                                                 GroupRow(
                                                     title = artist.name
                                                         ?: stringResource(Res.string.track_unknown_artist),
@@ -2407,6 +2610,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     ),
                                                     artworkUri = artist.tracks
                                                         .firstNotNullOfOrNull { it.artworkUri },
+                                                    onArtworkLoadStateChanged =
+                                                        artworkReporter?.let { report ->
+                                                            artworkKey?.let { expectedKey ->
+                                                                { requestUri, state ->
+                                                                    report(
+                                                                        expectedKey.copy(uri = requestUri),
+                                                                        state,
+                                                                    )
+                                                                }
+                                                            }
+                                                        },
                                                     onLongClick = {
                                                         updateTrackSelection(
                                                             selectedTrackIds.toggleTracks(artist.tracks),
@@ -2423,9 +2637,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                             selectedTrackIds.toggleTracks(artist.tracks),
                                                         )
                                                     } else {
-                                                        scope.launch {
-                                                            updateSelectedCollection(artist.toSelection())
-                                                        }
+                                                        openCollection(
+                                                            build = { artist.toSelection() },
+                                                        )
                                                     }
                                                 }
                                             }
@@ -2434,14 +2648,40 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
                                         GENRES_TAB -> GroupListWithRail(
                                             names = visibleCatalog.genres.map { it.name },
+                                            artworkKeys = remember(visibleCatalog.genres) {
+                                                visibleCatalog.genres.map { genre ->
+                                                    genre.tracks
+                                                        .firstNotNullOfOrNull { it.artworkUri }
+                                                        ?.let { uri ->
+                                                            ArtworkLoadKey(
+                                                                itemId = stableGroupKey(
+                                                                    "genre",
+                                                                    genre.name,
+                                                                ),
+                                                                uri = uri,
+                                                            )
+                                                        }
+                                                }
+                                            },
                                             contentPadding = listPadding,
-                                        ) { railPadding, listState ->
+                                        ) { railPadding, listState, artworkReporter ->
                                             LazyColumn(
                                             state = listState,
                                             modifier = Modifier.fillMaxSize(),
                                             contentPadding = railPadding,
                                         ) {
-                                            items(visibleCatalog.genres, key = { it.name ?: "?" }) { genre ->
+                                            items(
+                                                visibleCatalog.genres,
+                                                key = { genre -> stableGroupKey("genre", genre.name) },
+                                            ) { genre ->
+                                                val artworkKey = genre.tracks
+                                                    .firstNotNullOfOrNull { it.artworkUri }
+                                                    ?.let { uri ->
+                                                        ArtworkLoadKey(
+                                                            itemId = stableGroupKey("genre", genre.name),
+                                                            uri = uri,
+                                                        )
+                                                    }
                                                 GroupRow(
                                                     title = genre.name
                                                         ?: stringResource(Res.string.track_unknown_genre),
@@ -2452,6 +2692,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     ),
                                                     artworkUri = genre.tracks
                                                         .firstNotNullOfOrNull { it.artworkUri },
+                                                    onArtworkLoadStateChanged =
+                                                        artworkReporter?.let { report ->
+                                                            artworkKey?.let { expectedKey ->
+                                                                { requestUri, state ->
+                                                                    report(
+                                                                        expectedKey.copy(uri = requestUri),
+                                                                        state,
+                                                                    )
+                                                                }
+                                                            }
+                                                        },
                                                     onLongClick = {
                                                         updateTrackSelection(
                                                             selectedTrackIds.toggleTracks(genre.tracks),
@@ -2468,9 +2719,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                             selectedTrackIds.toggleTracks(genre.tracks),
                                                         )
                                                     } else {
-                                                        scope.launch {
-                                                            updateSelectedCollection(genre.toSelection())
-                                                        }
+                                                        openCollection(
+                                                            build = { genre.toSelection() },
+                                                        )
                                                     }
                                                 }
                                             }
@@ -2480,7 +2731,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         FOLDERS_TAB -> GroupListWithRail(
                                             names = visibleCatalog.folders.map { it.name },
                                             contentPadding = listPadding,
-                                        ) { railPadding, listState ->
+                                        ) { railPadding, listState, _ ->
                                             LazyColumn(
                                             state = listState,
                                             modifier = Modifier.fillMaxSize(),
@@ -2510,9 +2761,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                             selectedTrackIds.toggleTracks(folder.tracks),
                                                         )
                                                     } else {
-                                                        scope.launch {
-                                                            updateSelectedCollection(folder.toSelection())
-                                                        }
+                                                        openCollection(
+                                                            build = { folder.toSelection() },
+                                                        )
                                                     }
                                                 }
                                             }
@@ -3109,11 +3360,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         }
                         hasHiddenTracks = true
                         val collectionAfterHide = collectionBeforeHide?.let { selection ->
-                            val remaining = selection.tracks.filterNot { it.id == target.id }
-                            selection.copy(
-                                subtitle = trackCountLabel(remaining.size),
-                                tracks = remaining,
-                            ).takeIf { remaining.isNotEmpty() }
+                            selection.filterTracksForCollection { it.id != target.id }
+                                ?.let { remaining ->
+                                    remaining.copy(
+                                        subtitle = trackCountLabel(remaining.tracks.size),
+                                    )
+                                }
                         }
                         val appliedCollectionRevision =
                             if (collectionRevision == sourceCollectionRevision) {
@@ -3210,11 +3462,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         }
                         hasHiddenTracks = true
                         val collectionAfterHide = collectionBeforeHide?.let { collection ->
-                            val remaining = collection.tracks.filterNot { it.id in hiddenIds }
-                            collection.copy(
-                                subtitle = trackCountLabel(remaining.size),
-                                tracks = remaining,
-                            ).takeIf { remaining.isNotEmpty() }
+                            collection.filterTracksForCollection { it.id !in hiddenIds }
+                                ?.let { remaining ->
+                                    remaining.copy(
+                                        subtitle = trackCountLabel(remaining.tracks.size),
+                                    )
+                                }
                         }
                         val appliedCollectionRevision =
                             if (collectionRevision == sourceCollectionRevision) {
@@ -3558,11 +3811,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     scanLibrary()
                     hasHiddenTracks = true
                     updateSelectedCollection(selectedCollection?.let { selection ->
-                        val remaining = selection.tracks.filterNot { it.id == target.id }
-                        selection.copy(
-                            subtitle = trackCountLabel(remaining.size),
-                            tracks = remaining,
-                        ).takeIf { remaining.isNotEmpty() }
+                        selection.filterTracksForCollection { it.id != target.id }
+                            ?.let { remaining ->
+                                remaining.copy(
+                                    subtitle = trackCountLabel(remaining.tracks.size),
+                                )
+                            }
                     })
                     invalidateSmartRecommendationCaches()
                 },
@@ -3715,28 +3969,42 @@ private fun canDeleteTrack(track: TrackDescriptor): Boolean =
 // strings through the suspending resource API and are called from a coroutine. The alternative,
 // keeping English in the model and translating it on the way out, is what this pass exists to undo.
 
-private suspend fun AlbumGroup.toSelection() = CollectionSelection(
-    title = title ?: getString(Res.string.track_unknown_album),
-    subtitle = artist,
-    artworkUri = artworkUri,
-    tracks = tracks,
-    allowsTrackSelection = true,
-    routeId = "album:$key",
-)
+private suspend fun AlbumGroup.toSelection(): CollectionSelection {
+    val ordered = withContext(Dispatchers.Default) {
+        SongSorting.sort(tracks, SongSort.TITLE, SongSortDirection.ASCENDING)
+    }
+    return CollectionSelection(
+        title = title ?: getString(Res.string.track_unknown_album),
+        subtitle = artist,
+        artworkUri = artworkUri,
+        tracks = ordered,
+        railMode = CollectionRailMode.TRACK_TITLES,
+        allowsTrackSelection = true,
+        routeId = "album:$key",
+    )
+}
 
 private suspend fun ArtistGroup.toSelection(): CollectionSelection {
     // Albums are an artist's natural chapters. The flat list stays exactly the sections'
     // concatenation, so playback and selection keep working in flat indices.
-    val sections = tracks
-        .groupBy { it.album }
-        .entries
-        .sortedWith(compareBy(nullsLast(naturalOrder())) { it.key?.lowercase() })
-        .map { (album, grouped) ->
-            CollectionSection(
-                title = album ?: getString(Res.string.track_unknown_album),
-                tracks = grouped,
-            )
-        }
+    val unknownAlbum = getString(Res.string.track_unknown_album)
+    val sections = withContext(Dispatchers.Default) {
+        tracks
+            .groupBy { it.album }
+            .entries
+            .sortedBy { (album, _) -> SongSorting.sortKey(album) }
+            .map { (album, grouped) ->
+                CollectionSection(
+                    title = album ?: unknownAlbum,
+                    tracks = SongSorting.sort(
+                        grouped,
+                        SongSort.TITLE,
+                        SongSortDirection.ASCENDING,
+                    ),
+                    railTitle = album,
+                )
+            }
+    }
     val ordered = sections.flatMap { it.tracks }
     return CollectionSelection(
         title = name ?: getString(Res.string.track_unknown_artist),
@@ -3747,28 +4015,45 @@ private suspend fun ArtistGroup.toSelection(): CollectionSelection {
         tracks = ordered,
         // A single bucket is a flat list wearing a pointless header.
         sections = sections.takeIf { it.size > 1 },
+        railMode = if (sections.size > 1) {
+            CollectionRailMode.SECTION_TITLES
+        } else {
+            CollectionRailMode.TRACK_TITLES
+        },
         allowsTrackSelection = true,
         routeId = "artist:${name.orEmpty()}",
     )
 }
 
-private suspend fun GenreGroup.toSelection() = CollectionSelection(
-    title = name ?: getString(Res.string.track_unknown_genre),
-    subtitle = trackCountLabel(tracks.size),
-    artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
-    tracks = tracks,
-    allowsTrackSelection = true,
-    routeId = "genre:${name.orEmpty()}",
-)
+private suspend fun GenreGroup.toSelection(): CollectionSelection {
+    val ordered = withContext(Dispatchers.Default) {
+        SongSorting.sort(tracks, SongSort.TITLE, SongSortDirection.ASCENDING)
+    }
+    return CollectionSelection(
+        title = name ?: getString(Res.string.track_unknown_genre),
+        subtitle = trackCountLabel(tracks.size),
+        artworkUri = ordered.firstNotNullOfOrNull { it.artworkUri },
+        tracks = ordered,
+        railMode = CollectionRailMode.TRACK_TITLES,
+        allowsTrackSelection = true,
+        routeId = "genre:${name.orEmpty()}",
+    )
+}
 
-private suspend fun FolderGroup.toSelection() = CollectionSelection(
-    title = name,
-    subtitle = path + SUBTITLE_SEPARATOR + trackCountLabel(tracks.size),
-    artworkUri = tracks.firstNotNullOfOrNull { it.artworkUri },
-    tracks = tracks,
-    allowsTrackSelection = true,
-    routeId = "folder:$path",
-)
+private suspend fun FolderGroup.toSelection(): CollectionSelection {
+    val ordered = withContext(Dispatchers.Default) {
+        SongSorting.sort(tracks, SongSort.TITLE, SongSortDirection.ASCENDING)
+    }
+    return CollectionSelection(
+        title = name,
+        subtitle = path + SUBTITLE_SEPARATOR + trackCountLabel(tracks.size),
+        artworkUri = ordered.firstNotNullOfOrNull { it.artworkUri },
+        tracks = ordered,
+        railMode = CollectionRailMode.TRACK_TITLES,
+        allowsTrackSelection = true,
+        routeId = "folder:$path",
+    )
+}
 
 private suspend fun trackCountLabel(count: Int): String =
     getPluralString(Res.plurals.count_tracks, count, count)
@@ -4047,6 +4332,7 @@ private fun SharedSettingsButton(
 @Composable
 private fun SongsHeader(
     sort: SongSort,
+    direction: SongSortDirection,
     enabled: Boolean = true,
     onSortChange: (SongSort) -> Unit,
     onShuffleAll: () -> Unit,
@@ -4073,14 +4359,21 @@ private fun SongsHeader(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 8.dp),
                 )
+                SortDirectionIcon(direction)
             }
             DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
                 SongSort.entries.forEach { option ->
+                    val selected = option == sort
                     DropdownMenuItem(
                         text = { Text(option.label()) },
                         onClick = {
                             sortMenuOpen = false
                             onSortChange(option)
+                        },
+                        trailingIcon = if (selected) {
+                            { SortDirectionIcon(direction) }
+                        } else {
+                            null
                         },
                     )
                 }
@@ -4110,6 +4403,39 @@ private fun SongsHeader(
             )
         }
     }
+}
+
+@Composable
+private fun SortDirectionIcon(direction: SongSortDirection) {
+    Icon(
+        imageVector = when (direction) {
+            SongSortDirection.ASCENDING -> Icons.Rounded.ArrowUpward
+            SongSortDirection.DESCENDING -> Icons.Rounded.ArrowDownward
+        },
+        contentDescription = stringResource(
+            when (direction) {
+                SongSortDirection.ASCENDING -> Res.string.sort_direction_ascending
+                SongSortDirection.DESCENDING -> Res.string.sort_direction_descending
+            },
+        ),
+        modifier = Modifier
+            .padding(start = 4.dp)
+            .size(16.dp),
+    )
+}
+
+/**
+ * A second tap on the active option reverses it. Moving to another option restores the useful
+ * default for that field (A–Z for text, newest first for recently added).
+ */
+internal fun directionAfterSongSortSelection(
+    currentSort: SongSort,
+    currentDirection: SongSortDirection,
+    selectedSort: SongSort,
+): SongSortDirection = if (selectedSort == currentSort) {
+    currentDirection.toggled()
+} else {
+    selectedSort.defaultDirection
 }
 
 @Composable
@@ -4157,14 +4483,81 @@ private fun GroupSelectionMark(selectionState: Boolean?) {
     )
 }
 
+private data class KeyedAlbum(
+    val album: AlbumGroup,
+    val titleKey: String,
+    val artistKey: String,
+)
+
+/** Stable, saveable Lazy item identity; null and an actual empty name never alias. */
+private fun stableGroupKey(kind: String, name: String?): String =
+    if (name == null) "$kind:null" else "$kind:value:$name"
+
+private data class LibraryBrowseDerivation(
+    val catalog: LibraryCatalog,
+    val albumSections: List<AlbumRailSection>,
+    val alphabeticAlbumTracks: List<TrackDescriptor>,
+)
+
+/** Albums use one global A–Z presentation order so one rail letter always has one anchor. */
+internal fun albumsInRailOrder(albums: List<AlbumGroup>): List<AlbumGroup> = albums
+    .map { album ->
+        KeyedAlbum(
+            album = album,
+            titleKey = SongSorting.sortKey(album.title),
+            artistKey = SongSorting.sortKey(album.artist),
+        )
+    }
+    .sortedWith(compareBy<KeyedAlbum>({ it.titleKey }, { it.artistKey }, { it.album.key }))
+    .map { it.album }
+
+internal data class AlbumRailSection(
+    val bucket: String,
+    val albums: List<AlbumGroup>,
+    /** Index of this section's full-span header in LazyVerticalGrid emission order. */
+    val emitStartIndex: Int,
+)
+
+internal fun albumRailSections(albums: List<AlbumGroup>): List<AlbumRailSection> {
+    var emitIndex = 0
+    return albumsInRailOrder(albums)
+        .groupBy { album -> SongSorting.bucket(album.title) }
+        .map { (bucket, grouped) ->
+            AlbumRailSection(
+                bucket = bucket,
+                albums = grouped,
+                emitStartIndex = emitIndex,
+            ).also {
+                emitIndex += 1 + grouped.size
+            }
+        }
+}
+
+@Composable
+private fun AlbumSectionHeader(bucket: String) {
+    Text(
+        text = bucket,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    )
+}
+
 @Composable
 private fun AlbumCard(
     album: AlbumGroup,
+    /** Rail mirrors cap decode work; the actual card still resolves from its layout constraints. */
+    railPreview: Boolean = false,
+    onArtworkLoadStateChanged: ((requestUri: String, state: ArtworkLoadState) -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     /** `null` outside selection mode; otherwise whether every track of this album is selected. */
     selectionState: Boolean? = null,
     onClick: () -> Unit,
 ) {
+    val platformContext = LocalPlatformContext.current
     Column(
         modifier = Modifier
             .then(
@@ -4193,12 +4586,40 @@ private fun AlbumCard(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (album.artworkUri != null) {
+            album.artworkUri?.let { requestUri ->
+                val imageModel = remember(requestUri, railPreview, platformContext) {
+                    if (railPreview) {
+                        ImageRequest.Builder(platformContext)
+                            .data(requestUri)
+                            .size(ALBUM_RAIL_PREVIEW_PX)
+                            .build()
+                    } else {
+                        requestUri
+                    }
+                }
                 AsyncImage(
-                    model = album.artworkUri,
+                    model = imageModel,
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.Crop,
+                    onLoading = {
+                        onArtworkLoadStateChanged?.invoke(
+                            requestUri,
+                            ArtworkLoadState.LOADING,
+                        )
+                    },
+                    onSuccess = {
+                        onArtworkLoadStateChanged?.invoke(
+                            requestUri,
+                            ArtworkLoadState.TERMINAL,
+                        )
+                    },
+                    onError = {
+                        onArtworkLoadStateChanged?.invoke(
+                            requestUri,
+                            ArtworkLoadState.TERMINAL,
+                        )
+                    },
                 )
             }
             if (selectionState != null) {
@@ -4245,11 +4666,15 @@ private fun AlbumCard(
     }
 }
 
+/** Deliberately modest: enough for a transient card, far cheaper than source-resolution art. */
+private const val ALBUM_RAIL_PREVIEW_PX = 256
+
 @Composable
 private fun GroupRow(
     title: String,
     subtitle: String,
     artworkUri: String?,
+    onArtworkLoadStateChanged: ((requestUri: String, state: ArtworkLoadState) -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     /** `null` outside selection mode; otherwise whether every track of this group is selected. */
     selectionState: Boolean? = null,
@@ -4274,7 +4699,12 @@ private fun GroupRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         GroupSelectionMark(selectionState)
-        Artwork(uri = artworkUri, size = 48.dp, cornerRadius = 24.dp)
+        Artwork(
+            uri = artworkUri,
+            size = 48.dp,
+            cornerRadius = 24.dp,
+            onLoadStateChanged = onArtworkLoadStateChanged,
+        )
         Column {
             Text(
                 text = title,

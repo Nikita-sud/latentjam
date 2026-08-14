@@ -70,6 +70,8 @@
     <string name="library_empty">Nu s-a găsit muzică pe acest dispozitiv.</string>
     <string name="action_rescan_library">Actualizează biblioteca</string>
     <string name="sort_recently_added">Adăugate recent</string>
+    <string name="sort_direction_ascending">Crescător</string>
+    <string name="sort_direction_descending">Descrescător</string>
     <string name="snack_track_deleted">Piesă ștearsă</string>
 
     <!-- =========================================================== for you -->
@@ -472,4 +474,5 @@
     <string name="duplicates_keep_this">Păstrează-l pe acesta</string>
     <string name="snack_duplicates_merged">Duplicatele au fost unite: playlisturile indică acum copia păstrată</string>
     <string name="info_lyrics">Versuri</string>
+    <string name="lyrics_not_found">Nu s-au găsit versuri încorporate pentru această piesă.</string>
 </resources>

@@ -67,6 +67,8 @@
     <string name="library_empty">Bu cihazda müzik bulunamadı.</string>
     <string name="action_rescan_library">Kitaplığı yenile</string>
     <string name="sort_recently_added">Son eklenenler</string>
+    <string name="sort_direction_ascending">Artan</string>
+    <string name="sort_direction_descending">Azalan</string>
     <string name="snack_track_deleted">Parça silindi</string>
 
     <!-- =========================================================== for you -->
@@ -473,4 +475,5 @@
     <string name="duplicates_keep_this">Bunu tut</string>
     <string name="snack_duplicates_merged">Kopyalar birleştirildi: çalma listeleri artık tutulan kopyayı gösteriyor</string>
     <string name="info_lyrics">Şarkı sözleri</string>
+    <string name="lyrics_not_found">Bu parça için gömülü şarkı sözü bulunamadı.</string>
 </resources>

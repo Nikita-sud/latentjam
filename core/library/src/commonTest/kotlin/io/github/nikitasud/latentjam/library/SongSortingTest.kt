@@ -67,6 +67,68 @@ internal class SongSortingTest {
     }
 
     @Test
+    fun titleSortCanRunDescendingWithoutPromotingMissingTitles() {
+        val sorted = SongSorting.sort(
+            listOf(
+                track("alpha", title = "Alpha"),
+                track("unknown"),
+                track("zebra", title = "Zebra"),
+                track("middle", title = "Middle"),
+            ),
+            SongSort.TITLE,
+            SongSortDirection.DESCENDING,
+        )
+
+        assertContentEquals(
+            listOf("zebra", "middle", "alpha", "unknown"),
+            sorted.map { it.id.value },
+        )
+    }
+
+    @Test
+    fun artistSortCanRunDescendingWithDescendingTitleTieBreaks() {
+        val sorted = SongSorting.sort(
+            listOf(
+                track("queen-a", title = "A side", artist = "Queen"),
+                track("unknown", title = "Tagged title"),
+                track("abba", title = "Only", artist = "ABBA"),
+                track("queen-b", title = "B side", artist = "queen"),
+            ),
+            SongSort.ARTIST,
+            SongSortDirection.DESCENDING,
+        )
+
+        assertContentEquals(
+            listOf("queen-b", "queen-a", "abba", "unknown"),
+            sorted.map { it.id.value },
+        )
+    }
+
+    @Test
+    fun recentSortCanRunOldestFirstWithoutPromotingUnknownDates() {
+        val sorted = SongSorting.sort(
+            listOf(
+                track("new", addedAtMs = 9_000),
+                track("unknown"),
+                track("old", addedAtMs = 1_000),
+            ),
+            SongSort.RECENT,
+            SongSortDirection.ASCENDING,
+        )
+
+        assertContentEquals(listOf("old", "new", "unknown"), sorted.map { it.id.value })
+    }
+
+    @Test
+    fun eachSortHasAListenerFriendlyDefaultDirection() {
+        assertEquals(SongSortDirection.ASCENDING, SongSort.TITLE.defaultDirection)
+        assertEquals(SongSortDirection.ASCENDING, SongSort.ARTIST.defaultDirection)
+        assertEquals(SongSortDirection.DESCENDING, SongSort.RECENT.defaultDirection)
+        assertEquals(SongSortDirection.DESCENDING, SongSortDirection.ASCENDING.toggled())
+        assertEquals(SongSortDirection.ASCENDING, SongSortDirection.DESCENDING.toggled())
+    }
+
+    @Test
     fun sectionsBucketByInitialIncludingNonLatin() {
         val sections = SongSorting.sections(
             listOf(
@@ -107,6 +169,21 @@ internal class SongSortingTest {
             SongSort.ARTIST,
         )
         assertEquals(listOf("A"), sections.map { it.bucket })
+    }
+
+    @Test
+    fun descendingSectionsAndAlphabetRailBucketsShareTheSameOrder() {
+        val sections = SongSorting.sections(
+            listOf(
+                track("a", title = "Alpha"),
+                track("z", title = "Zebra"),
+                track("m", title = "Middle"),
+            ),
+            SongSort.TITLE,
+            SongSortDirection.DESCENDING,
+        )
+
+        assertEquals(listOf("Z", "M", "A"), sections.map { it.bucket })
     }
 
     @Test
