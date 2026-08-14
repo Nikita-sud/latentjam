@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.indication
@@ -104,11 +106,22 @@ fun ForYouTab(
                 )
             }
         } else {
+            val entrance = remember { MutableTransitionState(false).apply { targetState = true } }
+            AnimatedVisibility(
+                visibleState = entrance,
+                enter = motionAppearEnter(),
+                exit = motionAppearExit(),
+            ) {
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
                 page.hero?.let { hero ->
-                    item(key = "hero") { HeroCard(hero, onPlay = { onPlayHero(hero) }) }
+                    item(key = "hero") {
+                        Box(modifier = Modifier.animateItem()) {
+                            HeroCard(hero, onPlay = { onPlayHero(hero) })
+                        }
+                    }
                 }
                 items(page.sections, key = { it.kind.name }) { section ->
+                    Column(modifier = Modifier.animateItem()) {
                     Text(
                         text = section.kind.title(),
                         style = MaterialTheme.typography.titleMedium,
@@ -125,6 +138,7 @@ fun ForYouTab(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                     ) {
                         items(section.cards, key = { it.track.id.value }) { card ->
+                            Box(modifier = Modifier.animateItem()) {
                             ForYouCardItem(
                                 card = card,
                                 onClick = {
@@ -152,9 +166,12 @@ fun ForYouTab(
                                 },
                                 onLongClick = { onTrackMenu(card.track) },
                             )
+                            }
                         }
                     }
+                    }
                 }
+            }
             }
         }
     }
@@ -305,6 +322,7 @@ private fun ForYouCardItem(
     Column(
         modifier = Modifier
             .width(140.dp)
+            .scaleOnPress(interaction)
             .combinedClickable(
                 interactionSource = interaction,
                 indication = null,
@@ -357,11 +375,17 @@ private fun ForYouCardItem(
  */
 @Composable
 private fun HeroCard(hero: ForYouHero, onPlay: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 12.dp)
-            .clickable(onClick = onPlay),
+            .scaleOnPress(interaction)
+            .clickable(
+                interactionSource = interaction,
+                indication = ripple(),
+                onClick = onPlay,
+            ),
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {

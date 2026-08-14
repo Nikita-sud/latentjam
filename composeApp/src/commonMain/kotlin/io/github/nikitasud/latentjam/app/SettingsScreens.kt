@@ -4,6 +4,13 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -397,7 +404,29 @@ fun SettingsScreen(
             },
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-                when (page) {
+                val reduceMotion = rememberReduceMotion()
+                // Direction-aware: drilling in slides forward, backing out slides back — the axis
+                // carries the navigation model, so depth is legible without reading the title.
+                AnimatedContent(
+                    targetState = stack,
+                    contentKey = { it.last() },
+                    transitionSpec = {
+                        if (reduceMotion) {
+                            fadeIn(tween(120)) togetherWith fadeOut(tween(90))
+                        } else {
+                            val direction = if (targetState.size >= initialState.size) 1 else -1
+                            (
+                                slideInHorizontally(tween(Motion.APPEAR_MS)) { it / 5 * direction } +
+                                    fadeIn(tween(Motion.APPEAR_MS))
+                                ) togetherWith (
+                                slideOutHorizontally(tween(Motion.REPLACE_MS)) { -it / 6 * direction } +
+                                    fadeOut(tween(Motion.REPLACE_MS))
+                                )
+                        }
+                    },
+                    label = "settings-page",
+                ) { animatedStack ->
+                when (animatedStack.last()) {
                     SettingsPage.ROOT -> SettingsRoot(
                         listState = rootListState,
                         equalizer = equalizer,
@@ -480,6 +509,7 @@ fun SettingsScreen(
                         open(SettingsPage.LICENSES)
                     })
                     SettingsPage.LICENSES -> LicensesSettings()
+                }
                 }
             }
         }

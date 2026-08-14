@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.ripple
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -143,7 +145,9 @@ internal fun PlaylistsTabContent(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(autoPlaylists, key = { it.kind.name }) { auto ->
-                        AutoPlaylistCard(auto) { onOpenAuto(auto) }
+                        Box(modifier = Modifier.animateItem()) {
+                            AutoPlaylistCard(auto) { onOpenAuto(auto) }
+                        }
                     }
                 }
             }
@@ -257,8 +261,16 @@ private fun AutoPlaylistKind.title(): String = stringResource(titleRes())
 
 @Composable
 private fun AutoPlaylistCard(auto: AutoPlaylist, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
     Column(
-        modifier = Modifier.width(150.dp).clickable(onClick = onClick),
+        modifier = Modifier
+            .width(150.dp)
+            .scaleOnPress(interaction)
+            .clickable(
+                interactionSource = interaction,
+                indication = ripple(),
+                onClick = onClick,
+            ),
     ) {
         Box(
             modifier = Modifier

@@ -106,6 +106,7 @@ internal fun SectionedSongsList(
                     key = { _, track -> track.id.value },
                     contentType = { _, _ -> "track" },
                 ) { indexInSection, track ->
+                    Box(modifier = Modifier.animateItem()) {
                     TrackRow(
                         track = track,
                         isCurrent = track.id == currentTrackId,
@@ -123,6 +124,7 @@ internal fun SectionedSongsList(
                         selectionState = if (selectionMode) track.id in selectedTrackIds else null,
                         onMenu = if (selectionMode) null else ({ onTrackMenu(track) }),
                     )
+                    }
                 }
             }
         }
