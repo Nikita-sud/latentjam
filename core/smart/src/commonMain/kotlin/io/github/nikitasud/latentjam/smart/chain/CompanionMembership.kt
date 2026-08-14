@@ -24,6 +24,49 @@ internal class CompanionMembership private constructor(
 
     fun rowsOf(group: Int): IntArray = rowsByGroup[group]
 
+    /**
+     * The groups quota rotation and pool injection may act for on behalf of [row]: its groups
+     * minus every (near-)superset of another, smaller group it is also in.
+     *
+     * "JoJo inside Anime" is one preference stated twice at different zoom levels, not two
+     * preferences. Rotating over both would hand the vacuous outer statement half of the
+     * guaranteed hops, so the nested claim absorbs its super-group's turns — the listener can
+     * mark playlists at any granularity without owing the engine an explanation. Genuinely
+     * distinct groups that merely intersect keep their own turns; see
+     * [ChainConfig.COMPANION_NESTING_CONTAINMENT]. The bonus term needs no such filter: it
+     * already scores by the smallest shared group.
+     */
+    fun quotaGroupsOf(row: Int): IntArray {
+        val groups = groupsByRow[row]
+        if (groups.size <= 1) return groups
+        val kept = groups.filter { outer ->
+            groups.none { inner -> inner != outer && absorbsQuotaOf(inner, outer) }
+        }
+        return kept.toIntArray()
+    }
+
+    /** True when the strictly smaller [inner] sits (almost) entirely inside [outer]. */
+    private fun absorbsQuotaOf(inner: Int, outer: Int): Boolean {
+        val innerRows = rowsByGroup[inner]
+        val outerRows = rowsByGroup[outer]
+        if (innerRows.size >= outerRows.size) return false
+        var leftIndex = 0
+        var rightIndex = 0
+        var shared = 0
+        while (leftIndex < innerRows.size && rightIndex < outerRows.size) {
+            when {
+                innerRows[leftIndex] < outerRows[rightIndex] -> leftIndex++
+                innerRows[leftIndex] > outerRows[rightIndex] -> rightIndex++
+                else -> {
+                    shared++
+                    leftIndex++
+                    rightIndex++
+                }
+            }
+        }
+        return shared.toFloat() / innerRows.size >= ChainConfig.COMPANION_NESTING_CONTAINMENT
+    }
+
     fun sharesGroup(rowA: Int, rowB: Int): Boolean =
         firstSharedGroup(rowA, rowB) >= 0
 

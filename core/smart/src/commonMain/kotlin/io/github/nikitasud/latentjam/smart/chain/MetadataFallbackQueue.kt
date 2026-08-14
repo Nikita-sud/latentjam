@@ -50,7 +50,7 @@ internal object MetadataFallbackQueue {
         var anchorMeta = seedMeta
         var anchorVector = seedVector
         var anchorCompanionRow = seedRow
-        val seedCompanionGroups = companions.groupsOf(seedRow)
+        val seedCompanionGroups = companions.quotaGroupsOf(seedRow)
         val quotaPositionByGroup = IntArray(companions.groupCount) { -1 }
         seedCompanionGroups.forEachIndexed { position, group ->
             quotaPositionByGroup[group] = position

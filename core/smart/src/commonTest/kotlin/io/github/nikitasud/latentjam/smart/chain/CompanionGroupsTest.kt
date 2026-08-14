@@ -185,3 +185,100 @@ internal class CompanionGroupsTest {
         assertEquals(ids, reorderedIds, "playlist drag order is not SMART policy")
     }
 }
+
+internal class NestedCompanionGroupsTest {
+
+    private fun membership(
+        rows: Int,
+        groups: List<Set<TrackId>>,
+    ) = CompanionMembership.build(
+        rowIds = (0 until rows).map { TrackId(it.toString()) },
+        groups = groups,
+    )
+
+    private fun ids(values: IntRange) = values.map { TrackId(it.toString()) }.toSet()
+
+    @Test
+    fun `a fully nested super group loses its quota turns to the specific group`() {
+        val companions = membership(
+            rows = 100,
+            groups = listOf(
+                ids(0..79), // "Anime": контейнер
+                ids(0..9), // "JoJo": целиком внутри
+            ),
+        )
+        // Row 0 is in both; quota may only act for the nested, specific group.
+        assertEquals(1, companions.quotaGroupsOf(0).size)
+        val keptGroup = companions.quotaGroupsOf(0).single()
+        assertEquals(10, companions.rowsOf(keptGroup).size)
+        // A row only in the container keeps the container's turn — nothing absorbs it there.
+        assertEquals(1, companions.quotaGroupsOf(50).size)
+    }
+
+    @Test
+    fun `near containment is enough - a couple of stray tracks change nothing`() {
+        val companions = membership(
+            rows = 100,
+            // 19 of 20 inside the container (0.95 >= 0.9): still absorbed.
+            groups = listOf(ids(0..79), ids(0..18) + setOf(TrackId("90"))),
+        )
+        assertEquals(1, companions.quotaGroupsOf(0).size)
+        assertEquals(20, companions.rowsOf(companions.quotaGroupsOf(0).single()).size)
+    }
+
+    @Test
+    fun `genuinely overlapping groups both keep their turns`() {
+        val companions = membership(
+            rows = 100,
+            // Half of the small group lives outside the big one: two real statements.
+            groups = listOf(ids(0..59), ids(50..69)),
+        )
+        assertEquals(2, companions.quotaGroupsOf(55).size)
+    }
+
+    @Test
+    fun `a nesting chain resolves to the most specific group`() {
+        val companions = membership(
+            rows = 100,
+            groups = listOf(ids(0..89), ids(0..29), ids(0..4)),
+        )
+        assertEquals(1, companions.quotaGroupsOf(0).size)
+        assertEquals(5, companions.rowsOf(companions.quotaGroupsOf(0).single()).size)
+        // A row in the outer two only is owned by the middle group.
+        assertEquals(1, companions.quotaGroupsOf(20).size)
+        assertEquals(30, companions.rowsOf(companions.quotaGroupsOf(20).single()).size)
+    }
+
+    @Test
+    fun `quota turns of a nested seed never elect a container-only member`() {
+        fun track(row: Int, seedComponent: Float, noiseDim: Int): SmartTrack {
+            val audio = FloatArray(PredictorRuntime.EMBEDDING_DIM)
+            audio[0] = seedComponent
+            audio[noiseDim] = sqrt(1f - seedComponent * seedComponent)
+            return SmartTrack(
+                id = TrackId(row.toString()),
+                audio = audio,
+                meta = TrackMeta("title$row", "artist$row", null, null, null),
+            )
+        }
+        val library = buildList {
+            add(track(0, 1f, 1))
+            // Container-only members sit acoustically CLOSER than the tight member, so under
+            // per-group rotation the container's champion would win its own quota turns.
+            for (row in 1 until 40) add(track(row, 0.9f - row * 0.001f, 100 + row))
+            add(track(40, 0.05f, 400))
+        }
+        val snapshot = requireNotNull(SmartSnapshot.build(library))
+        val tight = setOf(TrackId("0"), TrackId("40"))
+        val container = (0 until 40).map { TrackId(it.toString()) }.toSet() + tight
+        val walk = SmartChain(
+            snapshot,
+            runtime = null,
+            companionGroups = listOf(container, tight),
+        ).build(seedId = TrackId("0"), length = 6, timeFeatures = FloatArray(5))
+        val picked = walk.rows.map { snapshot.tracks[it].id }
+        // The guaranteed hops belong to the tight playlist: its far member must appear early
+        // (first quota turn), not linger behind forty closer container tracks.
+        assertEquals(true, TrackId("40") in picked.take(3))
+    }
+}

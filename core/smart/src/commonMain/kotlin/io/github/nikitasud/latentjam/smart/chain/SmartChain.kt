@@ -49,6 +49,16 @@ internal object ChainConfig {
     const val COMPANION_SPECIFICITY_FLOOR = 0.25f
 
     /**
+     * A marked group whose members (at least this share of them) sit inside another, larger
+     * marked group of the same seed makes that larger group redundant for quota purposes: the
+     * nested playlist is the specific claim, the super-playlist adds no new statement about
+     * these tracks. Without this, marking "Anime" over an already-marked "JoJo" quietly handed
+     * half of a JoJo seed's guaranteed hops to arbitrary anime tracks — a mechanic no listener
+     * should have to understand, let alone manage by un-flagging playlists.
+     */
+    const val COMPANION_NESTING_CONTAINMENT = 0.9f
+
+    /**
      * Every this-many hops is GUARANTEED to the seed's marked groups when any member is still
      * available: the bonus orders, the quota represents. Without it, a marked playlist whose
      * members sit far from the seed acoustically could lose every single hop to closer
@@ -209,7 +219,7 @@ internal class SmartChain(
         var seedFamilyPicks = 0
         // Quota turns rotate through the seed's marked groups. A single union-wide best candidate
         // lets one acoustically strong playlist win every quota and starve another forever.
-        val seedCompanionGroups = companions.groupsOf(seedRow)
+        val seedCompanionGroups = companions.quotaGroupsOf(seedRow)
         val quotaPositionByGroup = IntArray(companions.groupCount) { -1 }
         seedCompanionGroups.forEachIndexed { position, group ->
             quotaPositionByGroup[group] = position
@@ -723,7 +733,7 @@ internal class SmartChain(
         // tail (best-sounding first, bounded), so "keep together" reaches tracks the retrieval
         // channels alone would never surface. No marked groups — untouched pool, which is what
         // the parity fixtures pin.
-        val seedGroups = companions.groupsOf(seedRow)
+        val seedGroups = companions.quotaGroupsOf(seedRow)
         if (seedGroups.isNotEmpty()) {
             // Allocate the bounded companion tail round-robin across the seed's groups. Filling it
             // from one union-wide ranking lets a large/strong first playlist consume all 16 slots
