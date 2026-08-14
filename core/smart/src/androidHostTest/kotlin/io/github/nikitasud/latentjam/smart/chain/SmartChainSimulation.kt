@@ -81,7 +81,7 @@ class SmartChainSimulation {
         val rowOf = tracks.mapIndexed { row, t -> t.id to row }.toMap()
         data class Config(val bonus: Float, val margin: Float, val duration: Boolean)
         val configs = buildList {
-            for (bonus in listOf(0.17f, 0.30f, 0.50f)) {
+            for (bonus in listOf(0.17f, 0.30f, 0.50f, 0.80f, 1.20f)) {
                 for (margin in listOf(Float.POSITIVE_INFINITY, 0.6f, 0.3f)) {
                     add(Config(bonus, margin, true))
                 }

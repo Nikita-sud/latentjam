@@ -30,12 +30,16 @@ internal object ChainConfig {
      * acoustic distance. Applies ONLY when the caller passes groups — the empty default is the
      * shipped chain, byte-identical, which is what the recorded parity fixtures pin.
      */
-    // 0.17 -> 0.30 (2026-08-14): full-chain sweep over the exported 847-track library, 32
-    // seeds x 24 hops — theme share 0.384 -> 0.401 at zero seed-cos cost (0.475 -> 0.475) and
-    // -0.005 step-cos. 0.50 bought +1.4pp more for -0.003 seed-cos; kept in reserve rather than
-    // taken, the curve flattens. Same sweep REJECTED a competitive quota margin: 0.6 collapsed
-    // theme share to 0.18 — the unconditional quota carries the thematic axis.
-    const val COMPANION_BONUS = 0.30f
+    // 0.17 -> 0.50 (2026-08-14): two full-chain sweeps, first over an 847-track snapshot and
+    // then over the live 1062-track export (33 seeds x 24 hops). On fresh data theme share
+    // climbs 0.448 -> 0.470 -> 0.498 for 0.17 -> 0.30 -> 0.50 while seed-cos loses only 0.012
+    // and step-cos 0.009 in total — both within the +-0.01 band accepted for the text channel.
+    // 0.80 still gains theme but starts re-admitting short OST cues (9.2% vs 8.2%), and 1.20
+    // visibly breaks step coherence (0.598 -> 0.569): that is the knee, so 0.50 is the last
+    // step where sound stays first. The same sweeps REJECTED a competitive quota margin twice
+    // (0.6 collapsed theme share to ~0.29 on fresh data) — the unconditional quota carries the
+    // thematic axis and stays.
+    const val COMPANION_BONUS = 0.50f
 
     /**
      * How many of the seed's marked-group members may be injected into the candidate pool when
