@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -576,16 +578,22 @@ private fun LargeArtwork(uri: String?, modifier: Modifier = Modifier) {
             modifier = Modifier.size(96.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (uri != null) {
-            AsyncImage(
-                model = uri,
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop,
-            )
+        Crossfade(
+            targetState = uri,
+            animationSpec = tween(300),
+            modifier = Modifier.matchParentSize(),
+            label = "cover",
+        ) { shownUri ->
+            if (shownUri != null) {
+                AsyncImage(
+                    model = shownUri,
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            }
         }
     }
-
 }
 
 @Composable
@@ -660,35 +668,58 @@ private fun RepeatButton(mode: RepeatMode, onClick: () -> Unit) {
             },
         ),
     ) {
+        AnimatedContent(
+            targetState = mode,
+            transitionSpec = {
+                (
+                    fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.7f)
+                    ) togetherWith fadeOut(tween(90))
+            },
+            label = "repeat-mode",
+        ) { shownMode ->
         Icon(
-            imageVector = if (mode == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+            imageVector = if (shownMode == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
             contentDescription = stringResource(
-                when (mode) {
+                when (shownMode) {
                     RepeatMode.OFF -> Res.string.cd_repeat_off
                     RepeatMode.ALL -> Res.string.cd_repeat_all
                     RepeatMode.ONE -> Res.string.cd_repeat_one
                 },
             ),
         )
+        }
     }
 }
 
 @Composable
 private fun ShuffleButton(mode: ShuffleMode, onClick: () -> Unit) {
-    val tint = when (mode) {
-        ShuffleMode.OFF -> MaterialTheme.colorScheme.onSurfaceVariant
-        ShuffleMode.ON -> MaterialTheme.colorScheme.primary
-        ShuffleMode.SMART -> MaterialTheme.colorScheme.tertiary
-    }
+    val tint by animateColorAsState(
+        targetValue = when (mode) {
+            ShuffleMode.OFF -> MaterialTheme.colorScheme.onSurfaceVariant
+            ShuffleMode.ON -> MaterialTheme.colorScheme.primary
+            ShuffleMode.SMART -> MaterialTheme.colorScheme.tertiary
+        },
+        animationSpec = tween(Motion.APPEAR_MS),
+        label = "shuffle-tint",
+    )
     IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+        AnimatedContent(
+            targetState = mode,
+            transitionSpec = {
+                (
+                    fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.7f)
+                    ) togetherWith fadeOut(tween(90))
+            },
+            label = "shuffle-mode",
+        ) { shownMode ->
         Icon(
             // SMART wears the app's own mark; plain shuffle keeps the
             // standard glyph, so the three states never rely on tint alone.
-            imageVector = if (mode == ShuffleMode.SMART) LatentJamMark else Icons.Rounded.Shuffle,
+            imageVector = if (shownMode == ShuffleMode.SMART) LatentJamMark else Icons.Rounded.Shuffle,
             // One string per state rather than an interpolated enum name: the enum
             // is English source code, and a screen reader would have read it out.
             contentDescription = stringResource(
-                when (mode) {
+                when (shownMode) {
                     ShuffleMode.OFF -> Res.string.cd_shuffle_off
                     ShuffleMode.ON -> Res.string.cd_shuffle_on
                     ShuffleMode.SMART -> Res.string.cd_shuffle_smart
@@ -696,6 +727,7 @@ private fun ShuffleButton(mode: ShuffleMode, onClick: () -> Unit) {
             ),
             tint = tint,
         )
+        }
     }
 }
 

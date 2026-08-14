@@ -13,6 +13,15 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -147,21 +156,36 @@ internal fun TrackRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (selectionState != null) {
+        AnimatedVisibility(
+            visible = selectionState != null,
+            enter = fadeIn(tween(Motion.APPEAR_MS)) + expandHorizontally(tween(Motion.APPEAR_MS)),
+            exit = fadeOut(tween(Motion.REPLACE_MS)) + shrinkHorizontally(tween(Motion.REPLACE_MS)),
+        ) {
+            // The tick itself pops when toggled; the container above handles mode enter/exit.
+            AnimatedContent(
+                targetState = selectionState == true,
+                transitionSpec = {
+                    (
+                        fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f)
+                        ) togetherWith fadeOut(tween(90))
+                },
+                label = "row-check",
+            ) { checked ->
             Icon(
-                imageVector = if (selectionState) {
+                imageVector = if (checked) {
                     Icons.Rounded.CheckCircle
                 } else {
                     Icons.Rounded.RadioButtonUnchecked
                 },
                 contentDescription = null,
-                tint = if (selectionState) {
+                tint = if (checked) {
                     MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
                 modifier = Modifier.size(28.dp),
             )
+            }
         }
         Box {
             Artwork(uri = track.artworkUri, size = 48.dp)

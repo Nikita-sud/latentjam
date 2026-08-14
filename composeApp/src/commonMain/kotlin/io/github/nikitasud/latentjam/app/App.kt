@@ -11,7 +11,9 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -1894,8 +1896,24 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     ),
                                     actions = {
                                         // Creating belongs to the tab that shows
-                                        // what you'd create, so it appears there.
-                                        if (selectedTab == PLAYLISTS_TAB) {
+                                        // what you'd create, so it appears there — growing in
+                                        // rather than teleporting when the tab settles.
+                                        AnimatedVisibility(
+                                            visible = selectedTab == PLAYLISTS_TAB,
+                                            enter = if (reduceMotion) {
+                                                fadeIn(tween(120))
+                                            } else {
+                                                fadeIn(tween(Motion.APPEAR_MS)) +
+                                                    expandHorizontally(tween(Motion.APPEAR_MS))
+                                            },
+                                            exit = if (reduceMotion) {
+                                                fadeOut(tween(90))
+                                            } else {
+                                                fadeOut(tween(Motion.REPLACE_MS)) +
+                                                    shrinkHorizontally(tween(Motion.REPLACE_MS))
+                                            },
+                                        ) {
+                                            Row {
                                             IconButton(onClick = { m3uExchange.import() }) {
                                                 Icon(
                                                     imageVector = Icons.Rounded.FileOpen,
@@ -1909,6 +1927,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     contentDescription =
                                                         stringResource(Res.string.playlist_new),
                                                 )
+                                            }
                                             }
                                         }
                                         IconButton(onClick = { showSearch = true }) {
@@ -2528,7 +2547,22 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         )
                     }
 
-                    if (selectionMode) {
+                    AnimatedVisibility(
+                        visible = selectionMode,
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                        enter = if (reduceMotion) {
+                            fadeIn(tween(120))
+                        } else {
+                            fadeIn(tween(Motion.APPEAR_MS)) +
+                                slideInVertically(tween(Motion.APPEAR_MS)) { it / 2 }
+                        },
+                        exit = if (reduceMotion) {
+                            fadeOut(tween(90))
+                        } else {
+                            fadeOut(tween(Motion.REPLACE_MS)) +
+                                slideOutVertically(tween(Motion.REPLACE_MS)) { it / 2 }
+                        },
+                    ) {
                         SelectionActionBar(
                             canAct = selectedTracks.isNotEmpty(),
                             canShare = selectedTracks.isNotEmpty() &&
@@ -2679,9 +2713,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     showSelectionRemoval = true
                                 }
                             },
-                            modifier = Modifier.align(Alignment.BottomCenter),
+                            modifier = Modifier,
                         )
-                    } else currentTrack?.let { current ->
+                    }
+                    if (!selectionMode) currentTrack?.let { current ->
                         MiniPlayerPill(
                             track = current,
                             accent = accent,
