@@ -95,8 +95,12 @@ public object LibraryWorlds {
     public const val TARGET_TRACKS_PER_MIX: Int = 60
     public const val MAX_MIXES: Int = 16
 
-    /** How much of a world must lie inside one named group before the group may name it. */
-    public const val GROUP_NAME_CONTAINMENT: Double = 0.6
+    /**
+     * How much of a world must lie inside one named group before the group may name it.
+     * Measured on the same real library: 0.6 named 2 of 17 worlds, 0.45 named 3, 0.35 named 5
+     * with no further gain below. 0.45 keeps the name an honest near-majority claim.
+     */
+    public const val GROUP_NAME_CONTAINMENT: Double = 0.45
 
     /**
      * Renames worlds after the listener's own vocabulary: a world whose tracks lie mostly
@@ -164,10 +168,12 @@ public object LibraryWorlds {
      * it in the title.
      *
      * A title is a promise about the whole playlist, not a description of its largest minority.
-     * Keeping this at three quarters still tolerates imperfect tags while preventing a 35% rap
-     * plurality from turning a mostly unrelated cluster into a narrowly named "Phonk" mix.
+     * A three-fifths majority keeps that promise while naming real mixed-tag clusters: at 0.75,
+     * a real 1062-track library produced 15 nameless "Discovery mix N" cards out of 17 worlds —
+     * labels that tell the listener nothing — because OST-heavy libraries rarely tag three
+     * quarters of an acoustic region identically. A 35% plurality still cannot name anything.
      */
-    public const val MIN_SHARE: Float = 0.75f
+    public const val MIN_SHARE: Float = 0.6f
 
     /**
      * A member this close to a rival centroid sits on an arbitrary k-means boundary rather than

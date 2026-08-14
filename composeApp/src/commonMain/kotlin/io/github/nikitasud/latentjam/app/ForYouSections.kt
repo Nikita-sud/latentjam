@@ -152,12 +152,62 @@ object ForYouBuilder {
     const val MIN_REVISIT_TRACKS = 3
 
     /**
-     * How long a track must be untouched to count as forgotten.
+     * The mature "forgotten" window: 90 days, not 30 — a month is an ordinary gap in rotation.
      *
-     * 90 days, not 30. A month is an ordinary gap in rotation, so a shorter window surfaces things
-     * the listener does not experience as absent — which is exactly how the row loses credibility.
+     * This is a CEILING, not the working value. Measured on a real 26-day-old install, a fixed
+     * 90-day window meant the page's flagship section had never existed and could not exist for
+     * months: 0 candidates at 90d and 30d, 28 at 14d. [adaptiveQuietMs] scales the window to the
+     * log's own age so the section lives from the first weeks and matures toward this value.
      */
     const val QUIET_MS = 90L * 24 * 60 * 60 * 1000
+
+    /** Below a week, "gone quiet" is indistinguishable from "listened on Tuesday". */
+    const val MIN_QUIET_MS = 7L * 24 * 60 * 60 * 1000
+
+    /** The day key for deterministic rotation: stable within a day, different across days. */
+    private const val DAY_MS = 24L * 60 * 60 * 1000
+
+    /**
+     * Ranked slots the worlds row always keeps at the front; the rest of the row rotates daily.
+     * Measured before rotation: the page was IDENTICAL day over day (worlds Jaccard 1.00 at -1d)
+     * — a page with nothing new on reopen is a page that never becomes a habit.
+     */
+    const val WORLDS_KEEP_RANKED = 3
+
+    /** Newest-unplayed pool the daily rotation draws from; newest-first remains the intent. */
+    const val NEVER_PLAYED_WINDOW = 24
+
+    /**
+     * Guaranteed slots for the listener's own regions. Measured without them: the ranker's
+     * freshness+exploration terms give every UNTOUCHED member a perfect score, so the worlds the
+     * listener actually lives in were outranked by worlds they had never opened — the three
+     * most-played clusters did not appear on the page at all. Affinity is evidence-weighted
+     * satisfaction, so one accidental play cannot claim a slot.
+     */
+    const val WORLDS_AFFINITY_SLOTS = 3
+
+    /** Member scores counted toward a world's affinity: enough for a pattern, blind to size. */
+    const val WORLDS_AFFINITY_EVIDENCE = 3
+
+    /**
+     * Loved anchors leading each non-artist mix. Measured without them: only 2 of the listener's
+     * top-20 tracks appeared anywhere in the mixes row — a "For You" with almost no "you" in it,
+     * because unheard tracks win both freshness and exploration. Anchors put recognizable loved
+     * tracks (and the cover) first while the tail keeps exploring.
+     */
+    const val MIX_ANCHOR_SLOTS = 6
+
+    /**
+     * Half the log's observed age, clamped to [[MIN_QUIET_MS], [QUIET_MS]]. The oldest last-touch
+     * across stats approximates when listening began without a new history API.
+     */
+    internal fun adaptiveQuietMs(stats: Map<TrackId, TrackStats>, nowMs: Long): Long {
+        val oldestTouch = stats.values.asSequence()
+            .map { it.lastPlayedAtMs }
+            .filter { it > 0 }
+            .minOrNull() ?: return QUIET_MS
+        return ((nowMs - oldestTouch) / 2).coerceIn(MIN_QUIET_MS, QUIET_MS)
+    }
 
     /** Rows are short on purpose: attention falls off sharply past the first few items. */
     const val ROW_LIMIT = 8
@@ -208,12 +258,13 @@ object ForYouBuilder {
         // Accumulates across the page, so a track shown once is not shown again further down.
         val used = HashSet<TrackId>(excluded)
 
-        val hero = hero(byId, stats, recentEvents, nowMs, excluded)
+        val quietMs = adaptiveQuietMs(stats, nowMs)
+        val hero = hero(byId, stats, recentEvents, nowMs, quietMs, excluded)
         hero?.let { used.add(it.track.id) }
 
         val sections = mutableListOf<ForYouSection>()
         continueListening(byId, recentEvents, used)?.let(sections::add)
-        worthRevisiting(byId, stats, nowMs, used, playlists)?.let(sections::add)
+        worthRevisiting(byId, stats, nowMs, quietMs, used, playlists)?.let(sections::add)
         // Above "never played" and below the history rows on purpose. With nothing logged the rows
         // above are all empty and this becomes the first thing on the page — which is what it is
         // for. Once there IS history, rows built from it have the better claim on the top of a
@@ -222,13 +273,14 @@ object ForYouBuilder {
             worlds = worlds,
             stats = stats,
             nowMs = nowMs,
+            quietMs = quietMs,
             used = used,
             excluded = excluded,
             discoveryMixLabel = discoveryMixLabel,
             includeNoveltyMixes = includeNoveltyMixes,
             semanticMixLabels = semanticMixLabels,
         )?.let(sections::add)
-        neverPlayed(library, stats, used)?.let(sections::add)
+        neverPlayed(library, stats, nowMs, used)?.let(sections::add)
 
         return ForYouPage(hero, sections)
     }
@@ -245,29 +297,40 @@ object ForYouBuilder {
         stats: Map<TrackId, TrackStats>,
         recentEvents: List<ListenEvent>,
         nowMs: Long,
+        quietMs: Long,
         excluded: Set<TrackId>,
     ): ForYouHero? {
         interrupted(byId, recentEvents, excluded)?.let { (track, at) ->
             return ForYouHero(track, ForYouKicker.Resume, at)
         }
+        // Rotated among the strongest few rather than pinned to the single maximum: without
+        // interruptions the hero otherwise shows the same card every day of the week.
+        val dayIndex = (nowMs / DAY_MS).toInt()
         val revisit = stats.entries
             .filter { (id, stat) ->
                 id !in excluded &&
                     stat.plays >= MIN_PLAYS_TO_COUNT &&
                     stat.lastPlayedAtMs > 0 &&
-                    nowMs - stat.lastPlayedAtMs >= QUIET_MS &&
+                    nowMs - stat.lastPlayedAtMs >= quietMs &&
                     stat.completions >= stat.skips
             }
-            .maxByOrNull { it.value.completions }
-        revisit?.let { (id, stat) ->
+            .sortedByDescending { it.value.completions }
+            .take(HERO_ROTATION_POOL)
+        if (revisit.isNotEmpty()) {
+            val (id, stat) = revisit[dayIndex.mod(revisit.size)]
             byId[id]?.let { return ForYouHero(it, ForYouKicker.PlayedTimes(stat.plays)) }
         }
-        return byId.values
+        val unheard = byId.values
             .filter { (stats[it.id]?.plays ?: 0) == 0 }
             .filter { it.id !in excluded }
-            .maxByOrNull { it.addedAtMs ?: Long.MIN_VALUE }
-            ?.let { ForYouHero(it, ForYouKicker.NeverPlayed) }
+            .sortedByDescending { it.addedAtMs ?: Long.MIN_VALUE }
+            .take(HERO_ROTATION_POOL)
+        if (unheard.isEmpty()) return null
+        return ForYouHero(unheard[dayIndex.mod(unheard.size)], ForYouKicker.NeverPlayed)
     }
+
+    /** How many top candidates the hero cycles through, one per day. */
+    const val HERO_ROTATION_POOL = 5
 
     /** The most recent track abandoned past [MIN_RESUME_MS], with where it stopped. */
     private fun interrupted(
@@ -323,6 +386,7 @@ object ForYouBuilder {
         byId: Map<TrackId, TrackDescriptor>,
         stats: Map<TrackId, TrackStats>,
         nowMs: Long,
+        quietMs: Long,
         used: MutableSet<TrackId>,
         playlists: List<Playlist>,
     ): ForYouSection? {
@@ -331,7 +395,7 @@ object ForYouBuilder {
                 id !in used &&
                     stat.plays >= MIN_PLAYS_TO_COUNT &&
                     stat.lastPlayedAtMs > 0 &&
-                    nowMs - stat.lastPlayedAtMs >= QUIET_MS &&
+                    nowMs - stat.lastPlayedAtMs >= quietMs &&
                     // Something finished repeatedly is loved; something started repeatedly and
                     // abandoned is not, and would be a poor thing to press back on the listener.
                     stat.completions >= stat.skips
@@ -431,6 +495,7 @@ object ForYouBuilder {
         worlds: List<LibraryWorld>,
         stats: Map<TrackId, TrackStats>,
         nowMs: Long,
+        quietMs: Long,
         used: MutableSet<TrackId>,
         excluded: Set<TrackId>,
         discoveryMixLabel: String,
@@ -446,13 +511,44 @@ object ForYouBuilder {
                 )
         }
         if (visibleWorlds.isEmpty()) return null
-        val sorted = ForYouFeedbackRanker.rankWorlds(
+        val ranked = ForYouFeedbackRanker.rankWorlds(
             worlds = visibleWorlds,
             stats = stats,
             nowMs = nowMs,
-            quietMs = QUIET_MS,
+            quietMs = quietMs,
             excluded = excluded,
         )
+        // Row composition: first the worlds the listener demonstrably loves, then the ranker's
+        // best exploration candidates, then a daily rotation through everything else — so the
+        // page always contains "you", always offers something new, and changes across days
+        // while staying stable within one.
+        val dayIndex = (nowMs / DAY_MS).toInt()
+        val affinity = visibleWorlds
+            .map { world ->
+                // The strongest few members, not a sum over all: summing lets a large world with
+                // thirty incidental plays outrank a tight one holding the listener's real
+                // favourites — exactly the bias the ranker's trimmed mean exists to prevent.
+                world to world.tracks
+                    .mapNotNull { track ->
+                        val stat = stats[track.id] ?: return@mapNotNull null
+                        if (stat.plays <= 0) return@mapNotNull null
+                        ForYouFeedbackRanker.satisfaction(stat) * kotlin.math.ln(1.0 + stat.plays)
+                    }
+                    .sortedDescending()
+                    .take(WORLDS_AFFINITY_EVIDENCE)
+                    .sum()
+            }
+            .filter { it.second > 0.0 }
+            .sortedByDescending { it.second }
+            .take(WORLDS_AFFINITY_SLOTS)
+            .map { it.first }
+        val rankedHead = ranked.filterNot { it in affinity }.take(WORLDS_KEEP_RANKED)
+        val rotatingTail = ranked.filterNot { it in affinity || it in rankedHead }
+        val sorted = affinity + rankedHead + if (rotatingTail.isEmpty()) {
+            rotatingTail
+        } else {
+            List(rotatingTail.size) { rotatingTail[(it + dayIndex).mod(rotatingTail.size)] }
+        }
         val genericCount = sorted.count { it.nameSource == LibraryWorldNameSource.GENERIC }
         var genericIndex = 0
         val cards = sorted
@@ -464,14 +560,24 @@ object ForYouBuilder {
                     tracks = eligibleTracks,
                     stats = stats,
                     nowMs = nowMs,
-                    quietMs = QUIET_MS,
+                    quietMs = quietMs,
                 )
+                // Loved anchors guarantee the listener's own tracks a place INSIDE the mix; the
+                // COVER still comes from the balanced ranking, so a track played yesterday does
+                // not front a discovery card while a rested favourite or fresh central one can.
+                val anchors = eligibleTracks
+                    .filter { (stats[it.id]?.plays ?: 0) > 0 }
+                    .sortedByDescending { ForYouFeedbackRanker.satisfaction(stats[it.id]) }
+                    .take(MIX_ANCHOR_SLOTS)
+                val anchorIds = anchors.mapTo(HashSet()) { it.id }
                 // Keep the generated claim and its art in agreement. For a genre/decade mix, for
                 // example, a fresh cover from another family is not a valid substitute.
                 val cover = ordered.firstOrNull { it.id !in used && world.supportsName(it) }
                     ?: ordered.firstOrNull { it.id !in used }
                     ?: return@mapNotNull null
-                val ranked = listOf(cover) + ordered.filterNot { it.id == cover.id }
+                val ranked = listOf(cover) +
+                    (anchors + ordered.filterNot { it.id in anchorIds })
+                        .filterNot { it.id == cover.id }
                 val mixTracks = if (world.nameSource == LibraryWorldNameSource.ARTIST) {
                     ranked.take(MIX_TRACK_LIMIT)
                 } else {
@@ -516,12 +622,16 @@ object ForYouBuilder {
     private fun neverPlayed(
         library: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats>,
+        nowMs: Long,
         used: MutableSet<TrackId>,
     ): ForYouSection? {
+        val fresh = library
+            .filter { it.id !in used && (stats[it.id]?.plays ?: 0) == 0 }
+            .sortedByDescending { it.addedAtMs ?: 0L }
+            .take(NEVER_PLAYED_WINDOW)
+        val dayIndex = (nowMs / DAY_MS).toInt()
         val picked = capPerArtist(
-            library
-                .filter { it.id !in used && (stats[it.id]?.plays ?: 0) == 0 }
-                .sortedByDescending { it.addedAtMs ?: 0L },
+            if (fresh.isEmpty()) fresh else List(fresh.size) { fresh[(it + dayIndex).mod(fresh.size)] },
         )
         if (picked.isEmpty()) return null
         return ForYouSection(

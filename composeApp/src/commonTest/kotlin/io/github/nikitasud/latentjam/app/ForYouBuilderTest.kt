@@ -66,8 +66,18 @@ class ForYouBuilderTest {
             }.toMap(),
         )
         val section = result.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
-        assertEquals(tracks.drop(1).map { it.id }, section.cards.map { it.track.id })
-        assertEquals(ForYouCaption.PlayedBefore(9), section.cards.first().caption)
+        // The hero rotates through the strongest few day by day, so pin the shape rather than
+        // one fixed winner: the shelf holds exactly the loved tracks the hero did not claim, in
+        // completion order, each captioned with its own play count.
+        val heroClaims = tracks.map { it.id }.toSet() - section.cards.map { it.track.id }.toSet()
+        assertEquals(1, heroClaims.size)
+        assertEquals(
+            tracks.map { it.id }.filterNot { it in heroClaims },
+            section.cards.map { it.track.id },
+        )
+        val firstShown = section.cards.first().track.id
+        val expectedPlays = 10 - tracks.indexOfFirst { it.id == firstShown }
+        assertEquals(ForYouCaption.PlayedBefore(expectedPlays), section.cards.first().caption)
     }
 
     @Test
@@ -535,12 +545,12 @@ class ForYouBuilderTest {
             worlds = listOf(LibraryWorld("Disco", members)),
         )
         val heroId = result.hero?.track?.id
-        assertEquals(members.first().id, heroId, "the fixture needs the medoid to be the hero")
+        assertTrue(members.any { it.id == heroId }, "the fixture needs a member as the hero")
 
         val card = result.sections.first { it.kind == ForYouSectionKind.WORLDS }.cards.single()
-        // Not the medoid, because the hero already showed that cover — but still the most central
-        // track left, taken from the ordering rather than chosen some other way.
-        assertEquals(members[1].id, card.track.id)
+        // Not the hero's track, because that cover is already on the page — but still the most
+        // central track left, taken from the ordering rather than chosen some other way.
+        assertEquals(members.first { it.id != heroId }.id, card.track.id)
         // And the list starts on the same record the card shows. A card that pictures one track and
         // plays another is the smallest possible way to look broken.
         assertEquals(card.track.id, card.collection?.tracks?.first()?.id)
@@ -592,5 +602,76 @@ class ForYouBuilderTest {
         )
         val row = result.sections.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
         assertEquals(listOf("Think"), row.cards.mapNotNull { it.collection }.map { it.title })
+    }
+
+    @Test
+    fun `a young log shrinks the quiet window so the shelf exists from week one`() {
+        // The whole log is 20 days old; under a fixed 90-day window this listener would not see
+        // the page's flagship section until month four of owning the app.
+        val tracks = (1..4).map { track("$it", artist = "Artist$it") }
+        val result = sections(
+            library = tracks,
+            stats = tracks.associate { it.id to stats(plays = 6, last = now - 12 * day) },
+        )
+        assertTrue(result.any { it.kind == ForYouSectionKind.WORTH_REVISITING })
+    }
+
+    @Test
+    fun `the page rotates across days but holds still within one`() {
+        val tracks = (1..30).map { track("$it", artist = "Artist$it", added = it.toLong()) }
+        val sameDay = ForYouBuilder.build(tracks, emptyMap(), emptyList(), now + 60 * 60 * 1000L)
+        val today = ForYouBuilder.build(tracks, emptyMap(), emptyList(), now)
+        assertEquals(today, sameDay, "two openings on one day must agree")
+
+        val tomorrow = ForYouBuilder.build(tracks, emptyMap(), emptyList(), now + day)
+        assertTrue(today != tomorrow, "consecutive days must not show an identical page")
+    }
+
+    @Test
+    fun `a loved world cannot be outranked off the page by untouched ones`() {
+        // Nine untouched worlds win every freshness/exploration term; the tenth holds the only
+        // tracks the listener demonstrably loves and must still make the row.
+        val lovedTracks = (1..3).map { track("loved$it", artist = "Loved$it") }
+        val fillerWorlds = (1..9).map { index ->
+            LibraryWorld(
+                name = "Filler $index",
+                tracks = (1..4).map { track("f$index-$it", artist = "F$index-$it") },
+            )
+        }
+        val lovedWorld = LibraryWorld(name = "Home", tracks = lovedTracks)
+        val stats = lovedTracks.associate {
+            it.id to stats(plays = 12, completions = 11, last = now - 2 * day)
+        }
+        val library = fillerWorlds.flatMap { it.tracks } + lovedTracks
+        val result = ForYouBuilder.build(
+            library = library,
+            stats = stats,
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = fillerWorlds + lovedWorld,
+        )
+        val shown = result.sections.first { it.kind == ForYouSectionKind.WORLDS }
+            .cards.mapNotNull { it.collection?.title }
+        assertTrue("Home" in shown, "the listener's own region fell off the page: $shown")
+    }
+
+    @Test
+    fun `loved members anchor their mix even when exploration outranks them`() {
+        val loved = track("loved", artist = "Loved")
+        val fresh = (1..40).map { track("fresh$it", artist = "Fresh$it") }
+        val world = LibraryWorld(name = "Region", tracks = fresh + loved)
+        val result = ForYouBuilder.build(
+            library = fresh + loved,
+            stats = mapOf(loved.id to stats(plays = 9, completions = 9, last = now - 40 * day)),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = listOf(world),
+        )
+        val mix = result.sections.first { it.kind == ForYouSectionKind.WORLDS }
+            .cards.single().collection
+        assertTrue(
+            mix?.tracks?.any { it.id == loved.id } == true,
+            "a demonstrably loved member fell out of its own region's mix",
+        )
     }
 }
