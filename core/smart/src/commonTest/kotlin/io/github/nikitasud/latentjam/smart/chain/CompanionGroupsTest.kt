@@ -282,3 +282,43 @@ internal class NestedCompanionGroupsTest {
         assertEquals(true, TrackId("40") in picked.take(3))
     }
 }
+
+internal class DurationSanityTest {
+
+    @Test
+    fun `extreme durations damp and unknown stays neutral`() {
+        assertEquals(1f, durationSanityMultiplier(null))
+        assertEquals(1f, durationSanityMultiplier(0L))
+        assertEquals(1f, durationSanityMultiplier(3 * 60_000L))
+        assertEquals(0.75f, durationSanityMultiplier(45_000L))
+        assertEquals(0.9f, durationSanityMultiplier(75_000L))
+        assertEquals(0.85f, durationSanityMultiplier(9 * 60_000L))
+        assertEquals(0.7f, durationSanityMultiplier(20 * 60_000L))
+    }
+
+    @Test
+    fun `an acoustic tie goes to the track of normal length`() {
+        fun track(row: Int, seedComponent: Float, noiseDim: Int, durationMs: Long?): SmartTrack {
+            val audio = FloatArray(PredictorRuntime.EMBEDDING_DIM)
+            audio[0] = seedComponent
+            audio[noiseDim] = sqrt(1f - seedComponent * seedComponent)
+            return SmartTrack(
+                id = TrackId(row.toString()),
+                audio = audio,
+                meta = TrackMeta("title$row", "artist$row", null, null, null, durationMs),
+            )
+        }
+        val library = listOf(
+            track(0, 1f, 1, 200_000L),
+            track(1, 0.8f, 2, durationMs = 19 * 60_000L), // same sound, 19-minute suite
+            track(2, 0.8f, 3, durationMs = 210_000L),
+            track(3, 0.5f, 4, durationMs = 180_000L),
+        )
+        val snapshot = requireNotNull(SmartSnapshot.build(library))
+        val first = SmartChain(snapshot, runtime = null)
+            .build(seedId = TrackId("0"), length = 1, timeFeatures = FloatArray(5))
+            .rows.map { snapshot.tracks[it].id }
+            .first()
+        assertEquals(TrackId("2"), first)
+    }
+}

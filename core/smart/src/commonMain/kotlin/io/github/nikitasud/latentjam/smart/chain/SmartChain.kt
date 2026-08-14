@@ -30,7 +30,12 @@ internal object ChainConfig {
      * acoustic distance. Applies ONLY when the caller passes groups — the empty default is the
      * shipped chain, byte-identical, which is what the recorded parity fixtures pin.
      */
-    const val COMPANION_BONUS = 0.17f
+    // 0.17 -> 0.30 (2026-08-14): full-chain sweep over the exported 847-track library, 32
+    // seeds x 24 hops — theme share 0.384 -> 0.401 at zero seed-cos cost (0.475 -> 0.475) and
+    // -0.005 step-cos. 0.50 bought +1.4pp more for -0.003 seed-cos; kept in reserve rather than
+    // taken, the curve flattens. Same sweep REJECTED a competitive quota margin: 0.6 collapsed
+    // theme share to 0.18 — the unconditional quota carries the thematic axis.
+    const val COMPANION_BONUS = 0.30f
 
     /**
      * How many of the seed's marked-group members may be injected into the candidate pool when
@@ -66,6 +71,12 @@ internal object ChainConfig {
      * among themselves on the full score, so the best-sounding companion goes first.
      */
     const val COMPANION_QUOTA_STRIDE = 3
+
+    /**
+     * Score distance within which a marked group's champion may claim its quota turn; see
+     * ChainTuning.quotaMargin. Positive infinity = the unconditional quota this shipped with.
+     */
+    val COMPANION_QUOTA_MARGIN = Float.POSITIVE_INFINITY
 
     /** Pull toward the seed for the whole walk, so one off-genre hop can't capture the chain. */
     const val CHAIN_SEED_GRAVITY = 2.5f
@@ -135,6 +146,12 @@ internal class SmartChain(
      * reproduces the shipped chain exactly.
      */
     companionGroups: List<Set<TrackId>> = emptyList(),
+    /**
+     * Experiment/simulation knobs. Production uses the defaults, which reproduce the shipped
+     * chain exactly; the offline harness sweeps them over real libraries before any constant
+     * changes. See ChainTuning.
+     */
+    private val tuning: ChainTuning = ChainTuning(),
 ) {
 
     init {
@@ -350,10 +367,13 @@ internal class SmartChain(
                 // marked group with the current anchor, weighted by how SPECIFIC the smallest
                 // shared group is. No groups — no term, see COMPANION_BONUS.
                 if (companions.sharesGroup(anchorRow, row)) {
-                    score += ChainConfig.COMPANION_BONUS * companions.weight(anchorRow, row)
+                    score += tuning.companionBonus * companions.weight(anchorRow, row)
                 }
                 var multiplier = MetadataRerank.adjustMultiplier(anchorMeta, meta)
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)
+                if (tuning.durationSanity) {
+                    multiplier *= durationSanityMultiplier(meta.durationMs)
+                }
                 multiplier *= MetadataRerank.seedIntentMultiplier(
                     seedGenre = seedGenre,
                     poolSupport = seedGenreSupport,
@@ -398,7 +418,12 @@ internal class SmartChain(
                 for (offset in seedCompanionGroups.indices) {
                     val position = (nextQuotaGroupPosition + offset) % seedCompanionGroups.size
                     val companionIndex = bestCompanionIndexes[position]
-                    if (companionIndex >= 0) {
+                    // Competitive quota: the group is guaranteed representation only while its
+                    // champion remains objectively close to the best candidate. A thematic
+                    // relative that no longer resembles the walk does not get forced in.
+                    if (companionIndex >= 0 &&
+                        bestCompanionScores[position] >= bestScore - tuning.quotaMargin
+                    ) {
                         chosenIndex = companionIndex
                         nextQuotaGroupPosition = (position + 1) % seedCompanionGroups.size
                         break

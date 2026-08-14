@@ -75,6 +75,7 @@ internal object MetadataFallbackQueue {
                 if (meta.normalizedTitle.isNotEmpty() && meta.normalizedTitle in seenTitles) continue
 
                 val multiplier = (MetadataRerank.adjustMultiplier(anchorMeta, meta) *
+                    durationSanityMultiplier(meta.durationMs) *
                     recency.multiplier(candidate.track.id))
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)
                 val score = ChainConfig.COSINE_BLEND_WEIGHT * cosine(anchorVector, candidate.vector) +
@@ -133,6 +134,7 @@ internal object MetadataFallbackQueue {
         album = album,
         genre = genre,
         year = year,
+        durationMs = durationMs,
     )
 
     private fun cosine(left: FloatArray, right: FloatArray): Float {

@@ -144,6 +144,8 @@ internal data class TrackMeta(
     val album: String?,
     val genre: String?,
     val year: Int?,
+    /** For duration-sanity damping only; null (every legacy caller) is neutral. */
+    val durationMs: Long? = null,
 ) {
     val language: String = MetadataRerank.detectLanguage(title, artist)
     val normalizedTitle: String = MetadataRerank.normalizeTitle(title)
