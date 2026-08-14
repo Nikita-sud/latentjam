@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">播放</string>
+    <string name="widget_name_pulse">LatentJam · 脉动条</string>
+    <string name="widget_name_portal">LatentJam · 封面门户</string>
+    <string name="widget_name_deck">LatentJam · SMART 控制台</string>
+    <string name="widget_description_pulse">紧凑条中的封面、歌曲和播放控件</string>
+    <string name="widget_description_portal">以封面为中心的沉浸式播放器</string>
+    <string name="widget_description_deck">显示时间、下一首歌曲和 SMART 控件的详细播放器</string>
+    <string name="widget_ready">点按以选择音乐</string>
+    <string name="widget_no_track">播放队列仍为空</string>
+    <string name="widget_play">播放</string>
+    <string name="widget_pause">暂停</string>
+    <string name="widget_repeat">更改循环模式</string>
+    <string name="widget_shuffle">更改播放模式</string>
+    <string name="widget_next_up">接下来</string>
+    <string name="widget_mode_off">关闭</string>
+    <string name="widget_mode_shuffle">随机</string>
+    <string name="widget_repeat_all">全部</string>
+    <string name="widget_repeat_one">单曲</string>
     <string name="widget_previous">上一首</string>
     <string name="widget_play_pause">播放 / 暂停</string>
     <string name="widget_next">下一首</string>

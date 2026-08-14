@@ -102,18 +102,50 @@
             </intent-filter>
         </receiver>
 
-        <!-- Home-screen transport widget. Its buttons post plain media-button
-             key events to the playback service; no extra process involved. -->
+        <!-- Pulse Strip: compact, live metadata and transport controls. This keeps the original
+             provider class so existing widgets upgrade in place instead of disappearing. -->
         <receiver
             android:name="io.github.nikitasud.latentjam.app.PlaybackWidgetProvider"
             android:exported="false"
-            android:label="@string/app_name">
+            android:label="@string/widget_name_pulse">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="${applicationId}.action.PLAYBACK_WIDGET_STATE_CHANGED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_playback_info" />
         </receiver>
+
+        <!-- Cover Portal: square, artwork-first widget. -->
+        <receiver
+            android:name="io.github.nikitasud.latentjam.app.ArtworkPlaybackWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_name_portal">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_playback_artwork_info" />
+        </receiver>
+
+        <!-- SMART Deck: detailed 4x2 player with repeat and three-state shuffle. -->
+        <receiver
+            android:name="io.github.nikitasud.latentjam.app.DeckPlaybackWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_name_deck">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_playback_deck_info" />
+        </receiver>
+
+        <!-- Explicit-only repeat/SMART commands from the detailed widget. -->
+        <receiver
+            android:name="io.github.nikitasud.latentjam.app.PlaybackWidgetActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">再生</string>
+    <string name="widget_name_pulse">LatentJam · パルスバー</string>
+    <string name="widget_name_portal">LatentJam · カバーポータル</string>
+    <string name="widget_name_deck">LatentJam · SMARTデッキ</string>
+    <string name="widget_description_pulse">コンパクトなバーにジャケット、曲、操作ボタンを表示</string>
+    <string name="widget_description_portal">ジャケットを主役にした没入型プレーヤー</string>
+    <string name="widget_description_deck">時間、次の曲、SMART操作を備えた詳細プレーヤー</string>
+    <string name="widget_ready">タップして音楽を選択</string>
+    <string name="widget_no_track">まだキューに何もありません</string>
+    <string name="widget_play">再生</string>
+    <string name="widget_pause">一時停止</string>
+    <string name="widget_repeat">リピートモードを変更</string>
+    <string name="widget_shuffle">再生モードを変更</string>
+    <string name="widget_next_up">次に再生</string>
+    <string name="widget_mode_off">オフ</string>
+    <string name="widget_mode_shuffle">シャッフル</string>
+    <string name="widget_repeat_all">すべて</string>
+    <string name="widget_repeat_one">1曲</string>
     <string name="widget_previous">前の曲</string>
     <string name="widget_play_pause">再生 / 一時停止</string>
     <string name="widget_next">次の曲</string>

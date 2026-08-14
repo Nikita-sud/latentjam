@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Redare</string>
+    <string name="widget_name_pulse">LatentJam · Bară Pulse</string>
+    <string name="widget_name_portal">LatentJam · Portal copertă</string>
+    <string name="widget_name_deck">LatentJam · Panou SMART</string>
+    <string name="widget_description_pulse">Copertă, piesă și comenzi într-o bară compactă</string>
+    <string name="widget_description_portal">Un player captivant axat pe copertă</string>
+    <string name="widget_description_deck">Player detaliat cu timp, piesa următoare și comenzi SMART</string>
+    <string name="widget_ready">Atinge pentru a-ți alege muzica</string>
+    <string name="widget_no_track">Nu este încă nimic în coadă</string>
+    <string name="widget_play">Redă</string>
+    <string name="widget_pause">Pauză</string>
+    <string name="widget_repeat">Schimbă modul de repetare</string>
+    <string name="widget_shuffle">Schimbă modul de redare</string>
+    <string name="widget_next_up">Urmează</string>
+    <string name="widget_mode_off">Oprit</string>
+    <string name="widget_mode_shuffle">Aleatoriu</string>
+    <string name="widget_repeat_all">Toate</string>
+    <string name="widget_repeat_one">Una</string>
     <string name="widget_previous">Piesa anterioară</string>
     <string name="widget_play_pause">Redă / Pauză</string>
     <string name="widget_next">Piesa următoare</string>

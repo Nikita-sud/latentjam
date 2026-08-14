@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <color name="widget_accent">#FFCBC3F2</color>
+    <color name="widget_on_accent">#FF2A2444</color>
+</resources>

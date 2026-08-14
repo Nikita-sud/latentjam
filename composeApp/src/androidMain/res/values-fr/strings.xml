@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Lecture</string>
+    <string name="widget_name_pulse">LatentJam · Bande Pulse</string>
+    <string name="widget_name_portal">LatentJam · Portail de pochette</string>
+    <string name="widget_name_deck">LatentJam · Platine SMART</string>
+    <string name="widget_description_pulse">Pochette, titre et commandes dans une bande compacte</string>
+    <string name="widget_description_portal">Un lecteur immersif centré sur la pochette</string>
+    <string name="widget_description_deck">Lecteur détaillé avec durée, prochain titre et commandes SMART</string>
+    <string name="widget_ready">Touchez pour choisir votre musique</string>
+    <string name="widget_no_track">Aucun titre dans la file</string>
+    <string name="widget_play">Lire</string>
+    <string name="widget_pause">Pause</string>
+    <string name="widget_repeat">Changer le mode de répétition</string>
+    <string name="widget_shuffle">Changer le mode de lecture</string>
+    <string name="widget_next_up">À suivre</string>
+    <string name="widget_mode_off">Désactivé</string>
+    <string name="widget_mode_shuffle">Aléatoire</string>
+    <string name="widget_repeat_all">Tout</string>
+    <string name="widget_repeat_one">Un titre</string>
     <string name="widget_previous">Précédent</string>
     <string name="widget_play_pause">Lire / Pause</string>
     <string name="widget_next">Suivant</string>

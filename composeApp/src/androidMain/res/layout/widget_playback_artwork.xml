@@ -1,48 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pulse Strip: compact metadata, cover art, and honest transport state. -->
+<!-- Cover Portal: immersive full-bleed art. The transport lives in one bottom
+     row beside the title, so the artwork itself is never covered by controls. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg_pulse"
+    android:background="@drawable/widget_bg_portal"
     android:clipToOutline="true">
 
     <ImageView
-        android:layout_width="4dp"
+        android:id="@+id/widget_artwork"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_gravity="start"
-        android:layout_marginTop="14dp"
-        android:layout_marginBottom="14dp"
-        android:background="@drawable/widget_accent_rail"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_widget_smart_mark" />
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_portal_scrim"
         android:importantForAccessibility="no" />
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="13dp"
-        android:paddingTop="8dp"
+        android:paddingStart="12dp"
         android:paddingEnd="8dp"
         android:paddingBottom="8dp">
-
-        <ImageView
-            android:id="@+id/widget_artwork"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:background="@drawable/widget_artwork_frame"
-            android:clipToOutline="true"
-            android:importantForAccessibility="no"
-            android:padding="1dp"
-            android:scaleType="centerCrop"
-            android:src="@drawable/ic_widget_smart_mark" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="4dp"
             android:layout_weight="1"
+            android:layout_marginEnd="6dp"
             android:orientation="vertical">
 
             <TextView
@@ -52,52 +46,56 @@
                 android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
+                android:shadowColor="#CC000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="3"
                 android:text="@string/widget_app_label"
                 android:textColor="#FFFFFFFF"
-                android:textSize="16sp" />
+                android:textSize="14sp" />
 
             <TextView
                 android:id="@+id/widget_artist"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
                 android:ellipsize="end"
                 android:maxLines="1"
+                android:shadowColor="#CC000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="3"
                 android:text="@string/widget_ready"
-                android:textColor="#B8FFFFFF"
-                android:textSize="13sp" />
+                android:textColor="#CCFFFFFF"
+                android:textSize="11sp" />
         </LinearLayout>
 
         <ImageButton
             android:id="@+id/widget_previous"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:background="@drawable/widget_icon_button"
             android:contentDescription="@string/widget_previous"
-            android:padding="12dp"
-            android:scaleType="centerInside"
+            android:padding="10dp"
             android:src="@drawable/ic_widget_previous_light" />
 
         <ImageButton
             android:id="@+id/widget_play_pause"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="3dp"
-            android:layout_marginEnd="3dp"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
             android:background="@drawable/widget_play_button"
             android:contentDescription="@string/widget_play"
-            android:padding="11dp"
-            android:scaleType="centerInside"
+            android:padding="12dp"
             android:src="@drawable/ic_widget_play" />
 
         <ImageButton
             android:id="@+id/widget_next"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:background="@drawable/widget_icon_button"
             android:contentDescription="@string/widget_next"
-            android:padding="12dp"
-            android:scaleType="centerInside"
+            android:padding="10dp"
             android:src="@drawable/ic_widget_next_light" />
     </LinearLayout>
 </FrameLayout>

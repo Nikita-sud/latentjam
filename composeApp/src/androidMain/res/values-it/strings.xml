@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Riproduzione</string>
+    <string name="widget_name_pulse">LatentJam · Barra Pulse</string>
+    <string name="widget_name_portal">LatentJam · Portale copertina</string>
+    <string name="widget_name_deck">LatentJam · Deck SMART</string>
+    <string name="widget_description_pulse">Copertina, brano e controlli in una barra compatta</string>
+    <string name="widget_description_portal">Un lettore immersivo incentrato sulla copertina</string>
+    <string name="widget_description_deck">Lettore dettagliato con tempo, prossimo brano e controlli SMART</string>
+    <string name="widget_ready">Tocca per scegliere la tua musica</string>
+    <string name="widget_no_track">La coda è ancora vuota</string>
+    <string name="widget_play">Riproduci</string>
+    <string name="widget_pause">Pausa</string>
+    <string name="widget_repeat">Cambia modalità di ripetizione</string>
+    <string name="widget_shuffle">Cambia modalità di riproduzione</string>
+    <string name="widget_next_up">Prossimo</string>
+    <string name="widget_mode_off">Disattivato</string>
+    <string name="widget_mode_shuffle">Casuale</string>
+    <string name="widget_repeat_all">Tutti</string>
+    <string name="widget_repeat_one">Uno</string>
     <string name="widget_previous">Precedente</string>
     <string name="widget_play_pause">Riproduci / Pausa</string>
     <string name="widget_next">Successivo</string>

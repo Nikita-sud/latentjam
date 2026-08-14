@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Відтворення</string>
+    <string name="widget_name_pulse">LatentJam · Пульсова панель</string>
+    <string name="widget_name_portal">LatentJam · Портал обкладинки</string>
+    <string name="widget_name_deck">LatentJam · SMART-пульт</string>
+    <string name="widget_description_pulse">Обкладинка, трек і керування на компактній панелі</string>
+    <string name="widget_description_portal">Атмосферний плеєр із акцентом на обкладинці</string>
+    <string name="widget_description_deck">Докладний плеєр із часом, наступним треком і SMART-керуванням</string>
+    <string name="widget_ready">Торкніться, щоб вибрати музику</string>
+    <string name="widget_no_track">У черзі поки нічого немає</string>
+    <string name="widget_play">Відтворити</string>
+    <string name="widget_pause">Пауза</string>
+    <string name="widget_repeat">Змінити режим повтору</string>
+    <string name="widget_shuffle">Змінити режим відтворення</string>
+    <string name="widget_next_up">Далі</string>
+    <string name="widget_mode_off">Вимк.</string>
+    <string name="widget_mode_shuffle">Перемішування</string>
+    <string name="widget_repeat_all">Усі</string>
+    <string name="widget_repeat_one">Один</string>
     <string name="widget_previous">Попередній трек</string>
     <string name="widget_play_pause">Відтворити / Пауза</string>
     <string name="widget_next">Наступний трек</string>

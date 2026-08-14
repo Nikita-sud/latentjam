@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">प्लेबैक</string>
+    <string name="widget_name_pulse">LatentJam · Pulse पट्टी</string>
+    <string name="widget_name_portal">LatentJam · कवर पोर्टल</string>
+    <string name="widget_name_deck">LatentJam · SMART डेक</string>
+    <string name="widget_description_pulse">कॉम्पैक्ट पट्टी में कवर, गाना और नियंत्रण</string>
+    <string name="widget_description_portal">कवर पर केंद्रित शानदार प्लेयर</string>
+    <string name="widget_description_deck">समय, अगले गाने और SMART नियंत्रणों वाला विस्तृत प्लेयर</string>
+    <string name="widget_ready">अपना संगीत चुनने के लिए टैप करें</string>
+    <string name="widget_no_track">अभी कतार में कुछ नहीं है</string>
+    <string name="widget_play">चलाएँ</string>
+    <string name="widget_pause">रोकें</string>
+    <string name="widget_repeat">रिपीट मोड बदलें</string>
+    <string name="widget_shuffle">प्लेबैक मोड बदलें</string>
+    <string name="widget_next_up">अगला</string>
+    <string name="widget_mode_off">बंद</string>
+    <string name="widget_mode_shuffle">शफ़ल</string>
+    <string name="widget_repeat_all">सभी</string>
+    <string name="widget_repeat_one">एक</string>
     <string name="widget_previous">पिछला</string>
     <string name="widget_play_pause">चलाएं / रोकें</string>
     <string name="widget_next">अगला</string>

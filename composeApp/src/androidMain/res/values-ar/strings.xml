@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">التشغيل</string>
+    <string name="widget_name_pulse">LatentJam · شريط النبض</string>
+    <string name="widget_name_portal">LatentJam · بوابة الغلاف</string>
+    <string name="widget_name_deck">LatentJam · لوحة SMART</string>
+    <string name="widget_description_pulse">الغلاف والمقطع وعناصر التحكم في شريط مدمج</string>
+    <string name="widget_description_portal">مشغّل غامر يبرز الغلاف</string>
+    <string name="widget_description_deck">مشغّل مفصّل مع الوقت والمقطع التالي وعناصر تحكم SMART</string>
+    <string name="widget_ready">اضغط لاختيار موسيقاك</string>
+    <string name="widget_no_track">لا شيء في قائمة الانتظار بعد</string>
+    <string name="widget_play">تشغيل</string>
+    <string name="widget_pause">إيقاف مؤقت</string>
+    <string name="widget_repeat">تغيير وضع التكرار</string>
+    <string name="widget_shuffle">تغيير وضع التشغيل</string>
+    <string name="widget_next_up">التالي</string>
+    <string name="widget_mode_off">إيقاف</string>
+    <string name="widget_mode_shuffle">عشوائي</string>
+    <string name="widget_repeat_all">الكل</string>
+    <string name="widget_repeat_one">واحد</string>
     <string name="widget_previous">السابق</string>
     <string name="widget_play_pause">تشغيل / إيقاف مؤقت</string>
     <string name="widget_next">التالي</string>

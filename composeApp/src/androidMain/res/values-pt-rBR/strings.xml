@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Reprodução</string>
+    <string name="widget_name_pulse">LatentJam · Faixa Pulse</string>
+    <string name="widget_name_portal">LatentJam · Portal da capa</string>
+    <string name="widget_name_deck">LatentJam · Painel SMART</string>
+    <string name="widget_description_pulse">Capa, música e controles em uma faixa compacta</string>
+    <string name="widget_description_portal">Um player imersivo com foco na capa</string>
+    <string name="widget_description_deck">Player detalhado com tempo, próxima música e controles SMART</string>
+    <string name="widget_ready">Toque para escolher sua música</string>
+    <string name="widget_no_track">Ainda não há nada na fila</string>
+    <string name="widget_play">Reproduzir</string>
+    <string name="widget_pause">Pausar</string>
+    <string name="widget_repeat">Alterar modo de repetição</string>
+    <string name="widget_shuffle">Alterar modo de reprodução</string>
+    <string name="widget_next_up">A seguir</string>
+    <string name="widget_mode_off">Desativado</string>
+    <string name="widget_mode_shuffle">Aleatório</string>
+    <string name="widget_repeat_all">Todas</string>
+    <string name="widget_repeat_one">Uma</string>
     <string name="widget_previous">Anterior</string>
     <string name="widget_play_pause">Reproduzir / Pausar</string>
     <string name="widget_next">Próxima</string>

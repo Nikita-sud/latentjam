@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  The app's theme is Material You dynamic color; on 31+ the widgets wear the
+  same system accent so home screen and player read as one product.
+-->
+<resources>
+    <color name="widget_accent">@android:color/system_accent1_200</color>
+    <color name="widget_on_accent">@android:color/system_accent1_800</color>
+</resources>

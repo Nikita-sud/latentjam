@@ -5,6 +5,23 @@
 -->
 <resources>
     <string name="widget_description">Управление воспроизведением</string>
+    <string name="widget_name_pulse">LatentJam · Пульс</string>
+    <string name="widget_name_portal">LatentJam · Обложка</string>
+    <string name="widget_name_deck">LatentJam · SMART-пульт</string>
+    <string name="widget_description_pulse">Обложка, трек и управление в компактной панели</string>
+    <string name="widget_description_portal">Эффектный проигрыватель с обложкой во весь виджет</string>
+    <string name="widget_description_deck">Подробный плеер со временем, следующим треком и SMART-режимом</string>
+    <string name="widget_ready">Нажмите, чтобы выбрать музыку</string>
+    <string name="widget_no_track">В очереди пока пусто</string>
+    <string name="widget_play">Воспроизвести</string>
+    <string name="widget_pause">Пауза</string>
+    <string name="widget_repeat">Сменить режим повтора</string>
+    <string name="widget_shuffle">Сменить режим воспроизведения</string>
+    <string name="widget_next_up">Далее</string>
+    <string name="widget_mode_off">Выкл.</string>
+    <string name="widget_mode_shuffle">Перемешивание</string>
+    <string name="widget_repeat_all">Все</string>
+    <string name="widget_repeat_one">Один</string>
     <string name="widget_previous">Предыдущий трек</string>
     <string name="widget_play_pause">Пуск или пауза</string>
     <string name="widget_next">Следующий трек</string>

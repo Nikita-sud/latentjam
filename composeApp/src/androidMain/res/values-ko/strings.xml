@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">재생</string>
+    <string name="widget_name_pulse">LatentJam · 펄스 바</string>
+    <string name="widget_name_portal">LatentJam · 커버 포털</string>
+    <string name="widget_name_deck">LatentJam · SMART 덱</string>
+    <string name="widget_description_pulse">컴팩트한 바에 앨범 아트, 곡 및 컨트롤 표시</string>
+    <string name="widget_description_portal">앨범 아트를 강조한 몰입형 플레이어</string>
+    <string name="widget_description_deck">시간, 다음 곡 및 SMART 컨트롤을 갖춘 상세 플레이어</string>
+    <string name="widget_ready">탭하여 음악을 선택하세요</string>
+    <string name="widget_no_track">아직 대기열이 비어 있습니다</string>
+    <string name="widget_play">재생</string>
+    <string name="widget_pause">일시정지</string>
+    <string name="widget_repeat">반복 모드 변경</string>
+    <string name="widget_shuffle">재생 모드 변경</string>
+    <string name="widget_next_up">다음 재생</string>
+    <string name="widget_mode_off">끄기</string>
+    <string name="widget_mode_shuffle">셔플</string>
+    <string name="widget_repeat_all">전체</string>
+    <string name="widget_repeat_one">한 곡</string>
     <string name="widget_previous">이전 곡</string>
     <string name="widget_play_pause">재생 / 일시정지</string>
     <string name="widget_next">다음 곡</string>

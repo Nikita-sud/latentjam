@@ -613,12 +613,16 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun cycleRepeatMode(): RepeatMode = withContext(Dispatchers.Main) {
+        // Widget and Android Auto actions can arrive before the app UI has ever connected. Attach
+        // first so the cycle applies to the service-owned player instead of mutating only this
+        // controller's provisional in-memory state.
+        val player = controller()
         repeat = when (repeat) {
             RepeatMode.OFF -> RepeatMode.ALL
             RepeatMode.ALL -> RepeatMode.ONE
             RepeatMode.ONE -> RepeatMode.OFF
         }
-        controller?.repeatMode = when (repeat) {
+        player.repeatMode = when (repeat) {
             RepeatMode.OFF -> Player.REPEAT_MODE_OFF
             RepeatMode.ALL -> Player.REPEAT_MODE_ALL
             RepeatMode.ONE -> Player.REPEAT_MODE_ONE
@@ -740,6 +744,9 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun cycleShuffleMode(): ShuffleMode = withContext(Dispatchers.Main) {
+        // Same cold-entry contract as repeat: a detailed home-screen widget must cycle the live
+        // media session even when no Activity/controller existed before the tap.
+        controller()
         val nextMode = AndroidShuffleModeRegistry.cycle()
         applyShuffleMode(nextMode)
         nextMode
@@ -1241,13 +1248,15 @@ internal class AndroidPlaybackController(
     private suspend fun controller(): MediaController = controllerMutex.withLock {
         controller ?: buildController().also { built ->
             controller = built
-            repeat = built.repeatMode.toLatentJamRepeatMode()
-            if (
-                AndroidShuffleModeRegistry.mode.value == ShuffleMode.OFF &&
-                built.shuffleModeEnabled
-            ) {
-                AndroidShuffleModeRegistry.set(ShuffleMode.ON)
-            }
+            val initialModes = initialPlaybackModes(
+                mediaItemCount = built.mediaItemCount,
+                nativeRepeatMode = built.repeatMode.toLatentJamRepeatMode(),
+                registryShuffleMode = AndroidShuffleModeRegistry.mode.value,
+                nativeShuffleEnabled = built.shuffleModeEnabled,
+                widgetSnapshot = PlaybackWidgetStateStore.read(context),
+            )
+            repeat = initialModes.first
+            AndroidShuffleModeRegistry.set(initialModes.second)
             mode = AndroidShuffleModeRegistry.mode.value
             built.addListener(playerListener)
             built.shuffleModeEnabled = mode == ShuffleMode.ON

@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Odtwarzanie</string>
+    <string name="widget_name_pulse">LatentJam · Pasek Pulse</string>
+    <string name="widget_name_portal">LatentJam · Portal okładki</string>
+    <string name="widget_name_deck">LatentJam · Panel SMART</string>
+    <string name="widget_description_pulse">Okładka, utwór i sterowanie na kompaktowym pasku</string>
+    <string name="widget_description_portal">Wciągający odtwarzacz skupiony na okładce</string>
+    <string name="widget_description_deck">Szczegółowy odtwarzacz z czasem, następnym utworem i sterowaniem SMART</string>
+    <string name="widget_ready">Dotknij, aby wybrać muzykę</string>
+    <string name="widget_no_track">Kolejka jest jeszcze pusta</string>
+    <string name="widget_play">Odtwórz</string>
+    <string name="widget_pause">Wstrzymaj</string>
+    <string name="widget_repeat">Zmień tryb powtarzania</string>
+    <string name="widget_shuffle">Zmień tryb odtwarzania</string>
+    <string name="widget_next_up">Następny</string>
+    <string name="widget_mode_off">Wyłączone</string>
+    <string name="widget_mode_shuffle">Losowo</string>
+    <string name="widget_repeat_all">Wszystkie</string>
+    <string name="widget_repeat_one">Jeden</string>
     <string name="widget_previous">Poprzedni utwór</string>
     <string name="widget_play_pause">Odtwórz / Wstrzymaj</string>
     <string name="widget_next">Następny utwór</string>

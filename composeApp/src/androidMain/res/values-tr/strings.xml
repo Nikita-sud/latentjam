@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Oynatma</string>
+    <string name="widget_name_pulse">LatentJam · Pulse Şeridi</string>
+    <string name="widget_name_portal">LatentJam · Kapak Portalı</string>
+    <string name="widget_name_deck">LatentJam · SMART Paneli</string>
+    <string name="widget_description_pulse">Kompakt bir şeritte kapak, parça ve kontroller</string>
+    <string name="widget_description_portal">Kapağı öne çıkaran sürükleyici bir oynatıcı</string>
+    <string name="widget_description_deck">Süre, sıradaki parça ve SMART kontrolleriyle ayrıntılı oynatıcı</string>
+    <string name="widget_ready">Müziğini seçmek için dokun</string>
+    <string name="widget_no_track">Sırada henüz bir şey yok</string>
+    <string name="widget_play">Çal</string>
+    <string name="widget_pause">Duraklat</string>
+    <string name="widget_repeat">Tekrarlama modunu değiştir</string>
+    <string name="widget_shuffle">Oynatma modunu değiştir</string>
+    <string name="widget_next_up">Sıradaki</string>
+    <string name="widget_mode_off">Kapalı</string>
+    <string name="widget_mode_shuffle">Karışık</string>
+    <string name="widget_repeat_all">Tümü</string>
+    <string name="widget_repeat_one">Bir</string>
     <string name="widget_previous">Önceki</string>
     <string name="widget_play_pause">Çal / Duraklat</string>
     <string name="widget_next">Sonraki</string>

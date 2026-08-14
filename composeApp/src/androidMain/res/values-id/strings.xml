@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Pemutaran</string>
+    <string name="widget_name_pulse">LatentJam · Strip Pulse</string>
+    <string name="widget_name_portal">LatentJam · Portal Sampul</string>
+    <string name="widget_name_deck">LatentJam · Dek SMART</string>
+    <string name="widget_description_pulse">Sampul, lagu, dan kontrol dalam strip ringkas</string>
+    <string name="widget_description_portal">Pemutar imersif yang menonjolkan sampul</string>
+    <string name="widget_description_deck">Pemutar lengkap dengan waktu, lagu berikutnya, dan kontrol SMART</string>
+    <string name="widget_ready">Ketuk untuk memilih musikmu</string>
+    <string name="widget_no_track">Belum ada apa pun dalam antrean</string>
+    <string name="widget_play">Putar</string>
+    <string name="widget_pause">Jeda</string>
+    <string name="widget_repeat">Ubah mode pengulangan</string>
+    <string name="widget_shuffle">Ubah mode pemutaran</string>
+    <string name="widget_next_up">Berikutnya</string>
+    <string name="widget_mode_off">Nonaktif</string>
+    <string name="widget_mode_shuffle">Acak</string>
+    <string name="widget_repeat_all">Semua</string>
+    <string name="widget_repeat_one">Satu</string>
     <string name="widget_previous">Sebelumnya</string>
     <string name="widget_play_pause">Putar / Jeda</string>
     <string name="widget_next">Berikutnya</string>

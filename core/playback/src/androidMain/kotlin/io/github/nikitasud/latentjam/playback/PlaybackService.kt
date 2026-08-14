@@ -8,7 +8,9 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.media.AudioManager
 import android.net.Uri
+import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaLibraryInfo
 import androidx.media3.common.MediaMetadata
@@ -382,6 +384,10 @@ public class PlaybackService : MediaLibraryService() {
         }
 
         override fun onRepeatModeChanged(repeatMode: Int) = refreshMediaButtons()
+
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (events.containsAnyWidgetStateEvent()) publishWidgetSnapshot(player)
+        }
     }
 
     /** Restores the saved logical queue order after Media3 installs resumption's media items. */
@@ -439,8 +445,18 @@ public class PlaybackService : MediaLibraryService() {
         appLaunchPendingIntent()?.let(sessionBuilder::setSessionActivity)
         mediaSession = sessionBuilder.build()
         player.addListener(playerListener)
+        // If Android recreated the service after an unclean process death, the persisted timing
+        // anchor must no longer claim that progress is live while Media3 restores the queue.
+        PlaybackWidgetStateStore.markPaused(this)
         serviceScope.launch {
-            AndroidShuffleModeRegistry.mode.collectLatest { refreshMediaButtons() }
+            AndroidShuffleModeRegistry.mode.collectLatest {
+                refreshMediaButtons()
+                // SMART and OFF both map to ExoPlayer shuffle=false, so only this logical-mode
+                // bridge can distinguish them for the widget. Preserve prior metadata until a
+                // real timeline arrives when the service has just been recreated empty.
+                playbackPlayer?.takeIf { it.currentMediaItem != null }
+                    ?.let(::publishWidgetSnapshot)
+            }
         }
     }
 
@@ -448,6 +464,7 @@ public class PlaybackService : MediaLibraryService() {
         mediaSession
 
     override fun onDestroy() {
+        PlaybackWidgetStateStore.markPaused(this)
         AudioSessionRegistry.publish(null)
         MediaBrowseRegistry.clearActiveResumption()
         serviceScope.cancel()
@@ -459,6 +476,40 @@ public class PlaybackService : MediaLibraryService() {
         playbackPlayer = null
         mediaSession = null
         super.onDestroy()
+    }
+
+    /** Captures player state only on discrete Media3 events; progress is projected by readers. */
+    private fun publishWidgetSnapshot(player: Player) {
+        val currentItem = player.currentMediaItem
+        val metadata = currentItem?.mediaMetadata
+        val nextIndex = player.nextMediaItemIndex
+        val nextItem = nextIndex
+            .takeIf { it != C.INDEX_UNSET && it in 0 until player.mediaItemCount }
+            ?.let(player::getMediaItemAt)
+        val elapsedRealtimeMs = SystemClock.elapsedRealtime()
+        PlaybackWidgetStateStore.publish(
+            this,
+            PlaybackWidgetSnapshot(
+                mediaId = currentItem?.mediaId.orEmpty(),
+                title = metadata?.title?.toString().orEmpty(),
+                artist = metadata?.artist?.toString().orEmpty(),
+                artworkUri = metadata?.artworkUri?.toString(),
+                isPlaying = player.isPlaying,
+                positionMs = player.currentPosition.coerceAtLeast(0),
+                durationMs = player.duration
+                    .takeUnless { it == C.TIME_UNSET }
+                    ?.coerceAtLeast(0)
+                    ?: 0,
+                hasPrevious = player.previousMediaItemIndex != C.INDEX_UNSET,
+                hasNext = nextIndex != C.INDEX_UNSET,
+                repeatMode = player.repeatMode.toWidgetRepeatMode(),
+                shuffleMode = AndroidShuffleModeRegistry.mode.value,
+                nextTitle = nextItem?.mediaMetadata?.title?.toString()
+                    ?: nextItem?.mediaId?.takeIf(String::isNotBlank),
+                capturedElapsedRealtimeMs = elapsedRealtimeMs,
+                capturedBootCount = PlaybackWidgetStateStore.currentBootCount(this),
+            ),
+        )
     }
 
     /**
@@ -560,6 +611,23 @@ public class PlaybackService : MediaLibraryService() {
         Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
         else -> Player.REPEAT_MODE_OFF
     }
+
+    private fun Int.toWidgetRepeatMode(): RepeatMode = when (this) {
+        Player.REPEAT_MODE_ALL -> RepeatMode.ALL
+        Player.REPEAT_MODE_ONE -> RepeatMode.ONE
+        else -> RepeatMode.OFF
+    }
+
+    private fun Player.Events.containsAnyWidgetStateEvent(): Boolean =
+        contains(Player.EVENT_TIMELINE_CHANGED) ||
+            contains(Player.EVENT_MEDIA_ITEM_TRANSITION) ||
+            contains(Player.EVENT_MEDIA_METADATA_CHANGED) ||
+            contains(Player.EVENT_PLAYBACK_STATE_CHANGED) ||
+            contains(Player.EVENT_PLAY_WHEN_READY_CHANGED) ||
+            contains(Player.EVENT_IS_PLAYING_CHANGED) ||
+            contains(Player.EVENT_POSITION_DISCONTINUITY) ||
+            contains(Player.EVENT_REPEAT_MODE_CHANGED) ||
+            contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)
 
     /**
      * Explicitly owns the media-notification body tap.
