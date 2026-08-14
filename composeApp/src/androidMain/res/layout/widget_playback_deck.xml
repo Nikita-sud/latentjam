@@ -52,7 +52,7 @@
                     android:fontFamily="sans-serif-medium"
                     android:letterSpacing="0.08"
                     android:text="SMART DECK"
-                    android:textColor="#A7B9F9F1"
+                    android:textColor="#8CFFFFFF"
                     android:textSize="9sp" />
 
                 <TextView

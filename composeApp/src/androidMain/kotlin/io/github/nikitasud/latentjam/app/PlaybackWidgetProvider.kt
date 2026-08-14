@@ -400,6 +400,17 @@ private fun buildViews(
 private fun applyTrackAccent(views: RemoteViews, style: WidgetStyle, accentArgb: Int?) {
     val seed = accentArgb ?: return
     if (android.os.Build.VERSION.SDK_INT >= 31) {
+        // The card itself carries the track, exactly like the player's background does; the
+        // portal's card IS the artwork, so only the strip and deck take the surface tint.
+        if (style != WidgetStyle.PORTAL) {
+            views.setColorStateList(
+                R.id.widget_root,
+                "setBackgroundTintList",
+                android.content.res.ColorStateList.valueOf(
+                    blendToward(seed, 0xFF000000.toInt(), 0.62f),
+                ),
+            )
+        }
         val pill = blendToward(seed, 0xFF000000.toInt(), 0.45f)
         val onPill = if (relativeLuminance(pill) > 0.45f) 0xDE000000.toInt() else 0xFFFFFFFF.toInt()
         views.setColorStateList(
