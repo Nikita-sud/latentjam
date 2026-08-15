@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
+import io.github.nikitasud.latentjam.smart.cluster.SonicJourney
 
 /**
  * The four listening phases of a day.
@@ -62,6 +63,13 @@ internal object ForYouRhythm {
      */
     const val DAYPART_FRESH_SLOTS = 4
 
+    /**
+     * Days an unheard offer rests after being shown and ignored. Three: long enough that the
+     * slot visibly moves on, short enough that a genuinely central track returns while the
+     * context that suggested it still holds.
+     */
+    const val FRESH_COOLDOWN_DAYS = 3L
+
     /** One track's standing inside one daypart: ranking weight plus the honest play count. */
     data class DaypartAffinity(val weight: Int, val plays: Int)
 
@@ -112,6 +120,7 @@ internal object ForYouRhythm {
         stats: Map<TrackId, TrackStats>,
         used: Set<TrackId>,
         dayIndex: Int,
+        cooled: Set<TrackId> = emptySet(),
     ): List<TrackDescriptor> {
         val proven = affinity.entries
             .asSequence()
@@ -152,10 +161,13 @@ internal object ForYouRhythm {
         outer@ for ((world, _) in worldAffinity) {
             // Rotate inside each world too, so the fresh slots explore the region over the days
             // instead of retrying the same four strangers forever.
-            val unheard = world.tracks.filter {
-                it.id !in used && it.id !in freshSeen &&
-                    (stats[it.id]?.plays ?: 0) == 0 && byId.containsKey(it.id)
-            }
+            val unheard = world.tracks
+                .filter {
+                    it.id !in used && it.id !in freshSeen &&
+                        (stats[it.id]?.plays ?: 0) == 0 && byId.containsKey(it.id)
+                }
+                // Recently offered and ignored goes to the back; strangers get their turn.
+                .sortedBy { it.id in cooled }
             if (unheard.isEmpty()) continue
             val start = dayIndex.mod(unheard.size)
             for (offset in unheard.indices) {
@@ -327,6 +339,7 @@ internal object ForYouRhythm {
         nowMs: Long,
         used: Set<TrackId>,
         dayIndex: Int,
+        cooled: Set<TrackId> = emptySet(),
     ): Wildcard? {
         // Adaptive dormancy, exactly like the page's quiet window: half the observed history
         // span, clamped between the floor and the mature ceiling.
@@ -357,7 +370,9 @@ internal object ForYouRhythm {
             if (completions < WILDCARD_MIN_COMPLETIONS) return@mapNotNull null
             // Below the floor the world was simply this week's rotation; never a left turn.
             if (lastPlayed > nowMs - WILDCARD_MIN_DORMANT_MS) return@mapNotNull null
-            val unheard = world.tracks.filter { it.id !in used && (stats[it.id]?.plays ?: 0) == 0 }
+            val unheard = world.tracks
+                .filter { it.id !in used && (stats[it.id]?.plays ?: 0) == 0 }
+                .sortedBy { it.id in cooled }
             if (unheard.isEmpty()) return@mapNotNull null
             Candidate(anchor, unheard, lastPlayed)
         }
@@ -387,6 +402,50 @@ internal object ForYouRhythm {
     private fun familiarity(stats: Map<TrackId, TrackStats>, id: TrackId): Int {
         val s = stats[id] ?: return 0
         return s.plays + s.completions
+    }
+
+    /** How many journeys to precompute; the page rotates through them day by day. */
+    const val JOURNEY_POOL = 3
+
+    /**
+     * Plots the journey pool: each starts at one of the listener's most-loved tracks (distinct
+     * primary artists, so three journeys are three different stories) and travels to the unheard
+     * track farthest from it — the most travel the library can offer. Selection lives here;
+     * geometry lives in [SonicJourney].
+     */
+    fun sonicJourneys(
+        session: SonicJourney,
+        library: List<TrackDescriptor>,
+        stats: Map<TrackId, TrackStats>,
+        artistKeyOf: (String?) -> String,
+    ): List<List<TrackId>> {
+        val byId = library.associateBy { it.id }
+        val unheard = library.filter { (stats[it.id]?.plays ?: 0) == 0 }.map { it.id }
+        if (unheard.isEmpty()) return emptyList()
+        val anchors = ArrayList<TrackId>(JOURNEY_POOL)
+        val usedArtists = HashSet<String>()
+        for (
+            (id, _) in stats.entries
+                .sortedWith(
+                    compareByDescending<Map.Entry<TrackId, TrackStats>> {
+                        it.value.completions * 10 + it.value.plays
+                    }.thenBy { it.key.value },
+                )
+        ) {
+            val track = byId[id] ?: continue
+            if ((stats[id]?.completions ?: 0) == 0) break
+            if (!usedArtists.add(artistKeyOf(track.artist))) continue
+            anchors.add(id)
+            if (anchors.size >= JOURNEY_POOL) break
+        }
+        return anchors.mapNotNull { anchor ->
+            val destination = session.farthestFrom(anchor, unheard) ?: return@mapNotNull null
+            session.plot(
+                from = anchor,
+                to = destination,
+                artistKeyOf = { id -> byId[id]?.artist?.let(artistKeyOf) },
+            )
+        }
     }
 
     /**

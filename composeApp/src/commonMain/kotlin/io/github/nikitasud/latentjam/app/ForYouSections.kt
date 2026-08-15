@@ -52,6 +52,14 @@ enum class ForYouSectionKind {
      */
     WORLDS,
 
+    /**
+     * A mix that travels: interpolated waypoints between a loved track and the unheard track
+     * farthest from it, each snapped to a real library track. The card is a narrative — the
+     * listen goes somewhere — and it walks the listener into unexplored regions on a gradient
+     * instead of a cold drop.
+     */
+    JOURNEY,
+
     /** Owned but never heard. */
     NEVER_PLAYED,
 
@@ -161,6 +169,11 @@ data class ForYouHero(
 data class ForYouPage(
     val hero: ForYouHero? = null,
     val sections: List<ForYouSection> = emptyList(),
+    /**
+     * The unheard tracks this page actually offered, with the section that offered them —
+     * the caller records these as impressions so tomorrow's page can retire ignored offers.
+     */
+    val discoveryOffers: List<Pair<TrackId, String>> = emptyList(),
 ) {
     val isEmpty: Boolean get() = hero == null && sections.isEmpty()
 }
@@ -288,6 +301,16 @@ object ForYouBuilder {
         semanticMixLabels: Map<LibraryWorldSemanticTitle, String> = emptyMap(),
         /** Local wall-clock hour for an instant; injectable so replays can pin a timezone. */
         localHourOf: (Long) -> Int = { localTimePoint(it).hourOfDay },
+        /**
+         * Unheard tracks offered on recent PRIOR days and still not played — they yield their
+         * discovery slots to strangers that have not had a turn yet. Same-day offers are never
+         * in this set, so the page stays stable within its day.
+         */
+        cooledDiscoveries: Set<TrackId> = emptySet(),
+        /** Precomputed journey paths (see [ForYouRhythm.sonicJourneys]); one shows per day. */
+        journeys: List<List<TrackId>> = emptyList(),
+        /** Localized "%1${'$'}s to %2${'$'}s" pattern for the journey card's title. */
+        journeyTitlePattern: String = "%1${'$'}s → %2${'$'}s",
     ): ForYouPage {
         val byId = library.associateBy { it.id }
         // Accumulates across the page, so a track shown once is not shown again further down.
@@ -301,7 +324,7 @@ object ForYouBuilder {
         continueListening(byId, recentEvents, used)?.let(sections::add)
         // Directly under the resume row: timing is the cheapest magic there is, and this is the
         // one section whose claim is about RIGHT NOW.
-        daypartSection(byId, recentEvents, worlds, stats, nowMs, used, localHourOf)
+        daypartSection(byId, recentEvents, worlds, stats, nowMs, used, localHourOf, cooledDiscoveries)
             ?.let(sections::add)
         worthRevisiting(byId, stats, nowMs, quietMs, used, playlists)?.let(sections::add)
         onARoll(library, byId, recentEvents, stats, worlds, nowMs, used)?.let(sections::add)
@@ -320,10 +343,24 @@ object ForYouBuilder {
             includeNoveltyMixes = includeNoveltyMixes,
             semanticMixLabels = semanticMixLabels,
         )?.let(sections::add)
-        wildcardSection(worlds, stats, nowMs, used)?.let(sections::add)
-        neverPlayed(library, stats, nowMs, used)?.let(sections::add)
+        journeySection(journeys, byId, nowMs, used, journeyTitlePattern)?.let(sections::add)
+        wildcardSection(worlds, stats, nowMs, used, cooledDiscoveries)?.let(sections::add)
+        neverPlayed(library, stats, nowMs, used, cooledDiscoveries)?.let(sections::add)
 
-        return ForYouPage(hero, sections)
+        // A DAYPART card without a caption is by construction an unheard fresh pick — proven
+        // cards always carry their in-phase play count.
+        val discoveryOffers = sections.flatMap { section ->
+            when (section.kind) {
+                ForYouSectionKind.DAYPART ->
+                    section.cards.filter { it.caption == null }.map { it.track.id to "daypart" }
+                ForYouSectionKind.WILDCARD ->
+                    section.cards.map { it.track.id to "wildcard" }
+                ForYouSectionKind.NEVER_PLAYED ->
+                    section.cards.map { it.track.id to "never-played" }
+                else -> emptyList()
+            }
+        }
+        return ForYouPage(hero, sections, discoveryOffers)
     }
 
     /**
@@ -676,6 +713,7 @@ object ForYouBuilder {
         nowMs: Long,
         used: MutableSet<TrackId>,
         localHourOf: (Long) -> Int,
+        cooledDiscoveries: Set<TrackId>,
     ): ForYouSection? {
         val daypart = ForYouRhythm.daypartOf(localHourOf(nowMs))
         val inPhase = ForYouRhythm.daypartEventCount(recentEvents, daypart, localHourOf)
@@ -688,6 +726,7 @@ object ForYouBuilder {
             stats = stats,
             used = used,
             dayIndex = (nowMs / DAY_MS).toInt(),
+            cooled = cooledDiscoveries,
         )
         if (row.size < COLLAPSE_MIN) return null
         return ForYouSection(
@@ -744,12 +783,46 @@ object ForYouBuilder {
         )
     }
 
+    /**
+     * One journey per day, rotated through the precomputed pool. Tracks deleted since plotting
+     * fall out of the path; a path that shrinks below a real trip declines the card rather than
+     * over-promising travel.
+     */
+    private fun journeySection(
+        journeys: List<List<TrackId>>,
+        byId: Map<TrackId, TrackDescriptor>,
+        nowMs: Long,
+        used: MutableSet<TrackId>,
+        titlePattern: String,
+    ): ForYouSection? {
+        if (journeys.isEmpty()) return null
+        val dayIndex = (nowMs / DAY_MS).toInt()
+        val path = journeys[dayIndex.mod(journeys.size)].mapNotNull(byId::get)
+        if (path.size < 5) return null
+        val from = path.first()
+        val to = path.last()
+        val title = titlePattern
+            .replace("%1${'$'}s", from.title ?: from.artist.orEmpty())
+            .replace("%2${'$'}s", to.title ?: to.artist.orEmpty())
+        return ForYouSection(
+            kind = ForYouSectionKind.JOURNEY,
+            cards = listOf(
+                ForYouCard(
+                    track = from,
+                    caption = ForYouCaption.TrackCount(path.size),
+                    collection = ForYouCollection(title = title, tracks = path),
+                ),
+            ).onEach { used.add(it.track.id) },
+        )
+    }
+
     /** One serendipity slot; see [ForYouSectionKind.WILDCARD] for why exactly one. */
     private fun wildcardSection(
         worlds: List<LibraryWorld>,
         stats: Map<TrackId, TrackStats>,
         nowMs: Long,
         used: MutableSet<TrackId>,
+        cooledDiscoveries: Set<TrackId>,
     ): ForYouSection? {
         val wildcard = ForYouRhythm.wildcard(
             worlds = worlds,
@@ -757,6 +830,7 @@ object ForYouBuilder {
             nowMs = nowMs,
             used = used,
             dayIndex = (nowMs / DAY_MS).toInt(),
+            cooled = cooledDiscoveries,
         ) ?: return null
         val anchorName = wildcard.anchor.title ?: wildcard.anchor.artist
         return ForYouSection(
@@ -779,10 +853,16 @@ object ForYouBuilder {
         stats: Map<TrackId, TrackStats>,
         nowMs: Long,
         used: MutableSet<TrackId>,
+        cooledDiscoveries: Set<TrackId>,
     ): ForYouSection? {
+        // Offers ignored on recent days step aside before the window is cut, so the rotation
+        // reaches strangers that have not had a turn instead of re-offering the ignored ones.
         val fresh = library
             .filter { it.id !in used && (stats[it.id]?.plays ?: 0) == 0 }
-            .sortedByDescending { it.addedAtMs ?: 0L }
+            .sortedWith(
+                compareBy<TrackDescriptor> { it.id in cooledDiscoveries }
+                    .thenByDescending { it.addedAtMs ?: 0L },
+            )
             .take(NEVER_PLAYED_WINDOW)
         val dayIndex = (nowMs / DAY_MS).toInt()
         val picked = capPerArtist(

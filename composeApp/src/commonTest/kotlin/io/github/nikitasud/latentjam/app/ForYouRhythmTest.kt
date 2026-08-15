@@ -221,6 +221,34 @@ class ForYouRhythmTest {
     }
 
     @Test
+    fun cooledOffersYieldTheirSlotsToStrangers() {
+        val proven = (1..8).map { track("p$it") }
+        val unheard = (1..6).map { track("u$it") }
+        val byId = (proven + unheard).associateBy { it.id }
+        val events = proven.flatMapIndexed { index, t ->
+            List(index + 1) { n -> event(t.id.value, atHour(n, 7)) }
+        }
+        val affinity = ForYouRhythm.daypartAffinity(events, ForYouDaypart.MORNING, hourOf)
+        val stats = proven.associate { it.id to stats(plays = 3) }
+        val worlds = listOf(world("W", proven.take(2) + unheard))
+        val hot = ForYouRhythm.daypartRow(
+            affinity, byId, worlds, stats, emptySet(), 0,
+        ).filter { it.id.value.startsWith("u") }.map { it.id }
+        // Yesterday's ignored offers step aside: every stranger that has not had a turn comes
+        // BEFORE any cooled repeat. Cooled offers may still fill leftover slots — an empty slot
+        // helps nobody — but never ahead of someone new.
+        val next = ForYouRhythm.daypartRow(
+            affinity, byId, worlds, stats, emptySet(), 0, cooled = hot.toSet(),
+        ).filter { it.id.value.startsWith("u") }.map { it.id }
+        val strangers = unheard.map { it.id }.filterNot { it in hot.toSet() }
+        assertEquals(
+            strangers.toSet(),
+            next.take(strangers.size).toSet(),
+            "the strangers must occupy the earliest fresh slots in $next",
+        )
+    }
+
+    @Test
     fun sandwichOpensFamiliarAndSeparatesDiscoveries() {
         val known = (1..3).map { track("k$it") }
         val unknown = (1..3).map { track("n$it") }

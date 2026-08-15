@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.history.Favorites
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.RecentSearches
+import io.github.nikitasud.latentjam.history.ForYouImpressions
 import io.github.nikitasud.latentjam.history.SmartExclusions
 import io.github.nikitasud.latentjam.history.listeningHistoryModule
 import io.github.nikitasud.latentjam.library.MusicLibrary
@@ -302,6 +303,10 @@ object AppGraph {
 
     /** Tracks/artists kept in the library but explicitly excluded from SMART suggestions. */
     val smartExclusions: SmartExclusions
+        get() = koin.get()
+
+    /** What For You actually offered, per track and local day — cooldowns and honest eval. */
+    val forYouImpressions: ForYouImpressions
         get() = koin.get()
 
     /** CC0 aliases and artist/group relationships, loaded in the background and queried locally. */

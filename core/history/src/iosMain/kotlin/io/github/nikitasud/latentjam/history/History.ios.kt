@@ -224,6 +224,21 @@ internal class FileSmartExclusionStore : SmartExclusionStore {
     }
 }
 
+internal class FileForYouImpressionStore : ForYouImpressionStore {
+    override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
+        readLines(appSupportFile(FILE_NAME) ?: error("Application Support is unavailable"))
+    }
+
+    override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.Default) {
+        val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
+        writeText(path, lines.joinToString("\n"))
+    }
+
+    private companion object {
+        const val FILE_NAME = "foryou_impressions.txt"
+    }
+}
+
 internal class FileFavoritesStore : FavoritesStore {
     override suspend fun read(): List<String> = withContext(Dispatchers.Default) {
         readLines(appSupportFile(FILE_NAME) ?: error("Application Support is unavailable"))
@@ -248,6 +263,8 @@ public actual fun listeningHistoryModule(): Module = module {
     single { SmartExclusions(store = get()) }
     single<FavoritesStore> { FileFavoritesStore() }
     single<Favorites> { DefaultFavorites(store = get()) }
+    single<ForYouImpressionStore> { FileForYouImpressionStore() }
+    single { ForYouImpressions(store = get()) }
 }
 
 public actual fun epochMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()

@@ -77,6 +77,22 @@ internal class FileSmartExclusionStore(context: Context) : SmartExclusionStore {
     }
 }
 
+internal class FileForYouImpressionStore(context: Context) : ForYouImpressionStore {
+    private val file = File(context.filesDir, FILE_NAME)
+
+    override suspend fun read(): List<String> = withContext(Dispatchers.IO) {
+        if (file.exists()) file.readLines() else emptyList()
+    }
+
+    override suspend fun write(lines: List<String>): Unit = withContext(Dispatchers.IO) {
+        file.atomicReplaceText(lines.joinToString("\n"))
+    }
+
+    private companion object {
+        const val FILE_NAME = "foryou_impressions.txt"
+    }
+}
+
 internal class FileFavoritesStore(context: Context) : FavoritesStore {
     private val file = File(context.filesDir, FILE_NAME)
 
@@ -102,6 +118,8 @@ public actual fun listeningHistoryModule(): Module = module {
     single { SmartExclusions(store = get()) }
     single<FavoritesStore> { FileFavoritesStore(context = get()) }
     single<Favorites> { DefaultFavorites(store = get()) }
+    single<ForYouImpressionStore> { FileForYouImpressionStore(context = get()) }
+    single { ForYouImpressions(store = get()) }
 }
 
 public actual fun epochMillis(): Long = System.currentTimeMillis()
