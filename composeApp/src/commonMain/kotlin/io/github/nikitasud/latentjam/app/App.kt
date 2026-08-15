@@ -2297,7 +2297,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             playlists = playlists,
                                             tracksOf = ::tracksOf,
                                             contentPadding = listPadding,
-                                            settledOnTab = pagerState.settledPage == PLAYLISTS_TAB,
                                             // Building a selection resolves a track count, and a
                                             // count is a plural — so it happens in a coroutine
                                             // rather than in the click handler itself.

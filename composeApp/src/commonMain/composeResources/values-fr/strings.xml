@@ -488,4 +488,5 @@
     <string name="snack_duplicates_merged">Doublons fusionnés : les playlists pointent vers la copie conservée</string>
     <string name="info_lyrics">Paroles</string>
     <string name="lyrics_not_found">Aucune parole intégrée n’a été trouvée pour ce titre.</string>
+    <string name="cd_scroll_to_top">Revenir en haut</string>
 </resources>

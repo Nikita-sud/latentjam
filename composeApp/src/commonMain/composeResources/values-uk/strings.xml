@@ -496,4 +496,5 @@
     <string name="snack_duplicates_merged">Дублікати об'єднано: плейлисти тепер вказують на залишену копію</string>
     <string name="info_lyrics">Текст пісні</string>
     <string name="lyrics_not_found">У цьому треку немає вбудованого тексту пісні.</string>
+    <string name="cd_scroll_to_top">Нагору списку</string>
 </resources>

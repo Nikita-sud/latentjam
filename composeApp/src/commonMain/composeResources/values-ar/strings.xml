@@ -509,4 +509,5 @@
     <string name="snack_duplicates_merged">تم دمج التكرارات: تشير قوائم التشغيل الآن إلى النسخة المحتفَظ بها</string>
     <string name="info_lyrics">كلمات الأغنية</string>
     <string name="lyrics_not_found">لم يتم العثور على كلمات مضمّنة لهذه الأغنية.</string>
+    <string name="cd_scroll_to_top">العودة إلى الأعلى</string>
 </resources>

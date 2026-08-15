@@ -272,6 +272,10 @@ internal fun SectionedSongsList(
                 onScrubbingChange = { railScrubbing = it },
             )
         }
+        ScrollToTopButton(
+            listState = listState,
+            bottomInset = contentPadding.calculateBottomPadding(),
+        )
     }
 }
 

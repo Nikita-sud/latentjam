@@ -469,4 +469,5 @@
     <string name="snack_duplicates_merged">已合并重复项：播放列表现在指向保留的副本</string>
     <string name="info_lyrics">歌词</string>
     <string name="lyrics_not_found">此曲目中未找到内嵌歌词。</string>
+    <string name="cd_scroll_to_top">回到顶部</string>
 </resources>

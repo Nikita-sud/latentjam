@@ -483,4 +483,5 @@
     <string name="snack_duplicates_merged">Duplicatas mescladas: as playlists agora apontam para a cópia mantida</string>
     <string name="info_lyrics">Letra</string>
     <string name="lyrics_not_found">Nenhuma letra incorporada foi encontrada nesta faixa.</string>
+    <string name="cd_scroll_to_top">Voltar ao topo</string>
 </resources>

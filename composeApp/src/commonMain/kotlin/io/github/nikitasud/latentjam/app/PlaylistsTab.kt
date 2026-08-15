@@ -117,20 +117,12 @@ internal fun PlaylistsTabContent(
     onDelete: (Playlist) -> Unit,
     /** Commits a long-press drag: the playlist at [from] drops at [to], both list positions. */
     onMove: (from: Int, to: Int) -> Unit = { _, _ -> },
-    /** Whether the pager is currently settled on this tab; drives the entry scroll reset. */
-    settledOnTab: Boolean = true,
 ) {
-    // Entering the tab always starts at the top — with the auto playlists (the most useful
-    // row, and the whole reason they lead) visible. Nothing tied to this page's lifecycle can
-    // express "on entry": measured on a device, the page composition survives leaving the tab
-    // (state, effects and offset all stay live in the pager), so a LaunchedEffect(Unit) here
-    // fires once per process and never again. The pager's settled position is what actually
-    // changes, so the reset keys on settling here. Scrolling within a visit still holds; only
-    // re-entry resets.
+    // The scroll position SURVIVES leaving and re-entering the tab: an earlier build reset to
+    // the top on every return "so the auto playlists stay visible", and the losing side of
+    // that trade was every listener who had scrolled somewhere on purpose. The way back up is
+    // the fast-travel button instead of a forced teleport.
     val listState = remember { LazyListState() }
-    LaunchedEffect(settledOnTab) {
-        if (settledOnTab) listState.scrollToItem(0)
-    }
     val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
     // Same float-and-drop contract as the player's queue: the pressed row floats, ONE move
@@ -138,20 +130,42 @@ internal fun PlaylistsTabContent(
     var draggingIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
     var dragTargetIndex by remember { mutableStateOf<Int?>(null) }
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = contentPadding,
-    ) {
-        if (autoPlaylists.isNotEmpty()) {
-            item(key = "auto") {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(autoPlaylists, key = { it.kind.name }) { auto ->
-                        Box(
-                            modifier = Modifier.animateItem(
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = contentPadding,
+        ) {
+            if (autoPlaylists.isNotEmpty()) {
+                item(key = "auto") {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(autoPlaylists, key = { it.kind.name }) { auto ->
+                            Box(
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(
+                                        if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                                    ),
+                                    placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
+                                    fadeOutSpec = tween(
+                                        if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                                    ),
+                                ),
+                            ) {
+                                AutoPlaylistCard(auto) { onOpenAuto(auto) }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (playlists.isEmpty()) {
+                item(key = "empty") {
+                    Column(
+                        modifier = Modifier
+                            .animateItem(
                                 fadeInSpec = tween(
                                     if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
                                 ),
@@ -159,18 +173,28 @@ internal fun PlaylistsTabContent(
                                 fadeOutSpec = tween(
                                     if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
                                 ),
-                            ),
-                        ) {
-                            AutoPlaylistCard(auto) { onOpenAuto(auto) }
-                        }
+                            )
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = stringResource(Res.string.playlists_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
-        }
 
-        if (playlists.isEmpty()) {
-            item(key = "empty") {
-                Column(
+            itemsIndexed(playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
+                Box(
                     modifier = Modifier
                         .animateItem(
                             fadeInSpec = tween(
@@ -181,94 +205,68 @@ internal fun PlaylistsTabContent(
                                 if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
                             ),
                         )
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                        .then(
+                            if (draggingIndex == index) {
+                                Modifier
+                                    .zIndex(1f)
+                                    .graphicsLayer { translationY = dragOffsetY }
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .pointerInput(index, playlists.size) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    draggingIndex = index
+                                    dragTargetIndex = index
+                                    dragOffsetY = 0f
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    dragOffsetY += dragAmount.y
+                                    val rowHeight = listState.layoutInfo.visibleItemsInfo
+                                        .firstOrNull { it.key == playlist.id }
+                                        ?.size
+                                        ?.takeIf { it > 0 }
+                                    if (rowHeight != null) {
+                                        dragTargetIndex =
+                                            (index + (dragOffsetY / rowHeight).roundToInt())
+                                                .coerceIn(0, playlists.lastIndex)
+                                    }
+                                },
+                                onDragEnd = {
+                                    val from = draggingIndex
+                                    val to = dragTargetIndex
+                                    draggingIndex = null
+                                    dragTargetIndex = null
+                                    dragOffsetY = 0f
+                                    if (from != null && to != null && from != to) onMove(from, to)
+                                },
+                                onDragCancel = {
+                                    draggingIndex = null
+                                    dragTargetIndex = null
+                                    dragOffsetY = 0f
+                                },
+                            )
+                        },
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = stringResource(Res.string.playlists_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    PlaylistRow(
+                        playlist = playlist,
+                        tracks = tracksOf(playlist),
+                        onClick = { onOpenPlaylist(playlist) },
+                        onRename = { onRename(playlist) },
+                        onExport = { onExport(playlist) },
+                        onToggleSmart = { onToggleSmart(playlist) },
+                        onDelete = { onDelete(playlist) },
                     )
                 }
             }
         }
-
-        itemsIndexed(playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
-            Box(
-                modifier = Modifier
-                    .animateItem(
-                        fadeInSpec = tween(
-                            if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
-                        ),
-                        placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
-                        fadeOutSpec = tween(
-                            if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
-                        ),
-                    )
-                    .then(
-                        if (draggingIndex == index) {
-                            Modifier
-                                .zIndex(1f)
-                                .graphicsLayer { translationY = dragOffsetY }
-                        } else {
-                            Modifier
-                        },
-                    )
-                    .pointerInput(index, playlists.size) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                draggingIndex = index
-                                dragTargetIndex = index
-                                dragOffsetY = 0f
-                            },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                dragOffsetY += dragAmount.y
-                                val rowHeight = listState.layoutInfo.visibleItemsInfo
-                                    .firstOrNull { it.key == playlist.id }
-                                    ?.size
-                                    ?.takeIf { it > 0 }
-                                if (rowHeight != null) {
-                                    dragTargetIndex =
-                                        (index + (dragOffsetY / rowHeight).roundToInt())
-                                            .coerceIn(0, playlists.lastIndex)
-                                }
-                            },
-                            onDragEnd = {
-                                val from = draggingIndex
-                                val to = dragTargetIndex
-                                draggingIndex = null
-                                dragTargetIndex = null
-                                dragOffsetY = 0f
-                                if (from != null && to != null && from != to) onMove(from, to)
-                            },
-                            onDragCancel = {
-                                draggingIndex = null
-                                dragTargetIndex = null
-                                dragOffsetY = 0f
-                            },
-                        )
-                    },
-            ) {
-                PlaylistRow(
-                    playlist = playlist,
-                    tracks = tracksOf(playlist),
-                    onClick = { onOpenPlaylist(playlist) },
-                    onRename = { onRename(playlist) },
-                    onExport = { onExport(playlist) },
-                    onToggleSmart = { onToggleSmart(playlist) },
-                    onDelete = { onDelete(playlist) },
-                )
-            }
-        }
+        ScrollToTopButton(
+            listState = listState,
+            bottomInset = contentPadding.calculateBottomPadding(),
+        )
     }
 }
 

@@ -469,4 +469,5 @@
     <string name="snack_duplicates_merged">重複を統合しました。プレイリストは残したコピーを指します</string>
     <string name="info_lyrics">歌詞</string>
     <string name="lyrics_not_found">この曲には埋め込み歌詞がありません。</string>
+    <string name="cd_scroll_to_top">先頭に戻る</string>
 </resources>

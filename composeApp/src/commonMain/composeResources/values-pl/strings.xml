@@ -496,4 +496,5 @@
     <string name="snack_duplicates_merged">Duplikaty scalone: playlisty wskazują teraz zachowaną kopię</string>
     <string name="info_lyrics">Tekst utworu</string>
     <string name="lyrics_not_found">Nie znaleziono osadzonego tekstu dla tego utworu.</string>
+    <string name="cd_scroll_to_top">Wróć na górę</string>
 </resources>

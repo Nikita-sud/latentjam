@@ -538,4 +538,5 @@
     <string name="snack_duplicates_merged">Duplicates merged: playlists now point at the kept copy</string>
     <string name="info_lyrics">Lyrics</string>
     <string name="lyrics_not_found">No embedded lyrics were found for this track.</string>
+    <string name="cd_scroll_to_top">Back to top</string>
 </resources>

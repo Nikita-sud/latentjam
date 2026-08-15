@@ -487,4 +487,5 @@
     <string name="snack_duplicates_merged">Дубликаты объединены: плейлисты теперь указывают на оставленную копию</string>
     <string name="info_lyrics">Текст песни</string>
     <string name="lyrics_not_found">В этом треке нет встроенного текста песни.</string>
+    <string name="cd_scroll_to_top">Наверх списка</string>
 </resources>

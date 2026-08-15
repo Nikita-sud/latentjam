@@ -476,4 +476,5 @@
     <string name="snack_duplicates_merged">डुप्लिकेट मिला दिए गए: प्लेलिस्ट अब रखी गई कॉपी की ओर इशारा करती हैं</string>
     <string name="info_lyrics">गीत के बोल</string>
     <string name="lyrics_not_found">इस ट्रैक में एम्बेड किए गए बोल नहीं मिले।</string>
+    <string name="cd_scroll_to_top">ऊपर वापस जाएँ</string>
 </resources>

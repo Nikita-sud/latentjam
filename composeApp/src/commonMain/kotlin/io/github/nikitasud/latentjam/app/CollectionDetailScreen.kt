@@ -347,26 +347,45 @@ fun CollectionDetailScreen(
             }
             val railCatalogKey = remember(railPresentation) { Any() }
             val listContentPadding = PaddingValues(bottom = bottomInset)
-            if (selection.railMode != CollectionRailMode.NONE &&
-                railPresentation.rail.buckets.size > 1
-            ) {
-                ListWithRail(
-                    rail = railPresentation.rail,
-                    catalogKey = railCatalogKey,
-                    artworkKeys = railPresentation.artworkKeys,
-                    contentPadding = listContentPadding,
-                    listState = listState,
-                ) { railPadding, shownListState, artworkReporter, isPreview ->
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (selection.railMode != CollectionRailMode.NONE &&
+                    railPresentation.rail.buckets.size > 1
+                ) {
+                    ListWithRail(
+                        rail = railPresentation.rail,
+                        catalogKey = railCatalogKey,
+                        artworkKeys = railPresentation.artworkKeys,
+                        contentPadding = listContentPadding,
+                        listState = listState,
+                    ) { railPadding, shownListState, artworkReporter, isPreview ->
+                        CollectionTrackLazyColumn(
+                            selection = selection,
+                            listState = shownListState,
+                            contentPadding = railPadding,
+                            selectionMode = selectionMode,
+                            selectedTrackIds = selectedTrackIds,
+                            currentTrackId = currentTrackId,
+                            currentTrackPlaying = currentTrackPlaying,
+                            isPreview = isPreview,
+                            artworkReporter = artworkReporter,
+                            onToggleSelection = onToggleSelection,
+                            onStartSelection = onStartSelection,
+                            onPlayTrack = onPlayTrack,
+                            onShuffle = onShuffle,
+                            onTrackMenu = onTrackMenu,
+                        )
+                    }
+                } else {
                     CollectionTrackLazyColumn(
                         selection = selection,
-                        listState = shownListState,
-                        contentPadding = railPadding,
+                        listState = listState,
+                        contentPadding = listContentPadding,
                         selectionMode = selectionMode,
                         selectedTrackIds = selectedTrackIds,
                         currentTrackId = currentTrackId,
                         currentTrackPlaying = currentTrackPlaying,
-                        isPreview = isPreview,
-                        artworkReporter = artworkReporter,
+                        isPreview = false,
+                        artworkReporter = null,
                         onToggleSelection = onToggleSelection,
                         onStartSelection = onStartSelection,
                         onPlayTrack = onPlayTrack,
@@ -374,22 +393,9 @@ fun CollectionDetailScreen(
                         onTrackMenu = onTrackMenu,
                     )
                 }
-            } else {
-                CollectionTrackLazyColumn(
-                    selection = selection,
+                ScrollToTopButton(
                     listState = listState,
-                    contentPadding = listContentPadding,
-                    selectionMode = selectionMode,
-                    selectedTrackIds = selectedTrackIds,
-                    currentTrackId = currentTrackId,
-                    currentTrackPlaying = currentTrackPlaying,
-                    isPreview = false,
-                    artworkReporter = null,
-                    onToggleSelection = onToggleSelection,
-                    onStartSelection = onStartSelection,
-                    onPlayTrack = onPlayTrack,
-                    onShuffle = onShuffle,
-                    onTrackMenu = onTrackMenu,
+                    bottomInset = bottomInset,
                 )
             }
         }

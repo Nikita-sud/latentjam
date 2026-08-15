@@ -483,4 +483,5 @@
     <string name="snack_duplicates_merged">Duplicados combinados: las listas ahora apuntan a la copia conservada</string>
     <string name="info_lyrics">Letra</string>
     <string name="lyrics_not_found">No se encontró letra incrustada para esta pista.</string>
+    <string name="cd_scroll_to_top">Volver arriba</string>
 </resources>
