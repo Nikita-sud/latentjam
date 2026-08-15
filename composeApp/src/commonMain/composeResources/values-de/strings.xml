@@ -487,4 +487,11 @@
     <string name="info_lyrics">Songtext</string>
     <string name="lyrics_not_found">Für diesen Titel wurde kein eingebetteter Songtext gefunden.</string>
     <string name="cd_scroll_to_top">Zurück nach oben</string>
+    <string name="foryou_section_daypart_morning">Dein Morgen</string>
+    <string name="foryou_section_daypart_day">Dein Nachmittag</string>
+    <string name="foryou_section_daypart_evening">Dein Abend</string>
+    <string name="foryou_section_daypart_night">Deine Nacht</string>
+    <string name="foryou_section_on_a_roll">Deine %1$s-Phase</string>
+    <string name="foryou_section_wildcard">Joker</string>
+    <string name="foryou_caption_left_turn">Ein Abstecher von %1$s</string>
 </resources>

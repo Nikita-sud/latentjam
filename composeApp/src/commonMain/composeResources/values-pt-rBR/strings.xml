@@ -484,4 +484,11 @@
     <string name="info_lyrics">Letra</string>
     <string name="lyrics_not_found">Nenhuma letra incorporada foi encontrada nesta faixa.</string>
     <string name="cd_scroll_to_top">Voltar ao topo</string>
+    <string name="foryou_section_daypart_morning">Suas manhãs</string>
+    <string name="foryou_section_daypart_day">Suas tardes</string>
+    <string name="foryou_section_daypart_evening">Suas noites</string>
+    <string name="foryou_section_daypart_night">Suas madrugadas</string>
+    <string name="foryou_section_on_a_roll">Sua fase %1$s</string>
+    <string name="foryou_section_wildcard">Curinga</string>
+    <string name="foryou_caption_left_turn">Um desvio de %1$s</string>
 </resources>

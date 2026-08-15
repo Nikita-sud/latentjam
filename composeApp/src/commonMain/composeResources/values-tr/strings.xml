@@ -477,4 +477,11 @@
     <string name="info_lyrics">Şarkı sözleri</string>
     <string name="lyrics_not_found">Bu parça için gömülü şarkı sözü bulunamadı.</string>
     <string name="cd_scroll_to_top">Başa dön</string>
+    <string name="foryou_section_daypart_morning">Sabahların</string>
+    <string name="foryou_section_daypart_day">Öğleden sonraların</string>
+    <string name="foryou_section_daypart_evening">Akşamların</string>
+    <string name="foryou_section_daypart_night">Gecelerin</string>
+    <string name="foryou_section_on_a_roll">Yeni dönemin: %1$s</string>
+    <string name="foryou_section_wildcard">Joker</string>
+    <string name="foryou_caption_left_turn">Yeni bir sapak: %1$s</string>
 </resources>

@@ -539,4 +539,11 @@
     <string name="info_lyrics">Lyrics</string>
     <string name="lyrics_not_found">No embedded lyrics were found for this track.</string>
     <string name="cd_scroll_to_top">Back to top</string>
+    <string name="foryou_section_daypart_morning">Your mornings</string>
+    <string name="foryou_section_daypart_day">Your afternoons</string>
+    <string name="foryou_section_daypart_evening">Your evenings</string>
+    <string name="foryou_section_daypart_night">Your late nights</string>
+    <string name="foryou_section_on_a_roll">Your %1$s phase</string>
+    <string name="foryou_section_wildcard">Wildcard</string>
+    <string name="foryou_caption_left_turn">A left turn from %1$s</string>
 </resources>

@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.ListenEvent
+import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -25,8 +26,22 @@ enum class ForYouSectionKind {
     /** Tracks left unfinished. */
     CONTINUE,
 
+    /**
+     * What this listener provably plays at THIS time of day, plus a few unheard tracks from the
+     * same regions. The section that answers "how did it know what I want right now": the same
+     * card lands as clairvoyant or as noise depending on when it appears, and this listener's
+     * own log shows morning and evening repertoires that share zero top tracks.
+     */
+    DAYPART,
+
     /** Proven favourites gone quiet. */
     WORTH_REVISITING,
+
+    /**
+     * One artist suddenly dominating the week — a phase, detected while it is happening — and
+     * that artist's unheard tracks, closest-in-sound first. The row only exists mid-phase.
+     */
+    ON_A_ROLL,
 
     /**
      * Regions the library falls into, found in embedding space rather than in the tags.
@@ -39,6 +54,14 @@ enum class ForYouSectionKind {
 
     /** Owned but never heard. */
     NEVER_PLAYED,
+
+    /**
+     * Exactly one serendipity slot: an unheard track from a region the listener provably loves
+     * but has not touched in a month — relevant AND unexpected, which is the literature's
+     * definition of serendipity. One slot on purpose: measured per-item enjoyment of surprises
+     * is negative, so the dose is the feature.
+     */
+    WILDCARD,
 }
 
 /**
@@ -56,6 +79,12 @@ sealed interface ForYouCaption {
 
     /** How many dormant tracks the collection on this card stands for. */
     data class TrackCount(val tracks: Int) : ForYouCaption
+
+    /**
+     * The loved track that vouches for a wildcard pick — the receipt that makes one unexpected
+     * card trustworthy instead of random.
+     */
+    data class LeftTurnFrom(val title: String) : ForYouCaption
 }
 
 /**
@@ -87,6 +116,10 @@ data class ForYouCollection(
 data class ForYouSection(
     val kind: ForYouSectionKind,
     val cards: List<ForYouCard>,
+    /** Which phase of the day a [ForYouSectionKind.DAYPART] section speaks for. */
+    val daypart: ForYouDaypart? = null,
+    /** The artist a [ForYouSectionKind.ON_A_ROLL] section is about; the header names them. */
+    val subject: String? = null,
 )
 
 /**
@@ -253,6 +286,8 @@ object ForYouBuilder {
         discoveryMixLabel: String = "Discovery mix",
         includeNoveltyMixes: Boolean = false,
         semanticMixLabels: Map<LibraryWorldSemanticTitle, String> = emptyMap(),
+        /** Local wall-clock hour for an instant; injectable so replays can pin a timezone. */
+        localHourOf: (Long) -> Int = { localTimePoint(it).hourOfDay },
     ): ForYouPage {
         val byId = library.associateBy { it.id }
         // Accumulates across the page, so a track shown once is not shown again further down.
@@ -264,7 +299,12 @@ object ForYouBuilder {
 
         val sections = mutableListOf<ForYouSection>()
         continueListening(byId, recentEvents, used)?.let(sections::add)
+        // Directly under the resume row: timing is the cheapest magic there is, and this is the
+        // one section whose claim is about RIGHT NOW.
+        daypartSection(byId, recentEvents, worlds, stats, nowMs, used, localHourOf)
+            ?.let(sections::add)
         worthRevisiting(byId, stats, nowMs, quietMs, used, playlists)?.let(sections::add)
+        onARoll(library, byId, recentEvents, stats, worlds, nowMs, used)?.let(sections::add)
         // Above "never played" and below the history rows on purpose. With nothing logged the rows
         // above are all empty and this becomes the first thing on the page — which is what it is
         // for. Once there IS history, rows built from it have the better claim on the top of a
@@ -280,6 +320,7 @@ object ForYouBuilder {
             includeNoveltyMixes = includeNoveltyMixes,
             semanticMixLabels = semanticMixLabels,
         )?.let(sections::add)
+        wildcardSection(worlds, stats, nowMs, used)?.let(sections::add)
         neverPlayed(library, stats, nowMs, used)?.let(sections::add)
 
         return ForYouPage(hero, sections)
@@ -578,10 +619,17 @@ object ForYouBuilder {
                 val ranked = listOf(cover) +
                     (anchors + ordered.filterNot { it.id in anchorIds })
                         .filterNot { it.id == cover.id }
-                val mixTracks = if (world.nameSource == LibraryWorldNameSource.ARTIST) {
+                val balanced = if (world.nameSource == LibraryWorldNameSource.ARTIST) {
                     ranked.take(MIX_TRACK_LIMIT)
                 } else {
                     balanceMixArtists(ranked)
+                }
+                // Sandwich the body: no two unheard tracks adjacent while anchors remain, so
+                // every discovery inherits credibility from a proven neighbour. The cover stays
+                // first — a card that shows one record and starts on another looks broken.
+                val mixTracks = if (balanced.isEmpty()) balanced else {
+                    listOf(balanced.first()) +
+                        ForYouRhythm.familiaritySandwich(balanced.drop(1), stats)
                 }
                 val title = when {
                     world.semanticTitle != null ->
@@ -612,6 +660,113 @@ object ForYouBuilder {
         return ForYouSection(
             kind = ForYouSectionKind.WORLDS,
             cards = cards.onEach { used.add(it.track.id) },
+        )
+    }
+
+    /**
+     * What this listener plays at THIS phase of the day. Gated on a real pattern
+     * ([ForYouRhythm.DAYPART_MIN_EVENTS] in-phase events) so it never guesses; a wrong "your
+     * mornings" claim would cost more than the section's absence.
+     */
+    private fun daypartSection(
+        byId: Map<TrackId, TrackDescriptor>,
+        recentEvents: List<ListenEvent>,
+        worlds: List<LibraryWorld>,
+        stats: Map<TrackId, TrackStats>,
+        nowMs: Long,
+        used: MutableSet<TrackId>,
+        localHourOf: (Long) -> Int,
+    ): ForYouSection? {
+        val daypart = ForYouRhythm.daypartOf(localHourOf(nowMs))
+        val inPhase = ForYouRhythm.daypartEventCount(recentEvents, daypart, localHourOf)
+        if (inPhase < ForYouRhythm.DAYPART_MIN_EVENTS) return null
+        val affinity = ForYouRhythm.daypartAffinity(recentEvents, daypart, localHourOf)
+        val row = ForYouRhythm.daypartRow(
+            affinity = affinity,
+            byId = byId,
+            worlds = worlds,
+            stats = stats,
+            used = used,
+            dayIndex = (nowMs / DAY_MS).toInt(),
+        )
+        if (row.size < COLLAPSE_MIN) return null
+        return ForYouSection(
+            kind = ForYouSectionKind.DAYPART,
+            daypart = daypart,
+            cards = row.map { track ->
+                // The receipt claims only what the log proves: plays IN this daypart. Unheard
+                // fresh picks carry no caption — the artist line is their honest introduction.
+                val plays = affinity[track.id]?.plays ?: 0
+                ForYouCard(
+                    track = track,
+                    caption = if (plays > 0) ForYouCaption.PlayedBefore(plays) else null,
+                )
+            }.onEach { used.add(it.track.id) },
+        )
+    }
+
+    /**
+     * The phase the listener is in RIGHT NOW, answered with the binged artist's unheard tracks.
+     * The row's existence is the recommendation: it appears mid-phase, names the artist in its
+     * header, and disappears when the phase does.
+     */
+    private fun onARoll(
+        library: List<TrackDescriptor>,
+        byId: Map<TrackId, TrackDescriptor>,
+        recentEvents: List<ListenEvent>,
+        stats: Map<TrackId, TrackStats>,
+        worlds: List<LibraryWorld>,
+        nowMs: Long,
+        used: MutableSet<TrackId>,
+    ): ForYouSection? {
+        val binge = ForYouRhythm.currentBinge(
+            events = recentEvents,
+            nowMs = nowMs,
+            artistOf = { byId[it]?.artist },
+            artistKeyOf = ::primaryArtistKey,
+        ) ?: return null
+        val cuts = ForYouRhythm.bingeDeepCuts(
+            binge = binge,
+            library = library,
+            events = recentEvents,
+            stats = stats,
+            worlds = worlds,
+            nowMs = nowMs,
+            used = used,
+            artistKeyOf = ::primaryArtistKey,
+        ).take(ROW_LIMIT)
+        // A one-card "phase" row over-claims; with nothing unheard left the phase needs no help.
+        if (cuts.size < COLLAPSE_MIN) return null
+        return ForYouSection(
+            kind = ForYouSectionKind.ON_A_ROLL,
+            subject = binge.artistName,
+            cards = cuts.map { ForYouCard(it) }.onEach { used.add(it.track.id) },
+        )
+    }
+
+    /** One serendipity slot; see [ForYouSectionKind.WILDCARD] for why exactly one. */
+    private fun wildcardSection(
+        worlds: List<LibraryWorld>,
+        stats: Map<TrackId, TrackStats>,
+        nowMs: Long,
+        used: MutableSet<TrackId>,
+    ): ForYouSection? {
+        val wildcard = ForYouRhythm.wildcard(
+            worlds = worlds,
+            stats = stats,
+            nowMs = nowMs,
+            used = used,
+            dayIndex = (nowMs / DAY_MS).toInt(),
+        ) ?: return null
+        val anchorName = wildcard.anchor.title ?: wildcard.anchor.artist
+        return ForYouSection(
+            kind = ForYouSectionKind.WILDCARD,
+            cards = listOf(
+                ForYouCard(
+                    track = wildcard.pick,
+                    caption = anchorName?.let { ForYouCaption.LeftTurnFrom(it) },
+                ),
+            ).onEach { used.add(it.track.id) },
         )
     }
 

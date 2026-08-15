@@ -470,4 +470,11 @@
     <string name="info_lyrics">歌詞</string>
     <string name="lyrics_not_found">この曲には埋め込み歌詞がありません。</string>
     <string name="cd_scroll_to_top">先頭に戻る</string>
+    <string name="foryou_section_daypart_morning">あなたの朝</string>
+    <string name="foryou_section_daypart_day">あなたの昼</string>
+    <string name="foryou_section_daypart_evening">あなたの夜</string>
+    <string name="foryou_section_daypart_night">あなたの深夜</string>
+    <string name="foryou_section_on_a_roll">いま%1$sの時期</string>
+    <string name="foryou_section_wildcard">ワイルドカード</string>
+    <string name="foryou_caption_left_turn">%1$sからの寄り道</string>
 </resources>

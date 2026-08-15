@@ -476,4 +476,11 @@
     <string name="info_lyrics">Lirik</string>
     <string name="lyrics_not_found">Tidak ada lirik tertanam yang ditemukan untuk lagu ini.</string>
     <string name="cd_scroll_to_top">Kembali ke atas</string>
+    <string name="foryou_section_daypart_morning">Pagi Anda</string>
+    <string name="foryou_section_daypart_day">Siang Anda</string>
+    <string name="foryou_section_daypart_evening">Malam Anda</string>
+    <string name="foryou_section_daypart_night">Dini hari Anda</string>
+    <string name="foryou_section_on_a_roll">Fase %1$s Anda</string>
+    <string name="foryou_section_wildcard">Kejutan</string>
+    <string name="foryou_caption_left_turn">Belokan dari %1$s</string>
 </resources>

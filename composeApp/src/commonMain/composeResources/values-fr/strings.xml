@@ -489,4 +489,11 @@
     <string name="info_lyrics">Paroles</string>
     <string name="lyrics_not_found">Aucune parole intégrée n’a été trouvée pour ce titre.</string>
     <string name="cd_scroll_to_top">Revenir en haut</string>
+    <string name="foryou_section_daypart_morning">Vos matins</string>
+    <string name="foryou_section_daypart_day">Vos après-midis</string>
+    <string name="foryou_section_daypart_evening">Vos soirées</string>
+    <string name="foryou_section_daypart_night">Vos nuits</string>
+    <string name="foryou_section_on_a_roll">Votre période %1$s</string>
+    <string name="foryou_section_wildcard">Joker</string>
+    <string name="foryou_caption_left_turn">Un détour depuis %1$s</string>
 </resources>

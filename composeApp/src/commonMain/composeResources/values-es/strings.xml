@@ -484,4 +484,11 @@
     <string name="info_lyrics">Letra</string>
     <string name="lyrics_not_found">No se encontró letra incrustada para esta pista.</string>
     <string name="cd_scroll_to_top">Volver arriba</string>
+    <string name="foryou_section_daypart_morning">Tus mañanas</string>
+    <string name="foryou_section_daypart_day">Tus tardes</string>
+    <string name="foryou_section_daypart_evening">Tus noches</string>
+    <string name="foryou_section_daypart_night">Tus madrugadas</string>
+    <string name="foryou_section_on_a_roll">Tu fase de %1$s</string>
+    <string name="foryou_section_wildcard">Comodín</string>
+    <string name="foryou_caption_left_turn">Un desvío desde %1$s</string>
 </resources>

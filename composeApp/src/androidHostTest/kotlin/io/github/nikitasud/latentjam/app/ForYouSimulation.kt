@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.ListenEvent
+import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -238,6 +239,193 @@ class ForYouSimulation {
                     "worlds=${jaccard(ForYouSectionKind.WORLDS)} neverPlayed=${jaccard(ForYouSectionKind.NEVER_PLAYED)}",
             )
         }
+    }
+
+
+    /**
+     * Replays the rhythm features over the exported library: daypart holdout prediction against
+     * a time-blind baseline, the binge detector's day-by-day timeline, and the wildcard's
+     * qualifying pool and rotation. Run with the same env vars as the page replay.
+     */
+    @Test
+    fun `replay the rhythm features over the exported library`() {
+        val fixture = System.getenv("SMART_PARITY_FIXTURE")?.let(::File)?.takeIf(File::isDirectory)
+        val input = System.getenv("SMART_SIM_INPUT")?.let(::File)?.takeIf(File::isDirectory)
+        if (fixture == null || input == null || !File(input, "ids.txt").isFile) {
+            println("SKIP rhythm sim: set SMART_PARITY_FIXTURE and SMART_SIM_INPUT")
+            return
+        }
+        val ids = File(input, "ids.txt").readLines().filter { it.isNotBlank() }
+        val meta = File(fixture, "meta.tsv").readLines().map { it.split('\t') }
+        val library = ids.mapIndexed { row, id ->
+            TrackDescriptor(
+                id = TrackId(id),
+                title = meta[row][0].ifBlank { null },
+                artist = meta[row][1].ifBlank { null },
+                album = meta[row][2].ifBlank { null },
+                genre = meta[row][3].ifBlank { null },
+            )
+        }
+        val byId = library.associateBy { it.id }
+        val audio = floats(File(fixture, "audio.f32"))
+        val dim = 960
+        val vectors = ids.mapIndexed { row, id ->
+            TrackId(id) to audio.copyOfRange(row * dim, (row + 1) * dim)
+        }.toMap()
+        val worlds = LibraryWorlds.discover(library, vectors, dim)
+        val events = File(input, "history.log").readLines()
+            .mapNotNull(ListenEvent::parse)
+            .sortedBy { it.startedAtMs }
+        val hourOf: (Long) -> Int = { localTimePoint(it).hourOfDay }
+        val dayMs = 24L * 60 * 60 * 1000
+
+        fun statsUpTo(cutoffMs: Long): Map<TrackId, TrackStats> {
+            val acc = HashMap<TrackId, TrackStats>()
+            for (e in events) {
+                if (e.startedAtMs >= cutoffMs) break
+                val prior = acc[e.trackId]
+                acc[e.trackId] = TrackStats(
+                    plays = (prior?.plays ?: 0) + 1,
+                    completions = (prior?.completions ?: 0) + if (e.completed) 1 else 0,
+                    skips = (prior?.skips ?: 0) + if (e.skipped) 1 else 0,
+                    totalPlayedMs = (prior?.totalPlayedMs ?: 0) + e.playedMs,
+                    lastPlayedAtMs = e.startedAtMs,
+                )
+            }
+            return acc
+        }
+
+        // ---- 1. Daypart holdout: train on everything before the final week, then ask the
+        // daypart row to predict each held-out session's actual plays.
+        val holdoutStart = events.last().startedAtMs - 7 * dayMs
+        val train = events.filter { it.startedAtMs < holdoutStart }
+        val holdout = events.filter { it.startedAtMs >= holdoutStart }
+        val sessions = mutableListOf<MutableList<ListenEvent>>()
+        for (e in holdout) {
+            val current = sessions.lastOrNull()
+            if (current == null || e.startedAtMs - current.last().startedAtMs > 30 * 60 * 1000) {
+                sessions.add(mutableListOf(e))
+            } else {
+                current.add(e)
+            }
+        }
+        val trainStats = statsUpTo(holdoutStart)
+        val overallTop = trainStats.entries
+            .sortedByDescending { it.value.plays + it.value.completions }
+            .map { it.key }
+            .filter { byId.containsKey(it) }
+            .take(ForYouRhythm.DAYPART_ROW_TRACKS)
+            .toSet()
+        var daypartHits = 0
+        var baselineHits = 0
+        var daypartProvenHits = 0
+        var matchedBaselineHits = 0
+        var predicted = 0
+        var skippedSessions = 0
+        for (session in sessions) {
+            val at = session.first().startedAtMs
+            val daypart = ForYouRhythm.daypartOf(hourOf(at))
+            if (ForYouRhythm.daypartEventCount(train, daypart, hourOf) <
+                ForYouRhythm.DAYPART_MIN_EVENTS
+            ) {
+                skippedSessions++
+                continue
+            }
+            val affinity = ForYouRhythm.daypartAffinity(train, daypart, hourOf)
+            val row = ForYouRhythm.daypartRow(
+                affinity = affinity,
+                byId = byId,
+                worlds = worlds,
+                stats = trainStats,
+                used = emptySet(),
+                dayIndex = (at / dayMs).toInt(),
+            ).mapTo(HashSet()) { it.id }
+            val actual = session.filter { !it.skipped }.mapTo(HashSet()) { it.trackId }
+            if (actual.isEmpty()) continue
+            predicted++
+            if (actual.any { it in row }) daypartHits++
+            if (actual.any { it in overallTop }) baselineHits++
+            // Matched-size comparison: the row's PROVEN slots against the same number of
+            // time-blind top tracks — the fresh slots cannot hit a holdout by construction.
+            val provenSlots = row.filter { (trainStats[it]?.plays ?: 0) > 0 }.toSet()
+            val matchedBaseline = trainStats.entries
+                .sortedByDescending { it.value.plays + it.value.completions }
+                .map { it.key }
+                .take(provenSlots.size)
+                .toSet()
+            if (actual.any { it in provenSlots }) daypartProvenHits++
+            if (actual.any { it in matchedBaseline }) matchedBaselineHits++
+        }
+        println("== daypart holdout: $predicted sessions scored, $skippedSessions below gate ==")
+        println(
+            "daypart row hit ${"%.0f".format(100.0 * daypartHits / predicted)}% of sessions; " +
+                "time-blind top-${ForYouRhythm.DAYPART_ROW_TRACKS} baseline hit " +
+                "${"%.0f".format(100.0 * baselineHits / predicted)}%",
+        )
+        println(
+            "matched size: proven slots hit " +
+                "${"%.0f".format(100.0 * daypartProvenHits / predicted)}% vs same-size " +
+                "time-blind ${"%.0f".format(100.0 * matchedBaselineHits / predicted)}%",
+        )
+
+        // ---- 2. Binge timeline: what would the phase row have said each day?
+        println("== binge timeline (day: artist plays) ==")
+        val firstDay = events.first().startedAtMs
+        var day = firstDay + ForYouRhythm.BINGE_WINDOW_MS
+        while (day <= events.last().startedAtMs + dayMs) {
+            val visible = events.filter { it.startedAtMs < day }
+            val binge = ForYouRhythm.currentBinge(
+                events = visible,
+                nowMs = day,
+                artistOf = { byId[it]?.artist },
+                artistKeyOf = { it.trim().lowercase() },
+            )
+            if (binge != null) {
+                val cuts = ForYouRhythm.bingeDeepCuts(
+                    binge, library, visible, statsUpTo(day), worlds, day, emptySet(),
+                ) { it.trim().lowercase() }
+                println(
+                    "day ${(day - firstDay) / dayMs}: ${binge.artistName} " +
+                        "(${binge.recentPlays} plays/wk, ${cuts.size} unheard cuts)",
+                )
+            }
+            day += dayMs
+        }
+
+        // ---- 3. Wildcard: pool size and a week of rotation from the final day.
+        val finalStats = statsUpTo(events.last().startedAtMs + 1)
+        run {
+            val nowFinal = events.last().startedAtMs + 1
+            val oldest = finalStats.values.minOf { it.lastPlayedAtMs }
+            val dormantMs = ((nowFinal - oldest) / 2)
+                .coerceIn(ForYouRhythm.WILDCARD_MIN_DORMANT_MS, ForYouRhythm.WILDCARD_DORMANT_MS)
+            println("== wildcard qualification (dormant threshold ${dormantMs / dayMs}d) ==")
+            worlds.forEachIndexed { i, w ->
+                var completions = 0
+                var lastPlayed = 0L
+                for (tr in w.tracks) {
+                    val s = finalStats[tr.id] ?: continue
+                    completions += s.completions
+                    if (s.lastPlayedAtMs > lastPlayed) lastPlayed = s.lastPlayedAtMs
+                }
+                val unheard = w.tracks.count { (finalStats[it.id]?.plays ?: 0) == 0 }
+                val quietDays = if (lastPlayed == 0L) -1 else (nowFinal - lastPlayed) / dayMs
+                println(
+                    "world#$i size=${w.tracks.size} completions=$completions " +
+                        "quietDays=$quietDays unheard=$unheard",
+                )
+            }
+        }
+        val picks = (0 until 7).mapNotNull { d ->
+            val at = events.last().startedAtMs + d * dayMs
+            ForYouRhythm.wildcard(worlds, finalStats, at, emptySet(), (at / dayMs).toInt())
+                ?.let { wc ->
+                    "${byId[wc.pick.id]?.title} <- ${byId[wc.anchor.id]?.title}"
+                }
+        }
+        println("== wildcard week ==")
+        picks.forEachIndexed { d, s -> println("day $d: $s") }
+        println("distinct picks over 7 days: ${picks.toSet().size}")
     }
 
     private fun floats(file: File): FloatArray {

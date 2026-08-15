@@ -53,7 +53,14 @@ import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_caption_left_turn
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_caption_played_before
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_daypart_day
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_daypart_evening
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_daypart_morning
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_daypart_night
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_on_a_roll
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_section_wildcard
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_empty
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_never_played
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_kicker_played_times
@@ -143,7 +150,7 @@ fun ForYouTab(
                         ),
                     ) {
                     Text(
-                        text = section.kind.title(),
+                        text = section.title(),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(
@@ -217,14 +224,24 @@ fun ForYouTab(
  * words it implies still arrive in the reader's language.
  */
 @Composable
-private fun ForYouSectionKind.title(): String = stringResource(
-    when (this) {
-        ForYouSectionKind.CONTINUE -> Res.string.foryou_section_continue
-        ForYouSectionKind.WORTH_REVISITING -> Res.string.foryou_section_worth_revisiting
-        ForYouSectionKind.WORLDS -> Res.string.foryou_section_worlds
-        ForYouSectionKind.NEVER_PLAYED -> Res.string.foryou_section_never_played
-    },
-)
+private fun ForYouSection.title(): String = when (kind) {
+    ForYouSectionKind.CONTINUE -> stringResource(Res.string.foryou_section_continue)
+    ForYouSectionKind.DAYPART -> stringResource(
+        when (daypart) {
+            ForYouDaypart.MORNING -> Res.string.foryou_section_daypart_morning
+            ForYouDaypart.DAY -> Res.string.foryou_section_daypart_day
+            ForYouDaypart.EVENING -> Res.string.foryou_section_daypart_evening
+            ForYouDaypart.NIGHT, null -> Res.string.foryou_section_daypart_night
+        },
+    )
+    ForYouSectionKind.WORTH_REVISITING -> stringResource(Res.string.foryou_section_worth_revisiting)
+    // The artist IS the headline: "Your Yugo Kanno phase" is the whole recommendation.
+    ForYouSectionKind.ON_A_ROLL ->
+        stringResource(Res.string.foryou_section_on_a_roll, subject.orEmpty())
+    ForYouSectionKind.WORLDS -> stringResource(Res.string.foryou_section_worlds)
+    ForYouSectionKind.NEVER_PLAYED -> stringResource(Res.string.foryou_section_never_played)
+    ForYouSectionKind.WILDCARD -> stringResource(Res.string.foryou_section_wildcard)
+}
 
 /**
  * The two things a world is good for, asked rather than assumed.
@@ -353,6 +370,8 @@ private fun ForYouCaption.text(): String = when (this) {
         pluralStringResource(Res.plurals.foryou_caption_played_before, plays, plays)
     is ForYouCaption.TrackCount ->
         pluralStringResource(Res.plurals.count_tracks, tracks, tracks)
+    is ForYouCaption.LeftTurnFrom ->
+        stringResource(Res.string.foryou_caption_left_turn, title)
 }
 
 @Composable

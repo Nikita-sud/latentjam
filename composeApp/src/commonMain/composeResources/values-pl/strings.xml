@@ -497,4 +497,11 @@
     <string name="info_lyrics">Tekst utworu</string>
     <string name="lyrics_not_found">Nie znaleziono osadzonego tekstu dla tego utworu.</string>
     <string name="cd_scroll_to_top">Wróć na górę</string>
+    <string name="foryou_section_daypart_morning">Twoje poranki</string>
+    <string name="foryou_section_daypart_day">Twoje popołudnia</string>
+    <string name="foryou_section_daypart_evening">Twoje wieczory</string>
+    <string name="foryou_section_daypart_night">Twoje noce</string>
+    <string name="foryou_section_on_a_roll">Twoja faza: %1$s</string>
+    <string name="foryou_section_wildcard">Dżoker</string>
+    <string name="foryou_caption_left_turn">Zwrot od %1$s</string>
 </resources>

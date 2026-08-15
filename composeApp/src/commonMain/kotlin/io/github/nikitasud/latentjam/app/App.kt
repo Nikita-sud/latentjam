@@ -3940,7 +3940,9 @@ private fun StartPage.tabIndex(): Int = when (this) {
 }
 
 /** Persist-and-report granularity for library indexing. */
-private const val RECENT_EVENTS_FOR_YOU = 500
+// Weeks of context, not days: the daypart and phase sections fold over this window, and at a
+// heavy listener's ~80 events/day, 500 events was six days — too short to know what a morning is.
+private const val RECENT_EVENTS_FOR_YOU = 4000
 
 // The full player owns precise seeking; the browse pill updates this glanceable hint less often so
 // playback does not invalidate the browse shell every 500 ms.

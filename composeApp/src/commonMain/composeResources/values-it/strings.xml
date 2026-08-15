@@ -484,4 +484,11 @@
     <string name="info_lyrics">Testo</string>
     <string name="lyrics_not_found">Nessun testo incorporato trovato per questo brano.</string>
     <string name="cd_scroll_to_top">Torna all'inizio</string>
+    <string name="foryou_section_daypart_morning">Le tue mattine</string>
+    <string name="foryou_section_daypart_day">I tuoi pomeriggi</string>
+    <string name="foryou_section_daypart_evening">Le tue serate</string>
+    <string name="foryou_section_daypart_night">Le tue notti</string>
+    <string name="foryou_section_on_a_roll">La tua fase %1$s</string>
+    <string name="foryou_section_wildcard">Jolly</string>
+    <string name="foryou_caption_left_turn">Una svolta da %1$s</string>
 </resources>

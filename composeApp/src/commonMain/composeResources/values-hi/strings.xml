@@ -477,4 +477,11 @@
     <string name="info_lyrics">गीत के बोल</string>
     <string name="lyrics_not_found">इस ट्रैक में एम्बेड किए गए बोल नहीं मिले।</string>
     <string name="cd_scroll_to_top">ऊपर वापस जाएँ</string>
+    <string name="foryou_section_daypart_morning">आपकी सुबहें</string>
+    <string name="foryou_section_daypart_day">आपकी दोपहरें</string>
+    <string name="foryou_section_daypart_evening">आपकी शामें</string>
+    <string name="foryou_section_daypart_night">आपकी रातें</string>
+    <string name="foryou_section_on_a_roll">आपका %1$s दौर</string>
+    <string name="foryou_section_wildcard">वाइल्ड कार्ड</string>
+    <string name="foryou_caption_left_turn">%1$s से एक मोड़</string>
 </resources>

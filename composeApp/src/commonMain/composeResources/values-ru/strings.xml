@@ -488,4 +488,11 @@
     <string name="info_lyrics">Текст песни</string>
     <string name="lyrics_not_found">В этом треке нет встроенного текста песни.</string>
     <string name="cd_scroll_to_top">Наверх списка</string>
+    <string name="foryou_section_daypart_morning">Ваше утро</string>
+    <string name="foryou_section_daypart_day">Ваш день</string>
+    <string name="foryou_section_daypart_evening">Ваш вечер</string>
+    <string name="foryou_section_daypart_night">Ваша ночь</string>
+    <string name="foryou_section_on_a_roll">Ваша фаза: %1$s</string>
+    <string name="foryou_section_wildcard">Сюрприз дня</string>
+    <string name="foryou_caption_left_turn">Поворот от «%1$s»</string>
 </resources>

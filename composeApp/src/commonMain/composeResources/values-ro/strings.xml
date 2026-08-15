@@ -476,4 +476,11 @@
     <string name="info_lyrics">Versuri</string>
     <string name="lyrics_not_found">Nu s-au găsit versuri încorporate pentru această piesă.</string>
     <string name="cd_scroll_to_top">Înapoi sus</string>
+    <string name="foryou_section_daypart_morning">Diminețile tale</string>
+    <string name="foryou_section_daypart_day">După-amiezile tale</string>
+    <string name="foryou_section_daypart_evening">Serile tale</string>
+    <string name="foryou_section_daypart_night">Nopțile tale</string>
+    <string name="foryou_section_on_a_roll">Faza ta %1$s</string>
+    <string name="foryou_section_wildcard">Joker</string>
+    <string name="foryou_caption_left_turn">Un ocol de la %1$s</string>
 </resources>

@@ -510,4 +510,11 @@
     <string name="info_lyrics">كلمات الأغنية</string>
     <string name="lyrics_not_found">لم يتم العثور على كلمات مضمّنة لهذه الأغنية.</string>
     <string name="cd_scroll_to_top">العودة إلى الأعلى</string>
+    <string name="foryou_section_daypart_morning">صباحاتك</string>
+    <string name="foryou_section_daypart_day">فترات ظهيرتك</string>
+    <string name="foryou_section_daypart_evening">أمسياتك</string>
+    <string name="foryou_section_daypart_night">لياليك</string>
+    <string name="foryou_section_on_a_roll">موجتك الحالية: %1$s</string>
+    <string name="foryou_section_wildcard">اختيار مفاجئ</string>
+    <string name="foryou_caption_left_turn">انعطافة من %1$s</string>
 </resources>
