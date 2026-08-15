@@ -46,13 +46,14 @@ android {
     }
 
     // One APK per ABI instead of one APK with four: libonnxruntime.so alone is 20-33 MB per
-    // architecture, and the x86 pair exists only for emulators. No universal APK on purpose —
-    // shipping it would quietly re-bloat the release download.
+    // architecture. No universal APK on purpose — shipping it would quietly re-bloat the release
+    // download. Splits apply to every build type, so x86_64 stays in the list for Intel-hosted
+    // emulators — the release upload simply never includes that file.
     splits {
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a", "armeabi-v7a")
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = false
         }
     }
