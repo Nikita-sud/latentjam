@@ -37,6 +37,23 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Deliberately the debug key: every install out there (v0.1.0, v0.2.0 sideloads)
+            // carries this signature, and switching keys would force uninstall — losing the
+            // library index and listening history. A sideload-distributed app keeps its
+            // upgrade path by keeping its key.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
+    // One APK per ABI instead of one APK with four: libonnxruntime.so alone is 20-33 MB per
+    // architecture, and the x86 pair exists only for emulators. No universal APK on purpose —
+    // shipping it would quietly re-bloat the release download.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
         }
     }
 }
