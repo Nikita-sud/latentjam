@@ -63,13 +63,27 @@ tracks SMART found that you then played all the way through, albums you own and 
 several dormant favourites share a playlist, the *playlist* is offered — the unit in which music was
 loved is not always the track.
 
+🗺️ &nbsp;**A map of your library** — the embedding space made visible and navigable: clusters are
+your genres as the model hears them, and every track's menu can answer *"where does this live in my
+library?"*.
+
 🔎 &nbsp;**Search that knows its aliases** — a local CC0 MusicBrainz index resolves artist aliases,
 transliterations and band-member names entirely on device, so a query and a tag that spell an artist
 differently still match.
 
-🎚️ &nbsp;**A real player underneath** — Media3 playback with a proper media session, queue,
-playlists, album/artist/genre browsing, a fast-scrolling search, a system equalizer, ID3 tag editing,
-and a settings screen that says honestly what the recommender knows about your library.
+🎚️ &nbsp;**A real player underneath** — Media3 playback with a proper media session, an editable
+queue that survives restarts, playlists with M3U import/export and hand-drag ordering, album/artist/
+genre/folder browsing behind an A-Z rail, optional crossfade and volume normalization measured from
+real playback, embedded lyrics read from tags, a tag-blind duplicate finder built on the SMART
+index, never-played and rediscover auto playlists, a system equalizer, ID3 tag editing, and a
+settings screen that says honestly what the recommender knows about your library.
+
+📊 &nbsp;**Your listening, visible** — the same private local history SMART reads also becomes a
+statistics page; nothing new is collected to power it.
+
+📱 &nbsp;**At home on the home screen** — three widget styles that wear the playing track's colour
+the way the player does, a Quick Settings tile, an Android Auto browse tree for the car, and
+playback resumption that restores the exact queue, its source and its order after a restart.
 
 🌍 &nbsp;**17 languages** — including Russian, Romanian, Arabic (RTL) and CJK, with correct plural
 forms.
@@ -115,6 +129,9 @@ The intelligence lives in shared Kotlin; each platform supplies only the native 
 | Media3 / AVPlayer playback | ✓ | ✓ |
 | Index persistence across launches | ✓ | ✓ |
 | System equalizer | ✓ | ✓ (AVAudioEngine graph, imported files) |
+| Embedded lyrics from tags | ✓ | ✓ |
+| Crossfade · volume normalization | ✓ | — not yet |
+| Widgets · QS tile · Android Auto | ✓ | n/a |
 | ID3 tag editing | ✓ | — not yet |
 
 ## Building
@@ -152,9 +169,7 @@ library and `androidApp` exists only to package it.
 ## Testing
 
 ```bash
-./gradlew :core:smart:testAndroidHostTest \
-          :core:library:testAndroidHostTest \
-          :composeApp:testAndroidHostTest
+./gradlew testAndroidHostTest
 ```
 
 Two suites check what unit tests usually miss:
