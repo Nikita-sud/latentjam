@@ -397,7 +397,9 @@ private fun RailScrubPreviewLayer(
             modifier = Modifier
                 .fillMaxSize()
                 .clipToBounds()
-                .background(MaterialTheme.colorScheme.surface)
+                // The tracks tab sits on the surfaceContainer panel; the mirror must match it
+                // exactly or the cover shows as the whole list darkening while scrubbing.
+                .background(MaterialTheme.colorScheme.surfaceContainer)
                 .inactiveForMotion(true),
         ) {
             LazyColumn(

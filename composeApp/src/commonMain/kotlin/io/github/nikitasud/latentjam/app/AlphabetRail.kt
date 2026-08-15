@@ -45,6 +45,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -208,6 +209,12 @@ internal fun ListWithRail(
     artworkKeys: List<ArtworkLoadKey?>,
     contentPadding: PaddingValues,
     listState: LazyListState = rememberLazyListState(),
+    /**
+     * What the scrub mirror paints behind its rows. Must equal the panel this list sits on —
+     * any other value turns the "invisible" cover into the whole list dimming while the finger
+     * is on the rail. Defaults to the tab panel; full-screen Surface hosts pass surface.
+     */
+    previewContainerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
     content: @Composable BoxScope.(
         railPadding: PaddingValues,
         listState: LazyListState,
@@ -284,7 +291,7 @@ internal fun ListWithRail(
                 modifier = Modifier
                     .fillMaxSize()
                     .clipToBounds()
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(previewContainerColor)
                     .inactiveForMotion(true),
             ) {
                 // This is the exact same list/layout as the real surface. Only its state differs,
@@ -420,7 +427,9 @@ internal fun GridListWithRail(
                 modifier = Modifier
                     .fillMaxSize()
                     .clipToBounds()
-                    .background(MaterialTheme.colorScheme.surface)
+                    // The albums grid sits on the tab panel; the mirror must match it exactly
+                    // or the cover shows as a dim flash while scrubbing.
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
                     .inactiveForMotion(true),
             ) {
                 content(inset, previewGridState, null, true)

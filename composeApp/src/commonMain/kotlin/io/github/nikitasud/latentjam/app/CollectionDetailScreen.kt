@@ -357,6 +357,8 @@ fun CollectionDetailScreen(
                         artworkKeys = railPresentation.artworkKeys,
                         contentPadding = listContentPadding,
                         listState = listState,
+                        // This screen is a full-bleed Surface, not the tab panel.
+                        previewContainerColor = MaterialTheme.colorScheme.surface,
                     ) { railPadding, shownListState, artworkReporter, isPreview ->
                         CollectionTrackLazyColumn(
                             selection = selection,
