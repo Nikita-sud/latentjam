@@ -420,6 +420,31 @@ public class PlaybackService : MediaLibraryService() {
 
     /** Keeps stateful notification icons in step with changes from either the app or System UI. */
     private val playerListener = object : Player.Listener {
+        // The black box records commands ARRIVING; these two record what playback DID and why.
+        // Together they close the loop: a pause that executed and was then undone by focus or a
+        // remote becomes two attributable lines instead of "the tap did nothing".
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            val cause = when (reason) {
+                Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST -> "user"
+                Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS -> "focus-loss"
+                Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY -> "becoming-noisy"
+                Player.PLAY_WHEN_READY_CHANGE_REASON_REMOTE -> "remote"
+                Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM -> "end-of-item"
+                else -> "reason-$reason"
+            }
+            recordExternalMediaEvent("player", "playWhenReady=$playWhenReady cause=$cause")
+        }
+
+        override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
+            val cause = when (playbackSuppressionReason) {
+                Player.PLAYBACK_SUPPRESSION_REASON_NONE -> "none"
+                Player.PLAYBACK_SUPPRESSION_REASON_TRANSIENT_AUDIO_FOCUS_LOSS ->
+                    "transient-focus-loss"
+                else -> "reason-$playbackSuppressionReason"
+            }
+            recordExternalMediaEvent("player", "suppression=$cause")
+        }
+
         override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
             val installingResumption = pendingResumptionMode != null
             applyPendingResumptionMode()
