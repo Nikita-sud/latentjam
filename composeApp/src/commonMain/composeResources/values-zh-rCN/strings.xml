@@ -477,4 +477,6 @@
     <string name="foryou_section_on_a_roll">你的%1$s时期</string>
     <string name="foryou_section_wildcard">意外之选</string>
     <string name="foryou_caption_left_turn">从《%1$s》拐个弯</string>
+    <string name="foryou_section_journey">声音之旅</string>
+    <string name="foryou_journey_title">从《%1$s》到《%2$s》</string>
 </resources>

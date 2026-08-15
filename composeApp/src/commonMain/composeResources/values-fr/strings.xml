@@ -496,4 +496,6 @@
     <string name="foryou_section_on_a_roll">Votre période %1$s</string>
     <string name="foryou_section_wildcard">Joker</string>
     <string name="foryou_caption_left_turn">Un détour depuis %1$s</string>
+    <string name="foryou_section_journey">Voyage sonore</string>
+    <string name="foryou_journey_title">De « %1$s » à « %2$s »</string>
 </resources>

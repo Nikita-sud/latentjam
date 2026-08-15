@@ -483,4 +483,6 @@
     <string name="foryou_section_on_a_roll">Fase %1$s Anda</string>
     <string name="foryou_section_wildcard">Kejutan</string>
     <string name="foryou_caption_left_turn">Belokan dari %1$s</string>
+    <string name="foryou_section_journey">Perjalanan suara</string>
+    <string name="foryou_journey_title">Dari “%1$s” ke “%2$s”</string>
 </resources>

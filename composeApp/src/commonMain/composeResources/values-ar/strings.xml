@@ -517,4 +517,6 @@
     <string name="foryou_section_on_a_roll">موجتك الحالية: %1$s</string>
     <string name="foryou_section_wildcard">اختيار مفاجئ</string>
     <string name="foryou_caption_left_turn">انعطافة من %1$s</string>
+    <string name="foryou_section_journey">رحلة صوتية</string>
+    <string name="foryou_journey_title">من «%1$s» إلى «%2$s»</string>
 </resources>

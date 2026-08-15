@@ -484,4 +484,6 @@
     <string name="foryou_section_on_a_roll">आपका %1$s दौर</string>
     <string name="foryou_section_wildcard">वाइल्ड कार्ड</string>
     <string name="foryou_caption_left_turn">%1$s से एक मोड़</string>
+    <string name="foryou_section_journey">ध्वनि यात्रा</string>
+    <string name="foryou_journey_title">“%1$s” से “%2$s” तक</string>
 </resources>

@@ -168,6 +168,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_title
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_journey_title
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_discovery
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_instrumental
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_meme_viral
@@ -217,7 +218,9 @@ import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_album
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_genre
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
+import io.github.nikitasud.latentjam.history.ForYouImpression
 import io.github.nikitasud.latentjam.history.LibraryListeningStats
+import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.history.SmartExclusionState
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.history.excludes
@@ -246,6 +249,7 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.cluster.LibraryLayout
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSource
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
+import io.github.nikitasud.latentjam.smart.cluster.SonicJourney
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorldSemanticTitle
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorlds
 import io.github.nikitasud.latentjam.smart.cluster.LayoutPoint
@@ -882,6 +886,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var builtWorldsKey by remember { mutableStateOf<LibraryWorldsKey?>(null) }
         var builtWorldDiscoveryKey by remember { mutableStateOf<LibraryWorldDiscoveryKey?>(null) }
         var builtDiscoveredWorlds by remember { mutableStateOf<List<LibraryWorld>?>(null) }
+        // Precomputed sonic journeys, keyed like discovery: they need the raw vector rows, which
+        // exist only in this effect and only until clustering's one-shot handoff.
+        var journeys by remember { mutableStateOf<List<List<TrackId>>>(emptyList()) }
+        var builtJourneysKey by remember { mutableStateOf<LibraryWorldDiscoveryKey?>(null) }
         var builtWorlds by remember { mutableStateOf<List<LibraryWorld>?>(null) }
         var builtForYouLibraryIds by remember { mutableStateOf<List<TrackId>?>(null) }
         var builtForYouPlaylistIdentity by remember {
@@ -897,6 +905,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var audioVectorsReady by remember { mutableStateOf(false) }
         var worldTarget by remember { mutableStateOf<ForYouCard?>(null) }
         val discoveryMixLabel = stringResource(Res.string.foryou_mix_discovery)
+        val journeyTitlePattern = stringResource(Res.string.foryou_journey_title)
         val memeViralMixLabel = stringResource(Res.string.foryou_mix_meme_viral)
         val soundEffectsMixLabel = stringResource(Res.string.foryou_mix_sound_effects)
         val spokenAudioMixLabel = stringResource(Res.string.foryou_mix_spoken_audio)
@@ -971,23 +980,53 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     .mapTo(this) { it.id }
                 currentTrack?.id?.let(::add)
             }
+            // Discovery offers ignored on recent prior days yield their slots today. Same-day
+            // offers never cool anything — the page stays stable within its day.
+            val nowForPage = epochMillis()
+            val today = localTimePoint(nowForPage).epochDay
+            val cooled = try {
+                AppGraph.forYouImpressions.lastShownDays(beforeEpochDay = today)
+                    .filterValues { it >= today - ForYouRhythm.FRESH_COOLDOWN_DAYS }
+                    .keys
+                    .filterTo(HashSet()) { (stats[it]?.plays ?: 0) == 0 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                // A cooldown is an optimization, never a gate: on a failed read the page simply
+                // may repeat an offer.
+                emptySet()
+            }
             val rebuiltPage = withContext(Dispatchers.Default) {
                 ForYouBuilder.build(
                     library = loaded,
                     stats = stats,
                     recentEvents = recentEvents,
-                    nowMs = epochMillis(),
+                    nowMs = nowForPage,
                     excluded = excluded,
                     playlists = playlists,
                     worlds = requestedWorlds,
                     discoveryMixLabel = discoveryMixLabel,
                     includeNoveltyMixes = includeNoveltyMixes,
                     semanticMixLabels = semanticMixLabels,
+                    cooledDiscoveries = cooled,
+                    journeys = journeys,
+                    journeyTitlePattern = journeyTitlePattern,
                 )
             }
             // Commit the page and its input key together. If this effect is cancelled while the
             // background build runs, neither value advances and the next visit retries normally.
             forYou = rebuiltPage
+            if (rebuiltPage.discoveryOffers.isNotEmpty()) {
+                // Best-effort: the record only shapes FUTURE days' pages, and a lost write
+                // merely lets an offer repeat. The store's write is atomic.
+                runCatching {
+                    AppGraph.forYouImpressions.record(
+                        rebuiltPage.discoveryOffers.map { (id, section) ->
+                            ForYouImpression(trackId = id, section = section, epochDay = today)
+                        },
+                    )
+                }
+            }
             builtWorlds = requestedWorlds
             builtForYouLibraryIds = loadedIds
             builtForYouPlaylistIdentity = playlistPresentationIdentity
@@ -1210,6 +1249,25 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     }
                     val cachedDiscovery = builtDiscoveredWorlds
                         ?.takeIf { builtWorldDiscoveryKey == discoveryKey }
+                    // Journeys interpolate over the raw rows, so the session must be built
+                    // BEFORE clustering's one-shot handoff. The session copies what it needs;
+                    // plotting itself can then run on the low-priority lane.
+                    if (builtJourneysKey != discoveryKey) {
+                        val session = runCatching { SonicJourney.session(features.vectorSpace) }
+                            .getOrNull()
+                        if (session != null) {
+                            val plotted = withContext(AppGraph.mapLayoutDispatcher) {
+                                ForYouRhythm.sonicJourneys(
+                                    session = session,
+                                    library = loaded,
+                                    stats = AppGraph.history.stats(),
+                                    artistKeyOf = { it?.trim()?.lowercase().orEmpty() },
+                                )
+                            }
+                            journeys = plotted
+                            builtJourneysKey = discoveryKey
+                        }
+                    }
                     // Discovery is derived library work, not an interaction prerequisite. Keep it
                     // on the Map's low-priority serial lane so a cold restore cannot make an
                     // immediately opened page compete with clustering at normal CPU priority.

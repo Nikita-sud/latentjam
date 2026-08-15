@@ -484,4 +484,6 @@
     <string name="foryou_section_on_a_roll">Yeni dönemin: %1$s</string>
     <string name="foryou_section_wildcard">Joker</string>
     <string name="foryou_caption_left_turn">Yeni bir sapak: %1$s</string>
+    <string name="foryou_section_journey">Ses yolculuğu</string>
+    <string name="foryou_journey_title">“%1$s” → “%2$s”</string>
 </resources>

@@ -491,4 +491,6 @@
     <string name="foryou_section_on_a_roll">Tu fase de %1$s</string>
     <string name="foryou_section_wildcard">Comodín</string>
     <string name="foryou_caption_left_turn">Un desvío desde %1$s</string>
+    <string name="foryou_section_journey">Viaje sonoro</string>
+    <string name="foryou_journey_title">De «%1$s» a «%2$s»</string>
 </resources>

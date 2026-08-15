@@ -494,4 +494,6 @@
     <string name="foryou_section_on_a_roll">Deine %1$s-Phase</string>
     <string name="foryou_section_wildcard">Joker</string>
     <string name="foryou_caption_left_turn">Ein Abstecher von %1$s</string>
+    <string name="foryou_section_journey">Klangreise</string>
+    <string name="foryou_journey_title">Von „%1$s“ bis „%2$s“</string>
 </resources>

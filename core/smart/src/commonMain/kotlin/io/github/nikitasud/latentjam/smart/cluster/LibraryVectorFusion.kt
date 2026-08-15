@@ -51,6 +51,13 @@ public class LibraryVectorSpace internal constructor(
         checkNotNull(ownedRows) { "A library vector space can only be clustered once" }
             .also { ownedRows = null }
 
+    /**
+     * Read-only access for passes that must run BEFORE the one-shot clustering handoff —
+     * [SonicJourney] interpolates over the raw rows. Never mutate through this reference.
+     */
+    internal fun peekRows(): FloatArray =
+        checkNotNull(ownedRows) { "The row matrix was already handed off to clustering" }
+
     /** Test/diagnostic copy that cannot mutate either this matrix or the engine indexes. */
     internal fun vector(trackId: TrackId): FloatArray? {
         val row = trackIds.indexOf(trackId)

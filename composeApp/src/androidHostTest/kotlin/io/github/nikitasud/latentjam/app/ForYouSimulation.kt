@@ -428,6 +428,127 @@ class ForYouSimulation {
         println("distinct picks over 7 days: ${picks.toSet().size}")
     }
 
+
+    /**
+     * Prototypes the Sonic Journey construction two ways on the real library and prints the
+     * numbers that decide which one ships: (a) true embedding interpolation between a loved
+     * anchor and a far unheard destination — the upper bound, needs raw vectors at build time;
+     * (b) the world-order path (anchor world centre-to-edge, then destination world
+     * edge-to-centre) — computable from structures the page already holds.
+     */
+    @Test
+    fun `prototype the sonic journey constructions`() {
+        val fixture = System.getenv("SMART_PARITY_FIXTURE")?.let(::File)?.takeIf(File::isDirectory)
+        val input = System.getenv("SMART_SIM_INPUT")?.let(::File)?.takeIf(File::isDirectory)
+        if (fixture == null || input == null || !File(input, "ids.txt").isFile) {
+            println("SKIP journey sim: set SMART_PARITY_FIXTURE and SMART_SIM_INPUT")
+            return
+        }
+        val ids = File(input, "ids.txt").readLines().filter { it.isNotBlank() }
+        val meta = File(fixture, "meta.tsv").readLines().map { it.split('\t') }
+        val library = ids.mapIndexed { row, id ->
+            TrackDescriptor(
+                id = TrackId(id),
+                title = meta[row][0].ifBlank { null },
+                artist = meta[row][1].ifBlank { null },
+            )
+        }
+        val byId = library.associateBy { it.id }
+        val audio = floats(File(fixture, "audio.f32"))
+        val dim = 960
+        val vectors = ids.mapIndexed { row, id ->
+            TrackId(id) to audio.copyOfRange(row * dim, (row + 1) * dim)
+        }.toMap()
+        val worlds = LibraryWorlds.discover(library, vectors, dim)
+        val events = File(input, "history.log").readLines()
+            .mapNotNull(ListenEvent::parse)
+            .sortedBy { it.startedAtMs }
+        val plays = HashMap<TrackId, Int>()
+        val completions = HashMap<TrackId, Int>()
+        for (e in events) {
+            plays[e.trackId] = (plays[e.trackId] ?: 0) + 1
+            if (e.completed) completions[e.trackId] = (completions[e.trackId] ?: 0) + 1
+        }
+
+        // Centered unit vectors, the chain's geometry.
+        val mean = FloatArray(dim)
+        for (id in ids) for (d in 0 until dim) mean[d] += vectors.getValue(TrackId(id))[d] / ids.size
+        val unit = ids.associate { id ->
+            val v = vectors.getValue(TrackId(id))
+            val c = FloatArray(dim) { d -> v[d] - mean[d] }
+            val n = kotlin.math.sqrt(c.sumOf { (it * it).toDouble() }).toFloat()
+            TrackId(id) to FloatArray(dim) { d -> c[d] / n }
+        }
+        fun cos(a: TrackId, b: TrackId): Double {
+            val x = unit.getValue(a); val y = unit.getValue(b)
+            var s = 0.0
+            for (d in 0 until dim) s += (x[d] * y[d]).toDouble()
+            return s
+        }
+        fun name(id: TrackId) = byId.getValue(id).let { "${it.title} — ${it.artist}" }
+        fun pathStats(path: List<TrackId>): String {
+            val hops = path.zipWithNext().map { (a, b) -> cos(a, b) }
+            return "meanHop=%.3f minHop=%.3f".format(hops.average(), hops.min())
+        }
+
+        val anchor = library.maxBy { (completions[it.id] ?: 0) * 10 + (plays[it.id] ?: 0) }.id
+        val unheard = library.filter { (plays[it.id] ?: 0) == 0 }.map { it.id }
+        val destination = unheard.minBy { cos(anchor, it) }
+        println("anchor: ${name(anchor)}")
+        println("destination: ${name(destination)} (cos to anchor %.3f)".format(cos(anchor, destination)))
+
+        // (a) True interpolation: snap each waypoint to the nearest unused track.
+        val hopCount = 10
+        val a = unit.getValue(anchor)
+        val b = unit.getValue(destination)
+        val pathA = mutableListOf(anchor)
+        val usedA = hashSetOf(anchor, destination)
+        for (k in 1 until hopCount - 1) {
+            val f = k.toFloat() / (hopCount - 1)
+            val w = FloatArray(dim) { d -> a[d] * (1 - f) + b[d] * f }
+            val wn = kotlin.math.sqrt(w.sumOf { (it * it).toDouble() }).toFloat()
+            for (d in 0 until dim) w[d] /= wn
+            val prevArtist = byId.getValue(pathA.last()).artist
+            val next = ids.asSequence().map(::TrackId)
+                .filter { it !in usedA }
+                .filter { byId.getValue(it).artist != prevArtist }
+                .maxBy { id ->
+                    val v = unit.getValue(id)
+                    var s = 0.0
+                    for (d in 0 until dim) s += (v[d] * w[d]).toDouble()
+                    s
+                }
+            pathA.add(next)
+            usedA.add(next)
+        }
+        pathA.add(destination)
+        println("-- (a) interpolation: ${pathStats(pathA)}")
+        pathA.forEach { println("   ${name(it)}") }
+
+        // (b) World-order path: anchor world centre-to-edge from the anchor, then destination
+        // world edge-to-centre into the destination. No raw vectors consulted.
+        val anchorWorld = worlds.firstOrNull { w -> w.tracks.any { it.id == anchor } }
+        val destWorld = worlds.firstOrNull { w -> w.tracks.any { it.id == destination } }
+        if (anchorWorld == null || destWorld == null || anchorWorld === destWorld) {
+            println("-- (b) world path unavailable (anchor or destination outside worlds)")
+            return
+        }
+        val half = hopCount / 2
+        val fromIdx = anchorWorld.tracks.indexOfFirst { it.id == anchor }
+        val outward = anchorWorld.tracks.drop(fromIdx) // centre-ish -> edge
+        val stepOut = maxOf(1, outward.size / half)
+        val legOut = outward.filterIndexed { i, _ -> i % stepOut == 0 }.take(half).map { it.id }
+        val destIdx = destWorld.tracks.indexOfFirst { it.id == destination }
+        val inward = destWorld.tracks.drop(destIdx).reversed() // edge -> destination
+        val stepIn = maxOf(1, inward.size / half)
+        val legIn = inward.filterIndexed { i, _ -> i % stepIn == 0 }.take(half).map { it.id }
+        val pathB = (legOut + legIn).distinct().toMutableList()
+        if (pathB.first() != anchor) pathB.add(0, anchor)
+        if (pathB.last() != destination) pathB.add(destination)
+        println("-- (b) world-order path: ${pathStats(pathB)}")
+        pathB.forEach { println("   ${name(it)}") }
+    }
+
     private fun floats(file: File): FloatArray {
         val bytes = file.readBytes()
         val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()

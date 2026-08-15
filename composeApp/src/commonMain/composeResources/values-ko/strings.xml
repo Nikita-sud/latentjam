@@ -477,4 +477,6 @@
     <string name="foryou_section_on_a_roll">요즘은 %1$s</string>
     <string name="foryou_section_wildcard">와일드카드</string>
     <string name="foryou_caption_left_turn">%1$s에서 벗어난 한 곡</string>
+    <string name="foryou_section_journey">사운드 여행</string>
+    <string name="foryou_journey_title">“%1$s”에서 “%2$s”까지</string>
 </resources>

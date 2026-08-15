@@ -504,4 +504,6 @@
     <string name="foryou_section_on_a_roll">Twoja faza: %1$s</string>
     <string name="foryou_section_wildcard">Dżoker</string>
     <string name="foryou_caption_left_turn">Zwrot od %1$s</string>
+    <string name="foryou_section_journey">Podróż dźwiękowa</string>
+    <string name="foryou_journey_title">Od „%1$s” do „%2$s”</string>
 </resources>

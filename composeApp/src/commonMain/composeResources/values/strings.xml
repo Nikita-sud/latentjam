@@ -546,4 +546,6 @@
     <string name="foryou_section_on_a_roll">Your %1$s phase</string>
     <string name="foryou_section_wildcard">Wildcard</string>
     <string name="foryou_caption_left_turn">A left turn from %1$s</string>
+    <string name="foryou_section_journey">Sonic journey</string>
+    <string name="foryou_journey_title">From “%1$s” to “%2$s”</string>
 </resources>

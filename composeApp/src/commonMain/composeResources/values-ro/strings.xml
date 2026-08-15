@@ -483,4 +483,6 @@
     <string name="foryou_section_on_a_roll">Faza ta %1$s</string>
     <string name="foryou_section_wildcard">Joker</string>
     <string name="foryou_caption_left_turn">Un ocol de la %1$s</string>
+    <string name="foryou_section_journey">Călătorie sonoră</string>
+    <string name="foryou_journey_title">De la „%1$s” la „%2$s”</string>
 </resources>

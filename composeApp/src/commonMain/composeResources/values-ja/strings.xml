@@ -477,4 +477,6 @@
     <string name="foryou_section_on_a_roll">いま%1$sの時期</string>
     <string name="foryou_section_wildcard">ワイルドカード</string>
     <string name="foryou_caption_left_turn">%1$sからの寄り道</string>
+    <string name="foryou_section_journey">サウンドの旅</string>
+    <string name="foryou_journey_title">「%1$s」から「%2$s」へ</string>
 </resources>

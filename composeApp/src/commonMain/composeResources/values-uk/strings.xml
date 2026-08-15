@@ -504,4 +504,6 @@
     <string name="foryou_section_on_a_roll">Ваша фаза: %1$s</string>
     <string name="foryou_section_wildcard">Сюрприз дня</string>
     <string name="foryou_caption_left_turn">Поворот від «%1$s»</string>
+    <string name="foryou_section_journey">Звукова подорож</string>
+    <string name="foryou_journey_title">Від «%1$s» до «%2$s»</string>
 </resources>
