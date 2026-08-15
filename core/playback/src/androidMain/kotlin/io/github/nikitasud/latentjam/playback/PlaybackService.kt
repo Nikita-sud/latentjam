@@ -23,6 +23,7 @@ import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionCommands
 import androidx.media3.session.SessionResult
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
@@ -73,10 +74,39 @@ public class PlaybackService : MediaLibraryService() {
             // The service has to be exported so Android System UI, Bluetooth controls and the
             // app's own MediaController can reach the session. Media3 1.10's default callback,
             // however, builds an accepted result with DEFAULT_PLAYER_COMMANDS before it knows
-            // who is connecting. Reject callers Android has not authenticated as our app, a
-            // system component, or a holder of media-control permission; otherwise any installed
-            // app can replace/seek/stop this player's queue through the exported component.
-            if (!controller.isTrusted) return MediaSession.ConnectionResult.reject()
+            // who is connecting — so who gets what is decided here.
+            //
+            // Untrusted callers used to be REJECTED outright, and that rejection ate the
+            // headphones' pause: on this OEM the Google app dispatches Bluetooth taps, Media3
+            // holds PLAY_PAUSE ~300ms for double-click detection and then executes it AS that
+            // caller — which must therefore be connected. The black box caught the exact
+            // pattern live (XM6, 2026-08-15): key=85 arrives, +301ms the dispatcher's connect
+            // is refused, the deferred toggle dies, playback never flips. NEXT worked because
+            // only PLAY_PAUSE is deferred.
+            //
+            // So: untrusted callers now connect with a TRANSPORT-ONLY surface — exactly the
+            // reach any installed app already has through the system's media-key dispatch —
+            // and none of what the rejection was protecting: no queue mutation, no setting
+            // media items, no stop, no custom commands.
+            if (!controller.isTrusted) {
+                return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                    .setAvailableSessionCommands(SessionCommands.EMPTY)
+                    .setAvailablePlayerCommands(
+                        Player.Commands.Builder()
+                            .addAll(
+                                Player.COMMAND_PLAY_PAUSE,
+                                Player.COMMAND_SEEK_TO_NEXT,
+                                Player.COMMAND_SEEK_TO_PREVIOUS,
+                                Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                                Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+                                Player.COMMAND_SEEK_BACK,
+                                Player.COMMAND_SEEK_FORWARD,
+                                Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
+                            )
+                            .build(),
+                    )
+                    .build()
+            }
             val result = super.onConnect(session, controller)
             if (!result.isAccepted) return result
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
