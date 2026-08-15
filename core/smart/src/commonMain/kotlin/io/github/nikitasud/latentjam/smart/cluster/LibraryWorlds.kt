@@ -121,6 +121,7 @@ public object LibraryWorlds {
             val groupName: String,
             val normalizedName: String,
             val containment: Double,
+            val specificity: Double,
             val inputOrder: Int,
         )
 
@@ -139,6 +140,7 @@ public object LibraryWorlds {
                         groupName = displayName,
                         normalizedName = normalizedName,
                         containment = containment,
+                        specificity = inside.toDouble() / members.size,
                         inputOrder = inputOrder,
                     )
                 }
@@ -148,8 +150,14 @@ public object LibraryWorlds {
         val renamed = worlds.toMutableList()
         val takenWorlds = HashSet<Int>()
         val takenNames = HashSet<String>()
+        // Containment first; at a tie, SPECIFICITY — the share of the group taken up by this
+        // world. Nested curation makes exact ties routine (a JoJo playlist inside an Anime
+        // playlist: a world of JoJo soundtracks is 100% inside both), and the tighter group is
+        // strictly the more informative name. It also frees the broad name for a broader world.
         for (claim in claims.sortedWith(
-            compareByDescending<Claim> { it.containment }.thenBy { it.inputOrder },
+            compareByDescending<Claim> { it.containment }
+                .thenByDescending { it.specificity }
+                .thenBy { it.inputOrder },
         )) {
             if (claim.worldIndex in takenWorlds || claim.normalizedName in takenNames) continue
             takenWorlds += claim.worldIndex

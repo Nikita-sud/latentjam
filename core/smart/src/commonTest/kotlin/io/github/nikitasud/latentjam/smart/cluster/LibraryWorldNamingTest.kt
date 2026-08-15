@@ -84,4 +84,23 @@ internal class LibraryWorldNamingTest {
 
         assertEquals("My playlist", renamed.single().name)
     }
+
+    @Test
+    fun theMostSpecificPlaylistNamesANestedWorld() {
+        // Nested curation: every JoJo track also lives in the broader Anime playlist, so a
+        // world of JoJo soundtracks is 100% contained in both. The tighter claim is the more
+        // informative name — and the broad name stays free for a broader world.
+        val renamed = LibraryWorlds.namedAfterGroups(
+            worlds = listOf(
+                world("Mix 1", listOf("j1", "j2", "j3", "j4")),
+                world("Mix 2", listOf("a1", "a2", "a3", "j5")),
+            ),
+            groups = listOf(
+                group("Anime", "a1", "a2", "a3", "a4", "j1", "j2", "j3", "j4", "j5"),
+                group("JoJo", "j1", "j2", "j3", "j4", "j5"),
+            ),
+        )
+
+        assertEquals(listOf("JoJo", "Anime"), renamed.map { it.name })
+    }
 }
