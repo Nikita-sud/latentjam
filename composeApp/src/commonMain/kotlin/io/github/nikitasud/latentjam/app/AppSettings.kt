@@ -205,6 +205,10 @@ interface AppSettings {
     fun readTrackLoudnessPayload(): String?
     fun writeTrackLoudnessPayload(payload: String)
 
+    /** Raw persisted per-track embedded genres (see [GenreEnrichment]); null when none exist. */
+    fun readTrackGenresPayload(): String?
+    fun writeTrackGenresPayload(payload: String)
+
     /** Whether new playback sessions are written to the private on-device listening log. */
     val saveListeningHistory: StateFlow<Boolean>
 

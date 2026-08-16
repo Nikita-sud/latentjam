@@ -50,6 +50,26 @@ public object Genres {
         return raw
     }
 
+    /**
+     * Every coarse family of a possibly multi-genre tag ("Electronic; Rock; Trip Hop" carries
+     * three). For a single-genre tag this is exactly `setOf(normalize(tag))`, so set
+     * intersection degrades to the old equality — the chain's behaviour on single-genre
+     * libraries (and thus the recorded parity fixtures) is unchanged by construction.
+     */
+    public fun families(genre: String?): Set<String> =
+        rawList(genre).mapNotNullTo(LinkedHashSet()) { normalize(it) }
+
+    /** The individual raw values of a joined genre tag, original casing preserved. */
+    public fun rawList(genre: String?): List<String> =
+        genre?.split(';', '/', ',', '|')
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            .orEmpty()
+
+    /** Lowercased raw values, for exact-subtype membership checks. */
+    public fun rawSet(genre: String?): Set<String> =
+        rawList(genre).mapTo(LinkedHashSet()) { it.lowercase() }
+
     /** Common-code tokenizer; unlike `String.split`, this keeps Unicode letter boundaries. */
     private fun tokenize(value: String): List<String> {
         val tokens = ArrayList<String>()

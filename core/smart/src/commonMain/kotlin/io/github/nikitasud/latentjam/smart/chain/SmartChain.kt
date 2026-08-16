@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart.chain
 
+import io.github.nikitasud.latentjam.smart.Genres
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
 import kotlin.math.abs
@@ -231,9 +232,9 @@ internal class SmartChain(
         val chain = ArrayList<Int>(length)
         val used = HashSet<Int>()
         var anchorRow = seedRow
-        val seedGenre = MetadataRerank.normalizeGenre(snapshot.tracks[seedRow].meta.genre)
+        val seedGenres = Genres.families(snapshot.tracks[seedRow].meta.genre)
         val seedGenreSupport = MetadataRerank.seedGenreSupport(
-            seedGenre,
+            seedGenres,
             pool.asSequence().map { snapshot.tracks[it].meta }.asIterable(),
         )
         val recency = RecencyRerank(historyEvents)
@@ -379,7 +380,7 @@ internal class SmartChain(
                     multiplier *= durationSanityMultiplier(meta.durationMs)
                 }
                 multiplier *= MetadataRerank.seedIntentMultiplier(
-                    seedGenre = seedGenre,
+                    seedGenres = seedGenres,
                     poolSupport = seedGenreSupport,
                     seedFamilyPicks = seedFamilyPicks,
                     candidate = meta,
@@ -439,7 +440,7 @@ internal class SmartChain(
             chain.add(pickedRow)
             used.add(chosenIndex)
             val pickedMeta = snapshot.tracks[pickedRow].meta
-            if (MetadataRerank.normalizeGenre(pickedMeta.genre) == seedGenre) seedFamilyPicks++
+            if (Genres.families(pickedMeta.genre).any { it in seedGenres }) seedFamilyPicks++
             if (pickedMeta.normalizedTitle.isNotEmpty()) seenTitles.add(pickedMeta.normalizedTitle)
             artistPlays[pickedMeta.artistKey] = (artistPlays[pickedMeta.artistKey] ?: 0) + 1
             recentArtists.addLast(pickedMeta.artistKey)

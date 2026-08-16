@@ -519,8 +519,14 @@ internal class LocalBackupTest {
         override val crossfadeSeconds: MutableStateFlow<Int> = MutableStateFlow(0)
         override fun setCrossfadeSeconds(seconds: Int) { crossfadeSeconds.value = seconds }
         private var trackLoudnessPayload: String? = null
+        private var trackGenresPayload: String? = null
         override fun readTrackLoudnessPayload(): String? = trackLoudnessPayload
         override fun writeTrackLoudnessPayload(payload: String) { trackLoudnessPayload = payload }
+
+        override fun readTrackGenresPayload(): String? = trackGenresPayload
+        override fun writeTrackGenresPayload(payload: String) {
+            trackGenresPayload = payload
+        }
         override val saveListeningHistory: MutableStateFlow<Boolean> = MutableStateFlow(true)
         override suspend fun setSaveListeningHistory(enabled: Boolean): Result<Unit> =
             Result.success(Unit).also { saveListeningHistory.value = enabled }

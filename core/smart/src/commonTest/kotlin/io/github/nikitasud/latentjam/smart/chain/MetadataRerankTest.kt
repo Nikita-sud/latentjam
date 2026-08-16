@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart.chain
 
+import io.github.nikitasud.latentjam.smart.Genres
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -12,7 +13,7 @@ class MetadataRerankTest {
 
     @Test
     fun `supported seed family softly penalizes an early cross-family candidate`() {
-        val seedGenre = MetadataRerank.normalizeGenre("Brazilian Phonk")
+        val seedGenre = Genres.families("Brazilian Phonk")
         val pool = List(6) { meta(genre = "Phonk") } + meta(genre = "House")
         val support = MetadataRerank.seedGenreSupport(seedGenre, pool)
 
@@ -27,7 +28,7 @@ class MetadataRerankTest {
 
     @Test
     fun `unsupported or completed seed prefix stays neutral`() {
-        val seedGenre = MetadataRerank.normalizeGenre("Brazilian Phonk")
+        val seedGenre = Genres.families("Brazilian Phonk")
         val dance = meta(genre = "House")
 
         assertEquals(
@@ -49,7 +50,7 @@ class MetadataRerankTest {
 
     @Test
     fun `title genre bait is irrelevant to the seed guard`() {
-        val seedGenre = MetadataRerank.normalizeGenre("Brazilian Phonk")
+        val seedGenre = Genres.families("Brazilian Phonk")
         val candidate = meta(title = "Jazz Techno Classical Mix", genre = "Phonk")
 
         assertEquals(

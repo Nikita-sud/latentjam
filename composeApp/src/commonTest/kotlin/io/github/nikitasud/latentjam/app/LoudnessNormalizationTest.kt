@@ -142,6 +142,12 @@ internal class LoudnessNormalizationTest {
             writeAttempts++
             error("disk unavailable")
         }
+
+        private var trackGenresPayload: String? = null
+        override fun readTrackGenresPayload(): String? = trackGenresPayload
+        override fun writeTrackGenresPayload(payload: String) {
+            trackGenresPayload = payload
+        }
         override val saveListeningHistory = MutableStateFlow(true)
         override suspend fun setSaveListeningHistory(enabled: Boolean): Result<Unit> =
             Result.success(Unit)

@@ -543,6 +543,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var libraryIndexingRequest by remember {
             mutableStateOf<AutomaticIndexingRequest?>(null)
         }
+        val genreEnrichment = remember { GenreEnrichment(AppGraph.settings) }
         fun publishLibraryTracks(
             value: List<TrackDescriptor>,
             authoritative: Boolean,
@@ -555,15 +556,32 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // iOS may resolve its Music-library prompt inside scan(); Android refreshes here as
             // a second line of defence around a return from system settings.
             AppGraph.permissions.refresh()
+            // Remembered embedded genres upgrade the scan before anything downstream sees it:
+            // the system scanner keeps one genre per track, the files themselves keep them all.
+            val enriched = genreEnrichment.apply(scan.tracks)
             publishLibraryTracks(
-                value = scan.tracks,
+                value = enriched,
                 authoritative = authoritativeLibrarySnapshot(
                     scanCompleted = scan.complete,
                     permissionStatus = AppGraph.permissions.audioLibraryStatus.value,
                 ),
             )
-            return scan.tracks
+            return enriched
         }
+        // Files not yet read (or retagged since) get their embedded genres read in the
+        // background; anything learned republishes the same snapshot, richer. The identity
+        // check keeps a superseding scan from being overwritten with an older list.
+        LaunchedEffect(libraryIndexingRequest) {
+            val request = libraryIndexingRequest ?: return@LaunchedEffect
+            if (request.tracks.isEmpty()) return@LaunchedEffect
+            if (genreEnrichment.backfill(request.tracks) && libraryIndexingRequest === request) {
+                publishLibraryTracks(
+                    value = genreEnrichment.apply(request.tracks),
+                    authoritative = request.librarySnapshotAuthoritative,
+                )
+            }
+        }
+
         // The pager owns the section position; everything else reads it. One source of truth means
         // the strip and the content can never disagree about where a half-finished swipe is.
         val pagerState = rememberPagerState(initialPage = startPage.tabIndex()) { BROWSE_TABS.size }

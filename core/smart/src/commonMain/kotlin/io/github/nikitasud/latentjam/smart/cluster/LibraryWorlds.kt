@@ -35,7 +35,8 @@ public data class LibraryWorld(
     /** Whether [track] can replace the medoid as a fresher cover without contradicting the name. */
     public fun supportsName(track: TrackDescriptor): Boolean = when (nameSource) {
         LibraryWorldNameSource.GENRE -> {
-            val sameGenre = Genres.normalize(track.genre) == Genres.normalize(representative.genre)
+            val sameGenre = Genres.families(track.genre)
+                .any { it in Genres.families(representative.genre) }
             val representativeDecade = representative.year?.takeIf { it in 1900..2099 }?.let { it / 10 * 10 }
             val nameClaimsDecade = representativeDecade != null && name.endsWith("${representativeDecade}s")
             sameGenre && (!nameClaimsDecade || track.year?.let { it / 10 * 10 } == representativeDecade)
@@ -487,23 +488,35 @@ public object LibraryWorlds {
     ): WorldName {
         val medoid = tracks.first()
 
-        val family = Genres.normalize(medoid.genre)
-        if (family != null && strongest(tracks) { Genres.normalize(it.genre) } == family) {
-            val medoidGenre = medoid.genre?.trim()?.takeIf(String::isNotEmpty)
-            val medoidGenreKey = medoidGenre?.lowercase()
+        // With multi-genre tags a track votes once for EACH of its families; the winning
+        // family must also be one the medoid carries, or the cover would contradict the name.
+        val familyVotes = HashMap<String, Int>()
+        for (track in tracks) {
+            for (candidate in Genres.families(track.genre)) {
+                familyVotes[candidate] = (familyVotes[candidate] ?: 0) + 1
+            }
+        }
+        val medoidFamilies = Genres.families(medoid.genre)
+        val family = familyVotes.entries
+            .filter { it.key in medoidFamilies && it.value >= tracks.size * MIN_SHARE }
+            .maxByOrNull { it.value }?.key
+        if (family != null) {
             // A broad family can be truthful without proving its narrower subtype. For example,
             // Phonk, Trap, and Hip-Hop may together make this a Rap mix, but the medoid alone must
             // not upgrade that broad claim to Phonk. Use the raw subtype only when it independently
             // clears the same whole-cluster support gate.
-            val exactGenre = medoidGenreKey?.takeIf { key ->
-                tracks.count { it.genre?.trim()?.lowercase() == key } >= tracks.size * MIN_SHARE
-            }
-            val genre = if (exactGenre != null) medoidGenre else displayFamily(family)
+            val exactGenre = Genres.rawList(medoid.genre)
+                .map { raw -> raw to tracks.count { raw.lowercase() in Genres.rawSet(it.genre) } }
+                .filter { it.second >= tracks.size * MIN_SHARE }
+                .maxByOrNull { it.second }
+                ?.first
+            val exactGenreKey = exactGenre?.lowercase()
+            val genre = exactGenre ?: displayFamily(family)
             val acceptedGenreTracks = tracks.filter { track ->
-                if (exactGenre != null) {
-                    track.genre?.trim()?.lowercase() == exactGenre
+                if (exactGenreKey != null) {
+                    exactGenreKey in Genres.rawSet(track.genre)
                 } else {
-                    Genres.normalize(track.genre) == family
+                    family in Genres.families(track.genre)
                 }
             }
             val medoidDecade = medoid.year?.takeIf { it in 1900..2099 }?.let(::decade)
@@ -519,10 +532,10 @@ public object LibraryWorlds {
                 text = text,
                 source = LibraryWorldNameSource.GENRE,
                 accepts = { track ->
-                    val genreMatches = if (exactGenre != null) {
-                        track.genre?.trim()?.lowercase() == exactGenre
+                    val genreMatches = if (exactGenreKey != null) {
+                        exactGenreKey in Genres.rawSet(track.genre)
                     } else {
-                        Genres.normalize(track.genre) == family
+                        family in Genres.families(track.genre)
                     }
                     val decadeMatches = if (medoidDecade != null && sharedDecade == medoidDecade) {
                         track.year?.takeIf { it in 1900..2099 }?.let(::decade) == medoidDecade

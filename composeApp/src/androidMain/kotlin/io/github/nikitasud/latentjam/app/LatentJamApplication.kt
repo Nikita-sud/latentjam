@@ -12,6 +12,7 @@ import org.koin.dsl.module
 public class LatentJamApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        AndroidAppContext.value = applicationContext
         AppGraph.start(
             platformModule = module {
                 single<Context> { applicationContext }

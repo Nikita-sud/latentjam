@@ -101,10 +101,13 @@ internal object MetadataRerank {
             // confidence signal improves the first hop without turning SMART into "play artist".
             multiplier *= SAME_ARTIST_BONUS
         }
-        val anchorGenre = normalizeGenre(anchor.genre)
-        val candidateGenre = normalizeGenre(candidate.genre)
-        if (anchorGenre != null && candidateGenre != null) {
-            multiplier *= if (anchorGenre == candidateGenre) SAME_GENRE_BONUS else CROSS_GENRE_MALUS
+        val anchorGenres = Genres.families(anchor.genre)
+        val candidateGenres = Genres.families(candidate.genre)
+        if (anchorGenres.isNotEmpty() && candidateGenres.isNotEmpty()) {
+            // Any shared family counts: a "Trip Hop; Rock" track walking to a "Rock" track is a
+            // same-genre step. Single-genre tags reduce this to the old equality exactly.
+            val shared = anchorGenres.any { it in candidateGenres }
+            multiplier *= if (shared) SAME_GENRE_BONUS else CROSS_GENRE_MALUS
         }
         if (candidate.language != anchor.language) multiplier *= CROSS_LANGUAGE_PENALTY
         val anchorYear = anchor.year
@@ -115,25 +118,28 @@ internal object MetadataRerank {
         return multiplier
     }
 
-    /** Number of retrieved candidates that corroborate the seed's coarse genre family. */
-    fun seedGenreSupport(seedGenre: String?, candidates: Iterable<TrackMeta>): Int {
-        if (seedGenre == null) return 0
-        return candidates.count { normalizeGenre(it.genre) == seedGenre }
+    /** Number of retrieved candidates that corroborate any of the seed's genre families. */
+    fun seedGenreSupport(seedGenres: Set<String>, candidates: Iterable<TrackMeta>): Int {
+        if (seedGenres.isEmpty()) return 0
+        return candidates.count { candidate ->
+            Genres.families(candidate.genre).any { it in seedGenres }
+        }
     }
 
     /**
      * Seed-intent multiplier for one candidate. Missing tags stay neutral; titles are never read.
      */
     fun seedIntentMultiplier(
-        seedGenre: String?,
+        seedGenres: Set<String>,
         poolSupport: Int,
         seedFamilyPicks: Int,
         candidate: TrackMeta,
     ): Float {
-        if (seedGenre == null || poolSupport < SEED_GENRE_MIN_POOL_SUPPORT) return 1f
+        if (seedGenres.isEmpty() || poolSupport < SEED_GENRE_MIN_POOL_SUPPORT) return 1f
         if (seedFamilyPicks >= SEED_GENRE_PREFIX_TARGET) return 1f
-        val candidateGenre = normalizeGenre(candidate.genre) ?: return 1f
-        return if (candidateGenre == seedGenre) 1f else SEED_CROSS_GENRE_PENALTY
+        val candidateGenres = Genres.families(candidate.genre)
+        if (candidateGenres.isEmpty()) return 1f
+        return if (candidateGenres.any { it in seedGenres }) 1f else SEED_CROSS_GENRE_PENALTY
     }
 }
 

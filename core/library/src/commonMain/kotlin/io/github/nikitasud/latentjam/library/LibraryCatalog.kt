@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.library.tags.GenreTags
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 
@@ -108,12 +109,20 @@ public data class LibraryCatalog(
                 }
                 .sortedByKey { SongSorting.sortKey(it.name) }
 
+            // A multi-genre track belongs to EVERY genre it carries: the tags may hold several
+            // values (joined "; " canonically), and listing "Dirty Harry" under Trip Hop as well
+            // as Electronic is the whole point of reading them. Casing differences collapse to
+            // one group named by the first spelling seen.
             val genres = tracks
-                .groupBy { it.genre }
-                .map { (name, grouped) ->
+                .flatMap { track ->
+                    val split = GenreTags.split(track.genre)
+                    if (split.isEmpty()) listOf(null to track) else split.map { it to track }
+                }
+                .groupBy { (name, _) -> name?.lowercase() }
+                .map { (_, entries) ->
                     GenreGroup(
-                        name = name,
-                        tracks = grouped.byTitle(),
+                        name = entries.first().first,
+                        tracks = entries.map { it.second }.byTitle(),
                     )
                 }
                 .sortedByKey { SongSorting.sortKey(it.name) }
