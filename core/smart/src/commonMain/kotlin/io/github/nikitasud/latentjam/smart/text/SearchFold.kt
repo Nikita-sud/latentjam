@@ -49,7 +49,11 @@ public object SearchFold {
 
     /** ASCII punctuation, matching the reference's `\p{Punct}` (POSIX/ASCII) strip. */
     private fun isAsciiPunctuation(ch: Char): Boolean =
-        ch.code < 128 && !ch.isLetterOrDigit() && !ch.isWhitespace()
+        (ch.code < 128 && !ch.isLetterOrDigit() && !ch.isWhitespace()) ||
+            // The typographic apostrophe family strips exactly like the ASCII one. Left as
+            // ordinary characters they became SPACES downstream, and "Can\u2019t" tokenized to
+            // ["can", "t"] — the orphan "t" then fuzzy-matched every query starting with t.
+            ch == '\u2018' || ch == '\u2019' || ch == '\u02BC'
 
     private val CYRILLIC_RANGE = 'Ѐ'..'ӿ'
 

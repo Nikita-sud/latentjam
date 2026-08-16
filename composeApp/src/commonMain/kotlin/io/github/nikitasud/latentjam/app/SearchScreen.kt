@@ -73,7 +73,6 @@ import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.smart.ScoredTrack
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
-import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
 import io.github.nikitasud.latentjam.smart.text.SearchFold
 import kotlin.math.pow
 import kotlin.time.TimeSource
@@ -178,7 +177,7 @@ internal fun SearchScreen(
                     index = index,
                     query = needle,
                     semantic = matchingSemantic,
-                    entityResolver = entityResolver,
+                    aliasMatches = entityResolver::matches,
                     stats = trackStats,
                     nowMs = nowMs,
                 ) {
@@ -605,14 +604,14 @@ internal fun hybridSearch(
     songs: List<TrackDescriptor>,
     query: String,
     semantic: List<ScoredTrack>,
-    entityResolver: MusicEntityResolver? = null,
+    aliasMatches: (query: String, artist: String?) -> Boolean = { _, _ -> false },
     stats: Map<TrackId, TrackStats> = emptyMap(),
     nowMs: Long = 0L,
 ): List<TrackDescriptor> = hybridSearch(
     index = SearchIndex.build(songs),
     query = query,
     semantic = semantic,
-    entityResolver = entityResolver,
+    aliasMatches = aliasMatches,
     stats = stats,
     nowMs = nowMs,
 )
@@ -621,7 +620,7 @@ private fun hybridSearch(
     index: SearchIndex,
     query: String,
     semantic: List<ScoredTrack>,
-    entityResolver: MusicEntityResolver?,
+    aliasMatches: (String, String?) -> Boolean,
     stats: Map<TrackId, TrackStats> = emptyMap(),
     nowMs: Long = 0L,
     checkCancelled: () -> Unit = {},
@@ -654,19 +653,27 @@ private fun hybridSearch(
     )
 
     val used = lexical.mapTo(HashSet()) { it.track.id }
-    val entities = entityResolver?.let { resolver ->
-        index.songs.asSequence()
-            .onEach { checkCancelled() }
-            .filter { it.id !in used && resolver.matches(needle, it.artist) }
-            .onEach { used += it.id }
-    }.orEmpty()
+    val entities = index.songs.asSequence()
+        .onEach { checkCancelled() }
+        .filter { it.id !in used && aliasMatches(needle, it.artist) }
+        .onEach { used += it.id }
     val expanded = SemanticGate.gate(semantic).asSequence()
         .onEach { checkCancelled() }
         .mapNotNull { index.byId[it.trackId] }
         .filter { used.add(it.id) }
         .take(SEMANTIC_RESULT_LIMIT)
 
-    return (lexical.asSequence().map { it.track } + entities + expanded)
+    // An alias hit is knowledge, not chance: "tsoi" resolving to Кино through the MusicBrainz
+    // member index is an exact identification and belongs above typo-family and bare-substring
+    // guesses — the reported failure had every Кино track buried under "Can\u2019t Stop"-grade
+    // fuzz. Confident lexical tiers (exact, prefix, token-prefix) still lead.
+    val (strong, weak) = lexical.partition { it.rank % QUALITY_SPAN <= 2 }
+    return (
+        strong.asSequence().map { it.track } +
+            entities +
+            weak.asSequence().map { it.track } +
+            expanded
+        )
         .take(SEARCH_RESULT_LIMIT)
         .toList()
 }
@@ -784,11 +791,20 @@ private fun normalizeSearchText(value: String): String = buildString(value.lengt
 private fun searchTokens(value: String): List<String> =
     value.split(' ').filter { it.isNotBlank() }
 
-private fun relatedSearchTokens(left: String, right: String): Boolean {
-    if (left == right || left.startsWith(right) || right.startsWith(left)) return true
-    if (left.length < 4 || right.length < 4 || left.first() != right.first()) return false
-    val allowedEdits = if (maxOf(left.length, right.length) >= 8) 2 else 1
-    return editDistanceAtMost(left, right, allowedEdits)
+private fun relatedSearchTokens(queryToken: String, fieldToken: String): Boolean {
+    if (queryToken == fieldToken) return true
+    // Typing progressively: the query being a prefix of a real word is kinship at any length.
+    if (fieldToken.startsWith(queryToken)) return true
+    // The reverse only counts when the field token is a word, not an initial: a 1-2 letter
+    // token ("t" from "Mousse T.") would otherwise claim kinship with EVERY query it starts.
+    if (fieldToken.length >= 3 && queryToken.startsWith(fieldToken)) return true
+    if (queryToken.length < 4 || fieldToken.length < 4 ||
+        queryToken.first() != fieldToken.first()
+    ) {
+        return false
+    }
+    val allowedEdits = if (maxOf(queryToken.length, fieldToken.length) >= 8) 2 else 1
+    return editDistanceAtMost(queryToken, fieldToken, allowedEdits)
 }
 
 private fun editDistanceAtMost(left: String, right: String, limit: Int): Boolean {

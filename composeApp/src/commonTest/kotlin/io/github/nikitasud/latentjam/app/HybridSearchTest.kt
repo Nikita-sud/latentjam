@@ -261,4 +261,54 @@ class HybridSearchTest {
         // A fuzzy-only match must NOT pretend to be literal.
         assertEquals(emptyList(), searchHighlightRanges("Forever Young", "yuong"))
     }
+
+    @Test
+    fun `an alias identification outranks typo-family and substring guesses`() {
+        // The reported failure: "tsoi" resolves to Кино through the member index — an exact
+        // identification — yet every Кино track sat under fuzz. Knowledge beats chance now;
+        // confident lexical tiers (a real token prefix) still lead.
+        val results = hybridSearch(
+            songs = listOf(
+                track("fuzz", title = "Tsok"),
+                track("kino", title = "Группа крови", artist = "Кино"),
+                track("strong", title = "Tsoi Forever"),
+            ),
+            query = "tsoi",
+            semantic = emptyList(),
+            aliasMatches = { query, artist -> query == "tsoi" && artist == "Кино" },
+        )
+        assertEquals(listOf("strong", "kino", "fuzz"), results.map { it.id.value })
+    }
+
+    @Test
+    fun `typographic apostrophes cannot mint orphan tokens`() {
+        // "Can\u2019t Stop" used to tokenize to [can, t, stop]; the orphan "t" then claimed
+        // kinship with every query starting with t.
+        val results = hybridSearch(
+            songs = listOf(track("1", title = "Can\u2019t Stop", artist = "Red Hot Chili Peppers")),
+            query = "tsoi",
+            semantic = emptyList(),
+        )
+        assertEquals(emptyList(), results.map { it.id.value })
+    }
+
+    @Test
+    fun `the apostrophe fold makes the latin query reach the curly title`() {
+        val results = hybridSearch(
+            songs = listOf(track("1", title = "Can\u2019t Stop")),
+            query = "cant stop",
+            semantic = emptyList(),
+        )
+        assertEquals(listOf("1"), results.map { it.id.value })
+    }
+
+    @Test
+    fun `an initial in the artist is not kin to every t-word`() {
+        val results = hybridSearch(
+            songs = listOf(track("1", title = "Sex Bomb", artist = "Tom Jones & Mousse T.")),
+            query = "tsunami",
+            semantic = emptyList(),
+        )
+        assertEquals(emptyList(), results.map { it.id.value })
+    }
 }
