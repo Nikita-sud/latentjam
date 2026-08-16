@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 internal class LibraryCatalogTest {
 
@@ -21,11 +22,13 @@ internal class LibraryCatalogTest {
         genre: String? = null,
         artworkUri: String? = null,
         folderPath: String? = null,
+        artists: List<String> = emptyList(),
     ) = TrackDescriptor(
         id = TrackId(id),
         title = title,
         artist = artist,
         album = album,
+        artists = artists,
         genre = genre,
         artworkUri = artworkUri,
         folderPath = folderPath,
@@ -145,5 +148,45 @@ internal class LibraryCatalogTest {
             listOf("A"),
             catalog.folders.first { it.path == "Downloads/Telegram" }.tracks.map { it.title },
         )
+    }
+
+    @Test
+    fun aCollaborationBelongsToEveryCreditedArtist() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track(
+                    "1",
+                    title = "Dirty Harry",
+                    artist = "Gorillaz feat. Bootie Brown",
+                    artists = listOf("Gorillaz", "Bootie Brown"),
+                ),
+                track("2", title = "Feel Good Inc", artist = "Gorillaz", artists = listOf("Gorillaz")),
+            ),
+        )
+        val names = catalog.artists.map { it.name }
+        assertTrue("Gorillaz" in names, "$names")
+        assertTrue("Bootie Brown" in names, "$names")
+        assertEquals(
+            2,
+            catalog.artists.first { it.name == "Gorillaz" }.tracks.size,
+            "the collaboration must count for the primary credit too",
+        )
+    }
+
+    @Test
+    fun aSemicolonJoinedDisplayStringIsAListByConvention() {
+        val catalog = LibraryCatalog.build(
+            listOf(track("1", title = "Dreaming", artist = "William Davies; Edward Nutbrown")),
+        )
+        val names = catalog.artists.map { it.name }
+        assertTrue("William Davies" in names && "Edward Nutbrown" in names, "$names")
+    }
+
+    @Test
+    fun aLoneDisplayStringStaysWholeWithoutTagFacts() {
+        val catalog = LibraryCatalog.build(
+            listOf(track("1", title = "Song", artist = "Crosby, Stills & Nash")),
+        )
+        assertEquals(listOf("Crosby, Stills & Nash"), catalog.artists.map { it.name })
     }
 }

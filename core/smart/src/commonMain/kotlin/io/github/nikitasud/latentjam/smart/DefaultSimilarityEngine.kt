@@ -951,7 +951,11 @@ internal class DefaultSimilarityEngine(
         audio = audio,
         text = textIndex?.vector(id),
         energy = energy ?: Float.NaN,
-        meta = TrackMeta(title, artist, album, genre, year, durationMs),
+        meta = TrackMeta(
+            title, artist, album, genre, year, durationMs,
+            primaryArtist = artists.firstOrNull(),
+            originalYear = originalYear,
+        ),
     )
 
     private fun metadataFallback(

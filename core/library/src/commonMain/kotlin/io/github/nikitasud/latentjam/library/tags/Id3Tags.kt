@@ -45,6 +45,12 @@ public object Id3Tags {
     /** Unsynchronised lyrics. Read-only here: never rewritten, always preserved. */
     private const val FRAME_LYRICS = "USLT"
 
+    private const val FRAME_USER_TEXT = "TXXX"
+
+    /** Original release time (v2.4) / original release year (v2.3). */
+    private const val FRAME_ORIGINAL_V24 = "TDOR"
+    private const val FRAME_ORIGINAL_V23 = "TORY"
+
     /** ID3v2.3's year frame — exactly four characters. */
     private const val FRAME_YEAR_V23 = "TYER"
 
@@ -306,6 +312,71 @@ public object Id3Tags {
     }
 
     /** Decoded text of the first frame with [id], or null when absent/opaque. */
+    /**
+     * The individual values of a text frame: ID3v2.4 permits several NUL-separated strings in
+     * one frame, and that structure — not a display-string guess — is what multi-credit fields
+     * legitimately look like.
+     */
+    internal fun textValues(prefix: ByteArray, id: String): List<String> {
+        val tag = (Id3Codec.parse(prefix) as? Id3Parse.Parsed)?.tag ?: return emptyList()
+        val frame = tag.frames.firstOrNull { it.id == id } ?: return emptyList()
+        val body = frameTextBody(frame, tag.version) ?: return emptyList()
+        if (body.isEmpty()) return emptyList()
+        val raw = Id3Text.decode(body[0].toInt() and 0xFF, body, 1, body.size) ?: return emptyList()
+        return raw.split('\u0000').map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    /**
+     * Every `TXXX` user-text frame as (description, value). Frame layout: one encoding byte, an
+     * encoding-terminated description, then the value (possibly NUL-joined multi-values).
+     */
+    internal fun userTexts(prefix: ByteArray): List<Pair<String, String>> {
+        val tag = (Id3Codec.parse(prefix) as? Id3Parse.Parsed)?.tag ?: return emptyList()
+        val result = ArrayList<Pair<String, String>>()
+        for (frame in tag.frames) {
+            if (frame.id != FRAME_USER_TEXT) continue
+            val body = frameTextBody(frame, tag.version) ?: continue
+            if (body.size < 2) continue
+            val encoding = body[0].toInt() and 0xFF
+            var offset = 1
+            val descriptionStart = offset
+            if (encoding == 1 || encoding == 2) {
+                while (offset + 1 < body.size &&
+                    !(body[offset] == 0.toByte() && body[offset + 1] == 0.toByte())
+                ) {
+                    offset += 2
+                }
+                val description =
+                    Id3Text.decode(encoding, body, descriptionStart, offset)
+                offset += 2
+                if (offset > body.size) continue
+                val value = Id3Text.decode(encoding, body, offset, body.size)
+                if (description != null && value != null) {
+                    result.add(description.trim('\u0000').trim() to value.trim('\u0000'))
+                }
+            } else {
+                while (offset < body.size && body[offset] != 0.toByte()) offset++
+                val description = Id3Text.decode(encoding, body, descriptionStart, offset)
+                offset += 1
+                if (offset > body.size) continue
+                val value = Id3Text.decode(encoding, body, offset, body.size)
+                if (description != null && value != null) {
+                    result.add(description.trim() to value.trim('\u0000'))
+                }
+            }
+        }
+        return result
+    }
+
+    /** The original-release year frame's text, honouring the version's frame id. */
+    internal fun originalYearText(prefix: ByteArray): String? {
+        val tag = (Id3Codec.parse(prefix) as? Id3Parse.Parsed)?.tag ?: return null
+        return text(tag, FRAME_ORIGINAL_V24) ?: text(tag, FRAME_ORIGINAL_V23)
+    }
+
+    /** Artist and genre frame texts for the comment mapping; null-joined values flattened. */
+    internal fun artistValues(prefix: ByteArray): List<String> = textValues(prefix, FRAME_ARTIST)
+
     private fun text(tag: Id3RawTag, id: String): String? {
         val frame = tag.frames.firstOrNull { it.id == id } ?: return null
         val body = frameTextBody(frame, tag.version) ?: return null

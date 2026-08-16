@@ -63,6 +63,14 @@ public data class TrackDescriptor(
     /** Loudness in `[0, 1]`, or null when unmeasured. Feeds the chain's energy-smoothness term. */
     public val energy: Float? = null,
     public val sourceRevision: String? = null,
+    /**
+     * Credited individuals read from the file's own tags (the Picard `ARTISTS` convention);
+     * [artist] remains the display credit ("X feat. Y"). Empty until tag enrichment has read
+     * the file — consumers must treat empty as "unknown", never as "solo".
+     */
+    public val artists: List<String> = emptyList(),
+    /** First-release year from the tags; [year] is the edition year the scanner reported. */
+    public val originalYear: Int? = null,
 )
 
 /**

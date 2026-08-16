@@ -5,20 +5,22 @@
 package io.github.nikitasud.latentjam.app
 
 import android.net.Uri
+import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
+import io.github.nikitasud.latentjam.library.tags.TagFacts
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import java.io.InputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-internal actual suspend fun readEmbeddedGenres(track: TrackDescriptor): List<String>? =
+internal actual suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedTagFacts? =
     withContext(Dispatchers.IO) {
         try {
             val uri = track.audioUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
                 ?: return@withContext null
             AndroidAppContext.value.contentResolver.openInputStream(uri)?.use { input ->
-                GenreTags.embeddedGenres(InputStreamByteSource(input))
+                TagFacts.embedded(InputStreamByteSource(input))
             }
         } catch (cancelled: CancellationException) {
             throw cancelled

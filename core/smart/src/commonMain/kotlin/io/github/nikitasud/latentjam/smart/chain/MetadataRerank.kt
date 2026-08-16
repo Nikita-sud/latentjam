@@ -110,8 +110,8 @@ internal object MetadataRerank {
             multiplier *= if (shared) SAME_GENRE_BONUS else CROSS_GENRE_MALUS
         }
         if (candidate.language != anchor.language) multiplier *= CROSS_LANGUAGE_PENALTY
-        val anchorYear = anchor.year
-        val candidateYear = candidate.year
+        val anchorYear = anchor.eraYear
+        val candidateYear = candidate.eraYear
         if (anchorYear != null && candidateYear != null) {
             multiplier *= 1f - ERA_DECADE_PENALTY * abs(anchorYear - candidateYear) / 10f
         }
@@ -152,6 +152,14 @@ internal data class TrackMeta(
     val year: Int?,
     /** For duration-sanity damping only; null (every legacy caller) is neutral. */
     val durationMs: Long? = null,
+    /**
+     * The first credited individual from the file's tags, when read. Null (every fixture and
+     * every unread file) keeps [artistKey] on the display string — the recorded parity replays
+     * are unchanged by construction.
+     */
+    val primaryArtist: String? = null,
+    /** First-release year; the era term prefers it so a remaster keeps its real decade. */
+    val originalYear: Int? = null,
 ) {
     val language: String = MetadataRerank.detectLanguage(title, artist)
     val normalizedTitle: String = MetadataRerank.normalizeTitle(title)
@@ -162,5 +170,8 @@ internal data class TrackMeta(
      * deliberately: they behave as one artist, so a run of them gets spaced apart like any other
      * repeat rather than clustering because nothing identified them.
      */
-    val artistKey: String = MetadataRerank.normalizeArtist(artist)
+    val artistKey: String = MetadataRerank.normalizeArtist(primaryArtist ?: artist)
+
+    /** What era this track belongs to: the recording's year, not the edition's. */
+    val eraYear: Int? get() = originalYear ?: year
 }

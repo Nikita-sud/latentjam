@@ -98,12 +98,27 @@ public data class LibraryCatalog(
                 .groupingBy { it.artist }
                 .eachCount()
 
+            // A collaboration belongs to EVERY credited artist: the tags' ARTISTS list is
+            // authoritative when read; a semicolon-joined display string is a list by
+            // convention; anything else stays whole — "feat."-guessing display strings apart
+            // is how band names get ruined. Casing differences collapse to one group.
             val artists = tracks
-                .groupBy { it.artist }
-                .map { (name, grouped) ->
+                .flatMap { track ->
+                    val credits: List<String?> = track.artists.ifEmpty {
+                        track.artist?.split(';')
+                            ?.map { it.trim() }
+                            ?.filter { it.isNotEmpty() }
+                            ?.takeIf { it.size > 1 }
+                            ?: listOf(track.artist)
+                    }
+                    credits.map { it to track }
+                }
+                .groupBy { (name, _) -> name?.lowercase() }
+                .map { (_, entries) ->
+                    val name = entries.first().first
                     ArtistGroup(
                         name = name,
-                        tracks = grouped.byTitle(),
+                        tracks = entries.map { it.second }.distinct().byTitle(),
                         albumCount = albumCountByArtist[name] ?: 0,
                     )
                 }

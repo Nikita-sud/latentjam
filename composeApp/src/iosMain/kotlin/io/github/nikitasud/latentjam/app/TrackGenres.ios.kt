@@ -4,7 +4,9 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
+import io.github.nikitasud.latentjam.library.tags.TagFacts
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -20,7 +22,7 @@ import platform.Foundation.fileHandleForReadingAtPath
 import platform.Foundation.readDataOfLength
 import platform.posix.memcpy
 
-internal actual suspend fun readEmbeddedGenres(track: TrackDescriptor): List<String>? =
+internal actual suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedTagFacts? =
     withContext(Dispatchers.Default) {
         try {
             readGenresFromFile(track)
@@ -32,13 +34,13 @@ internal actual suspend fun readEmbeddedGenres(track: TrackDescriptor): List<Str
     }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun readGenresFromFile(track: TrackDescriptor): List<String>? {
+private fun readGenresFromFile(track: TrackDescriptor): EmbeddedTagFacts? {
     val url = track.audioUri?.takeIf(String::isNotBlank)?.let(NSURL::URLWithString) ?: return null
     if (!url.isFileURL()) return null
     val path = url.path ?: return null
     val handle = NSFileHandle.fileHandleForReadingAtPath(path) ?: return null
     return try {
-        GenreTags.embeddedGenres(FileHandleByteSource(handle))
+        TagFacts.embedded(FileHandleByteSource(handle))
     } finally {
         handle.closeFile()
     }

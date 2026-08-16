@@ -135,6 +135,8 @@ internal object MetadataFallbackQueue {
         genre = genre,
         year = year,
         durationMs = durationMs,
+        primaryArtist = artists.firstOrNull(),
+        originalYear = originalYear,
     )
 
     private fun cosine(left: FloatArray, right: FloatArray): Float {

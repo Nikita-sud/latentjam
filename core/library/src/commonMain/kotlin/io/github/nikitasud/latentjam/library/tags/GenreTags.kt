@@ -79,7 +79,10 @@ public object GenreTags {
     public fun flacGenres(source: ByteSource): List<String>? {
         val magic = source.read(4) ?: return null
         if (!magic.contentEquals(FLAC_MAGIC)) return null
-        return flacGenresAfterMagic(source)
+        return flacCommentsAfterMagic(source)
+            ?.filter { (key, _) -> key.equals("GENRE", ignoreCase = true) }
+            ?.map { it.second }
+            ?.finish()
     }
 
     /**
@@ -87,12 +90,23 @@ public object GenreTags {
      * walk, the ID3 prefix parser, or the Ogg scan. This is the one function platform readers
      * call — they only adapt their stream to [ByteSource].
      */
-    public fun embeddedGenres(source: ByteSource): List<String>? {
+    public fun embeddedGenres(source: ByteSource): List<String>? =
+        embeddedComments(source)
+            ?.filter { (key, _) -> key.equals("GENRE", ignoreCase = true) }
+            ?.map { it.second }
+            ?.finish()
+
+    /**
+     * Every embedded tag fact as uniform `(KEY, value)` entries — Vorbis comments verbatim,
+     * ID3 frames mapped onto the same vocabulary (`TCON`→GENRE, `TPE1` values→ARTIST each,
+     * `TXXX` by its description, `TDOR`/`TORY`→TDOR). One file open serves every consumer.
+     */
+    public fun embeddedComments(source: ByteSource): List<Pair<String, String>>? {
         val magic = source.read(4) ?: return null
         return when {
-            magic.contentEquals(FLAC_MAGIC) -> flacGenresAfterMagic(source)
+            magic.contentEquals(FLAC_MAGIC) -> flacCommentsAfterMagic(source)
             magic.contentEquals(OGG_MAGIC) ->
-                oggGenres(magic + source.readUpTo(OGG_PREFIX_BYTES))
+                oggComments(magic + source.readUpTo(OGG_PREFIX_BYTES))
             magic.size == 4 && magic[0] == 'I'.code.toByte() &&
                 magic[1] == 'D'.code.toByte() && magic[2] == '3'.code.toByte() -> {
                 val headerRest = source.read(Id3Tags.HEADER_SIZE - 4) ?: return null
@@ -100,13 +114,25 @@ public object GenreTags {
                 val tagLength = Id3Tags.tagLength(header) ?: return null
                 if (tagLength <= header.size || tagLength > MAX_ID3_PREFIX) return null
                 val body = source.read(tagLength - header.size) ?: return null
-                id3Genres(header + body)
+                id3Comments(header + body)
             }
             else -> null
         }
     }
 
-    private fun flacGenresAfterMagic(source: ByteSource): List<String>? {
+    private fun id3Comments(prefix: ByteArray): List<Pair<String, String>>? {
+        val info = Id3Tags.read(prefix) ?: return null
+        val comments = ArrayList<Pair<String, String>>()
+        info.genre?.let { comments.add("GENRE" to it) }
+        Id3Tags.artistValues(prefix).forEach { comments.add("ARTIST" to it) }
+        Id3Tags.originalYearText(prefix)?.let { comments.add("TDOR" to it) }
+        for ((description, value) in Id3Tags.userTexts(prefix)) {
+            comments.add(description.uppercase() to value)
+        }
+        return comments
+    }
+
+    private fun flacCommentsAfterMagic(source: ByteSource): List<Pair<String, String>>? {
         while (true) {
             val header = source.read(4) ?: return null
             val last = header[0].toInt() and 0x80 != 0
@@ -117,7 +143,7 @@ public object GenreTags {
             if (type == FLAC_VORBIS_COMMENT) {
                 if (length > MAX_COMMENT_BLOCK) return null
                 val body = source.read(length) ?: return null
-                return vorbisCommentGenres(body, 0)
+                return vorbisComments(body, 0)
             }
             if (last) return null
             if (!source.skip(length.toLong())) return null
@@ -129,12 +155,18 @@ public object GenreTags {
      * pages and parses the same Vorbis binary layout. A pragmatic scan rather than a full Ogg
      * page walk — the comment header sits within the first few kilobytes of every real file.
      */
-    public fun oggGenres(prefix: ByteArray): List<String>? {
+    public fun oggGenres(prefix: ByteArray): List<String>? =
+        oggComments(prefix)
+            ?.filter { (key, _) -> key.equals("GENRE", ignoreCase = true) }
+            ?.map { it.second }
+            ?.finish()
+
+    private fun oggComments(prefix: ByteArray): List<Pair<String, String>>? {
         if (prefix.size < 8 || !prefix.startsWith(OGG_MAGIC)) return null
         val opus = prefix.indexOfSequence(OPUS_TAGS)
-        if (opus >= 0) return vorbisCommentGenres(prefix, opus + OPUS_TAGS.size)
+        if (opus >= 0) return vorbisComments(prefix, opus + OPUS_TAGS.size)
         val vorbis = prefix.indexOfSequence(VORBIS_COMMENT_HEADER)
-        if (vorbis >= 0) return vorbisCommentGenres(prefix, vorbis + VORBIS_COMMENT_HEADER.size)
+        if (vorbis >= 0) return vorbisComments(prefix, vorbis + VORBIS_COMMENT_HEADER.size)
         return null
     }
 
@@ -156,26 +188,26 @@ public object GenreTags {
         public fun skip(count: Long): Boolean
     }
 
-    private fun vorbisCommentGenres(body: ByteArray, start: Int): List<String>? {
+    private fun vorbisComments(body: ByteArray, start: Int): List<Pair<String, String>>? {
         var offset = start
         val vendorLength = body.readLeU32(offset) ?: return null
         offset += 4 + vendorLength
         val count = body.readLeU32(offset) ?: return null
         offset += 4
         if (count > MAX_COMMENT_COUNT) return null
-        val values = ArrayList<String>()
+        val entries = ArrayList<Pair<String, String>>()
         repeat(count) {
-            val length = body.readLeU32(offset) ?: return values.finish()
+            val length = body.readLeU32(offset) ?: return entries
             offset += 4
-            if (length > MAX_COMMENT_BLOCK || offset + length > body.size) return values.finish()
+            if (length > MAX_COMMENT_BLOCK || offset + length > body.size) return entries
             val entry = body.decodeToString(offset, offset + length)
             offset += length
             val equals = entry.indexOf('=')
-            if (equals > 0 && entry.substring(0, equals).equals("GENRE", ignoreCase = true)) {
-                values.add(entry.substring(equals + 1))
+            if (equals > 0) {
+                entries.add(entry.substring(0, equals) to entry.substring(equals + 1))
             }
         }
-        return values.finish()
+        return entries
     }
 
     private fun List<String>.finish(): List<String>? =

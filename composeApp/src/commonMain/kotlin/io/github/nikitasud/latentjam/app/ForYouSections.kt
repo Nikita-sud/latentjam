@@ -912,26 +912,31 @@ object ForYouBuilder {
 
         while (out.size < MIX_TRACK_LIMIT && remaining.isNotEmpty()) {
             var selected = remaining.indexOfFirst { track ->
-                val artist = primaryArtistKey(track.artist)
+                val artist = primaryArtistKey(track)
                 (perArtist[artist] ?: 0) < MIX_MAX_PER_ARTIST &&
                     (out.isEmpty() || artist != previousArtist)
             }
             if (selected < 0) {
                 selected = remaining.indexOfFirst { track ->
-                    val artist = primaryArtistKey(track.artist)
+                    val artist = primaryArtistKey(track)
                     (perArtist[artist] ?: 0) < MIX_MAX_PER_ARTIST
                 }
             }
             if (selected < 0) break
 
             val track = remaining.removeAt(selected)
-            val artist = primaryArtistKey(track.artist)
+            val artist = primaryArtistKey(track)
             perArtist[artist] = (perArtist[artist] ?: 0) + 1
             previousArtist = artist
             out.add(track)
         }
         return out
     }
+
+    /** Tags name the primary credit authoritatively; the display-string cut is the fallback. */
+    private fun primaryArtistKey(track: TrackDescriptor): String =
+        track.artists.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }?.lowercase()
+            ?: primaryArtistKey(track.artist)
 
     private fun primaryArtistKey(artist: String?): String {
         val normalized = artist?.trim()?.lowercase().orEmpty()
