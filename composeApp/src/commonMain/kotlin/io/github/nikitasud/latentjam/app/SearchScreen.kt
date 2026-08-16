@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -373,6 +374,14 @@ internal fun SearchScreen(
                         .fillMaxSize()
                         .inactiveForMotion(shown.mode != presentation.mode),
                 ) {
+                // A NEW query's results must start from their best match — the ranking's whole
+                // point lives in the first rows. Keyed on the shown snapshot's query: a late
+                // semantic arrival for the SAME query updates the list without yanking a reader
+                // who already scrolled.
+                val resultsListState = rememberLazyListState()
+                LaunchedEffect(shown.query) {
+                    resultsListState.scrollToItem(0)
+                }
                 when (shown.mode) {
                     SearchContentMode.Loading -> SearchLoading()
 
@@ -380,6 +389,7 @@ internal fun SearchScreen(
                         CenteredHint(stringResource(Res.string.search_no_matches, shown.query))
 
                     SearchContentMode.Results -> LazyColumn(
+                        state = resultsListState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = bottomInset),
                     ) {
