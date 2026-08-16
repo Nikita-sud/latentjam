@@ -177,6 +177,25 @@ internal fun <T : Any> traversalHistoryThroughCurrent(
 }
 
 /**
+ * What entering SMART keeps of the outgoing queue — and therefore what it BANS from being
+ * recommended, because everything queued is excluded from the candidate pool.
+ *
+ * Bounded to the immediate window REGARDLESS of the outgoing mode. Rows above the current one
+ * are usually not played history at all: under OFF they are the source's layout (tap row 900
+ * of a library list and 899 "predecessors" masquerade as history), and the UI cycle reaches
+ * SMART THROUGH ON, whose freshly minted permutation prefix is equally unplayed. Retaining
+ * them bloated the queue to library size and barred those rows from ever being recommended
+ * that session — the reported bug. Only the immediate tail can plausibly have just played;
+ * anything older is the recommender's to offer again.
+ */
+internal fun <T : Any> smartRetainedHistory(
+    traversal: List<T>,
+    currentRowIndex: Int,
+    recentWindow: Int,
+): List<T> = traversalHistoryThroughCurrent(traversal, currentRowIndex)
+    .takeLast(recentWindow + 1)
+
+/**
  * Drops only the unplayed SMART future when recommendation policy changes.
  *
  * A temporarily missing backend index still preserves the first queued seed. This matches the

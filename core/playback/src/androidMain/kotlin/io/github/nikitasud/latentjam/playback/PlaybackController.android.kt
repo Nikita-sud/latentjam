@@ -893,11 +893,12 @@ internal class AndroidPlaybackController(
                     // Snapshot BEFORE disabling shuffle: once false, Media3 exposes physical source
                     // order and the actual played history can no longer be recovered.
                     rebuildQueueSnapshot()
-                    val retainedHistory = traversalHistoryThroughCurrent(
-                        rows = cachedQueue,
+                    val retainedHistory = smartRetainedHistory(
+                        traversal = cachedQueue,
                         currentRowIndex = cachedQueueMediaIndices.indexOf(
                             player.currentMediaItemIndex,
                         ),
+                        recentWindow = RECENT_WINDOW,
                     ).ifEmpty {
                         player.currentMediaItem?.mediaId?.let(::trackById)?.let(::listOf).orEmpty()
                     }

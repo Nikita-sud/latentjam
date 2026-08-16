@@ -473,4 +473,43 @@ internal class PlaybackQueueTransitionsTest {
     }
 
     private fun track(id: String): TrackDescriptor = TrackDescriptor(TrackId(id), title = id)
+
+    @Test
+    fun smartEntryKeepsOnlyTheImmediateWindow() {
+        // Tap row 900 of a library queue and reach SMART (the UI cycles through ON): neither
+        // the source layout above the row nor a freshly minted shuffle permutation is played
+        // history. Retaining it all bloated the queue to library size and banned those rows
+        // from recommendation — everything queued is excluded from the candidate pool.
+        val rows = (0..900).map { "t$it" }
+        val kept = smartRetainedHistory(
+            traversal = rows,
+            currentRowIndex = 900,
+            recentWindow = 10,
+        )
+        assertEquals(rows.takeLast(11), kept)
+        assertEquals("t900", kept.last())
+    }
+
+    @Test
+    fun smartEntryShortHistoryStaysWhole() {
+        val rows = listOf("a", "b", "c")
+        val kept = smartRetainedHistory(
+            traversal = rows,
+            currentRowIndex = 2,
+            recentWindow = 10,
+        )
+        assertEquals(rows, kept)
+    }
+
+    @Test
+    fun smartEntryWithUnresolvedCurrentKeepsNothing() {
+        assertEquals(
+            emptyList(),
+            smartRetainedHistory(
+                traversal = listOf("a", "b"),
+                currentRowIndex = -1,
+                recentWindow = 10,
+            ),
+        )
+    }
 }
