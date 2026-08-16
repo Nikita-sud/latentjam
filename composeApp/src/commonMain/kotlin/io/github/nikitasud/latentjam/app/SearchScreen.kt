@@ -395,6 +395,7 @@ internal fun SearchScreen(
                                 track = track,
                                 isCurrent = track.id == currentTrackId,
                                 isPlaying = currentTrackPlaying,
+                                highlightQuery = shown.query,
                                 onClick = {
                                     // A pending query deliberately keeps the settled snapshot
                                     // usable. The visible row therefore plays the visible queue,
@@ -641,7 +642,7 @@ private fun hybridSearch(
                 track = document.track,
                 rank = rank,
                 affinity = SearchAffinity.affinity(stat?.plays ?: 0, stat?.lastPlayedAtMs ?: 0L, nowMs),
-                nameKey = document.fields.firstOrNull() ?: "",
+                nameKey = document.fields.firstOrNull { it != null } ?: "",
                 libraryOrder = document.libraryOrder,
             )
         }
@@ -713,24 +714,49 @@ internal object SearchAffinity {
     }
 }
 
-/** 0 exact, 1 prefix, 2 token-prefix, 3 word-family/typo, 4 substring. */
+/**
+ * Field-major rank: WHERE the query matched outranks HOW well it matched. A query in the TITLE
+ * beats any artist/album match, which beats a genre match — someone typing "young" wants
+ * "Forever Young" before the discography of an artist named Young. Within a field tier the
+ * match quality orders as before: 0 exact, 1 prefix, 2 token-prefix, 3 word-family/typo,
+ * 4 substring. Smaller is better; null is no match anywhere.
+ */
 private fun SearchDocument.lexicalRank(
     normalizedNeedle: String,
     queryTokens: List<String>,
 ): Int? {
-    if (fields.any { it == normalizedNeedle }) return 0
-    if (fields.any { it.startsWith(normalizedNeedle) }) return 1
-    if (fieldTokens.any { tokens ->
-            tokens.any { it.startsWith(normalizedNeedle) }
+    var best: Int? = null
+    for (fieldIndex in fields.indices) {
+        val field = fields[fieldIndex] ?: continue
+        val quality = fieldQuality(field, fieldTokens[fieldIndex], normalizedNeedle, queryTokens)
+            ?: continue
+        val rank = FIELD_TIERS[fieldIndex] * QUALITY_SPAN + quality
+        if (best == null || rank < best) best = rank
+    }
+    return best
+}
+
+/** Title first; artist and album share a tier ("or" in the spec is deliberate); genre last. */
+private val FIELD_TIERS = intArrayOf(0, 1, 1, 2)
+private const val QUALITY_SPAN = 5
+
+private fun fieldQuality(
+    field: String,
+    tokens: List<String>,
+    normalizedNeedle: String,
+    queryTokens: List<String>,
+): Int? {
+    if (field == normalizedNeedle) return 0
+    if (field.startsWith(normalizedNeedle)) return 1
+    if (tokens.any { it.startsWith(normalizedNeedle) }) return 2
+    if (queryTokens.isNotEmpty() &&
+        queryTokens.all { queryToken ->
+            tokens.any { fieldToken -> relatedSearchTokens(queryToken, fieldToken) }
         }
-    ) return 2
-    if (queryTokens.isNotEmpty() && fieldTokens.any { tokens ->
-            queryTokens.all { queryToken ->
-                tokens.any { fieldToken -> relatedSearchTokens(queryToken, fieldToken) }
-            }
-        }
-    ) return 3
-    if (fields.any { it.contains(normalizedNeedle) }) return 4
+    ) {
+        return 3
+    }
+    if (field.contains(normalizedNeedle)) return 4
     return null
 }
 
@@ -796,7 +822,7 @@ private data class RankedTrack(
 
 private data class SearchDocument(
     val track: TrackDescriptor,
-    val fields: List<String>,
+    val fields: List<String?>,
     val fieldTokens: List<List<String>>,
     val libraryOrder: Int,
 )
@@ -809,12 +835,14 @@ private class SearchIndex private constructor(
     companion object {
         fun build(songs: List<TrackDescriptor>): SearchIndex {
             val documents = songs.mapIndexed { index, track ->
-                val fields = listOfNotNull(track.title, track.artist, track.album, track.genre)
-                    .map(::normalizeSearchText)
+                // POSITIONAL on purpose: index 0 is always the title, 1 the artist, 2 the album,
+                // 3 the genre — the rank is field-major and must know which field matched.
+                val fields = listOf(track.title, track.artist, track.album, track.genre)
+                    .map { value -> value?.let(::normalizeSearchText)?.takeIf { it.isNotEmpty() } }
                 SearchDocument(
                     track = track,
                     fields = fields,
-                    fieldTokens = fields.map(::searchTokens),
+                    fieldTokens = fields.map { it?.let(::searchTokens).orEmpty() },
                     libraryOrder = index,
                 )
             }

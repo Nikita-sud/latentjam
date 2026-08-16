@@ -63,6 +63,10 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -189,6 +193,8 @@ internal fun TrackRow(
     onMenu: (() -> Unit)? = null,
     /** Optional request-state callback used by the alphabet-rail reveal gate. */
     onArtworkLoadStateChanged: ((requestUri: String, state: ArtworkLoadState) -> Unit)? = null,
+    /** When set, occurrences of this query in the title/artist render emphasized. */
+    highlightQuery: String? = null,
 ) {
     val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
@@ -312,15 +318,29 @@ internal fun TrackRow(
             }
         }
         Column(modifier = Modifier.weight(1f)) {
+            // Research-standard result emphasis: BOLD the matched term (the convention search
+            // UIs settled on), plus a step up in tone so the emphasis survives bold-ish fonts.
+            val highlight = SpanStyle(
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
             Text(
-                text = track.title ?: stringResource(Res.string.track_untitled),
+                text = emphasized(
+                    text = track.title ?: stringResource(Res.string.track_untitled),
+                    query = highlightQuery,
+                    style = highlight,
+                ),
                 style = MaterialTheme.typography.bodyLarge,
                 color = titleColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = track.artist ?: stringResource(Res.string.track_unknown_artist),
+                text = emphasized(
+                    text = track.artist ?: stringResource(Res.string.track_unknown_artist),
+                    query = highlightQuery,
+                    style = highlight,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -410,3 +430,16 @@ private val BAR_PHASES_MS = listOf(0, 140, 280)
 
 /** A believable frozen pose: unequal heights read as "stopped mid-song", not as a glyph. */
 private val PAUSED_BAR_FRACTIONS = listOf(0.55f, 0.3f, 0.75f)
+
+/** The text with every folded occurrence of [query] wearing [style]; plain when none. */
+private fun emphasized(
+    text: String,
+    query: String?,
+    style: SpanStyle,
+): AnnotatedString = buildAnnotatedString {
+    append(text)
+    val needle = query?.trim()?.takeIf { it.isNotEmpty() } ?: return@buildAnnotatedString
+    for (range in searchHighlightRanges(text, needle)) {
+        addStyle(style, range.first, range.last + 1)
+    }
+}

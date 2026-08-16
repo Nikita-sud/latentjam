@@ -196,12 +196,69 @@ class HybridSearchTest {
     private fun track(
         id: String,
         title: String,
-        artist: String,
+        artist: String? = null,
+        album: String? = null,
         genre: String? = null,
     ) = TrackDescriptor(
         id = TrackId(id),
         title = title,
         artist = artist,
+        album = album,
         genre = genre,
     )
+
+    @Test
+    fun `a title match outranks any artist or album match`() {
+        // The reported case: "young" must surface "Forever Young" before the discography of
+        // an artist NAMED Young — where the query matched beats how well it matched.
+        val results = hybridSearch(
+            songs = listOf(
+                track("1", title = "Bad Guy", artist = "Young Thug"),
+                track("2", title = "Forever Young", artist = "Alphaville"),
+                track("3", title = "Something", album = "Young Hearts"),
+            ),
+            query = "young",
+            semantic = emptyList(),
+        )
+        assertEquals("2", results.first().id.value)
+        assertEquals(setOf("1", "3"), results.drop(1).map { it.id.value }.toSet())
+    }
+
+    @Test
+    fun `artist and album share a tier and genre sits below them`() {
+        val results = hybridSearch(
+            songs = listOf(
+                track("g", title = "Track G", genre = "Phonk"),
+                track("a", title = "Track A", artist = "Phonk Killa"),
+            ),
+            query = "phonk",
+            semantic = emptyList(),
+        )
+        assertEquals(listOf("a", "g"), results.map { it.id.value })
+    }
+
+    @Test
+    fun `within the title tier quality still orders`() {
+        val results = hybridSearch(
+            songs = listOf(
+                track("substr", title = "Ayoung"),
+                track("exact", title = "Young"),
+                track("prefix", title = "Youngblood"),
+                track("token", title = "Forever Young"),
+            ),
+            query = "young",
+            semantic = emptyList(),
+        )
+        assertEquals(listOf("exact", "prefix", "token", "substr"), results.map { it.id.value })
+    }
+
+    @Test
+    fun `highlight ranges address the original text through the fold`() {
+        assertEquals(listOf(8..12), searchHighlightRanges("Forever Young", "young"))
+        assertEquals(listOf(0..4), searchHighlightRanges("Young Thug", "YOUNG"))
+        // Transliteration changes lengths; the range still addresses the Cyrillic original.
+        assertEquals(listOf(0..2), searchHighlightRanges("Цой жив", "tsoi"))
+        // A fuzzy-only match must NOT pretend to be literal.
+        assertEquals(emptyList(), searchHighlightRanges("Forever Young", "yuong"))
+    }
 }
