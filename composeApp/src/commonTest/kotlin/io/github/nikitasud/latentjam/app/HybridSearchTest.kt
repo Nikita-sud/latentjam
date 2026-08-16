@@ -311,4 +311,41 @@ class HybridSearchTest {
         )
         assertEquals(emptyList(), results.map { it.id.value })
     }
+
+    @Test
+    fun `Cyrillic phonk finds the Phonk genre exactly, above funk and folk fuzz`() {
+        // «фонк» folds to "fonk", one edit from Funk AND Folk alike — the reported failure had
+        // a polka and a sea shanty above the actual phonk. The ph collapse makes the named
+        // genre an EXACT genre match, which outranks any same-field fuzz.
+        val results = hybridSearch(
+            songs = listOf(
+                track("folk", title = "Tarantella Napoletana", genre = "Folk"),
+                track("phonk", title = "Noite De Esmeralda", genre = "Phonk"),
+                track("funk", title = "Love Rollercoaster", genre = "Funk"),
+            ),
+            query = "\u0444\u043e\u043d\u043a",
+            semantic = emptyList(),
+        )
+        assertEquals("phonk", results.first().id.value)
+    }
+
+    @Test
+    fun `Cyrillic funk still reaches the funk genre through fuzz`() {
+        val results = hybridSearch(
+            songs = listOf(track("funk", title = "Give It Up", genre = "Funk")),
+            query = "\u0444\u0430\u043d\u043a",
+            semantic = emptyList(),
+        )
+        assertEquals(listOf("funk"), results.map { it.id.value })
+    }
+
+    @Test
+    fun `the ph digraph highlights as one unit`() {
+        assertEquals(
+            listOf(0..4),
+            searchHighlightRanges("Phonk Anthem", "\u0444\u043e\u043d\u043a"),
+        )
+        // The trailing '!' is not part of the match and stays unstyled.
+        assertEquals(listOf(0..3), searchHighlightRanges("Fonk!", "phonk"))
+    }
 }

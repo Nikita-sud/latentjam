@@ -38,14 +38,24 @@ public object SearchFold {
             if (isAsciiPunctuation(ch)) continue
             stripped.append(ch)
         }
-        if (stripped.none { it in CYRILLIC_RANGE }) return stripped.toString()
+        if (stripped.none { it in CYRILLIC_RANGE }) return collapsePh(stripped.toString())
         val out = StringBuilder(stripped.length)
         for (ch in stripped) {
             val mapped = CYRILLIC_TRANSLIT[ch]
             if (mapped != null) out.append(mapped) else out.append(ch)
         }
-        return out.toString()
+        return collapsePh(out.toString())
     }
+
+    /**
+     * "ph" and "f" are one sound, and the fold's Cyrillic side already commits to it: ф→f. A
+     * Latin "Phonk" must land on the same form the query «фонк» lands on, or the genre the
+     * listener literally named only ever fuzzy-matches — tied with Funk AND Folk, both one edit
+     * away (the reported polka-in-the-phonk-results failure). Applied symmetrically to index
+     * and query, so it can never create a one-sided mismatch.
+     */
+    private fun collapsePh(value: String): String =
+        if (value.contains("ph")) value.replace("ph", "f") else value
 
     /** ASCII punctuation, matching the reference's `\p{Punct}` (POSIX/ASCII) strip. */
     private fun isAsciiPunctuation(ch: Char): Boolean =
