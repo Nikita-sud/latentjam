@@ -22,6 +22,15 @@ internal data class ChainTuning(
     val quotaMargin: Float = ChainConfig.COMPANION_QUOTA_MARGIN,
     /** Whether extreme track durations are damped; the fixture's rows have no durations. */
     val durationSanity: Boolean = true,
+    /**
+     * EXPERIMENTAL personal-preference term: `score += personalWeight * personalAffinity(row)`.
+     * Null and 0 by default, so shipped queues and the recorded parity replays are
+     * byte-identical without it. It exists for the offline personalization simulation —
+     * enabling it in production is a product decision against SMART's objectivity principle,
+     * not a tuning tweak, and must carry its own harness evidence.
+     */
+    val personalAffinity: ((Int) -> Float)? = null,
+    val personalWeight: Float = 0f,
 )
 
 /**

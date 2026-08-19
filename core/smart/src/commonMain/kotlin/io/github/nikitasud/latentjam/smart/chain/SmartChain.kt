@@ -374,6 +374,12 @@ internal class SmartChain(
                 if (companions.sharesGroup(anchorRow, row)) {
                     score += tuning.companionBonus * companions.weight(anchorRow, row)
                 }
+                // Experimental personal term, harness-only today (see ChainTuning): default
+                // null/0 keeps every shipped queue and parity replay unchanged.
+                val personalAffinity = tuning.personalAffinity
+                if (personalAffinity != null && tuning.personalWeight != 0f) {
+                    score += tuning.personalWeight * personalAffinity(row)
+                }
                 var multiplier = MetadataRerank.adjustMultiplier(anchorMeta, meta)
                     .coerceIn(ChainConfig.MULTIPLIER_MIN, ChainConfig.MULTIPLIER_MAX)
                 if (tuning.durationSanity) {
