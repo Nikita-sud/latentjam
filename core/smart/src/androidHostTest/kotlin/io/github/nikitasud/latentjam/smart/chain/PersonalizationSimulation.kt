@@ -280,6 +280,51 @@ class PersonalizationSimulation {
                             ),
                         ),
                     )
+
+                    // Daypart-conditional Rocchio: one centroid pair per phase of day (the
+                    // harness runs in the listener's own timezone, so local hours are honest),
+                    // falling back to the global layer where a phase has too little training.
+                    fun daypartOf(atMs: Long): Int {
+                        val calendar = java.util.Calendar.getInstance()
+                        calendar.timeInMillis = atMs
+                        return when (calendar.get(java.util.Calendar.HOUR_OF_DAY)) {
+                            in 6..11 -> 0
+                            in 12..17 -> 1
+                            in 18..23 -> 2
+                            else -> 3
+                        }
+                    }
+                    val byPart = train.groupBy { daypartOf(it.atMs) }
+                    val partLayers = byPart.mapValues { (_, partTrain) ->
+                        if (partTrain.size >= 40) {
+                            rocchio(
+                                partTrain.map { Event(it.row, 0, it.completed) },
+                                negativeWeight = 0.5,
+                            )
+                        } else {
+                            layer
+                        }
+                    }
+                    var wins = 0.0
+                    var pairsCount = 0
+                    for (part in 0..3) {
+                        val partTest = test.filter { daypartOf(it.atMs) == part }
+                        val partLayer = partLayers[part] ?: layer
+                        val pos = partTest.filter { it.completed }.map { partLayer(it.row) }
+                        val neg = partTest.filterNot { it.completed }.map { partLayer(it.row) }
+                        for (a in pos) for (b in neg) {
+                            wins += if (a > b) 1.0 else if (a == b) 0.5 else 0.0
+                            pairsCount++
+                        }
+                    }
+                    val daypartAuc = if (pairsCount > 0) wins / pairsCount else Double.NaN
+                    println(
+                        "AUC(rocchio per-daypart)=%.3f  (phase train sizes: %s)".format(
+                            daypartAuc,
+                            byPart.entries.sortedBy { it.key }
+                                .joinToString { entry -> entry.key.toString() + ":" + entry.value.size },
+                        ),
+                    )
                 }
             }
         }
