@@ -47,7 +47,7 @@ private fun readGenresFromFile(track: TrackDescriptor): EmbeddedTagFacts? {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private class FileHandleByteSource(
+internal class FileHandleByteSource(
     private val handle: NSFileHandle,
 ) : GenreTags.ByteSource {
 

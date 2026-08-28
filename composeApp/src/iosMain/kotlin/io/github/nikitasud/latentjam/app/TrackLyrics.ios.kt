@@ -6,7 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import io.github.nikitasud.latentjam.library.tags.Id3Tags
+import io.github.nikitasud.latentjam.library.tags.EmbeddedLyrics
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -48,14 +48,8 @@ private fun readEmbeddedLyrics(track: TrackDescriptor): String? {
     val path = url.path ?: return null
     val handle = NSFileHandle.fileHandleForReadingAtPath(path) ?: return null
     return try {
-        val header = handle.readDataOfLength(Id3Tags.HEADER_SIZE.toULong()).toByteArray()
-        if (header.size != Id3Tags.HEADER_SIZE) return null
-        val tagLength = Id3Tags.tagLength(header) ?: return null
-        if (tagLength <= Id3Tags.HEADER_SIZE || tagLength > MAX_TAG_BYTES) return null
-        handle.seekToFileOffset(0uL)
-        val prefix = handle.readDataOfLength(tagLength.toULong()).toByteArray()
-        if (prefix.size != tagLength) return null
-        Id3Tags.lyrics(prefix)
+        // Container-agnostic: ID3 USLT for mp3, Vorbis comments for FLAC and Ogg/Opus.
+        EmbeddedLyrics.read(FileHandleByteSource(handle))
     } finally {
         handle.closeFile()
     }

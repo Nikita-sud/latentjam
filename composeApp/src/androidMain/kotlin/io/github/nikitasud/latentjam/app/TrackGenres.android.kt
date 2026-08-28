@@ -30,7 +30,7 @@ internal actual suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedT
     }
 
 /** Adapts a one-pass stream to the parser's pull interface; no rewinding, no buffering. */
-private class InputStreamByteSource(private val input: InputStream) : GenreTags.ByteSource {
+internal class InputStreamByteSource(private val input: InputStream) : GenreTags.ByteSource {
 
     override fun read(count: Int): ByteArray? {
         val target = ByteArray(count)

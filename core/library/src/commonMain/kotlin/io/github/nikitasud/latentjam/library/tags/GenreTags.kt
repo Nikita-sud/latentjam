@@ -132,7 +132,7 @@ public object GenreTags {
         return comments
     }
 
-    private fun flacCommentsAfterMagic(source: ByteSource): List<Pair<String, String>>? {
+    internal fun flacCommentsAfterMagic(source: ByteSource): List<Pair<String, String>>? {
         while (true) {
             val header = source.read(4) ?: return null
             val last = header[0].toInt() and 0x80 != 0
@@ -161,13 +161,69 @@ public object GenreTags {
             ?.map { it.second }
             ?.finish()
 
-    private fun oggComments(prefix: ByteArray): List<Pair<String, String>>? {
+    internal fun oggComments(prefix: ByteArray): List<Pair<String, String>>? {
         if (prefix.size < 8 || !prefix.startsWith(OGG_MAGIC)) return null
-        val opus = prefix.indexOfSequence(OPUS_TAGS)
-        if (opus >= 0) return vorbisComments(prefix, opus + OPUS_TAGS.size)
-        val vorbis = prefix.indexOfSequence(VORBIS_COMMENT_HEADER)
-        if (vorbis >= 0) return vorbisComments(prefix, vorbis + VORBIS_COMMENT_HEADER.size)
+        // Ogg interleaves ~4KB page headers into the logical stream, so a comment block deeper
+        // than one page (real lyrics routinely sit >100KB in) derails a flat scan. Reassemble
+        // the page payloads first; fall back to the flat bytes for page-less synthetic input.
+        val reassembled = oggPayload(prefix)
+        val candidates = if (reassembled.isNotEmpty()) listOf(reassembled, prefix) else listOf(prefix)
+        for (bytes in candidates) {
+            val opus = bytes.indexOfSequence(OPUS_TAGS)
+            if (opus >= 0) return vorbisComments(bytes, opus + OPUS_TAGS.size)
+            val vorbis = bytes.indexOfSequence(VORBIS_COMMENT_HEADER)
+            if (vorbis >= 0) return vorbisComments(bytes, vorbis + VORBIS_COMMENT_HEADER.size)
+        }
         return null
+    }
+
+    /**
+     * Concatenated page payloads of an Ogg prefix: per page, a 27-byte header, a segment table
+     * of [nsegs] length bytes, then the payload those lengths sum to. A trailing page cut by
+     * the prefix contributes what it holds — the comment salvage rule handles the rest.
+     */
+    private fun oggPayload(prefix: ByteArray): ByteArray {
+        // Two passes, pure common code: measure the payload, then copy — no JVM streams here.
+        var total = 0
+        var at = 0
+        while (at + 27 <= prefix.size) {
+            if (prefix[at] != 'O'.code.toByte() || prefix[at + 1] != 'g'.code.toByte() ||
+                prefix[at + 2] != 'g'.code.toByte() || prefix[at + 3] != 'S'.code.toByte()
+            ) {
+                break
+            }
+            val segments = prefix[at + 26].toInt() and 0xFF
+            val headerEnd = at + 27 + segments
+            if (headerEnd > prefix.size) break
+            var payload = 0
+            for (segment in 0 until segments) {
+                payload += prefix[at + 27 + segment].toInt() and 0xFF
+            }
+            total += minOf(prefix.size, headerEnd + payload) - headerEnd
+            at = headerEnd + payload
+        }
+        val out = ByteArray(total)
+        var written = 0
+        at = 0
+        while (at + 27 <= prefix.size) {
+            if (prefix[at] != 'O'.code.toByte() || prefix[at + 1] != 'g'.code.toByte() ||
+                prefix[at + 2] != 'g'.code.toByte() || prefix[at + 3] != 'S'.code.toByte()
+            ) {
+                break
+            }
+            val segments = prefix[at + 26].toInt() and 0xFF
+            val headerEnd = at + 27 + segments
+            if (headerEnd > prefix.size) break
+            var payload = 0
+            for (segment in 0 until segments) {
+                payload += prefix[at + 27 + segment].toInt() and 0xFF
+            }
+            val end = minOf(prefix.size, headerEnd + payload)
+            prefix.copyInto(out, written, headerEnd, end)
+            written += end - headerEnd
+            at = headerEnd + payload
+        }
+        return out
     }
 
     /** Genres from an ID3v2 tag prefix, split from the flattened `TCON` text. */
