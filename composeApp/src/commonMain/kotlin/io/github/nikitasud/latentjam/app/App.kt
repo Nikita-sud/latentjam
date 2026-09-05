@@ -832,20 +832,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // Whenever the library changes, drop queue entries for tracks that no longer EXIST.
         // Reconciled against all known tracks — visible plus hidden — deliberately: hiding a
         // track means "stop recommending it", not "yank it out of the queue mid-session";
-        // only genuine deletion removes it. Keyed on the resolved list, so an unchanged
-        // library (the common foreground return) runs nothing.
-        LaunchedEffect(tracks) {
+        // only genuine deletion removes it. Authority belongs to the exact scan: a permission
+        // change must reconcile even when it returns the same rows as the preceding partial scan.
+        LaunchedEffect(libraryIndexingRequest) {
             collectionOpenJob?.cancel()
             collectionOpenJob = null
-            val loaded = tracks ?: return@LaunchedEffect
+            val request = libraryIndexingRequest ?: return@LaunchedEffect
+            val loaded = request.tracks
             // The visible half of allKnownTracks() is the list already in hand; only the hidden
-            // half needs a query, saving one full MediaStore pass per library change.
-            val known = loaded.mapTo(mutableSetOf()) { it.id }
-            library.hiddenTracks().mapTo(known) { it.id }
-            // A permission failure is also represented by an empty library snapshot. Keep a
-            // persisted queue in that ambiguous case; confirmed deletion reconciles explicitly
-            // below, where an empty set really does mean "the final track was removed".
-            if (known.isNotEmpty()) playback.retainQueue(known)
+            // half needs a query. Partial scans cannot prove deletion, even when app-owned files
+            // still make their result nonempty. A confirmed empty scan can remove the final row.
+            val hidden = if (request.librarySnapshotAuthoritative) library.hiddenTracks() else emptyList()
+            queueRetentionIds(request, hidden)?.let { known -> playback.retainQueue(known) }
             // An open collection screen is a snapshot from when it was opened; a track deleted
             // meanwhile must fall out of it (and its count) the same way it falls out of the
             // queue. Filtered against the VISIBLE library: this runs for albums and playlists
