@@ -269,7 +269,7 @@
     <string name="indexing_notification_progress_eta">%1$d din %2$d · aproximativ %3$d min rămase</string>
     <!-- =================================================== expanded settings -->
     <string name="settings_appearance">Aspect</string>
-    <string name="settings_appearance_subtitle">Temă, culorile playerului și pagina de pornire</string>
+    <string name="settings_appearance_subtitle">Temă, culorile playerului și limbă</string>
     <string name="settings_library">Bibliotecă</string>
     <string name="settings_library_subtitle">Actualizare, import și piese ascunse</string>
     <string name="settings_playback">Redare</string>
@@ -485,4 +485,42 @@
     <string name="foryou_caption_left_turn">Un ocol de la %1$s</string>
     <string name="foryou_section_journey">Călătorie sonoră</string>
     <string name="foryou_journey_title">De la „%1$s” la „%2$s”</string>
+    <string name="settings_pages">Pagini</string>
+    <string name="settings_pages_subtitle">Vizibilitate, ordine și pagina de pornire</string>
+    <string name="settings_pages_body">Alege ce pagini apar și folosește săgețile pentru a le schimba ordinea. Harta este dezactivată implicit.</string>
+    <string name="settings_pages_last_visible">Păstrează cel puțin o pagină activată.</string>
+    <string name="settings_page_position">Poziția %1$d din %2$d</string>
+    <string name="settings_page_move_up">Mută %1$s în sus</string>
+    <string name="settings_page_move_down">Mută %1$s în jos</string>
+    <string name="settings_pages_reset">Resetează paginile</string>
+    <string name="settings_pages_reset_body">Restabilește ordinea, paginile vizibile și pagina de pornire implicite.</string>
+
+    <!-- Listening dashboard -->
+    <string name="stats_dashboard_title">Audițiile tale</string>
+    <string name="stats_recording_off">Istoricul audițiilor este suspendat. Statisticile salvate rămân disponibile; audițiile noi vor fi adăugate când activezi istoricul din setările de confidențialitate.</string>
+    <string name="stats_comparison_more">Cu %1$s mai mult decât în cele %2$d zile anterioare</string>
+    <string name="stats_comparison_less">Cu %1$s mai puțin decât în cele %2$d zile anterioare</string>
+    <string name="stats_comparison_same">Același timp de audiție ca în cele %1$d zile anterioare</string>
+    <string name="stats_comparison_first">Nicio audiție în cele %1$d zile anterioare</string>
+    <string name="stats_under_minute">&lt; 1 min</string>
+    <string name="stats_activity">Ritmul tău zilnic</string>
+    <string name="stats_calendar_days">Ultimele %1$d zile calendaristice · timp de audiție</string>
+    <string name="stats_today">Azi</string>
+    <string name="stats_yesterday">Ieri</string>
+    <string name="stats_days_ago">Acum %1$d zile</string>
+    <string name="stats_habits">Obiceiuri de ascultare</string>
+    <string name="stats_active_days">Zile active</string>
+    <string name="stats_new_tracks">Prime audiții</string>
+    <string name="stats_habits_note">Piesele noi sunt ascultate pentru prima dată în istoricul salvat. Seriile folosesc întregul istoric.</string>
+    <string name="stats_repeat_share">Redări repetate</string>
+    <string name="stats_coverage">Explorează biblioteca</string>
+    <string name="stats_coverage_detail">%1$d din %2$s ascultate în această perioadă</string>
+    <string name="stats_smart_share">Modul SMART</string>
+    <string name="stats_smart_detail">Proporția redărilor începute cu modul aleatoriu SMART activat</string>
+    <string name="stats_listening_style">Cum asculți</string>
+    <string name="stats_peak_hour">Cele mai multe redări în jurul orei %1$s</string>
+    <string name="stats_average_active_day">Pe zi activă</string>
+    <string name="stats_recent_empty">Încă nu există audiții în aceste zile calendaristice.</string>
+    <string name="stats_history_note">Pe baza istoricului salvat; se actualizează când o piesă se termină sau se schimbă. Clasamentele folosesc piesele disponibile în bibliotecă.</string>
+    <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
 </resources>

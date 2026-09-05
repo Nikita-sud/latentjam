@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -20,12 +21,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -35,6 +38,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -90,6 +95,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_back
 import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.action_clear
+import io.github.nikitasud.latentjam.app.generated.resources.action_close
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_latentjam
 import io.github.nikitasud.latentjam.app.generated.resources.action_retry
 import io.github.nikitasud.latentjam.app.generated.resources.backup_export
@@ -183,6 +189,15 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_about_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_about_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_appearance
 import io.github.nikitasud.latentjam.app.generated.resources.settings_appearance_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.settings_pages
+import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_last_visible
+import io.github.nikitasud.latentjam.app.generated.resources.settings_page_position
+import io.github.nikitasud.latentjam.app.generated.resources.settings_page_move_up
+import io.github.nikitasud.latentjam.app.generated.resources.settings_page_move_down
+import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_reset
+import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_reset_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_backup
 import io.github.nikitasud.latentjam.app.generated.resources.settings_backup_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_color_dynamic
@@ -252,7 +267,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_section_ap
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_data_support
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_library
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_music
-import io.github.nikitasud.latentjam.app.generated.resources.settings_section_navigation
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_preferences
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_privacy
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine
@@ -276,14 +290,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.state_off
 import io.github.nikitasud.latentjam.app.generated.resources.state_on
 import io.github.nikitasud.latentjam.app.generated.resources.snack_removed_from_latentjam
 import io.github.nikitasud.latentjam.app.generated.resources.snack_smart_exclusion_failed
-import io.github.nikitasud.latentjam.app.generated.resources.tab_albums
-import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
-import io.github.nikitasud.latentjam.app.generated.resources.tab_for_you
-import io.github.nikitasud.latentjam.app.generated.resources.tab_folders
-import io.github.nikitasud.latentjam.app.generated.resources.tab_genres
-import io.github.nikitasud.latentjam.app.generated.resources.tab_map
 import io.github.nikitasud.latentjam.app.generated.resources.tab_playlists
-import io.github.nikitasud.latentjam.app.generated.resources.tab_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.theme_dark
 import io.github.nikitasud.latentjam.app.generated.resources.theme_light
 import io.github.nikitasud.latentjam.app.generated.resources.theme_system
@@ -317,6 +324,7 @@ import org.jetbrains.compose.resources.stringResource
 private enum class SettingsPage {
     ROOT,
     APPEARANCE,
+    PAGES,
     LIBRARY,
     SOURCES,
     HIDDEN_TRACKS,
@@ -449,6 +457,7 @@ fun SettingsScreen(
                         settings = settings,
                         onOpenSystemSettings = permissions::openAppSettings,
                     )
+                    SettingsPage.PAGES -> PagesSettings(settings)
                     SettingsPage.LIBRARY -> LibrarySettings(
                         trackCount = tracks.size,
                         loading = libraryLoading,
@@ -479,6 +488,7 @@ fun SettingsScreen(
                     SettingsPage.STATS -> ListeningStatsSettings(
                         history = history,
                         tracks = tracks,
+                        active = stack.last() == SettingsPage.STATS,
                     )
                     SettingsPage.EQUALIZER -> EqualizerSettings(equalizer, settings)
                     SettingsPage.INTELLIGENCE -> IntelligenceSettings(
@@ -533,6 +543,7 @@ fun SettingsScreen(
 private fun SettingsPage.titleResource(): StringResource = when (this) {
     SettingsPage.ROOT -> Res.string.settings_title
     SettingsPage.APPEARANCE -> Res.string.settings_appearance
+    SettingsPage.PAGES -> Res.string.settings_pages
     SettingsPage.LIBRARY -> Res.string.settings_library
     SettingsPage.SOURCES -> Res.string.settings_sources
     SettingsPage.HIDDEN_TRACKS -> Res.string.settings_hidden_tracks
@@ -567,6 +578,11 @@ private fun SettingsRoot(
     ) {
         item {
             SettingsSection(stringResource(Res.string.settings_section_preferences)) {
+                SettingsRow(
+                    title = stringResource(Res.string.settings_pages),
+                    subtitle = stringResource(Res.string.settings_pages_subtitle),
+                    onClick = { onOpen(SettingsPage.PAGES) },
+                )
                 SettingsRow(
                     title = stringResource(Res.string.settings_appearance),
                     subtitle = stringResource(Res.string.settings_appearance_subtitle),
@@ -627,7 +643,6 @@ private fun AppearanceSettings(
 ) {
     val theme by settings.themeMode.collectAsState()
     val colorMode by settings.trackColorMode.collectAsState()
-    val startPage by settings.startPage.collectAsState()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -676,26 +691,7 @@ private fun AppearanceSettings(
             }
         }
         item {
-            SettingsSection(stringResource(Res.string.settings_section_navigation)) {
-                SettingsLabel(stringResource(Res.string.settings_start_page))
-                SingleChoiceRows(
-                    values = StartPage.entries,
-                    selected = startPage,
-                    label = { page ->
-                        stringResource(when (page) {
-                            StartPage.FOR_YOU -> Res.string.tab_for_you
-                            StartPage.MAP -> Res.string.tab_map
-                            StartPage.PLAYLISTS -> Res.string.tab_playlists
-                            StartPage.TRACKS -> Res.string.tab_tracks
-                            StartPage.ALBUMS -> Res.string.tab_albums
-                            StartPage.ARTISTS -> Res.string.tab_artists
-                            StartPage.GENRES -> Res.string.tab_genres
-                            StartPage.FOLDERS -> Res.string.tab_folders
-                        })
-                    },
-                    onSelected = settings::setStartPage,
-                )
-                SettingsBody(stringResource(Res.string.settings_start_page_body))
+            SettingsSection(title = null) {
                 SettingsRow(
                     title = stringResource(Res.string.settings_language),
                     subtitle = stringResource(Res.string.settings_language_body),
@@ -703,6 +699,154 @@ private fun AppearanceSettings(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PagesSettings(settings: AppSettings) {
+    val savedLayout by settings.pageLayout.collectAsState()
+    val preferredStartPage by settings.startPage.collectAsState()
+    val layout = remember(savedLayout) { savedLayout.normalized() }
+    val visiblePages = remember(layout) { layout.visiblePages }
+    val startPage = layout.resolveStartPage(preferredStartPage)
+    val reduceMotion = rememberReduceMotion()
+    var choosingStartPage by rememberSaveable { mutableStateOf(false) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
+        item(key = "page-introduction") {
+            SettingsSection(title = null) {
+                SettingsBody(stringResource(Res.string.settings_pages_body))
+                SettingsRow(
+                    title = stringResource(Res.string.settings_start_page),
+                    subtitle = stringResource(startPage.titleResource()),
+                    onClick = { choosingStartPage = true },
+                )
+            }
+        }
+        itemsIndexed(layout.order, key = { _, page -> page.name }) { position, page ->
+            val enabled = page in visiblePages
+            val canDisable = !enabled || visiblePages.size > 1
+            val label = stringResource(page.titleResource())
+            Column(
+                modifier = Modifier
+                    .animateItem(
+                        fadeInSpec = null,
+                        placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
+                        fadeOutSpec = null,
+                    )
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .toggleable(
+                            value = enabled,
+                            enabled = canDisable,
+                            role = Role.Switch,
+                            onValueChange = { show ->
+                                settings.setPageLayout(
+                                    settings.pageLayout.value.withPageEnabled(page, show),
+                                )
+                            },
+                        )
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                        if (!canDisable) {
+                            Text(
+                                text = stringResource(Res.string.settings_pages_last_visible),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Switch(checked = enabled, enabled = canDisable, onCheckedChange = null)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(
+                            Res.string.settings_page_position,
+                            position + 1,
+                            layout.order.size,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(
+                        enabled = position > 0,
+                        onClick = {
+                            settings.setPageLayout(settings.pageLayout.value.movePage(page, -1))
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ArrowUpward,
+                            contentDescription = stringResource(Res.string.settings_page_move_up, label),
+                        )
+                    }
+                    IconButton(
+                        enabled = position < layout.order.lastIndex,
+                        onClick = {
+                            settings.setPageLayout(settings.pageLayout.value.movePage(page, 1))
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ArrowDownward,
+                            contentDescription = stringResource(Res.string.settings_page_move_down, label),
+                        )
+                    }
+                }
+            }
+        }
+        item(key = "reset-pages") {
+            SettingsSection(title = null) {
+                SettingsActionRow(
+                    title = stringResource(Res.string.settings_pages_reset),
+                    subtitle = stringResource(Res.string.settings_pages_reset_body),
+                    enabled = layout != PageLayout() || preferredStartPage != StartPage.TRACKS,
+                    onClick = {
+                        settings.setPageLayout(PageLayout())
+                        settings.setStartPage(StartPage.TRACKS)
+                    },
+                )
+            }
+        }
+    }
+
+    if (choosingStartPage) {
+        AlertDialog(
+            onDismissRequest = { choosingStartPage = false },
+            title = { Text(stringResource(Res.string.settings_start_page)) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    SettingsBody(stringResource(Res.string.settings_start_page_body))
+                    SingleChoiceRows(
+                        values = visiblePages,
+                        selected = startPage,
+                        label = { stringResource(it.titleResource()) },
+                        onSelected = {
+                            settings.setStartPage(it)
+                            choosingStartPage = false
+                        },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { choosingStartPage = false }) {
+                    Text(stringResource(Res.string.action_close))
+                }
+            },
+        )
     }
 }
 
@@ -718,6 +862,7 @@ private fun <T> SingleChoiceRows(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 48.dp)
                     .selectable(
                         selected = selected == value,
                         role = Role.RadioButton,

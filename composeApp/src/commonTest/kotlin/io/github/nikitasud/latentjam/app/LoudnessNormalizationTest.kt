@@ -126,6 +126,8 @@ internal class LoudnessNormalizationTest {
         override fun setThemeMode(mode: ThemeMode) { themeMode.value = mode }
         override val startPage = MutableStateFlow(StartPage.TRACKS)
         override fun setStartPage(page: StartPage) { startPage.value = page }
+        override val pageLayout = MutableStateFlow(PageLayout())
+        override fun setPageLayout(layout: PageLayout) { pageLayout.value = layout.normalized() }
         override val trackColorMode = MutableStateFlow(TrackColorMode.DYNAMIC)
         override fun setTrackColorMode(mode: TrackColorMode) { trackColorMode.value = mode }
         override val smartQueueLength = MutableStateFlow(DEFAULT_SMART_QUEUE_LENGTH)

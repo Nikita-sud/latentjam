@@ -282,7 +282,7 @@
     <string name="indexing_notification_progress_eta">%1$d von %2$d · noch etwa %3$d Min.</string>
     <!-- =================================================== expanded settings -->
     <string name="settings_appearance">Darstellung</string>
-    <string name="settings_appearance_subtitle">Design, Player-Farben und Startseite</string>
+    <string name="settings_appearance_subtitle">Design, Player-Farben und Sprache</string>
     <string name="settings_library">Bibliothek</string>
     <string name="settings_library_subtitle">Aktualisieren, importieren und ausgeblendete Titel verwalten</string>
     <string name="settings_playback">Wiedergabe</string>
@@ -496,4 +496,42 @@
     <string name="foryou_caption_left_turn">Ein Abstecher von %1$s</string>
     <string name="foryou_section_journey">Klangreise</string>
     <string name="foryou_journey_title">Von „%1$s“ bis „%2$s“</string>
+    <string name="settings_pages">Seiten</string>
+    <string name="settings_pages_subtitle">Sichtbarkeit, Reihenfolge und Startseite</string>
+    <string name="settings_pages_body">Wähle die sichtbaren Seiten und ändere ihre Reihenfolge mit den Pfeilen. Die Karte ist standardmäßig ausgeschaltet.</string>
+    <string name="settings_pages_last_visible">Mindestens eine Seite muss eingeschaltet bleiben.</string>
+    <string name="settings_page_position">Position %1$d von %2$d</string>
+    <string name="settings_page_move_up">%1$s nach oben verschieben</string>
+    <string name="settings_page_move_down">%1$s nach unten verschieben</string>
+    <string name="settings_pages_reset">Seiten zurücksetzen</string>
+    <string name="settings_pages_reset_body">Stelle die Standardreihenfolge, die sichtbaren Seiten und die Startseite wieder her.</string>
+
+    <!-- Listening dashboard -->
+    <string name="stats_dashboard_title">Deine Hörgewohnheiten</string>
+    <string name="stats_recording_off">Der Hörverlauf ist pausiert. Deine gespeicherten Statistiken bleiben erhalten; neue Wiedergaben werden erst erfasst, wenn du den Verlauf in den Datenschutzeinstellungen aktivierst.</string>
+    <string name="stats_comparison_more">%1$s mehr als in den vorherigen %2$d Tagen</string>
+    <string name="stats_comparison_less">%1$s weniger als in den vorherigen %2$d Tagen</string>
+    <string name="stats_comparison_same">Gleiche Hörzeit wie in den vorherigen %1$d Tagen</string>
+    <string name="stats_comparison_first">Keine Wiedergaben in den vorherigen %1$d Tagen</string>
+    <string name="stats_under_minute">&lt; 1 Min.</string>
+    <string name="stats_activity">Dein täglicher Rhythmus</string>
+    <string name="stats_calendar_days">Letzte %1$d Kalendertage · Hörzeit</string>
+    <string name="stats_today">Heute</string>
+    <string name="stats_yesterday">Gestern</string>
+    <string name="stats_days_ago">Vor %1$d Tagen</string>
+    <string name="stats_habits">Hörgewohnheiten</string>
+    <string name="stats_active_days">Aktive Tage</string>
+    <string name="stats_new_tracks">Zum ersten Mal gehört</string>
+    <string name="stats_habits_note">Neue Titel wurden erstmals im gespeicherten Verlauf gehört. Serien berücksichtigen den gesamten Zeitraum.</string>
+    <string name="stats_repeat_share">Wiederholte Wiedergaben</string>
+    <string name="stats_coverage">Entdecke deine Mediathek</string>
+    <string name="stats_coverage_detail">%1$d von %2$s in diesem Zeitraum gehört</string>
+    <string name="stats_smart_share">SMART-Modus</string>
+    <string name="stats_smart_detail">Anteil der Wiedergaben, die mit aktiviertem SMART-Zufallsmodus gestartet wurden</string>
+    <string name="stats_listening_style">So hörst du Musik</string>
+    <string name="stats_peak_hour">Die meisten Wiedergaben gegen %1$s</string>
+    <string name="stats_average_active_day">Pro aktivem Tag</string>
+    <string name="stats_recent_empty">An diesen Kalendertagen wurde noch nichts gehört.</string>
+    <string name="stats_history_note">Basierend auf dem gespeicherten Verlauf; wird beim Ende oder Wechsel eines Titels aktualisiert. Ranglisten berücksichtigen verfügbare Titel deiner Mediathek.</string>
+    <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
 </resources>

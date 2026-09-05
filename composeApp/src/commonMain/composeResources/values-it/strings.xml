@@ -279,7 +279,7 @@
     <string name="indexing_notification_progress_eta">%1$d di %2$d · circa %3$d min rimanenti</string>
     <!-- =================================================== expanded settings -->
     <string name="settings_appearance">Aspetto</string>
-    <string name="settings_appearance_subtitle">Tema, colori del lettore e pagina iniziale</string>
+    <string name="settings_appearance_subtitle">Tema, colori del lettore e lingua</string>
     <string name="settings_library">Libreria</string>
     <string name="settings_library_subtitle">Aggiorna, importa e gestisci i brani nascosti</string>
     <string name="settings_playback">Riproduzione</string>
@@ -493,4 +493,42 @@
     <string name="foryou_caption_left_turn">Una svolta da %1$s</string>
     <string name="foryou_section_journey">Viaggio sonoro</string>
     <string name="foryou_journey_title">Da “%1$s” a “%2$s”</string>
+    <string name="settings_pages">Pagine</string>
+    <string name="settings_pages_subtitle">Visibilità, ordine e pagina iniziale</string>
+    <string name="settings_pages_body">Scegli quali pagine mostrare e usa le frecce per cambiarne l’ordine. La mappa è disattivata per impostazione predefinita.</string>
+    <string name="settings_pages_last_visible">Mantieni almeno una pagina attiva.</string>
+    <string name="settings_page_position">Posizione %1$d di %2$d</string>
+    <string name="settings_page_move_up">Sposta %1$s in alto</string>
+    <string name="settings_page_move_down">Sposta %1$s in basso</string>
+    <string name="settings_pages_reset">Ripristina pagine</string>
+    <string name="settings_pages_reset_body">Ripristina l’ordine, le pagine visibili e la pagina iniziale predefiniti.</string>
+
+    <!-- Listening dashboard -->
+    <string name="stats_dashboard_title">I tuoi ascolti</string>
+    <string name="stats_recording_off">La cronologia di ascolto è in pausa. Le statistiche salvate restano disponibili; i nuovi ascolti verranno aggiunti quando attiverai la cronologia nelle impostazioni sulla privacy.</string>
+    <string name="stats_comparison_more">%1$s in più rispetto ai %2$d giorni precedenti</string>
+    <string name="stats_comparison_less">%1$s in meno rispetto ai %2$d giorni precedenti</string>
+    <string name="stats_comparison_same">Lo stesso tempo di ascolto dei %1$d giorni precedenti</string>
+    <string name="stats_comparison_first">Nessun ascolto nei %1$d giorni precedenti</string>
+    <string name="stats_under_minute">&lt; 1 min</string>
+    <string name="stats_activity">Il tuo ritmo quotidiano</string>
+    <string name="stats_calendar_days">Ultimi %1$d giorni di calendario · tempo di ascolto</string>
+    <string name="stats_today">Oggi</string>
+    <string name="stats_yesterday">Ieri</string>
+    <string name="stats_days_ago">%1$d giorni fa</string>
+    <string name="stats_habits">Abitudini di ascolto</string>
+    <string name="stats_active_days">Giorni attivi</string>
+    <string name="stats_new_tracks">Primi ascolti</string>
+    <string name="stats_habits_note">I nuovi brani sono ascolti registrati per la prima volta nella cronologia salvata. Le serie considerano tutta la cronologia.</string>
+    <string name="stats_repeat_share">Ascolti ripetuti</string>
+    <string name="stats_coverage">Esplora la tua libreria</string>
+    <string name="stats_coverage_detail">%1$d su %2$s ascoltati in questo periodo</string>
+    <string name="stats_smart_share">Modalità SMART</string>
+    <string name="stats_smart_detail">Percentuale di riproduzioni avviate con la modalità casuale SMART attiva</string>
+    <string name="stats_listening_style">Come ascolti</string>
+    <string name="stats_peak_hour">Più ascolti intorno alle %1$s</string>
+    <string name="stats_average_active_day">Per giorno attivo</string>
+    <string name="stats_recent_empty">Ancora nessun ascolto in questi giorni di calendario.</string>
+    <string name="stats_history_note">Basato sulla cronologia salvata; si aggiorna quando un brano termina o cambia. Le classifiche usano i brani disponibili nella libreria.</string>
+    <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
 </resources>

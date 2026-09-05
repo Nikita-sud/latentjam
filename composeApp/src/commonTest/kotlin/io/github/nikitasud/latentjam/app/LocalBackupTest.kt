@@ -44,6 +44,10 @@ internal class LocalBackupTest {
                 includeNoveltyMixes = true,
                 normalizeVolume = true,
                 crossfadeSeconds = 7,
+                pageLayout = PageLayout()
+                    .withPageEnabled(StartPage.MAP, true)
+                    .withPageEnabled(StartPage.GENRES, false)
+                    .movePage(StartPage.ALBUMS, -4),
             ),
             tracks = listOf(
                 LocalBackupTrackReference(
@@ -84,7 +88,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t3\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t4\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
     }
 
@@ -153,7 +157,7 @@ internal class LocalBackupTest {
     fun codecRejectsFutureVersionsCorruptionAndDanglingReferences() {
         val valid = LocalBackupCodec.encode(emptySnapshot())
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t3", "LOCAL-BACKUP\t9"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t4", "LOCAL-BACKUP\t9"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
@@ -197,6 +201,104 @@ internal class LocalBackupTest {
             LocalBackupCodec.decode(overloaded)
         }
         assertContains(failure.message.orEmpty(), "Too many recent searches")
+    }
+
+    @Test
+    fun legacyBackupsRestoreDefaultPagesAndRepairAHiddenMapStart() = runTest {
+        val legacy = LocalBackupCodec.decode(
+            "LATENTJAM-LOCAL-BACKUP\t3\n" +
+                "C\t1\n" +
+                "S\tSYSTEM\tmap\tdynamic\t20\t1\t1\t0\t0\t0\n",
+        )
+        assertEquals(PageLayout(), legacy.settings.pageLayout)
+        val destination = fixture(emptyList())
+        destination.settings.setPageLayout(PageLayout(hiddenPages = emptySet()))
+        destination.settings.setStartPage(StartPage.MAP)
+
+        destination.service.restore(legacy, LocalBackupRestoreMode.REPLACE)
+
+        assertEquals(PageLayout(), destination.settings.pageLayout.value)
+        assertEquals(StartPage.FOR_YOU, destination.settings.startPage.value)
+    }
+
+    @Test
+    fun backupRestoresLayoutBeforeSelectingAnEnabledMapStart() = runTest {
+        val source = fixture(emptyList())
+        val layout = PageLayout()
+            .withPageEnabled(StartPage.MAP, true)
+            .withPageEnabled(StartPage.FOLDERS, false)
+            .movePage(StartPage.MAP, -1)
+        source.settings.setPageLayout(layout)
+        source.settings.setStartPage(StartPage.MAP)
+        val destination = fixture(emptyList())
+
+        destination.service.importEncoded(source.service.exportEncoded(), LocalBackupRestoreMode.REPLACE)
+
+        assertEquals(layout, destination.settings.pageLayout.value)
+        assertEquals(StartPage.MAP, destination.settings.startPage.value)
+    }
+
+    @Test
+    fun backupRestoresOptionalStatisticsOrderVisibilityAndStartPage() = runTest {
+        val source = fixture(emptyList())
+        val layout = PageLayout()
+            .withPageEnabled(StartPage.STATISTICS, true)
+            .withPageEnabled(StartPage.FOLDERS, false)
+            .movePage(StartPage.STATISTICS, Int.MIN_VALUE)
+        source.settings.setPageLayout(layout)
+        source.settings.setStartPage(StartPage.STATISTICS)
+        val destination = fixture(emptyList())
+
+        val encoded = source.service.exportEncoded()
+        destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t4\n"))
+        assertEquals(layout, destination.settings.pageLayout.value)
+        assertEquals(StartPage.STATISTICS, destination.settings.startPage.value)
+    }
+
+    @Test
+    fun olderVersionFourBackupsKeepStatisticsHiddenAndCustomPagesUnchanged() = runTest {
+        val legacy = LocalBackupCodec.decode(
+            "LATENTJAM-LOCAL-BACKUP\t4\nC\t0\n" +
+                "S\tSYSTEM\tmap\tdynamic\t20\t1\t1\t0\t0\t0\n" +
+                "L\tLJPL1|map,tracks,albums,artists,genres,folders,playlists,for_you|genres\n",
+        )
+        val destination = fixture(emptyList())
+
+        destination.service.restore(legacy, LocalBackupRestoreMode.REPLACE)
+
+        val layout = destination.settings.pageLayout.value
+        assertEquals(StartPage.MAP, layout.visiblePages.first())
+        assertEquals(StartPage.STATISTICS, layout.order.last())
+        assertEquals(setOf(StartPage.GENRES, StartPage.STATISTICS), layout.hiddenPages)
+        assertEquals(StartPage.MAP, destination.settings.startPage.value)
+    }
+
+    @Test
+    fun restoringWithoutSettingsPreservesTheCurrentPageLayout() = runTest {
+        val destination = fixture(emptyList())
+        val layout = PageLayout().movePage(StartPage.ALBUMS, -4)
+        destination.settings.setPageLayout(layout)
+        destination.settings.setStartPage(StartPage.ALBUMS)
+
+        destination.service.restore(emptySnapshot(), LocalBackupRestoreMode.REPLACE, noSections())
+
+        assertEquals(layout, destination.settings.pageLayout.value)
+        assertEquals(StartPage.ALBUMS, destination.settings.startPage.value)
+    }
+
+    @Test
+    fun pageLayoutRecordIsOptionalButDuplicateAndMalformedRecordsAreRejected() {
+        val encoded = LocalBackupCodec.encode(emptySnapshot())
+        val withoutLayout = encoded.lineSequence().filterNot { it.startsWith("L\t") }.joinToString("\n")
+        assertEquals(PageLayout(), LocalBackupCodec.decode(withoutLayout).settings.pageLayout)
+        assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.decode(encoded + "L\tLJPL1|tracks|map\n")
+        }
+        assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.decode(withoutLayout + "\nL\tbroken\n")
+        }
     }
 
     @Test
@@ -507,7 +609,14 @@ internal class LocalBackupTest {
         override val themeMode: MutableStateFlow<ThemeMode> = MutableStateFlow(ThemeMode.SYSTEM)
         override fun setThemeMode(mode: ThemeMode) { themeMode.value = mode }
         override val startPage: MutableStateFlow<StartPage> = MutableStateFlow(StartPage.TRACKS)
-        override fun setStartPage(page: StartPage) { startPage.value = page }
+        override fun setStartPage(page: StartPage) {
+            if (page in pageLayout.value.visiblePages) startPage.value = page
+        }
+        override val pageLayout = MutableStateFlow(PageLayout())
+        override fun setPageLayout(layout: PageLayout) {
+            pageLayout.value = layout.normalized()
+            startPage.value = pageLayout.value.resolveStartPage(startPage.value)
+        }
         override val trackColorMode: MutableStateFlow<TrackColorMode> = MutableStateFlow(TrackColorMode.DYNAMIC)
         override fun setTrackColorMode(mode: TrackColorMode) { trackColorMode.value = mode }
         override val smartQueueLength: MutableStateFlow<Int> = MutableStateFlow(DEFAULT_SMART_QUEUE_LENGTH)

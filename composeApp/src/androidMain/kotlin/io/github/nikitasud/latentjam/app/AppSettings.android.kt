@@ -22,7 +22,9 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     private val preferences = context.getSharedPreferences(APP_SETTINGS_FILE, Context.MODE_PRIVATE)
     private val mutableTheme = MutableStateFlow(readTheme())
     override val themeMode: StateFlow<ThemeMode> = mutableTheme.asStateFlow()
-    private val mutableStartPage = MutableStateFlow(readStartPage())
+    private val mutablePageLayout = MutableStateFlow(pageLayoutFromPersisted(readString(KEY_PAGE_LAYOUT)))
+    override val pageLayout: StateFlow<PageLayout> = mutablePageLayout.asStateFlow()
+    private val mutableStartPage = MutableStateFlow(mutablePageLayout.value.resolveStartPage(readStartPage()))
     override val startPage: StateFlow<StartPage> = mutableStartPage.asStateFlow()
     private val mutableTrackColorMode = MutableStateFlow(readTrackColorMode())
     override val trackColorMode: StateFlow<TrackColorMode> = mutableTrackColorMode.asStateFlow()
@@ -55,8 +57,20 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     }
 
     override fun setStartPage(page: StartPage) {
+        if (page !in mutablePageLayout.value.visiblePages) return
         preferences.edit().putString(KEY_START_PAGE, page.persistedValue).apply()
         mutableStartPage.value = page
+    }
+
+    override fun setPageLayout(layout: PageLayout) {
+        val normalized = layout.normalized()
+        val startPage = normalized.resolveStartPage(mutableStartPage.value)
+        preferences.edit()
+            .putString(KEY_PAGE_LAYOUT, encodePageLayout(normalized))
+            .putString(KEY_START_PAGE, startPage.persistedValue)
+            .apply()
+        mutablePageLayout.value = normalized
+        mutableStartPage.value = startPage
     }
 
     override fun setTrackColorMode(mode: TrackColorMode) {
@@ -233,6 +247,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     private companion object {
         const val KEY_THEME = APP_THEME_KEY
         const val KEY_START_PAGE = "start_page"
+        const val KEY_PAGE_LAYOUT = "page_layout_v1"
         const val KEY_TRACK_COLOR_MODE = "track_color_mode"
         const val KEY_SMART_QUEUE_LENGTH = "smart_queue_length"
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"

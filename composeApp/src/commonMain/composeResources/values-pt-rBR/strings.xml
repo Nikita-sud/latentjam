@@ -279,7 +279,7 @@
     <string name="indexing_notification_progress_eta">%1$d de %2$d · cerca de %3$d min restantes</string>
     <!-- =================================================== expanded settings -->
     <string name="settings_appearance">Aparência</string>
-    <string name="settings_appearance_subtitle">Tema, cores do player e página inicial</string>
+    <string name="settings_appearance_subtitle">Tema, cores do player e idioma</string>
     <string name="settings_library">Biblioteca</string>
     <string name="settings_library_subtitle">Atualização, importação e músicas ocultas</string>
     <string name="settings_playback">Reprodução</string>
@@ -493,4 +493,42 @@
     <string name="foryou_caption_left_turn">Um desvio de %1$s</string>
     <string name="foryou_section_journey">Viagem sonora</string>
     <string name="foryou_journey_title">De “%1$s” a “%2$s”</string>
+    <string name="settings_pages">Páginas</string>
+    <string name="settings_pages_subtitle">Visibilidade, ordem e página inicial</string>
+    <string name="settings_pages_body">Escolha quais páginas aparecem e use as setas para mudar a ordem. O mapa fica desativado por padrão.</string>
+    <string name="settings_pages_last_visible">Mantenha pelo menos uma página ativada.</string>
+    <string name="settings_page_position">Posição %1$d de %2$d</string>
+    <string name="settings_page_move_up">Mover %1$s para cima</string>
+    <string name="settings_page_move_down">Mover %1$s para baixo</string>
+    <string name="settings_pages_reset">Redefinir páginas</string>
+    <string name="settings_pages_reset_body">Restaure a ordem, as páginas visíveis e a página inicial padrão.</string>
+
+    <!-- Listening dashboard -->
+    <string name="stats_dashboard_title">Suas músicas em números</string>
+    <string name="stats_recording_off">O histórico de reprodução está pausado. Suas estatísticas salvas continuam disponíveis; novas reproduções serão registradas quando você ativar o histórico nas configurações de privacidade.</string>
+    <string name="stats_comparison_more">%1$s a mais que nos %2$d dias anteriores</string>
+    <string name="stats_comparison_less">%1$s a menos que nos %2$d dias anteriores</string>
+    <string name="stats_comparison_same">O mesmo tempo de reprodução dos %1$d dias anteriores</string>
+    <string name="stats_comparison_first">Nenhuma reprodução nos %1$d dias anteriores</string>
+    <string name="stats_under_minute">&lt; 1 min</string>
+    <string name="stats_activity">Seu ritmo diário</string>
+    <string name="stats_calendar_days">Últimos %1$d dias do calendário · tempo de reprodução</string>
+    <string name="stats_today">Hoje</string>
+    <string name="stats_yesterday">Ontem</string>
+    <string name="stats_days_ago">Há %1$d dias</string>
+    <string name="stats_habits">Hábitos de escuta</string>
+    <string name="stats_active_days">Dias ativos</string>
+    <string name="stats_new_tracks">Primeiras audições</string>
+    <string name="stats_habits_note">As músicas novas são primeiras audições no histórico salvo. As sequências consideram todo o histórico.</string>
+    <string name="stats_repeat_share">Reproduções repetidas</string>
+    <string name="stats_coverage">Explore sua biblioteca</string>
+    <string name="stats_coverage_detail">%1$d de %2$s reproduzidas neste período</string>
+    <string name="stats_smart_share">Modo SMART</string>
+    <string name="stats_smart_detail">Proporção de reproduções iniciadas com o modo aleatório SMART ativado</string>
+    <string name="stats_listening_style">Como você ouve</string>
+    <string name="stats_peak_hour">Mais reproduções por volta de %1$s</string>
+    <string name="stats_average_active_day">Por dia ativo</string>
+    <string name="stats_recent_empty">Ainda não há reproduções nestes dias do calendário.</string>
+    <string name="stats_history_note">Baseado no histórico salvo; atualizado quando uma música termina ou muda. Os rankings usam as músicas disponíveis na biblioteca.</string>
+    <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
 </resources>

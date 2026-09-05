@@ -65,7 +65,7 @@ loved is not always the track.
 
 🗺️ &nbsp;**A map of your library** — the embedding space made visible and navigable: clusters are
 your genres as the model hears them, and every track's menu can answer *"where does this live in my
-library?"*.
+library?"*. The Map page is off by default; enable it in **Settings → Pages**.
 
 🔎 &nbsp;**Search that knows its aliases** — a local CC0 MusicBrainz index resolves artist aliases,
 transliterations and band-member names entirely on device, so a query and a tag that spell an artist
@@ -78,8 +78,17 @@ real playback, embedded lyrics read from tags, a tag-blind duplicate finder buil
 index, never-played and rediscover auto playlists, a system equalizer, ID3 tag editing, and a
 settings screen that says honestly what the recommender knows about your library.
 
-📊 &nbsp;**Your listening, visible** — the same private local history SMART reads also becomes a
-statistics page; nothing new is collected to power it.
+⚙️ &nbsp;**Your pages, your order** — **Settings → Pages** lets you show or hide each browsing page,
+move pages up or down, choose an enabled page to open on launch, or restore the defaults. At least
+one page stays available. Layouts survive restarts and are included in local backups. For You and
+Map calculations run only when their page is open, and reuse unchanged results on return.
+
+📊 &nbsp;**Your listening, visible** — **Settings → Statistics** shows listening time and changes
+from the previous period, daily activity, listening habits, first listens, library coverage,
+SMART usage, and ranked tracks and artists. Explore seven days, thirty days, or all saved history.
+Statistics can also be enabled and reordered as a main page in **Settings → Pages**; it is off by
+default. Everything uses the same private local history SMART reads, with calculations off the
+main thread and refreshed only while the dashboard is open.
 
 📱 &nbsp;**At home on the home screen** — three widget styles that wear the playing track's colour
 the way the player does, a Quick Settings tile, an Android Auto browse tree for the car, and

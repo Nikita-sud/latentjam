@@ -24,8 +24,12 @@ internal class IosAppSettings : AppSettings {
             ?: ThemeMode.SYSTEM,
     )
     override val themeMode: StateFlow<ThemeMode> = mutableTheme.asStateFlow()
+    private val mutablePageLayout = MutableStateFlow(
+        pageLayoutFromPersisted(defaults.objectForKey(KEY_PAGE_LAYOUT) as? String),
+    )
+    override val pageLayout: StateFlow<PageLayout> = mutablePageLayout.asStateFlow()
     private val mutableStartPage = MutableStateFlow(
-        startPageFromPersisted(defaults.stringForKey(KEY_START_PAGE)),
+        mutablePageLayout.value.resolveStartPage(startPageFromPersisted(defaults.stringForKey(KEY_START_PAGE))),
     )
     override val startPage: StateFlow<StartPage> = mutableStartPage.asStateFlow()
     private val mutableTrackColorMode = MutableStateFlow(
@@ -61,8 +65,18 @@ internal class IosAppSettings : AppSettings {
     }
 
     override fun setStartPage(page: StartPage) {
+        if (page !in mutablePageLayout.value.visiblePages) return
         defaults.setObject(page.persistedValue, KEY_START_PAGE)
         mutableStartPage.value = page
+    }
+
+    override fun setPageLayout(layout: PageLayout) {
+        val normalized = layout.normalized()
+        val startPage = normalized.resolveStartPage(mutableStartPage.value)
+        defaults.setObject(encodePageLayout(normalized), KEY_PAGE_LAYOUT)
+        defaults.setObject(startPage.persistedValue, KEY_START_PAGE)
+        mutablePageLayout.value = normalized
+        mutableStartPage.value = startPage
     }
 
     override fun setTrackColorMode(mode: TrackColorMode) {
@@ -236,6 +250,7 @@ internal class IosAppSettings : AppSettings {
     private companion object {
         const val KEY_THEME = "theme_mode"
         const val KEY_START_PAGE = "start_page"
+        const val KEY_PAGE_LAYOUT = "page_layout_v1"
         const val KEY_TRACK_COLOR_MODE = "track_color_mode"
         const val KEY_SMART_QUEUE_LENGTH = "smart_queue_length"
         const val KEY_INCLUDE_NOVELTY_MIXES = "include_novelty_mixes"

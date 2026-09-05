@@ -21,7 +21,73 @@ enum class StartPage(internal val persistedValue: String) {
     ARTISTS("artists"),
     GENRES("genres"),
     FOLDERS("folders"),
+    STATISTICS("statistics"),
 }
+
+/** User-owned browse order. Hidden pages retain their position so enabling them is predictable. */
+data class PageLayout(
+    val order: List<StartPage> = StartPage.entries.toList(),
+    val hiddenPages: Set<StartPage> = setOf(StartPage.MAP, StartPage.STATISTICS),
+) {
+    val visiblePages: List<StartPage>
+        get() = normalized().let { layout -> layout.order.filterNot { it in layout.hiddenPages } }
+
+    /** Repairs duplicates, older partial orders, and an invalid all-hidden configuration. */
+    fun normalized(): PageLayout {
+        val completeOrder = (order + StartPage.entries).distinct()
+        val safeHidden = if (completeOrder.all { it in hiddenPages }) {
+            hiddenPages - StartPage.TRACKS
+        } else {
+            hiddenPages.toSet()
+        }
+        return if (completeOrder == order && safeHidden == hiddenPages) this else {
+            PageLayout(completeOrder, safeHidden)
+        }
+    }
+
+    /** There must always be at least one browse page available. */
+    fun withPageEnabled(page: StartPage, enabled: Boolean): PageLayout {
+        val layout = normalized()
+        if (!enabled && layout.visiblePages == listOf(page)) return layout
+        return layout.copy(hiddenPages = if (enabled) layout.hiddenPages - page else layout.hiddenPages + page)
+    }
+
+    fun movePage(page: StartPage, offset: Int): PageLayout {
+        val layout = normalized()
+        val from = layout.order.indexOf(page)
+        val to = (from.toLong() + offset.toLong()).coerceIn(0L, layout.order.lastIndex.toLong()).toInt()
+        if (from == to) return layout
+        return layout.copy(order = layout.order.toMutableList().apply { add(to, removeAt(from)) })
+    }
+
+    fun resolveStartPage(preferred: StartPage): StartPage =
+        visiblePages.let { pages -> preferred.takeIf { it in pages } ?: pages.first() }
+}
+
+/** Order and visibility share one value so interrupted writes cannot pair different layouts. */
+internal fun encodePageLayout(layout: PageLayout): String = layout.normalized().let { normalized ->
+    "$PAGE_LAYOUT_PREFIX${normalized.order.joinToString(",") { it.persistedValue }}|" +
+        normalized.order.filter { it in normalized.hiddenPages }.joinToString(",") { it.persistedValue }
+}
+
+/** Unknown page names can survive an app downgrade without breaking the remaining layout. */
+internal fun decodePageLayout(value: String): PageLayout? {
+    if (value.length > MAX_PAGE_LAYOUT_CHARS || !value.startsWith(PAGE_LAYOUT_PREFIX)) return null
+    val fields = value.removePrefix(PAGE_LAYOUT_PREFIX).split('|')
+    if (fields.size != 2) return null
+    fun pages(field: String): List<StartPage> = field.split(',').mapNotNull { persisted ->
+        StartPage.entries.firstOrNull { it.persistedValue == persisted }
+    }
+    val order = pages(fields[0]).distinct().takeIf { it.isNotEmpty() } ?: return null
+    val hidden = pages(fields[1]).toSet() + (PageLayout().hiddenPages - order.toSet())
+    return PageLayout(order, hidden).normalized()
+}
+
+internal fun pageLayoutFromPersisted(value: String?): PageLayout =
+    value?.let(::decodePageLayout) ?: PageLayout()
+
+private const val PAGE_LAYOUT_PREFIX = "LJPL1|"
+private const val MAX_PAGE_LAYOUT_CHARS = 4_096
 
 /** Where the player surface gets its accent colour. */
 enum class TrackColorMode(internal val persistedValue: String) {
@@ -177,6 +243,10 @@ interface AppSettings {
 
     val startPage: StateFlow<StartPage>
     fun setStartPage(page: StartPage)
+
+    val pageLayout: StateFlow<PageLayout>
+    /** Persists a complete valid layout and repairs a start page that has been hidden. */
+    fun setPageLayout(layout: PageLayout)
 
     val trackColorMode: StateFlow<TrackColorMode>
     fun setTrackColorMode(mode: TrackColorMode)

@@ -115,6 +115,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
@@ -265,6 +266,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -512,6 +514,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
     val settings = AppGraph.settings
     val themeMode by settings.themeMode.collectAsState()
     val startPage by settings.startPage.collectAsState()
+    val pageLayout by settings.pageLayout.collectAsState()
+    val visiblePages = remember(pageLayout) { pageLayout.normalized().visiblePages }
     val trackColorMode by settings.trackColorMode.collectAsState()
     val smartQueueLength by settings.smartQueueLength.collectAsState()
     val includeNoveltyMixes by settings.includeNoveltyMixes.collectAsState()
@@ -582,35 +586,90 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
-        // The pager owns the section position; everything else reads it. One source of truth means
-        // the strip and the content can never disagree about where a half-finished swipe is.
-        val pagerState = rememberPagerState(initialPage = startPage.tabIndex()) { BROWSE_TABS.size }
-        val selectedTab = pagerState.currentPage
+        // Keep both the pager and its item provider alive as the page set changes. Stable item
+        // keys preserve scroll state; the saved identity resolves a removed current page.
+        var savedActivePage by rememberSaveable { mutableStateOf(startPage.name) }
+        val activePage = resolveActiveBrowsePage(visiblePages, savedActivePage, startPage)
+        // AnimatedContent can retain an older content lambda while the shell updates the count.
+        // All pager readers must observe one list, including lambdas retained by those layers.
+        val pagerPages = rememberUpdatedState(visiblePages)
+        val pagerState = rememberPagerState(initialPage = visiblePages.indexOf(activePage)) { pagerPages.value.size }
+        var appliedPages by remember { mutableStateOf(visiblePages) }
+        var pendingPage by remember { mutableStateOf<StartPage?>(null) }
+        val pageLayoutChanged = appliedPages != visiblePages
+        val pendingDestination = if (pageLayoutChanged) activePage else pendingPage
+        val selectedTab = pendingDestination ?: run {
+            visiblePages.getOrElse(pagerState.currentPage) { activePage }
+        }
+        val settledTab = pendingDestination ?: run {
+            visiblePages.getOrElse(pagerState.settledPage) { activePage }
+        }
         var rootTabNavigationRevision by remember { mutableLongStateOf(0L) }
-        fun rootTabSnapshot() = RootTabSnapshot(
-            navigationRevision = rootTabNavigationRevision,
-            currentTab = pagerState.currentPage,
-            settledTab = pagerState.settledPage,
-        )
-        fun navigateToRootTab(tab: Int) {
-            if (tab == pagerState.currentPage && tab == pagerState.settledPage) return
-            // Invalidate immediately so an Undo racing an animated tab change cannot restore a
-            // detail page during the first frame, before currentPage has moved.
+        SideEffect {
+            if (pageLayoutChanged) {
+                // Commit the new position with the data-set update at the next measurement.
+                // Replacing PagerState independently can pair an old provider count with new
+                // keys; replacing the whole pager discards the current page's scroll position.
+                pendingPage = activePage
+                pagerState.requestScrollToPage(visiblePages.indexOf(activePage))
+                appliedPages = visiblePages
+                rootTabNavigationRevision++
+            }
+            savedActivePage = selectedTab.name
+        }
+        LaunchedEffect(pendingPage, visiblePages) {
+            val target = pendingPage ?: return@LaunchedEffect
+            val targetIndex = visiblePages.indexOf(target)
+            if (targetIndex < 0) return@LaunchedEffect
+            snapshotFlow {
+                !pagerState.isScrollInProgress &&
+                    pagerState.currentPage == targetIndex && pagerState.settledPage == targetIndex
+            }.first { it }
+            pendingPage = null
+        }
+        // These two local functions travel into memoized callbacks (the carousel's onSelect, the
+        // track sheet's "show on map", hide-undo snapshots) that outlive the composition which
+        // created them. They must read the page list through state, never through the captured
+        // `visiblePages` value: after a live Settings → Pages change that snapshot names the wrong
+        // index and a tap lands on the neighbouring page.
+        val currentActivePage = rememberUpdatedState(activePage)
+        val currentReduceMotion = rememberUpdatedState(reduceMotion)
+        fun rootTabSnapshot(): RootTabSnapshot {
+            val pages = pagerPages.value
+            val fallback = currentActivePage.value
+            val settling = appliedPages != pages
+            return RootTabSnapshot(
+                navigationRevision = rootTabNavigationRevision,
+                currentTab = if (settling) fallback.ordinal else {
+                    (pendingPage ?: pages.getOrElse(pagerState.currentPage) { fallback }).ordinal
+                },
+                settledTab = if (settling) fallback.ordinal else {
+                    (pendingPage ?: pages.getOrElse(pagerState.settledPage) { fallback }).ordinal
+                },
+            )
+        }
+        fun navigateToRootTab(tab: StartPage) {
+            val index = pagerPages.value.indexOf(tab)
+            if (index < 0) return
+            if (index == pagerState.currentPage && index == pagerState.settledPage) return
+            // Invalidate immediately so a racing Undo cannot restore the old page's detail.
             rootTabNavigationRevision++
+            pendingPage = null
             scope.launch {
-                if (reduceMotion) pagerState.scrollToPage(tab) else pagerState.animateScrollToPage(tab)
+                if (currentReduceMotion.value) {
+                    pagerState.scrollToPage(index)
+                } else {
+                    pagerState.animateScrollToPage(index)
+                }
             }
         }
         LaunchedEffect(pagerState) {
             var previousSettledTab = pagerState.settledPage
             snapshotFlow { pagerState.settledPage }
                 .distinctUntilChanged()
-                .collect { settledTab ->
-                    if (settledTab != previousSettledTab) {
-                        previousSettledTab = settledTab
-                        // Swipes do not pass through navigateToRootTab, so settling independently
-                        // invalidates restoration. A requested animation may advance twice; this
-                        // value is deliberately a monotonic token rather than a navigation count.
+                .collect { settledIndex ->
+                    if (settledIndex != previousSettledTab) {
+                        previousSettledTab = settledIndex
                         rootTabNavigationRevision++
                     }
                 }
@@ -719,7 +778,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             playback.state.map { it.isPlaying }.distinctUntilChanged()
         }.collectAsState(playback.state.value.isPlaying)
         val selectionMode = selectedTrackIds.isNotEmpty() && (
-            selectedTab == TRACKS_TAB || selectedTab in GROUP_TABS || showSearch ||
+            selectedTab == StartPage.TRACKS || selectedTab in GROUP_TABS || showSearch ||
                 selectedCollection?.allowsTrackSelection == true
         )
         val accent = rememberTrackAccent(
@@ -824,7 +883,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             onLeave = { AppGraph.flushListeningSession() },
         ) {
             scope.launch {
-                if (selectedTab == PLAYLISTS_TAB) autoPlaylistClockMs = epochMillis()
+                if (selectedTab == StartPage.PLAYLISTS) autoPlaylistClockMs = epochMillis()
                 scanLibrary()
                 hasHiddenTracks = library.hasHiddenTracks()
             }
@@ -885,7 +944,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // A swipe between root tabs ends a Tracks-page selection. A collection detail is a
             // full-screen child of its source tab, however; entering playlist selection there must
             // not be cancelled merely because that source tab is not Tracks.
-            if (selectedCollection == null && selectedTab != TRACKS_TAB) {
+            if (selectedCollection == null && selectedTab != StartPage.TRACKS) {
                 updateTrackSelection(emptySet())
             }
         }
@@ -900,12 +959,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var worlds by remember { mutableStateOf<List<LibraryWorld>>(emptyList()) }
         var worldLibraryIds by remember { mutableStateOf<List<TrackId>>(emptyList()) }
         var builtWorldsKey by remember { mutableStateOf<LibraryWorldsKey?>(null) }
+        var builtWorldNoveltyPreference by remember { mutableStateOf<Boolean?>(null) }
+        var builtWorldReadiness by remember { mutableStateOf<Pair<Boolean, Boolean>?>(null) }
         var builtWorldDiscoveryKey by remember { mutableStateOf<LibraryWorldDiscoveryKey?>(null) }
         var builtDiscoveredWorlds by remember { mutableStateOf<List<LibraryWorld>?>(null) }
         // Precomputed sonic journeys, keyed like discovery: they need the raw vector rows, which
         // exist only in this effect and only until clustering's one-shot handoff.
         var journeys by remember { mutableStateOf<List<List<TrackId>>>(emptyList()) }
         var builtJourneysKey by remember { mutableStateOf<LibraryWorldDiscoveryKey?>(null) }
+        var builtForYouJourneys by remember { mutableStateOf<List<List<TrackId>>?>(null) }
+        var builtForYouJourneyTitle by remember { mutableStateOf<String?>(null) }
         var builtWorlds by remember { mutableStateOf<List<LibraryWorld>?>(null) }
         var builtForYouLibraryIds by remember { mutableStateOf<List<TrackId>?>(null) }
         var builtForYouPlaylistIdentity by remember {
@@ -941,9 +1004,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
         val playlistPresentationIdentity = remember(playlists) { playlists.presentationIdentity() }
 
+        val browsePageVisible = !showSettings && !showSearch && !showNowPlaying && selectedCollection == null
+        val forYouPageActive = browsePageVisible && settledTab == StartPage.FOR_YOU
+        val mapPageActive = browsePageVisible && settledTab == StartPage.MAP
+
         LaunchedEffect(
             tracks,
-            selectedTab == FOR_YOU_TAB,
+            forYouPageActive,
+            journeys,
+            journeyTitlePattern,
             worlds,
             worldLibraryIds,
             discoveryMixLabel,
@@ -955,7 +1024,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             playlistPresentationIdentity,
         ) {
             val loaded = tracks ?: return@LaunchedEffect
-            if (selectedTab != FOR_YOU_TAB) return@LaunchedEffect
+            if (!forYouPageActive) return@LaunchedEffect
             val loadedIds = loaded.map(TrackDescriptor::id)
             val requestedWorlds = if (worldLibraryIds == loadedIds) worlds else emptyList()
             // Built once, and again only when the worlds arrive — the text index fills in the
@@ -965,6 +1034,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             if (
                 !forYou.isEmpty &&
                 builtWorlds == requestedWorlds &&
+                builtForYouJourneys == journeys &&
+                builtForYouJourneyTitle == journeyTitlePattern &&
                 builtForYouLibraryIds == loadedIds &&
                 builtForYouPlaylistIdentity == playlistPresentationIdentity &&
                 builtForYouExclusions == smartExclusionState &&
@@ -1044,6 +1115,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 }
             }
             builtWorlds = requestedWorlds
+            builtForYouJourneys = journeys
+            builtForYouJourneyTitle = journeyTitlePattern
             builtForYouLibraryIds = loadedIds
             builtForYouPlaylistIdentity = playlistPresentationIdentity
             builtForYouExclusions = smartExclusionState
@@ -1227,7 +1300,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
-        LaunchedEffect(tracks, playlistPresentationIdentity, includeNoveltyMixes) {
+        // Library clustering and journeys serve these pages only. Starting playback or browsing
+        // Tracks must not allocate a vector space or run discovery for an unopened/hidden page.
+        LaunchedEffect(tracks, playlistPresentationIdentity, includeNoveltyMixes, forYouPageActive, mapPageActive) {
+            if (!forYouPageActive && !mapPageActive) return@LaunchedEffect
             val loaded = tracks ?: return@LaunchedEffect
             val loadedIds = loaded.map(TrackDescriptor::id)
             // Observe the readiness tier, not a boolean OR. Metadata becomes ready first; when
@@ -1237,88 +1313,119 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 .distinctUntilChanged()
                 .collect { (metadataReady, audioReady) ->
                     if (!metadataReady && !audioReady) return@collect
-                    val features = engine.libraryMixFeatures(
-                        ids = loadedIds,
-                        // This preference is the listener's explicit request for semantic novelty
-                        // and effect routing, so loading the shared model here is useful work. The
-                        // default path keeps restored/failed-only libraries completely lazy.
-                        loadMissingSemantics = includeNoveltyMixes,
-                    ) ?: return@collect
-                    val discoveryKey = LibraryWorldDiscoveryKey(
-                        trackIds = loadedIds,
-                        source = features.vectorSpace.source,
-                        vectorFingerprint = features.vectorSpace.fingerprint,
-                        descriptorIdentity = loaded.map(TrackDescriptor::worldIdentity),
-                        semanticsCount = features.semantics.size,
-                    )
-                    val worldsKey = LibraryWorldsKey(
-                        discovery = discoveryKey,
-                        playlistIdentity = playlistPresentationIdentity,
-                    )
-                    if (worldsKey == builtWorldsKey) return@collect
-                    // Snapshot for the background pass; a world mostly inside one named group
-                    // takes that group's name. Playlists come first — the listener's own word
-                    // outranks the artist's on a containment tie — then real (multi-track)
-                    // albums, whose titles are the artist's own curation.
-                    val playlistGroups = playlists.map { playlist ->
-                        playlist.name to playlist.trackIds.mapTo(HashSet()) { TrackId(it) }
-                    }
-                    val cachedDiscovery = builtDiscoveredWorlds
-                        ?.takeIf { builtWorldDiscoveryKey == discoveryKey }
-                    // Journeys interpolate over the raw rows, so the session must be built
-                    // BEFORE clustering's one-shot handoff. The session copies what it needs;
-                    // plotting itself can then run on the low-priority lane.
-                    if (builtJourneysKey != discoveryKey) {
-                        val session = runCatching { SonicJourney.session(features.vectorSpace) }
-                            .getOrNull()
-                        if (session != null) {
-                            val plotted = withContext(AppGraph.mapLayoutDispatcher) {
-                                ForYouRhythm.sonicJourneys(
-                                    session = session,
-                                    library = loaded,
-                                    stats = AppGraph.history.stats(),
-                                    artistKeyOf = { it?.trim()?.lowercase().orEmpty() },
+                    try {
+                        // Check raw-vector identity without allocating the fused matrix on a warm
+                        // page return. A changed vector, tag, playlist, preference or readiness tier
+                        // still invalidates discovery, even if the library population is unchanged.
+                        val coverage = engine.libraryMixCoverage(loadedIds) ?: return@collect
+                        val descriptorIdentity = loaded.map(TrackDescriptor::worldIdentity)
+                        val cachedKey = builtWorldsKey
+                        if (
+                            cachedKey != null &&
+                            builtWorldNoveltyPreference == includeNoveltyMixes &&
+                            builtWorldReadiness == (metadataReady to audioReady) &&
+                            cachedKey.playlistIdentity == playlistPresentationIdentity &&
+                            cachedKey.discovery.trackIds == loadedIds &&
+                            cachedKey.discovery.source == coverage.source &&
+                            cachedKey.discovery.vectorFingerprint == coverage.fingerprint &&
+                            cachedKey.discovery.descriptorIdentity == descriptorIdentity &&
+                            (!forYouPageActive || builtJourneysKey == cachedKey.discovery)
+                        ) return@collect
+                        val features = engine.libraryMixFeatures(
+                            ids = loadedIds,
+                            // This preference is the listener's explicit request for semantic novelty
+                            // and effect routing, so loading the shared model here is useful work. The
+                            // default path keeps restored/failed-only libraries completely lazy.
+                            loadMissingSemantics = includeNoveltyMixes,
+                        ) ?: return@collect
+                        val discoveryKey = LibraryWorldDiscoveryKey(
+                            trackIds = loadedIds,
+                            source = features.vectorSpace.source,
+                            vectorFingerprint = features.vectorSpace.fingerprint,
+                            descriptorIdentity = descriptorIdentity,
+                            semanticsCount = features.semantics.size,
+                        )
+                        val worldsKey = LibraryWorldsKey(
+                            discovery = discoveryKey,
+                            playlistIdentity = playlistPresentationIdentity,
+                        )
+                        if (worldsKey == builtWorldsKey && (!forYouPageActive || builtJourneysKey == discoveryKey)) {
+                            builtWorldNoveltyPreference = includeNoveltyMixes
+                            builtWorldReadiness = metadataReady to audioReady
+                            return@collect
+                        }
+                        // Snapshot for the background pass; a world mostly inside one named group
+                        // takes that group's name. Playlists come first — the listener's own word
+                        // outranks the artist's on a containment tie — then real (multi-track)
+                        // albums, whose titles are the artist's own curation.
+                        val playlistGroups = playlists.map { playlist ->
+                            playlist.name to playlist.trackIds.mapTo(HashSet()) { TrackId(it) }
+                        }
+                        val cachedDiscovery = builtDiscoveredWorlds
+                            ?.takeIf { builtWorldDiscoveryKey == discoveryKey }
+                        // Journeys interpolate over the raw rows, so the session must be built
+                        // BEFORE clustering's one-shot handoff. The session copies what it needs;
+                        // plotting itself can then run on the low-priority lane.
+                        if (forYouPageActive && builtJourneysKey != discoveryKey) {
+                            val session = runCatching { SonicJourney.session(features.vectorSpace) }
+                                .getOrNull()
+                            if (session != null) {
+                                val plotted = withContext(AppGraph.mapLayoutDispatcher) {
+                                    ForYouRhythm.sonicJourneys(
+                                        session = session,
+                                        library = loaded,
+                                        stats = AppGraph.history.stats(),
+                                        artistKeyOf = { it?.trim()?.lowercase().orEmpty() },
+                                    )
+                                }
+                                journeys = plotted
+                                builtJourneysKey = discoveryKey
+                            }
+                        }
+                        // Discovery is derived library work, not an interaction prerequisite. Keep it
+                        // on the Map's low-priority serial lane so a cold restore cannot make an
+                        // immediately opened page compete with clustering at normal CPU priority.
+                        val discovered = cachedDiscovery ?: withContext(AppGraph.mapLayoutDispatcher) {
+                            val started = TimeSource.Monotonic.markNow()
+                            LibraryWorlds.discover(
+                                library = loaded,
+                                vectorSpace = features.vectorSpace,
+                                semantics = features.semantics,
+                            ).also { mixes ->
+                                val routed = mixes.groupingBy { it.content }.eachCount()
+                                println(
+                                    "SMART: built ${mixes.size} ${features.vectorSpace.source} " +
+                                        "local mixes (semantic=${features.semantics.size}, " +
+                                        "routes=$routed) in " +
+                                        "${started.elapsedNow().inWholeMilliseconds} ms",
                                 )
                             }
-                            journeys = plotted
-                            builtJourneysKey = discoveryKey
                         }
-                    }
-                    // Discovery is derived library work, not an interaction prerequisite. Keep it
-                    // on the Map's low-priority serial lane so a cold restore cannot make an
-                    // immediately opened page compete with clustering at normal CPU priority.
-                    val discovered = cachedDiscovery ?: withContext(AppGraph.mapLayoutDispatcher) {
-                        val started = TimeSource.Monotonic.markNow()
-                        LibraryWorlds.discover(
-                            library = loaded,
-                            vectorSpace = features.vectorSpace,
-                            semantics = features.semantics,
-                        ).also { mixes ->
-                            val routed = mixes.groupingBy { it.content }.eachCount()
-                            println(
-                                "SMART: built ${mixes.size} ${features.vectorSpace.source} " +
-                                    "local mixes (semantic=${features.semantics.size}, " +
-                                    "routes=$routed) in " +
-                                    "${started.elapsedNow().inWholeMilliseconds} ms",
+                        val namedWorlds = withContext(AppGraph.mapLayoutDispatcher) {
+                            val albumGroups = LibraryCatalog.build(loaded).albums
+                                .filter { it.tracks.size > 1 && !it.title.isNullOrBlank() }
+                                .map { album ->
+                                    album.title.orEmpty() to album.tracks.mapTo(HashSet()) { it.id }
+                                }
+                            LibraryWorlds.namedAfterGroups(
+                                discovered,
+                                playlistGroups + albumGroups,
                             )
                         }
+                        worldLibraryIds = loadedIds
+                        worlds = namedWorlds
+                        builtWorldDiscoveryKey = discoveryKey
+                        builtDiscoveredWorlds = discovered
+                        builtWorldsKey = worldsKey
+                        builtWorldNoveltyPreference = includeNoveltyMixes
+                        builtWorldReadiness = metadataReady to audioReady
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Exception) {
+                        // Derived suggestions are retryable on the next page entry. A history or
+                        // model read failure must not take down the player or erase the warm page.
+                        println("SMART: could not refresh library suggestions: $failure")
                     }
-                    val namedWorlds = withContext(AppGraph.mapLayoutDispatcher) {
-                        val albumGroups = LibraryCatalog.build(loaded).albums
-                            .filter { it.tracks.size > 1 && !it.title.isNullOrBlank() }
-                            .map { album ->
-                                album.title.orEmpty() to album.tracks.mapTo(HashSet()) { it.id }
-                            }
-                        LibraryWorlds.namedAfterGroups(
-                            discovered,
-                            playlistGroups + albumGroups,
-                        )
-                    }
-                    worldLibraryIds = loadedIds
-                    worlds = namedWorlds
-                    builtWorldDiscoveryKey = discoveryKey
-                    builtDiscoveredWorlds = discovered
-                    builtWorldsKey = worldsKey
                 }
         }
 
@@ -1334,7 +1441,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // below), so it must never run for someone who never visits the Map. Keyed on
         // `pagerState.settledPage`, NOT `pagerState.currentPage` (what `selectedTab` reads): an
         // animated scroll to a tab past the Map advances `currentPage` through every intermediate
-        // page on the way there, including MAP_TAB, so keying on it stacked a full t-SNE run onto
+        // page on the way there, including StartPage.MAP, so keying on it stacked a full t-SNE run onto
         // Dispatchers.Default for every tab tap that merely passed through the Map en route
         // somewhere else. `settledPage` only updates once a scroll actually settles, and settles
         // directly on the final destination -- transit through the Map never trips it. Settling on
@@ -1364,7 +1471,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             worlds,
             worldLibraryIds,
             builtWorldsKey,
-            pagerState.settledPage,
+            mapPageActive,
             discoveryMixLabel,
             semanticMixLabels,
         ) {
@@ -1372,7 +1479,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // state. Normalize before any precondition can return, so neither the first-build
             // placeholder nor a warm-page spinner can survive an interrupted transaction.
             mapState = mapState.afterInterruptedMapBuild()
-            if (pagerState.settledPage != MAP_TAB) return@LaunchedEffect
+            if (!mapPageActive) return@LaunchedEffect
             val loaded = tracks ?: return@LaunchedEffect
             val loadedIds = loaded.map(TrackDescriptor::id)
             val layoutStore = AppGraph.layoutStore
@@ -1624,10 +1731,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 ?.takeIf { it.allowsTrackSelection }
                 ?.tracks
                 ?: when (selectedTab) {
-                    ALBUMS_TAB -> alphabeticAlbumTracks
-                    ARTISTS_TAB -> catalog?.artists?.flatMap { it.tracks }
-                    GENRES_TAB -> catalog?.genres?.flatMap { it.tracks }
-                    FOLDERS_TAB -> catalog?.folders?.flatMap { it.tracks }
+                    StartPage.ALBUMS -> alphabeticAlbumTracks
+                    StartPage.ARTISTS -> catalog?.artists?.flatMap { it.tracks }
+                    StartPage.GENRES -> catalog?.genres?.flatMap { it.tracks }
+                    StartPage.FOLDERS -> catalog?.folders?.flatMap { it.tracks }
                     else -> null
                 }
             groupOrderedSource?.filter { it.id in selectedTrackIds }
@@ -1715,7 +1822,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // Auto playlists are derived from listening, so refresh them whenever
         // the user comes back to the tab rather than only at startup.
         LaunchedEffect(selectedTab) {
-            if (selectedTab == PLAYLISTS_TAB) {
+            if (selectedTab == StartPage.PLAYLISTS) {
                 autoPlaylistClockMs = epochMillis()
                 refreshPlaylistsWithFeedback()
             }
@@ -1723,7 +1830,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // A listen can complete while this tab stays visible. Republish the derived auto lists
         // immediately instead of requiring a tab round-trip before Never Played/Rediscover move.
         LaunchedEffect(historyRevision) {
-            if (selectedTab == PLAYLISTS_TAB) refreshPlaylistStatsBestEffort()
+            if (selectedTab == StartPage.PLAYLISTS) refreshPlaylistStatsBestEffort()
         }
 
         // Every SMART planner (in-app and the playback chooser) reads the marked playlists from
@@ -1920,7 +2027,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             builtForYouLibraryIds = null
             builtForYouPlaylistIdentity = null
             builtForYouExclusions = null
-            forYouRefreshing = selectedTab == FOR_YOU_TAB
+            forYouRefreshing = selectedTab == StartPage.FOR_YOU
         }
 
         suspend fun applySmartExclusion(change: suspend () -> Unit): Boolean {
@@ -2099,7 +2206,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         // what you'd create, so it appears there — growing in
                                         // rather than teleporting when the tab settles.
                                         AnimatedVisibility(
-                                            visible = selectedTab == PLAYLISTS_TAB,
+                                            visible = selectedTab == StartPage.PLAYLISTS,
                                             enter = if (reduceMotion) {
                                                 fadeIn(tween(120))
                                             } else {
@@ -2115,7 +2222,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         ) {
                                             Row(
                                                 modifier = Modifier.inactiveDuringTransition(
-                                                    selectedTab != PLAYLISTS_TAB,
+                                                    selectedTab != StartPage.PLAYLISTS,
                                                 ),
                                             ) {
                                             IconButton(onClick = { m3uExchange.import() }) {
@@ -2160,6 +2267,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 }
                                 BrowseCarousel(
                                     pagerState = pagerState,
+                                    pages = visiblePages,
                                     enabled = !selectionMode,
                                     onSelect = ::navigateToRootTab,
                                 )
@@ -2193,7 +2301,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             Box(modifier = Modifier.fillMaxSize()) {
                                 val presentation = when {
                                     visibleCatalog == null -> LibraryPresentation.LOADING
-                                    visibleCatalog.songs.isEmpty() -> LibraryPresentation.EMPTY
                                     else -> LibraryPresentation.CONTENT
                                 }
                                 AnimatedContent(
@@ -2217,31 +2324,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         contentAlignment = Alignment.Center,
                                     ) { CircularProgressIndicator() }
 
-                                    LibraryPresentation.EMPTY -> Column(
-                                        modifier = Modifier.fillMaxSize(),
-                                        verticalArrangement = Arrangement.Center,
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                    ) {
-                                        Text(stringResource(Res.string.library_empty))
-                                        if (audioImportAvailable) {
-                                            Text(
-                                                text = stringResource(Res.string.library_import_hint),
-                                                modifier = Modifier.padding(
-                                                    start = 32.dp,
-                                                    top = 8.dp,
-                                                    end = 32.dp,
-                                                ),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                            Button(
-                                                onClick = importAudio,
-                                                modifier = Modifier.padding(top = 20.dp),
-                                            ) {
-                                                Text(stringResource(Res.string.library_import_action))
-                                            }
-                                        }
-                                    }
-
                                     // Pages follow the finger. The carousel strip above reads the
                                     // same pager position, so label and content move together
                                     // rather than one chasing the other after the fact.
@@ -2254,10 +2336,28 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         // both neighbours alive eagerly built album grids and loaded
                                         // their covers while the user was merely scrolling Tracks.
                                         beyondViewportPageCount = 0,
-                                        key = { page -> page },
-                                    ) { tab ->
+                                        key = { page -> pagerPages.value[page].persistedValue },
+                                    ) { page ->
+                                        val tab = pagerPages.value[page]
+                                        // History remains useful after the last library track is
+                                        // removed. Keep navigation mounted for empty catalogs too.
+                                        if (visibleCatalog.songs.isEmpty() && tab != StartPage.STATISTICS) {
+                                            EmptyLibraryPage(
+                                                contentPadding = listPadding,
+                                                canImportAudio = audioImportAvailable,
+                                                onImportAudio = importAudio,
+                                            )
+                                            return@HorizontalPager
+                                        }
                                         when (tab) {
-                                        FOR_YOU_TAB -> AnimatedContent(
+                                        StartPage.STATISTICS -> ListeningStatsSettings(
+                                            history = AppGraph.history,
+                                            tracks = visibleCatalog.songs,
+                                            contentPadding = listPadding,
+                                            active = browsePageVisible && settledTab == StartPage.STATISTICS,
+                                        )
+
+                                        StartPage.FOR_YOU -> AnimatedContent(
                                             targetState = forYou,
                                             contentKey = { if (it.isEmpty) "empty" else "content" },
                                             transitionSpec = { motionFadeThrough(reduceMotion) },
@@ -2311,7 +2411,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
                                         }
 
-                                        MAP_TAB -> AnimatedContent(
+                                        StartPage.MAP -> AnimatedContent(
                                             targetState = mapState,
                                             contentKey = { state: MapPageState ->
                                                 state.presentationKey()
@@ -2366,7 +2466,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
                                         }
 
-                                        PLAYLISTS_TAB -> PlaylistsTabContent(
+                                        StartPage.PLAYLISTS -> PlaylistsTabContent(
                                             autoPlaylists = autoPlaylists,
                                             playlists = playlists,
                                             tracksOf = ::tracksOf,
@@ -2457,7 +2557,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             },
                                         )
 
-                                        TRACKS_TAB -> Column {
+                                        StartPage.TRACKS -> Column {
                                             SongsHeader(
                                                 sort = songSort,
                                                 direction = songSortDirection,
@@ -2522,7 +2622,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             )
                                         }
 
-                                        ALBUMS_TAB -> {
+                                        StartPage.ALBUMS -> {
                                             val albumRail = remember(albumSections) {
                                                 RailIndex(
                                                     buckets = albumSections.map { it.bucket },
@@ -2638,7 +2738,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             }
                                         }
 
-                                        ARTISTS_TAB -> GroupListWithRail(
+                                        StartPage.ARTISTS -> GroupListWithRail(
                                             names = visibleCatalog.artists.map { it.name },
                                             artworkKeys = remember(visibleCatalog.artists) {
                                                 visibleCatalog.artists.map { artist ->
@@ -2719,7 +2819,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
                                         }
 
-                                        GENRES_TAB -> GroupListWithRail(
+                                        StartPage.GENRES -> GroupListWithRail(
                                             names = visibleCatalog.genres.map { it.name },
                                             artworkKeys = remember(visibleCatalog.genres) {
                                                 visibleCatalog.genres.map { genre ->
@@ -2801,7 +2901,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
                                         }
 
-                                        FOLDERS_TAB -> GroupListWithRail(
+                                        StartPage.FOLDERS -> GroupListWithRail(
                                             names = visibleCatalog.folders.map { it.name },
                                             contentPadding = listPadding,
                                         ) { railPadding, listState, _ ->
@@ -3257,14 +3357,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onToggleFavorite = { toggleFavorite(target.id) },
                 // The page assembles on arrival at the tab, and MapTab's focus effect fires as
                 // soon as it is ready — so the action works even before the first Map visit.
-                onShowOnMap = {
-                    mapFocusTrackId = target.id
-                    updateTrackSelection(emptySet())
-                    updateSelectedCollection(null)
-                    showSearch = false
-                    showNowPlaying = false
-                    navigateToRootTab(MAP_TAB)
-                },
+                onShowOnMap = if (StartPage.MAP in visiblePages) {
+                    {
+                        mapFocusTrackId = target.id
+                        updateTrackSelection(emptySet())
+                        updateSelectedCollection(null)
+                        showSearch = false
+                        showNowPlaying = false
+                        navigateToRootTab(StartPage.MAP)
+                    }
+                } else null,
                 onAddToPlaylist = { addToPlaylistSelection = listOf(target) },
                 // Only from inside a user playlist whose list actually holds this track. The
                 // sheet can be raised over a playlist from other surfaces (the queue sheet, For
@@ -3932,23 +4034,36 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 }
 }
 
-/**
- * The carousel's sections, as resources rather than words: the strip reads them through
- * `stringResource`, so the list is an order, not a set of labels.
- */
-private val BROWSE_TABS: List<StringResource> = listOf(
-    Res.string.tab_for_you,
-    Res.string.tab_map,
-    Res.string.tab_playlists,
-    Res.string.tab_tracks,
-    Res.string.tab_albums,
-    Res.string.tab_artists,
-    Res.string.tab_genres,
-    Res.string.tab_folders,
-)
-
 /** Coarse library states only; catalog refreshes within CONTENT must never replay its entrance. */
-private enum class LibraryPresentation { LOADING, EMPTY, CONTENT }
+private enum class LibraryPresentation { LOADING, CONTENT }
+
+@Composable
+private fun EmptyLibraryPage(
+    contentPadding: PaddingValues,
+    canImportAudio: Boolean,
+    onImportAudio: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(contentPadding),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(stringResource(Res.string.library_empty))
+        if (canImportAudio) {
+            Text(
+                text = stringResource(Res.string.library_import_hint),
+                modifier = Modifier.padding(start = 32.dp, top = 8.dp, end = 32.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(
+                onClick = onImportAudio,
+                modifier = Modifier.padding(top = 20.dp),
+            ) {
+                Text(stringResource(Res.string.library_import_action))
+            }
+        }
+    }
+}
 
 /** Outgoing full-screen content stays drawable but cannot retain focus or receive a late tap. */
 private fun Modifier.inactiveDuringTransition(inactive: Boolean): Modifier = if (!inactive) {
@@ -3989,29 +4104,8 @@ private fun MapPageState.presentationKey(): String = when (this) {
     is MapPageState.Ready -> "ready"
 }
 
-/** Stable pager indices for the fixed browse destinations. */
-private const val FOR_YOU_TAB = 0
-private const val MAP_TAB = 1
-private const val PLAYLISTS_TAB = 2
-private const val TRACKS_TAB = 3
-private const val ALBUMS_TAB = 4
-private const val ARTISTS_TAB = 5
-private const val GENRES_TAB = 6
-private const val FOLDERS_TAB = 7
-
-/** The browse tabs whose group items (albums, artists, genres, folders) support selection. */
-private val GROUP_TABS = ALBUMS_TAB..FOLDERS_TAB
-
-private fun StartPage.tabIndex(): Int = when (this) {
-    StartPage.FOR_YOU -> FOR_YOU_TAB
-    StartPage.MAP -> MAP_TAB
-    StartPage.PLAYLISTS -> PLAYLISTS_TAB
-    StartPage.TRACKS -> TRACKS_TAB
-    StartPage.ALBUMS -> ALBUMS_TAB
-    StartPage.ARTISTS -> ARTISTS_TAB
-    StartPage.GENRES -> GENRES_TAB
-    StartPage.FOLDERS -> FOLDERS_TAB
-}
+/** Group pages support track selection regardless of their position in the carousel. */
+private val GROUP_TABS = setOf(StartPage.ALBUMS, StartPage.ARTISTS, StartPage.GENRES, StartPage.FOLDERS)
 
 /** Persist-and-report granularity for library indexing. */
 // Weeks of context, not days: the daypart and phase sections fold over this window, and at a
@@ -4158,8 +4252,9 @@ private fun artistSubtitle(tracks: Int, albums: Int): String =
 @Composable
 private fun BrowseCarousel(
     pagerState: PagerState,
+    pages: List<StartPage>,
     enabled: Boolean = true,
-    onSelect: (Int) -> Unit,
+    onSelect: (StartPage) -> Unit,
 ) {
     val listState = rememberLazyListState()
 
@@ -4191,7 +4286,7 @@ private fun BrowseCarousel(
         // Only the pager owns continuous motion while the finger is down. Recenter once when its
         // active page changes, rather than waiting for the fling to settle; this keeps the label
         // responsive without restoring the old per-frame feedback loop and jitter.
-        LaunchedEffect(pagerState.currentPage, sidePadding) {
+        LaunchedEffect(pagerState, pagerState.currentPage, pages, sidePadding) {
             centerTab(pagerState.currentPage)
         }
 
@@ -4202,9 +4297,9 @@ private fun BrowseCarousel(
             userScrollEnabled = false,
             modifier = Modifier.fillMaxWidth().height(52.dp),
         ) {
-            itemsIndexed(BROWSE_TABS) { index, title ->
+            itemsIndexed(pages, key = { _, page -> page.persistedValue }) { index, page ->
                 Text(
-                    text = stringResource(title),
+                    text = stringResource(page.titleResource()),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -4221,7 +4316,7 @@ private fun BrowseCarousel(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             role = Role.Tab,
-                            onClick = { onSelect(index) },
+                            onClick = { onSelect(page) },
                         )
                         .padding(horizontal = 14.dp)
                         .graphicsLayer {

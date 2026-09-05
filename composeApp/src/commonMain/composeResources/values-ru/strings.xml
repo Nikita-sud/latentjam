@@ -273,7 +273,7 @@
 
     <!-- =================================================== expanded settings -->
     <string name="settings_appearance">Внешний вид</string>
-    <string name="settings_appearance_subtitle">Тема, цвета плеера и стартовый раздел</string>
+    <string name="settings_appearance_subtitle">Тема, цвета плеера и язык</string>
     <string name="settings_library">Медиатека</string>
     <string name="settings_library_subtitle">Обновление, импорт и скрытые треки</string>
     <string name="settings_playback">Воспроизведение</string>
@@ -497,4 +497,42 @@
     <string name="foryou_caption_left_turn">Поворот от «%1$s»</string>
     <string name="foryou_section_journey">Звуковое путешествие</string>
     <string name="foryou_journey_title">От «%1$s» до «%2$s»</string>
+    <string name="settings_pages">Страницы</string>
+    <string name="settings_pages_subtitle">Видимость, порядок и стартовая страница</string>
+    <string name="settings_pages_body">Выберите, какие страницы показывать, и измените их порядок стрелками. Карта по умолчанию выключена.</string>
+    <string name="settings_pages_last_visible">Оставьте хотя бы одну страницу включённой.</string>
+    <string name="settings_page_position">Позиция %1$d из %2$d</string>
+    <string name="settings_page_move_up">Переместить «%1$s» выше</string>
+    <string name="settings_page_move_down">Переместить «%1$s» ниже</string>
+    <string name="settings_pages_reset">Сбросить страницы</string>
+    <string name="settings_pages_reset_body">Восстановить порядок, видимость и стартовую страницу по умолчанию.</string>
+
+    <!-- Listening dashboard -->
+    <string name="stats_dashboard_title">Ваше прослушивание</string>
+    <string name="stats_recording_off">История прослушиваний приостановлена. Сохранённая статистика остаётся доступной; новые прослушивания появятся после включения истории в настройках конфиденциальности.</string>
+    <string name="stats_comparison_more">На %1$s больше, чем за предыдущие %2$d дн.</string>
+    <string name="stats_comparison_less">На %1$s меньше, чем за предыдущие %2$d дн.</string>
+    <string name="stats_comparison_same">Столько же времени, сколько за предыдущие %1$d дн.</string>
+    <string name="stats_comparison_first">За предыдущие %1$d дн. прослушиваний не было</string>
+    <string name="stats_under_minute">&lt; 1 мин</string>
+    <string name="stats_activity">Ваш ежедневный ритм</string>
+    <string name="stats_calendar_days">Последние %1$d календарных дн. · время прослушивания</string>
+    <string name="stats_today">Сегодня</string>
+    <string name="stats_yesterday">Вчера</string>
+    <string name="stats_days_ago">%1$d дн. назад</string>
+    <string name="stats_habits">Привычки прослушивания</string>
+    <string name="stats_active_days">Активные дни</string>
+    <string name="stats_new_tracks">Первые прослушивания</string>
+    <string name="stats_habits_note">Новые треки — впервые прослушанные в сохранённой истории. Серии учитывают всю историю.</string>
+    <string name="stats_repeat_share">Повторные прослушивания</string>
+    <string name="stats_coverage">Исследуйте медиатеку</string>
+    <string name="stats_coverage_detail">Прослушано %1$d из %2$s за этот период</string>
+    <string name="stats_smart_share">Режим SMART</string>
+    <string name="stats_smart_detail">Доля прослушиваний, начатых с включённым перемешиванием SMART</string>
+    <string name="stats_listening_style">Как вы слушаете</string>
+    <string name="stats_peak_hour">Больше всего прослушиваний около %1$s</string>
+    <string name="stats_average_active_day">На активный день</string>
+    <string name="stats_recent_empty">В эти календарные дни прослушиваний пока нет.</string>
+    <string name="stats_history_note">На основе сохранённой истории; обновляется по окончании или смене трека. В рейтингах учитываются доступные треки медиатеки.</string>
+    <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
 </resources>

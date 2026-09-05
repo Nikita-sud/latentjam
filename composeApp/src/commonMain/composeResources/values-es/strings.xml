@@ -279,7 +279,7 @@
     <string name="indexing_notification_progress_eta">%1$d de %2$d · quedan unos %3$d min</string>
     <!-- =================================================== expanded settings -->
     <string name="settings_appearance">Apariencia</string>
-    <string name="settings_appearance_subtitle">Tema, colores del reproductor y página inicial</string>
+    <string name="settings_appearance_subtitle">Tema, colores del reproductor e idioma</string>
     <string name="settings_library">Biblioteca</string>
     <string name="settings_library_subtitle">Actualiza, importa y gestiona canciones ocultas</string>
     <string name="settings_playback">Reproducción</string>
@@ -493,4 +493,42 @@
     <string name="foryou_caption_left_turn">Un desvío desde %1$s</string>
     <string name="foryou_section_journey">Viaje sonoro</string>
     <string name="foryou_journey_title">De «%1$s» a «%2$s»</string>
+    <string name="settings_pages">Páginas</string>
+    <string name="settings_pages_subtitle">Visibilidad, orden y página inicial</string>
+    <string name="settings_pages_body">Elige qué páginas aparecen y usa las flechas para cambiar su orden. El mapa está desactivado por defecto.</string>
+    <string name="settings_pages_last_visible">Mantén al menos una página activada.</string>
+    <string name="settings_page_position">Posición %1$d de %2$d</string>
+    <string name="settings_page_move_up">Subir %1$s</string>
+    <string name="settings_page_move_down">Bajar %1$s</string>
+    <string name="settings_pages_reset">Restablecer páginas</string>
+    <string name="settings_pages_reset_body">Restablece el orden, las páginas visibles y la página inicial predeterminados.</string>
+
+    <!-- Listening dashboard -->
+    <string name="stats_dashboard_title">Tu música en cifras</string>
+    <string name="stats_recording_off">El historial de escucha está en pausa. Las estadísticas guardadas siguen disponibles; las nuevas escuchas se registrarán cuando actives el historial en los ajustes de privacidad.</string>
+    <string name="stats_comparison_more">%1$s más que en los %2$d días anteriores</string>
+    <string name="stats_comparison_less">%1$s menos que en los %2$d días anteriores</string>
+    <string name="stats_comparison_same">El mismo tiempo de escucha que en los %1$d días anteriores</string>
+    <string name="stats_comparison_first">Sin escuchas en los %1$d días anteriores</string>
+    <string name="stats_under_minute">&lt; 1 min</string>
+    <string name="stats_activity">Tu ritmo diario</string>
+    <string name="stats_calendar_days">Últimos %1$d días naturales · tiempo de escucha</string>
+    <string name="stats_today">Hoy</string>
+    <string name="stats_yesterday">Ayer</string>
+    <string name="stats_days_ago">Hace %1$d días</string>
+    <string name="stats_habits">Hábitos de escucha</string>
+    <string name="stats_active_days">Días activos</string>
+    <string name="stats_new_tracks">Primeras escuchas</string>
+    <string name="stats_habits_note">Los temas nuevos se han escuchado por primera vez según el historial guardado. Las rachas usan todo el historial.</string>
+    <string name="stats_repeat_share">Reproducciones repetidas</string>
+    <string name="stats_coverage">Explora tu biblioteca</string>
+    <string name="stats_coverage_detail">%1$d de %2$s reproducidos en este período</string>
+    <string name="stats_smart_share">Modo SMART</string>
+    <string name="stats_smart_detail">Porcentaje de reproducciones iniciadas con el modo aleatorio SMART activado</string>
+    <string name="stats_listening_style">Cómo escuchas</string>
+    <string name="stats_peak_hour">Más reproducciones sobre las %1$s</string>
+    <string name="stats_average_active_day">Por día activo</string>
+    <string name="stats_recent_empty">Todavía no hay escuchas en estos días naturales.</string>
+    <string name="stats_history_note">Basado en el historial guardado; se actualiza cuando termina o cambia un tema. Las clasificaciones usan los temas disponibles en tu biblioteca.</string>
+    <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
 </resources>

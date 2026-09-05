@@ -47,6 +47,8 @@ internal data class LocalBackupSettings(
     val normalizeVolume: Boolean = false,
     /** Added in backup v3; legacy snapshots restore the safe disabled default. */
     val crossfadeSeconds: Int = 0,
+    /** Added in backup v4; older snapshots keep Map disabled by default. */
+    val pageLayout: PageLayout = PageLayout(),
 )
 
 /**
@@ -137,7 +139,7 @@ internal class LocalBackupFormatException(message: String) : IllegalArgumentExce
  * validation make an arbitrary document-picker input safe to reject before any app state changes.
  */
 internal object LocalBackupCodec {
-    const val FORMAT_VERSION: Int = 3
+    const val FORMAT_VERSION: Int = 4
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -174,6 +176,7 @@ internal object LocalBackupCodec {
                         emptyArray()
                     },
                 )
+                if (snapshot.formatVersion >= 4) appendRecord("L", encodePageLayout(pageLayout))
             }
             snapshot.tracks.sortedBy(LocalBackupTrackReference::originalId).forEach { track ->
                 appendRecord(
@@ -236,6 +239,7 @@ internal object LocalBackupCodec {
 
         var createdAtMs: Long? = null
         var settings: LocalBackupSettings? = null
+        var pageLayout: PageLayout? = null
         val tracks = mutableListOf<LocalBackupTrackReference>()
         val playlists = mutableListOf<LocalBackupPlaylist>()
         val history = mutableListOf<LocalBackupListenEvent>()
@@ -290,6 +294,13 @@ internal object LocalBackupCodec {
                             0
                         },
                     )
+                }
+                "L" -> {
+                    record.requireFieldCount(2)
+                    if (version < 4) formatError("Legacy backups cannot encode page layouts")
+                    if (pageLayout != null) formatError("Duplicate page layout record")
+                    pageLayout = decodePageLayout(record.nextField())
+                        ?: formatError("Invalid page layout")
                 }
                 "T" -> {
                     record.requireFieldCount(6)
@@ -379,7 +390,8 @@ internal object LocalBackupCodec {
         val snapshot = LocalBackupSnapshot(
             formatVersion = version,
             createdAtMs = createdAtMs ?: formatError("Missing creation record"),
-            settings = settings ?: formatError("Missing settings record"),
+            settings = (settings ?: formatError("Missing settings record"))
+                .copy(pageLayout = pageLayout ?: PageLayout()),
             tracks = tracks,
             playlists = playlists,
             listeningHistory = history,
@@ -402,6 +414,12 @@ internal object LocalBackupCodec {
         }
         if (snapshot.settings.crossfadeSeconds !in 0..MAX_CROSSFADE_SECONDS) {
             formatError("Unsupported crossfade duration")
+        }
+        if (snapshot.settings.pageLayout != snapshot.settings.pageLayout.normalized()) {
+            formatError("Invalid page layout")
+        }
+        if (snapshot.formatVersion < 4 && snapshot.settings.pageLayout != PageLayout()) {
+            formatError("Legacy backups cannot encode page layouts")
         }
         if (
             snapshot.formatVersion < 3 &&
@@ -643,6 +661,7 @@ internal class LocalBackupService(
                 includeNoveltyMixes = settings.includeNoveltyMixes.value,
                 normalizeVolume = settings.normalizeVolume.value,
                 crossfadeSeconds = settings.crossfadeSeconds.value,
+                pageLayout = settings.pageLayout.value,
             ),
             tracks = references,
             playlists = storedPlaylists.map { playlist ->
@@ -765,7 +784,8 @@ internal class LocalBackupService(
                 settings.setSaveListeningHistory(snapshot.settings.saveListeningHistory).getOrThrow()
                 settings.setRememberSearches(snapshot.settings.rememberSearches).getOrThrow()
                 settings.setThemeMode(snapshot.settings.themeMode)
-                settings.setStartPage(snapshot.settings.startPage)
+                settings.setPageLayout(snapshot.settings.pageLayout)
+                settings.setStartPage(snapshot.settings.pageLayout.resolveStartPage(snapshot.settings.startPage))
                 settings.setTrackColorMode(snapshot.settings.trackColorMode)
                 settings.setSmartQueueLength(snapshot.settings.smartQueueLength)
                 settings.setIncludeNoveltyMixes(snapshot.settings.includeNoveltyMixes)
