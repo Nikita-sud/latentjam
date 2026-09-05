@@ -36,6 +36,7 @@ import io.github.nikitasud.latentjam.smart.text.smartTextEncoderModule
 import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -401,8 +402,22 @@ object AppGraph {
                 trackIds = trackIds,
                 running = true,
             )
-            try {
-                engine.initialize()
+            runAutomaticIndexingSafely(
+                checkpoint = { engine.persistPendingAnalysis() },
+                finishNotification = { if (reportProgress) notifier.finish() },
+                cancelNotificationPrompt = { permissions.cancelNotificationPrompt() },
+                onStopped = {
+                    // Cancellation and failure are not completion. A retry must be allowed to
+                    // continue from the persisted chunks, even when notification cleanup failed.
+                    if (!mutableAutomaticIndexing.value.complete) {
+                        mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
+                            running = false,
+                            failures = failures.toMap(),
+                        )
+                    }
+                },
+            ) {
+                engine.initialize().getOrThrow()
                 // A denied/not-yet-resolved permission is represented by an empty (or on iOS,
                 // partial app-owned-files-only) scan. Index the rows we can see, but do not let
                 // that ambiguous snapshot erase durable vectors or remembered decode failures.
@@ -481,30 +496,6 @@ object AppGraph {
                     done = total,
                     failures = failures.toMap(),
                 )
-            } finally {
-                // A batch can be cancelled after installing some vectors but before it returns to
-                // afterBatch. Finish that small dirty window outside the cancelled Job so ordinary
-                // navigation/library replacement loses no work. A hard process kill is still
-                // bounded by the regular 32-track checkpoints above.
-                withContext(NonCancellable) {
-                    try {
-                        engine.persistPendingAnalysis()
-                    } catch (failure: Exception) {
-                        // The engine keeps its dirty flags set on save failure; a replacement job
-                        // or the next durable operation will retry. Cleanup must still run.
-                        println("SMART: final indexing checkpoint failed: $failure")
-                    }
-                }
-                if (reportProgress) notifier.finish()
-                permissions.cancelNotificationPrompt()
-                // Cancellation is not completion. The replacement job (or the next process
-                // launch) must be allowed to continue from the engine's persisted chunks.
-                if (!mutableAutomaticIndexing.value.complete) {
-                    mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
-                        running = false,
-                        failures = failures.toMap(),
-                    )
-                }
             }
         }
     }
@@ -518,6 +509,51 @@ object AppGraph {
         get() = checkNotNull(koinApp) {
             "AppGraph.start() must be called by the platform entry point before use"
         }.koin
+}
+
+/**
+ * Optional background analysis must not crash playback when storage or foreground promotion
+ * fails. SupervisorJob isolates siblings, but an uncaught launch exception still reaches the
+ * platform's uncaught-exception handler. Keep cancellation observable and independently release
+ * every resource so one cleanup failure cannot leave the UI permanently reporting a running job.
+ */
+internal suspend fun runAutomaticIndexingSafely(
+    checkpoint: suspend () -> Unit,
+    finishNotification: () -> Unit,
+    cancelNotificationPrompt: () -> Unit,
+    onStopped: () -> Unit,
+    work: suspend () -> Unit,
+) {
+    try {
+        work()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        println("SMART: automatic indexing interrupted: $failure")
+    } finally {
+        // A batch can be cancelled after installing vectors but before reaching its checkpoint.
+        // Persist that dirty window before allowing a replacement worker to acquire its resources.
+        withContext(NonCancellable) {
+            try {
+                checkpoint()
+            } catch (failure: Exception) {
+                // The engine retains dirty flags; a retry still attempts the outstanding save.
+                println("SMART: final indexing checkpoint failed: $failure")
+            }
+        }
+        try {
+            finishNotification()
+        } catch (failure: Exception) {
+            println("SMART: could not dismiss indexing notification: $failure")
+        }
+        try {
+            cancelNotificationPrompt()
+        } catch (failure: Exception) {
+            println("SMART: could not dismiss indexing permission prompt: $failure")
+        } finally {
+            onStopped()
+        }
+    }
 }
 
 /** A completed UI library scan plus whether it proves which durable SMART rows are still live. */
