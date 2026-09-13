@@ -22,6 +22,7 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -91,6 +93,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -153,11 +156,16 @@ import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.SleepTimerState
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.library.tags.Lyrics
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -238,7 +246,7 @@ fun NowPlayingScreen(
     val currentTrack = now.track
     val lyricsSource = currentTrack?.lyricsSourceIdentity()
     val readLyrics = rememberLyricsReader()
-    var lyrics by remember(lyricsSource) { mutableStateOf<String?>(null) }
+    var lyrics by remember(lyricsSource) { mutableStateOf<Lyrics?>(null) }
     var lyricsReadRequested by remember(lyricsSource) { mutableStateOf(false) }
     var lyricsReadComplete by remember(lyricsSource) { mutableStateOf(false) }
     var showLyrics by remember(lyricsSource) { mutableStateOf(false) }
@@ -250,7 +258,7 @@ fun NowPlayingScreen(
         if (!lyricsReadRequested) return@LaunchedEffect
         lyricsReadComplete = false
         lyrics = currentTrack?.let { track ->
-            readLyrics(track)?.takeIf { it.isNotBlank() }
+            readLyrics(track)?.takeIf { read -> read.lines.any { it.text.isNotBlank() } }
         }
         lyricsReadComplete = true
     }
@@ -641,19 +649,21 @@ fun NowPlayingScreen(
                 track = shownTrack,
                 lyrics = lyrics,
                 loading = !lyricsReadComplete,
+                playback = playback,
                 onDismiss = { showLyrics = false },
             )
         }
     }
 }
 
-/** A focused, selectable lyrics surface reached directly from the full player. */
+/** A focused lyrics surface reached directly from the full player. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlayerLyricsSheet(
     track: TrackDescriptor,
-    lyrics: String?,
+    lyrics: Lyrics?,
     loading: Boolean,
+    playback: PlaybackController,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
@@ -685,88 +695,63 @@ private fun PlayerLyricsSheet(
         sheetState = sheetState,
         sheetGesturesEnabled = !dismissalInFlight,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 24.dp, end = 12.dp, bottom = 32.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(Res.string.info_lyrics),
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = ::dismiss, enabled = !dismissalInFlight) {
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = stringResource(Res.string.action_close),
-                    )
-                }
-            }
-            Row(
+        if (contentState == PlayerLyricsContentState.AVAILABLE && lyrics != null && lyrics.synced) {
+            SyncedLyricsBody(
+                track = track,
+                lyrics = lyrics,
+                playback = playback,
+                reduceMotion = reduceMotion,
+                dismissEnabled = !dismissalInFlight,
+                onDismiss = ::dismiss,
+            )
+        } else {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp, end = 12.dp, bottom = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    .navigationBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 24.dp, end = 12.dp, bottom = 32.dp),
             ) {
-                Artwork(uri = track.artworkUri, size = 56.dp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = track.title ?: stringResource(Res.string.track_untitled),
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = track.artist
-                            ?: stringResource(Res.string.track_unknown_artist),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            AnimatedContent(
-                targetState = contentState,
-                transitionSpec = { motionFadeThrough(reduceMotion) },
-                modifier = Modifier.fillMaxWidth(),
-                label = "player-lyrics-content",
-            ) { shownState ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .inactiveForMotion(shownState != contentState),
-                ) {
-                    when (shownState) {
-                        PlayerLyricsContentState.LOADING -> Box(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator()
-                        }
-                        PlayerLyricsContentState.MISSING -> Text(
-                            text = stringResource(Res.string.lyrics_not_found),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(end = 12.dp, bottom = 24.dp),
-                        )
-                        PlayerLyricsContentState.AVAILABLE -> SelectionContainer {
-                            Text(
-                                // The outgoing AVAILABLE subtree can live for one final frame if
-                                // its parent is disposed during a source change; keep that frame
-                                // drawable without asserting against the newer state.
-                                text = lyrics.orEmpty(),
+                LyricsSheetHeader(
+                    track = track,
+                    dismissEnabled = !dismissalInFlight,
+                    onDismiss = ::dismiss,
+                )
+                AnimatedContent(
+                    targetState = contentState,
+                    transitionSpec = { motionFadeThrough(reduceMotion) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = "player-lyrics-content",
+                ) { shownState ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .inactiveForMotion(shownState != contentState),
+                    ) {
+                        when (shownState) {
+                            PlayerLyricsContentState.LOADING -> Box(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                            PlayerLyricsContentState.MISSING -> Text(
+                                text = stringResource(Res.string.lyrics_not_found),
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(end = 12.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(end = 12.dp, bottom = 24.dp),
                             )
+                            PlayerLyricsContentState.AVAILABLE -> SelectionContainer {
+                                Text(
+                                    // The outgoing AVAILABLE subtree can live for one final frame
+                                    // if its parent is disposed during a source change; keep that
+                                    // frame drawable without asserting against the newer state.
+                                    text = lyrics?.text.orEmpty(),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(end = 12.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -774,6 +759,178 @@ private fun PlayerLyricsSheet(
         }
     }
 }
+
+@Composable
+private fun LyricsSheetHeader(
+    track: TrackDescriptor,
+    dismissEnabled: Boolean,
+    onDismiss: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(Res.string.info_lyrics),
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onDismiss, enabled = dismissEnabled) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = stringResource(Res.string.action_close),
+            )
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, end = 12.dp, bottom = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Artwork(uri = track.artworkUri, size = 56.dp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = track.title ?: stringResource(Res.string.track_untitled),
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = track.artist ?: stringResource(Res.string.track_unknown_artist),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * Timed lyrics follow the song: the line being sung is emphasised, the list keeps it about a
+ * third of the way down the sheet, and a tap on any timed line seeks there. The player's
+ * position ticker is coarse (half a second), so the shown position is interpolated between
+ * ticks; a finger on the list pauses the auto-scroll for a few seconds so reading ahead is
+ * not fought.
+ */
+@Composable
+private fun SyncedLyricsBody(
+    track: TrackDescriptor,
+    lyrics: Lyrics,
+    playback: PlaybackController,
+    reduceMotion: Boolean,
+    dismissEnabled: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val positionMs by remember(playback) {
+        playback.state.map { it.positionMs }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.positionMs)
+    val isPlaying by remember(playback) {
+        playback.state.map { it.isPlaying }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.isPlaying)
+    var shownPositionMs by remember { mutableLongStateOf(positionMs) }
+    LaunchedEffect(positionMs, isPlaying) {
+        shownPositionMs = positionMs
+        if (!isPlaying) return@LaunchedEffect
+        val since = TimeSource.Monotonic.markNow()
+        while (true) {
+            delay(LYRICS_TICK_MS)
+            shownPositionMs = positionMs + since.elapsedNow().inWholeMilliseconds
+        }
+    }
+    val lines = lyrics.lines
+    val activeIndex = remember(lines, shownPositionMs) {
+        val cue = shownPositionMs + LYRICS_LEAD_MS
+        var active = -1
+        for (index in lines.indices) {
+            val time = lines[index].timeMs ?: continue
+            if (time <= cue) active = index else break
+        }
+        active
+    }
+
+    val listState = rememberLazyListState()
+    var dragging by remember { mutableStateOf(false) }
+    var lastDrag by remember { mutableStateOf<TimeMark?>(null) }
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is DragInteraction.Start -> dragging = true
+                is DragInteraction.Stop, is DragInteraction.Cancel -> {
+                    dragging = false
+                    lastDrag = TimeSource.Monotonic.markNow()
+                }
+            }
+        }
+    }
+    LaunchedEffect(activeIndex, dragging) {
+        if (activeIndex < 0 || dragging) return@LaunchedEffect
+        val rest = lastDrag
+        if (rest != null && rest.elapsedNow() < LYRICS_SCROLL_HOLD) return@LaunchedEffect
+        val viewport = listState.layoutInfo.viewportSize.height
+        val offset = -(viewport * LYRICS_ACTIVE_LINE_FRACTION).toInt()
+        val target = LYRICS_HEADER_ITEMS + activeIndex
+        if (reduceMotion) {
+            listState.scrollToItem(target, offset)
+        } else {
+            listState.animateScrollToItem(target, offset)
+        }
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(LYRICS_SHEET_HEIGHT_FRACTION)
+            .navigationBarsPadding(),
+        contentPadding = PaddingValues(start = 24.dp, end = 12.dp, bottom = 160.dp),
+    ) {
+        item(key = "lyrics-header") {
+            LyricsSheetHeader(track = track, dismissEnabled = dismissEnabled, onDismiss = onDismiss)
+        }
+        itemsIndexed(items = lines, key = { index, _ -> index }) { index, line ->
+            val active = index == activeIndex
+            val color by animateColorAsState(
+                targetValue = if (active) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                },
+                label = "lyric-line-colour",
+            )
+            val seekTo = line.timeMs
+            Text(
+                // A timed but wordless line is an instrumental gap; show that it is one.
+                text = line.text.ifBlank { if (seekTo != null) "♪" else "" },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                color = color,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (seekTo != null) {
+                            Modifier.clickable { scope.launch { playback.seekTo(seekTo) } }
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .padding(end = 12.dp, top = 8.dp, bottom = 8.dp),
+            )
+        }
+    }
+}
+
+private const val LYRICS_TICK_MS = 120L
+
+/** Lines light up slightly before they are sung, the way a listener's ear expects. */
+private const val LYRICS_LEAD_MS = 150L
+private const val LYRICS_HEADER_ITEMS = 1
+private const val LYRICS_ACTIVE_LINE_FRACTION = 0.35f
+private const val LYRICS_SHEET_HEIGHT_FRACTION = 0.85f
+private val LYRICS_SCROLL_HOLD = 4.seconds
 
 /** The only expanded-player subtree that observes the coarse position ticker. */
 @Composable

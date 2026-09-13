@@ -97,7 +97,7 @@ internal fun TrackInfoSheet(
     val readLyrics = rememberLyricsReader()
     LaunchedEffect(lyricsSource) {
         lyrics = null
-        lyrics = readLyrics(track)
+        lyrics = readLyrics(track)?.text
     }
 
     val saveTags = rememberTagWriter { outcome ->

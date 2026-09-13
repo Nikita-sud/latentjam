@@ -113,7 +113,8 @@ differently still match.
 🎚️ &nbsp;**A real player underneath** — Media3 playback with a proper media session, an editable
 queue that survives restarts, playlists with M3U import/export and hand-drag ordering, album/artist/
 genre/folder browsing behind an A-Z rail, optional crossfade and volume normalization measured from
-real playback, embedded lyrics from mp3, FLAC and Opus (timed lyrics included), a tag-blind duplicate
+real playback, embedded lyrics from mp3, FLAC and Opus (timed lyrics follow the song and a tap on a
+line seeks there), a tag-blind duplicate
 finder built on the SMART index that says which copy to keep (lossless first, then bitrate) and how
 much space the rest would free, never-played and rediscover auto playlists, a system equalizer, ID3
 tag editing, local backup and restore, and a settings screen that says honestly what the recommender

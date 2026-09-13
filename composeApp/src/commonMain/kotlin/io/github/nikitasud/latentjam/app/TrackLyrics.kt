@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.runtime.Composable
+import io.github.nikitasud.latentjam.library.tags.Lyrics
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 
 /**
@@ -14,4 +15,4 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
  * reader yet. Main-safe: implementations do their IO off the caller's thread.
  */
 @Composable
-internal expect fun rememberLyricsReader(): suspend (TrackDescriptor) -> String?
+internal expect fun rememberLyricsReader(): suspend (TrackDescriptor) -> Lyrics?

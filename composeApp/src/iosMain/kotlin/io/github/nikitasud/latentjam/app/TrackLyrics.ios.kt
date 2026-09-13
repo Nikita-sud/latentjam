@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import io.github.nikitasud.latentjam.library.tags.EmbeddedLyrics
+import io.github.nikitasud.latentjam.library.tags.Lyrics
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -26,7 +27,7 @@ import platform.posix.memcpy
 private const val MAX_TAG_BYTES = 8 * 1024 * 1024
 
 @Composable
-internal actual fun rememberLyricsReader(): suspend (TrackDescriptor) -> String? = remember {
+internal actual fun rememberLyricsReader(): suspend (TrackDescriptor) -> Lyrics? = remember {
     { track ->
         withContext(Dispatchers.Default) {
             try {
@@ -42,7 +43,7 @@ internal actual fun rememberLyricsReader(): suspend (TrackDescriptor) -> String?
 
 /** Reads only the bounded ID3 prefix; audio files themselves can be gigabytes. */
 @OptIn(ExperimentalForeignApi::class)
-private fun readEmbeddedLyrics(track: TrackDescriptor): String? {
+private fun readEmbeddedLyrics(track: TrackDescriptor): Lyrics? {
     val url = track.audioUri?.takeIf(String::isNotBlank)?.let(NSURL::URLWithString) ?: return null
     if (!url.isFileURL()) return null
     val path = url.path ?: return null
