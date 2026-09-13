@@ -470,6 +470,8 @@ internal class IosMusicLibrary : MusicLibrary {
             folderPath = relativePath.substringBeforeLast('/', "").ifBlank { "Imported" },
             year = (asset.firstString(YEAR_IDENTIFIERS) ?: asset.rawString("DATE", "YEAR") ?: created)
                 ?.let(::parseYear),
+            sizeBytes = sizeBytes.takeIf { it > 0 },
+            fileName = relativePath.substringAfterLast('/'),
             sourceRevision = "ios-import-v1:$sizeBytes:$modifiedAtMs",
         )
     }

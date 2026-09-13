@@ -66,6 +66,7 @@ internal class MediaStoreMusicLibrary(
             add(MediaStore.Audio.Media.DATE_ADDED)
             add(MediaStore.Audio.Media.DATE_MODIFIED)
             add(MediaStore.Audio.Media.SIZE)
+            add(MediaStore.Audio.Media.DISPLAY_NAME)
             add(MediaStore.Audio.Media.YEAR)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                 add(MediaStore.Audio.Media.GENERATION_MODIFIED)
@@ -95,6 +96,7 @@ internal class MediaStoreMusicLibrary(
             val addedColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
             val modifiedColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
             val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+            val nameColumn = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME)
             val yearColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
             val generationColumn = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                 cursor.getColumnIndex(MediaStore.Audio.Media.GENERATION_MODIFIED)
@@ -131,6 +133,8 @@ internal class MediaStoreMusicLibrary(
                         relativePath = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q,
                     ),
                     year = cursor.getInt(yearColumn).takeIf { it > 0 },
+                    sizeBytes = cursor.getLong(sizeColumn).takeIf { it > 0 },
+                    fileName = if (nameColumn >= 0) cursor.getString(nameColumn).knownOrNull() else null,
                     sourceRevision = androidMediaSourceRevision(
                         sizeBytes = cursor.getLong(sizeColumn).takeIf { it >= 0 },
                         modifiedAtSeconds = cursor.getLong(modifiedColumn).takeIf { it > 0 },

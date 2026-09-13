@@ -71,6 +71,10 @@ public data class TrackDescriptor(
     public val artists: List<String> = emptyList(),
     /** First-release year from the tags; [year] is the edition year the scanner reported. */
     public val originalYear: Int? = null,
+    /** File size in bytes as the library source reports it; null when the source has none. */
+    public val sizeBytes: Long? = null,
+    /** File name with its extension, the honest source of a "FLAC"/"MP3" label; null when unknown. */
+    public val fileName: String? = null,
 )
 
 /**
