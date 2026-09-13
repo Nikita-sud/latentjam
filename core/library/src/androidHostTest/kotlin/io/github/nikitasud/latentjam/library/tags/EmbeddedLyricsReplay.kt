@@ -44,8 +44,8 @@ class EmbeddedLyricsReplay {
             }
         }
         val lyrics = EmbeddedLyrics.read(source)
-        println("lyrics: ${lyrics?.length ?: "NULL"} chars")
-        println(lyrics?.take(200))
-        check(!lyrics.isNullOrBlank()) { "expected lyrics in $path" }
+        println("lyrics: ${lyrics?.lines?.size ?: "NULL"} lines, synced=${lyrics?.synced}")
+        println(lyrics?.lines?.take(6)?.joinToString("\n") { "${it.timeMs ?: "-"}\t${it.text}" })
+        check(lyrics != null && lyrics.text.isNotBlank()) { "expected lyrics in $path" }
     }
 }

@@ -6,7 +6,9 @@ package io.github.nikitasud.latentjam.library.tags
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class EmbeddedLyricsTest {
 
@@ -64,7 +66,10 @@ class EmbeddedLyricsTest {
                 ),
             ),
         )
-        assertEquals("кто мечтает быть пилотом?\nочень смелый видно тот", lyrics)
+        // Plain words next to a synced twin: the timed one is what the player shows.
+        assertEquals(true, lyrics?.synced)
+        assertEquals(listOf(14_230L), lyrics?.lines?.map { it.timeMs })
+        assertEquals("кто мечтает быть пилотом?", lyrics?.text)
     }
 
     @Test
@@ -78,7 +83,8 @@ class EmbeddedLyricsTest {
                 ),
             ),
         )
-        assertEquals("первая строка\nвторая строка", lyrics)
+        assertEquals(listOf(14_230L, 16_050L, 39_250L), lyrics?.lines?.map { it.timeMs })
+        assertEquals(listOf("первая строка", "вторая строка", ""), lyrics?.lines?.map { it.text })
     }
 
     @Test
@@ -86,7 +92,8 @@ class EmbeddedLyricsTest {
         val lyrics = EmbeddedLyrics.read(
             ArraySource(oggPrefix(listOf("LYRICS=[00:01.00] слова\n[00:02.00] ещё слова"))),
         )
-        assertEquals("слова\nещё слова", lyrics)
+        assertEquals("слова\nещё слова", lyrics?.text)
+        assertEquals(listOf(1_000L, 2_000L), lyrics?.lines?.map { it.timeMs })
     }
 
     @Test
@@ -98,7 +105,9 @@ class EmbeddedLyricsTest {
             ((comment.size shr 8) and 0xFF).toByte(),
             (comment.size and 0xFF).toByte(),
         ) + comment
-        assertEquals("text of the song", EmbeddedLyrics.read(ArraySource(file)))
+        val lyrics = EmbeddedLyrics.read(ArraySource(file))
+        assertEquals("text of the song", lyrics?.text)
+        assertFalse(lyrics!!.synced)
     }
 
     @Test
@@ -140,6 +149,38 @@ class EmbeddedLyricsTest {
             listOf(padding, "LYRICS=слова за границей страницы"),
         )
         val file = pagedOgg(packet, pageSize = 4080)
-        assertEquals("слова за границей страницы", EmbeddedLyrics.read(ArraySource(file)))
+        assertEquals("слова за границей страницы", EmbeddedLyrics.read(ArraySource(file))?.text)
+    }
+
+    @Test
+    fun idTagsAreDroppedOffsetAppliedAndChorusStampsExpanded() {
+        val lyrics = EmbeddedLyrics.parse(
+            """
+            [ar:5sta Family]
+            [ti:Снова вместе]
+            [by:@LosslessRobot]
+            [offset:+500]
+            [00:10.00]Первый куплет
+            [00:20.00][00:40.00]Припев
+            [00:30.00]Второй <00:31.00>куплет <00:32.50>с пословными метками
+            [00:50.5]Конец
+            """.trimIndent(),
+        )!!
+        assertTrue(lyrics.synced)
+        assertEquals(
+            listOf("Первый куплет", "Припев", "Второй куплет с пословными метками", "Припев", "Конец"),
+            lyrics.lines.map { it.text },
+        )
+        // Offset shifts every stamp; the chorus appears at both of its times, in time order.
+        assertEquals(listOf(9_500L, 19_500L, 29_500L, 39_500L, 50_000L), lyrics.lines.map { it.timeMs })
+        assertFalse(lyrics.text.contains("LosslessRobot"))
+    }
+
+    @Test
+    fun plainLyricsLoseTheirIdTagsButKeepTheirStanzas() {
+        val lyrics = EmbeddedLyrics.parse("[by:@LosslessRobot]\n\nVerse one\nline two\n\n\nChorus\n\n")!!
+        assertFalse(lyrics.synced)
+        assertEquals("Verse one\nline two\n\nChorus", lyrics.text)
+        assertNull(EmbeddedLyrics.parse("[ar:Nobody]\n[by:bot]\n\n"))
     }
 }
