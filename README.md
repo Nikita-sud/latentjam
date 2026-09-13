@@ -145,18 +145,21 @@ Two signals per track, both computed on the device:
 | Signal | Dimensions | Where it comes from |
 |---|---:|---|
 | **Audio embedding** | 960 | MobileNetV4-Conv-M encoder over the raw waveform |
-| **Metadata embedding** | 384 | Int8 MiniLM over trusted `genre; artist; year` tags |
+| **Metadata embedding** | 384 | Int8 MiniLM over trusted `genre; artist; original year; language` tags |
 
 Retrieval round-robins separate anchor-audio, session-audio and seed-text rankings into a single
 candidate pool, so there is no hand-tuned numeric weight between the embedding spaces. A 960-d GRU
 state encoder — reading your last four plays, completion/skip signals, and 30- and 365-day taste
-centroids — feeds a frozen scorer over 100 candidates, and a 253 KB learned MiniLM residual
-conditions those logits when trusted text exists. Missing text falls back to an exact audio-only
-path. Track *titles* are deliberately excluded from the embedding, so a filename like
-`Hard Techno Mix` can't inject a genre claim.
+centroids — feeds a frozen scorer over 100 candidates. The scorer reads each candidate's audio
+embedding next to its metadata vector, with the session's metadata centroid on the state side, and
+was trained with text dropout, so a track without usable tags is scored on audio alone. Track
+*titles* are deliberately excluded from the embedding, so a filename like `Hard Techno Mix` can't
+inject a genre claim; the language word comes from the file's tag or, failing that, from the script
+of the title, never from its words.
 
 Five ONNX graphs ship in-tree: the audio and metadata encoders run once while tracks are indexed;
-the state encoder, acoustic scorer and text residual run while a queue is built. The full
+the state encoder and the scorer run while a queue is built; a small semantic head turns audio
+embeddings into the genre-family scores the map and the mixes use. The full
 model + vocabulary bundle is **≈68 MiB on both Android and iOS**, plus a 15 MiB MusicBrainz alias pack. There is no precomputed per-track
 catalogue — an imported track gets exactly the same fully-local path as everything else.
 

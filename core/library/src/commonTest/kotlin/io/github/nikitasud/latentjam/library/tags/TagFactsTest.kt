@@ -27,6 +27,16 @@ class TagFactsTest {
     }
 
     @Test
+    fun languageComesFromTheTagVerbatimAndOnlyOnce() {
+        assertEquals("rus", TagFacts.fromComments(listOf("LANGUAGE" to " rus ")).language)
+        assertEquals("English", TagFacts.fromComments(listOf("TLAN" to "English", "LANGUAGE" to "rus")).language)
+        assertNull(TagFacts.fromComments(listOf("LANGUAGE" to "")).language)
+        // A field that is really a comment does not become a language.
+        assertNull(TagFacts.fromComments(listOf("LANGUAGE" to "x".repeat(40))).language)
+        assertNull(TagFacts.fromComments(listOf("GENRE" to "Pop")).language)
+    }
+
+    @Test
     fun aLoneDisplayArtistIsNeverGuessedApart() {
         // "feat."-cutting display strings is how taggers ruin band names; a single ARTIST
         // field carries no split information and produces no credit list.

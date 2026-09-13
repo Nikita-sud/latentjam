@@ -36,21 +36,29 @@ public interface TextEncoder {
         public const val TEXT_DIM: Int = 384
 
         /**
-         * The trusted string the encoder embeds: `"genre; artist; year"`, blanks dropped.
+         * The trusted string the encoder embeds: `"genre; artist; year; language"`, blanks dropped.
+         * The year is the recording's original year when the tags know it, otherwise the edition
+         * year the scanner reported; the language word is [TextLanguage]'s verdict from the tag or
+         * the script. The title enters only through that script check, never as text: a filename
+         * such as `Hard Techno Mix` remains incapable of putting a genre into this channel.
          *
          * Field order and separator are part of the model contract, not a formatting choice — the
          * measured retrieval win is specific to this arrangement, and vectors built any other way
-         * are not comparable with the ones already stored.
+         * are not comparable with the ones already stored. Extending the string re-encodes every
+         * stored vector through the engine's text identity version.
          */
         public fun metadataString(
             genre: String?,
             artist: String?,
             title: String?,
             year: Int?,
+            originalYear: Int? = null,
+            language: String? = null,
         ): String = listOfNotNull(
             genre?.takeIf { it.isNotBlank() },
             artist?.takeIf { it.isNotBlank() },
-            year?.takeIf { it > 0 }?.toString(),
+            (originalYear?.takeIf { it > 0 } ?: year?.takeIf { it > 0 })?.toString(),
+            TextLanguage.word(language, title, artist),
         ).joinToString("; ")
     }
 }

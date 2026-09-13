@@ -75,6 +75,12 @@ public data class TrackDescriptor(
     public val sizeBytes: Long? = null,
     /** File name with its extension, the honest source of a "FLAC"/"MP3" label; null when unknown. */
     public val fileName: String? = null,
+    /**
+     * Vocal language as the file's own tags state it (`LANGUAGE`, ID3 `TLAN`): an ISO 639 code or
+     * a plain name, uninterpreted. Null when the tags say nothing; consumers may fall back to
+     * script detection but must not invent a language from silence.
+     */
+    public val language: String? = null,
 )
 
 /**

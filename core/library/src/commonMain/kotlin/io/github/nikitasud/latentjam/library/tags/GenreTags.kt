@@ -99,7 +99,7 @@ public object GenreTags {
     /**
      * Every embedded tag fact as uniform `(KEY, value)` entries — Vorbis comments verbatim,
      * ID3 frames mapped onto the same vocabulary (`TCON`→GENRE, `TPE1` values→ARTIST each,
-     * `TXXX` by its description, `TDOR`/`TORY`→TDOR). One file open serves every consumer.
+     * `TXXX` by its description, `TDOR`/`TORY`→TDOR, `TLAN`→LANGUAGE). One file open serves every consumer.
      */
     public fun embeddedComments(source: ByteSource): List<Pair<String, String>>? {
         val magic = source.read(4) ?: return null
@@ -126,6 +126,7 @@ public object GenreTags {
         info.genre?.let { comments.add("GENRE" to it) }
         Id3Tags.artistValues(prefix).forEach { comments.add("ARTIST" to it) }
         Id3Tags.originalYearText(prefix)?.let { comments.add("TDOR" to it) }
+        Id3Tags.textValues(prefix, "TLAN").forEach { comments.add("LANGUAGE" to it) }
         for ((description, value) in Id3Tags.userTexts(prefix)) {
             comments.add(description.uppercase() to value)
         }

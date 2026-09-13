@@ -21,9 +21,11 @@ public data class EmbeddedTagFacts(
     public val genres: List<String> = emptyList(),
     public val artists: List<String> = emptyList(),
     public val originalYear: Int? = null,
+    /** The `LANGUAGE`/`TLAN` value verbatim (`rus`, `eng`, `English`); null when absent. */
+    public val language: String? = null,
 ) {
     public val isEmpty: Boolean
-        get() = genres.isEmpty() && artists.isEmpty() && originalYear == null
+        get() = genres.isEmpty() && artists.isEmpty() && originalYear == null && language == null
 }
 
 public object TagFacts {
@@ -37,6 +39,9 @@ public object TagFacts {
     private val YEAR_RANGE = 1000..2999
 
     private const val MAX_ARTISTS = 10
+
+    /** A language field is a code or a name; anything longer is a comment that lost its way. */
+    private const val MAX_LANGUAGE_CHARS = 32
 
     /**
      * Container-sniffing single-pass read: FLAC block walk, ID3 prefix, or Ogg scan — the same
@@ -53,6 +58,7 @@ public object TagFacts {
         val artistsPlural = ArrayList<String>()
         val artistFields = ArrayList<String>()
         var originalYear: Int? = null
+        var language: String? = null
         for ((rawKey, value) in comments) {
             when (rawKey.uppercase()) {
                 "GENRE" -> genres.add(value)
@@ -60,6 +66,8 @@ public object TagFacts {
                 "ARTIST" -> artistFields.add(value.trim())
                 "ORIGINALYEAR", "ORIGINALDATE", "TDOR", "TORY" ->
                     if (originalYear == null) originalYear = parseYear(value)
+                "LANGUAGE", "TLAN" ->
+                    if (language == null) language = value.trim().takeIf { it.isNotEmpty() && it.length <= MAX_LANGUAGE_CHARS }
             }
         }
         // Multiple ARTIST fields are a legitimate multi-credit; a single one is the display
@@ -77,6 +85,7 @@ public object TagFacts {
                 .distinctBy { it.lowercase() }
                 .take(MAX_ARTISTS),
             originalYear = originalYear,
+            language = language,
         )
     }
 

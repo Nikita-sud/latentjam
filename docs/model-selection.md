@@ -19,17 +19,23 @@ Full methods, counterfactuals, limitations, teacher research, and mobile results
 
 ## Shipped bundle
 
+Updated 2026-09-13. The two-stage residual chosen on 2026-07-20 was superseded in August by a
+single scorer that reads audio and text per candidate (the semtext-1344 contract, byte-identical
+across the Kotlin port and the offline harness); this is the shipped state.
+
 | File | Contract | Bytes |
 |---|---:|---:|
-| `mnv4_audio.onnx` | 10 s mono 32 kHz → 960-d | 21,939,891 |
+| `mnv4_audio.onnx` | 10 s mono 32 kHz → 960-d | 21,538,547 |
 | `text_encoder_minilm.onnx` | tokens → 384-d | 22,972,370 |
 | `predictor_state.onnx` | recent 960-d history → 960-d state | 11,917,220 |
-| `predictor_scorer_n100.onnx` | state + 100 audio candidates → logits | 2,728,912 |
-| `predictor_text_residual_n100_960.onnx` | base logits + optional text → logits | 253,566 |
+| `predictor_scorer_n100.onnx` | state 960 ⊕ 384 text centroid + 100 × (960 audio ⊕ 384 text) → logits | 12,114,045 |
+| `universal_semantic_head.onnx` | 960-d audio → 27 genre-family scores | 2,678,194 |
 | `text_vocab.txt` | WordPiece vocabulary | 231,508 |
 
-Total: **60,043,467 bytes (57.3 MiB)** per platform. Audio and text graphs run while tracks are
-indexed. Queue construction runs the state graph, frozen acoustic scorer, and residual. The app
+Total: **71,451,884 bytes (68.1 MiB)** per platform, plus the 15 MiB CC0 MusicBrainz alias pack
+used by search. Audio and text graphs run while tracks are indexed. Queue construction runs the
+state graph and the scorer; a candidate without a text vector gets a zero text block, the trained
+text-dropout path, so missing metadata degrades to audio-only scoring rather than to noise. The app
 progressively builds the local index on first launch, embeds the selected seed on demand, and keeps
 playback's metadata-only cold-start queue until audio candidates are ready. All inference, history, and stored
 embeddings remain on the device; iOS and Android both persist private history across launches.
@@ -39,10 +45,25 @@ omitted. This is an explicit capability mask, not an empty-library or random-fal
 
 ## Metadata contract
 
-Embed `genre; artist; year`, dropping blank fields. Never put title or filename text into the trusted
-channel. Candidate retrieval interleaves anchor-audio, state-audio, and seed-text rankings instead
-of using a hand-tuned cross-modal weight. The learned residual is bounded to ±0.75 and its mask makes
-missing text bit-exact acoustic-only output.
+Embed `genre; artist; original year; language`, dropping blank fields (text identity `text-v2`,
+2026-09-13). Every genre the file carries, joined by `; `; the credited display artist; the first
+release year from the tags, else the edition year; a language word from the file's `LANGUAGE`/`TLAN`
+tag, else from the script of the title and artist (Cyrillic → russian, kana/kanji → japanese, Latin
+silent). Never put title or filename text into the trusted channel. Candidate retrieval
+interleaves anchor-audio, state-audio, and seed-text rankings instead of using a hand-tuned
+cross-modal weight.
+
+Measured on the real library (1,084 tracks, 20 listener playlists, leave-one-out retrieval inside
+each playlist) before the change: adding the language word kept playlist R@1 (0.567 → 0.575 macro)
+and raised same-language neighbours for Cyrillic tracks from 65 % to 77 %; the original year
+added a further +0.02 macro. Transliterating Cyrillic instead raised R@1 to 0.619 but dropped
+language coherence to 49 %, because for an English WordPiece vocabulary the foreign script is
+itself the language signal. Label, album and release type were tried and rejected (noise, or
+nothing). On the real listening log (1,519 next-track examples through the deployed scorer) the
+new string scored MRR 0.068 against 0.069 for the old one and 0.056 with text removed: the text
+channel matters and the change costs it nothing. Alternative encoders on the same strings:
+all-MiniLM-L12-v2 gains +0.05 macro R@1 for +10 MB but needs the scorer retrained on its vectors;
+multilingual MiniLM and multilingual-e5-small (118 MB int8 each) did not beat the current model.
 
 ## SMART behavior
 
@@ -90,9 +111,9 @@ References checked on 2026-07-20:
 ## Asset hashes
 
 ```text
-507626838393bb9132714fdb6740707a21f38bf56befa3dd826e91f420ef9b53  mnv4_audio.onnx
+3ccfc0ccd06ced1415a6572a48f71bf165110b14d452251a6df92a4f9ca098a2  mnv4_audio.onnx
 13c5f87437e57b52ceb455f7e75f9ab841aa3ca6fe987507974a30657122b1e7  predictor_state.onnx
-adaa42bc3bd4b535d4ad2a49a348f3a5d9b41048c092650fedbd9fcc2a7457a6  predictor_scorer_n100.onnx
-e02f2bc70576ce23ce8fb763c662922af5bed8d065c303937ec1b4b8b11d9080  predictor_text_residual_n100_960.onnx
+35a27eb06a16ad09aedf98a69dcf15b33151b1f675d24ab9dbb075638a4ff27f  predictor_scorer_n100.onnx
+5002b2b116621e35265caaf63147c3c0c2877add77ec0d0cc5dcb45ad02cd503  universal_semantic_head.onnx
 afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1  text_encoder_minilm.onnx
 ```

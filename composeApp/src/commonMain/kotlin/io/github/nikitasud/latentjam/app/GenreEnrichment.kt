@@ -37,6 +37,7 @@ internal class GenreEnrichment(
         val joinedGenres: String,
         val artists: List<String>,
         val originalYear: Int?,
+        val language: String?,
     )
 
     private val mutex = Mutex()
@@ -51,12 +52,18 @@ internal class GenreEnrichment(
             val genre = stored.joinedGenres.takeIf { it.isNotEmpty() } ?: track.genre
             val artists = stored.artists.ifEmpty { track.artists }
             val originalYear = stored.originalYear ?: track.originalYear
+            val language = stored.language ?: track.language
             if (genre == track.genre && artists == track.artists &&
-                originalYear == track.originalYear
+                originalYear == track.originalYear && language == track.language
             ) {
                 track
             } else {
-                track.copy(genre = genre, artists = artists, originalYear = originalYear)
+                track.copy(
+                    genre = genre,
+                    artists = artists,
+                    originalYear = originalYear,
+                    language = language,
+                )
             }
         }
     }
@@ -80,6 +87,7 @@ internal class GenreEnrichment(
                 joinedGenres = GenreTags.canonical(facts.genres).orEmpty(),
                 artists = facts.artists,
                 originalYear = facts.originalYear,
+                language = facts.language,
             )
             updates[track.id.value] = stored
             if (stored.changes(track)) learnedSomething = true
@@ -98,7 +106,8 @@ internal class GenreEnrichment(
     private fun Stored.changes(track: TrackDescriptor): Boolean =
         (joinedGenres.isNotEmpty() && joinedGenres != track.genre) ||
             (artists.isNotEmpty() && artists != track.artists) ||
-            (originalYear != null && originalYear != track.originalYear)
+            (originalYear != null && originalYear != track.originalYear) ||
+            (language != null && language != track.language)
 
     private fun ensureLoaded(): MutableMap<String, Stored> {
         cache?.let { return it }
@@ -109,10 +118,11 @@ internal class GenreEnrichment(
 
     private companion object {
         /**
-         * v2 added artists and the original year. v1 lines (genres only) are deliberately
-         * dropped on decode: those files must be re-read once anyway to learn the new facts.
+         * v2 added artists and the original year, v3 the language tag. Older lines are
+         * deliberately dropped on decode: those files must be re-read once anyway to learn the
+         * new facts.
          */
-        const val FORMAT = "v2"
+        const val FORMAT = "v3"
 
         /** Joins the artist list inside one hex field; NUL never appears in a real name. */
         const val ARTIST_JOIN = "\u0000"
@@ -134,6 +144,7 @@ internal class GenreEnrichment(
                     stored.joinedGenres.hex(),
                     stored.artists.joinToString(ARTIST_JOIN).hex(),
                     stored.originalYear?.toString() ?: "",
+                    stored.language.orEmpty().hex(),
                 ).joinToString("|")
             }
 
@@ -141,7 +152,7 @@ internal class GenreEnrichment(
             val result = HashMap<String, Stored>()
             payload?.lineSequence()?.forEach { line ->
                 val parts = line.split('|')
-                if (parts.size != 6 || parts[0] != FORMAT) return@forEach
+                if (parts.size != 7 || parts[0] != FORMAT) return@forEach
                 val id = parts[1].unhex() ?: return@forEach
                 val revision = parts[2].unhex() ?: return@forEach
                 val genres = parts[3].unhex() ?: return@forEach
@@ -151,6 +162,7 @@ internal class GenreEnrichment(
                     joinedGenres = genres,
                     artists = artistsJoined.split(ARTIST_JOIN).filter { it.isNotEmpty() },
                     originalYear = parts[5].toIntOrNull(),
+                    language = parts[6].unhex()?.takeIf { it.isNotEmpty() },
                 )
             }
             return result
