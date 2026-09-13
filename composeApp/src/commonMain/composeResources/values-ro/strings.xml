@@ -385,7 +385,6 @@
     <string name="settings_duplicates_body">Găsește copii ale aceleiași înregistrări după sunet, indiferent de etichete</string>
     <string name="settings_duplicates_scanning">Se compară toate perechile de piese…</string>
     <string name="settings_duplicates_empty">Fără dubluri — fiecare piesă sună unic</string>
-    <string name="settings_duplicates_merge_confirm">Această acțiune păstrează o copie, actualizează listele și favoritele pentru a o folosi și ascunde celelalte %1$d copii.</string>
     <string name="settings_restore">Restabilește</string>
     <string name="settings_restore_all">Restabilește tot</string>
     <string name="settings_library_manage_failed">Biblioteca nu a putut fi actualizată. Încearcă din nou.</string>
@@ -523,4 +522,20 @@
     <string name="stats_recent_empty">Încă nu există audiții în aceste zile calendaristice.</string>
     <string name="stats_history_note">Pe baza istoricului salvat; se actualizează când o piesă se termină sau se schimbă. Clasamentele folosesc piesele disponibile în bibliotecă.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">Grupuri: %1$d · Copii în plus: %2$d · Se poate elibera: %3$s</string>
+    <string name="duplicates_keep_recommended">Păstrează copiile recomandate</string>
+    <string name="duplicates_keep_selected">Păstrează copia selectată</string>
+    <string name="duplicates_not_duplicates">Nu sunt duplicate</string>
+    <string name="duplicates_recommended">Recomandată</string>
+    <string name="duplicates_hide_copy">Ascunde această copie</string>
+    <string name="duplicates_hide_files">Ascunde celelalte copii; fișierele rămân pe dispozitiv</string>
+    <string name="duplicates_delete_files">Șterge celelalte fișiere de pe dispozitiv</string>
+    <string name="duplicates_merge_all_confirm">În toate cele %1$d grupuri va fi păstrată copia recomandată.</string>
+    <string name="duplicates_merge_confirm_body">Playlisturile și favoritele vor indica spre copia păstrată. Celelalte %1$d copii:</string>
+    <string name="duplicates_reclaimable">%1$s se pot elibera</string>
+    <string name="duplicates_kbps">%1$d kbps</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">Marcate ca înregistrări diferite</string>
 </resources>

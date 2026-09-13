@@ -380,7 +380,6 @@
     <string name="settings_duplicates_body">タグに関係なく、同じ録音のコピーを音で見つけます</string>
     <string name="settings_duplicates_scanning">全トラックを比較中…</string>
     <string name="settings_duplicates_empty">重複はありません — どのトラックも固有の音です</string>
-    <string name="settings_duplicates_merge_confirm">1つのコピーを残し、プレイリストとお気に入りをそのコピーに更新して、他の%1$d個のコピーを非表示にします。</string>
     <string name="settings_restore">復元</string>
     <string name="settings_restore_all">すべて復元</string>
     <string name="settings_library_manage_failed">ライブラリを更新できませんでした。もう一度お試しください。</string>
@@ -515,4 +514,20 @@
     <string name="stats_recent_empty">この期間にはまだ再生がありません。</string>
     <string name="stats_history_note">保存済みの履歴に基づき、曲の終了時や切り替え時に更新されます。ランキングはライブラリ内の利用可能な曲が対象です。</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">グループ: %1$d · 余分なコピー: %2$d · 空けられる容量: %3$s</string>
+    <string name="duplicates_keep_recommended">おすすめのコピーを残す</string>
+    <string name="duplicates_keep_selected">選択したコピーを残す</string>
+    <string name="duplicates_not_duplicates">重複ではない</string>
+    <string name="duplicates_recommended">おすすめ</string>
+    <string name="duplicates_hide_copy">このコピーを非表示</string>
+    <string name="duplicates_hide_files">他のコピーを非表示にする（ファイルは端末に残ります）</string>
+    <string name="duplicates_delete_files">他のファイルを端末から削除する</string>
+    <string name="duplicates_merge_all_confirm">%1$d個すべてのグループでおすすめのコピーを残します。</string>
+    <string name="duplicates_merge_confirm_body">プレイリストとお気に入りは残したコピーを指すようになります。他の%1$d個のコピー:</string>
+    <string name="duplicates_reclaimable">%1$s空けられます</string>
+    <string name="duplicates_kbps">%1$d kbps</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">別の録音として記録しました</string>
 </resources>

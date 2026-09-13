@@ -120,6 +120,13 @@ internal class IosAppSettings : AppSettings {
         defaults.setObject(payload, KEY_TRACK_GENRES)
     }
 
+    override fun readDuplicateDismissalsPayload(): String? =
+        defaults.objectForKey(KEY_DUPLICATE_DISMISSALS) as? String
+
+    override fun writeDuplicateDismissalsPayload(payload: String) {
+        defaults.setObject(payload, KEY_DUPLICATE_DISMISSALS)
+    }
+
     override suspend fun setSaveListeningHistory(enabled: Boolean): Result<Unit> =
         persistRecordingPreference(KEY_SAVE_HISTORY, enabled, mutableSaveListeningHistory)
 
@@ -265,6 +272,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
         const val KEY_TRACK_LOUDNESS = "track_loudness_v1"
         const val KEY_TRACK_GENRES = "track_genres_v1"
+        const val KEY_DUPLICATE_DISMISSALS = "duplicate_dismissals_v1"
         const val KEY_RESUME_SOURCE_REFERENCE = "resume_source_reference"
         const val KEY_RESUME_QUEUE_STATE = "resume_queue_state_v2"
         /** Read-only migration key used by builds before collision-safe queue state. */

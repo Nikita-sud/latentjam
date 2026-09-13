@@ -394,7 +394,6 @@
     <string name="settings_duplicates_body">Encontra cópias da mesma gravação pelo som, independentemente das tags</string>
     <string name="settings_duplicates_scanning">Comparando todos os pares de faixas…</string>
     <string name="settings_duplicates_empty">Sem duplicatas — cada faixa soa única</string>
-    <string name="settings_duplicates_merge_confirm">Isto mantém uma cópia, atualiza playlists e favoritos para usá-la e oculta as outras %1$d cópias.</string>
     <string name="settings_restore">Restaurar</string>
     <string name="settings_restore_all">Restaurar tudo</string>
     <string name="settings_library_manage_failed">Não foi possível atualizar a biblioteca. Tente novamente.</string>
@@ -531,4 +530,20 @@
     <string name="stats_recent_empty">Ainda não há reproduções nestes dias do calendário.</string>
     <string name="stats_history_note">Baseado no histórico salvo; atualizado quando uma música termina ou muda. Os rankings usam as músicas disponíveis na biblioteca.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">Grupos: %1$d · Cópias extras: %2$d · Recuperável: %3$s</string>
+    <string name="duplicates_keep_recommended">Manter as cópias recomendadas</string>
+    <string name="duplicates_keep_selected">Manter a cópia selecionada</string>
+    <string name="duplicates_not_duplicates">Não são duplicatas</string>
+    <string name="duplicates_recommended">Recomendada</string>
+    <string name="duplicates_hide_copy">Ocultar esta cópia</string>
+    <string name="duplicates_hide_files">Ocultar as outras cópias; os arquivos ficam no dispositivo</string>
+    <string name="duplicates_delete_files">Excluir os outros arquivos do dispositivo</string>
+    <string name="duplicates_merge_all_confirm">A cópia recomendada será mantida em todos os %1$d grupos.</string>
+    <string name="duplicates_merge_confirm_body">Playlists e favoritos passarão a apontar para a cópia mantida. As outras %1$d cópias:</string>
+    <string name="duplicates_reclaimable">%1$s recuperáveis</string>
+    <string name="duplicates_kbps">%1$d kbps</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">Marcadas como gravações diferentes</string>
 </resources>

@@ -386,7 +386,6 @@
     <string name="settings_duplicates_body">Menemukan salinan rekaman yang sama dari suaranya, apa pun tag-nya</string>
     <string name="settings_duplicates_scanning">Membandingkan semua pasangan trek…</string>
     <string name="settings_duplicates_empty">Tidak ada duplikat — setiap trek terdengar unik</string>
-    <string name="settings_duplicates_merge_confirm">Tindakan ini menyimpan satu salinan, memperbarui playlist dan favorit agar menggunakannya, lalu menyembunyikan %1$d salinan lainnya.</string>
     <string name="settings_restore">Pulihkan</string>
     <string name="settings_restore_all">Pulihkan semua</string>
     <string name="settings_library_manage_failed">Tidak dapat memperbarui pustaka. Coba lagi.</string>
@@ -521,4 +520,20 @@
     <string name="stats_recent_empty">Belum ada aktivitas mendengarkan pada hari-hari kalender ini.</string>
     <string name="stats_history_note">Berdasarkan riwayat tersimpan; diperbarui saat lagu berakhir atau berganti. Peringkat menggunakan lagu yang tersedia di koleksi Anda.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">Grup: %1$d · Salinan berlebih: %2$d · Bisa dibebaskan: %3$s</string>
+    <string name="duplicates_keep_recommended">Simpan salinan yang direkomendasikan</string>
+    <string name="duplicates_keep_selected">Simpan salinan yang dipilih</string>
+    <string name="duplicates_not_duplicates">Bukan duplikat</string>
+    <string name="duplicates_recommended">Direkomendasikan</string>
+    <string name="duplicates_hide_copy">Sembunyikan salinan ini</string>
+    <string name="duplicates_hide_files">Sembunyikan salinan lain; berkas tetap di perangkat</string>
+    <string name="duplicates_delete_files">Hapus berkas lain dari perangkat</string>
+    <string name="duplicates_merge_all_confirm">Salinan yang direkomendasikan akan disimpan di semua %1$d grup.</string>
+    <string name="duplicates_merge_confirm_body">Playlist dan favorit akan mengarah ke salinan yang disimpan. %1$d salinan lainnya:</string>
+    <string name="duplicates_reclaimable">%1$s bisa dibebaskan</string>
+    <string name="duplicates_kbps">%1$d kbps</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">Ditandai sebagai rekaman berbeda</string>
 </resources>

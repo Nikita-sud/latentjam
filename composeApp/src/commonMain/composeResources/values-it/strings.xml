@@ -394,7 +394,6 @@
     <string name="settings_duplicates_body">Trova copie della stessa registrazione dal suono, qualunque cosa dicano i tag</string>
     <string name="settings_duplicates_scanning">Confronto di tutte le coppie di brani…</string>
     <string name="settings_duplicates_empty">Nessun duplicato: ogni brano suona unico</string>
-    <string name="settings_duplicates_merge_confirm">Questa azione mantiene una copia, aggiorna playlist e preferiti per usarla e nasconde le altre %1$d copie.</string>
     <string name="settings_restore">Ripristina</string>
     <string name="settings_restore_all">Ripristina tutto</string>
     <string name="settings_library_manage_failed">Impossibile aggiornare la libreria. Riprova.</string>
@@ -531,4 +530,20 @@
     <string name="stats_recent_empty">Ancora nessun ascolto in questi giorni di calendario.</string>
     <string name="stats_history_note">Basato sulla cronologia salvata; si aggiorna quando un brano termina o cambia. Le classifiche usano i brani disponibili nella libreria.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">Gruppi: %1$d · Copie in più: %2$d · Recuperabili: %3$s</string>
+    <string name="duplicates_keep_recommended">Conserva le copie consigliate</string>
+    <string name="duplicates_keep_selected">Conserva la copia selezionata</string>
+    <string name="duplicates_not_duplicates">Non sono duplicati</string>
+    <string name="duplicates_recommended">Consigliata</string>
+    <string name="duplicates_hide_copy">Nascondi questa copia</string>
+    <string name="duplicates_hide_files">Nascondi le altre copie; i file restano sul dispositivo</string>
+    <string name="duplicates_delete_files">Elimina gli altri file dal dispositivo</string>
+    <string name="duplicates_merge_all_confirm">In tutti i %1$d gruppi verrà conservata la copia consigliata.</string>
+    <string name="duplicates_merge_confirm_body">Playlist e preferiti punteranno alla copia conservata. Le altre %1$d copie:</string>
+    <string name="duplicates_reclaimable">%1$s recuperabili</string>
+    <string name="duplicates_kbps">%1$d kbps</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">Contrassegnate come registrazioni diverse</string>
 </resources>

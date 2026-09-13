@@ -396,7 +396,6 @@
     <string name="settings_duplicates_body">Ищет копии одной записи по звуку, независимо от тегов</string>
     <string name="settings_duplicates_scanning">Сравниваю треки между собой…</string>
     <string name="settings_duplicates_empty">Дубликатов нет — все треки звучат по-разному</string>
-    <string name="settings_duplicates_merge_confirm">Будет сохранена одна копия, плейлисты и избранное будут переключены на неё, а остальные копии (%1$d) — скрыты.</string>
     <string name="settings_restore">Восстановить</string>
     <string name="settings_restore_all">Восстановить все</string>
     <string name="settings_library_manage_failed">Не удалось обновить медиатеку. Повторите попытку.</string>
@@ -535,4 +534,20 @@
     <string name="stats_recent_empty">В эти календарные дни прослушиваний пока нет.</string>
     <string name="stats_history_note">На основе сохранённой истории; обновляется по окончании или смене трека. В рейтингах учитываются доступные треки медиатеки.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">Групп: %1$d · Лишних копий: %2$d · Освободится: %3$s</string>
+    <string name="duplicates_keep_recommended">Оставить рекомендованные копии</string>
+    <string name="duplicates_keep_selected">Оставить выбранную копию</string>
+    <string name="duplicates_not_duplicates">Это не дубликаты</string>
+    <string name="duplicates_recommended">Рекомендуется</string>
+    <string name="duplicates_hide_copy">Скрыть эту копию</string>
+    <string name="duplicates_hide_files">Скрыть остальные копии, файлы остаются на устройстве</string>
+    <string name="duplicates_delete_files">Удалить остальные файлы с устройства</string>
+    <string name="duplicates_merge_all_confirm">Во всех группах (%1$d) будет оставлена рекомендованная копия.</string>
+    <string name="duplicates_merge_confirm_body">Плейлисты и избранное будут указывать на оставленную копию. Остальные копии (%1$d):</string>
+    <string name="duplicates_reclaimable">Освободится %1$s</string>
+    <string name="duplicates_kbps">%1$d кбит/с</string>
+    <string name="unit_megabytes">%1$s МБ</string>
+    <string name="snack_duplicates_dismissed">Отмечено как разные записи</string>
 </resources>

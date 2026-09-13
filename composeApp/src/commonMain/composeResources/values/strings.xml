@@ -449,7 +449,6 @@
     <string name="settings_duplicates_body">Finds copies of the same recording by sound, whatever their tags say</string>
     <string name="settings_duplicates_scanning">Comparing every pair of tracks…</string>
     <string name="settings_duplicates_empty">No duplicates — every track sounds unique</string>
-    <string name="settings_duplicates_merge_confirm">This keeps one copy, updates playlists and favorites to use it, and hides the other %1$d copies.</string>
     <string name="settings_restore">Restore</string>
     <string name="settings_restore_all">Restore all</string>
     <string name="settings_library_manage_failed">Could not update the library. Try again.</string>
@@ -586,4 +585,20 @@
     <string name="stats_recent_empty">No listening in these calendar days yet.</string>
     <string name="stats_history_note">Based on saved history; updated when a track ends or changes. Rankings use tracks available in your library.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">Groups: %1$d · Extra copies: %2$d · Reclaimable: %3$s</string>
+    <string name="duplicates_keep_recommended">Keep recommended copies</string>
+    <string name="duplicates_keep_selected">Keep selected copy</string>
+    <string name="duplicates_not_duplicates">Not duplicates</string>
+    <string name="duplicates_recommended">Recommended</string>
+    <string name="duplicates_hide_copy">Hide this copy</string>
+    <string name="duplicates_hide_files">Hide the other copies; the files stay on the device</string>
+    <string name="duplicates_delete_files">Delete the other files from the device</string>
+    <string name="duplicates_merge_all_confirm">The recommended copy will be kept in all %1$d groups.</string>
+    <string name="duplicates_merge_confirm_body">Playlists and favorites will point at the kept copy. The other %1$d copies:</string>
+    <string name="duplicates_reclaimable">%1$s reclaimable</string>
+    <string name="duplicates_kbps">%1$d kbps</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">Marked as different recordings</string>
 </resources>

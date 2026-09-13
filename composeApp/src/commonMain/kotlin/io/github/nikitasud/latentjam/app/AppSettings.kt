@@ -279,6 +279,10 @@ interface AppSettings {
     fun readTrackGenresPayload(): String?
     fun writeTrackGenresPayload(payload: String)
 
+    /** Pairs the listener marked as different recordings; the duplicate finder keeps them apart. */
+    fun readDuplicateDismissalsPayload(): String?
+    fun writeDuplicateDismissalsPayload(payload: String)
+
     /** Whether new playback sessions are written to the private on-device listening log. */
     val saveListeningHistory: StateFlow<Boolean>
 

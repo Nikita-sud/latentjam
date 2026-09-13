@@ -397,7 +397,6 @@
     <string name="settings_duplicates_body">Findet Kopien derselben Aufnahme am Klang, unabhängig von den Tags</string>
     <string name="settings_duplicates_scanning">Alle Titelpaare werden verglichen…</string>
     <string name="settings_duplicates_empty">Keine Duplikate — jeder Titel klingt einzigartig</string>
-    <string name="settings_duplicates_merge_confirm">Dadurch bleibt eine Kopie erhalten, Playlists und Favoriten werden auf sie umgestellt und die anderen %1$d Kopien werden ausgeblendet.</string>
     <string name="settings_restore">Wiederherstellen</string>
     <string name="settings_restore_all">Alle wiederherstellen</string>
     <string name="settings_library_manage_failed">Die Mediathek konnte nicht aktualisiert werden. Versuche es erneut.</string>
@@ -534,4 +533,20 @@
     <string name="stats_recent_empty">An diesen Kalendertagen wurde noch nichts gehört.</string>
     <string name="stats_history_note">Basierend auf dem gespeicherten Verlauf; wird beim Ende oder Wechsel eines Titels aktualisiert. Ranglisten berücksichtigen verfügbare Titel deiner Mediathek.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">Gruppen: %1$d · Überzählige Kopien: %2$d · Freigebbar: %3$s</string>
+    <string name="duplicates_keep_recommended">Empfohlene Kopien behalten</string>
+    <string name="duplicates_keep_selected">Ausgewählte Kopie behalten</string>
+    <string name="duplicates_not_duplicates">Keine Duplikate</string>
+    <string name="duplicates_recommended">Empfohlen</string>
+    <string name="duplicates_hide_copy">Diese Kopie ausblenden</string>
+    <string name="duplicates_hide_files">Die anderen Kopien ausblenden; die Dateien bleiben auf dem Gerät</string>
+    <string name="duplicates_delete_files">Die anderen Dateien vom Gerät löschen</string>
+    <string name="duplicates_merge_all_confirm">In allen %1$d Gruppen wird die empfohlene Kopie behalten.</string>
+    <string name="duplicates_merge_confirm_body">Playlists und Favoriten zeigen danach auf die behaltene Kopie. Die anderen %1$d Kopien:</string>
+    <string name="duplicates_reclaimable">%1$s freigebbar</string>
+    <string name="duplicates_kbps">%1$d kbit/s</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">Als verschiedene Aufnahmen markiert</string>
 </resources>

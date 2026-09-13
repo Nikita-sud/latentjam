@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
@@ -40,8 +41,12 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -89,11 +94,26 @@ import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_back
 import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
+import io.github.nikitasud.latentjam.app.generated.resources.snack_duplicates_dismissed
+import io.github.nikitasud.latentjam.app.generated.resources.unit_megabytes
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_kbps
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_reclaimable
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_merge_confirm_body
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_merge_all_confirm
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_delete_files
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_hide_files
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_hide_copy
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_recommended
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_not_duplicates
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_keep_selected
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_keep_recommended
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_summary
 import io.github.nikitasud.latentjam.app.generated.resources.action_clear
 import io.github.nikitasud.latentjam.app.generated.resources.action_close
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_latentjam
@@ -247,7 +267,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_hidden_tra
 import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates
 import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_empty
-import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_merge_confirm
 import io.github.nikitasud.latentjam.app.generated.resources.settings_duplicates_scanning
 import io.github.nikitasud.latentjam.app.generated.resources.settings_hidden_tracks_empty
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_manage_failed
@@ -271,7 +290,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_section_pr
 import io.github.nikitasud.latentjam.app.generated.resources.settings_section_privacy
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine
 import io.github.nikitasud.latentjam.app.generated.resources.settings_smart_engine_subtitle
-import io.github.nikitasud.latentjam.app.generated.resources.duplicates_keep_this
 import io.github.nikitasud.latentjam.app.generated.resources.snack_duplicates_merged
 import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade
 import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade_subtitle
@@ -359,6 +377,8 @@ fun SettingsScreen(
     onRetryIndexing: () -> Unit,
     onRebuildAnalysis: suspend () -> Unit,
     onHideTrack: suspend (TrackDescriptor) -> Unit,
+    onHideTracks: suspend (List<TrackDescriptor>) -> Unit,
+    onDeleteTracks: (List<TrackDescriptor>) -> Unit,
     onDuplicateDataChanged: suspend () -> Unit,
     onBackupRestored: suspend () -> Unit,
     onClearListeningHistory: suspend () -> Unit,
@@ -481,7 +501,10 @@ fun SettingsScreen(
                     )
                     SettingsPage.DUPLICATES -> DuplicatesSettings(
                         tracks = tracks,
-                        onHideTrack = onHideTrack,
+                        history = history,
+                        settings = settings,
+                        onHideTracks = onHideTracks,
+                        onDeleteTracks = onDeleteTracks,
                         onDuplicateDataChanged = onDuplicateDataChanged,
                         snackbarHostState = snackbarHostState,
                     )
@@ -1912,33 +1935,44 @@ private fun IntelligenceProblemsSettings(
 /**
  * The tag-blind duplicate report: tracks whose stored audio embeddings are near-identical are
  * the same recording, whatever their files are named. Runs entirely from the SMART index — no
- * decoding, no network — so the scan is a background pass of dot products.
+ * decoding, no network — so the scan is a background pass of dot products. Every group names the
+ * copy worth keeping (lossless first, then bitrate, then what the listener already loves); the
+ * listener can take that verdict for every group at once, override it per group, hide or delete
+ * the rest, or declare a group two different recordings, which the finder remembers.
  */
 @Composable
 private fun DuplicatesSettings(
     tracks: List<TrackDescriptor>,
-    onHideTrack: suspend (TrackDescriptor) -> Unit,
+    history: ListeningHistory,
+    settings: AppSettings,
+    onHideTracks: suspend (List<TrackDescriptor>) -> Unit,
+    onDeleteTracks: (List<TrackDescriptor>) -> Unit,
     onDuplicateDataChanged: suspend () -> Unit,
     snackbarHostState: SnackbarHostState,
 ) {
     val scope = rememberCoroutineScope()
     var scanning by remember { mutableStateOf(true) }
-    var groups by remember { mutableStateOf<List<List<TrackDescriptor>>>(emptyList()) }
-    var removing by remember { mutableStateOf<TrackId?>(null) }
+    var scanProgress by remember { mutableStateOf(0f) }
+    var groups by remember { mutableStateOf<List<DuplicateGroup>>(emptyList()) }
+    var chosen by remember { mutableStateOf<Map<String, TrackId>>(emptyMap()) }
+    var busy by remember { mutableStateOf(false) }
     var scanFailed by remember { mutableStateOf(false) }
     var scanRevision by remember { mutableIntStateOf(0) }
     var scanGeneration by remember { mutableLongStateOf(0L) }
     var pendingMerge by remember {
-        mutableStateOf<Pair<List<TrackDescriptor>, TrackDescriptor>?>(null)
+        mutableStateOf<List<Pair<DuplicateGroup, DuplicateCopy>>?>(null)
     }
+    var deleteFiles by remember { mutableStateOf(false) }
     val manageFailed = stringResource(Res.string.settings_library_manage_failed)
     val removedMessage = stringResource(Res.string.snack_removed_from_latentjam)
     val mergedMessage = stringResource(Res.string.snack_duplicates_merged)
+    val dismissedMessage = stringResource(Res.string.snack_duplicates_dismissed)
 
     LaunchedEffect(tracks, scanRevision) {
         val generation = scanGeneration + 1L
         scanGeneration = generation
         scanning = true
+        scanProgress = 0f
         scanFailed = false
         // Results describe one exact library/index snapshot. Never leave old destructive actions
         // tappable while a replacement snapshot is being assembled.
@@ -1954,15 +1988,39 @@ private fun DuplicatesSettings(
             }
             val byId = tracks.associateBy(TrackDescriptor::id)
             val durations = tracks.associate { track -> track.id to track.durationMs }
+            val dismissed = DuplicateDismissals.decode(settings.readDuplicateDismissalsPayload())
+            val stats = history.stats()
+            val favoriteIds = AppGraph.favorites.all().toSet()
+            val playlistCounts = HashMap<TrackId, Int>()
+            for (playlist in AppGraph.playlists.all()) {
+                for (member in playlist.trackIds.toSet()) {
+                    val id = TrackId(member)
+                    playlistCounts[id] = (playlistCounts[id] ?: 0) + 1
+                }
+            }
             val computed = withContext(Dispatchers.Default) {
                 val scanContext = currentCoroutineContext()
                 audioDuplicateGroups(
                     vectors = vectors,
                     durationsMs = durations,
+                    dismissed = dismissed,
                     cancellationCheck = { scanContext.ensureActive() },
-                ).map { group -> group.mapNotNull(byId::get) }
+                    onProgress = { done, total ->
+                        if (total > 0) scanProgress = done.toFloat() / total
+                    },
+                ).map { group ->
+                    describeDuplicateGroup(
+                        group = group.mapNotNull(byId::get),
+                        stats = stats,
+                        favorites = favoriteIds,
+                        playlistCounts = playlistCounts,
+                    )
+                }.filter { it.copies.size > 1 }
             }
-            if (scanGeneration == generation) groups = computed
+            if (scanGeneration == generation) {
+                groups = computed
+                chosen = computed.associate { it.key to it.recommended.track.id }
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Throwable) {
@@ -1980,152 +2038,387 @@ private fun DuplicatesSettings(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
-    ) {
-        item {
-            SettingsSection(stringResource(Res.string.settings_duplicates)) {
-                SettingsBody(stringResource(Res.string.settings_duplicates_body))
-                if (scanning) {
-                    SettingsBody(stringResource(Res.string.settings_duplicates_scanning))
-                    LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
+    fun survivorOf(group: DuplicateGroup): DuplicateCopy =
+        chosen[group.key]?.let(group::copy) ?: group.recommended
+
+    fun finishMerge(merges: List<Pair<DuplicateGroup, DuplicateCopy>>, delete: Boolean) {
+        scope.launch {
+            busy = true
+            var failure: Throwable? = null
+            val losers = mutableListOf<TrackDescriptor>()
+            try {
+                for ((group, survivor) in merges) {
+                    mergeDuplicateGroup(
+                        group = group.copies.map { it.track },
+                        survivor = survivor.track,
+                        playlists = AppGraph.playlists,
+                        favorites = AppGraph.favorites,
+                        onHideTrack = { losers += it },
                     )
-                } else if (scanFailed) {
-                    SettingsBody(manageFailed)
-                    OutlinedButton(
-                        onClick = { scanRevision += 1 },
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                    ) {
-                        Text(stringResource(Res.string.action_retry))
-                    }
-                } else if (groups.isEmpty()) {
-                    SettingsBody(stringResource(Res.string.settings_duplicates_empty))
                 }
+                if (!delete && losers.isNotEmpty()) onHideTracks(losers)
+            } catch (cancelled: CancellationException) {
+                failure = cancelled
+            } catch (problem: Throwable) {
+                failure = problem
             }
-        }
-        groups.forEachIndexed { groupIndex, group ->
-            item(key = "duplicate-header-$groupIndex") {
-                SettingsSection(
-                    pluralStringResource(Res.plurals.count_tracks, group.size, group.size),
-                ) {}
+            // A late playlist/favorites CAS failure can leave earlier playlists safely rewritten
+            // even though nothing was hidden. Always republish durable state so the app and SMART
+            // companion groups cannot go stale.
+            try {
+                withContext(kotlinx.coroutines.NonCancellable) { onDuplicateDataChanged() }
+            } catch (problem: Throwable) {
+                if (failure == null) failure = problem
             }
-            items(
-                items = group,
-                key = { "duplicate-$groupIndex-${it.id.value}" },
-            ) { track ->
-                DuplicateRow(
-                    track = track,
-                    canRemove = removing == null,
-                    onRemove = {
-                        scope.launch {
-                            removing = track.id
-                            try {
-                                onHideTrack(track)
-                                groups = groups
-                                    .map { candidates -> candidates.filterNot { it.id == track.id } }
-                                    .filter { it.size > 1 }
-                                snackbarHostState.showSnackbar(removedMessage)
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (_: Throwable) {
-                                snackbarHostState.showSnackbar(manageFailed)
-                            } finally {
-                                removing = null
-                            }
-                        }
-                    },
-                    onKeep = { pendingMerge = group to track },
-                )
+            busy = false
+            if (failure is CancellationException) throw failure
+            when {
+                failure != null -> snackbarHostState.showSnackbar(manageFailed)
+                delete -> {
+                    // The system owns the destructive step: a confirmed delete rescans the
+                    // library and these groups rebuild without the files; a cancelled one leaves
+                    // every copy where it was, with playlists already on the survivor.
+                    if (losers.isNotEmpty()) onDeleteTracks(losers)
+                }
+                else -> {
+                    val mergedKeys = merges.mapTo(HashSet()) { it.first.key }
+                    groups = groups.filterNot { it.key in mergedKeys }
+                    snackbarHostState.showSnackbar(mergedMessage)
+                }
             }
         }
     }
 
-    pendingMerge?.let { (group, track) ->
-        ConfirmSettingsAction(
-            title = stringResource(Res.string.settings_duplicates),
-            body = stringResource(
-                Res.string.settings_duplicates_merge_confirm,
-                (group.size - 1).coerceAtLeast(1),
-            ),
-            confirmLabel = stringResource(Res.string.duplicates_keep_this),
-            onConfirm = {
-                pendingMerge = null
-                scope.launch {
-                            removing = track.id
-                            var failure: Throwable? = null
-                            try {
-                                mergeDuplicateGroup(
-                                    group = group,
-                                    survivor = track,
-                                    playlists = AppGraph.playlists,
-                                    favorites = AppGraph.favorites,
-                                    onHideTrack = onHideTrack,
-                                )
-                            } catch (cancelled: CancellationException) {
-                                failure = cancelled
-                            } catch (problem: Throwable) {
-                                failure = problem
-                            }
-                            // A late playlist/favorites CAS failure can leave earlier playlists
-                            // safely rewritten even though nothing was hidden. Always republish
-                            // durable state so the app and SMART companion groups cannot go stale.
-                            try {
-                                withContext(kotlinx.coroutines.NonCancellable) {
-                                    onDuplicateDataChanged()
-                                }
-                            } catch (problem: Throwable) {
-                                if (failure == null) failure = problem
-                            }
-                            removing = null
-                            if (failure is CancellationException) throw failure
-                            if (failure == null) {
-                                groups = groups.filterNot { it === group }
-                                snackbarHostState.showSnackbar(mergedMessage)
-                            } else {
-                                snackbarHostState.showSnackbar(manageFailed)
-                            }
+    fun dismissGroup(group: DuplicateGroup) {
+        scope.launch {
+            busy = true
+            try {
+                val existing = DuplicateDismissals.decode(settings.readDuplicateDismissalsPayload())
+                val verdicts = DuplicateDismissals.pairsOf(group.copies.map { it.track.id })
+                settings.writeDuplicateDismissalsPayload(
+                    DuplicateDismissals.encode(existing + verdicts),
+                )
+                groups = groups.filterNot { it.key == group.key }
+                snackbarHostState.showSnackbar(dismissedMessage)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                snackbarHostState.showSnackbar(manageFailed)
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    fun hideCopy(group: DuplicateGroup, copy: DuplicateCopy) {
+        scope.launch {
+            busy = true
+            try {
+                onHideTracks(listOf(copy.track))
+                val remaining = group.copies.filterNot { it.track.id == copy.track.id }
+                groups = groups.mapNotNull { candidate ->
+                    when {
+                        candidate.key != group.key -> candidate
+                        remaining.size > 1 -> DuplicateGroup(remaining, recommendedCopy(remaining))
+                        else -> null
+                    }
+                }
+                snackbarHostState.showSnackbar(removedMessage)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                snackbarHostState.showSnackbar(manageFailed)
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    val extraCopies = groups.sumOf { it.copies.size - 1 }
+    val reclaimable = groups.sumOf { it.reclaimableBytes(survivorOf(it).track.id) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
+        item(key = "duplicates-intro") {
+            SettingsSection(stringResource(Res.string.settings_duplicates)) {
+                SettingsBody(stringResource(Res.string.settings_duplicates_body))
+                when {
+                    scanning -> {
+                        SettingsBody(stringResource(Res.string.settings_duplicates_scanning))
+                        LinearProgressIndicator(
+                            progress = { scanProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                        )
+                    }
+                    scanFailed -> {
+                        SettingsBody(manageFailed)
+                        OutlinedButton(
+                            onClick = { scanRevision += 1 },
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                        ) {
+                            Text(stringResource(Res.string.action_retry))
+                        }
+                    }
+                    groups.isEmpty() -> {
+                        SettingsBody(stringResource(Res.string.settings_duplicates_empty))
+                    }
+                    else -> {
+                        SettingsBody(
+                            stringResource(
+                                Res.string.duplicates_summary,
+                                groups.size,
+                                extraCopies,
+                                stringResource(Res.string.unit_megabytes, megabytesLabel(reclaimable)),
+                            ),
+                        )
+                        FilledTonalButton(
+                            onClick = { pendingMerge = groups.map { it to survivorOf(it) } },
+                            enabled = !busy,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        ) {
+                            Text(stringResource(Res.string.duplicates_keep_recommended))
+                        }
+                    }
+                }
+            }
+        }
+        items(items = groups, key = { "duplicate-group-${it.key}" }) { group ->
+            DuplicateGroupCard(
+                group = group,
+                survivor = survivorOf(group),
+                enabled = !busy,
+                onChoose = { id -> chosen = chosen + (group.key to id) },
+                onKeep = { survivor -> pendingMerge = listOf(group to survivor) },
+                onDismiss = { dismissGroup(group) },
+                onHideCopy = { copy -> hideCopy(group, copy) },
+            )
+        }
+    }
+
+    pendingMerge?.let { merges ->
+        val otherCopies = merges.sumOf { (group, _) -> group.copies.size - 1 }
+        // Deleting files is the irreversible choice, so every dialog starts from the safe one;
+        // a listener who wants files gone says so each time.
+        LaunchedEffect(merges) { deleteFiles = false }
+        AlertDialog(
+            onDismissRequest = { pendingMerge = null },
+            title = { Text(stringResource(Res.string.settings_duplicates)) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (merges.size > 1) {
+                        Text(
+                            text = stringResource(Res.string.duplicates_merge_all_confirm, merges.size),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
+                    Text(
+                        text = stringResource(Res.string.duplicates_merge_confirm_body, otherCopies),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    listOf(
+                        false to Res.string.duplicates_hide_files,
+                        true to Res.string.duplicates_delete_files,
+                    ).forEach { (delete, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .selectable(
+                                    selected = deleteFiles == delete,
+                                    role = Role.RadioButton,
+                                    onClick = { deleteFiles = delete },
+                                ),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = deleteFiles == delete, onClick = null)
+                            Text(
+                                text = stringResource(label),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(start = 8.dp),
+                            )
+                        }
+                    }
                 }
             },
-            onDismiss = { pendingMerge = null },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingMerge = null
+                        finishMerge(merges, deleteFiles)
+                    },
+                ) {
+                    Text(
+                        stringResource(
+                            if (merges.size > 1) {
+                                Res.string.duplicates_keep_recommended
+                            } else {
+                                Res.string.duplicates_keep_selected
+                            },
+                        ),
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMerge = null }) {
+                    Text(stringResource(Res.string.action_cancel))
+                }
+            },
         )
     }
 }
 
 @Composable
-private fun DuplicateRow(
-    track: TrackDescriptor,
-    canRemove: Boolean,
-    onRemove: () -> Unit,
-    onKeep: () -> Unit,
+private fun DuplicateGroupCard(
+    group: DuplicateGroup,
+    survivor: DuplicateCopy,
+    enabled: Boolean,
+    onChoose: (TrackId) -> Unit,
+    onKeep: (DuplicateCopy) -> Unit,
+    onDismiss: () -> Unit,
+    onHideCopy: (DuplicateCopy) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+        Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 6.dp)) {
             Text(
-                text = track.title ?: stringResource(Res.string.track_untitled),
-                style = MaterialTheme.typography.bodyLarge,
+                text = survivor.track.title ?: stringResource(Res.string.track_untitled),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 4.dp),
             )
             Text(
-                // The folder is what tells two copies of one recording apart.
                 text = listOfNotNull(
-                    track.artist ?: stringResource(Res.string.track_unknown_artist),
-                    track.folderPath,
+                    survivor.track.artist,
+                    pluralStringResource(Res.plurals.count_tracks, group.copies.size, group.copies.size),
+                    stringResource(
+                        Res.string.duplicates_reclaimable,
+                        stringResource(
+                            Res.string.unit_megabytes,
+                            megabytesLabel(group.reclaimableBytes(survivor.track.id)),
+                        ),
+                    ),
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp, bottom = 6.dp),
             )
+            group.copies.forEach { copy ->
+                DuplicateCopyRow(
+                    copy = copy,
+                    selected = copy.track.id == survivor.track.id,
+                    recommended = copy.track.id == group.recommended.track.id,
+                    enabled = enabled,
+                    onSelect = { onChoose(copy.track.id) },
+                    onHide = { onHideCopy(copy) },
+                )
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss, enabled = enabled) {
+                    Text(stringResource(Res.string.duplicates_not_duplicates))
+                }
+                FilledTonalButton(onClick = { onKeep(survivor) }, enabled = enabled) {
+                    Text(stringResource(Res.string.duplicates_keep_selected))
+                }
+            }
         }
-        TextButton(onClick = onKeep, enabled = canRemove) {
-            Text(stringResource(Res.string.duplicates_keep_this))
+    }
+}
+
+@Composable
+private fun DuplicateCopyRow(
+    copy: DuplicateCopy,
+    selected: Boolean,
+    recommended: Boolean,
+    enabled: Boolean,
+    onSelect: () -> Unit,
+    onHide: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val facts = listOfNotNull(
+        copy.format,
+        copy.bitrateKbps?.let { stringResource(Res.string.duplicates_kbps, it) },
+        copy.track.sizeBytes?.let { stringResource(Res.string.unit_megabytes, megabytesLabel(it)) },
+    )
+    // The facts line is what tells two copies of one recording apart; when the source has none,
+    // the file name or folder is the next most telling thing.
+    val headline = facts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+        ?: copy.track.fileName
+        ?: copy.track.folderPath
+        ?: copy.track.title
+        ?: stringResource(Res.string.track_untitled)
+    val details = listOfNotNull(
+        copy.track.folderPath,
+        copy.track.fileName?.takeIf { facts.isNotEmpty() },
+        copy.plays.takeIf { it > 0 }?.let {
+            pluralStringResource(Res.plurals.privacy_history_listens, it, it)
+        },
+        "♥".takeIf { copy.favorite },
+    ).joinToString(" · ")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                enabled = enabled,
+                role = Role.RadioButton,
+                onClick = onSelect,
+            )
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null, enabled = enabled)
+        Column(modifier = Modifier.weight(1f).padding(start = 4.dp, end = 4.dp)) {
+            Text(
+                text = headline,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (details.isNotEmpty()) {
+                Text(
+                    text = details,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (recommended) {
+                Text(
+                    text = stringResource(Res.string.duplicates_recommended),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
         }
-        TextButton(onClick = onRemove, enabled = canRemove) {
-            Text(stringResource(Res.string.action_remove_from_latentjam))
+        Box {
+            IconButton(onClick = { menuOpen = true }, enabled = enabled) {
+                Icon(
+                    imageVector = Icons.Rounded.MoreVert,
+                    contentDescription = stringResource(Res.string.duplicates_hide_copy),
+                )
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.duplicates_hide_copy)) },
+                    onClick = {
+                        menuOpen = false
+                        onHide()
+                    },
+                )
+            }
         }
     }
 }

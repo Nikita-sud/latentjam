@@ -394,7 +394,6 @@
     <string name="settings_duplicates_body">Encuentra copias de la misma grabación por el sonido, digan lo que digan las etiquetas</string>
     <string name="settings_duplicates_scanning">Comparando todos los pares de pistas…</string>
     <string name="settings_duplicates_empty">Sin duplicados: cada pista suena única</string>
-    <string name="settings_duplicates_merge_confirm">Esto conservará una copia, actualizará las listas y los favoritos para usarla y ocultará las otras %1$d copias.</string>
     <string name="settings_restore">Restaurar</string>
     <string name="settings_restore_all">Restaurar todo</string>
     <string name="settings_library_manage_failed">No se pudo actualizar la biblioteca. Inténtalo de nuevo.</string>
@@ -531,4 +530,20 @@
     <string name="stats_recent_empty">Todavía no hay escuchas en estos días naturales.</string>
     <string name="stats_history_note">Basado en el historial guardado; se actualiza cuando termina o cambia un tema. Las clasificaciones usan los temas disponibles en tu biblioteca.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">Grupos: %1$d · Copias sobrantes: %2$d · Recuperable: %3$s</string>
+    <string name="duplicates_keep_recommended">Conservar las copias recomendadas</string>
+    <string name="duplicates_keep_selected">Conservar la copia seleccionada</string>
+    <string name="duplicates_not_duplicates">No son duplicados</string>
+    <string name="duplicates_recommended">Recomendada</string>
+    <string name="duplicates_hide_copy">Ocultar esta copia</string>
+    <string name="duplicates_hide_files">Ocultar las demás copias; los archivos se quedan en el dispositivo</string>
+    <string name="duplicates_delete_files">Eliminar los demás archivos del dispositivo</string>
+    <string name="duplicates_merge_all_confirm">Se conservará la copia recomendada en los %1$d grupos.</string>
+    <string name="duplicates_merge_confirm_body">Las listas y los favoritos apuntarán a la copia conservada. Las otras %1$d copias:</string>
+    <string name="duplicates_reclaimable">%1$s recuperables</string>
+    <string name="duplicates_kbps">%1$d kbps</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">Marcadas como grabaciones distintas</string>
 </resources>

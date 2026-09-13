@@ -420,7 +420,6 @@
     <string name="settings_duplicates_body">يعثر على نسخ التسجيل نفسه بالصوت، بغض النظر عن الوسوم</string>
     <string name="settings_duplicates_scanning">تتم مقارنة جميع المقاطع…</string>
     <string name="settings_duplicates_empty">لا تكرارات — كل مقطع فريد بصوته</string>
-    <string name="settings_duplicates_merge_confirm">سيؤدي هذا إلى الاحتفاظ بنسخة واحدة، وتحديث قوائم التشغيل والمفضلة لاستخدامها، وإخفاء النسخ الأخرى وعددها %1$d.</string>
     <string name="settings_restore">استعادة</string>
     <string name="settings_restore_all">استعادة الكل</string>
     <string name="settings_library_manage_failed">تعذر تحديث المكتبة. حاول مرة أخرى.</string>
@@ -555,4 +554,20 @@
     <string name="stats_recent_empty">لم تسجّل أي استماع في هذه الأيام التقويمية بعد.</string>
     <string name="stats_history_note">تستند إلى السجل المحفوظ وتُحدّث عند انتهاء المقطع أو تغييره. تشمل التصنيفات المقاطع المتاحة في مكتبتك.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">المجموعات: %1$d · النسخ الزائدة: %2$d · يمكن تحريره: %3$s</string>
+    <string name="duplicates_keep_recommended">الاحتفاظ بالنسخ الموصى بها</string>
+    <string name="duplicates_keep_selected">الاحتفاظ بالنسخة المحددة</string>
+    <string name="duplicates_not_duplicates">ليست نسخًا مكررة</string>
+    <string name="duplicates_recommended">موصى بها</string>
+    <string name="duplicates_hide_copy">إخفاء هذه النسخة</string>
+    <string name="duplicates_hide_files">إخفاء النسخ الأخرى؛ تبقى الملفات على الجهاز</string>
+    <string name="duplicates_delete_files">حذف الملفات الأخرى من الجهاز</string>
+    <string name="duplicates_merge_all_confirm">سيتم الاحتفاظ بالنسخة الموصى بها في جميع المجموعات (%1$d).</string>
+    <string name="duplicates_merge_confirm_body">ستشير قوائم التشغيل والمفضلة إلى النسخة المحتفظ بها. النسخ الأخرى (%1$d):</string>
+    <string name="duplicates_reclaimable">يمكن تحرير %1$s</string>
+    <string name="duplicates_kbps">%1$d كيلوبت/ث</string>
+    <string name="unit_megabytes">%1$s م.ب</string>
+    <string name="snack_duplicates_dismissed">تم وضع علامة كتسجيلات مختلفة</string>
 </resources>

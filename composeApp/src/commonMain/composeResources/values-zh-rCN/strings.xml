@@ -380,7 +380,6 @@
     <string name="settings_duplicates_body">按声音查找同一录音的副本，与标签无关</string>
     <string name="settings_duplicates_scanning">正在比较所有曲目…</string>
     <string name="settings_duplicates_empty">没有重复 — 每首曲目都独一无二</string>
-    <string name="settings_duplicates_merge_confirm">此操作会保留一个副本，更新播放列表和收藏以使用该副本，并隐藏另外 %1$d 个副本。</string>
     <string name="settings_restore">恢复</string>
     <string name="settings_restore_all">全部恢复</string>
     <string name="settings_library_manage_failed">无法更新音乐库。请重试。</string>
@@ -515,4 +514,20 @@
     <string name="stats_recent_empty">这些自然日内还没有聆听记录。</string>
     <string name="stats_history_note">基于已保存的历史记录，在曲目结束或切换时更新。排行仅包含音乐库中可用的曲目。</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">分组：%1$d · 多余副本：%2$d · 可释放：%3$s</string>
+    <string name="duplicates_keep_recommended">保留推荐的副本</string>
+    <string name="duplicates_keep_selected">保留所选副本</string>
+    <string name="duplicates_not_duplicates">不是重复</string>
+    <string name="duplicates_recommended">推荐</string>
+    <string name="duplicates_hide_copy">隐藏此副本</string>
+    <string name="duplicates_hide_files">隐藏其他副本，文件保留在设备上</string>
+    <string name="duplicates_delete_files">从设备删除其他文件</string>
+    <string name="duplicates_merge_all_confirm">将在全部 %1$d 个分组中保留推荐的副本。</string>
+    <string name="duplicates_merge_confirm_body">播放列表和收藏将指向保留的副本。其他 %1$d 个副本：</string>
+    <string name="duplicates_reclaimable">可释放 %1$s</string>
+    <string name="duplicates_kbps">%1$d kbps</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">已标记为不同的录音</string>
 </resources>

@@ -405,7 +405,6 @@
     <string name="settings_duplicates_body">Знаходить копії одного запису за звуком, незалежно від тегів</string>
     <string name="settings_duplicates_scanning">Порівнюю треки між собою…</string>
     <string name="settings_duplicates_empty">Дублікатів немає — усі треки звучать по-різному</string>
-    <string name="settings_duplicates_merge_confirm">Буде збережено одну копію, списки відтворення й вибране буде переведено на неї, а інші копії (%1$d) — приховано.</string>
     <string name="settings_restore">Відновити</string>
     <string name="settings_restore_all">Відновити всі</string>
     <string name="settings_library_manage_failed">Не вдалося оновити медіатеку. Спробуйте ще раз.</string>
@@ -544,4 +543,20 @@
     <string name="stats_recent_empty">У ці календарні дні прослуховувань поки немає.</string>
     <string name="stats_history_note">На основі збереженої історії; оновлюється після завершення або зміни треку. Рейтинги враховують доступні треки медіатеки.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">Груп: %1$d · Зайвих копій: %2$d · Звільниться: %3$s</string>
+    <string name="duplicates_keep_recommended">Залишити рекомендовані копії</string>
+    <string name="duplicates_keep_selected">Залишити вибрану копію</string>
+    <string name="duplicates_not_duplicates">Це не дублікати</string>
+    <string name="duplicates_recommended">Рекомендовано</string>
+    <string name="duplicates_hide_copy">Сховати цю копію</string>
+    <string name="duplicates_hide_files">Сховати інші копії, файли залишаться на пристрої</string>
+    <string name="duplicates_delete_files">Видалити інші файли з пристрою</string>
+    <string name="duplicates_merge_all_confirm">У всіх групах (%1$d) буде залишено рекомендовану копію.</string>
+    <string name="duplicates_merge_confirm_body">Плейлисти та обране вказуватимуть на залишену копію. Інші копії (%1$d):</string>
+    <string name="duplicates_reclaimable">Звільниться %1$s</string>
+    <string name="duplicates_kbps">%1$d кбіт/с</string>
+    <string name="unit_megabytes">%1$s МБ</string>
+    <string name="snack_duplicates_dismissed">Позначено як різні записи</string>
 </resources>

@@ -387,7 +387,6 @@
     <string name="settings_duplicates_body">Aynı kaydın kopyalarını etiketlere bakmadan sesten bulur</string>
     <string name="settings_duplicates_scanning">Tüm parça çiftleri karşılaştırılıyor…</string>
     <string name="settings_duplicates_empty">Kopya yok — her parça benzersiz</string>
-    <string name="settings_duplicates_merge_confirm">Bu işlem bir kopyayı tutar, çalma listeleri ile favorileri onu kullanacak şekilde günceller ve diğer %1$d kopyayı gizler.</string>
     <string name="settings_restore">Geri yükle</string>
     <string name="settings_restore_all">Tümünü geri yükle</string>
     <string name="settings_library_manage_failed">Arşiv güncellenemedi. Yeniden deneyin.</string>
@@ -522,4 +521,20 @@
     <string name="stats_recent_empty">Bu takvim günlerinde henüz dinleme yok.</string>
     <string name="stats_history_note">Kayıtlı geçmişe dayanır; parça bittiğinde veya değiştiğinde güncellenir. Sıralamalarda arşivinizde bulunan parçalar kullanılır.</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">Gruplar: %1$d · Fazla kopya: %2$d · Boşaltılabilir: %3$s</string>
+    <string name="duplicates_keep_recommended">Önerilen kopyaları tut</string>
+    <string name="duplicates_keep_selected">Seçilen kopyayı tut</string>
+    <string name="duplicates_not_duplicates">Kopya değil</string>
+    <string name="duplicates_recommended">Önerilen</string>
+    <string name="duplicates_hide_copy">Bu kopyayı gizle</string>
+    <string name="duplicates_hide_files">Diğer kopyaları gizle; dosyalar cihazda kalır</string>
+    <string name="duplicates_delete_files">Diğer dosyaları cihazdan sil</string>
+    <string name="duplicates_merge_all_confirm">%1$d grubun tümünde önerilen kopya tutulacak.</string>
+    <string name="duplicates_merge_confirm_body">Çalma listeleri ve favoriler tutulan kopyayı gösterecek. Diğer %1$d kopya:</string>
+    <string name="duplicates_reclaimable">%1$s boşaltılabilir</string>
+    <string name="duplicates_kbps">%1$d kb/sn</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">Farklı kayıtlar olarak işaretlendi</string>
 </resources>

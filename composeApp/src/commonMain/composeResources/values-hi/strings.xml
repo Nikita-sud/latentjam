@@ -387,7 +387,6 @@
     <string name="settings_duplicates_body">टैग चाहे जो कहें, एक ही रिकॉर्डिंग की प्रतियाँ ध्वनि से खोजता है</string>
     <string name="settings_duplicates_scanning">सभी ट्रैक की तुलना हो रही है…</string>
     <string name="settings_duplicates_empty">कोई डुप्लिकेट नहीं — हर ट्रैक अलग है</string>
-    <string name="settings_duplicates_merge_confirm">यह एक कॉपी रखेगा, प्लेलिस्ट और पसंदीदा को उसका उपयोग करने के लिए अपडेट करेगा और बाकी %1$d कॉपियाँ छिपा देगा।</string>
     <string name="settings_restore">वापस लाएँ</string>
     <string name="settings_restore_all">सभी वापस लाएँ</string>
     <string name="settings_library_manage_failed">लाइब्रेरी अपडेट नहीं की जा सकी। फिर से कोशिश करें।</string>
@@ -522,4 +521,20 @@
     <string name="stats_recent_empty">इन कैलेंडर दिनों में अभी तक कुछ नहीं सुना गया है।</string>
     <string name="stats_history_note">सहेजे गए इतिहास पर आधारित; ट्रैक खत्म होने या बदलने पर अपडेट होता है। रैंकिंग में आपकी लाइब्रेरी में उपलब्ध ट्रैक शामिल हैं।</string>
     <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">समूह: %1$d · अतिरिक्त प्रतियाँ: %2$d · खाली होने वाली जगह: %3$s</string>
+    <string name="duplicates_keep_recommended">सुझाई गई प्रतियाँ रखें</string>
+    <string name="duplicates_keep_selected">चुनी गई प्रति रखें</string>
+    <string name="duplicates_not_duplicates">डुप्लिकेट नहीं हैं</string>
+    <string name="duplicates_recommended">सुझाई गई</string>
+    <string name="duplicates_hide_copy">यह प्रति छिपाएँ</string>
+    <string name="duplicates_hide_files">बाकी प्रतियाँ छिपाएँ; फ़ाइलें डिवाइस पर रहेंगी</string>
+    <string name="duplicates_delete_files">बाकी फ़ाइलें डिवाइस से हटाएँ</string>
+    <string name="duplicates_merge_all_confirm">सभी %1$d समूहों में सुझाई गई प्रति रखी जाएगी।</string>
+    <string name="duplicates_merge_confirm_body">प्लेलिस्ट और पसंदीदा रखी गई प्रति की ओर इशारा करेंगे। बाकी %1$d प्रतियाँ:</string>
+    <string name="duplicates_reclaimable">%1$s खाली होगी</string>
+    <string name="duplicates_kbps">%1$d kbps</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">अलग रिकॉर्डिंग के रूप में चिह्नित</string>
 </resources>

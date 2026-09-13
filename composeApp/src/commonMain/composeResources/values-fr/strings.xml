@@ -399,7 +399,6 @@
     <string name="settings_duplicates_body">Trouve les copies d’un même enregistrement au son, quelles que soient les étiquettes</string>
     <string name="settings_duplicates_scanning">Comparaison de toutes les paires de pistes…</string>
     <string name="settings_duplicates_empty">Aucun doublon — chaque piste a un son unique</string>
-    <string name="settings_duplicates_merge_confirm">Cette action conserve une copie, met à jour les playlists et les favoris pour l’utiliser, puis masque les %1$d autres copies.</string>
     <string name="settings_restore">Restaurer</string>
     <string name="settings_restore_all">Tout restaurer</string>
     <string name="settings_library_manage_failed">Impossible de mettre à jour la bibliothèque. Réessayez.</string>
@@ -536,4 +535,20 @@
     <string name="stats_recent_empty">Aucune écoute pendant ces jours calendaires pour le moment.</string>
     <string name="stats_history_note">D’après l’historique enregistré ; mis à jour à la fin ou au changement d’un titre. Les classements utilisent les titres disponibles dans votre bibliothèque.</string>
     <string name="stats_chart_day_summary">%1$s : %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">Groupes : %1$d · Copies en trop : %2$d · Récupérable : %3$s</string>
+    <string name="duplicates_keep_recommended">Garder les copies recommandées</string>
+    <string name="duplicates_keep_selected">Garder la copie sélectionnée</string>
+    <string name="duplicates_not_duplicates">Pas des doublons</string>
+    <string name="duplicates_recommended">Recommandée</string>
+    <string name="duplicates_hide_copy">Masquer cette copie</string>
+    <string name="duplicates_hide_files">Masquer les autres copies ; les fichiers restent sur l’appareil</string>
+    <string name="duplicates_delete_files">Supprimer les autres fichiers de l’appareil</string>
+    <string name="duplicates_merge_all_confirm">La copie recommandée sera gardée dans les %1$d groupes.</string>
+    <string name="duplicates_merge_confirm_body">Les playlists et les favoris pointeront vers la copie gardée. Les %1$d autres copies :</string>
+    <string name="duplicates_reclaimable">%1$s récupérables</string>
+    <string name="duplicates_kbps">%1$d kbit/s</string>
+    <string name="unit_megabytes">%1$s Mo</string>
+    <string name="snack_duplicates_dismissed">Marquées comme enregistrements différents</string>
 </resources>

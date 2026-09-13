@@ -3995,6 +3995,24 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     })
                     invalidateSmartRecommendationCaches()
                 },
+                onHideTracks = { targets ->
+                    // One scan for the whole batch: a bulk duplicate merge would otherwise
+                    // re-query the library once per hidden copy.
+                    val ids = targets.mapTo(HashSet()) { it.id }
+                    library.hide(ids)
+                    scanLibrary()
+                    hasHiddenTracks = true
+                    updateSelectedCollection(selectedCollection?.let { selection ->
+                        selection.filterTracksForCollection { it.id !in ids }
+                            ?.let { remaining ->
+                                remaining.copy(
+                                    subtitle = trackCountLabel(remaining.tracks.size),
+                                )
+                            }
+                    })
+                    invalidateSmartRecommendationCaches()
+                },
+                onDeleteTracks = deleteTrack,
                 onDuplicateDataChanged = {
                     favoriteIds = AppGraph.favorites.all()
                     refreshPlaylistMemberships()

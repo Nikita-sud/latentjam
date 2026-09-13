@@ -150,6 +150,11 @@ internal class LoudnessNormalizationTest {
         override fun writeTrackGenresPayload(payload: String) {
             trackGenresPayload = payload
         }
+        private var duplicateDismissalsPayload: String? = null
+        override fun readDuplicateDismissalsPayload(): String? = duplicateDismissalsPayload
+        override fun writeDuplicateDismissalsPayload(payload: String) {
+            duplicateDismissalsPayload = payload
+        }
         override val saveListeningHistory = MutableStateFlow(true)
         override suspend fun setSaveListeningHistory(enabled: Boolean): Result<Unit> =
             Result.success(Unit)
