@@ -22,7 +22,8 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -91,6 +92,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -98,6 +100,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -109,6 +112,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.ContentScale
@@ -163,7 +167,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import org.jetbrains.compose.resources.pluralStringResource
@@ -842,41 +845,33 @@ private fun SyncedLyricsBody(
         }
     }
     val lines = lyrics.lines
-    val activeIndex = remember(lines, shownPositionMs) {
-        val cue = shownPositionMs + LYRICS_LEAD_MS
-        var active = -1
-        for (index in lines.indices) {
-            val time = lines[index].timeMs ?: continue
-            if (time <= cue) active = index else break
-        }
-        active
+    val timeline = remember(lines) { LyricsTimeline(lines) }
+    val activeIndex by remember(timeline) {
+        derivedStateOf { timeline.activeIndexAt(shownPositionMs) }
     }
 
     val listState = rememberLazyListState()
-    var dragging by remember { mutableStateOf(false) }
-    var lastDrag by remember { mutableStateOf<TimeMark?>(null) }
-    LaunchedEffect(listState) {
-        listState.interactionSource.interactions.collect { interaction ->
-            when (interaction) {
-                is DragInteraction.Start -> dragging = true
-                is DragInteraction.Stop, is DragInteraction.Cancel -> {
-                    dragging = false
-                    lastDrag = TimeSource.Monotonic.markNow()
-                }
+    var touching by remember { mutableStateOf(false) }
+    var lastTouch by remember { mutableStateOf<TimeMark?>(null) }
+    LaunchedEffect(listState, reduceMotion, timeline) {
+        followLyrics(
+            requests = snapshotFlow {
+                LyricsFollowRequest(
+                    activeIndex = activeIndex,
+                    interacting = touching,
+                    interactionEndedAt = lastTouch,
+                    viewportHeight = listState.layoutInfo.viewportSize.height,
+                    reduceMotion = reduceMotion,
+                )
+            },
+        ) { request ->
+            val offset = -(request.viewportHeight * LYRICS_ACTIVE_LINE_FRACTION).toInt()
+            val target = LYRICS_HEADER_ITEMS + request.activeIndex
+            if (request.reduceMotion) {
+                listState.scrollToItem(target, offset)
+            } else {
+                listState.animateScrollToItem(target, offset)
             }
-        }
-    }
-    LaunchedEffect(activeIndex, dragging) {
-        if (activeIndex < 0 || dragging) return@LaunchedEffect
-        val rest = lastDrag
-        if (rest != null && rest.elapsedNow() < LYRICS_SCROLL_HOLD) return@LaunchedEffect
-        val viewport = listState.layoutInfo.viewportSize.height
-        val offset = -(viewport * LYRICS_ACTIVE_LINE_FRACTION).toInt()
-        val target = LYRICS_HEADER_ITEMS + activeIndex
-        if (reduceMotion) {
-            listState.scrollToItem(target, offset)
-        } else {
-            listState.animateScrollToItem(target, offset)
         }
     }
 
@@ -885,7 +880,35 @@ private fun SyncedLyricsBody(
         modifier = Modifier
             .fillMaxWidth()
             .fillMaxHeight(LYRICS_SHEET_HEIGHT_FRACTION)
-            .navigationBarsPadding(),
+            .navigationBarsPadding()
+            .pointerInput(Unit) {
+                // Observe from the first finger contact, without consuming taps or scrolling.
+                // Drag interactions arrive after touch slop and miss a held, stationary finger.
+                // A tap is neither: it seeks to a line and wants the list to follow at once,
+                // so only a drag or a finger held past the long-press timeout arms the hold.
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    val pressedAt = TimeSource.Monotonic.markNow()
+                    var moved = false
+                    touching = true
+                    try {
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (!moved) {
+                                moved = event.changes.any { change ->
+                                    (change.position - down.position).getDistance() >
+                                        viewConfiguration.touchSlop
+                                }
+                            }
+                        } while (event.changes.any { it.pressed })
+                    } finally {
+                        touching = false
+                        val held = pressedAt.elapsedNow().inWholeMilliseconds >=
+                            viewConfiguration.longPressTimeoutMillis
+                        if (moved || held) lastTouch = TimeSource.Monotonic.markNow()
+                    }
+                }
+            },
         contentPadding = PaddingValues(start = 24.dp, end = 12.dp, bottom = 160.dp),
     ) {
         item(key = "lyrics-header") {
@@ -925,12 +948,9 @@ private fun SyncedLyricsBody(
 
 private const val LYRICS_TICK_MS = 120L
 
-/** Lines light up slightly before they are sung, the way a listener's ear expects. */
-private const val LYRICS_LEAD_MS = 150L
 private const val LYRICS_HEADER_ITEMS = 1
 private const val LYRICS_ACTIVE_LINE_FRACTION = 0.35f
 private const val LYRICS_SHEET_HEIGHT_FRACTION = 0.85f
-private val LYRICS_SCROLL_HOLD = 4.seconds
 
 /** The only expanded-player subtree that observes the coarse position ticker. */
 @Composable
