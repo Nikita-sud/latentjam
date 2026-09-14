@@ -81,9 +81,74 @@ class LibraryWorldsTest {
 
     @Test
     fun `large libraries get more focused mixes without bloating the shelf`() {
+        assertEquals(1, LibraryWorlds.recommendedK(4))
+        assertEquals(2, LibraryWorlds.recommendedK(8))
+        assertEquals(4, LibraryWorlds.recommendedK(16))
+        assertEquals(7, LibraryWorlds.recommendedK(31))
         assertEquals(8, LibraryWorlds.recommendedK(209))
         assertEquals(15, LibraryWorlds.recommendedK(870))
         assertEquals(16, LibraryWorlds.recommendedK(5_000))
+    }
+
+    private fun smallSeparatedLibrary(): Corpus = corpus {
+        listOf("Rock", "Electronic", "Jazz", "Classical").forEachIndexed { group, genre ->
+            repeat(4) { index ->
+                add("$group-$index", angle = group * kotlin.math.PI / 2, genre = genre, spread = 0.02)
+            }
+        }
+    }
+
+    @Test
+    fun `sixteen indexed tracks can form four useful named worlds automatically`() {
+        val library = smallSeparatedLibrary()
+
+        val worlds = LibraryWorlds.discover(library.tracks, library.vectors, dim)
+
+        assertEquals(setOf("Rock", "Electronic", "Jazz", "Classical"), worlds.map { it.name }.toSet())
+        assertEquals(listOf(4, 4, 4, 4), worlds.map { it.tracks.size })
+        assertTrue(worlds.all { world -> world.tracks.all(world::supportsName) })
+        // Experiment callers can still request the old over-segmented result explicitly.
+        assertTrue(library.discover(k = 8).size < worlds.size)
+    }
+
+    @Test
+    fun `automatic cluster count uses usable vector population rather than unindexed library size`() {
+        val library = smallSeparatedLibrary()
+        repeat(80) { index ->
+            val track = TrackDescriptor(id = TrackId("unindexed$index"), genre = "Pop")
+            library.tracks += track
+            when (index % 4) {
+                0 -> library.vectors[track.id] = FloatArray(dim)
+                1 -> library.vectors[track.id] = FloatArray(dim) { Float.NaN }
+                2 -> library.vectors[track.id] = FloatArray(1) { 1f }
+            }
+        }
+        // Repeated library rows must not earn additional cluster slots.
+        library.tracks += library.tracks.take(16)
+
+        val worlds = LibraryWorlds.discover(library.tracks, library.vectors, dim)
+
+        assertEquals(setOf("Rock", "Electronic", "Jazz", "Classical"), worlds.map { it.name }.toSet())
+        assertEquals(16, worlds.sumOf { it.tracks.size })
+    }
+
+    @Test
+    fun `production fused discovery uses its supported population when the library is larger`() {
+        val library = smallSeparatedLibrary()
+        repeat(80) { library.tracks += TrackDescriptor(id = TrackId("unindexed$it"), genre = "Pop") }
+        val space = assertNotNull(LibraryVectorFusion.build(
+            ids = library.tracks.map { it.id },
+            audio = library.vectors,
+            metadata = library.vectors,
+            audioDim = dim,
+            metadataDim = dim,
+        ))
+        assertEquals(16, space.size)
+
+        val worlds = LibraryWorlds.discover(library.tracks, space)
+
+        assertEquals(setOf("Rock", "Electronic", "Jazz", "Classical"), worlds.map { it.name }.toSet())
+        assertEquals(listOf(4, 4, 4, 4), worlds.map { it.tracks.size })
     }
 
     @Test
@@ -147,7 +212,7 @@ class LibraryWorldsTest {
     }
 
     @Test
-    fun `a genre the cover does not share is not claimed for the world`() {
+    fun `a supported genre replaces a contradictory medoid with the nearest truthful cover`() {
         val library = corpus {
             // One track sits exactly at the centre and will be the medoid; it is tagged unlike the
             // nineteen around it.
@@ -155,14 +220,16 @@ class LibraryWorldsTest {
             repeat(19) { add("rock$it", angle = 0.3, genre = "Hard Rock", artist = "Band$it") }
             repeat(12) { add("other$it", angle = 3.5, genre = "Disco", artist = "Other$it") }
         }
-        val world = library.discover().first { it.tracks.any { track -> track.id.value == "centre" } }
-        // The fixture is only meaningful if the odd track really is the one on the cover.
-        assertEquals("centre", world.representative.id.value)
-        // Nineteen of twenty are Hard Rock, but the record on the cover is not, and the cover is
-        // what the row actually says. Announcing a genre the art contradicts is the one failure
-        // this surface has already paid for.
-        assertTrue(world.name != "Hard Rock", "the label contradicted the cover")
-        assertEquals("Discovery mix", world.name)
+        val original = TrackClustering.cluster(
+            library.tracks.map { it.id }, library.vectors, dim, k = 2, minSize = 4,
+        ).first { TrackId("centre") in it.members }
+        assertEquals("centre", original.medoid.value)
+
+        val world = library.discover().first { it.name == "Hard Rock" }
+        val expected = original.members.first { it.value != "centre" }
+        assertEquals(expected, world.representative.id)
+        assertTrue(world.tracks.all { it.genre == "Hard Rock" })
+        assertTrue(world.tracks.all(world::supportsName))
     }
 
     @Test
@@ -211,6 +278,120 @@ class LibraryWorldsTest {
 
         assertEquals("Disco • 1970s", world.name)
         assertTrue(world.tracks.all(world::supportsName))
+    }
+
+    @Test
+    fun `a narrow subtype below minimum size keeps the supported family`() {
+        val library = corpus {
+            repeat(3) { add("phonk$it", angle = 0.3, spread = 0.0, genre = "Phonk") }
+            add("trap", angle = 0.3, spread = 0.0, genre = "Trap")
+        }
+
+        val world = library.discover(k = 1, minSize = 4).single()
+
+        assertEquals("Rap", world.name)
+        assertEquals(4, world.tracks.size)
+    }
+
+    @Test
+    fun `a narrow decade below minimum size keeps the supported genre`() {
+        val library = corpus {
+            repeat(4) { add("rock$it", angle = 0.3, spread = 0.0, genre = "Rock") }
+        }
+        for (index in 0..2) library.tracks[index] = library.tracks[index].copy(year = 1995)
+
+        val world = library.discover(k = 1, minSize = 4).single()
+
+        assertEquals("Rock", world.name)
+        assertEquals(4, world.tracks.size)
+    }
+
+    @Test
+    fun `a genre decade intersection must cover sixty percent of the original region`() {
+        val library = corpus {
+            repeat(6) { add("rock$it", angle = 0.3, spread = 0.0, genre = "Rock") }
+            repeat(4) { add("other$it", angle = 0.3, spread = 0.0, genre = "Jazz") }
+        }
+        for (index in 0..3) library.tracks[index] = library.tracks[index].copy(year = 1995)
+
+        val world = library.discover(k = 1, minSize = 4).single()
+
+        // Four of the six rock tracks is a majority within the genre, but only 40% of the region.
+        assertEquals("Rock", world.name)
+        assertEquals(6, world.tracks.size)
+    }
+
+    @Test
+    fun `a shared original decade names untagged music without claiming a genre`() {
+        val library = corpus {
+            repeat(10) { add("track$it", angle = 0.3, spread = 0.0, artist = "Artist$it") }
+        }
+        // The medoid's edition is modern; the nearest supported member should represent the 90s.
+        library.tracks[0] = library.tracks[0].copy(year = 2026)
+        for (index in 1..7) {
+            library.tracks[index] = library.tracks[index].copy(originalYear = 1994, year = 2026)
+        }
+
+        val world = library.discover(k = 1).single()
+
+        assertEquals("1990s", world.name)
+        assertEquals(LibraryWorldNameSource.DECADE, world.nameSource)
+        assertEquals("track1", world.representative.id.value)
+        assertEquals(7, world.tracks.size)
+        assertTrue(world.tracks.all(world::supportsName))
+        assertTrue(!world.supportsName(library.tracks.first()))
+    }
+
+    @Test
+    fun `unknown years do not let a minority invent a decade name`() {
+        val library = corpus {
+            repeat(10) { add("track$it", angle = 0.3, spread = 0.0) }
+        }
+        for (index in 0..4) library.tracks[index] = library.tracks[index].copy(year = 1995)
+
+        assertEquals("Discovery mix", library.discover(k = 1).single().name)
+    }
+
+    @Test
+    fun `artist spelling differences and one odd medoid do not veto a supported artist`() {
+        val library = corpus {
+            add("guest", angle = 0.3, spread = 0.0, artist = "Someone else")
+            add("main", angle = 0.3, spread = 0.0, artist = "The Band")
+            repeat(6) { add("band$it", angle = 0.3, spread = 0.0, artist = "  THE BAND  ") }
+        }
+
+        val world = library.discover(k = 1).single()
+
+        assertEquals("The Band • Mix", world.name)
+        assertEquals("main", world.representative.id.value)
+        assertEquals(7, world.tracks.size)
+        assertTrue(world.tracks.all(world::supportsName))
+    }
+
+    @Test
+    fun `unknown and compilation artist placeholders cannot name a region`() {
+        for (artist in listOf("Unknown", "<unknown>", "Various Artists")) {
+            val library = corpus {
+                repeat(8) { add("track$it", angle = 0.3, spread = 0.0, artist = artist) }
+            }
+            assertEquals("Discovery mix", library.discover(k = 1).single().name, artist)
+        }
+    }
+
+    @Test
+    fun `calibrated majority semantics can replace an unclassified medoid`() {
+        val library = corpus {
+            repeat(8) { add("track$it", angle = 0.3, spread = 0.0) }
+        }
+        val predictions = library.tracks.drop(1).associate { track ->
+            track.id to semantics(SemanticLabel.GENRE_HIP_HOP to 0.56f)
+        }
+
+        val world = library.discover(k = 1, semantics = predictions).single()
+
+        assertEquals("Hip-Hop", world.name)
+        assertEquals("track1", world.representative.id.value)
+        assertEquals(7, world.tracks.size)
     }
 
     @Test

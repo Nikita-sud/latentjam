@@ -25,6 +25,17 @@ class GenresTest {
     }
 
     @Test
+    fun `compound dance and pop names join their families without substring matching`() {
+        for (genre in listOf("Eurodance", "HI-NRG", "Hi NRG", "Hard Trance")) {
+            assertEquals("dance", Genres.normalize(genre), genre)
+        }
+        assertEquals("pop", Genres.normalize("Europop"))
+        assertEquals("eurodancer", Genres.normalize("Eurodancer"))
+        assertEquals("transcendental", Genres.normalize("Transcendental"))
+        assertEquals("rock", Genres.normalize("Eurodance Rock"))
+    }
+
+    @Test
     fun familiesOfAJoinedTagCarryEveryValue() {
         // "Dirty Harry": five Vorbis GENRE fields joined canonically. Electronic and Hip Hop
         // resolve to their families; the set is what the chain intersects on.

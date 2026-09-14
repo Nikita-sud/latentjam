@@ -134,10 +134,7 @@ public object TrackClustering {
         val seen = HashSet<TrackId>(ids.size)
         for (id in ids) {
             val vector = vectors[id] ?: continue
-            if (vector.size != dim) continue
-            if (!vector.all(Float::isFinite)) continue
-            val length = norm(vector)
-            if (!length.isFinite() || length < DEGENERATE_NORM_EPS) continue
+            if (!isUsableVector(vector, dim)) continue
             // A caller may hand us the same track twice (two rows of one file); clustering it twice
             // would let it vote twice for its own centroid.
             if (seen.add(id)) usable.add(id)
@@ -430,5 +427,12 @@ public object TrackClustering {
         var sumSq = 0.0
         for (x in vector) sumSq += x.toDouble() * x
         return sqrt(sumSq).toFloat()
+    }
+
+    /** Shared with automatic world sizing so missing or rejected rows cannot earn cluster slots. */
+    internal fun isUsableVector(vector: FloatArray, dim: Int): Boolean {
+        if (vector.size != dim || !vector.all(Float::isFinite)) return false
+        val length = norm(vector)
+        return length.isFinite() && length >= DEGENERATE_NORM_EPS
     }
 }

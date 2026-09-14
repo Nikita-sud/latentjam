@@ -14,9 +14,9 @@ import io.github.nikitasud.latentjam.smart.TrackSemantics
  * A region of the library, with something to call it.
  *
  * @property name generated locally from evidence in the members — a genre (optionally sharpened
- *   by a shared decade), an artist mix, or a neutral discovery label. No filename text is treated
+ *   by a shared decade), a supported two-style blend, an artist, a shared decade, or a neutral discovery label. No filename text is treated
  *   as a genre and no network model is involved.
- * @property tracks members, medoid first.
+ * @property tracks members, ordered by centrality with the nearest member supporting the name first.
  */
 public data class LibraryWorld(
     public val name: String,
@@ -24,12 +24,14 @@ public data class LibraryWorld(
     public val nameSource: LibraryWorldNameSource = LibraryWorldNameSource.GENRE,
     public val content: LibraryWorldContent = LibraryWorldContent.UNKNOWN,
     public val semanticTitle: LibraryWorldSemanticTitle? = null,
+    /** The two supported style families in a blend; other coherent members may still be present. */
+    public val blendFamilies: Set<String> = emptySet(),
 ) {
     init {
         require(tracks.isNotEmpty()) { "A world with no tracks is not a world" }
     }
 
-    /** The most central track: what the card shows, and what SMART is seeded from. */
+    /** The most central admitted track: what the card shows, and what SMART is seeded from. */
     public val representative: TrackDescriptor get() = tracks.first()
 
     /** Whether [track] can replace the medoid as a fresher cover without contradicting the name. */
@@ -37,13 +39,16 @@ public data class LibraryWorld(
         LibraryWorldNameSource.GENRE -> {
             val sameGenre = Genres.families(track.genre)
                 .any { it in Genres.families(representative.genre) }
-            val representativeDecade = representative.year?.takeIf { it in 1900..2099 }?.let { it / 10 * 10 }
+            val representativeDecade = representative.worldDecade()
             val nameClaimsDecade = representativeDecade != null && name.endsWith("${representativeDecade}s")
-            sameGenre && (!nameClaimsDecade || track.year?.let { it / 10 * 10 } == representativeDecade)
+            sameGenre && (!nameClaimsDecade || track.worldDecade() == representativeDecade)
         }
         LibraryWorldNameSource.ARTIST ->
-            track.artist?.trim()?.takeIf(String::isNotEmpty) ==
-                representative.artist?.trim()?.takeIf(String::isNotEmpty)
+            track.worldArtistKey() != null && track.worldArtistKey() == representative.worldArtistKey()
+        LibraryWorldNameSource.GENRE_BLEND ->
+            Genres.families(track.genre).any { it in blendFamilies }
+        LibraryWorldNameSource.DECADE ->
+            track.worldDecade() != null && track.worldDecade() == representative.worldDecade()
         LibraryWorldNameSource.SEMANTIC -> true
         LibraryWorldNameSource.GENERIC -> true
         LibraryWorldNameSource.PLAYLIST -> true
@@ -59,7 +64,22 @@ public enum class LibraryWorldNameSource {
 
     /** Named after the listener's own playlist that contains most of this world. */
     PLAYLIST,
+
+    /** A shared, tagged first-release decade; edition year is used only when it is all we have. */
+    DECADE,
+
+    /** Two substantial styles jointly describe at least two thirds of the coherent region. */
+    GENRE_BLEND,
 }
+
+private fun TrackDescriptor.worldDecade(): Int? =
+    (originalYear?.takeIf { it in 1900..2099 } ?: year?.takeIf { it in 1900..2099 })
+        ?.let { it / 10 * 10 }
+
+private fun TrackDescriptor.worldArtistKey(): String? =
+    artist?.trim()?.lowercase()?.takeUnless {
+        it.isEmpty() || it == "unknown" || it == "<unknown>" || it == "various artists"
+    }
 
 /** Mutually exclusive content route used to keep non-music out of ordinary mixes. */
 public enum class LibraryWorldContent {
@@ -167,6 +187,7 @@ public object LibraryWorlds {
                 name = claim.groupName,
                 nameSource = LibraryWorldNameSource.PLAYLIST,
                 semanticTitle = null,
+                blendFamilies = emptySet(),
             )
         }
         return renamed
@@ -207,9 +228,9 @@ public object LibraryWorlds {
      * @param library the tracks to consider; ordering is the tie-break, so keep it stable
      * @param vectors embeddings by id — the metadata-text index
      * @param dim their dimension
-     * @return named worlds, largest first, each with its medoid at index 0. Tracks with no vector
-     *   are absent rather than pooled, and a cluster nothing can be named after is dropped: a card
-     *   with a cover and no words is not worth a slot.
+     * @return named worlds, largest first, each with its nearest supported member at index 0.
+     *   Tracks with no vector are absent rather than pooled. Coherent regions without enough
+     *   shared metadata retain a neutral discovery name.
      */
     public fun discover(
         library: List<TrackDescriptor>,
@@ -221,7 +242,9 @@ public object LibraryWorlds {
         vectors = vectors,
         dim = dim,
         semantics = semantics,
-        k = recommendedK(library.size),
+        k = recommendedK(library.asSequence().map { it.id }.distinct().count { id ->
+            vectors[id]?.let { TrackClustering.isUsableVector(it, dim) } == true
+        }),
         minSize = TrackClustering.MIN_CLUSTER_SIZE,
     )
 
@@ -261,7 +284,7 @@ public object LibraryWorlds {
         library = library,
         vectorSpace = vectorSpace,
         semantics = semantics,
-        k = recommendedK(library.size),
+        k = recommendedK(vectorSpace.size),
         minSize = TrackClustering.MIN_CLUSTER_SIZE,
     )
 
@@ -358,26 +381,15 @@ public object LibraryWorlds {
         semantics: Map<TrackId, TrackSemantics>,
         minSize: Int,
     ): LibraryWorld {
-        val label = name(tracks, semantics)
-        val admitted = tracks.filter(label.accepts)
-        // A precise title with too few truthful members is less useful than an honest discovery
-        // region. Keep the coherent region but drop the unsupported claim.
-        return if (label.source != LibraryWorldNameSource.GENERIC && admitted.size < minSize) {
-            LibraryWorld(
-                name = "Discovery mix",
-                tracks = tracks,
-                nameSource = LibraryWorldNameSource.GENERIC,
-                content = LibraryWorldContent.MUSIC,
-            )
-        } else {
-            LibraryWorld(
-                name = label.text,
-                tracks = admitted,
-                nameSource = label.source,
-                content = LibraryWorldContent.MUSIC,
-                semanticTitle = label.semanticTitle,
-            )
-        }
+        val label = name(tracks, semantics, minSize)
+        return LibraryWorld(
+            name = label.text,
+            tracks = label.tracks,
+            nameSource = label.source,
+            content = LibraryWorldContent.MUSIC,
+            semanticTitle = label.semanticTitle,
+            blendFamilies = label.blendFamilies,
+        )
     }
 
     private fun confidentMembers(cluster: TrackCluster): List<TrackId> {
@@ -441,7 +453,7 @@ public object LibraryWorlds {
      * would classify "Memento" as a meme because it begins with the same four letters.
      */
     private fun normalizedMetadata(track: TrackDescriptor): String {
-        val raw = listOf(track.title, track.artist, track.album)
+        val raw = listOf(track.title, track.artist, track.album, track.genre)
             .mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
             .joinToString(" ")
             .lowercase()
@@ -464,118 +476,184 @@ public object LibraryWorlds {
         return markers.any { marker -> padded.contains(" $marker ") }
     }
 
-    internal fun recommendedK(trackCount: Int): Int =
-        ((trackCount + TARGET_TRACKS_PER_MIX - 1) / TARGET_TRACKS_PER_MIX)
+    /**
+     * Keep the large-library tuning while giving each automatic cluster room for at least the
+     * minimum useful membership. Asking sixteen tracks for eight clusters made every real island
+     * split below the four-track admission floor and left a fully indexed library unnamed.
+     * [trackCount] is the usable, unique vector population, not the number of library rows.
+     */
+    internal fun recommendedK(trackCount: Int): Int {
+        val target = ((trackCount.coerceAtLeast(1) - 1) / TARGET_TRACKS_PER_MIX + 1)
             .coerceIn(TrackClustering.DEFAULT_K, MAX_MIXES)
+        val viable = (trackCount / TrackClustering.MIN_CLUSTER_SIZE).coerceAtLeast(1)
+        return minOf(target, viable)
+    }
 
     /**
-     * Names a cluster after the strongest claim its contents support, in descending order of how
-     * much that claim says: a shared genre, then a shared artist, then a neutral discovery mix.
+     * Pure genre, artist and decade names keep only members making that claim true. A blend
+     * describes the two main styles of a coherent region and retains its smaller remainder.
+     * All share gates use the ORIGINAL region size, including a genre/decade intersection: a
+     * majority of a majority alone is not enough to name the whole region.
      *
-     * **Every claim must also describe the medoid.** The leftmost cover of a row is looked at some
-     * four times as often as its words are read, so the cover is what the row actually says — and a
-     * name that disagrees with it is not a label, it is a contradiction. This surface has already
-     * been burned once by a row that announced one genre and showed another; the guard is that the
-     * plurality genre and the genre of the track on the cover have to be the same thing.
-     *
-     * Falling all the way through is not a failure. A neutral discovery label is honest about an
-     * embedding region that lacks enough shared metadata. Naming it after its medoid is not: that
-     * makes one ordinary song title look like the theme of the whole mix.
+     * Members arrive in centrality order. Filtering preserves that order, so the nearest member
+     * supporting the final name becomes both cover and playback seed. One central track with an
+     * absent or contradictory tag must not veto the evidence in the rest of the region.
      */
     private fun name(
         tracks: List<TrackDescriptor>,
         semantics: Map<TrackId, TrackSemantics>,
+        minSize: Int,
     ): WorldName {
-        val medoid = tracks.first()
-
-        // With multi-genre tags a track votes once for EACH of its families; the winning
-        // family must also be one the medoid carries, or the cover would contradict the name.
-        val familyVotes = HashMap<String, Int>()
-        for (track in tracks) {
-            for (candidate in Genres.families(track.genre)) {
-                familyVotes[candidate] = (familyVotes[candidate] ?: 0) + 1
-            }
+        // Parse joined genres and normalized metadata once per member. Previously every possible
+        // subtype reparsed every track's tags and family membership was parsed again on admission.
+        val facts = tracks.map { track ->
+            val rawGenres = Genres.rawList(track.genre)
+                .mapNotNull { raw ->
+                    Genres.normalize(raw)?.let { family ->
+                        raw.lowercase() to NamedGenre(display = raw, family = family)
+                    }
+                }
+                .toMap()
+            NameFacts(
+                track = track,
+                rawGenres = rawGenres,
+                families = rawGenres.values.mapTo(LinkedHashSet()) { it.family },
+                artist = track.worldArtistKey(),
+                decade = track.worldDecade(),
+                semanticGenre = dominantSemanticGenre(semantics[track.id]),
+            )
         }
-        val medoidFamilies = Genres.families(medoid.genre)
+        fun supported(count: Int): Boolean = count >= minSize && count >= facts.size * MIN_SHARE
+        fun <T : Any> strongest(select: (NameFacts) -> T?): T? =
+            facts.mapNotNull(select).mostCommonEntry()?.takeIf { supported(it.second) }?.first
+        fun named(text: String, source: LibraryWorldNameSource, members: List<NameFacts>): WorldName =
+            WorldName(text, source, members.map { it.track })
+
+        // A track votes once for every family in its tag. Linked insertion order makes ties prefer
+        // the closest supporting member rather than a platform-specific HashMap iteration order.
+        val familyVotes = LinkedHashMap<String, Int>()
+        for (fact in facts) {
+            for (family in fact.families) familyVotes[family] = (familyVotes[family] ?: 0) + 1
+        }
         val family = familyVotes.entries
-            .filter { it.key in medoidFamilies && it.value >= tracks.size * MIN_SHARE }
+            .filter { supported(it.value) }
             .maxByOrNull { it.value }?.key
         if (family != null) {
-            // A broad family can be truthful without proving its narrower subtype. For example,
-            // Phonk, Trap, and Hip-Hop may together make this a Rap mix, but the medoid alone must
-            // not upgrade that broad claim to Phonk. Use the raw subtype only when it independently
-            // clears the same whole-cluster support gate.
-            val exactGenre = Genres.rawList(medoid.genre)
-                .map { raw -> raw to tracks.count { raw.lowercase() in Genres.rawSet(it.genre) } }
-                .filter { it.second >= tracks.size * MIN_SHARE }
-                .maxByOrNull { it.second }
-                ?.first
-            val exactGenreKey = exactGenre?.lowercase()
-            val genre = exactGenre ?: displayFamily(family)
-            val acceptedGenreTracks = tracks.filter { track ->
-                if (exactGenreKey != null) {
-                    exactGenreKey in Genres.rawSet(track.genre)
-                } else {
-                    family in Genres.families(track.genre)
+            // A broad family can be supported even when none of its narrower subtypes is. A
+            // subtype also has to leave a useful minimum-sized mix, otherwise retain the family.
+            val rawVotes = LinkedHashMap<String, Int>()
+            for (fact in facts) {
+                for ((key, genre) in fact.rawGenres) {
+                    if (genre.family == family) rawVotes[key] = (rawVotes[key] ?: 0) + 1
                 }
             }
-            val medoidDecade = medoid.year?.takeIf { it in 1900..2099 }?.let(::decade)
-            val sharedDecade = strongest(acceptedGenreTracks) { track ->
-                track.year?.takeIf { it in 1900..2099 }?.let(::decade)
+            val exactGenre = rawVotes.entries
+                .filter { supported(it.value) }
+                .maxByOrNull { it.value }?.key
+            val genreFacts = facts.filter { fact ->
+                if (exactGenre != null) exactGenre in fact.rawGenres else family in fact.families
             }
-            val text = if (medoidDecade != null && sharedDecade == medoidDecade) {
-                "$genre • ${medoidDecade}s"
+            val genre = exactGenre?.let { key -> genreFacts.first().rawGenres.getValue(key).display }
+                ?: displayFamily(family)
+            val decade = genreFacts.mapNotNull { it.decade }.mostCommonEntry()
+                ?.takeIf { supported(it.second) }?.first
+            return if (decade != null) {
+                named(
+                    "$genre • ${decade}s",
+                    LibraryWorldNameSource.GENRE,
+                    genreFacts.filter { it.decade == decade },
+                )
             } else {
-                genre
+                named(genre, LibraryWorldNameSource.GENRE, genreFacts)
             }
-            return WorldName(
-                text = text,
-                source = LibraryWorldNameSource.GENRE,
-                accepts = { track ->
-                    val genreMatches = if (exactGenreKey != null) {
-                        exactGenreKey in Genres.rawSet(track.genre)
-                    } else {
-                        family in Genres.families(track.genre)
-                    }
-                    val decadeMatches = if (medoidDecade != null && sharedDecade == medoidDecade) {
-                        track.year?.takeIf { it in 1900..2099 }?.let(::decade) == medoidDecade
-                    } else {
-                        true
-                    }
-                    genreMatches && decadeMatches
-                },
+        }
+
+        strongest { it.artist }?.let { artist ->
+            val members = facts.filter { it.artist == artist }
+            return named(
+                "${members.first().track.artist.orEmpty().trim()} • Mix",
+                LibraryWorldNameSource.ARTIST,
+                members,
             )
         }
 
-        val artist = medoid.artist?.trim()?.takeIf(String::isNotEmpty)
-        if (artist != null && strongest(tracks) { it.artist?.trim()?.takeIf(String::isNotEmpty) } == artist) {
-            return WorldName(
-                text = "$artist • Mix",
-                source = LibraryWorldNameSource.ARTIST,
-                accepts = { it.artist?.trim()?.takeIf(String::isNotEmpty) == artist },
+        strongest { it.semanticGenre }?.let { genre ->
+            return named(
+                genre.displayName,
+                LibraryWorldNameSource.SEMANTIC,
+                facts.filter { it.semanticGenre == genre },
             )
         }
 
-        val semanticGenre = dominantSemanticGenre(semantics[medoid.id])
-        if (
-            semanticGenre != null &&
-            strongest(tracks) { track -> dominantSemanticGenre(semantics[track.id]) } == semanticGenre
-        ) {
+        strongest { it.decade }?.let { decade ->
+            return named(
+                "${decade}s",
+                LibraryWorldNameSource.DECADE,
+                facts.filter { it.decade == decade },
+            )
+        }
+
+        // A coherent region can mix two well-supported styles without any one style meeting the
+        // pure-genre gate. Do not throw that evidence away or remove tracks merely to get a title.
+        // Each side needs a real, distinct following, and their UNION must cover two thirds of
+        // the original region. Eight candidates bound pair evaluation even for long genre lists.
+        val blendCandidates = familyVotes.entries
+            .filter { it.value >= minSize && it.value >= facts.size * 0.15f }
+            .sortedByDescending { it.value }
+            .take(8)
+        var bestBlend: Set<String>? = null
+        var bestCoverage = 0
+        var bestBalance = 0
+        for (left in blendCandidates.indices) {
+            for (right in left + 1 until blendCandidates.size) {
+                val first = blendCandidates[left].key
+                val second = blendCandidates[right].key
+                var firstOnly = 0
+                var secondOnly = 0
+                var coverage = 0
+                for (fact in facts) {
+                    val inFirst = first in fact.families
+                    val inSecond = second in fact.families
+                    if (inFirst || inSecond) coverage++
+                    if (inFirst && !inSecond) firstOnly++
+                    if (inSecond && !inFirst) secondOnly++
+                }
+                val balance = minOf(firstOnly, secondOnly)
+                if (coverage * 3 < facts.size * 2 || balance < minSize || balance * 10 < facts.size) continue
+                if (coverage > bestCoverage || coverage == bestCoverage && balance > bestBalance) {
+                    bestBlend = linkedSetOf(first, second)
+                    bestCoverage = coverage
+                    bestBalance = balance
+                }
+            }
+        }
+        bestBlend?.let { families ->
+            val representative = facts.first { fact -> fact.families.any { it in families } }.track
             return WorldName(
-                text = semanticGenre.displayName,
-                source = LibraryWorldNameSource.SEMANTIC,
-                accepts = { track -> dominantSemanticGenre(semantics[track.id]) == semanticGenre },
+                text = families.joinToString(" / ", transform = ::displayFamily),
+                source = LibraryWorldNameSource.GENRE_BLEND,
+                tracks = listOf(representative) + tracks.filter { it.id != representative.id },
+                blendFamilies = families,
             )
         }
 
         return WorldName(
             text = "Discovery mix",
             source = LibraryWorldNameSource.GENERIC,
-            accepts = { true },
+            tracks = tracks,
         )
     }
 
-    private fun decade(year: Int): Int = year / 10 * 10
+    private data class NameFacts(
+        val track: TrackDescriptor,
+        val rawGenres: Map<String, NamedGenre>,
+        val families: Set<String>,
+        val artist: String?,
+        val decade: Int?,
+        val semanticGenre: SemanticGenre?,
+    )
+
+    private data class NamedGenre(val display: String, val family: String)
 
     private fun displayFamily(family: String): String =
         family.replaceFirstChar { first -> if (first.isLowerCase()) first.titlecase() else first.toString() }
@@ -590,8 +668,9 @@ public object LibraryWorlds {
     private data class WorldName(
         val text: String,
         val source: LibraryWorldNameSource,
-        val accepts: (TrackDescriptor) -> Boolean,
+        val tracks: List<TrackDescriptor>,
         val semanticTitle: LibraryWorldSemanticTitle? = null,
+        val blendFamilies: Set<String> = emptySet(),
     )
 
     private data class SemanticGenre(
@@ -599,19 +678,6 @@ public object LibraryWorlds {
         val displayName: String,
         val threshold: Float,
     )
-
-    /**
-     * The value [select] returns for the largest share of [tracks], provided that share reaches
-     * [MIN_SHARE]; null otherwise.
-     *
-     * The share is measured against ALL members, not only the ones that answered: three jazz tags
-     * in a cluster of forty untagged tracks is not a jazz cluster, and a rule that ignored the
-     * silent majority would call it one.
-     */
-    private fun <T : Any> strongest(tracks: List<TrackDescriptor>, select: (TrackDescriptor) -> T?): T? {
-        val best = tracks.mapNotNull(select).mostCommonEntry() ?: return null
-        return best.first.takeIf { best.second >= tracks.size * MIN_SHARE }
-    }
 
     /**
      * The most frequent value and its count, ties going to whichever appeared first — which, on a

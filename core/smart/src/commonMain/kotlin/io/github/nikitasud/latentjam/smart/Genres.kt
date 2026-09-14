@@ -26,9 +26,10 @@ public object Genres {
     private val ALIASES = listOf(
         "hip" to "rap", "rap" to "rap", "trap" to "rap", "phonk" to "rap",
         "rock" to "rock", "metal" to "rock", "punk" to "rock", "grunge" to "rock",
-        "pop" to "pop",
+        "pop" to "pop", "europop" to "pop",
         "dance" to "dance", "electronic" to "dance", "edm" to "dance",
-        "house" to "dance", "techno" to "dance",
+        "house" to "dance", "techno" to "dance", "eurodance" to "dance",
+        "hi nrg" to "dance", "trance" to "dance",
         "classical" to "classical", "orchestral" to "classical", "baroque" to "classical",
         "soundtrack" to "soundtrack", "score" to "soundtrack",
     )
