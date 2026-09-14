@@ -74,6 +74,7 @@ internal class DefaultSimilarityEngine(
     private var textIndexDirty = false
     private var indexRevision = 0L
     private var snapshotCache: SnapshotCache? = null
+    private var mixCoverageCache: MixCoverageCache? = null
     private var predictorLoaded = false
     private var textEncoderLoaded = false
     private var audioModelLoaded = false
@@ -424,7 +425,7 @@ internal class DefaultSimilarityEngine(
                     metadata = textIndex,
                     audioDim = config.embeddingDim,
                     metadataDim = TextEncoder.TEXT_DIM,
-                )
+                ).also { rememberMixCoverage(ids, it) }
             }
         }
 
@@ -432,13 +433,17 @@ internal class DefaultSimilarityEngine(
         withContext(dispatcher) {
             mutex.withLock {
                 if (mutableState.value !is EngineState.Ready) return@withLock null
+                mixCoverageCache?.takeIf { it.revision == indexRevision && it.requestedIds == ids }
+                    ?.let { return@withLock it.coverage }
                 LibraryVectorFusion.coverageFromIndexes(
                     ids = ids,
                     audio = index,
                     metadata = textIndex,
                     audioDim = config.embeddingDim,
                     metadataDim = TextEncoder.TEXT_DIM,
-                )
+                ).also { coverage ->
+                    mixCoverageCache = MixCoverageCache(indexRevision, ids.toList(), coverage)
+                }
             }
         }
 
@@ -456,6 +461,7 @@ internal class DefaultSimilarityEngine(
                     audioDim = config.embeddingDim,
                     metadataDim = TextEncoder.TEXT_DIM,
                 ) ?: return@withLock null
+                rememberMixCoverage(ids, vectorSpace)
                 val requested = ids.distinct()
                 val missing = requested.mapNotNull { id ->
                     if (id in semanticCache) return@mapNotNull null
@@ -698,6 +704,7 @@ internal class DefaultSimilarityEngine(
                 audioIndexDirty = false
                 textIndexDirty = false
                 semanticCache.clear()
+                mixCoverageCache = null
                 snapshotCache = null
                 indexRevision++
                 if (mutableState.value is EngineState.Ready) {
@@ -722,6 +729,7 @@ internal class DefaultSimilarityEngine(
                 audioIndexDirty = false
                 textIndexDirty = false
                 semanticCache.clear()
+                mixCoverageCache = null
                 snapshotCache = null
                 indexRevision++
                 predictorLoaded = false
@@ -983,6 +991,24 @@ internal class DefaultSimilarityEngine(
     private data class SnapshotCache(
         val revision: Long,
         val snapshot: SmartSnapshot,
+    )
+
+    /** Keep the small coverage identity, never the one-shot matrix consumed by clustering. */
+    private fun rememberMixCoverage(ids: List<TrackId>, space: LibraryVectorSpace?) {
+        mixCoverageCache = MixCoverageCache(
+            revision = indexRevision,
+            requestedIds = ids.toList(),
+            coverage = space?.let {
+                LibraryVectorCoverage(it.trackIds, it.source, it.fingerprint)
+            },
+        )
+    }
+
+    /** Warm Map/For You visits compare IDs instead of copying and hashing every embedding. */
+    private data class MixCoverageCache(
+        val revision: Long,
+        val requestedIds: List<TrackId>,
+        val coverage: LibraryVectorCoverage?,
     )
 
     private fun Throwable.toEngineError(): EngineError =
