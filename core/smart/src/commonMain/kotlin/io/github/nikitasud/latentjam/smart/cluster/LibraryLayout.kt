@@ -53,32 +53,16 @@ public object LibraryLayout {
     /**
      * Hard ceiling on the library size [compute] will lay out.
      *
-     * Every array [Tsne.affinities]/[Tsne.embed] allocate is `O(n^2)`: at n=873 (the real library
-     * this feature was measured against, docs/map-page.md) that is ~12 MB of transient `FloatArray`s
-     * and a "couple of seconds" on a flagship; nothing capped it further, and every other consumer
-     * of this vector space is linear in n, so nothing else in the app was ever asked to hold that
-     * invariant. Left uncapped, a library in the few-thousand range risks minutes of pegged CPU, and
-     * one in the 8-10k range risks a `FloatArray(n*n)` allocation alone running 300-400 MB per array
-     * -- four of those are live across [Tsne.affinities] and [Tsne.embed] -- which is an OOM kill on
-     * most phones, not a slow screen.
+     * Exact t-SNE still takes quadratic CPU time across 1000 iterations. Its symmetric optimizer
+     * matrices now store each pair once: together they hold `n * (n - 1)` floats, about 36 MB at
+     * n=3000. Affinity preparation reuses its distance matrix for conditional probabilities; that
+     * matrix plus the packed result peaks at roughly 54 MB, down from 108 MB for the previous
+     * three full matrices. These figures exclude the input, PCA buffers, and runtime overhead.
      *
-     * Measured on this implementation (JVM, `LibraryLayout.compute` wall time, dim=1344 fused
-     * space): n=873 -> 1.86 s, n=2400 -> 14.2 s, n=3000 -> 22.5 s -- consistent with the O(n^2)
-     * model (ratios track n^2 almost exactly). docs/map-page.md's own worked example of a materially
-     * larger library (2,400 tracks, `LibraryVectorFusion`'s cross-library test case) already costs
-     * ~7.6x this library's compute time; 3000 was chosen as the ceiling because it is the largest
-     * round number that (a) still comfortably clears that 2,400-track example rather than locking it
-     * out, (b) keeps peak transient memory for the four `n*n` arrays at ~144 MB -- nowhere near the
-     * 300-400 MB *per array* danger zone the OOM reports above start in -- and (c) keeps the
-     * worst-case wall time (this measurement x the ~8-16x flagship-to-budget-device ratio
-     * docs/map-page.md's cold-start section implies) at a few minutes, a one-time cost paid once per
-     * material library change and cached afterward, not per visit.
-     *
-     * Above this, [compute] refuses outright ([require] below) rather than silently drawing a
-     * subset that looks complete. The caller (`App.kt`) checks this ceiling before ever calling
-     * [compute], so a library over the limit shows an honest "too large" state instead of hitting
-     * this exception; the `require` exists as the layer's own guarantee, independent of any one
-     * caller remembering to check first.
+     * Packing and evaluating equal-and-opposite forces once preserve the existing coordinates,
+     * but do not remove the quadratic growth. Keep the 3000-track guard for phone memory and CPU
+     * budgets. Above it the caller shows an explicit limit instead of silently drawing a subset;
+     * [compute] also enforces the guard independently of the UI.
      */
     public const val MAX_TRACKS: Int = 3000
 

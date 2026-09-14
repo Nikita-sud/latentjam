@@ -14,9 +14,9 @@ import kotlin.math.ln
  * reputation: UMAP and PaCMAP were both significantly worse under a paired bootstrap over
  * hand-made playlists, and PCA was far worse. See docs/map-page.md section 3.
  *
- * O(n^2) rather than Barnes-Hut. At library scale the full pair sweep is a couple of seconds, and
- * the layout is computed once per library change and cached, so the tree would add complexity with
- * no user-visible benefit.
+ * Exact O(n^2) pair forces preserve the measured layout. Symmetric pairs are stored and evaluated
+ * once, with the same per-point accumulation order as a dense sweep. Layouts are cached between
+ * library changes, and [LibraryLayout.MAX_TRACKS] bounds the remaining quadratic cost.
  */
 internal object Tsne {
 
@@ -90,7 +90,9 @@ internal object Tsne {
         val gains = FloatArray(n * 2) { 1f }
         val velocity = FloatArray(n * 2)
         val grad = FloatArray(n * 2)
-        val q = FloatArray(n * n)
+        // P and Q store only i < j, in row order. Both are symmetric and the diagonal never
+        // contributes a force. This halves the matrices kept alive for all 1000 iterations.
+        val q = FloatArray(n * (n - 1) / 2)
 
         for (iteration in 0 until ITERATIONS) {
             if (!isActive()) break
@@ -98,29 +100,21 @@ internal object Tsne {
 
             // Student-t affinities in the embedding, and their normalizer.
             var sum = 0f
+            var pair = 0
             for (i in 0 until n) {
-                q[i * n + i] = 0f
+                val ix = y[i * 2]
+                val iy = y[i * 2 + 1]
                 for (j in i + 1 until n) {
-                    val dx = y[i * 2] - y[j * 2]
-                    val dy = y[i * 2 + 1] - y[j * 2 + 1]
+                    val dx = ix - y[j * 2]
+                    val dy = iy - y[j * 2 + 1]
                     val value = 1f / (1f + dx * dx + dy * dy)
-                    q[i * n + j] = value
-                    q[j * n + i] = value
+                    q[pair++] = value
                     sum += 2f * value
                 }
             }
             if (sum <= 0f) sum = 1e-12f
 
-            grad.fill(0f)
-            for (i in 0 until n) {
-                for (j in 0 until n) {
-                    if (i == j) continue
-                    val qij = q[i * n + j]
-                    val force = (scale * p[i * n + j] - qij / sum) * qij
-                    grad[i * 2] += 4f * force * (y[i * 2] - y[j * 2])
-                    grad[i * 2 + 1] += 4f * force * (y[i * 2 + 1] - y[j * 2 + 1])
-                }
-            }
+            gradient(y, n, p, q, sum, scale, grad)
 
             val momentum = if (iteration < MOMENTUM_SWITCH) EARLY_MOMENTUM else LATE_MOMENTUM
             for (i in y.indices) {
@@ -152,6 +146,37 @@ internal object Tsne {
         return y
     }
 
+    /** Packed symmetric force pass; internal so the dense gradient can independently verify it. */
+    internal fun gradient(
+        y: FloatArray,
+        n: Int,
+        p: FloatArray,
+        q: FloatArray,
+        sum: Float,
+        scale: Float,
+        grad: FloatArray,
+    ) {
+        grad.fill(0f)
+        var pair = 0
+        // Equal and opposite forces need evaluating only once. Earlier rows have already
+        // contributed neighbours 0..<i to grad[i]; this loop then adds i+1..<n. Each point's
+        // additions therefore retain the dense implementation's order and rounding.
+        for (i in 0 until n) {
+            val ix = y[i * 2]
+            val iy = y[i * 2 + 1]
+            for (j in i + 1 until n) {
+                val qij = q[pair]
+                val force = (scale * p[pair++] - qij / sum) * qij
+                val fx = 4f * force * (ix - y[j * 2])
+                val fy = 4f * force * (iy - y[j * 2 + 1])
+                grad[i * 2] += fx
+                grad[i * 2 + 1] += fy
+                grad[j * 2] -= fx
+                grad[j * 2 + 1] -= fy
+            }
+        }
+    }
+
     /**
      * Symmetric joint probabilities, one bandwidth per point chosen so its conditional
      * distribution has the target perplexity.
@@ -167,10 +192,11 @@ internal object Tsne {
      *
      * @param isActive forwarded from [embed]'s parameter of the same name
      */
-    private fun affinities(rows: FloatArray, n: Int, dim: Int, isActive: () -> Boolean): FloatArray {
+    internal fun affinities(rows: FloatArray, n: Int, dim: Int, isActive: () -> Boolean): FloatArray {
+        val pairCount = n * (n - 1) / 2
         val distances = FloatArray(n * n)
         for (i in 0 until n) {
-            if (!isActive()) return FloatArray(n * n)
+            if (!isActive()) return FloatArray(pairCount)
             for (j in i + 1 until n) {
                 var sum = 0f
                 val a = i * dim
@@ -184,7 +210,9 @@ internal object Tsne {
             }
         }
 
-        val p = FloatArray(n * n)
+        // Searches read only their own distance row, so each completed row can become its
+        // conditional probabilities in place. The symmetric copy in every later row is intact.
+        val p = distances
         // A row of n points has n - 1 candidate neighbours, so its conditional entropy can never
         // exceed ln(n - 1) -- the value it takes when every neighbour gets equal weight (beta -> 0).
         // PERPLEXITY (20) implies a target entropy of ln(20) =~ 2.996, which for n <= 21 is at or
@@ -201,10 +229,11 @@ internal object Tsne {
         val target = ln(effectivePerplexity)
         val row = FloatArray(n)
         for (i in 0 until n) {
-            if (!isActive()) return FloatArray(n * n)
+            if (!isActive()) return FloatArray(pairCount)
             var low = 0f
             var high = Float.MAX_VALUE
             var beta = 1f
+            var rowSum = 1f
             // A real loop with a real break, not `repeat { return@repeat }`: `return@repeat` only
             // returns from that one lambda invocation (a `continue`, not a `break`), so it used to
             // skip the write on the very iteration where convergence was first detected -- and
@@ -213,8 +242,8 @@ internal object Tsne {
             // the degenerate case where a point is equidistant from every other point (duplicate
             // embeddings, or small n), entropy doesn't depend on beta at all, convergence is
             // detected on step 0, and the write never happened even once -- the row stayed all
-            // zero forever. Writing `p[i * n + j]` unconditionally on every step, before the
-            // convergence check, means a `break` can never discard a result.
+            // zero forever. Retaining the final row and sum, then writing once AFTER the search,
+            // means a `break` can never discard a result, including convergence on step zero.
             perplexitySearch@ for (step in 0 until PERPLEXITY_STEPS) {
                 var sum = 0f
                 var entropySum = 0f
@@ -229,9 +258,9 @@ internal object Tsne {
                     entropySum += distances[i * n + j] * value
                 }
                 if (sum <= 0f) sum = 1e-12f
+                rowSum = sum
                 val entropy = ln(sum) + beta * entropySum / sum
                 val error = entropy - target
-                for (j in 0 until n) p[i * n + j] = row[j] / sum
                 if (error > 0f) {
                     low = beta
                     beta = if (high == Float.MAX_VALUE) beta * 2f else (beta + high) / 2f
@@ -241,14 +270,16 @@ internal object Tsne {
                 }
                 if (error < PERPLEXITY_TOLERANCE && error > -PERPLEXITY_TOLERANCE) break@perplexitySearch
             }
+            for (j in 0 until n) p[i * n + j] = row[j] / rowSum
         }
 
-        // Symmetrize and normalize to a joint distribution, with a floor so no pair contributes a
-        // zero gradient.
-        val out = FloatArray(n * n)
+        // Symmetrize and normalize to a joint distribution, packing only i < j in row order.
+        // The gradient pass reads each pair once and applies equal and opposite forces.
+        val out = FloatArray(pairCount)
+        var pair = 0
         for (i in 0 until n) {
-            for (j in 0 until n) {
-                out[i * n + j] = ((p[i * n + j] + p[j * n + i]) / (2f * n)).coerceAtLeast(1e-12f)
+            for (j in i + 1 until n) {
+                out[pair++] = ((p[i * n + j] + p[j * n + i]) / (2f * n)).coerceAtLeast(1e-12f)
             }
         }
         return out

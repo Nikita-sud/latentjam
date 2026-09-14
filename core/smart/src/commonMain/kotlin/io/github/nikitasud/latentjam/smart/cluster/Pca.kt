@@ -55,7 +55,11 @@ internal object Pca {
 
         val scratch = FloatArray(n * k)
         for (iteration in 0 until ITERATIONS) {
-            if (!isActive()) break
+            // A stopped pass returns the projection it last computed — all zeros before the first
+            // iteration — rather than paying for one more n × dim × k multiplication. Callers
+            // check their own isActive before trusting any result, so a cancelled layout is never
+            // persisted or drawn.
+            if (!isActive()) return scratch
             // scratch = rows * basis
             multiply(rows, n, dim, basis, k, scratch)
             // basis = rows^T * scratch
