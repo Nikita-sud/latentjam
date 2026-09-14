@@ -112,10 +112,15 @@
 
     <string name="map_headline_worlds">La mappa raccoglie %1$s in %2$s. Toccane una per ascoltare cosa contiene.</string>
     <string name="map_headline_worlds_partial">La mappa raccoglie %1$d dei tuoi %2$s in %3$s. Toccane una per ascoltare cosa contiene.</string>
-    <string name="map_headline_plays">Metà di tutto quello che hai ascoltato viene da %1$s: il %2$d\u0025 della tua libreria.</string>
-    <string name="map_headline_never_played">La tua libreria conta %2$s, di cui %1$d senza un solo ascolto. “%3$s” è intatta al %4$d\u0025.</string>
+    <string name="map_headline_plays">Nelle regioni della mappa, metà degli ascolti viene da %1$s: il %2$d\u0025 dei loro brani.</string>
+    <string name="map_headline_never_played">Nelle regioni della mappa, %1$d su %2$s non sono mai stati ascoltati. “%3$s” è inascoltata al %4$d\u0025.</string>
     <string name="map_headline_skips">È in “%1$s” che molli più spesso — il %2$d\u0025 degli avvii.</string>
 
+    <string name="map_headline_unplayed_total">Regioni della mappa: %2$s · Senza riproduzioni registrate: %1$d.</string>
+    <string name="map_select_region">Scegli regione</string>
+    <string name="map_reset_view">Ripristina vista mappa</string>
+    <string name="map_region_unplayed">Non riprodotti qui: %1$d</string>
+    <string name="map_action_play_unheard">Riproduci i non ascoltati</string>
     <string name="map_action_play_region">Riproduci la regione</string>
     <string name="map_action_smart_here">SMART da qui</string>
     <string name="map_empty_indexing">Stiamo ancora leggendo la tua libreria. La mappa compare quando finisce l’indicizzazione.</string>

@@ -55,6 +55,135 @@ class MapTabTest {
         assertEquals(MapPageState.Building, MapPageState.Indexing.duringMapBuild())
     }
 
+    @Test
+    fun `small regions use a total-only unplayed headline instead of inventing a darkest region`() {
+        val small = page(emptyList()).copy(
+            regionNames = listOf("Quiet Orbit", "Amber Lane", "Glass Harbour", "Neon Field"),
+            listening = LibraryListening(
+                trackCount = 16, neverPlayed = 8, tracksForHalfOfPlays = 3,
+                regions = List(4) { RegionListening(it, 4, 2, 100, 0.1f) },
+                darkestRegion = null, skippiestRegion = null, maxPlays = 50,
+            ),
+        )
+
+        assertTrue(MapLens.NEVER_PLAYED in MapLenses.availableLenses(small.listening))
+        assertNull(unplayedHeadlineRegion(small))
+    }
+
+    @Test
+    fun `missing names or missing region stats fall back to the total-only unplayed headline`() {
+        val base = page(emptyList())
+        val missingName = base.copy(listening = base.listening.copy(
+            darkestRegion = 0, regions = listOf(RegionListening(0, 10, 5, 50, 0f)),
+        ))
+        val missingStats = base.copy(
+            regionNames = listOf("Quiet Orbit"),
+            listening = base.listening.copy(darkestRegion = 0),
+        )
+
+        val fullyPlayed = base.copy(
+            regionNames = listOf("Quiet Orbit"),
+            listening = base.listening.copy(
+                darkestRegion = 0, regions = listOf(RegionListening(0, 10, 0, 50, 0f)),
+            ),
+        )
+
+        assertNull(unplayedHeadlineRegion(missingName))
+        assertNull(unplayedHeadlineRegion(missingStats))
+        assertNull(unplayedHeadlineRegion(fullyPlayed))
+    }
+
+    @Test
+    fun `a supported named unplayed comparison looks up region identity instead of list position`() {
+        val base = page(emptyList())
+        val target = RegionListening(2, 12, 9, 50, 0f)
+        val supported = base.copy(
+            regionNames = listOf("Amber Lane", "Neon Field", "Quiet Orbit"),
+            listening = base.listening.copy(darkestRegion = 2, regions = listOf(target)),
+        )
+
+        assertEquals(target, unplayedHeadlineRegion(supported))
+    }
+
+    @Test
+    fun `pinch keeps the point beneath the gesture centroid in place`() {
+        val current = MapViewport(2f, -100f, -80f)
+        val centroid = Offset(400f, 300f)
+        val target = dot(x = 0.3125f, y = 0.31666666f)
+        val before = screenPosition(target, 800f, 600f, current.zoom, current.panX, current.panY)
+
+        val after = transformMapViewport(current, centroid, Offset.Zero, 1.5f, 800f, 600f)
+        val transformed = screenPosition(target, 800f, 600f, after.zoom, after.panX, after.panY)
+
+        assertEquals(before.x, transformed.x, absoluteTolerance = 0.001f)
+        assertEquals(before.y, transformed.y, absoluteTolerance = 0.001f)
+        assertEquals(3f, after.zoom)
+    }
+
+    @Test
+    fun `pinch and pan use the clamped zoom factor at the zoom limit`() {
+        val current = MapViewport(5f, -1000f, -800f)
+        val result = transformMapViewport(current, Offset(400f, 300f), Offset(20f, -10f), 2f, 800f, 600f)
+
+        assertEquals(6f, result.zoom)
+        assertEquals(-1260f, result.panX, absoluteTolerance = 0.001f)
+        assertEquals(-1030f, result.panY, absoluteTolerance = 0.001f)
+    }
+
+    @Test
+    fun `zooming back to overview removes all pan and cannot strand the map`() {
+        val result = transformMapViewport(
+            MapViewport(2f, -600f, -400f), Offset(700f, 500f), Offset(-50f, 40f), 0.1f, 800f, 600f,
+        )
+
+        assertEquals(MapViewport(1f, 0f, 0f), result)
+    }
+
+    @Test
+    fun `label collisions preserve the first priority region instead of overprinting names`() {
+        val selected = MapLabelAnchor(2, Offset(0.5f, 0.5f), 180f, 30f)
+        val other = MapLabelAnchor(0, Offset(0.52f, 0.5f), 180f, 30f)
+        val labels = mapLabelPlacements(listOf(selected, other), 800f, 600f, 1f, 0f, 0f, 6f)
+
+        assertEquals(listOf(2), labels.map { it.region })
+        assertTrue(labels.single().bounds.contains(Offset(400f, 300f)))
+    }
+
+    @Test
+    fun `zoom reveals nearby labels when their names can fit separately`() {
+        val anchors = listOf(
+            MapLabelAnchor(0, Offset(0.4f, 0.5f), 120f, 30f),
+            MapLabelAnchor(1, Offset(0.5f, 0.5f), 120f, 30f),
+        )
+        val overview = mapLabelPlacements(anchors, 800f, 600f, 1f, 0f, 0f, 6f)
+        val zoomed = mapLabelPlacements(anchors, 800f, 600f, 2f, -320f, -300f, 6f)
+
+        assertEquals(1, overview.size)
+        assertEquals(listOf(0, 1), zoomed.map { it.region })
+        assertFalse(zoomed[0].bounds.overlaps(zoomed[1].bounds))
+    }
+
+    @Test
+    fun `label visibility follows space instead of a fixed five region ceiling`() {
+        val anchors = (0..8).map { region ->
+            MapLabelAnchor(region, Offset((region % 3 + 1) / 4f, (region / 3 + 1) / 4f), 80f, 30f)
+        }
+        val labels = mapLabelPlacements(anchors, 800f, 600f, 1f, 0f, 0f, 6f)
+
+        assertEquals(9, labels.size)
+    }
+
+    @Test
+    fun `an offscreen label does not consume visible label space`() {
+        val anchors = listOf(
+            MapLabelAnchor(0, Offset(0.1f, 0.5f), 120f, 30f),
+            MapLabelAnchor(1, Offset(0.5f, 0.5f), 120f, 30f),
+        )
+        val labels = mapLabelPlacements(anchors, 800f, 600f, 2f, -320f, -300f, 6f)
+
+        assertEquals(listOf(1), labels.map { it.region })
+    }
+
     // Pins the one formula both the Canvas draw loop and `nearest` share: a dot at (0.25, 0.75) on
     // an 800x600 canvas, zoomed 2x and panned by (50, -20), lands at exactly (450, 880). If a future
     // change edits this formula, every caller moves together or this test catches the drift.
@@ -295,6 +424,49 @@ class MapTabTest {
             listOf("Микс открытий 1", "Rock", "Микс открытий 2", "Микс открытий 3"),
             names,
         )
+    }
+
+    @Test
+    fun `repeated genre names ignore case and whitespace and keep distinct accessible actions`() {
+        val names = regionDisplayNames(
+            listOf(world(" Rock ", LibraryWorldNameSource.GENRE), world("rock", LibraryWorldNameSource.GENRE)),
+            "Discovery mix", emptyMap(),
+        )
+        val base = page(emptyList())
+        val selected = mutableListOf<Int>()
+        val actions = regionAccessibilityActions(base.copy(
+            regionNames = names,
+            listening = base.listening.copy(regions = listOf(region(0), region(1))),
+        )) { selected += it }
+
+        assertEquals(listOf("Rock 1", "rock 2"), names)
+        assertEquals(names, actions.map { it.label })
+        actions.forEach { assertTrue(it.action()) }
+        assertEquals(listOf(0, 1), selected)
+    }
+
+    @Test
+    fun `repeated decade names are numbered without changing their evidence claim`() {
+        val names = regionDisplayNames(
+            listOf(world("2020s", LibraryWorldNameSource.DECADE), world("2020s", LibraryWorldNameSource.DECADE)),
+            "Discovery mix", emptyMap(),
+        )
+
+        assertEquals(listOf("2020s 1", "2020s 2"), names)
+    }
+
+    @Test
+    fun `generated region ordinals do not collide with literal numbered names`() {
+        val names = regionDisplayNames(
+            listOf(
+                world("Rock", LibraryWorldNameSource.GENRE),
+                world("Rock", LibraryWorldNameSource.GENRE),
+                world("Rock 1", LibraryWorldNameSource.ARTIST),
+            ),
+            "Discovery mix", emptyMap(),
+        )
+
+        assertEquals(listOf("Rock 2", "Rock 3", "Rock 1"), names)
     }
 
     // One discovery region has nothing to be told apart from, so a bare "1" would be noise.

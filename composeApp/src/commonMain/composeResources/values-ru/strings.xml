@@ -113,10 +113,15 @@
 
     <string name="map_headline_worlds">Карта делит %1$s на %2$s. Коснитесь любой, чтобы услышать, что внутри.</string>
     <string name="map_headline_worlds_partial">Карта делит %1$d из %2$s на %3$s. Коснитесь любой, чтобы услышать, что внутри.</string>
-    <string name="map_headline_plays">Половина всего, что вы когда-либо слушали, — это %1$s, или %2$d\u0025 медиатеки.</string>
-    <string name="map_headline_never_played">В медиатеке %2$s, и %1$d из них вы не включали ни разу. Область «%3$s» осталась нетронутой на %4$d\u0025.</string>
+    <string name="map_headline_plays">В областях карты половина прослушиваний приходится на %1$s — %2$d\u0025 треков.</string>
+    <string name="map_headline_never_played">В областях карты %2$s; не слушали: %1$d. Область «%3$s» не прослушана на %4$d\u0025.</string>
     <string name="map_headline_skips">Чаще всего вы бросаете треки здесь: «%1$s» — %2$d\u0025 запусков.</string>
 
+    <string name="map_headline_unplayed_total">В областях карты: %2$s · Ещё не слушали: %1$d.</string>
+    <string name="map_select_region">Выбрать область</string>
+    <string name="map_reset_view">Сбросить вид карты</string>
+    <string name="map_region_unplayed">Ещё не слушали здесь: %1$d</string>
+    <string name="map_action_play_unheard">Слушать новое</string>
     <string name="map_action_play_region">Слушать область</string>
     <string name="map_action_smart_here">SMART отсюда</string>
     <string name="map_empty_indexing">Медиатека ещё читается. Карта появится, когда закончится индексация.</string>

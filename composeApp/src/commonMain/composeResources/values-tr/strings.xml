@@ -105,10 +105,15 @@
 
     <string name="map_headline_worlds">%1$s %2$sye yerleşti. İçinde ne olduğunu duymak için birine dokun.</string>
     <string name="map_headline_worlds_partial">%2$s içinden %1$d tanesi %3$sye yerleşti. İçinde ne olduğunu duymak için birine dokun.</string>
-    <string name="map_headline_plays">Dinlediğin her şeyin yarısı %1$s: kitaplığının %2$d\u0025 kadarı.</string>
-    <string name="map_headline_never_played">%2$s içinden %1$d tanesini hiç çalmadın. “%3$s” bölgesinin dokunulmamış kısmı: %4$d\u0025.</string>
+    <string name="map_headline_plays">Haritadaki bölgelerde çalmaların yarısı %1$s kaynaklı: bu bölgelerdeki parçaların %2$d\u0025 kadarı.</string>
+    <string name="map_headline_never_played">Haritadaki bölgelerde %2$s içinden %1$d tanesini hiç çalmadın. “%3$s” bölgesinin %4$d\u0025 kadarı dinlenmedi.</string>
     <string name="map_headline_skips">En çok “%1$s” bölgesinde yarıda bırakıyorsun: başlattıklarının %2$d\u0025 kadarı.</string>
 
+    <string name="map_headline_unplayed_total">Haritadaki bölgeler: %2$s · Kayıtlı çalma yok: %1$d.</string>
+    <string name="map_select_region">Bölge seç</string>
+    <string name="map_reset_view">Harita görünümünü sıfırla</string>
+    <string name="map_region_unplayed">Burada çalınmamış: %1$d</string>
+    <string name="map_action_play_unheard">Dinlenmeyenleri çal</string>
     <string name="map_action_play_region">Bölgeyi çal</string>
     <string name="map_action_smart_here">Buradan SMART</string>
     <string name="map_empty_indexing">Kitaplığın hâlâ okunuyor. Dizinleme bitince harita görünecek.</string>

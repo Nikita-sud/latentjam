@@ -100,10 +100,15 @@
 
     <string name="map_headline_worlds">%1$s聚成 %2$s。点按其中一个，听听里面有什么。</string>
     <string name="map_headline_worlds_partial">%2$s里有 %1$d 首聚成 %3$s。点按其中一个，听听里面有什么。</string>
-    <string name="map_headline_plays">你听过的一切，有一半来自 %1$s，占音乐库的 %2$d\u0025。</string>
-    <string name="map_headline_never_played">%2$s里，有 %1$d 首你从未播放过。“%3$s”还有 %4$d\u0025 没被碰过。</string>
+    <string name="map_headline_plays">地图区域内，一半的播放来自 %1$s，占区域内曲目的 %2$d\u0025。</string>
+    <string name="map_headline_never_played">地图区域内的%2$s中，有 %1$d 首从未播放。“%3$s”有 %4$d\u0025 尚未播放。</string>
     <string name="map_headline_skips">你在“%1$s”里放弃得最多——%2$d\u0025 的播放都没听完。</string>
 
+    <string name="map_headline_unplayed_total">地图区域内：%2$s · 无播放记录：%1$d。</string>
+    <string name="map_select_region">选择区域</string>
+    <string name="map_reset_view">重置地图视图</string>
+    <string name="map_region_unplayed">尚未在此播放：%1$d</string>
+    <string name="map_action_play_unheard">播放未听过的曲目</string>
     <string name="map_action_play_region">播放该区域</string>
     <string name="map_action_smart_here">从这里开始 SMART</string>
     <string name="map_empty_indexing">仍在读取你的音乐库。索引完成后地图就会出现。</string>

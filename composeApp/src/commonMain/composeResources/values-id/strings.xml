@@ -106,10 +106,15 @@
 
     <string name="map_headline_worlds">%1$s mengelompok menjadi %2$s. Ketuk salah satunya untuk mendengar isinya.</string>
     <string name="map_headline_worlds_partial">%1$d dari %2$s mengelompok menjadi %3$s. Ketuk salah satunya untuk mendengar isinya.</string>
-    <string name="map_headline_plays">Separuh dari semua yang pernah kamu dengar berasal dari %1$s — %2$d\u0025 dari pustakamu.</string>
-    <string name="map_headline_never_played">Kamu belum pernah memutar %1$d dari %2$s. Wilayah "%3$s" masih %4$d\u0025 belum tersentuh.</string>
+    <string name="map_headline_plays">Di wilayah peta, separuh pemutaran berasal dari %1$s — %2$d\u0025 dari lagunya.</string>
+    <string name="map_headline_never_played">Di wilayah peta, %1$d dari %2$s belum pernah diputar. Wilayah "%3$s" masih %4$d\u0025 belum didengar.</string>
     <string name="map_headline_skips">Di "%1$s" kamu paling sering berhenti — %2$d\u0025 dari pemutaran yang dimulai.</string>
 
+    <string name="map_headline_unplayed_total">Wilayah peta: %2$s · Tanpa riwayat pemutaran: %1$d.</string>
+    <string name="map_select_region">Pilih wilayah</string>
+    <string name="map_reset_view">Atur ulang tampilan peta</string>
+    <string name="map_region_unplayed">Belum diputar di sini: %1$d</string>
+    <string name="map_action_play_unheard">Putar yang belum didengar</string>
     <string name="map_action_play_region">Putar wilayah</string>
     <string name="map_action_smart_here">SMART dari sini</string>
     <string name="map_empty_indexing">Pustakamu masih dibaca. Peta muncul setelah pengindeksan selesai.</string>

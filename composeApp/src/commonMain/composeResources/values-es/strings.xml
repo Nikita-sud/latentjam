@@ -112,10 +112,15 @@
 
     <string name="map_headline_worlds">El mapa agrupa %1$s en %2$s. Toca una para escuchar lo que hay dentro.</string>
     <string name="map_headline_worlds_partial">El mapa agrupa %1$d de %2$s en %3$s. Toca una para escuchar lo que hay dentro.</string>
-    <string name="map_headline_plays">La mitad de todo lo que has escuchado viene de %1$s: el %2$d\u0025 de tu biblioteca.</string>
-    <string name="map_headline_never_played">Nunca has reproducido %1$d de %2$s. «%3$s» sigue intacta en un %4$d\u0025.</string>
+    <string name="map_headline_plays">En las regiones del mapa, la mitad de las reproducciones viene de %1$s: el %2$d\u0025 de sus pistas.</string>
+    <string name="map_headline_never_played">En las regiones del mapa, nunca has reproducido %1$d de %2$s. «%3$s» sigue sin escuchar en un %4$d\u0025.</string>
     <string name="map_headline_skips">Es en «%1$s» donde más abandonas: el %2$d\u0025 de las reproducciones que empiezas.</string>
 
+    <string name="map_headline_unplayed_total">Regiones del mapa: %2$s · Sin reproducciones registradas: %1$d.</string>
+    <string name="map_select_region">Elegir región</string>
+    <string name="map_reset_view">Restablecer vista del mapa</string>
+    <string name="map_region_unplayed">Sin reproducir aquí: %1$d</string>
+    <string name="map_action_play_unheard">Reproducir no escuchadas</string>
     <string name="map_action_play_region">Reproducir región</string>
     <string name="map_action_smart_here">SMART desde aquí</string>
     <string name="map_empty_indexing">Todavía estamos leyendo tu biblioteca. El mapa aparecerá cuando termine la indexación.</string>

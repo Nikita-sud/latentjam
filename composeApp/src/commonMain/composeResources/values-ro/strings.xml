@@ -111,10 +111,15 @@
 
     <string name="map_headline_worlds">%1$s se așază în %2$s. Atinge una ca să auzi ce e în ea.</string>
     <string name="map_headline_worlds_partial">%1$d din %2$s se așază în %3$s. Atinge una ca să auzi ce e în ea.</string>
-    <string name="map_headline_plays">Jumătate din tot ce ai ascultat vreodată înseamnă %1$s — %2$d\u0025 din bibliotecă.</string>
-    <string name="map_headline_never_played">Nu ai ascultat niciodată %1$d din %2$s. Regiunea „%3$s” a rămas neatinsă în proporție de %4$d\u0025.</string>
+    <string name="map_headline_plays">În regiunile hărții, jumătate din redări provin din %1$s — %2$d\u0025 din piesele lor.</string>
+    <string name="map_headline_never_played">În regiunile hărții, nu ai ascultat niciodată %1$d din %2$s. Regiunea „%3$s” este neascultată în proporție de %4$d\u0025.</string>
     <string name="map_headline_skips">Aici renunți cel mai des: „%1$s” — %2$d\u0025 din porniri.</string>
 
+    <string name="map_headline_unplayed_total">Regiunile hărții: %2$s · Fără redări în istoric: %1$d.</string>
+    <string name="map_select_region">Alege regiunea</string>
+    <string name="map_reset_view">Resetează harta</string>
+    <string name="map_region_unplayed">Neredate aici: %1$d</string>
+    <string name="map_action_play_unheard">Redă neascultate</string>
     <string name="map_action_play_region">Redă regiunea</string>
     <string name="map_action_smart_here">SMART de aici</string>
     <string name="map_empty_indexing">Încă îți citim biblioteca. Harta apare când se termină indexarea.</string>

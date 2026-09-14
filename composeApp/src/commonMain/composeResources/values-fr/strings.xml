@@ -117,10 +117,15 @@
 
     <string name="map_headline_worlds">La carte répartit %1$s en %2$s. Touchez-en une pour écouter ce qu’elle contient.</string>
     <string name="map_headline_worlds_partial">La carte répartit %1$d de vos %2$s en %3$s. Touchez-en une pour écouter ce qu’elle contient.</string>
-    <string name="map_headline_plays">La moitié de tout ce que vous avez écouté vient de %1$s — %2$d \u0025 de votre bibliothèque.</string>
-    <string name="map_headline_never_played">Votre bibliothèque compte %2$s et vous n’en avez jamais écouté %1$d. « %3$s » reste intacte à %4$d \u0025.</string>
+    <string name="map_headline_plays">Dans les régions de la carte, la moitié des écoutes vient de %1$s — %2$d \u0025 de leurs titres.</string>
+    <string name="map_headline_never_played">Dans les régions de la carte, %1$d sur %2$s n’ont jamais été écoutés. « %3$s » reste inécoutée à %4$d \u0025.</string>
     <string name="map_headline_skips">C’est dans « %1$s » que vous décrochez le plus — %2$d \u0025 des lectures lancées.</string>
 
+    <string name="map_headline_unplayed_total">Régions de la carte : %2$s · Sans écoute enregistrée : %1$d.</string>
+    <string name="map_select_region">Choisir une région</string>
+    <string name="map_reset_view">Réinitialiser la carte</string>
+    <string name="map_region_unplayed">Non écoutés ici : %1$d</string>
+    <string name="map_action_play_unheard">Écouter les non joués</string>
     <string name="map_action_play_region">Lire la région</string>
     <string name="map_action_smart_here">SMART d’ici</string>
     <string name="map_empty_indexing">Votre bibliothèque est encore en cours de lecture. La carte apparaîtra une fois l’indexation terminée.</string>

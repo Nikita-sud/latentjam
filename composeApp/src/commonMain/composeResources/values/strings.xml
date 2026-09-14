@@ -134,7 +134,7 @@
          so a library whose regions cover everything keeps the shorter
          map_headline_worlds sentence instead. -->
     <string name="map_headline_worlds_partial">%1$d of %2$s across %3$s. Tap one to hear what’s in it.</string>
-    <string name="map_headline_plays">Half of everything you have ever played comes from %1$s — %2$d\u0025 of your library.</string>
+    <string name="map_headline_plays">Within mapped regions, half of all plays come from %1$s — %2$d\u0025 of their tracks.</string>
     <!-- %3$s is a region NAME: a short noun phrase that names the region — its
          dominant genre or artist. Never a bare number, and never containing the
          word "region" itself: eight locales already prefix their own head noun
@@ -142,12 +142,17 @@
          UNQUOTED: 17 of the 18 files wrap it in their own quotation marks
          («%3$s», „%3$s”, 「%3$s」), so a label that arrives already quoted is
          double-quoted everywhere except English. -->
-    <string name="map_headline_never_played">You have never played %1$d of %2$s. %3$s is %4$d\u0025 untouched.</string>
+    <string name="map_headline_never_played">In mapped regions, %1$d of %2$s have never been played. %3$s is %4$d\u0025 untouched.</string>
     <!-- %1$s is a region NAME, same contract: a short noun-phrase name, never a
          bare number, never containing the word "region" itself, and supplied
          UNQUOTED — 17 of the 18 files add their own quotation marks around it. -->
     <string name="map_headline_skips">You bail out of %1$s more than anywhere else — %2$d\u0025 of starts.</string>
 
+    <string name="map_headline_unplayed_total">Mapped regions: %2$s · No recorded plays: %1$d.</string>
+    <string name="map_select_region">Choose region</string>
+    <string name="map_reset_view">Reset map view</string>
+    <string name="map_region_unplayed">Not played here: %1$d</string>
+    <string name="map_action_play_unheard">Play unheard</string>
     <string name="map_action_play_region">Play region</string>
     <string name="map_action_smart_here">SMART from here</string>
     <string name="map_empty_indexing">Still reading your library. The map appears when indexing finishes.</string>

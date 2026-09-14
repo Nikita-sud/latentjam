@@ -130,10 +130,15 @@
 
     <string name="map_headline_worlds">تنقسم مكتبتك إلى %2$s تضم %1$s. المس إحداها لتسمع ما فيها.</string>
     <string name="map_headline_worlds_partial">تنقسم مكتبتك إلى %3$s تضم %1$d من أصل %2$s. المس إحداها لتسمع ما فيها.</string>
-    <string name="map_headline_plays">نصف كل ما استمعت إليه يأتي من %1$s — %2$d\u0025 من مكتبتك.</string>
-    <string name="map_headline_never_played">لم تشغّل قط %1$d من أصل %2$s. منطقة «%3$s» ما زالت غير ملموسة بنسبة %4$d\u0025.</string>
+    <string name="map_headline_plays">في مناطق الخريطة، يأتي نصف مرات التشغيل من %1$s — أي %2$d\u0025 من مقاطعها.</string>
+    <string name="map_headline_never_played">في مناطق الخريطة، لم تشغّل %1$d من أصل %2$s قط. لم تستمع إلى %4$d\u0025 من منطقة «%3$s».</string>
     <string name="map_headline_skips">في «%1$s» تتوقف أكثر من أي مكان آخر — %2$d\u0025 من مرات البدء.</string>
 
+    <string name="map_headline_unplayed_total">مناطق الخريطة: %2$s · بلا تشغيل في السجل: %1$d.</string>
+    <string name="map_select_region">اختيار منطقة</string>
+    <string name="map_reset_view">إعادة ضبط عرض الخريطة</string>
+    <string name="map_region_unplayed">لم تُشغّل هنا: %1$d</string>
+    <string name="map_action_play_unheard">تشغيل غير المسموع</string>
     <string name="map_action_play_region">تشغيل المنطقة</string>
     <string name="map_action_smart_here">SMART من هنا</string>
     <string name="map_empty_indexing">ما زلنا نقرأ مكتبتك. ستظهر الخريطة عند انتهاء الفهرسة.</string>

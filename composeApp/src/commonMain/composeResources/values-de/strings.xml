@@ -115,10 +115,15 @@
 
     <string name="map_headline_worlds">Die Karte fasst %1$s zu %2$s zusammen. Tippe eine an, um zu hören, was darin steckt.</string>
     <string name="map_headline_worlds_partial">Die Karte fasst %1$d von %2$s zu %3$s zusammen. Tippe eine an, um zu hören, was darin steckt.</string>
-    <string name="map_headline_plays">Auf %1$s entfällt die Hälfte von allem, was du je gehört hast — %2$d\u0025 deiner Bibliothek.</string>
-    <string name="map_headline_never_played">Deine Bibliothek hat %2$s, %1$d davon hast du nie gehört. „%3$s“ ist zu %4$d\u0025 unberührt.</string>
+    <string name="map_headline_plays">In den Kartenregionen entfällt die Hälfte aller Wiedergaben auf %1$s — %2$d\u0025 ihrer Titel.</string>
+    <string name="map_headline_never_played">In den Kartenregionen sind %1$d von %2$s noch ungehört. „%3$s“ ist zu %4$d\u0025 ungehört.</string>
     <string name="map_headline_skips">Bei „%1$s“ steigst du am häufigsten aus — bei %2$d\u0025 der Starts.</string>
 
+    <string name="map_headline_unplayed_total">Kartenregionen: %2$s · Ohne gespeicherte Wiedergaben: %1$d.</string>
+    <string name="map_select_region">Bereich wählen</string>
+    <string name="map_reset_view">Kartenansicht zurücksetzen</string>
+    <string name="map_region_unplayed">Hier noch nicht gespielt: %1$d</string>
+    <string name="map_action_play_unheard">Ungehörte abspielen</string>
     <string name="map_action_play_region">Region abspielen</string>
     <string name="map_action_smart_here">SMART ab hier</string>
     <string name="map_empty_indexing">Deine Bibliothek wird noch gelesen. Die Karte erscheint, sobald die Indexierung fertig ist.</string>

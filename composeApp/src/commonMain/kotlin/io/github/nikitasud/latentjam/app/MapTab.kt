@@ -4,7 +4,6 @@
  */
 package io.github.nikitasud.latentjam.app
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,10 +21,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.ZoomOutMap
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -41,6 +49,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -58,12 +69,18 @@ import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.count_regions
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.foryou_world_open
 import io.github.nikitasud.latentjam.app.generated.resources.map_action_play_region
+import io.github.nikitasud.latentjam.app.generated.resources.map_action_play_unheard
+import io.github.nikitasud.latentjam.app.generated.resources.map_select_region
+import io.github.nikitasud.latentjam.app.generated.resources.map_reset_view
+import io.github.nikitasud.latentjam.app.generated.resources.map_region_unplayed
 import io.github.nikitasud.latentjam.app.generated.resources.map_action_smart_here
 import io.github.nikitasud.latentjam.app.generated.resources.map_empty_building
 import io.github.nikitasud.latentjam.app.generated.resources.map_empty_indexing
 import io.github.nikitasud.latentjam.app.generated.resources.map_empty_too_large
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_never_played
+import io.github.nikitasud.latentjam.app.generated.resources.map_headline_unplayed_total
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_plays
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_skips
 import io.github.nikitasud.latentjam.app.generated.resources.map_headline_worlds
@@ -80,6 +97,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.map_legend_rest
 import io.github.nikitasud.latentjam.app.generated.resources.map_legend_selected
 import io.github.nikitasud.latentjam.app.generated.resources.tab_map
 import io.github.nikitasud.latentjam.history.LibraryListening
+import io.github.nikitasud.latentjam.history.RegionListening
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.cluster.LibraryWorld
@@ -114,9 +132,11 @@ data class MapPage(
 
 /** Per-dot facts that change with a lens/selection, but never while the map is panned or zoomed. */
 private class MapDotVisuals(
-    val inks: List<MapInk>,
+    val colors: List<Color>,
     val radiiPx: FloatArray,
-)
+) {
+    val maxRadiusPx: Float = radiiPx.maxOrNull() ?: 0f
+}
 
 /**
  * Everything the Map tab can be showing instead of a drawn [MapPage], named honestly rather than
@@ -194,6 +214,8 @@ fun MapTab(
     /** A track to spotlight: its region gets selected and its dot wears a ring. */
     focusTrackId: TrackId? = null,
     onPlayRegion: (Int) -> Unit,
+    onPlayUnheardRegion: (Int) -> Unit,
+    onOpenRegion: (Int) -> Unit,
     onSmartFromRegion: (Int) -> Unit,
     onOpenTrack: (TrackId) -> Unit,
 ) {
@@ -254,16 +276,34 @@ fun MapTab(
     val labelStyle = MaterialTheme.typography.labelSmall.copy(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    val centroids = remember(page) { largestRegionCentroids(page, limit = 5) }
-    // Text measurement performs paragraph layout. The Canvas is invalidated for every pan/zoom
-    // frame, but neither a region's name nor its typography changes during that gesture, so keep
-    // the five layouts outside the draw loop and only recompute them when those real inputs change.
-    val measuredCentroidLabels = remember(page.regionNames, centroids, labelStyle, measurer) {
+    val density = LocalDensity.current
+    val labelSurface = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+    val dotIndex = remember(page.dots) { MapDotIndex(page.dots) }
+    val centroids = remember(page) { largestRegionCentroids(page, limit = Int.MAX_VALUE) }
+    // Measure all names once. Placement changes with the viewport, so smaller regions become
+    // labelled as zoom makes room; the current selection gets first claim on the available space.
+    val measuredCentroidLabels = remember(page.regionNames, centroids, labelStyle, measurer, density) {
         centroids.mapNotNull { (region, centre) ->
             page.regionNames.getOrNull(region)?.let { name ->
-                centre to measurer.measure(name, labelStyle)
+                region to measurer.measure(
+                    name, labelStyle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    constraints = Constraints(maxWidth = with(density) { 210.dp.roundToPx() }),
+                )
             }
-        }
+        }.toMap()
+    }
+    val labelAnchors = remember(centroids, measuredCentroidLabels, selectedRegion, density) {
+        centroids.mapNotNull { (region, centre) ->
+            measuredCentroidLabels[region]?.let { measured ->
+                MapLabelAnchor(
+                    region, centre,
+                    measured.size.width + with(density) { 10.dp.toPx() },
+                    measured.size.height + with(density) { 4.dp.toPx() },
+                )
+            }
+        }.sortedBy { if (it.region == selectedRegion) 0 else 1 }
     }
     val mapDescription = stringResource(Res.string.tab_map)
     val selectedRegionDescription = page.regionNames.getOrNull(selectedRegion).orEmpty()
@@ -320,25 +360,30 @@ fun MapTab(
         // headlines all fit one line reserves one line.
         val headlines = lenses.associateWith { headline(it, page) }
         val headlineStyle = MaterialTheme.typography.bodyMedium
-        val density = LocalDensity.current
         // Pan and pinch invalidate the Canvas at frame rate. Colour classification (including the
         // play-count power curve) and dp-to-px radii only depend on the page, lens and selection,
         // so compute them once per visual state rather than once per dot in every gesture frame.
-        val dotVisuals = remember(page, lens, selectedRegion, density.density) {
-            val inks = ArrayList<MapInk>(page.dots.size)
+        val dotVisuals = remember(page, lens, selectedRegion, density.density, neutral, accent, coolRamp, warmRamp) {
+            val colors = ArrayList<Color>(page.dots.size)
             val radiiPx = FloatArray(page.dots.size)
             page.dots.forEachIndexed { index, dot ->
-                inks += MapLenses.ink(
+                val ink = MapLenses.ink(
                     lens = lens,
                     dot = dot,
                     selectedRegion = selectedRegion,
                     maxPlays = page.listening.maxPlays,
                 )
+                colors += when (ink) {
+                    MapInk.Neutral -> neutral
+                    MapInk.Accent -> accent
+                    is MapInk.Ramp -> coolRamp[ink.step]
+                    is MapInk.WarmRamp -> warmRamp[ink.step]
+                }
                 radiiPx[index] = with(density) {
                     MapLenses.radius(lens, dot, selectedRegion).dp.toPx()
                 }
             }
-            MapDotVisuals(inks, radiiPx)
+            MapDotVisuals(colors, radiiPx)
         }
         BoxWithConstraints(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -347,7 +392,7 @@ fun MapTab(
             // whether or not it is showing (see the Row below) -- a reservation measured at some
             // other width is not a reservation.
             val textWidthPx = with(density) {
-                (maxWidth - INDICATOR_SLOT_DP - 8.dp).coerceAtLeast(0.dp).roundToPx()
+                (maxWidth - MAP_HEADER_CONTROL_DP - 8.dp).coerceAtLeast(0.dp).roundToPx()
             }
             val reservedHeight = remember(headlines, textWidthPx, headlineStyle) {
                 headlines.values.maxOfOrNull { text ->
@@ -369,18 +414,15 @@ fun MapTab(
                         .weight(1f)
                         .height(with(density) { reservedHeight.toDp() }),
                 )
-                // Final review finding (MINOR 1): a subtle indicator that a fresh layout is
-                // computing, not a blanked screen -- the page drawn below is still the last good
-                // one, at most one library change stale.
-                //
-                // Its slot is held open even when it is not showing, so the headline's width -- and
-                // so its line count, and so the height measured above -- cannot depend on whether a
-                // rebuild happens to be running. Otherwise a rebuild starting would reflow the
-                // headline and resize the map underneath it, which is the very thing this block
-                // exists to prevent.
-                Box(Modifier.size(INDICATOR_SLOT_DP), contentAlignment = Alignment.Center) {
+                // Keep controls outside the plot: a reset button over its top-right corner hid
+                // edge labels and stole the tap that should select their region.
+                Box(Modifier.size(MAP_HEADER_CONTROL_DP), contentAlignment = Alignment.Center) {
+                    IconButton(onClick = { zoom = 1f; panX = 0f; panY = 0f }) {
+                        Icon(Icons.Rounded.ZoomOutMap, stringResource(Res.string.map_reset_view))
+                    }
                     androidx.compose.animation.AnimatedVisibility(
                         visible = rebuilding,
+                        modifier = Modifier.align(Alignment.TopEnd),
                         enter = fadeIn(tween(
                             if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
                         )),
@@ -388,12 +430,10 @@ fun MapTab(
                             if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
                         )),
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(INDICATOR_SLOT_DP),
-                            strokeWidth = 2.dp,
-                        )
+                        CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp)
                     }
                 }
+
             }
         }
 
@@ -409,40 +449,32 @@ fun MapTab(
                     customActions = regionActions
                 }
                 .pointerInput(page) {
-                    detectTransformGestures { _, pan, gestureZoom, _ ->
-                        val newZoom = (zoom * gestureZoom).coerceIn(1f, 6f)
-                        // Clamp so the zoomed content can never be dragged clear of the viewport:
-                        // at zoom 1 there is no slack to take up (min == max == 0f, matching the
-                        // untransformed layout), and at higher zoom the content's near edge can
-                        // reach the viewport's edge but never pass it, so some of the map is always
-                        // on screen -- there is no drag that strands the reader with an empty canvas
-                        // and no way back.
-                        val minPanX = size.width * (1f - newZoom)
-                        val minPanY = size.height * (1f - newZoom)
-                        zoom = newZoom
-                        panX = (panX + pan.x).coerceIn(minPanX, 0f)
-                        panY = (panY + pan.y).coerceIn(minPanY, 0f)
+                    detectTransformGestures { centroid, pan, gestureZoom, _ ->
+                        val transformed = transformMapViewport(
+                            MapViewport(zoom, panX, panY), centroid, pan, gestureZoom,
+                            size.width.toFloat(), size.height.toFloat(),
+                        )
+                        zoom = transformed.zoom
+                        panX = transformed.panX
+                        panY = transformed.panY
                     }
                 }
+
                 // Only keyed on identity/lens, not on zoom or pan: those are read fresh from their
                 // MutableState at tap time regardless, and re-keying on them meant this detector
                 // was torn down and relaunched on every frame of an in-flight pinch or drag.
-                .pointerInput(page, lens) {
+                .pointerInput(page, lens, labelAnchors) {
                     detectTapGestures(
                         onTap = { offset ->
-                            nearest(
+                            val labelRegion = mapLabelPlacements(
+                                labelAnchors, size.width.toFloat(), size.height.toFloat(),
+                                zoom, panX, panY, LABEL_EDGE_MARGIN_DP.toPx(),
+                            ).firstOrNull { it.bounds.contains(offset) }?.region
+                            val dotRegion = if (labelRegion == null) nearest(
                                 page.dots, offset, size.width, size.height, zoom, panX, panY,
                                 HIT_RADIUS_DP.toPx(),
-                            )
-                                // An unclaimed dot has no region to select, and assigning its
-                                // MapDot.NO_REGION would empty the panel below of its name, its
-                                // count, and the two buttons' target -- a tap that silently breaks
-                                // the rest of the page. Keeping the current selection is the honest
-                                // answer to "which region did you tap?" when the answer is none.
-                                // Long-press still opens such a track: it is a real track, and that
-                                // gesture asks about the track rather than about a region.
-                                ?.takeIf(MapDot::claimed)
-                                ?.let { selectedRegion = it.region }
+                            )?.takeIf(MapDot::claimed)?.region else null
+                            (labelRegion ?: dotRegion)?.let { selectedRegion = it }
                         },
                         onLongPress = { offset ->
                             nearest(
@@ -453,25 +485,27 @@ fun MapTab(
                     )
                 },
         ) {
-            page.dots.forEachIndexed { index, dot ->
-                val ink = dotVisuals.inks[index]
+            // Snapshot reads register a draw dependency. Read the viewport once per frame,
+            // rather than repeating those reads for every visible dot and label.
+            val frameZoom = zoom
+            val framePanX = panX
+            val framePanY = panY
+            for (index in dotIndex.visibleIndices(
+                size.width, size.height, frameZoom, framePanX, framePanY, dotVisuals.maxRadiusPx,
+            )) {
+                val dot = page.dots[index]
                 val radius = dotVisuals.radiiPx[index]
-                val centre = screenPosition(dot, size.width, size.height, zoom, panX, panY)
+                val centre = screenPosition(dot, size.width, size.height, frameZoom, framePanX, framePanY)
                 // At 6x zoom most of the map is outside the viewport. Canvas clips those circles
                 // eventually, but issuing thousands of invisible draw calls still costs a frame.
                 if (
                     centre.x + radius < 0f || centre.x - radius > size.width ||
                     centre.y + radius < 0f || centre.y - radius > size.height
                 ) {
-                    return@forEachIndexed
+                    continue
                 }
                 drawCircle(
-                    color = when (ink) {
-                        MapInk.Neutral -> neutral
-                        MapInk.Accent -> accent
-                        is MapInk.Ramp -> coolRamp[ink.step]
-                        is MapInk.WarmRamp -> warmRamp[ink.step]
-                    },
+                    color = dotVisuals.colors[index],
                     // MapLenses supplies unitless dp magnitudes (same contract as HIT_RADIUS_DP), so
                     // this DrawScope -- itself a Density -- converts to px, exactly as the
                     // pointerInput block above does for the hit radius. Screen-constant, not scaled
@@ -491,62 +525,124 @@ fun MapTab(
                 drawCircle(
                     color = accent,
                     radius = (MapLenses.radius(lens, dot, selectedRegion) + 5f).dp.toPx(),
-                    center = screenPosition(dot, size.width, size.height, zoom, panX, panY),
+                    center = screenPosition(dot, size.width, size.height, frameZoom, framePanX, framePanY),
                     style = Stroke(width = 2.dp.toPx()),
                 )
             }
-            // Spec section 5: regions are named on the map, because colour cannot carry identity
-            // here. Only the five largest are labelled — past that the labels collide and the map
-            // becomes a word cloud.
-            for ((centre, measured) in measuredCentroidLabels) {
-                val topLeft = visibleLabelTopLeft(
-                    centre = centre,
-                    labelWidth = measured.size.width.toFloat(),
-                    labelHeight = measured.size.height.toFloat(),
-                    width = size.width,
-                    height = size.height,
-                    zoom = zoom,
-                    panX = panX,
-                    panY = panY,
-                    marginPx = LABEL_EDGE_MARGIN_DP.toPx(),
-                ) ?: continue
+            for (label in mapLabelPlacements(
+                labelAnchors, size.width, size.height, frameZoom, framePanX, framePanY,
+                LABEL_EDGE_MARGIN_DP.toPx(),
+            )) {
+                val bounds = label.bounds
+                val selected = label.region == selectedRegion
+                drawRoundRect(
+                    color = labelSurface,
+                    topLeft = bounds.topLeft,
+                    size = bounds.size,
+                    cornerRadius = CornerRadius(5.dp.toPx()),
+                )
+                if (selected) drawRoundRect(
+                    color = accent.copy(alpha = 0.45f),
+                    topLeft = bounds.topLeft,
+                    size = bounds.size,
+                    cornerRadius = CornerRadius(5.dp.toPx()),
+                    style = Stroke(1.dp.toPx()),
+                )
                 drawText(
-                    textLayoutResult = measured,
-                    topLeft = topLeft,
+                    textLayoutResult = measuredCentroidLabels.getValue(label.region),
+                    color = if (selected) accent else labelStyle.color,
+                    topLeft = bounds.topLeft + Offset(5.dp.toPx(), 2.dp.toPx()),
                 )
             }
         }
 
         MapLegendRow(MapLenses.legend(lens), neutral, accent, coolRamp, warmRamp)
 
-        val region = page.listening.regions.getOrNull(selectedRegion)
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(
-                text = page.regionNames.getOrElse(selectedRegion) { "" },
-                style = MaterialTheme.typography.titleMedium,
-            )
+        val region = page.listening.regions.firstOrNull { it.region == selectedRegion }
+        var regionMenuOpen by remember(page) { mutableStateOf(false) }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) {
+                    val selectDescription = stringResource(Res.string.map_select_region)
+                    TextButton(
+                        onClick = { regionMenuOpen = true },
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.semantics {
+                            contentDescription = selectDescription
+                            stateDescription = selectedRegionDescription
+                        },
+                    ) {
+                        Text(
+                            text = page.regionNames.getOrElse(selectedRegion) { "" },
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
+                    }
+                    DropdownMenu(
+                        expanded = regionMenuOpen,
+                        onDismissRequest = { regionMenuOpen = false },
+                        modifier = Modifier.heightIn(max = 360.dp),
+                    ) {
+                        for (candidate in page.listening.regions) {
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(page.regionNames.getOrElse(candidate.region) { "" })
+                                        Text(
+                                            pluralStringResource(Res.plurals.count_tracks,
+                                                candidate.trackCount, candidate.trackCount),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    selectedRegion = candidate.region
+                                    regionMenuOpen = false
+                                    zoom = 1f
+                                    panX = 0f
+                                    panY = 0f
+                                },
+                            )
+                        }
+                    }
+                }
+                TextButton(onClick = { onOpenRegion(selectedRegion) }, enabled = region != null) {
+                    Text(stringResource(Res.string.foryou_world_open), maxLines = 1)
+                }
+            }
             if (region != null) {
                 Text(
-                    // The existing library-wide track-count plural, already translated everywhere.
-                    text = pluralStringResource(
-                        Res.plurals.count_tracks,
-                        region.trackCount,
-                        region.trackCount,
-                    ),
+                    text = pluralStringResource(Res.plurals.count_tracks,
+                        region.trackCount, region.trackCount) + " · " +
+                        stringResource(Res.string.map_region_unplayed, region.neverPlayed),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
             Row(
                 Modifier.fillMaxWidth().padding(top = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OutlinedButton(
-                    onClick = { onPlayRegion(selectedRegion) },
+                    onClick = {
+                        if (lens == MapLens.NEVER_PLAYED) onPlayUnheardRegion(selectedRegion)
+                        else onPlayRegion(selectedRegion)
+                    },
+                    enabled = region != null &&
+                        (lens != MapLens.NEVER_PLAYED || region.neverPlayed > 0),
                     modifier = Modifier.weight(1f),
-                ) { Text(stringResource(Res.string.map_action_play_region)) }
+                ) {
+                    Text(stringResource(if (lens == MapLens.NEVER_PLAYED)
+                        Res.string.map_action_play_unheard else Res.string.map_action_play_region))
+                }
                 OutlinedButton(
                     onClick = { onSmartFromRegion(selectedRegion) },
+                    enabled = region != null,
                     modifier = Modifier.weight(1f),
                 ) { Text(stringResource(Res.string.map_action_smart_here)) }
             }
@@ -699,13 +795,8 @@ private fun rememberWarmRamp(): List<Color> {
     return remember(scheme) { rampAlphas().map { scheme.error.copy(alpha = it) } }
 }
 
-/**
- * The headline row's trailing slot, sized to the rebuild indicator it sometimes holds.
- *
- * Held open in both states on purpose — see the call site for why a slot that appears and disappears
- * would resize the map.
- */
-private val INDICATOR_SLOT_DP = 16.dp
+/** Reset control and rebuild indicator share a constant slot to keep the plot height stable. */
+private val MAP_HEADER_CONTROL_DP = 48.dp
 
 /** [MapLenses.RAMP_STEPS] alphas, evenly spaced from [RAMP_FLOOR_ALPHA] to fully opaque. */
 private fun rampAlphas(): List<Float> {
@@ -771,25 +862,27 @@ private fun headline(lens: MapLens, page: MapPage): String {
             percent(listening.tracksForHalfOfPlays, listening.trackCount),
         )
         MapLens.NEVER_PLAYED -> {
-            val darkest = listening.darkestRegion
-            val region = listening.regions.getOrNull(darkest ?: -1)
-            stringResource(
-                Res.string.map_headline_never_played,
-                listening.neverPlayed,
-                // %2$s: "of 873 tracks", the count_tracks fragment again — %1$d stays a bare count
-                // because unlike %2$s it has no noun of its own to agree with in this sentence.
-                pluralStringResource(
-                    Res.plurals.count_tracks,
-                    listening.trackCount,
-                    listening.trackCount,
-                ),
-                page.regionNames.getOrElse(darkest ?: -1) { "" },
-                percent(region?.neverPlayed ?: 0, region?.trackCount ?: 1),
+            val region = unplayedHeadlineRegion(page)
+            val total = pluralStringResource(
+                Res.plurals.count_tracks, listening.trackCount, listening.trackCount,
             )
+            if (region == null) {
+                stringResource(
+                    Res.string.map_headline_unplayed_total, listening.neverPlayed, total,
+                )
+            } else {
+                stringResource(
+                    Res.string.map_headline_never_played,
+                    listening.neverPlayed,
+                    total,
+                    page.regionNames[region.region],
+                    percent(region.neverPlayed, region.trackCount),
+                )
+            }
         }
         MapLens.SKIPS -> {
             val skippiest = listening.skippiestRegion
-            val region = listening.regions.getOrNull(skippiest ?: -1)
+            val region = listening.regions.firstOrNull { it.region == skippiest }
             stringResource(
                 Res.string.map_headline_skips,
                 page.regionNames.getOrElse(skippiest ?: -1) { "" },
@@ -799,6 +892,15 @@ private fun headline(lens: MapLens, page: MapPage): String {
     }
 }
 
+/** A regional comparison is optional; filtering unplayed tracks never needs to invent one. */
+internal fun unplayedHeadlineRegion(page: MapPage): RegionListening? {
+    val region = page.listening.darkestRegion ?: return null
+    if (page.regionNames.getOrNull(region).isNullOrBlank()) return null
+    // The darkest eligible region can be fully played while a smaller one still holds every
+    // unplayed track; "X is 0% untouched" would then point at the wrong place.
+    return page.listening.regions.firstOrNull { it.region == region }?.takeIf { it.neverPlayed > 0 }
+}
+
 private fun percent(part: Int, whole: Int): Int =
     if (whole <= 0) 0 else (part * 100f / whole).roundToInt()
 
@@ -806,52 +908,42 @@ private fun largestRegion(page: MapPage): Int =
     page.listening.regions.maxByOrNull { it.trackCount }?.region ?: 0
 
 /**
- * The name the map shows for each region, in the same order as [regions].
- *
- * `LibraryWorld.name` is raw generator output and cannot be shown as it stands, for two reasons the
- * map made plainly visible on a Russian device:
- * - It is not localized. The plot drew the English "Discovery mix", and `map_headline_never_played`
- *   interpolated the English "Meme & Viral Audio" into the middle of a Russian sentence, while the
- *   For You tab beside it had been showing "Мемы и вирусные аудиозаписи" for the same region all
- *   along.
- * - [LibraryWorldNameSource.GENERIC] is one shared label for every cluster `LibraryWorlds` found no
- *   shared claim in, so a real library put three identical "Discovery mix" labels among its five
- *   largest regions — three words that identified nothing and could not even be told apart.
- *
- * Both are already solved for the For You cards (`ForYouSections.worlds`), so this applies that
- * settled convention rather than inventing a second one: the localized label per semantic title, the
- * localized discovery label for a generic region, numbered when more than one of them exists, and the
- * generated name untouched for a genre or artist region (those are proper nouns and tag text, which
- * no locale file can or should translate).
- *
- * An ordinal is deliberately the only thing added to a generic name. Any *content* detail would
- * assert exactly what `LibraryWorlds` already weighed and rejected as below its evidence threshold —
- * it had no dominant genre, artist or decade to offer, which is why the region is generic at all.
- *
- * The ordinals are this map's own, and need not agree with the numbers on the For You cards: For You
- * numbers in feedback-ranked order, which changes as you listen, while the map numbers in its stable
- * size order because the whole promise of this page is a shape that stays put between visits. Their
- * jobs differ too — here the number exists only to tell two blobs on one plot apart.
- *
- * Pure, so `MapTabTest` pins the numbering directly.
+ * Localize generated semantic names, then distinguish every repeated label in stable region order.
+ * An ordinal distinguishes equal genre/decade claims without inventing finer musical evidence.
+ * Generic regions keep the same numbering convention; unique proper names remain unchanged.
  */
 internal fun regionDisplayNames(
     regions: List<LibraryWorld>,
     discoveryMixLabel: String,
     semanticLabels: Map<LibraryWorldSemanticTitle, String>,
 ): List<String> {
-    val genericCount = regions.count { it.nameSource == LibraryWorldNameSource.GENERIC }
-    var genericIndex = 0
-    return regions.map { world ->
+    val baseNames = regions.map { world ->
         val semanticTitle = world.semanticTitle
         when {
             semanticTitle != null -> semanticLabels[semanticTitle] ?: world.name
-            world.nameSource == LibraryWorldNameSource.GENERIC -> {
-                genericIndex++
-                // A lone discovery region needs no number to be told apart from anything.
-                if (genericCount == 1) discoveryMixLabel else "$discoveryMixLabel $genericIndex"
-            }
+            world.nameSource == LibraryWorldNameSource.GENERIC -> discoveryMixLabel
             else -> world.name
+        }.trim()
+    }
+    val counts = baseNames.groupingBy { it.lowercase() }.eachCount()
+    val ordinals = mutableMapOf<String, Int>()
+    val used = mutableSetOf<String>()
+    return baseNames.map { name ->
+        val key = name.lowercase()
+        if (counts.getValue(key) == 1) {
+            used += key
+            name
+        } else {
+            var ordinal = ordinals[key] ?: 0
+            var candidate: String
+            do {
+                ordinal++
+                candidate = "$name $ordinal"
+                // A real label ending in a number must not collide with a generated suffix.
+            } while (candidate.lowercase() in counts || candidate.lowercase() in used)
+            ordinals[key] = ordinal
+            used += candidate.lowercase()
+            candidate
         }
     }
 }
@@ -963,6 +1055,66 @@ internal fun screenPoint(
     x = x * width * zoom + panX,
     y = y * height * zoom + panY,
 )
+
+/** A viewport shared by gesture handling and drawing. Pan is in screen pixels. */
+internal data class MapViewport(val zoom: Float, val panX: Float, val panY: Float)
+
+/** Keep the point under the fingers fixed while pinching, then constrain the map to its viewport. */
+internal fun transformMapViewport(
+    current: MapViewport,
+    centroid: Offset,
+    pan: Offset,
+    gestureZoom: Float,
+    width: Float,
+    height: Float,
+): MapViewport {
+    val newZoom = (current.zoom * gestureZoom).coerceIn(1f, 6f)
+    val ratio = newZoom / current.zoom
+    return MapViewport(
+        zoom = newZoom,
+        panX = (centroid.x - (centroid.x - current.panX) * ratio + pan.x)
+            .coerceIn(width * (1f - newZoom), 0f),
+        panY = (centroid.y - (centroid.y - current.panY) * ratio + pan.y)
+            .coerceIn(height * (1f - newZoom), 0f),
+    )
+}
+
+internal data class MapLabelAnchor(
+    val region: Int,
+    val centre: Offset,
+    val width: Float,
+    val height: Float,
+)
+
+internal data class MapLabelPlacement(val region: Int, val bounds: Rect)
+
+/**
+ * Place labels in priority order (selected region first, then population), omitting collisions.
+ * Every region remains available in the selector; zooming reveals labels that could not fit at
+ * the overview scale. Hit-testing uses these same bounds, including the label's padded background.
+ */
+internal fun mapLabelPlacements(
+    anchors: List<MapLabelAnchor>,
+    width: Float,
+    height: Float,
+    zoom: Float,
+    panX: Float,
+    panY: Float,
+    marginPx: Float,
+): List<MapLabelPlacement> {
+    val placements = ArrayList<MapLabelPlacement>(anchors.size)
+    for (anchor in anchors) {
+        val topLeft = visibleLabelTopLeft(
+            anchor.centre, anchor.width, anchor.height, width, height,
+            zoom, panX, panY, marginPx,
+        ) ?: continue
+        val bounds = Rect(topLeft, Size(anchor.width, anchor.height))
+        if (placements.none { it.bounds.inflate(marginPx).overlaps(bounds) }) {
+            placements += MapLabelPlacement(anchor.region, bounds)
+        }
+    }
+    return placements
+}
 
 /**
  * Where a region's name is drawn: centred on the region's centroid, then clamped so the whole label

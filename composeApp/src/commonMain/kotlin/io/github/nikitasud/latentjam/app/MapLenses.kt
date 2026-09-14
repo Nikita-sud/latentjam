@@ -141,34 +141,100 @@ object MapLenses {
     }
 
     /**
-     * Worlds always works; the rest wait until the log can support a true sentence. Hidden rather
-     * than empty — an empty chart is a broken promise, a missing chip is not.
-     *
-     * A lens whose headline names a region ([MapLens.NEVER_PLAYED] needs [LibraryListening]'s
-     * `darkestRegion`, [MapLens.SKIPS] needs `skippiestRegion`) is only offered once that specific
-     * region id is non-null, not merely once total plays clear [minEvents]. The two thresholds are
-     * very different in practice: `darkestRegion` needs one region with >= 8 tracks, but
-     * `skippiestRegion` needs one region with >= 10 *played* tracks -- a far harder bar on a library
-     * with many regions and thin-per-region history, so `plays >= minEvents` clearing does not imply
-     * `skippiestRegion` is non-null. Without this, the chip appears and its headline renders with an
-     * empty region name and a 0% that names nothing true (spec section 8: "The stat lenses appear
-     * once the listening log can support a true sentence").
+     * Unplayed is a useful filter as soon as listening separates heard and unheard tracks, even
+     * when every region is too small for a comparative headline. Plays and Skips remain gated by
+     * enough events, and Skips still needs a region with enough played tracks for its comparison.
      */
     fun availableLenses(
         listening: LibraryListening,
         minEvents: Int = MIN_EVENTS_FOR_STATS,
     ): List<MapLens> {
         val plays = listening.regions.sumOf { it.plays }
-        if (plays < minEvents) return listOf(MapLens.WORLDS)
         return buildList {
             add(MapLens.WORLDS)
-            add(MapLens.PLAYS)
-            if (listening.darkestRegion != null) add(MapLens.NEVER_PLAYED)
-            if (listening.skippiestRegion != null) add(MapLens.SKIPS)
+            if (plays >= minEvents) add(MapLens.PLAYS)
+            if (plays > 0 && listening.neverPlayed > 0) add(MapLens.NEVER_PLAYED)
+            if (plays >= minEvents && listening.skippiestRegion != null) add(MapLens.SKIPS)
         }
     }
 
     /** Buckets a fraction already clamped to 0f..1f into 0 until [RAMP_STEPS]. */
     private fun step(fraction: Float): Int =
         (fraction * RAMP_STEPS).toInt().coerceIn(0, RAMP_STEPS - 1)
+}
+
+/**
+ * A small spatial index for a static map page. Queries keep original dot order, so overlapping
+ * marks retain their original paint order. Pan frames within the same cells reuse one index array;
+ * full overview frames use the original array without sorting or collecting anything.
+ */
+internal class MapDotIndex(dots: List<MapDot>) {
+    private val offsets = IntArray(GRID_SIDE * GRID_SIDE + 1)
+    private val entries: IntArray
+    private val all: IntArray
+    private var cachedLeft = -1
+    private var cachedTop = -1
+    private var cachedRight = -1
+    private var cachedBottom = -1
+    private var cachedIndices = IntArray(0)
+
+    init {
+        val valid = dots.indices.filter { dots[it].x.isFinite() && dots[it].y.isFinite() }
+        all = valid.toIntArray()
+        for (index in valid) offsets[bucket(dots[index]) + 1]++
+        for (index in 1 until offsets.size) offsets[index] += offsets[index - 1]
+        entries = IntArray(valid.size)
+        val next = offsets.copyOf()
+        for (index in valid) entries[next[bucket(dots[index])]++] = index
+    }
+
+    /** Candidate indices; the renderer applies its exact circle-edge clipping afterwards. */
+    fun visibleIndices(
+        width: Float,
+        height: Float,
+        zoom: Float,
+        panX: Float,
+        panY: Float,
+        paddingPx: Float,
+    ): IntArray {
+        if (width <= 0f || height <= 0f || zoom <= 0f) return EMPTY
+        val left = cell((-panX - paddingPx) / (width * zoom))
+        val top = cell((-panY - paddingPx) / (height * zoom))
+        val right = cell((width - panX + paddingPx) / (width * zoom))
+        val bottom = cell((height - panY + paddingPx) / (height * zoom))
+        if (left == 0 && top == 0 && right == GRID_SIDE - 1 && bottom == GRID_SIDE - 1) return all
+        if (left == cachedLeft && top == cachedTop && right == cachedRight && bottom == cachedBottom) {
+            return cachedIndices
+        }
+
+        var count = 0
+        for (row in top..bottom) {
+            val start = row * GRID_SIDE + left
+            val end = row * GRID_SIDE + right + 1
+            count += offsets[end] - offsets[start]
+        }
+        val visible = IntArray(count)
+        var next = 0
+        for (row in top..bottom) {
+            val start = offsets[row * GRID_SIDE + left]
+            val end = offsets[row * GRID_SIDE + right + 1]
+            for (entry in start until end) visible[next++] = entries[entry]
+        }
+        visible.sort()
+        cachedLeft = left
+        cachedTop = top
+        cachedRight = right
+        cachedBottom = bottom
+        cachedIndices = visible
+        return visible
+    }
+
+    private fun bucket(dot: MapDot): Int = cell(dot.y) * GRID_SIDE + cell(dot.x)
+
+    private fun cell(value: Float): Int = (value * GRID_SIDE).toInt().coerceIn(0, GRID_SIDE - 1)
+
+    private companion object {
+        const val GRID_SIDE = 16
+        val EMPTY = IntArray(0)
+    }
 }

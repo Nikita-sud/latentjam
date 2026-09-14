@@ -449,6 +449,7 @@ private data class WorldTrackIdentity(
     val album: String?,
     val genre: String?,
     val year: Int?,
+    val originalYear: Int?,
 )
 
 private fun TrackDescriptor.worldIdentity() = WorldTrackIdentity(
@@ -458,6 +459,7 @@ private fun TrackDescriptor.worldIdentity() = WorldTrackIdentity(
     album = album,
     genre = genre,
     year = year,
+    originalYear = originalYear,
 )
 
 /** The exact surface that raised a track menu; hidden screens never lend it their actions. */
@@ -2420,6 +2422,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             modifier = Modifier.fillMaxSize(),
                                             label = "map-presentation",
                                         ) { shownMapState ->
+                                        val shownRegionNames = (shownMapState as? MapPageState.Ready)
+                                            ?.page?.regionNames.orEmpty()
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
@@ -2434,15 +2438,53 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             focusTrackId = mapFocusTrackId,
                                             onPlayRegion = { region ->
                                                 mapRegions.getOrNull(region)?.let { world ->
-                                                    AppGraph.queueSource.value =
-                                                        QueueSource(QueueSourceKind.MAP)
-                                                    scope.launch { playback.play(world.tracks, 0) }
+                                                    val members = world.tracks.mapNotNull { tracksById[it.id] }
+                                                    if (members.isNotEmpty()) {
+                                                        AppGraph.queueSource.value = QueueSource(
+                                                            QueueSourceKind.MAP,
+                                                            shownRegionNames.getOrNull(region) ?: world.name,
+                                                        )
+                                                        scope.launch { playback.play(members, 0) }
+                                                    }
+                                                }
+                                            },
+                                            onPlayUnheardRegion = { region ->
+                                                mapRegions.getOrNull(region)?.let { world ->
+                                                    scope.launch {
+                                                        val stats = AppGraph.history.stats()
+                                                        val unheard = world.tracks
+                                                            .mapNotNull { tracksById[it.id] }
+                                                            .filter { (stats[it.id]?.plays ?: 0) == 0 }
+                                                        if (unheard.isNotEmpty()) {
+                                                            AppGraph.queueSource.value = QueueSource(
+                                                                QueueSourceKind.MAP,
+                                                                shownRegionNames.getOrNull(region) ?: world.name,
+                                                            )
+                                                            playback.play(unheard, 0)
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            onOpenRegion = { region ->
+                                                mapRegions.getOrNull(region)?.let { world ->
+                                                    scope.launch {
+                                                        val members = world.tracks.mapNotNull { tracksById[it.id] }
+                                                        updateTrackSelection(emptySet())
+                                                        updateSelectedCollection(CollectionSelection(
+                                                            title = shownRegionNames.getOrNull(region) ?: world.name,
+                                                            subtitle = trackCountLabel(members.size),
+                                                            artworkUri = world.representative.artworkUri,
+                                                            tracks = members,
+                                                            allowsTrackSelection = true,
+                                                            routeId = "map:${world.representative.id.value}",
+                                                        ))
+                                                    }
                                                 }
                                             },
                                             onSmartFromRegion = { region ->
                                                 mapRegions.getOrNull(region)?.let { world ->
                                                     scope.launch {
-                                                        val seed = world.representative
+                                                        val seed = tracksById[world.representative.id] ?: return@launch
                                                         val queue = engine.smartQueue(
                                                             seed,
                                                             smartEligibleTracks,
@@ -2451,8 +2493,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                             AppGraph.smartCompanionGroups.value,
                                                         )
                                                         val tail = queue.mapNotNull(tracksById::get)
-                                                        AppGraph.queueSource.value =
-                                                            QueueSource(QueueSourceKind.MAP)
+                                                        AppGraph.queueSource.value = QueueSource(
+                                                            QueueSourceKind.MAP,
+                                                            shownRegionNames.getOrNull(region) ?: world.name,
+                                                        )
                                                         playback.play(listOf(seed) + tail, 0)
                                                     }
                                                 }

@@ -9,12 +9,97 @@ import io.github.nikitasud.latentjam.history.RegionListening
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertContentEquals
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class MapLensesTest {
 
     private fun dot(region: Int = 0, plays: Int = 0, skipRate: Float = 0f) =
         MapDot(TrackId("t"), 0.5f, 0.5f, region, plays, skipRate)
+
+    @Test
+    fun `spatial index includes every overview dot in original paint order`() {
+        val dots = listOf(
+            dot().copy(x = 0.9f, y = 0.9f),
+            dot().copy(x = 0.1f, y = 0.1f),
+            dot().copy(x = 0.5f, y = 0.5f),
+            dot().copy(x = 1f, y = 0f),
+        )
+        val index = MapDotIndex(dots)
+
+        assertContentEquals(intArrayOf(0, 1, 2, 3), index.visibleIndices(800f, 600f, 1f, 0f, 0f, 10f))
+    }
+
+    @Test
+    fun `spatial index preserves arbitrary paint order after collecting separate cells`() {
+        val dots = listOf(
+            dot().copy(x = 0.54f, y = 0.55f),
+            dot().copy(x = 0.45f, y = 0.45f),
+            dot().copy(x = 0.9f, y = 0.9f),
+            dot().copy(x = 0.46f, y = 0.56f),
+            dot().copy(x = 0.53f, y = 0.48f),
+        )
+        val visible = MapDotIndex(dots).visibleIndices(800f, 600f, 6f, -2000f, -1500f, 10f)
+
+        assertContentEquals(intArrayOf(0, 1, 3, 4), visible)
+    }
+
+    @Test
+    fun `spatial index includes circle fringes crossing viewport and cell edges at every zoom`() {
+        val dots = (0 until 4000).map { i ->
+            dot().copy(x = (i % 100 + 0.5f) / 100f, y = (i / 100 + 0.5f) / 40f)
+        }
+        val index = MapDotIndex(dots)
+        for (zoom in listOf(1f, 1.7f, 3f, 6f)) {
+            for (fraction in listOf(0f, 0.37f, 1f)) {
+                for (radius in listOf(3f, 24f, 95f)) {
+                    val panX = 800f * (1f - zoom) * fraction
+                    val panY = 600f * (1f - zoom) * fraction
+                    val candidates = index.visibleIndices(800f, 600f, zoom, panX, panY, radius).toSet()
+                    dots.forEachIndexed { i, dot ->
+                        val x = dot.x * 800f * zoom + panX
+                        val y = dot.y * 600f * zoom + panY
+                        val visible = x + radius >= 0f && x - radius <= 800f &&
+                            y + radius >= 0f && y - radius <= 600f
+                        if (visible) assertTrue(i in candidates, "omitted dot $i at zoom $zoom / radius $radius")
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `spatial index reuses candidate arrays while pan stays within the same cells`() {
+        val dots = (0 until 1000).map { i ->
+            dot().copy(x = (i % 100 + 0.5f) / 100f, y = (i / 100 + 0.5f) / 10f)
+        }
+        val index = MapDotIndex(dots)
+        val first = index.visibleIndices(800f, 600f, 6f, -2000f, -1500f, 8f)
+        val nearby = index.visibleIndices(800f, 600f, 6f, -2001f, -1501f, 8f)
+
+        assertSame(first, nearby)
+    }
+
+    @Test
+    fun `zoomed synthetic maps examine under one tenth of dots without changing draw coverage`() {
+        for (count in listOf(1000, 4000)) {
+            val rows = count / 100
+            val dots = (0 until count).map { i ->
+                dot().copy(x = (i % 100 + 0.5f) / 100f, y = (i / 100 + 0.5f) / rows)
+            }
+            val candidates = MapDotIndex(dots).visibleIndices(800f, 600f, 6f, -2000f, -1500f, 8f)
+            println("Map index at 6x: $count dots -> ${candidates.size} ordered candidates")
+            assertTrue(candidates.size < count / 10)
+            assertTrue(candidates.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun `empty or unmeasured maps have no spatial candidates`() {
+        assertTrue(MapDotIndex(emptyList()).visibleIndices(800f, 600f, 1f, 0f, 0f, 8f).isEmpty())
+        assertTrue(MapDotIndex(listOf(dot())).visibleIndices(0f, 0f, 1f, 0f, 0f, 8f).isEmpty())
+    }
 
     @Test
     fun `worlds lens accents only the selected region`() {
@@ -103,18 +188,15 @@ class MapLensesTest {
         assertTrue(hot is MapInk.WarmRamp && hot.step == MapLenses.RAMP_STEPS - 1)
     }
 
-    // Cold start: a lens that would say "you have never played 100% of your library" is worthless.
     @Test
-    fun `stat lenses stay hidden until there is enough history`() {
+    fun `comparative lenses wait for enough history while unplayed is already actionable`() {
         val thin = LibraryListening(
             trackCount = 300, neverPlayed = 298, tracksForHalfOfPlays = 1,
             regions = listOf(RegionListening(0, 300, 298, 4, 0f)),
             darkestRegion = 0, skippiestRegion = null, maxPlays = 3,
         )
-        assertEquals(listOf(MapLens.WORLDS), MapLenses.availableLenses(thin))
+        assertEquals(listOf(MapLens.WORLDS, MapLens.NEVER_PLAYED), MapLenses.availableLenses(thin))
 
-        // Both darkestRegion and skippiestRegion must be non-null for every stat lens to appear --
-        // see the dedicated tests below for what happens when only one of them clears.
         val rich = thin.copy(
             neverPlayed = 150,
             regions = listOf(RegionListening(0, 300, 150, 900, 0.2f)),
@@ -142,18 +224,51 @@ class MapLensesTest {
         assertEquals(listOf(MapLens.WORLDS, MapLens.PLAYS, MapLens.NEVER_PLAYED), lenses)
     }
 
-    // Mirror of the test above for the other nullable region id: NEVER_PLAYED must not appear
-    // without a region clearing MIN_REGION_FOR_DARKEST, even once total plays clear minEvents.
     @Test
-    fun `available lenses omit never played when no region clears the darkest threshold`() {
+    fun `small regions offer the unplayed filter even without a darkest region`() {
         val listening = LibraryListening(
-            trackCount = 873, neverPlayed = 400, tracksForHalfOfPlays = 20,
-            regions = listOf(RegionListening(0, 873, 400, 60, 0.1f)),
-            darkestRegion = null, skippiestRegion = 0, maxPlays = 5,
+            trackCount = 16, neverPlayed = 8, tracksForHalfOfPlays = 3,
+            regions = List(4) { RegionListening(it, 4, 2, 100, 0.1f) },
+            darkestRegion = null, skippiestRegion = null, maxPlays = 50,
         )
-        val lenses = MapLenses.availableLenses(listening)
-        assertTrue(MapLens.NEVER_PLAYED !in lenses, "NEVER_PLAYED must not appear without a darkest region")
-        assertEquals(listOf(MapLens.WORLDS, MapLens.PLAYS, MapLens.SKIPS), lenses)
+
+        assertEquals(
+            listOf(MapLens.WORLDS, MapLens.PLAYS, MapLens.NEVER_PLAYED),
+            MapLenses.availableLenses(listening),
+        )
+    }
+
+    @Test
+    fun `a first recorded play makes unplayed tracks actionable in small regions`() {
+        val listening = LibraryListening(
+            trackCount = 4, neverPlayed = 3, tracksForHalfOfPlays = 1,
+            regions = listOf(RegionListening(0, 4, 3, 1, 0f)),
+            darkestRegion = null, skippiestRegion = null, maxPlays = 1,
+        )
+
+        assertEquals(listOf(MapLens.WORLDS, MapLens.NEVER_PLAYED), MapLenses.availableLenses(listening))
+    }
+
+    @Test
+    fun `unplayed lens stays hidden when no listening has been recorded`() {
+        val listening = LibraryListening(
+            trackCount = 4, neverPlayed = 4, tracksForHalfOfPlays = 0,
+            regions = listOf(RegionListening(0, 4, 4, 0, 0f)),
+            darkestRegion = null, skippiestRegion = null, maxPlays = 0,
+        )
+
+        assertEquals(listOf(MapLens.WORLDS), MapLenses.availableLenses(listening))
+    }
+
+    @Test
+    fun `unplayed lens stays hidden when every mapped track has been played`() {
+        val listening = LibraryListening(
+            trackCount = 4, neverPlayed = 0, tracksForHalfOfPlays = 2,
+            regions = listOf(RegionListening(0, 4, 0, 100, 0f)),
+            darkestRegion = null, skippiestRegion = null, maxPlays = 25,
+        )
+
+        assertEquals(listOf(MapLens.WORLDS, MapLens.PLAYS), MapLenses.availableLenses(listening))
     }
 
     // step() boundary: an index outside 0 until RAMP_STEPS would be an array-out-of-bounds waiting
@@ -216,7 +331,10 @@ class MapLensesTest {
             skippiestRegion = 0,
         )
 
-        assertEquals(listOf(MapLens.WORLDS), MapLenses.availableLenses(justBelow, minEvents = 10))
+        assertEquals(
+            listOf(MapLens.WORLDS, MapLens.NEVER_PLAYED),
+            MapLenses.availableLenses(justBelow, minEvents = 10),
+        )
         assertEquals(MapLens.entries.toList(), MapLenses.availableLenses(justAt, minEvents = 10))
     }
 
