@@ -1,5 +1,10 @@
 # Map — design spec
 
+Implementation update, 14 September 2026: Map is optional and hidden by default. Exact layout
+computation, naming, small-library clustering, and region controls have since been improved; see
+[the current implementation and validation notes](map-improvements-validation.md). The original
+layout-quality study below remains the basis for choosing the projection.
+
 The library as a place: one screen showing every owned track positioned by what the SMART
 engine believes about it, with listening history painted on top as colour.
 
@@ -174,8 +179,17 @@ regions. A rainbow map is therefore not available — it would be pretty and unr
 Never-played uses **size as well as colour**, so identity is never carried by hue alone. Every
 lens ships a legend; the sequential legends are discrete swatch steps, not a gradient.
 
-Region names come from `LibraryWorlds`, unchanged — genre, optionally sharpened by decade,
-else artist mix, else a neutral label. Map does not invent a naming scheme.
+Region names come from `LibraryWorlds`: a supported genre, optionally sharpened by the original
+release decade, artist, calibrated semantic genre, or shared decade. A claim needs at least 60%
+support across the complete candidate region and enough admitted tracks. Over-specific claims
+fall back to the supported broader genre; a single mismatched medoid does not veto the majority.
+User playlist/album containment can then supply a familiar name. Insufficient evidence retains a
+neutral label. As a further fallback, two substantial genre families may jointly name a blend
+when they cover at least two thirds of the region. Each needs at least four supporters, 15% total
+support and 10% exclusive support. Blend names retain the coherent minority and choose a
+representative supporting one of the two styles. Eurodance, Europop, Hi-NRG and trance are grouped
+with their broad families. Explicit meme/effect genre tags also participate in content routing.
+Map does not invent a separate naming scheme.
 
 **Headlines are full sentences containing counts, so they are string resources with plurals.**
 This is exactly where the locale traps live: never reuse a `sort_*` key, and never assume a
@@ -186,9 +200,14 @@ count slots into a translated sentence the way it does in English.
 | gesture | result |
 |---|---|
 | tap a dot | select its region; the card fills with that region's real numbers |
+| tap a region label or use the region selector | select any named region without finding a small dot |
 | pinch / pan | zoom the canvas — **required**, not optional: at phone size ~33% of dots overlap another dot, so track-level tapping is impossible without it |
+| reset view | return to the overview; pinch remains anchored under the fingers |
+| tap a tab in the top carousel | change pages; the content pager leaves Map gestures to the canvas |
 | long-press a dot | existing `TrackActionsSheet` |
 | *Play region* | queue the region, medoid first |
+| *Play unheard* in Never played | queue current region tracks with no recorded plays, rechecked at tap time |
+| *Show tracks* | open the region as a collection, with track selection and playlist actions |
 | *SMART from here* | seed SMART with the region medoid |
 
 The page is built once per visit and does not re-rank underneath the reader — same rule For
@@ -197,23 +216,22 @@ learn.
 
 ## 7. Placement
 
-New pager destination at **index 1**, between For You and Playlists.
-
-Stated cost: this makes 8 tabs and pushes Folders further off-screen. Accepted because Map is
-a destination rather than a browse mode. If the strip proves too crowded in use, the fallback
-is entry from the For You "Worlds" row header instead of a tab — the row already exists and
-already means this.
+Map is **hidden by default**. Settings → Pages enables it and controls its position. Hiding it
+also hides the track-menu shortcut; unopened or hidden pages do not start layout computation.
 
 ## 8. Cold start
 
 | state | behaviour |
 |---|---|
 | indexing incomplete | empty state naming the reason; no partial map |
-| embeddings ready, thin history | Worlds lens only; the three stat lenses are hidden, not shown empty |
-| fewer tracks than `MIN_CLUSTER_SIZE` regions can support | fall back to a single unnamed region |
+| embeddings ready, no recorded plays | Worlds lens only |
+| some recorded history and unplayed tracks | Worlds and Never played; small regions use a total-only headline |
+| small indexed library | automatic cluster count is capped by usable tracks / minimum cluster size |
+| too few tracks or no supported regions | fall back to a single neutral region |
 
-The stat lenses appear once the listening log can support a true sentence. A lens that says
-"you have never played 100% of your library" is technically correct and worthless.
+Plays and Skips appear after at least 50 recorded starts; Skips also needs a region with enough
+played tracks for a supported comparison. Never played is useful after the first recorded play
+and does not require a statistically eligible darkest region.
 
 ## 9. Testing
 

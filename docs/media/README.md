@@ -13,12 +13,17 @@ geometric cover art, quiet synthesized audio, and generated listening history an
 | `player.png` | Fictional “Blue Hour” in the SMART player |
 | `statistics.png` | Synthetic thirty-day listening summary and daily activity |
 | `pages.png` | Visibility, ordering, and opening-page controls |
+| `map.png` | Optional Map in Russian, four named regions and unplayed-track discovery |
 
 The four PNGs are unmodified 1080 × 2340 emulator screenshots. The GIF is sped up for a shorter
 preview; the MP4 keeps the original interaction timing. Video encodes omit audio and source metadata.
 The walkthrough opens the player, briefly plays the original synthesized track, browses albums,
 changes the statistics period, selects a day, scrolls through habits, moves Statistics up, and
 switches Tracks off and back on. Map remains disabled. Statistics is explicitly enabled for this demo.
+
+`map.png` was captured separately on 14 September 2026 from the updated app in a freshly reset
+isolated emulator, using the same sixteen fictional tracks and a newly generated listening history.
+Map is explicitly enabled for this capture. It shows no personal media or real listening history.
 
 ## Recreate the demo data
 
