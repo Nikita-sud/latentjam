@@ -7,13 +7,14 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.yield
 
 /**
  * Upgrades descriptors with the tag facts the system scanner loses: the FULL genre list, the
- * credited-artists list, and the original release year.
+ * credited-artists list, the original release year, and the language.
  *
  * Android's media scanner keeps one genre and one display-artist string per track, and reports
  * the edition year. The files themselves know more — five separate `GENRE` fields, a Picard
@@ -31,6 +32,7 @@ import kotlinx.coroutines.yield
  */
 internal class GenreEnrichment(
     private val settings: AppSettings,
+    private val readFacts: suspend (TrackDescriptor) -> EmbeddedTagFacts? = ::readEmbeddedFacts,
 ) {
     private data class Stored(
         val revision: String,
@@ -42,11 +44,12 @@ internal class GenreEnrichment(
 
     private val mutex = Mutex()
     private var cache: MutableMap<String, Stored>? = null
+    private var cacheDirty = false
 
     /** Applies remembered facts; pure and cheap, safe on every library load. */
-    suspend fun apply(library: List<TrackDescriptor>): List<TrackDescriptor> {
-        val loaded = mutex.withLock { ensureLoaded() }
-        return library.map { track ->
+    suspend fun apply(library: List<TrackDescriptor>): List<TrackDescriptor> = mutex.withLock {
+        val loaded = ensureLoaded()
+        library.map { track ->
             val stored = loaded[track.id.value] ?: return@map track
             if (stored.revision != track.revisionKey()) return@map track
             val genre = stored.joinedGenres.takeIf { it.isNotEmpty() } ?: track.genre
@@ -81,7 +84,7 @@ internal class GenreEnrichment(
             val revision = track.revisionKey()
             val existing = known[track.id.value]
             if (existing != null && existing.revision == revision) continue
-            val facts = readEmbeddedFacts(track) ?: continue
+            val facts = readFacts(track) ?: continue
             val stored = Stored(
                 revision = revision,
                 joinedGenres = GenreTags.canonical(facts.genres).orEmpty(),
@@ -93,11 +96,23 @@ internal class GenreEnrichment(
             if (stored.changes(track)) learnedSomething = true
             yield()
         }
-        if (updates.isNotEmpty()) {
-            mutex.withLock {
-                val target = ensureLoaded()
+        mutex.withLock {
+            val target = ensureLoaded()
+            if (updates.isNotEmpty()) {
                 target.putAll(updates)
-                settings.writeTrackGenresPayload(encode(target))
+                cacheDirty = true
+            }
+            // Facts remain usable in memory if storage is unavailable. A warm pass must also
+            // retry a failed save: its files no longer need reading, so updates will be empty.
+            if (cacheDirty) {
+                try {
+                    settings.writeTrackGenresPayload(encode(target))
+                    cacheDirty = false
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // This is a rebuildable cache, not a reason to terminate the library screen.
+                }
             }
         }
         return learnedSomething
@@ -157,12 +172,13 @@ internal class GenreEnrichment(
                 val revision = parts[2].unhex() ?: return@forEach
                 val genres = parts[3].unhex() ?: return@forEach
                 val artistsJoined = parts[4].unhex() ?: return@forEach
+                val language = parts[6].unhex() ?: return@forEach
                 result[id] = Stored(
                     revision = revision,
                     joinedGenres = genres,
                     artists = artistsJoined.split(ARTIST_JOIN).filter { it.isNotEmpty() },
                     originalYear = parts[5].toIntOrNull(),
-                    language = parts[6].unhex()?.takeIf { it.isNotEmpty() },
+                    language = language.takeIf { it.isNotEmpty() },
                 )
             }
             return result
