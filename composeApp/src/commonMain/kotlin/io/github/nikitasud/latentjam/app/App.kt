@@ -2333,7 +2333,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     HorizontalPager(
                                         state = pagerState,
                                         modifier = Modifier.fillMaxSize(),
-                                        userScrollEnabled = !selectionMode,
+                                        // A drawn Map owns pan/pinch gestures. A parent pager can
+                                        // win touch slop and compose neighbouring pages mid-gesture
+                                        // (56–59 ms layouts on a physical S24 Ultra). Navigation
+                                        // remains available through the carousel above, which also
+                                        // swipes. Use the settled tab so an incoming swipe is
+                                        // allowed to finish; the Map's placeholders have no gesture
+                                        // to protect and page like every other tab.
+                                        userScrollEnabled = !selectionMode &&
+                                            !(settledTab == StartPage.MAP && mapState is MapPageState.Ready),
                                         // Compose the destination as the gesture reaches it. Keeping
                                         // both neighbours alive eagerly built album grids and loaded
                                         // their covers while the user was merely scrolling Tracks.
@@ -4328,7 +4336,8 @@ private fun BrowseCarousel(
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer { alpha = if (enabled) 1f else 0.38f }
-            .background(MaterialTheme.colorScheme.surface),
+            .background(MaterialTheme.colorScheme.surface)
+            .browseHeaderSwipe(pagerState, enabled = enabled && pages.size > 1),
     ) {
         val sidePadding = (maxWidth / 2 - 56.dp).coerceAtLeast(0.dp)
 
