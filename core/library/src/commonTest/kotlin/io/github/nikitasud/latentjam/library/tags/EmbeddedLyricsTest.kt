@@ -183,4 +183,46 @@ class EmbeddedLyricsTest {
         assertEquals("Verse one\nline two\n\nChorus", lyrics.text)
         assertNull(EmbeddedLyrics.parse("[ar:Nobody]\n[by:bot]\n\n"))
     }
+
+    @Test
+    fun unstampedTranslationFollowsItsVerseAfterOutOfOrderCuesAreSorted() {
+        val lyrics = EmbeddedLyrics.parse(
+            "[00:40]Later verse\nLater translation\n[00:10]Earlier verse\nEarlier translation\n[00:20]Middle verse",
+        )!!
+        assertEquals(
+            listOf("Earlier verse", "Earlier translation", "Middle verse", "Later verse", "Later translation"),
+            lyrics.lines.map { it.text },
+        )
+    }
+
+    @Test
+    fun chorusTimestampsMayBeSeparatedByWhitespace() {
+        val lyrics = EmbeddedLyrics.parse("[00:10.1]  [00:20:12]\t[00:30.123]Chorus")!!
+        assertEquals(listOf(10_100L, 20_120L, 30_123L), lyrics.lines.map { it.timeMs })
+        assertEquals(listOf("Chorus", "Chorus", "Chorus"), lyrics.lines.map { it.text })
+    }
+
+    @Test
+    fun extremeOffsetsNeverWrapLaterCuesBackToTheBeginning() {
+        assertEquals(
+            Long.MAX_VALUE,
+            EmbeddedLyrics.parse("[offset:${Long.MIN_VALUE}]\n[00:10]Later")!!.lines.single().timeMs,
+        )
+        assertEquals(
+            0L,
+            EmbeddedLyrics.parse("[offset:${Long.MAX_VALUE}]\n[00:10]Earlier")!!.lines.single().timeMs,
+        )
+        assertEquals(
+            10_500L,
+            EmbeddedLyrics.parse("[offset:-500]\n[00:10]Later")!!.lines.single().timeMs,
+        )
+    }
+
+    @Test
+    fun manyChorusStampsPreserveEveryCueAndOneSharedText() {
+        // A long embedded field must scan stamp positions without repeatedly copying its suffix.
+        val lyrics = EmbeddedLyrics.parse("[00:10]".repeat(10_000) + "Chorus")!!
+        assertEquals(10_000, lyrics.lines.size)
+        assertTrue(lyrics.lines.all { it.timeMs == 10_000L && it.text == "Chorus" })
+    }
 }

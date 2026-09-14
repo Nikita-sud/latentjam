@@ -83,7 +83,7 @@ public object EmbeddedLyrics {
         var offsetMs = 0L
         class Raw(val times: List<Long>, val text: String)
         val raws = ArrayList<Raw>()
-        for (rawLine in value.lines()) {
+        for (rawLine in value.lineSequence()) {
             val line = rawLine.trim()
             val idTag = ID_TAG.matchEntire(line)
             if (idTag != null) {
@@ -93,13 +93,16 @@ public object EmbeddedLyrics {
                 continue
             }
             val times = ArrayList<Long>()
-            var rest = line
+            var cursor = 0
             while (true) {
-                val match = TIMESTAMP.matchAt(rest, 0) ?: break
+                val match = TIMESTAMP.matchAt(line, cursor) ?: break
                 times += stampMs(match)
-                rest = rest.substring(match.range.last + 1)
+                cursor = match.range.last + 1
+                while (cursor < line.length && line[cursor].isWhitespace()) cursor++
             }
-            raws += Raw(times, INLINE_STAMP.replace(rest, "").trim())
+            // Retain one original string while scanning: repeated chorus stamps must not copy
+            // the entire remaining suffix once per stamp (quadratic for large embedded tags).
+            raws += Raw(times, INLINE_STAMP.replace(line.substring(cursor), "").trim())
         }
 
         // Expand chorus stamps, keep unstamped lines beside the stamped line they follow, and
@@ -113,9 +116,15 @@ public object EmbeddedLyrics {
                 keyed += Keyed(LyricLine(null, raw.text), lastKey, keyed.size)
             } else {
                 for (time in raw.times) {
-                    val shifted = (time - offsetMs).coerceAtLeast(0L)
+                    val shifted = when {
+                        offsetMs >= time -> 0L
+                        offsetMs < 0L && time > Long.MAX_VALUE + offsetMs -> Long.MAX_VALUE
+                        else -> time - offsetMs
+                    }
                     keyed += Keyed(LyricLine(shifted, raw.text), shifted, keyed.size)
-                    lastKey = maxOf(lastKey, shifted)
+                    // An out-of-order verse still owns the unstamped translation below it.
+                    // Using the greatest timestamp seen so far attaches it to a later verse.
+                    lastKey = shifted
                 }
             }
         }
