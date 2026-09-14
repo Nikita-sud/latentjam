@@ -916,6 +916,88 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun `restart reencodes original year and language edits while audio stays warm`() = runTest {
+        val original = seed.copy(
+            title = "Song", artist = "Band", genre = "Rock", year = 2012,
+            originalYear = 1987, language = "rus",
+        )
+        val edits = listOf(
+            original.copy(originalYear = 1988) to "Rock; Band; 1988; russian",
+            original.copy(language = "eng") to "Rock; Band; 1987; english",
+            original.copy(originalYear = null) to "Rock; Band; 2012; russian",
+            original.copy(language = null) to "Rock; Band; 1987",
+        )
+        for ((edited, expectedText) in edits) {
+            val audioStore = FakeIndexStore()
+            val textStore = FakeIndexStore()
+            val firstEncoder = FakeTextEncoder()
+            val first = engine(
+                backend = FakeEmbeddingBackend(mutableMapOf(seed.id to floatArrayOf(1f, 0f, 0f))),
+                store = audioStore, textEncoder = firstEncoder,
+                textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM), textStore = textStore,
+            )
+            first.initialize()
+            first.indexLibrary(listOf(original))
+            assertEquals(listOf("Rock; Band; 1987; russian"), firstEncoder.encodedMetadata)
+
+            val encoder = FakeTextEncoder()
+            val backend = FakeEmbeddingBackend()
+            val restarted = engine(
+                backend = backend, store = audioStore, textEncoder = encoder,
+                textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM), textStore = textStore,
+            )
+            restarted.initialize()
+            assertEquals(0, restarted.synchronizeLibrary(listOf(edited)))
+            assertEquals(1, restarted.ensureMetadataVectors(listOf(edited)))
+            assertEquals(listOf(expectedText), encoder.encodedMetadata)
+            assertNotNull(restarted.embedding(seed.id))
+            assertEquals(0, backend.embedCalls)
+            assertEquals(0, backend.loadModelCalls)
+
+            val warmEncoder = FakeTextEncoder()
+            val warm = engine(
+                backend = FakeEmbeddingBackend(), store = audioStore, textEncoder = warmEncoder,
+                textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM), textStore = textStore,
+            )
+            warm.initialize()
+            warm.synchronizeLibrary(listOf(edited))
+            assertEquals(0, warm.ensureMetadataVectors(listOf(edited)))
+            assertTrue(warmEncoder.encodedMetadata.isEmpty())
+        }
+    }
+
+    @Test
+    fun `text v1 snapshot migrates once independently of the audio snapshot`() = runTest {
+        val audioStore = FakeIndexStore()
+        val textStore = FakeIndexStore()
+        val track = seed.copy(title = "Song", artist = "Band", genre = "Rock", year = 2012)
+        val first = engine(
+            backend = FakeEmbeddingBackend(mutableMapOf(seed.id to floatArrayOf(1f, 0f, 0f))),
+            store = audioStore, textEncoder = FakeTextEncoder(),
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM), textStore = textStore,
+        )
+        first.initialize()
+        first.indexLibrary(listOf(track))
+        textStore.identitySnapshots[TEXT_INDEX_VERSION] = mapOf(
+            track.id to "text-v1|4:Song|4:Band|4:Rock|4:2012",
+        )
+        for (pass in 0..1) {
+            val backend = FakeEmbeddingBackend()
+            val encoder = FakeTextEncoder()
+            val restarted = engine(
+                backend = backend, store = audioStore, textEncoder = encoder,
+                textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM), textStore = textStore,
+            )
+            restarted.initialize()
+            restarted.synchronizeLibrary(listOf(track))
+            assertEquals(if (pass == 0) 1 else 0, restarted.ensureMetadataVectors(listOf(track)))
+            assertEquals(if (pass == 0) listOf("Rock; Band; 2012") else emptyList(), encoder.encodedMetadata)
+            assertNotNull(restarted.embedding(track.id))
+            assertEquals(0, backend.embedCalls)
+        }
+    }
+
+    @Test
     fun `index save failure is observable to the indexing caller`() = runTest {
         val failingStore = object : IndexStore {
             override suspend fun load(modelVersion: String): Map<TrackId, FloatArray>? = null
@@ -1236,9 +1318,11 @@ internal class DefaultSimilarityEngineTest {
     }
 
     private class FakeTextEncoder : TextEncoder {
+        val encodedMetadata = mutableListOf<String>()
         override suspend fun load(): Result<Unit> = Result.success(Unit)
 
         override fun encode(metadata: String): FloatArray = FloatArray(TextEncoder.TEXT_DIM).also { vector ->
+            encodedMetadata += metadata
             when {
                 metadata.contains("Rock", ignoreCase = true) ||
                     metadata.equals("guitars", ignoreCase = true) -> vector[0] = 1f

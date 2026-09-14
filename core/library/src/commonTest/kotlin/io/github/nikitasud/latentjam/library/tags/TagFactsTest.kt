@@ -6,9 +6,58 @@ package io.github.nikitasud.latentjam.library.tags
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class TagFactsTest {
+
+    @Test
+    fun languageAndOriginalYearAreReadFromRealId3FramesWithoutReadingAudio() {
+        for (major in listOf(3, 4)) {
+            val languageBodies = listOf(
+                Id3TestTags.latin1Body("rus/eng"),
+                Id3TestTags.utf16Body("rus\u0000eng"),
+                Id3TestTags.utf8Body("русский"),
+            )
+            for ((index, languageBody) in languageBodies.withIndex()) {
+                val tag = Id3TestTags.build(
+                    major = major,
+                    frames = listOf(
+                        Id3TestTags.artFrame(4_096),
+                        TestFrame("TLAN", languageBody),
+                        TestFrame(if (major == 3) "TYER" else "TDRC", Id3TestTags.latin1Body("2012")),
+                        TestFrame(if (major == 3) "TORY" else "TDOR", Id3TestTags.latin1Body("1987")),
+                    ),
+                )
+                val source = ArraySource(tag + Id3TestTags.mp3Payload())
+                val facts = assertNotNull(TagFacts.embedded(source))
+                assertEquals(listOf("rus/eng", "rus", "русский")[index], facts.language)
+                assertEquals(1987, facts.originalYear)
+                assertEquals(tag.size, source.position, "Only the ID3 prefix is needed")
+            }
+        }
+    }
+
+    @Test
+    fun languageAndOriginalYearSurviveVorbisCommentsWithUnrelatedMetadata() {
+        val comments = listOf(
+            "TITLE=Example", "DATE=2012", "ORIGINALDATE=1987-06-12",
+            "LANGUAGE= ron ", "GENRE=Pop", "ARTISTS=First;Second",
+        )
+        val body = littleEndian(1) + byteArrayOf('v'.code.toByte()) +
+            littleEndian(comments.size) + comments.fold(byteArrayOf()) { bytes, comment ->
+                val value = comment.encodeToByteArray()
+                bytes + littleEndian(value.size) + value
+            }
+        val header = byteArrayOf(
+            0x84.toByte(), (body.size shr 16).toByte(), (body.size shr 8).toByte(), body.size.toByte(),
+        )
+        val facts = assertNotNull(TagFacts.embedded(ArraySource("fLaC".encodeToByteArray() + header + body)))
+        assertEquals("ron", facts.language)
+        assertEquals(1987, facts.originalYear)
+        assertEquals(listOf("Pop"), facts.genres)
+        assertEquals(listOf("First", "Second"), facts.artists)
+    }
 
     @Test
     fun vorbisArtistsFieldsBecomeTheCreditList() {
@@ -82,5 +131,25 @@ class TagFactsTest {
             listOf("ARTISTS" to "Gorillaz", "ARTISTS" to "gorillaz", "ARTISTS" to "Bootie Brown"),
         )
         assertEquals(listOf("Gorillaz", "Bootie Brown"), facts.artists)
+    }
+
+    private fun littleEndian(value: Int): ByteArray = ByteArray(4) { (value ushr (it * 8)).toByte() }
+
+    private class ArraySource(private val bytes: ByteArray) : GenreTags.ByteSource {
+        var position = 0
+            private set
+
+        override fun read(count: Int): ByteArray? {
+            if (count > bytes.size - position) return null
+            return bytes.copyOfRange(position, position + count).also { position += count }
+        }
+
+        override fun readUpTo(count: Int): ByteArray = read(minOf(count, bytes.size - position))!!
+
+        override fun skip(count: Long): Boolean {
+            if (count > bytes.size - position) return false
+            position += count.toInt()
+            return true
+        }
     }
 }
