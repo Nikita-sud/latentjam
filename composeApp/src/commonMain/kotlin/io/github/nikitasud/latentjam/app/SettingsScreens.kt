@@ -2079,8 +2079,7 @@ private fun DuplicatesSettings(
         if (busy) return
         busy = true
         scope.launch {
-            var message: String? = null
-            try {
+            val message = try {
                 // The verdict file is re-read and re-encoded whole; keep that off the UI thread.
                 withContext(Dispatchers.Default) {
                     settings.writeDuplicateDismissalsPayload(
@@ -2091,15 +2090,15 @@ private fun DuplicatesSettings(
                     )
                 }
                 groups = groups.filterNot { it.key == group.key }
-                message = dismissedMessage
+                dismissedMessage
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
-                message = manageFailed
+                manageFailed
             } finally {
                 busy = false
             }
-            message?.let { snackbarHostState.showSnackbar(it) }
+            snackbarHostState.showSnackbar(message)
         }
     }
 
@@ -2107,8 +2106,7 @@ private fun DuplicatesSettings(
         if (busy) return
         busy = true
         scope.launch {
-            var message: String? = null
-            try {
+            val message = try {
                 onHideTracks(listOf(copy.track))
                 val remaining = group.copies.filterNot { it.track.id == copy.track.id }
                 groups = groups.mapNotNull { candidate ->
@@ -2118,15 +2116,15 @@ private fun DuplicatesSettings(
                         else -> null
                     }
                 }
-                message = removedMessage
+                removedMessage
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
-                message = manageFailed
+                manageFailed
             } finally {
                 busy = false
             }
-            message?.let { snackbarHostState.showSnackbar(it) }
+            snackbarHostState.showSnackbar(message)
         }
     }
 
