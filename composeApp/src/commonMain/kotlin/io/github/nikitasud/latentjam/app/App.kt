@@ -3586,8 +3586,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         }
                     }
                 },
-                canDelete = target.audioUri != null &&
-                    !target.id.value.startsWith("ios-media:"),
+                canDelete = canDeleteTrack(target),
                 onDelete = { deleteTarget = target },
                 onDismiss = { trackMenuRequest = null },
             )
@@ -3982,35 +3981,43 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     retryAutomaticIndexing()
                 },
                 onHideTrack = { target ->
-                    library.hide(target.id)
-                    scanLibrary()
-                    hasHiddenTracks = true
-                    updateSelectedCollection(selectedCollection?.let { selection ->
-                        selection.filterTracksForCollection { it.id != target.id }
-                            ?.let { remaining ->
-                                remaining.copy(
-                                    subtitle = trackCountLabel(remaining.tracks.size),
-                                )
-                            }
-                    })
-                    invalidateSmartRecommendationCaches()
+                    hideTracksAndRefresh(
+                        hide = { library.hide(target.id) },
+                        refresh = {
+                            hasHiddenTracks = true
+                            scanLibrary()
+                            updateSelectedCollection(selectedCollection?.let { selection ->
+                                selection.filterTracksForCollection { it.id != target.id }
+                                    ?.let { remaining ->
+                                        remaining.copy(
+                                            subtitle = trackCountLabel(remaining.tracks.size),
+                                        )
+                                    }
+                            })
+                            invalidateSmartRecommendationCaches()
+                        },
+                    )
                 },
                 onHideTracks = { targets ->
                     // One scan for the whole batch: a bulk duplicate merge would otherwise
                     // re-query the library once per hidden copy.
                     val ids = targets.mapTo(HashSet()) { it.id }
-                    library.hide(ids)
-                    scanLibrary()
-                    hasHiddenTracks = true
-                    updateSelectedCollection(selectedCollection?.let { selection ->
-                        selection.filterTracksForCollection { it.id !in ids }
-                            ?.let { remaining ->
-                                remaining.copy(
-                                    subtitle = trackCountLabel(remaining.tracks.size),
-                                )
-                            }
-                    })
-                    invalidateSmartRecommendationCaches()
+                    hideTracksAndRefresh(
+                        hide = { library.hide(ids) },
+                        refresh = {
+                            hasHiddenTracks = true
+                            scanLibrary()
+                            updateSelectedCollection(selectedCollection?.let { selection ->
+                                selection.filterTracksForCollection { it.id !in ids }
+                                    ?.let { remaining ->
+                                        remaining.copy(
+                                            subtitle = trackCountLabel(remaining.tracks.size),
+                                        )
+                                    }
+                            })
+                            invalidateSmartRecommendationCaches()
+                        },
+                    )
                 },
                 onDeleteTracks = deleteTrack,
                 onDuplicateDataChanged = {
@@ -4148,9 +4155,6 @@ private val MINI_PLAYER_HEIGHT = 76.dp
 
 /** Height of the contextual action row above the system navigation inset. */
 private val SELECTION_ACTION_BAR_HEIGHT = 76.dp
-
-private fun canDeleteTrack(track: TrackDescriptor): Boolean =
-    track.audioUri != null && !track.id.value.startsWith("ios-media:")
 
 // A selection is assembled in a click handler, which is not composition — so these resolve their
 // strings through the suspending resource API and are called from a coroutine. The alternative,

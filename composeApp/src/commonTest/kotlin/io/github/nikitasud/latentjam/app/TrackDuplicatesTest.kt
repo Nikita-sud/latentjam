@@ -16,6 +16,8 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -108,7 +110,7 @@ internal class TrackDuplicatesTest {
 
         val groups = audioDuplicateGroups(
             vectors = vectors,
-            dismissed = setOf(DuplicatePair.of(c, a)),
+            dismissed = DuplicateDismissals.decode(DuplicateDismissals.remember(null, listOf(c, a))),
             onProgress = { done, total -> progress += done to total },
         )
 
@@ -120,20 +122,110 @@ internal class TrackDuplicatesTest {
     }
 
     @Test
-    fun dismissalsRoundTripThroughTheirPayloadAndStayBounded() {
-        val pairs = DuplicateDismissals.pairsOf(
-            listOf(TrackId("42"), TrackId("Imported/Ночь|с трубой.flac"), TrackId("7")),
-        )
-        assertEquals(3, pairs.size)
-        assertEquals(pairs, DuplicateDismissals.decode(DuplicateDismissals.encode(pairs)))
-        assertEquals(emptySet(), DuplicateDismissals.decode(null))
-        assertEquals(emptySet(), DuplicateDismissals.decode("v1|zz|00\nnonsense"))
+    fun dismissalsRoundTripOpaqueIdsThroughTheirPayload() {
+        val ids = listOf(TrackId("42"), TrackId("Imported/Ночь|с трубой.flac"), TrackId("7"))
+        val decoded = DuplicateDismissals.decode(DuplicateDismissals.remember(null, ids))
+        for (a in ids) for (b in ids) {
+            if (a != b) assertTrue(decoded.excludes(a, b))
+        }
+        assertTrue(DuplicateDismissals.decode(null).isEmpty())
+        assertTrue(DuplicateDismissals.decode("v1|zz|00\nnonsense").isEmpty())
+    }
 
-        val many = (0 until 2_500).map { DuplicatePair.of(TrackId("x$it"), TrackId("y$it")) }
-        val kept = DuplicateDismissals.decode(DuplicateDismissals.encode(many))
-        assertEquals(2_000, kept.size)
-        assertTrue(many.last() in kept)
-        assertTrue(many.first() !in kept)
+    @Test
+    fun degenerateOrNonFiniteVectorsNeverRecommendRemovingTracks() {
+        val invalidRows = listOf(
+            floatArrayOf(),
+            floatArrayOf(0f, 0f),
+            floatArrayOf(Float.NaN, 0f),
+            floatArrayOf(Float.POSITIVE_INFINITY, 0f),
+        )
+        invalidRows.forEach { row ->
+            assertTrue(audioDuplicateGroups(mapOf(TrackId("a") to row, TrackId("b") to row)).isEmpty())
+        }
+        // Zero rows can share the index with normal audio; they still have no audio evidence.
+        assertTrue(audioDuplicateGroups(mapOf(
+            TrackId("zero") to floatArrayOf(0f, 0f),
+            TrackId("valid") to unit(1f, 0f),
+        )).isEmpty())
+        assertFailsWith<IllegalArgumentException> {
+            audioDuplicateGroups(emptyMap(), threshold = Float.NaN)
+        }
+    }
+
+    @Test
+    fun vectorMagnitudeCannotCreateOrHideADuplicate() {
+        val vectors = mapOf(
+            TrackId("a") to floatArrayOf(0.001f, 0f),
+            TrackId("b") to floatArrayOf(0f, 0.001f),
+            TrackId("c") to floatArrayOf(10f, 0f),
+        )
+        assertEquals(listOf(listOf(TrackId("a"), TrackId("c"))), audioDuplicateGroups(vectors))
+        assertTrue(audioDuplicateGroups(mapOf(
+            TrackId("large") to floatArrayOf(Float.MAX_VALUE, 0f),
+            TrackId("small") to floatArrayOf(0f, Float.MIN_VALUE),
+        )).isEmpty())
+    }
+
+    @Test
+    fun aLargeDismissalSurvivesRestartAsOneWholeVerdict() {
+        // 64 tracks require 2,016 pairs: the old 2,000-pair cap immediately forgot 16 of them.
+        val ids = (0 until 100).map { TrackId("copy-$it") }
+        val payload = DuplicateDismissals.remember(null, ids)
+        assertEquals(1, payload.lineSequence().count())
+        val dismissed = DuplicateDismissals.decode(payload)
+        for (a in ids) for (b in ids) {
+            if (a != b) assertTrue(dismissed.excludes(a, b), "$a / $b")
+        }
+        assertTrue(audioDuplicateGroups(ids.associateWith { unit(1f, 0f) }, dismissed = dismissed).isEmpty())
+        assertFalse(dismissed.excludes(ids.first(), TrackId("new-copy")))
+    }
+
+    @Test
+    fun dismissalsReadLegacyPairsAndRejectMalformedIdsWithoutInventingTracks() {
+        val legacy = "v1|61|62"
+        val current = DuplicateDismissals.remember(legacy, listOf(TrackId("c"), TrackId("d")))
+        val dismissed = DuplicateDismissals.decode(current)
+        assertTrue(dismissed.excludes(TrackId("a"), TrackId("b")))
+        assertTrue(dismissed.excludes(TrackId("c"), TrackId("d")))
+        assertFalse(dismissed.excludes(TrackId("a"), TrackId("c")))
+        assertTrue(DuplicateDismissals.decode("v1|ff|61\nv1|-1|61\nv1|61|61").isEmpty())
+        assertEquals(current, DuplicateDismissals.remember(current, listOf(TrackId("d"), TrackId("c"))))
+    }
+
+    @Test
+    fun decodeAndEncodeKeepOnlyBoundedWholeRecentVerdicts() {
+        val oversizedLegacy = (0 until 2_500).joinToString("\n") { index ->
+            "v1|${index.toString().encodeToByteArray().joinToString("") { it.toString(16).padStart(2, '0') }}|78"
+        }
+        val legacy = DuplicateDismissals.decode(oversizedLegacy)
+        assertFalse(legacy.excludes(TrackId("0"), TrackId("x")))
+        assertTrue(legacy.excludes(TrackId("2499"), TrackId("x")))
+
+        var payload = ""
+        for (index in 0 until 100) {
+            payload = DuplicateDismissals.remember(payload, listOf(TrackId("a-$index-" + "x".repeat(2_000)), TrackId("b-$index")))
+        }
+        assertTrue(payload.length <= 262_144)
+        val bounded = DuplicateDismissals.decode(payload)
+        assertFalse(bounded.excludes(TrackId("a-0-" + "x".repeat(2_000)), TrackId("b-0")))
+        assertTrue(bounded.excludes(TrackId("a-99-" + "x".repeat(2_000)), TrackId("b-99")))
+    }
+
+    @Test
+    fun opaqueIdsHaveCollisionFreeGroupKeysAndAConsistentRecommendation() {
+        fun group(vararg ids: String) = describeDuplicateGroup(
+            ids.map { TrackDescriptor(id = TrackId(it)) }, emptyMap(), emptySet(), emptyMap(),
+        )
+        assertFalse(group("a\nb", "c").key == group("a", "b\nc").key)
+        // The old mixed numeric/text comparator formed a cycle: 2 < 10 < 1x < 2.
+        val ids = listOf("2", "10", "1x")
+        for (a in ids) for (b in ids.filterNot { it == a }) {
+            val c = ids.single { it != a && it != b }
+            assertEquals(TrackId("2"), group(a, b, c).recommended.track.id)
+        }
+        assertEquals(TrackId("02"), group("2", "02").recommended.track.id)
+        assertEquals(TrackId("02"), group("02", "2").recommended.track.id)
     }
 
     @Test

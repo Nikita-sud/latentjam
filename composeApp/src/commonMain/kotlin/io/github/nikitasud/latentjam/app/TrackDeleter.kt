@@ -7,6 +7,10 @@ package io.github.nikitasud.latentjam.app
 import androidx.compose.runtime.Composable
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 
+/** Music-library entries on iOS are read-only; imported files and Android media can be deleted. */
+internal fun canDeleteTrack(track: TrackDescriptor): Boolean =
+    !track.audioUri.isNullOrBlank() && !track.id.value.startsWith("ios-media:")
+
 /**
  * Deletes a track's file from the device.
  *

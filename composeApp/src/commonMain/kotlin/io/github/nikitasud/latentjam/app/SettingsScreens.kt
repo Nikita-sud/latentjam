@@ -1962,7 +1962,6 @@ private fun DuplicatesSettings(
     var pendingMerge by remember {
         mutableStateOf<List<Pair<DuplicateGroup, DuplicateCopy>>?>(null)
     }
-    var deleteFiles by remember { mutableStateOf(false) }
     val manageFailed = stringResource(Res.string.settings_library_manage_failed)
     val removedMessage = stringResource(Res.string.snack_removed_from_latentjam)
     val mergedMessage = stringResource(Res.string.snack_duplicates_merged)
@@ -1980,26 +1979,26 @@ private fun DuplicatesSettings(
         pendingMerge = null
         var showFailure = false
         try {
-            // Indexing may still be running; tracks without a vector simply sit this scan out.
-            val vectors = LinkedHashMap<TrackId, FloatArray>(tracks.size)
-            for (track in tracks) {
-                currentCoroutineContext().ensureActive()
-                AppGraph.engine.embedding(track.id)?.let { vectors[track.id] = it }
-            }
-            val byId = tracks.associateBy(TrackDescriptor::id)
-            val durations = tracks.associate { track -> track.id to track.durationMs }
-            val dismissed = DuplicateDismissals.decode(settings.readDuplicateDismissalsPayload())
-            val stats = history.stats()
-            val favoriteIds = AppGraph.favorites.all().toSet()
-            val playlistCounts = HashMap<TrackId, Int>()
-            for (playlist in AppGraph.playlists.all()) {
-                for (member in playlist.trackIds.toSet()) {
-                    val id = TrackId(member)
-                    playlistCounts[id] = (playlistCounts[id] ?: 0) + 1
-                }
-            }
             val computed = withContext(Dispatchers.Default) {
                 val scanContext = currentCoroutineContext()
+                // Indexing may still be running; tracks without a vector simply sit this scan out.
+                val vectors = LinkedHashMap<TrackId, FloatArray>(tracks.size)
+                for (track in tracks) {
+                    currentCoroutineContext().ensureActive()
+                    AppGraph.engine.embedding(track.id)?.let { vectors[track.id] = it }
+                }
+                val byId = tracks.associateBy(TrackDescriptor::id)
+                val durations = tracks.associate { track -> track.id to track.durationMs }
+                val dismissed = DuplicateDismissals.decode(settings.readDuplicateDismissalsPayload())
+                val stats = history.stats()
+                val favoriteIds = AppGraph.favorites.all().toSet()
+                val playlistCounts = HashMap<TrackId, Int>()
+                for (playlist in AppGraph.playlists.all()) {
+                    for (member in playlist.trackIds.toSet()) {
+                        val id = TrackId(member)
+                        playlistCounts[id] = (playlistCounts[id] ?: 0) + 1
+                    }
+                }
                 audioDuplicateGroups(
                     vectors = vectors,
                     durationsMs = durations,
@@ -2042,77 +2041,73 @@ private fun DuplicatesSettings(
         chosen[group.key]?.let(group::copy) ?: group.recommended
 
     fun finishMerge(merges: List<Pair<DuplicateGroup, DuplicateCopy>>, delete: Boolean) {
+        if (busy) return
+        busy = true
         scope.launch {
-            busy = true
-            var failure: Throwable? = null
-            val losers = mutableListOf<TrackDescriptor>()
+            // The screen unlocks before the snackbar shows: showSnackbar suspends for the
+            // message's whole lifetime, and the next merge must not wait for it.
+            var message: String? = null
             try {
-                for ((group, survivor) in merges) {
-                    mergeDuplicateGroup(
-                        group = group.copies.map { it.track },
-                        survivor = survivor.track,
-                        playlists = AppGraph.playlists,
-                        favorites = AppGraph.favorites,
-                        onHideTrack = { losers += it },
-                    )
-                }
-                if (!delete && losers.isNotEmpty()) onHideTracks(losers)
-            } catch (cancelled: CancellationException) {
-                failure = cancelled
-            } catch (problem: Throwable) {
-                failure = problem
-            }
-            // A late playlist/favorites CAS failure can leave earlier playlists safely rewritten
-            // even though nothing was hidden. Always republish durable state so the app and SMART
-            // companion groups cannot go stale.
-            try {
-                withContext(kotlinx.coroutines.NonCancellable) { onDuplicateDataChanged() }
-            } catch (problem: Throwable) {
-                if (failure == null) failure = problem
-            }
-            busy = false
-            if (failure is CancellationException) throw failure
-            when {
-                failure != null -> snackbarHostState.showSnackbar(manageFailed)
-                delete -> {
-                    // The system owns the destructive step: a confirmed delete rescans the
-                    // library and these groups rebuild without the files; a cancelled one leaves
-                    // every copy where it was, with playlists already on the survivor.
-                    if (losers.isNotEmpty()) onDeleteTracks(losers)
-                }
-                else -> {
+                performDuplicateMerge(
+                    merges = merges,
+                    deleteFiles = delete,
+                    playlists = AppGraph.playlists,
+                    favorites = AppGraph.favorites,
+                    onHideTracks = onHideTracks,
+                    onDeleteTracks = onDeleteTracks,
+                    onDataChanged = onDuplicateDataChanged,
+                )
+                if (!delete) {
                     val mergedKeys = merges.mapTo(HashSet()) { it.first.key }
                     groups = groups.filterNot { it.key in mergedKeys }
-                    snackbarHostState.showSnackbar(mergedMessage)
+                    message = mergedMessage
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                // Native deletion can reject unsupported/stale URIs or a request larger than
+                // the platform permits. Report it without crashing after reference updates.
+                message = manageFailed
+            } finally {
+                busy = false
             }
+            message?.let { snackbarHostState.showSnackbar(it) }
         }
     }
 
     fun dismissGroup(group: DuplicateGroup) {
+        if (busy) return
+        busy = true
         scope.launch {
-            busy = true
+            var message: String? = null
             try {
-                val existing = DuplicateDismissals.decode(settings.readDuplicateDismissalsPayload())
-                val verdicts = DuplicateDismissals.pairsOf(group.copies.map { it.track.id })
-                settings.writeDuplicateDismissalsPayload(
-                    DuplicateDismissals.encode(existing + verdicts),
-                )
+                // The verdict file is re-read and re-encoded whole; keep that off the UI thread.
+                withContext(Dispatchers.Default) {
+                    settings.writeDuplicateDismissalsPayload(
+                        DuplicateDismissals.remember(
+                            settings.readDuplicateDismissalsPayload(),
+                            group.copies.map { it.track.id },
+                        ),
+                    )
+                }
                 groups = groups.filterNot { it.key == group.key }
-                snackbarHostState.showSnackbar(dismissedMessage)
+                message = dismissedMessage
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
-                snackbarHostState.showSnackbar(manageFailed)
+                message = manageFailed
             } finally {
                 busy = false
             }
+            message?.let { snackbarHostState.showSnackbar(it) }
         }
     }
 
     fun hideCopy(group: DuplicateGroup, copy: DuplicateCopy) {
+        if (busy) return
+        busy = true
         scope.launch {
-            busy = true
+            var message: String? = null
             try {
                 onHideTracks(listOf(copy.track))
                 val remaining = group.copies.filterNot { it.track.id == copy.track.id }
@@ -2123,14 +2118,15 @@ private fun DuplicatesSettings(
                         else -> null
                     }
                 }
-                snackbarHostState.showSnackbar(removedMessage)
+                message = removedMessage
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
-                snackbarHostState.showSnackbar(manageFailed)
+                message = manageFailed
             } finally {
                 busy = false
             }
+            message?.let { snackbarHostState.showSnackbar(it) }
         }
     }
 
@@ -2176,6 +2172,9 @@ private fun DuplicatesSettings(
                             ),
                         )
                         FilledTonalButton(
+                            // The selection IS the recommendation unless the listener changed a
+                            // row; a changed row is an explicit "keep this one" and the bulk
+                            // action must never discard the copy someone just marked to keep.
                             onClick = { pendingMerge = groups.map { it to survivorOf(it) } },
                             enabled = !busy,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -2203,7 +2202,8 @@ private fun DuplicatesSettings(
         val otherCopies = merges.sumOf { (group, _) -> group.copies.size - 1 }
         // Deleting files is the irreversible choice, so every dialog starts from the safe one;
         // a listener who wants files gone says so each time.
-        LaunchedEffect(merges) { deleteFiles = false }
+        var deleteFiles by remember(merges) { mutableStateOf(false) }
+        val canDeleteFiles = canDeleteDuplicateFiles(merges)
         AlertDialog(
             onDismissRequest = { pendingMerge = null },
             title = { Text(stringResource(Res.string.settings_duplicates)) },
@@ -2224,7 +2224,7 @@ private fun DuplicatesSettings(
                     listOf(
                         false to Res.string.duplicates_hide_files,
                         true to Res.string.duplicates_delete_files,
-                    ).forEach { (delete, label) ->
+                    ).filter { (delete, _) -> !delete || canDeleteFiles }.forEach { (delete, label) ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
