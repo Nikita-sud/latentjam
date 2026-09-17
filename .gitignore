@@ -17,3 +17,8 @@ __pycache__/
 
 # Research outputs (regenerable)
 tools/research/results/
+
+# Signing keys never enter the repository; keystore.properties points at them.
+keystore.properties
+*.jks
+*.keystore
