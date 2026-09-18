@@ -66,6 +66,8 @@ Grab the latest build from the [Releases page](https://github.com/Nikita-sud/lat
 These are experimental builds for sideloading, not store releases. SMART gets good once a chunk of
 your library has been analysed in the background — the first launch starts that work on its own.
 
+**Privacy:** the app has no network access and collects nothing; everything stays on the device. Details in [PRIVACY.md](PRIVACY.md).
+
 ## Why it exists
 
 Your library is full of music a good DJ would sequence beautifully and that random shuffle butchers.
