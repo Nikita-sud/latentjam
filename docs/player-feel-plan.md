@@ -1,6 +1,8 @@
 # Player Feel Implementation Plan
 
 > **Executor notes:** work task by task, in order. Each task ends with a green test run, a build, and one commit. Steps use checkbox (`- [ ]`) syntax for tracking. Nothing in this plan is optional unless the task says so.
+>
+> **Status (2026-09-20):** all eleven tasks landed, one commit each, verified on the `LJ-demo` emulator with the demo library and by the host test suites (`:composeApp` 359, `:core:playback` 68). Not yet verified: the iOS build on a device (it compiles), the fades by ear on a phone, and the Bluetooth branch of the output status with real headphones. Two departures from the text below: Task 4 and Task 5 landed as one commit, and the tilt during a swipe applies to the card alone rather than the whole group (a tilted group swung the neighbour cover up and down).
 
 **Goal:** Port the "B" player concept and its feel layer into the app: gestures on the cover (tap flips to track details, hold opens actions, swipe changes track, drag down closes), a live seek bar with fine scrubbing, a mode button with a hold menu, direct track actions from ⋮, a drifting colour cloud, haptics, and audio fades on pause and resume — all without adding steady-state Compose work to the player.
 
@@ -53,7 +55,7 @@ Every threshold the gestures use, in one file, so the composables contain no num
   - `fun estimatedBitrateKbps(sizeBytes: Long?, durationMs: Long?): Int?` — average from size and duration; null when either is missing or zero.
   - `fun fileFormatLabel(fileName: String?, sizeBytes: Long?, durationMs: Long?): String?` — e.g. `FLAC · 1 010 kbps · 34.2 MB`; extension upper-cased; null when the name has no extension.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```kotlin
 /*
@@ -137,12 +139,12 @@ class PlayerFeelTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `./gradlew --no-daemon :composeApp:testAndroidHostTest --tests "*PlayerFeelTest*"`
 Expected: compilation failure, `Unresolved reference: artworkDragAxis`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```kotlin
 /*
@@ -244,12 +246,12 @@ private const val SKIP_HOLD_BASE = 4
 private const val SKIP_HOLD_MAX_STEPS = 3
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew --no-daemon :composeApp:testAndroidHostTest --tests "*PlayerFeelTest*"`
 Expected: 7 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add composeApp/src/commonMain/kotlin/io/github/nikitasud/latentjam/app/PlayerFeel.kt composeApp/src/commonTest/kotlin/io/github/nikitasud/latentjam/app/PlayerFeelTest.kt docs/player-feel-plan.md
@@ -267,7 +269,7 @@ git commit -m "feat(player): the arithmetic behind the cover, seek and skip gest
 **Interfaces:**
 - Produces: `enum class PlayerHaptic { TAP, HOLD, THRESHOLD, SUCCESS, REJECT, EDGE, RELEASE }`, `fun PlayerHaptic.feedbackType(): HapticFeedbackType`, `fun HapticFeedback.play(event: PlayerHaptic)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```kotlin
 /*
@@ -294,9 +296,9 @@ class PlayerHapticsTest {
 }
 ```
 
-- [ ] **Step 2: Run it, expect `Unresolved reference: PlayerHaptic`.**
+- [x] **Step 2: Run it, expect `Unresolved reference: PlayerHaptic`.**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```kotlin
 /*
@@ -329,8 +331,8 @@ internal fun PlayerHaptic.feedbackType(): HapticFeedbackType = when (this) {
 internal fun HapticFeedback.play(event: PlayerHaptic) = performHapticFeedback(event.feedbackType())
 ```
 
-- [ ] **Step 4: Run, expect 1 test passing.**
-- [ ] **Step 5: Commit** — `feat(player): one haptics vocabulary for the player`.
+- [x] **Step 4: Run, expect 1 test passing.**
+- [x] **Step 5: Commit** — `feat(player): one haptics vocabulary for the player`.
 
 ---
 
@@ -365,7 +367,7 @@ New keys (English source values; translate each into ar, de, es, fr, hi, id, in,
 | `output_bluetooth` | Bluetooth |
 | `cd_output_route` | Playing on %1$s. Tap to choose where to play. |
 
-- [ ] Add the keys to `values/strings.xml` and every translation; run `./gradlew --no-daemon :composeApp:testAndroidHostTest --tests "*StringResourceParityTest*"`; commit `feat(app): player copy in 18 locales`.
+- [x] Add the keys to `values/strings.xml` and every translation; run `./gradlew --no-daemon :composeApp:testAndroidHostTest --tests "*StringResourceParityTest*"`; commit `feat(app): player copy in 18 locales`.
 
 ---
 
@@ -401,8 +403,8 @@ internal fun PlayerArtworkCard(
 - Haptics: TAP on flip, HOLD when the actions open, THRESHOLD when the swipe arms, REJECT on a blocked swipe past 40.dp, TAP on a commit, RELEASE when a collapse drag springs back.
 - A committed swipe animates the card fully out (`width + 24.dp` in the travel direction, 280 ms), calls `onSkip`, and the card re-enters from the opposite side when `track.id` changes (`AnimatedContent(track, contentKey = id)` with `slideInHorizontally`/`slideOutHorizontally` in the remembered direction; fade-through when the change was not a swipe).
 
-- [ ] Implement `PlayerArtworkCard` and the details face slot; wire into `NowPlayingScreen`; build Android and iOS; smoke on the emulator: tap flips, hold opens the actions sheet, swipe changes track, pull closes.
-- [ ] Commit `feat(player): the cover flips to details, holds for actions, swipes tracks and pulls the player closed`.
+- [x] Implement `PlayerArtworkCard` and the details face slot; wire into `NowPlayingScreen`; build Android and iOS; smoke on the emulator: tap flips, hold opens the actions sheet, swipe changes track, pull closes.
+- [x] Commit `feat(player): the cover flips to details, holds for actions, swipes tracks and pulls the player closed`.
 
 ---
 
@@ -427,7 +429,7 @@ internal fun TrackDetailsFace(
 - `stats` is read once per flip in `NowPlayingScreen`: `LaunchedEffect(flipped, track.id) { if (flipped) stats = AppGraph.history.stats()[track.id] }`. It is not observed continuously.
 - New parameters on `NowPlayingScreen`: `onEditTags: (TrackDescriptor) -> Unit`, `onShowOnMap: ((TrackDescriptor) -> Unit)?`; App passes `{ infoTarget = it }` and the same map-focus lambda the actions sheet uses (extract it into a local `fun showOnMap(track)` so both share it).
 
-- [ ] Implement, build, smoke (flip shows rows, Edit tags opens the editor), commit `feat(player): track details on the back of the cover`.
+- [x] Implement, build, smoke (flip shows rows, Edit tags opens the editor), commit `feat(player): track details on the back of the cover`.
 
 ---
 
@@ -449,7 +451,7 @@ internal fun PlayerSeekBar(playback: PlaybackController, durationMs: Long, lyric
 - Times row: elapsed on the left; the right label is a `TextButton`-less clickable text toggling between total and `−remaining` (`cd_time_toggle`, TAP haptic).
 - Semantics: `progressBarRangeInfo` + `cd_seek_position`, `setProgress` action seeks.
 
-- [ ] Implement, build, smoke (tap, drag, fine mode, bubble, remaining toggle), commit `feat(player): a thin live seek bar with fine scrubbing and a time bubble`.
+- [x] Implement, build, smoke (tap, drag, fine mode, bubble, remaining toggle), commit `feat(player): a thin live seek bar with fine scrubbing and a time bubble`.
 
 ---
 
@@ -464,7 +466,7 @@ internal fun PlayerSeekBar(playback: PlaybackController, durationMs: Long, lyric
 - Mode button (replaces `ShuffleButton` in place, same slot): icon `Icons.Rounded.Shuffle` for OFF/ON, `LatentJamMark` for SMART, tinted as today; tap cycles (`cycleShuffleMode`, TAP); hold (450 ms, HOLD) opens `PlayerModeMenu`: a `DropdownMenu` anchored to the button with three rows (`player_mode_off`/`player_mode_shuffle`/`player_mode_smart`, the current one ticked → `setShuffleMode`) and a `intelligence_queue_length` row with 10 · 20 · 40 chips (`settings.setSmartQueueLength`, using `SMART_QUEUE_LENGTH_OPTIONS`). `cd_mode_button` with the current mode name.
 - `NowPlayingScreen` gains `smartQueueLength: Int` and `onSmartQueueLength: (Int) -> Unit` parameters; App passes `smartQueueLength` and `settings::setSmartQueueLength` (the same setter Settings uses).
 
-- [ ] Implement, build, smoke (morph, hold-scan, mode menu), commit `feat(player): play button morphs, skip buttons scan on hold, the mode button chooses on hold`.
+- [x] Implement, build, smoke (morph, hold-scan, mode menu), commit `feat(player): play button morphs, skip buttons scan on hold, the mode button chooses on hold`.
 
 ---
 
@@ -475,7 +477,7 @@ internal fun PlayerSeekBar(playback: PlaybackController, durationMs: Long, lyric
 - Modify: `TrackActionsSheet.kt` — new optional `onSleepTimer: (() -> Unit)?` row (`Icons.Rounded.Bedtime`, `sleep_timer`, shows the countdown subtitle as the dropdown did) placed after `action_information`.
 - Modify: `NowPlayingScreen.kt` — the ⋮ button calls `onTrackMenu(track)` directly; the sleep-timer dialog state moves behind the sheet's row (`showSleepTimer` is set by App through a new `sleepTimerRequest: Int` parameter, mirroring `detailsRequest`); artist and album become `TextButton`-styled links (`showAlbumOf`/`showArtistOf`), album omitted when blank; the "Playing from" label becomes a borderless chip with a queue icon (`Icons.AutoMirrored.Rounded.QueueMusic`) that expands the queue sheet (`sheetState.bottomSheetState.expand()`).
 
-- [ ] Implement, build, smoke, commit `feat(player): actions in one tap from ⋮, sleep timer inside them, artist and album as links`.
+- [x] Implement, build, smoke, commit `feat(player): actions in one tap from ⋮, sleep timer inside them, artist and album as links`.
 
 ---
 
@@ -494,7 +496,7 @@ internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifi
 - Phase: one `mutableFloatStateOf` advanced by a `LaunchedEffect(playing, reduceMotion)` loop of `withFrameNanos` that writes at most every 3rd frame (~20 fps) and does nothing while paused or under Reduce Motion (the cloud freezes where it is). Centres move on slow sine paths (periods 19/23/27 s); while playing the whole group scales 1 → 1.06 → 0.98 on a 0.86 s cycle (the breath).
 - Read only inside `drawBehind`. No composition reads the phase. Cost target: 3 gradient fills per drawn frame, ≤ 20 draws per second, zero when paused.
 
-- [ ] Implement, build, smoke (drift while playing, still on pause), commit `perf(player): a drifting colour cloud that costs nothing while paused`.
+- [x] Implement, build, smoke (drift while playing, still on pause), commit `perf(player): a drifting colour cloud that costs nothing while paused`.
 
 ---
 
@@ -517,7 +519,7 @@ internal expect fun openAudioOutputChooser()   // Android: Settings.ACTION_BLUET
 - iOS: `AVAudioSession.sharedInstance().currentRoute.outputs.firstOrNull()` mapped by `portType`; `AVAudioSessionRouteChangeNotification` observer updates the state.
 - UI: `output_headphones` icon (`Icons.Rounded.Headphones`) or speaker (`Icons.Rounded.Speaker`), the route name or the generic string, `cd_output_route`, TAP haptic + `openAudioOutputChooser()`.
 
-- [ ] Implement, build both platforms, smoke on the emulator (speaker) and, when the phone is connected, with Bluetooth headphones; commit `feat(player): where the sound is going, in the top bar`.
+- [x] Implement, build both platforms, smoke on the emulator (speaker) and, when the phone is connected, with Bluetooth headphones; commit `feat(player): where the sound is going, in the top bar`.
 
 ---
 
@@ -539,7 +541,7 @@ public const val TRANSPORT_FADE_IN_MS: Long = 220
 public fun transportFadeFactor(elapsedMs: Long, durationMs: Long, fadingOut: Boolean): Float
 ```
 
-- [ ] Tests: factor is 1 at start of a fade-out and 0 at its end, 0 → 1 for a fade-in, clamps past the end, `durationMs <= 0` returns the terminal value; then implement; run `./gradlew --no-daemon :core:playback:testAndroidHostTest`; build both platforms; smoke by ear on the phone; commit `feat(playback): pause and resume fade instead of cutting`.
+- [x] Tests: factor is 1 at start of a fade-out and 0 at its end, 0 → 1 for a fade-in, clamps past the end, `durationMs <= 0` returns the terminal value; then implement; run `./gradlew --no-daemon :core:playback:testAndroidHostTest`; build both platforms; smoke by ear on the phone; commit `feat(playback): pause and resume fade instead of cutting`.
 
 ---
 
