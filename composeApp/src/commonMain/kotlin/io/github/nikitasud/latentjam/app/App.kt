@@ -723,6 +723,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var showSettings by rememberSaveable { mutableStateOf(false) }
         var infoTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
         var playerDetailsRequest by remember { mutableStateOf(0) }
+        var playerSleepTimerRequest by remember { mutableStateOf(0) }
         var showNowPlaying by remember { mutableStateOf(false) }
         var showSearch by remember { mutableStateOf(false) }
         var selectedCollection by remember { mutableStateOf<CollectionSelection?>(null) }
@@ -2138,6 +2139,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             trackMenuRequest = TrackMenuRequest(track, fromPlayer = true)
                         },
                         detailsRequest = playerDetailsRequest,
+                        sleepTimerRequest = playerSleepTimerRequest,
+                        // Both close the player themselves once the collection is built; closing
+                        // it first would change the root the open is guarded against mid-flight.
+                        onGoToAlbum = { track -> showAlbumOf(track) },
+                        onGoToArtist = { track -> showArtistOf(track) },
                         smartQueueLength = smartQueueLength,
                         onSmartQueueLength = settings::setSmartQueueLength,
                         onEditTags = { infoTarget = it },
@@ -3542,6 +3548,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onInfo = {
                     if (request.fromPlayer) playerDetailsRequest++ else infoTarget = target
                 },
+                // The sleep timer belongs to the player's own sheet; other surfaces keep the
+                // shorter list they always had.
+                onSleepTimer = if (request.fromPlayer) {
+                    { playerSleepTimerRequest++ }
+                } else null,
+                sleepTimerState = sleepTimerState,
                 isTrackExcludedFromSmart = trackExcluded,
                 isArtistExcludedFromSmart = artistExcluded,
                 onToggleTrackSmartExclusion = {
@@ -4534,13 +4546,15 @@ private fun SelectionAction(
 internal fun OverflowButton(
     sharedScope: SharedTransitionScope,
     animatedScope: AnimatedVisibilityScope,
-    menuItems: @Composable ColumnScope.(dismiss: () -> Unit) -> Unit,
+    /** Set, the button goes straight to this instead of dropping a menu. */
+    onClick: (() -> Unit)? = null,
+    menuItems: @Composable ColumnScope.(dismiss: () -> Unit) -> Unit = {},
 ) {
     var open by remember { mutableStateOf(false) }
     val reduceMotion = rememberReduceMotion()
     Box {
         IconButton(
-            onClick = { open = true },
+            onClick = { if (onClick != null) onClick() else open = true },
             modifier = if (reduceMotion) {
                 Modifier
             } else with(sharedScope) {
@@ -4555,8 +4569,10 @@ internal fun OverflowButton(
                 contentDescription = stringResource(Res.string.cd_more_options),
             )
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            menuItems { open = false }
+        if (onClick == null) {
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                menuItems { open = false }
+            }
         }
     }
 }

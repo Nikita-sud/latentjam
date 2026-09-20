@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
@@ -62,6 +63,9 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_delete_from_
 import io.github.nikitasud.latentjam.app.generated.resources.action_go_to_album
 import io.github.nikitasud.latentjam.app.generated.resources.action_go_to_artist
 import io.github.nikitasud.latentjam.app.generated.resources.action_information
+import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer
+import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer_active_end_of_track
+import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer_active_minutes
 import io.github.nikitasud.latentjam.app.generated.resources.action_exclude_artist_from_smart
 import io.github.nikitasud.latentjam.app.generated.resources.action_exclude_track_from_smart
 import io.github.nikitasud.latentjam.app.generated.resources.action_include_artist_in_smart
@@ -78,6 +82,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.label_track
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
+import io.github.nikitasud.latentjam.playback.SleepTimerState
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -105,6 +110,9 @@ internal fun TrackActionsSheet(
     /** Non-null only when the Map has actually drawn this track's dot. */
     onShowOnMap: (() -> Unit)? = null,
     onInfo: () -> Unit,
+    /** Present only from the full player, which is where a listener reaches for it. */
+    onSleepTimer: (() -> Unit)? = null,
+    sleepTimerState: SleepTimerState? = null,
     isTrackExcludedFromSmart: Boolean,
     isArtistExcludedFromSmart: Boolean,
     onToggleTrackSmartExclusion: () -> Unit,
@@ -246,6 +254,21 @@ internal fun TrackActionsSheet(
                 Icons.Rounded.Info,
                 stringResource(Res.string.action_information),
             ) { dismissThen(onInfo) }
+            onSleepTimer?.let { sleepTimer ->
+                SheetAction(
+                    icon = Icons.Rounded.Bedtime,
+                    label = stringResource(Res.string.sleep_timer),
+                    supporting = when (val timer = sleepTimerState) {
+                        is SleepTimerState.Countdown -> stringResource(
+                            Res.string.sleep_timer_active_minutes,
+                            timer.remainingMinutes,
+                        )
+                        SleepTimerState.EndOfTrack ->
+                            stringResource(Res.string.sleep_timer_active_end_of_track)
+                        else -> null
+                    },
+                ) { dismissThen(sleepTimer) }
+            }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             // An artist-level exclusion already covers every one of their tracks. Surface its
             // restore action first; a dormant track-specific rule appears after the artist returns.
@@ -430,6 +453,8 @@ private fun SheetAction(
     icon: ImageVector,
     label: String,
     tint: Color = Color.Unspecified,
+    /** A second, quieter line under the label: a state the action currently has. */
+    supporting: String? = null,
     onClick: () -> Unit,
 ) {
     val resolvedTint = if (tint == Color.Unspecified) {
@@ -446,10 +471,19 @@ private fun SheetAction(
         horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Icon(imageVector = icon, contentDescription = null, tint = resolvedTint)
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (tint == Color.Unspecified) Color.Unspecified else tint,
-        )
+        Column {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (tint == Color.Unspecified) Color.Unspecified else tint,
+            )
+            if (supporting != null) {
+                Text(
+                    text = supporting,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
