@@ -26,8 +26,12 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-/** A track's accent colour plus a readable foreground for it. */
-data class TrackAccent(val container: Color, val onContainer: Color)
+/**
+ * A track's accent colour plus a readable foreground for it. [vivid] is the same accent before
+ * it was toned into a surface: the cover's own colour, for places that paint with it rather
+ * than write on it.
+ */
+data class TrackAccent(val container: Color, val onContainer: Color, val vivid: Color = container)
 
 /**
  * Platform artwork sampling: the dominant/vibrant colour of the cover, or
@@ -72,14 +76,20 @@ fun rememberTrackAccent(
         TrackColorMode.THEME -> null
     }
     val resolvedTarget = seed?.let { toContainer(it, darkTheme) } ?: fallback
+    val vividTarget = seed ?: fallback
     val artworkPending = mode == TrackColorMode.DYNAMIC &&
         track?.artworkUri != null && !artwork.resolved
     // Sampling starts at null for every new URI. Preserve the settled surface during that pending
     // frame so a track change produces one deliberate colour transition, not cover→theme→cover.
     var settledTarget by remember { mutableStateOf(resolvedTarget) }
+    var settledVivid by remember { mutableStateOf(vividTarget) }
     val target = if (artworkPending) settledTarget else resolvedTarget
+    val vividGoal = if (artworkPending) settledVivid else vividTarget
     SideEffect {
-        if (!artworkPending) settledTarget = resolvedTarget
+        if (!artworkPending) {
+            settledTarget = resolvedTarget
+            settledVivid = vividTarget
+        }
     }
     val reduceMotion = rememberReduceMotion()
     val duration = if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS
@@ -92,7 +102,12 @@ fun rememberTrackAccent(
     // passes through mid-gray exactly while the background is changing, which can briefly erase
     // control contrast. 0.179 is the luminance crossover where black and white have equal contrast.
     val onContainer = if (container.luminance() > 0.179f) Color.Black else Color.White
-    return TrackAccent(container, onContainer)
+    val vivid by animateColorAsState(
+        targetValue = vividGoal,
+        animationSpec = tween(duration),
+        label = "accent-vivid",
+    )
+    return TrackAccent(container, onContainer, vivid)
 }
 
 /**

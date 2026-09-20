@@ -40,6 +40,19 @@ class PlayerCloudTest {
     }
 
     @Test
+    fun liftingForADarkSurfaceBrightensOnlyWhatWouldVanishOnBlack() {
+        val nearBlackViolet = Color(0.12f, 0.06f, 0.18f)
+        val lifted = liftForDarkSurface(nearBlackViolet)
+        val lightness = (maxOf(lifted.red, lifted.green, lifted.blue) + minOf(lifted.red, lifted.green, lifted.blue)) / 2f
+        assertTrue(lightness >= 0.44f)
+        assertTrue(lifted.blue > lifted.green) // still violet
+        val bright = Color(0.2f, 0.8f, 0.85f)
+        assertTrue(close(bright, liftForDarkSurface(bright)))
+        val grey = liftForDarkSurface(Color(0.1f, 0.1f, 0.1f))
+        assertTrue(close(Color(0.45f, 0.45f, 0.45f), grey))
+    }
+
+    @Test
     fun cloudNeverRequestsMoreThanTwentyAnimationUpdatesPerSecondAndStopsOnCancel() = runTest {
         var frameRequests = 0
         val clock = object : MonotonicFrameClock {

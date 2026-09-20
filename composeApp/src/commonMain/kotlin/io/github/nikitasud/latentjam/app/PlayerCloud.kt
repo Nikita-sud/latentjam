@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
@@ -14,6 +15,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
@@ -42,13 +44,18 @@ internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifi
         animatePlayerCloud { elapsed -> phase.floatValue += elapsed }
     }
     val density = LocalDensity.current
-    val primary = accent.container
-    val companion = rotateHue(accent.container, COMPANION_HUE_SHIFT)
+    // A toned container reads on a light surface, but on a dark one it is a dark colour on
+    // black: invisible. There the cloud paints with the cover's own colour, lifted out of the
+    // shadows when the cover itself is dark.
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val primary = if (dark) liftForDarkSurface(accent.vivid) else accent.container
+    val companion = rotateHue(primary, COMPANION_HUE_SHIFT)
+    val alpha = if (dark) CLOUD_ALPHA_DARK else CLOUD_ALPHA_LIGHT
     return drawWithCache {
         val radii = BLOB_RADII_DP.map { it * density.density }
         val brushes = listOf(primary, companion, primary).mapIndexed { index, colour ->
             Brush.radialGradient(
-                colors = listOf(colour.copy(alpha = CLOUD_ALPHA), colour.copy(alpha = 0f)),
+                colors = listOf(colour.copy(alpha = alpha), colour.copy(alpha = 0f)),
                 center = Offset.Zero,
                 radius = radii[index],
             )
@@ -95,29 +102,54 @@ private fun DrawScope.blob(brush: Brush, radius: Float, cx: Float, cy: Float, br
 
 /** The same colour a little way round the wheel, so the cloud has two tones of one mood. */
 internal fun rotateHue(colour: Color, degrees: Float): Color {
-    val r = colour.red
-    val g = colour.green
-    val b = colour.blue
-    val max = maxOf(r, g, b)
-    val min = minOf(r, g, b)
+    val (hue, saturation, lightness) = colour.toHsl() ?: return colour
+    val rotated = ((hue + degrees) % 360f + 360f) % 360f
+    return Color.hsl(rotated, saturation, lightness, colour.alpha)
+}
+
+/**
+ * A colour that can be seen on black: at least [DARK_MIN_LIGHTNESS] light and
+ * [DARK_MIN_SATURATION] saturated, same hue. A grey stays grey, only brighter.
+ */
+internal fun liftForDarkSurface(colour: Color): Color {
+    val hsl = colour.toHsl()
+    if (hsl == null) {
+        val grey = maxOf(colour.red, DARK_MIN_LIGHTNESS)
+        return Color(grey, grey, grey, colour.alpha)
+    }
+    val (hue, saturation, lightness) = hsl
+    return Color.hsl(
+        hue = hue,
+        saturation = maxOf(saturation, DARK_MIN_SATURATION),
+        lightness = maxOf(lightness, DARK_MIN_LIGHTNESS),
+        alpha = colour.alpha,
+    )
+}
+
+/** Hue in degrees, saturation and lightness in 0..1; null for a grey, which has no hue. */
+private fun Color.toHsl(): Triple<Float, Float, Float>? {
+    val max = maxOf(red, green, blue)
+    val min = minOf(red, green, blue)
     val delta = max - min
     val lightness = (max + min) / 2f
-    if (delta == 0f) return colour
+    if (delta == 0f) return null
     val saturation = delta / (1f - kotlin.math.abs(2f * lightness - 1f))
     val hue = when (max) {
-        r -> 60f * (((g - b) / delta) % 6f)
-        g -> 60f * (((b - r) / delta) + 2f)
-        else -> 60f * (((r - g) / delta) + 4f)
+        red -> 60f * (((green - blue) / delta) % 6f)
+        green -> 60f * (((blue - red) / delta) + 2f)
+        else -> 60f * (((red - green) / delta) + 4f)
     }
-    val rotated = ((hue + degrees) % 360f + 360f) % 360f
-    return Color.hsl(rotated, saturation.coerceIn(0f, 1f), lightness.coerceIn(0f, 1f), colour.alpha)
+    return Triple(((hue % 360f) + 360f) % 360f, saturation.coerceIn(0f, 1f), lightness.coerceIn(0f, 1f))
 }
 
 private const val NANOS_PER_SECOND = 1_000_000_000f
 private const val CLOUD_FRAME_INTERVAL_MS = 50L
 private const val MAX_FRAME_DELTA_S = 0.1f
 private const val TWO_PI = (2 * PI).toFloat()
-private const val CLOUD_ALPHA = 0.6f
+private const val CLOUD_ALPHA_LIGHT = 0.6f
+private const val CLOUD_ALPHA_DARK = 0.7f
+private const val DARK_MIN_LIGHTNESS = 0.45f
+private const val DARK_MIN_SATURATION = 0.45f
 private const val COMPANION_HUE_SHIFT = 28f
 private const val BREATH_DEPTH = 0.04f
 private const val BREATH_PERIOD_S = 0.86f
