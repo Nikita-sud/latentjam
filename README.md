@@ -40,17 +40,19 @@ page can resurface the records you own and forgot.
 One engine. Two platforms. Nothing in the cloud.
 
 <p align="center">
-  <img src="docs/media/walkthrough.gif" width="270" alt="Walkthrough: the player, albums, the statistics dashboard and page settings">
+  <img src="docs/media/walkthrough.gif" width="270" alt="LatentJam 0.4.0: track details, cover swipes, seeking, audio output and the queue">
 </p>
+
+<p align="center"><a href="docs/media/player-demo.mp4">Watch the new player · 24 seconds</a> · <a href="docs/media/walkthrough.mp4">Full app walkthrough · 40 seconds</a></p>
 
 <p align="center">
   <img src="docs/media/for-you.png" width="170" alt="For You page">&nbsp;&nbsp;
   <img src="docs/media/player.png" width="170" alt="Now playing">&nbsp;&nbsp;
-  <img src="docs/media/statistics.png" width="170" alt="Statistics dashboard">&nbsp;&nbsp;
-  <img src="docs/media/pages.png" width="170" alt="Settings → Pages">
+  <img src="docs/media/player-details.png" width="170" alt="Track details on the back of the cover">&nbsp;&nbsp;
+  <img src="docs/media/statistics.png" width="170" alt="Statistics dashboard">
 </p>
 
-<p align="center"><sub>Captured on a demo library of fictional artists, original cover art and synthesized audio — how it was made is in <a href="docs/media/README.md">docs/media</a>.</sub></p>
+<p align="center"><sub>Recorded in v0.4.0 on a demo library of fictional artists, original cover art and synthesized audio. More screenshots and capture details are in <a href="docs/media/README.md">docs/media</a>.</sub></p>
 
 ## Install
 

@@ -1,33 +1,46 @@
-# README demo media
+# LatentJam 0.4.0 demo media
 
-These are captures of the actual Android app, recorded on 5 September 2026 in a separate, newly
-created emulator. No existing emulator data, personal tracks, private artwork, or real listening
-history was imported. The demo contains sixteen invented tracks by four fictional artists, original
-geometric cover art, quiet synthesized audio, and generated listening history and playlists.
+The player videos and seven screenshots below were recorded on **20 September 2026** in the
+actual Android **0.4.0 release build (versionCode 6)**, using a separate, newly created emulator.
+The demo contains sixteen invented tracks by four fictional artists, original geometric cover art,
+quiet synthesized audio, and generated listening history and playlists. No personal library or
+existing emulator data was imported.
 
 | Asset | Details |
 | --- | --- |
-| `walkthrough.gif` | 29-second loop, 408 × 884, 12 fps, about 1.7 MiB |
-| `walkthrough.mp4` | 42-second silent H.264 video, 720 × 1560, 30 fps, about 1.0 MiB |
-| `for-you.png` | Discovery and recommendations |
-| `player.png` | Fictional “Blue Hour” in the SMART player |
-| `statistics.png` | Synthetic thirty-day listening summary and daily activity |
-| `pages.png` | Visibility, ordering, and opening-page controls |
-| `map.png` | Optional Map in Russian, four named regions and unplayed-track discovery |
+| [player-demo.mp4](player-demo.mp4) | 24-second player demo for sharing, 1080 × 2340, 30 fps, about 2.3 MiB |
+| [walkthrough.mp4](walkthrough.mp4) | 40-second app walkthrough, 720 × 1560, 30 fps, about 2.0 MiB |
+| [walkthrough.gif](walkthrough.gif) | 24-second player loop for the README, 360 × 780, 10 fps, about 3.6 MiB |
+| [player.png](player.png) | “Blue Hour” in the redesigned SMART player |
+| [player-details.png](player-details.png) | Track facts on the back of the cover, with the compact Edit tags button |
+| [audio-output.png](audio-output.png) | Compact audio output sheet |
+| [queue.png](queue.png) | Expanded queue with its title below the status bar |
+| [for-you.png](for-you.png) | Discovery and recommendations |
+| [statistics.png](statistics.png) | Synthetic thirty-day listening summary and daily activity |
+| [pages.png](pages.png) | Visibility, ordering, and opening-page controls |
 
-The four PNGs are unmodified 1080 × 2340 emulator screenshots. The GIF is sped up for a shorter
-preview; the MP4 keeps the original interaction timing. Video encodes omit audio and source metadata.
-The walkthrough opens the player, briefly plays the original synthesized track, browses albums,
-changes the statistics period, selects a day, scrolls through habits, moves Statistics up, and
-switches Tracks off and back on. Map remains disabled. Statistics is explicitly enabled for this demo.
+The seven PNGs are unmodified 1080 × 2340 screenshots. Both videos are silent H.264 with fast-start
+playback and no source metadata. Gestures run at their recorded speed, including in the GIF; the
+full walkthrough holds its final screen for two extra seconds. The player clip and GIF are continuous
+excerpts of the same recording.
 
-`map.png` was captured separately on 14 September 2026 from the updated app in a freshly reset
-isolated emulator, using the same sixteen fictional tracks and a newly generated listening history.
-Map is explicitly enabled for this capture. It shows no personal media or real listening history.
+The player demo shows playback, the cover flipping to track facts, swiping between covers, seeking,
+the audio output sheet, and expanding and collapsing the queue. The full walkthrough also shows
+For You, Albums, Statistics, and Pages. Map remains disabled; Statistics is explicitly enabled.
+
+<p align="center">
+  <img src="player-details.png" width="220" alt="Track details">&nbsp;&nbsp;
+  <img src="audio-output.png" width="220" alt="Audio output">&nbsp;&nbsp;
+  <img src="queue.png" width="220" alt="Expanded queue">
+</p>
+
+[map.png](map.png) is an older capture, retained for the Map validation document. It was recorded
+on **14 September 2026**, in Russian, in a separate empty emulator with the same fictional library.
+It is not part of the 0.4.0 capture set.
 
 ## Recreate the demo data
 
-Use Python 3 with Pillow, `ffmpeg` with `libmp3lame`, and `rsvg-convert`:
+Use Python 3.9+ with Pillow, `ffmpeg` with `libmp3lame`, and `rsvg-convert`:
 
 ```sh
 python3 tools/readme/generate_demo_library.py --output-dir /tmp/latentjam-readme-demo
@@ -50,20 +63,24 @@ python3 tools/readme/seed_demo_history.py \
 
 The generator refuses libraries that do not exactly match the fictional title/artist allowlist.
 It only creates local payload files. Copy its `files` and `shared_prefs` payloads into the dedicated
-demo app while that app is stopped, then launch it. Do not apply the payloads to a real library.
+debug app with `run-as` while that app is stopped. Upgrade it in place to the matching release APK
+signed with the same key, retaining the demo data, and verify its installed version before capture.
+Do not apply the payloads to a real library.
 The history uses the current time; `--now-ms` makes the data reproducible for a particular date.
 
 For the captured presentation, use English, dark theme, 1080 × 2340 at 420 dpi, and the Android demo
 status bar (09:41, full battery, hidden notifications). Wait for demo library indexing to finish.
-Play “Blue Hour” from “Night Current”, pause it, enable SMART, and return to For You before recording.
+Play “Blue Hour” from Tracks, pause it, enable SMART, seek to 1:54, and return to For You before recording.
 
 ## Export and review
 
-Record the actual device screen to a temporary MP4. Encode a silent, fast-start H.264 copy at 720 px
-wide for playback, and a 408 px, 12 fps looping GIF with a shared palette for the README. Keep original
-recordings, generated audio, and emulator images outside the repository.
+Record the actual device screen at 1080 × 2340 to a temporary MP4. Keep a 1080 px player excerpt for
+sharing and encode the full walkthrough at 720 px, both at 30 fps with silent, fast-start H.264.
+For the README, encode the player excerpt as a 360 px, 10 fps GIF with a shared 96-color palette and
+ordered dithering. Keep raw recordings, generated audio, and emulator images outside the repository.
 
-Validation for these assets included full GIF/MP4 decode checks, PNG verification, README link checks,
-and visual inspection of each screenshot and a twelve-frame video contact sheet. All visible titles,
-artists, and covers matched the fictional manifest; no permission prompts, errors, or loading screens
-appeared in the selected stills. The demo generators passed syntax and data-generation checks.
+Validation included full GIF/MP4 decode checks, PNG verification, local README link checks, and visual
+inspection of every screenshot, video contact sheets, the final video frame, and cover transitions.
+The complete MediaStore library matched the sixteen-track fictional manifest. The installed package
+reported versionName 0.4.0 and versionCode 6. Selected stills contain no permission prompts or loading
+screens. No application code was changed for these recordings.
