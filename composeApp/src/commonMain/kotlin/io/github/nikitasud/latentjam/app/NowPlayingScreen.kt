@@ -19,7 +19,10 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
@@ -180,6 +183,8 @@ import org.jetbrains.compose.resources.stringResource
 private val QueuePeekHeight = 84.dp
 private val PLAY_PAUSED_RADIUS = 36.dp
 private val NEXT_UP_HEIGHT = 40.dp
+/** Long enough that skipping through the queue reads no tag on the way; short enough to feel instant. */
+private const val LYRICS_PROBE_DELAY_MS = 400L
 private val PLAY_PLAYING_RADIUS = 24.dp
 private val SLEEP_TIMER_MINUTES = listOf(15, 30, 45, 60)
 private data class TrackMetadataPresentation(
@@ -248,6 +253,8 @@ fun NowPlayingScreen(
     sleepTimerRequest: Int = 0,
     onGoToAlbum: ((TrackDescriptor) -> Unit)? = null,
     onGoToArtist: ((TrackDescriptor) -> Unit)? = null,
+    /** Opens the place the queue came from; false when it cannot be found again. */
+    onOpenSource: (() -> Boolean)? = null,
     smartQueueLength: Int = DEFAULT_SMART_QUEUE_LENGTH,
     onSmartQueueLength: (Int) -> Unit = {},
     onEditTags: (TrackDescriptor) -> Unit = {},
@@ -267,7 +274,6 @@ fun NowPlayingScreen(
     val lyricsSource = currentTrack?.lyricsSourceIdentity()
     val readLyrics = rememberLyricsReader()
     var lyrics by remember(lyricsSource) { mutableStateOf<Lyrics?>(null) }
-    var lyricsReadRequested by remember(lyricsSource) { mutableStateOf(false) }
     var lyricsReadComplete by remember(lyricsSource) { mutableStateOf(false) }
     var showLyrics by remember(lyricsSource) { mutableStateOf(false) }
     val reduceMotion = rememberReduceMotion()
@@ -300,15 +306,14 @@ fun NowPlayingScreen(
             ) { value, _ -> collapseOffset.floatValue = value }
         }
     }
-    // Merely opening the player must stay cheap: a tag can contain megabytes of artwork before its
-    // USLT frame. The bounded off-main read starts only after the explicit Lyrics tap, then remains
-    // cached for this source while the expanded player is alive.
-    LaunchedEffect(lyricsSource, lyricsReadRequested) {
-        if (!lyricsReadRequested) return@LaunchedEffect
-        lyricsReadComplete = false
-        lyrics = currentTrack?.let { track ->
-            readLyrics(track)?.takeIf { read -> read.lines.any { it.text.isNotBlank() } }
-        }
+    // The lyrics button exists only for songs that carry lyrics, so every track is probed for
+    // them once it has settled: a bounded off-main read, delayed past rapid skipping so a run
+    // through the queue does not read a tag for every stop on the way. Until the probe answers
+    // the button is simply absent, and a song without lyrics never shows it at all.
+    LaunchedEffect(lyricsSource) {
+        val track = currentTrack ?: return@LaunchedEffect
+        delay(LYRICS_PROBE_DELAY_MS)
+        lyrics = readLyrics(track)?.takeIf { read -> read.lines.any { it.text.isNotBlank() } }
         lyricsReadComplete = true
     }
     // While lyrics are open, the modal sheet owns Back so it can finish its exit before the parent
@@ -424,16 +429,17 @@ fun NowPlayingScreen(
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         if (now.track != null) {
-                            IconButton(
-                                onClick = {
-                                    showLyrics = true
-                                    lyricsReadRequested = true
-                                },
+                            AnimatedVisibility(
+                                visible = lyrics != null,
+                                enter = fadeIn(tween(if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS)),
+                                exit = fadeOut(tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS)),
                             ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Lyrics,
-                                    contentDescription = stringResource(Res.string.info_lyrics),
-                                )
+                                IconButton(onClick = { showLyrics = true }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Lyrics,
+                                        contentDescription = stringResource(Res.string.info_lyrics),
+                                    )
+                                }
                             }
                             IconButton(onClick = onToggleFavorite) {
                                 // A like bounces once under the finger; removing one stays calm,
@@ -607,7 +613,8 @@ fun NowPlayingScreen(
                                 }
                                 if (shown.sourceLabel != null && shownTrack != null) {
                                     // A quiet chip: the source reads as "where this track came
-                                    // from", and a tap raises the queue it came with.
+                                    // from", and a tap goes there. A source that cannot be found
+                                    // again raises the queue it produced instead.
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -616,7 +623,9 @@ fun NowPlayingScreen(
                                             .clip(RoundedCornerShape(14.dp))
                                             .clickable(role = Role.Button) {
                                                 haptics.play(PlayerHaptic.TAP)
-                                                scope.launch { sheetState.bottomSheetState.expand() }
+                                                if (onOpenSource?.invoke() != true) {
+                                                    scope.launch { sheetState.bottomSheetState.expand() }
+                                                }
                                             }
                                             .padding(horizontal = 10.dp, vertical = 5.dp),
                                     ) {

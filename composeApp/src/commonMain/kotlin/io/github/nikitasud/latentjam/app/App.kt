@@ -2008,6 +2008,74 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             navigateToRootTab(StartPage.MAP)
         }
 
+        // "Playing from …" names a place, so a tap goes there. A collection is found again by the
+        // playlist id it keeps, else by its title among albums, artists, genres and folders; a
+        // surface becomes the current tab. What cannot be found again — an auto playlist, a
+        // hand-picked selection — returns false, and the chip raises the queue instead.
+        fun openQueueSource(source: QueueSource): Boolean {
+            fun leaveForRoot(tab: StartPage): Boolean {
+                if (tab !in visiblePages) return false
+                updateTrackSelection(emptySet())
+                updateSelectedCollection(null)
+                showSearch = false
+                showNowPlaying = false
+                navigateToRootTab(tab)
+                return true
+            }
+            return when (source.kind) {
+                QueueSourceKind.TRACKS -> leaveForRoot(StartPage.TRACKS)
+                QueueSourceKind.MAP -> leaveForRoot(StartPage.MAP)
+                QueueSourceKind.FOR_YOU -> leaveForRoot(StartPage.FOR_YOU)
+                QueueSourceKind.SEARCH -> {
+                    updateSelectedCollection(null)
+                    showNowPlaying = false
+                    showSearch = true
+                    true
+                }
+                QueueSourceKind.COLLECTION -> {
+                    val title = source.name
+                    val playlist = source.reference?.let { id -> playlists.firstOrNull { it.id == id } }
+                    val build: suspend () -> CollectionSelection = when {
+                        playlist != null -> {
+                            {
+                                val resolved = tracksOf(playlist)
+                                CollectionSelection(
+                                    title = playlist.name,
+                                    subtitle = trackCountLabel(resolved.size),
+                                    artworkUri = resolved.firstNotNullOfOrNull { it.artworkUri },
+                                    tracks = resolved,
+                                    allowsTrackSelection = true,
+                                    playlistId = playlist.id,
+                                )
+                            }
+                        }
+                        title == null -> return false
+                        else -> {
+                            val album = catalog?.albums?.firstOrNull { it.title == title }
+                            val artist = catalog?.artists?.firstOrNull { it.name == title }
+                            val genre = catalog?.genres?.firstOrNull { it.name == title }
+                            val folder = catalog?.folders?.firstOrNull { it.name == title }
+                            when {
+                                album != null -> { { album.toSelection() } }
+                                artist != null -> { { artist.toSelection() } }
+                                genre != null -> { { genre.toSelection() } }
+                                folder != null -> { { folder.toSelection() } }
+                                else -> return false
+                            }
+                        }
+                    }
+                    openCollection(
+                        build = build,
+                        afterOpen = {
+                            showNowPlaying = false
+                            showSearch = false
+                        },
+                    )
+                    true
+                }
+            }
+        }
+
         fun showAlbumOf(track: TrackDescriptor) {
             val album = catalog?.albums
                 ?.firstOrNull { group -> group.tracks.any { it.id == track.id } } ?: return
@@ -2144,6 +2212,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         // it first would change the root the open is guarded against mid-flight.
                         onGoToAlbum = { track -> showAlbumOf(track) },
                         onGoToArtist = { track -> showArtistOf(track) },
+                        onOpenSource = queueSource?.let { source -> { openQueueSource(source) } },
                         smartQueueLength = smartQueueLength,
                         onSmartQueueLength = settings::setSmartQueueLength,
                         onEditTags = { infoTarget = it },
