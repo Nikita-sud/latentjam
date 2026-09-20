@@ -722,6 +722,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             ?: songSort.defaultDirection
         var showSettings by rememberSaveable { mutableStateOf(false) }
         var infoTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
+        var artistChoices by remember { mutableStateOf<List<ArtistGroup>>(emptyList()) }
         var playerDetailsRequest by remember { mutableStateOf(0) }
         var playerSleepTimerRequest by remember { mutableStateOf(0) }
         var showNowPlaying by remember { mutableStateOf(false) }
@@ -2107,8 +2108,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             )
         }
 
-        fun showArtistOf(track: TrackDescriptor) {
-            val artist = catalog?.artists?.firstOrNull { it.name == track.artist } ?: return
+        fun showArtist(artist: ArtistGroup) {
             openCollection(
                 build = { artist.toSelection() },
                 afterOpen = {
@@ -2117,6 +2117,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 showSearch = false
                 },
             )
+        }
+
+        fun showArtistOf(track: TrackDescriptor) {
+            val artists = artistDestinations(track, catalog)
+            if (artists.size == 1) {
+                showArtist(artists.single())
+            } else if (artists.isNotEmpty()) {
+                artistChoices = artists
+            }
         }
 
         fun invalidateSmartRecommendationCaches() {
@@ -3491,6 +3500,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             navBottom
                         },
                     ),
+            )
+        }
+
+        if (artistChoices.isNotEmpty()) {
+            ArtistChooserSheet(
+                artists = artistChoices,
+                onSelect = { showArtist(it) },
+                onDismiss = { artistChoices = emptyList() },
             )
         }
 
