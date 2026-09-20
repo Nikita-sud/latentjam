@@ -62,7 +62,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
-import kotlin.math.abs
 import kotlin.math.roundToLong
 
 /**
@@ -83,17 +82,21 @@ internal fun PlayerSeekBar(
     lyrics: Lyrics?,
     modifier: Modifier = Modifier,
 ) {
-    val positionMs by remember(playback) {
-        playback.state.map { it.positionMs }.distinctUntilChanged()
-    }.collectAsState(playback.state.value.positionMs)
+    val position by remember(playback) {
+        playback.state.map { Triple(it.track?.id, it.queueIndex, it.positionMs) }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.let { Triple(it.track?.id, it.queueIndex, it.positionMs) })
+    val trackId = position.first
+    val queueIndex = position.second
+    val positionMs = position.third
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
+    val reduceMotion = rememberReduceMotion()
     val duration = durationMs.coerceAtLeast(1L)
     // The finger's own position while scrubbing, kept a moment after release so the coarse
     // ticker cannot snap the handle back to where it was before the seek landed.
-    var overrideMs by remember { mutableStateOf<Long?>(null) }
-    var scrubbing by remember { mutableStateOf(false) }
-    var fine by remember { mutableIntStateOf(1) }
+    var overrideMs by remember(playback, trackId, queueIndex) { mutableStateOf<Long?>(null) }
+    var scrubbing by remember(playback, trackId, queueIndex) { mutableStateOf(false) }
+    var fine by remember(playback, trackId, queueIndex) { mutableIntStateOf(1) }
     var showRemaining by remember { mutableStateOf(false) }
     var bandWidth by remember { mutableIntStateOf(0) }
     val shownMs = (overrideMs ?: positionMs).coerceIn(0L, duration)
@@ -106,12 +109,12 @@ internal fun PlayerSeekBar(
 
     val lineHeight by animateDpAsState(
         targetValue = if (scrubbing) LINE_SCRUBBING else LINE_RESTING,
-        animationSpec = tween(Motion.QUICK_MS),
+        animationSpec = tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
         label = "seek-line",
     )
     val handleHeight by animateDpAsState(
         targetValue = if (scrubbing) HANDLE_SCRUBBING else HANDLE_RESTING,
-        animationSpec = tween(Motion.QUICK_MS),
+        animationSpec = tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
         label = "seek-handle",
     )
     val timeline = remember(lyrics) {
@@ -140,19 +143,28 @@ internal fun PlayerSeekBar(
                         range = 0f..duration.toFloat(),
                     )
                     setProgress { target ->
+                        if (!target.isFinite() || trackId == null || durationMs <= 0L) {
+                            return@setProgress false
+                        }
                         val clamped = target.roundToLong().coerceIn(0L, duration)
                         overrideMs = clamped
-                        scope.launch { playback.seekTo(clamped) }
+                        scope.launch {
+                            val current = playback.state.value
+                            if (current.track?.id == trackId && current.queueIndex == queueIndex) {
+                                playback.seekTo(clamped)
+                            }
+                        }
                         true
                     }
                 }
-                .pointerInput(duration) {
+                .pointerInput(playback, trackId, queueIndex, durationMs, haptics) {
                     val halfAt = SCRUB_HALF_AT.toPx()
                     val quarterAt = SCRUB_QUARTER_AT.toPx()
                     awaitEachGesture {
                         val down = awaitFirstDown()
-                        down.consume()
                         val width = size.width.toFloat()
+                        if (width <= 0f || trackId == null || durationMs <= 0L) return@awaitEachGesture
+                        down.consume()
                         val bandCentre = size.height / 2f
                         var target = ((down.position.x / width).coerceIn(0f, 1f) * duration)
                             .roundToLong()
@@ -162,33 +174,48 @@ internal fun PlayerSeekBar(
                         overrideMs = target
                         var lastX = down.position.x
                         var edge = 0
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: continue
-                            if (change.changedToUpIgnoreConsumed()) break
-                            change.consume()
-                            val dx = change.position.x - lastX
-                            lastX = change.position.x
-                            val factor = scrubFineFactor(
-                                dyBelowBar = change.position.y - bandCentre,
-                                halfAt = halfAt,
-                                quarterAt = quarterAt,
-                            )
-                            target = (target + scrubDeltaMs(dx, width, duration, factor))
-                                .coerceIn(0L, duration)
-                            val atEdge = when (target) {
-                                0L -> -1
-                                duration -> 1
-                                else -> 0
+                        var released = false
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.isConsumed) break
+                                change.consume()
+                                val dx = change.position.x - lastX
+                                lastX = change.position.x
+                                val factor = scrubFineFactor(
+                                    dyBelowBar = change.position.y - bandCentre,
+                                    halfAt = halfAt,
+                                    quarterAt = quarterAt,
+                                )
+                                target = (target + scrubDeltaMs(dx, width, duration, factor))
+                                    .coerceIn(0L, duration)
+                                val atEdge = when (target) {
+                                    0L -> -1
+                                    duration -> 1
+                                    else -> 0
+                                }
+                                if (atEdge != 0 && atEdge != edge) haptics.play(PlayerHaptic.EDGE)
+                                edge = atEdge
+                                fine = factor
+                                overrideMs = target
+                                if (change.changedToUpIgnoreConsumed()) {
+                                    released = true
+                                    break
+                                }
                             }
-                            if (atEdge != 0 && atEdge != edge) haptics.play(PlayerHaptic.EDGE)
-                            edge = atEdge
-                            fine = factor
-                            overrideMs = target
+                        } finally {
+                            scrubbing = false
+                            if (!released) overrideMs = null
                         }
+                        if (!released) return@awaitEachGesture
                         haptics.play(PlayerHaptic.RELEASE)
-                        scrubbing = false
-                        scope.launch { playback.seekTo(target) }
+                        scope.launch {
+                            val current = playback.state.value
+                            if (current.track?.id == trackId && current.queueIndex == queueIndex) {
+                                playback.seekTo(target)
+                            }
+                        }
                     }
                 }
                 .drawBehind {

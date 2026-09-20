@@ -161,6 +161,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artis
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
+import io.github.nikitasud.latentjam.playback.PREVIOUS_RESTART_THRESHOLD_MS
 import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.SleepTimerState
 import io.github.nikitasud.latentjam.playback.ShuffleMode
@@ -243,6 +244,8 @@ fun NowPlayingScreen(
     onSleepAtEndOfTrack: () -> Unit,
     onCancelSleepTimer: () -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
+    /** Queue rows keep their own information target rather than turning the current cover. */
+    onQueueTrackMenu: (TrackDescriptor) -> Unit = onTrackMenu,
     /** Raised by the queue sheet's save affordance with the CURRENT queue as the selection. */
     onAddQueueToPlaylist: () -> Unit,
     isFavorite: Boolean = false,
@@ -267,6 +270,10 @@ fun NowPlayingScreen(
     val now by remember(playback) {
         playback.state.map { it.copy(positionMs = 0L) }.distinctUntilChanged()
     }.collectAsState(playback.state.value.copy(positionMs = 0L))
+    // Only the threshold crossing matters for the backward gesture, never each position tick.
+    val previousRestarts by remember(playback) {
+        playback.state.map { it.positionMs > PREVIOUS_RESTART_THRESHOLD_MS }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.positionMs > PREVIOUS_RESTART_THRESHOLD_MS)
     val scope = rememberCoroutineScope()
     val sheetState = rememberBottomSheetScaffoldState()
     var showSleepTimer by remember { mutableStateOf(false) }
@@ -283,11 +290,15 @@ fun NowPlayingScreen(
     val currentTrackId = currentTrack?.id
     var flipped by remember(currentTrackId) { mutableStateOf(false) }
     var trackStats by remember(currentTrackId) { mutableStateOf<TrackStats?>(null) }
+    // Counters belong to App and outlive this screen. Only new requests should open a surface;
+    // returning to the player must not replay the last Information or Sleep timer action.
+    val initialDetailsRequest = remember { detailsRequest }
+    val initialSleepTimerRequest = remember { sleepTimerRequest }
     LaunchedEffect(detailsRequest) {
-        if (detailsRequest > 0) flipped = true
+        if (detailsRequest != initialDetailsRequest) flipped = true
     }
     LaunchedEffect(sleepTimerRequest) {
-        if (sleepTimerRequest > 0) showSleepTimer = true
+        if (sleepTimerRequest != initialSleepTimerRequest) showSleepTimer = true
     }
     LaunchedEffect(flipped, currentTrackId) {
         if (flipped && currentTrackId != null) trackStats = AppGraph.history.stats()[currentTrackId]
@@ -388,7 +399,7 @@ fun NowPlayingScreen(
                         isPlaying = now.isPlaying,
                         canReorder = now.shuffleMode != ShuffleMode.ON,
                         onPlayAt = { index -> scope.launch { playback.playAt(index) } },
-                        onTrackMenu = onTrackMenu,
+                        onTrackMenu = onQueueTrackMenu,
                         onRemoveAt = { index -> scope.launch { playback.removeQueueItem(index) } },
                         onMove = { from, to ->
                             scope.launch { playback.moveQueueItem(from, to) }
@@ -507,6 +518,12 @@ fun NowPlayingScreen(
                     ) {
                         PlayerArtworkCard(
                             track = now.track,
+                            queueIndex = now.queueIndex,
+                            skipChangesTrack = { forward ->
+                                val live = playback.state.value
+                                if (forward) live.queue.size > 1 || live.shuffleMode == ShuffleMode.SMART
+                                else live.positionMs <= PREVIOUS_RESTART_THRESHOLD_MS && live.queue.size > 1
+                            },
                             flipped = flipped,
                             onFlip = { flipped = it },
                             onHold = { now.track?.let(onTrackMenu) },
@@ -516,8 +533,11 @@ fun NowPlayingScreen(
                             canSkipForward = now.queueIndex in 0 until now.queue.lastIndex ||
                                 now.repeatMode == RepeatMode.ALL ||
                                 now.shuffleMode == ShuffleMode.SMART,
-                            canSkipBackward = now.queueIndex > 0 || now.repeatMode == RepeatMode.ALL,
-                            neighbourArtwork = { forward -> queueNeighbour(now, forward)?.artworkUri },
+                            canSkipBackward = now.track != null &&
+                                (previousRestarts || now.queueIndex > 0 || now.repeatMode == RepeatMode.ALL),
+                            neighbourArtwork = { forward ->
+                                queueNeighbour(playback.state.value, forward)?.artworkUri
+                            },
                             onCollapseDrag = { pulled ->
                                 if (pulled == 0f) {
                                     settleCollapse(Motion.APPEAR_MS)
@@ -727,7 +747,7 @@ fun NowPlayingScreen(
 
                         // What comes next, without opening the queue; a tap opens it anyway.
                         NextUpRow(
-                            next = queueNeighbour(now, forward = true),
+                            next = nextUpTrack(now),
                             onOpenQueue = {
                                 haptics.play(PlayerHaptic.TAP)
                                 scope.launch { sheetState.bottomSheetState.expand() }
@@ -1141,14 +1161,24 @@ private fun MetadataLink(text: String?, onClick: (() -> Unit)?, modifier: Modifi
 }
 
 /** The track a swipe in that direction reaches, honouring queue repeat; null at a hard end. */
-private fun queueNeighbour(now: NowPlaying, forward: Boolean): TrackDescriptor? {
+internal fun queueNeighbour(now: NowPlaying, forward: Boolean): TrackDescriptor? {
     val size = now.queue.size
-    if (size == 0 || now.queueIndex < 0) return null
+    if (now.queueIndex !in now.queue.indices) return null
+    if (!forward && now.positionMs > PREVIOUS_RESTART_THRESHOLD_MS) return now.track
+    // At a SMART tail the next recommendation may not exist yet. Do not promise a wrap that
+    // the chooser can replace before the gesture or the natural transition lands.
+    if (forward && now.shuffleMode == ShuffleMode.SMART && now.queueIndex == now.queue.lastIndex) {
+        return null
+    }
     val step = if (forward) 1 else -1
     val raw = now.queueIndex + step
     val index = if (now.repeatMode == RepeatMode.ALL) ((raw % size) + size) % size else raw
     return now.queue.getOrNull(index)
 }
+
+/** Natural completion repeats the current track in repeat-one; a manual skip still advances. */
+internal fun nextUpTrack(now: NowPlaying): TrackDescriptor? =
+    if (now.repeatMode == RepeatMode.ONE) now.track else queueNeighbour(now, forward = true)
 
 /** The pull-down: the surface follows the finger and shrinks a little towards its bottom edge. */
 private fun Modifier.collapsePull(offset: androidx.compose.runtime.MutableFloatState): Modifier =

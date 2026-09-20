@@ -34,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +50,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -65,8 +67,8 @@ import io.github.nikitasud.latentjam.app.generated.resources.player_mode_title
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -79,32 +81,51 @@ import org.jetbrains.compose.resources.stringResource
  * release before [holdMs] is [onTap]; holding past it runs [onHoldStart] once and [onHoldEnd]
  * on the release that follows. A press the parent takes over (a scroll) is neither.
  */
+@Composable
 internal fun Modifier.tapOrHold(
     interactionSource: MutableInteractionSource,
     holdMs: Long,
     onTap: () -> Unit,
     onHoldStart: () -> Unit,
     onHoldEnd: () -> Unit,
-): Modifier = pointerInput(interactionSource, holdMs) {
-    awaitEachGesture {
-        val down = awaitFirstDown()
-        val press = PressInteraction.Press(down.position)
-        interactionSource.tryEmit(press)
-        var taken = false
-        val up = withTimeoutOrNull(holdMs) {
-            waitForUpOrCancellation().also { if (it == null) taken = true }
-        }
-        when {
-            up != null -> {
-                interactionSource.tryEmit(PressInteraction.Release(press))
-                onTap()
-            }
-            taken -> interactionSource.tryEmit(PressInteraction.Cancel(press))
-            else -> {
-                onHoldStart()
-                waitForUpOrCancellation()
-                interactionSource.tryEmit(PressInteraction.Release(press))
-                onHoldEnd()
+    gestureKey: Any? = null,
+): Modifier {
+    val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnHoldStart by rememberUpdatedState(onHoldStart)
+    val currentOnHoldEnd by rememberUpdatedState(onHoldEnd)
+    return pointerInput(interactionSource, holdMs, gestureKey) {
+        awaitEachGesture {
+            val down = awaitFirstDown()
+            val press = PressInteraction.Press(down.position)
+            interactionSource.tryEmit(press)
+            var holding = false
+            var released = false
+            try {
+                var taken = false
+                val up = withTimeoutOrNull(holdMs) {
+                    waitForUpOrCancellation().also { if (it == null) taken = true }
+                }
+                when {
+                    up != null -> {
+                        up.consume()
+                        released = true
+                        currentOnTap()
+                    }
+                    !taken -> {
+                        holding = true
+                        currentOnHoldStart()
+                        val release = waitForUpOrCancellation()
+                        release?.consume()
+                        released = release != null
+                    }
+                }
+            } finally {
+                interactionSource.tryEmit(
+                    if (released) PressInteraction.Release(press) else PressInteraction.Cancel(press),
+                )
+                // Pointer input can be cancelled without an up event when a sheet opens or the
+                // surface leaves composition. A held scan must stop on every exit path.
+                if (holding) currentOnHoldEnd()
             }
         }
     }
@@ -127,6 +148,9 @@ internal fun SkipButton(
     val haptics = LocalHapticFeedback.current
     val interaction = remember { MutableInteractionSource() }
     val currentDuration by rememberUpdatedState(durationMs)
+    val trackIdentity by remember(playback) {
+        playback.state.map { it.track?.id to it.queueIndex }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.let { it.track?.id to it.queueIndex })
     var scan by remember { mutableStateOf<Job?>(null) }
     val description = stringResource(
         if (forward) Res.string.cd_skip_next_hold else Res.string.cd_skip_previous_hold,
@@ -149,28 +173,19 @@ internal fun SkipButton(
             .tapOrHold(
                 interactionSource = interaction,
                 holdMs = SKIP_HOLD_MS,
+                gestureKey = trackIdentity,
                 onTap = skip,
                 onHoldStart = {
                     haptics.play(PlayerHaptic.HOLD)
                     scan?.cancel()
                     scan = scope.launch {
-                        val direction = if (forward) 1 else -1
-                        val duration = currentDuration.coerceAtLeast(0L)
-                        var position = playback.state.value.positionMs.coerceIn(0L, duration)
-                        var heldMs = 0L
-                        var edgeReported = false
-                        while (isActive) {
-                            val step = SCAN_TICK_MS * skipHoldMultiplier(heldMs) * direction
-                            position = (position + step).coerceIn(0L, duration)
-                            playback.seekTo(position)
-                            val atEdge = position == 0L || position == duration
-                            if (atEdge && !edgeReported) {
-                                haptics.play(PlayerHaptic.EDGE)
-                                edgeReported = true
-                            }
-                            delay(SCAN_TICK_MS)
-                            heldMs += SCAN_TICK_MS
-                        }
+                        scanPlayerTrack(
+                            forward = forward,
+                            durationMs = currentDuration,
+                            state = { playback.state.value },
+                            seek = playback::seekTo,
+                            onEdge = { haptics.play(PlayerHaptic.EDGE) },
+                        )
                     }
                 },
                 onHoldEnd = {
@@ -220,6 +235,7 @@ internal fun ModeButton(
     )
     val modeName = stringResource(mode.labelRes())
     val description = stringResource(Res.string.cd_mode_button, modeName)
+    val menuDescription = stringResource(Res.string.player_mode_title)
     val cycle: () -> Unit = {
         haptics.play(PlayerHaptic.TAP)
         onCycle()
@@ -235,6 +251,7 @@ internal fun ModeButton(
                     role = Role.Button
                     contentDescription = description
                     onClick { cycle(); true }
+                    onLongClick(label = menuDescription) { menuOpen = true; true }
                 }
                 .tapOrHold(
                     interactionSource = interaction,
@@ -340,4 +357,3 @@ private val SKIP_ICON_SIZE = 36.dp
 private val MODE_BUTTON_SIZE = 48.dp
 private const val SKIP_HOLD_MS = 420L
 private const val MODE_HOLD_MS = 450L
-private const val SCAN_TICK_MS = 250L

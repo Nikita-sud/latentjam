@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,25 +47,27 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.cd_player_artwork
+import io.github.nikitasud.latentjam.app.generated.resources.action_track_options
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
 
@@ -74,9 +77,9 @@ import kotlin.math.abs
  * A tap turns it over to the track's details, a hold opens the actions sheet, a sideways swipe
  * carries the cover off with the neighbour peeking in behind it, and a pull downwards hands the
  * whole player to [onCollapseDrag]. Every per-frame value — travel, tilt, press scale, the hold
- * ring, the flip angle — lives in an [Animatable] read inside a layer or draw lambda, so a gesture
- * never recomposes the screen. Composition changes only when a gesture starts or ends, when the
- * card turns over, or when the track itself changes.
+ * ring, the flip angle — is read inside a layer or draw lambda, so movement never recomposes the
+ * screen. Composition changes only when a gesture starts or ends, when the card turns over, or
+ * when the track itself changes.
  */
 @Composable
 internal fun PlayerArtworkCard(
@@ -93,6 +96,9 @@ internal fun PlayerArtworkCard(
     onCollapseDrag: (Float) -> Unit,
     onCollapse: () -> Unit,
     details: @Composable () -> Unit,
+    queueIndex: Int = -1,
+    /** Restarts keep the current cover and return it immediately after the skip action. */
+    skipChangesTrack: (forward: Boolean) -> Boolean = { true },
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -111,10 +117,14 @@ internal fun PlayerArtworkCard(
     // side of every player open would be paid for by every listener who never swipes.
     var swiping by remember { mutableStateOf(false) }
     var pendingSkip by remember { mutableStateOf<Boolean?>(null) }
+    var skipJob by remember { mutableStateOf<Job?>(null) }
+    var dragTravel by remember { mutableStateOf<Float?>(null) }
+    val backFacing by remember { derivedStateOf { angle.value > 90f } }
     val currentFlipped by rememberUpdatedState(flipped)
     val currentOnFlip by rememberUpdatedState(onFlip)
     val currentOnHold by rememberUpdatedState(onHold)
     val currentOnSkip by rememberUpdatedState(onSkip)
+    val currentSkipChangesTrack by rememberUpdatedState(skipChangesTrack)
     val currentOnCollapseDrag by rememberUpdatedState(onCollapseDrag)
     val currentOnCollapse by rememberUpdatedState(onCollapse)
     val currentCanForward by rememberUpdatedState(canSkipForward)
@@ -127,152 +137,194 @@ internal fun PlayerArtworkCard(
     // A committed swipe parks the cover off-screen with the neighbour's cover in its place. The
     // moment the track changes the real cover takes over at zero travel; nothing moves on screen
     // because the ghost stood exactly there. A skip that never lands springs back instead.
-    LaunchedEffect(track?.id) {
-        if (pendingSkip != null) {
-            travel.snapTo(0f)
-            pendingSkip = null
-            swiping = false
-        }
+    LaunchedEffect(track?.id, queueIndex) {
+        skipJob?.cancel()
+        travel.snapTo(0f)
+        tilt.snapTo(0f)
+        dragTravel = null
+        pendingSkip = null
+        swiping = false
     }
     LaunchedEffect(pendingSkip) {
         if (pendingSkip == null) return@LaunchedEffect
-        withTimeoutOrNull(SKIP_SETTLE_TIMEOUT_MS) { awaitCancellation() } ?: run {
-            pendingSkip = null
-            swiping = false
-            travel.animateTo(0f, SPRING_BACK)
-        }
+        delay(SKIP_SETTLE_TIMEOUT_MS)
+        // Clear this effect's key only after the return completes; clearing it first would
+        // cancel the animation on recomposition and leave an unsuccessful skip off-screen.
+        travel.animateTo(0f, if (reduceMotion) tween(0) else SPRING_BACK)
+        pendingSkip = null
+        swiping = false
     }
 
     val description = stringResource(Res.string.cd_player_artwork)
+    val actionsDescription = stringResource(Res.string.action_track_options)
     val ringColor = MaterialTheme.colorScheme.onSurface
     val ringTrack = ringColor.copy(alpha = 0.18f)
     Box(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(1f)
-            .semantics { contentDescription = description }
-            .pointerInput(Unit) {
+            .semantics {
+                contentDescription = description
+                role = Role.Button
+                onClick { currentOnFlip(!currentFlipped); true }
+                onLongClick(label = actionsDescription) { currentOnHold(); true }
+            }
+            .pointerInput(track?.id, queueIndex, reduceMotion, haptics) {
                 val slop = ARTWORK_SLOP.toPx()
                 val collapseThreshold = COLLAPSE_THRESHOLD.toPx()
                 val rejectTravel = REJECT_TRAVEL.toPx()
                 val gap = GHOST_GAP.toPx()
+                val returnSpec = if (reduceMotion) tween<Float>(0) else SPRING_BACK
                 var holdJob: Job? = null
                 fun settlePress() {
                     holdJob?.cancel()
                     scope.launch { holdRing.snapTo(0f) }
-                    scope.launch { pressScale.animateTo(1f, SPRING_BACK) }
+                    scope.launch { pressScale.animateTo(1f, returnSpec) }
                 }
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
+                    // Child buttons on the details face own their consumed taps and holds.
+                    val down = awaitFirstDown()
                     if (pendingSkip != null) return@awaitEachGesture
                     val width = size.width.toFloat()
+                    if (width <= 0f) return@awaitEachGesture
                     holdCenter = down.position
                     holdJob = scope.launch {
-                        launch { pressScale.animateTo(HOLD_SINK, tween(HOLD_MS, easing = LinearEasing)) }
+                        if (!reduceMotion) {
+                            launch { pressScale.animateTo(HOLD_SINK, tween(HOLD_MS, easing = LinearEasing)) }
+                        }
                         holdRing.snapTo(0f)
                         holdRing.animateTo(1f, tween(HOLD_MS, easing = LinearEasing))
                     }
-                    var axis: ArtworkDragAxis? = null
-                    var lastChange: PointerInputChange = down
-                    var upSeen = false
-                    // Undecided: the finger is still where it landed. A hold fires here; movement
-                    // past the slop decides an axis; a release is a tap.
-                    val holdDeadline = down.uptimeMillis + HOLD_MS
-                    while (axis == null && !upSeen) {
-                        val remaining = holdDeadline - lastChange.uptimeMillis
-                        val event = withTimeoutOrNull(remaining.coerceAtLeast(1L)) { awaitPointerEvent() }
-                        if (event == null) {
-                            // The hold took: the sheet opens, the ring completes, the cover rises.
-                            haptics.play(PlayerHaptic.HOLD)
-                            settlePress()
-                            currentOnHold()
-                            waitForUpOrCancellation()
-                            return@awaitEachGesture
-                        }
-                        val change = event.changes.firstOrNull { it.id == down.id } ?: continue
-                        lastChange = change
-                        if (change.changedToUpIgnoreConsumed()) {
-                            upSeen = true
-                            break
-                        }
-                        val delta = change.position - down.position
-                        axis = artworkDragAxis(delta.x, delta.y, slop)
-                    }
-                    if (upSeen) {
-                        settlePress()
-                        haptics.play(PlayerHaptic.TAP)
-                        currentOnFlip(!currentFlipped)
-                        return@awaitEachGesture
-                    }
-                    holdJob?.cancel()
-                    scope.launch { holdRing.snapTo(0f) }
-                    when (axis) {
-                        ArtworkDragAxis.HORIZONTAL -> {
-                            swiping = true
-                            scope.launch { pressScale.animateTo(HOLD_SINK, SPRING_BACK) }
-                            var armed = false
-                            var rejected = false
-                            var dx = 0f
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: continue
-                                if (change.changedToUpIgnoreConsumed()) break
-                                if (change.positionChange() != Offset.Zero) change.consume()
-                                dx = change.position.x - down.position.x
-                                val blocked = (dx > 0f && !currentCanBackward) ||
-                                    (dx < 0f && !currentCanForward)
-                                val nowArmed = swipeCommits(dx, width, blocked)
-                                if (nowArmed && !armed) haptics.play(PlayerHaptic.THRESHOLD)
-                                armed = nowArmed
-                                if (blocked && abs(dx) > rejectTravel) rejected = true
-                                val shown = swipeShown(dx, blocked)
-                                scope.launch {
-                                    travel.snapTo(shown)
-                                    tilt.snapTo(shown / width * SWIPE_TILT_DEGREES)
-                                }
+                    var finished = false
+                    var collapsing = false
+                    try {
+                        var axis: ArtworkDragAxis? = null
+                        var change = down
+                        val holdDeadline = down.uptimeMillis + HOLD_MS
+                        while (axis == null) {
+                            val remaining = holdDeadline - change.uptimeMillis
+                            val event = withTimeoutOrNull(remaining.coerceAtLeast(1L)) { awaitPointerEvent() }
+                            if (event == null) {
+                                haptics.play(PlayerHaptic.HOLD)
+                                settlePress()
+                                currentOnHold()
+                                waitForUpOrCancellation()
+                                return@awaitEachGesture
                             }
-                            scope.launch { pressScale.animateTo(1f, SPRING_BACK) }
-                            if (armed) {
-                                val forward = dx < 0f
+                            change = event.changes.firstOrNull { it.id == down.id }
+                                ?: return@awaitEachGesture
+                            if (change.isConsumed) return@awaitEachGesture
+                            val delta = change.position - down.position
+                            axis = artworkDragAxis(delta.x, delta.y, slop)
+                            if (axis == null && change.changedToUpIgnoreConsumed()) {
+                                change.consume()
                                 haptics.play(PlayerHaptic.TAP)
-                                pendingSkip = forward
-                                scope.launch { tilt.animateTo(0f, tween(SWIPE_OUT_MS)) }
-                                scope.launch {
-                                    travel.animateTo(
-                                        targetValue = if (forward) -(width + gap) else width + gap,
-                                        animationSpec = tween(SWIPE_OUT_MS),
-                                    )
-                                    currentOnSkip(forward)
+                                currentOnFlip(!currentFlipped)
+                                finished = true
+                                return@awaitEachGesture
+                            }
+                        }
+                        settlePress()
+                        when (axis) {
+                            ArtworkDragAxis.HORIZONTAL -> {
+                                // A new tap/hold must let an earlier rejected swipe finish
+                                // returning. Only another horizontal drag takes over its travel.
+                                skipJob?.cancel()
+                                swiping = true
+                                var armed = false
+                                var rejected = false
+                                var dx: Float
+                                while (true) {
+                                    if (change.isConsumed) return@awaitEachGesture
+                                    dx = change.position.x - down.position.x
+                                    val blocked = (dx > 0f && !currentCanBackward) ||
+                                        (dx < 0f && !currentCanForward)
+                                    val nowArmed = swipeCommits(dx, width, blocked)
+                                    if (nowArmed && !armed) haptics.play(PlayerHaptic.THRESHOLD)
+                                    armed = nowArmed
+                                    if (blocked && abs(dx) > rejectTravel) rejected = true
+                                    // Finger movement is read directly by the layer; no coroutine
+                                    // or animation is allocated for each pointer event.
+                                    dragTravel = swipeShown(dx, blocked)
+                                    change.consume()
+                                    if (change.changedToUpIgnoreConsumed()) break
+                                    change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
+                                        ?: return@awaitEachGesture
                                 }
-                            } else {
-                                if (rejected) haptics.play(PlayerHaptic.REJECT)
-                                scope.launch { tilt.animateTo(0f, SPRING_BACK) }
-                                scope.launch {
-                                    travel.animateTo(0f, SPRING_BACK)
+                                val shown = dragTravel ?: 0f
+                                val forward = dx < 0f
+                                val changesTrack = armed && currentSkipChangesTrack(forward)
+                                if (armed) {
+                                    haptics.play(PlayerHaptic.TAP)
+                                    if (changesTrack) pendingSkip = forward
+                                } else if (rejected) {
+                                    haptics.play(PlayerHaptic.REJECT)
+                                }
+                                skipJob = scope.launch {
+                                    travel.snapTo(shown)
+                                    tilt.snapTo(if (reduceMotion) 0f else shown / width * SWIPE_TILT_DEGREES)
+                                    dragTravel = null
+                                    launch { tilt.animateTo(0f, returnSpec) }
+                                    if (changesTrack) {
+                                        travel.animateTo(
+                                            targetValue = if (forward) -(width + gap) else width + gap,
+                                            animationSpec = tween(if (reduceMotion) 0 else SWIPE_OUT_MS),
+                                        )
+                                        // Playback can cross the previous-button restart
+                                        // threshold while the outgoing cover is animating.
+                                        val stillChangesTrack = currentSkipChangesTrack(forward)
+                                        currentOnSkip(forward)
+                                        if (!stillChangesTrack) {
+                                            pendingSkip = null
+                                            travel.animateTo(0f, returnSpec)
+                                            swiping = false
+                                        }
+                                    } else {
+                                        if (armed) currentOnSkip(forward)
+                                        travel.animateTo(0f, returnSpec)
+                                        swiping = false
+                                    }
+                                }
+                                finished = true
+                            }
+                            ArtworkDragAxis.VERTICAL -> {
+                                collapsing = true
+                                var dy: Float
+                                while (true) {
+                                    if (change.isConsumed) return@awaitEachGesture
+                                    dy = change.position.y - down.position.y
+                                    currentOnCollapseDrag(collapseShown(dy))
+                                    change.consume()
+                                    if (change.changedToUpIgnoreConsumed()) break
+                                    change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
+                                        ?: return@awaitEachGesture
+                                }
+                                if (collapseCommits(dy, collapseThreshold)) {
+                                    haptics.play(PlayerHaptic.TAP)
+                                    currentOnCollapse()
+                                } else {
+                                    haptics.play(PlayerHaptic.RELEASE)
+                                    currentOnCollapseDrag(0f)
+                                }
+                                finished = true
+                            }
+                            ArtworkDragAxis.CANCELLED, null -> Unit
+                        }
+                    } finally {
+                        settlePress()
+                        if (!finished) {
+                            if (collapsing) currentOnCollapseDrag(0f)
+                            val shown = dragTravel
+                            dragTravel = null
+                            if (shown != null) {
+                                skipJob = scope.launch {
+                                    travel.snapTo(shown)
+                                    launch { tilt.animateTo(0f, returnSpec) }
+                                    travel.animateTo(0f, returnSpec)
                                     swiping = false
                                 }
                             }
                         }
-                        ArtworkDragAxis.VERTICAL -> {
-                            scope.launch { pressScale.animateTo(1f, SPRING_BACK) }
-                            var dy = 0f
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: continue
-                                if (change.changedToUpIgnoreConsumed()) break
-                                if (change.positionChange() != Offset.Zero) change.consume()
-                                dy = change.position.y - down.position.y
-                                currentOnCollapseDrag(collapseShown(dy))
-                            }
-                            if (collapseCommits(dy, collapseThreshold)) {
-                                haptics.play(PlayerHaptic.TAP)
-                                currentOnCollapse()
-                            } else {
-                                haptics.play(PlayerHaptic.RELEASE)
-                                currentOnCollapseDrag(0f)
-                            }
-                        }
-                        null -> settlePress()
                     }
                 }
             }
@@ -298,7 +350,7 @@ internal fun PlayerArtworkCard(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    translationX = travel.value
+                    translationX = dragTravel ?: travel.value
                     scaleX = pressScale.value
                     scaleY = pressScale.value
                 },
@@ -310,7 +362,11 @@ internal fun PlayerArtworkCard(
             }
             AnimatedContent(
                 targetState = track,
-                modifier = Modifier.graphicsLayer { rotationZ = tilt.value },
+                modifier = Modifier.graphicsLayer {
+                    rotationZ = if (reduceMotion) 0f else {
+                        dragTravel?.let { it / size.width * SWIPE_TILT_DEGREES } ?: tilt.value
+                    }
+                },
                 contentKey = { it?.id },
                 transitionSpec = {
                     // Swipes already moved the cover; the real one just takes the ghost's place.
@@ -324,7 +380,7 @@ internal fun PlayerArtworkCard(
             ) { shown ->
                 FlipCard(
                     angle = { angle.value },
-                    flipped = flipped,
+                    backFacing = backFacing,
                     front = { CoverFace(uri = shown?.artworkUri) },
                     back = details,
                     modifier = Modifier.inactiveForMotion(shown?.id != track?.id),
@@ -338,7 +394,7 @@ internal fun PlayerArtworkCard(
 @Composable
 private fun FlipCard(
     angle: () -> Float,
-    flipped: Boolean,
+    backFacing: Boolean,
     front: @Composable () -> Unit,
     back: @Composable () -> Unit,
     modifier: Modifier = Modifier,
@@ -358,9 +414,9 @@ private fun FlipCard(
         ) {
             front()
         }
-        // The back exists only while the card is turned, so its buttons can never be hit through
-        // the cover, and the flip itself costs one composition per turn.
-        if (flipped) {
+        // Compose the details only after the back faces the listener, retaining it until the
+        // reverse flip passes halfway. This also prevents invisible buttons receiving input.
+        if (backFacing) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

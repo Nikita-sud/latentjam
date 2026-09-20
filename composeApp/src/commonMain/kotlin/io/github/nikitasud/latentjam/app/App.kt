@@ -2009,7 +2009,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
 
         // "Playing from …" names a place, so a tap goes there. A collection is found again by the
-        // playlist id it keeps, else by its title among albums, artists, genres and folders; a
+        // stable playlist or library-group identity; a
         // surface becomes the current tab. What cannot be found again — an auto playlist, a
         // hand-picked selection — returns false, and the chip raises the queue instead.
         fun openQueueSource(source: QueueSource): Boolean {
@@ -2027,16 +2027,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 QueueSourceKind.MAP -> leaveForRoot(StartPage.MAP)
                 QueueSourceKind.FOR_YOU -> leaveForRoot(StartPage.FOR_YOU)
                 QueueSourceKind.SEARCH -> {
+                    updateTrackSelection(emptySet())
                     updateSelectedCollection(null)
                     showNowPlaying = false
                     showSearch = true
                     true
                 }
-                QueueSourceKind.COLLECTION -> {
-                    val title = source.name
-                    val playlist = source.reference?.let { id -> playlists.firstOrNull { it.id == id } }
-                    val build: suspend () -> CollectionSelection = when {
-                        playlist != null -> {
+                QueueSourceKind.COLLECTION, QueueSourceKind.LIBRARY_GROUP -> {
+                    val build: suspend () -> CollectionSelection = when (source.kind) {
+                        QueueSourceKind.COLLECTION -> {
+                            val playlist = source.reference?.let { id ->
+                                playlists.firstOrNull { it.id == id }
+                            } ?: return false
                             {
                                 val resolved = tracksOf(playlist)
                                 CollectionSelection(
@@ -2049,24 +2051,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 )
                             }
                         }
-                        title == null -> return false
-                        else -> {
-                            val album = catalog?.albums?.firstOrNull { it.title == title }
-                            val artist = catalog?.artists?.firstOrNull { it.name == title }
-                            val genre = catalog?.genres?.firstOrNull { it.name == title }
-                            val folder = catalog?.folders?.firstOrNull { it.name == title }
-                            when {
-                                album != null -> { { album.toSelection() } }
-                                artist != null -> { { artist.toSelection() } }
-                                genre != null -> { { genre.toSelection() } }
-                                folder != null -> { { folder.toSelection() } }
-                                else -> return false
-                            }
+                        else -> when (val target = source.resolveGroup(catalog)) {
+                            is QueueSourceGroup.Album -> { { target.group.toSelection() } }
+                            is QueueSourceGroup.Artist -> { { target.group.toSelection() } }
+                            is QueueSourceGroup.Genre -> { { target.group.toSelection() } }
+                            is QueueSourceGroup.Folder -> { { target.group.toSelection() } }
+                            null -> return false
                         }
                     }
                     openCollection(
                         build = build,
                         afterOpen = {
+                            updateTrackSelection(emptySet())
                             showNowPlaying = false
                             showSearch = false
                         },
@@ -2206,6 +2202,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         onTrackMenu = { track ->
                             trackMenuRequest = TrackMenuRequest(track, fromPlayer = true)
                         },
+                        onQueueTrackMenu = { track -> trackMenuRequest = TrackMenuRequest(track) },
                         detailsRequest = playerDetailsRequest,
                         sleepTimerRequest = playerSleepTimerRequest,
                         // Both close the player themselves once the collection is built; closing
@@ -3152,20 +3149,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             },
                             onPlayTrack = { index ->
                                 AppGraph.queueSource.value =
-                                    QueueSource(
-                                        QueueSourceKind.COLLECTION,
-                                        selection.title,
-                                        selection.playlistId,
-                                    )
+                                    selection.queueSource()
                                 scope.launch { playback.play(selection.tracks, index) }
                             },
                             onShuffle = {
                                 AppGraph.queueSource.value =
-                                    QueueSource(
-                                        QueueSourceKind.COLLECTION,
-                                        selection.title,
-                                        selection.playlistId,
-                                    )
+                                    selection.queueSource()
                                 scope.launch { playback.play(selection.tracks.shuffled(), 0) }
                             },
                             onTrackMenu = { track ->
@@ -3273,11 +3262,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 // search or a group tab has no single honest name.
                                 AppGraph.queueSource.value = when {
                                     selectedCollection?.allowsTrackSelection == true ->
-                                        QueueSource(
-                                            QueueSourceKind.COLLECTION,
-                                            selectedCollection?.title,
-                                            selectedCollection?.playlistId,
-                                        )
+                                        selectedCollection?.queueSource()
                                     showSearch || selectedTab in GROUP_TABS -> null
                                     else -> QueueSource(QueueSourceKind.TRACKS)
                                 }
@@ -3615,7 +3600,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     { showArtistOf(target) }
                 },
                 onInfo = {
-                    if (request.fromPlayer) playerDetailsRequest++ else infoTarget = target
+                    if (request.fromPlayer && target.id == playback.state.value.track?.id) {
+                        playerDetailsRequest++
+                    } else infoTarget = target
                 },
                 // The sleep timer belongs to the player's own sheet; other surfaces keep the
                 // shorter list they always had.

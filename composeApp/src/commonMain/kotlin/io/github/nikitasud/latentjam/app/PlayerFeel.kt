@@ -4,6 +4,10 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.playback.NowPlaying
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -14,13 +18,13 @@ import kotlin.math.roundToLong
  * Every threshold the cover, the seek bar and the transport react to lives here as a pure function,
  * so the composables hold no numbers and the decisions are tested on the JVM instead of by hand.
  */
-internal enum class ArtworkDragAxis { HORIZONTAL, VERTICAL }
+internal enum class ArtworkDragAxis { HORIZONTAL, VERTICAL, CANCELLED }
 
-/** Undecided (null) until the finger travels [slop] on an axis; vertical only counts downwards. */
+/** Undecided inside [slop]; an upward swipe cancels the tap/hold instead of opening actions. */
 internal fun artworkDragAxis(dx: Float, dy: Float, slop: Float): ArtworkDragAxis? {
     if (abs(dx) < slop && abs(dy) < slop) return null
     return when {
-        abs(dy) > abs(dx) -> if (dy > 0f) ArtworkDragAxis.VERTICAL else null
+        abs(dy) > abs(dx) -> if (dy > 0f) ArtworkDragAxis.VERTICAL else ArtworkDragAxis.CANCELLED
         else -> ArtworkDragAxis.HORIZONTAL
     }
 }
@@ -55,8 +59,40 @@ internal fun scrubDeltaMs(dxPx: Float, trackWidthPx: Float, durationMs: Long, fi
 
 /** Holding a skip button scans at 4×, doubling every step until 32×. */
 internal fun skipHoldMultiplier(heldMs: Long): Int {
-    val steps = (heldMs.coerceAtLeast(0L) / SKIP_HOLD_STEP_MS).toInt().coerceIn(0, SKIP_HOLD_MAX_STEPS)
+    val steps = (heldMs.coerceAtLeast(0L) / SKIP_HOLD_STEP_MS)
+        .coerceAtMost(SKIP_HOLD_MAX_STEPS.toLong()).toInt()
     return SKIP_HOLD_BASE shl steps
+}
+
+/** A held scan belongs to one queue entry and stops issuing seeks as soon as it reaches an edge. */
+internal suspend fun scanPlayerTrack(
+    forward: Boolean,
+    durationMs: Long,
+    state: () -> NowPlaying,
+    seek: suspend (Long) -> Unit,
+    onEdge: () -> Unit,
+) {
+    val initial = state()
+    val trackId = initial.track?.id ?: return
+    val duration = durationMs.coerceAtLeast(0L)
+    if (duration == 0L) return
+    var position = initial.positionMs.coerceIn(0L, duration)
+    var heldMs = 0L
+    val direction = if (forward) 1 else -1
+    while (currentCoroutineContext().isActive) {
+        val current = state()
+        if (current.track?.id != trackId || current.queueIndex != initial.queueIndex) return
+        val step = SCAN_TICK_MS * skipHoldMultiplier(heldMs) * direction
+        val target = (position + step).coerceIn(0L, duration)
+        if (target != position) seek(target)
+        position = target
+        if (position == 0L || position == duration) {
+            onEdge()
+            return
+        }
+        delay(SCAN_TICK_MS)
+        heldMs += SCAN_TICK_MS
+    }
 }
 
 /** Average bitrate in kbps from file size and duration; the tag itself does not carry one. */
@@ -98,3 +134,4 @@ private const val SKIP_HOLD_STEP_MS = 1_500L
 private const val SKIP_HOLD_BASE = 4
 private const val SKIP_HOLD_MAX_STEPS = 3
 private const val MAX_EXTENSION_LENGTH = 5
+private const val SCAN_TICK_MS = 250L

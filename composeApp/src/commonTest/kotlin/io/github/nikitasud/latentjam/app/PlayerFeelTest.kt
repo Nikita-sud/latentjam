@@ -16,8 +16,8 @@ class PlayerFeelTest {
         assertNull(artworkDragAxis(dx = 5f, dy = 5f, slop = 12f))
         assertEquals(ArtworkDragAxis.HORIZONTAL, artworkDragAxis(dx = -30f, dy = 4f, slop = 12f))
         assertEquals(ArtworkDragAxis.VERTICAL, artworkDragAxis(dx = 3f, dy = 40f, slop = 12f))
-        // Upward movement is never a collapse; it decides horizontal only when dx dominates.
-        assertNull(artworkDragAxis(dx = 3f, dy = -40f, slop = 12f))
+        // Upward movement cancels the gesture, so releasing cannot flip or open actions.
+        assertEquals(ArtworkDragAxis.CANCELLED, artworkDragAxis(dx = 3f, dy = -40f, slop = 12f))
         assertEquals(ArtworkDragAxis.HORIZONTAL, artworkDragAxis(dx = 50f, dy = -40f, slop = 12f))
     }
 
@@ -64,6 +64,7 @@ class PlayerFeelTest {
         assertEquals(16, skipHoldMultiplier(heldMs = 3_000L))
         assertEquals(32, skipHoldMultiplier(heldMs = 4_500L))
         assertEquals(32, skipHoldMultiplier(heldMs = 60_000L))
+        assertEquals(32, skipHoldMultiplier(heldMs = Long.MAX_VALUE))
     }
 
     @Test
