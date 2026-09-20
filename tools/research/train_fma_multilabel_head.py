@@ -39,6 +39,7 @@ import hashlib
 import json
 import math
 import platform
+import re
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -49,6 +50,12 @@ import pandas as pd
 
 
 SPLIT_NAMES = ("training", "validation", "test")
+BROAD_GENRES = (
+    "Electronic", "Experimental", "Folk", "Hip-Hop", "Instrumental",
+    "International", "Pop", "Rock",
+)
+CLEAN_LICENSE_FAMILIES = ("CC BY", "CC BY-SA", "CC0", "Public Domain")
+PRIVATE_ROOT = Path.home() / "Documents/LJ/semantic-head-clean"
 
 
 @dataclass(frozen=True)
@@ -92,6 +99,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tracks", type=Path, required=True)
     parser.add_argument("--genres", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--subset", default="small",
+        help="Comma-separated official FMA subset values, for example small,medium.",
+    )
+    parser.add_argument(
+        "--license-allow", nargs="?", const="clean", choices=("clean",),
+        help="Keep only CC BY, CC BY-SA, CC0 or Public Domain training/validation rows; test rows are never filtered.",
+    )
+    parser.add_argument("--extra-store", type=Path)
+    parser.add_argument("--extra-labels", type=Path)
+    parser.add_argument(
+        "--broad-class-weight", choices=("balanced", "rare"), default="balanced",
+        help="Legacy balances every label; rare balances broad labels with fewer than 300 training positives. Child labels always stay balanced.",
+    )
     parser.add_argument(
         "--model-name",
         default="mnv4_fma_hierarchical_v1",
@@ -139,6 +160,14 @@ def require_file(path: Path, description: str) -> Path:
     return path
 
 
+def require_private_output(path: Path) -> None:
+    resolved = path.expanduser().resolve()
+    if not resolved.is_relative_to(PRIVATE_ROOT.resolve()) or any(
+        (parent / ".git").exists() for parent in (resolved, *resolved.parents)
+    ):
+        raise ValueError("Library-derived outputs must stay in the private semantic-head-clean directory")
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -165,7 +194,28 @@ def parse_genre_ids(value: Any) -> tuple[int, ...]:
     return (int(value),)
 
 
-def load_joined_data(store_path: Path, tracks_path: Path) -> tuple[pd.DataFrame, int, str]:
+def license_family(value: Any) -> str:
+    """Recognize allowed FMA licence families without admitting NC or ND variants."""
+    text = str(value).strip().lower()
+    compact = re.sub(r"[^a-z0-9]", "", text)
+    if "noncommercial" in compact or re.search(r"(?:^|[- /])nc(?:$|[- /])", text):
+        return "restricted NC"
+    if "noderiv" in compact or re.search(r"(?:^|[- /])nd(?:$|[- /])", text):
+        return "restricted ND"
+    if "cc0" in compact or "zero" in compact:
+        return "CC0"
+    if "publicdomain" in compact:
+        return "Public Domain"
+    if "attribution" in compact or re.search(r"\bcc[- ]?by\b|creativecommons\.org/licenses/by(?:-sa)?/", text):
+        return "CC BY-SA" if "sharealike" in compact or re.search(r"\bsa\b", text) else "CC BY"
+    return "other or unknown"
+
+
+def clean_license_mask(frame: pd.DataFrame) -> pd.Series:
+    return frame["license_family"].isin(CLEAN_LICENSE_FAMILIES)
+
+
+def load_embedding_store(store_path: Path) -> tuple[pd.DataFrame, int, str]:
     store = pd.read_parquet(store_path)
     required_store = {"track_id", "embedding"}
     missing_store = sorted(required_store.difference(store.columns))
@@ -173,6 +223,8 @@ def load_joined_data(store_path: Path, tracks_path: Path) -> tuple[pd.DataFrame,
         raise ValueError(f"embedding store is missing columns: {missing_store}")
     if store["track_id"].duplicated().any():
         raise ValueError("embedding store contains duplicate track_id values")
+    if store.empty:
+        raise ValueError("embedding store is empty")
 
     dimensions = sorted({len(np.asarray(item)) for item in store["embedding"]})
     if len(dimensions) != 1:
@@ -181,7 +233,23 @@ def load_joined_data(store_path: Path, tracks_path: Path) -> tuple[pd.DataFrame,
     model_versions = sorted(
         {str(item) for item in store.get("model_version", pd.Series(["unknown"])).dropna()}
     )
-    model_version = ",".join(model_versions) if model_versions else "unknown"
+    if len(model_versions) > 1:
+        raise ValueError("embedding store must contain exactly one model_version")
+    model_version = model_versions[0] if model_versions else "unknown"
+    matrix = np.stack([np.asarray(item, dtype=np.float32) for item in store["embedding"]])
+    if matrix.ndim != 2 or not np.isfinite(matrix).all():
+        raise ValueError("embedding matrix must be finite and two-dimensional")
+    matrix = matrix / np.maximum(np.linalg.norm(matrix, axis=1, keepdims=True), 1e-12)
+    store = store[[column for column in ("track_id", "embedding", "model_version") if column in store]].copy()
+    store["embedding"] = list(matrix)
+    return store, embedding_dim, model_version
+
+
+def load_joined_data(
+    store_path: Path, tracks_path: Path, subsets: Sequence[str] = ("small",),
+    license_allow: bool = False,
+) -> tuple[pd.DataFrame, int, str]:
+    store, embedding_dim, model_version = load_embedding_store(store_path)
 
     tracks = pd.read_csv(tracks_path, header=[0, 1], index_col=0)
     required_tracks = [
@@ -194,6 +262,8 @@ def load_joined_data(store_path: Path, tracks_path: Path) -> tuple[pd.DataFrame,
     missing_tracks = [column for column in required_tracks if column not in tracks.columns]
     if missing_tracks:
         raise ValueError(f"FMA metadata is missing columns: {missing_tracks}")
+    if license_allow and ("track", "license") not in tracks.columns:
+        raise ValueError("FMA metadata is missing track.license for rights filtering")
 
     metadata = pd.DataFrame(index=tracks.index.astype(int))
     metadata.index.name = "track_id_int"
@@ -202,7 +272,16 @@ def load_joined_data(store_path: Path, tracks_path: Path) -> tuple[pd.DataFrame,
     metadata["genre_top"] = tracks[("track", "genre_top")]
     metadata["genres_all"] = tracks[("track", "genres_all")].map(parse_genre_ids)
     metadata["artist_id"] = tracks[("artist", "id")]
-    metadata = metadata[metadata["subset"] == "small"].copy()
+    metadata["artist_group"] = metadata["artist_id"].map(lambda value: f"fma:{value}")
+    metadata["source"] = "FMA"
+    metadata["children_known"] = True
+    metadata["license_family"] = (
+        tracks[("track", "license")].map(license_family)
+        if ("track", "license") in tracks.columns else "other or unknown"
+    )
+    metadata = metadata[
+        metadata["subset"].isin(subsets) & metadata["genre_top"].isin(BROAD_GENRES)
+    ].copy()
 
     aligned = store.copy()
     aligned["track_id_int"] = pd.to_numeric(aligned["track_id"], errors="raise").astype(int)
@@ -210,18 +289,71 @@ def load_joined_data(store_path: Path, tracks_path: Path) -> tuple[pd.DataFrame,
         metadata.reset_index(), on="track_id_int", how="inner", validate="one_to_one"
     )
     aligned = aligned[aligned["split"].isin(SPLIT_NAMES)].copy()
+    if license_allow:
+        aligned = aligned[(aligned["split"] == "test") | clean_license_mask(aligned)].copy()
     if aligned.empty:
-        raise ValueError("no FMA-small embeddings aligned to official split metadata")
-
-    matrix = np.stack(
-        [np.asarray(item, dtype=np.float32) for item in aligned["embedding"]], axis=0
-    )
-    if not np.isfinite(matrix).all():
-        raise ValueError("embedding matrix contains NaN or infinite values")
-    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
-    matrix = matrix / np.maximum(norms, 1e-12)
-    aligned["embedding"] = list(matrix)
+        raise ValueError("no FMA embeddings aligned to the selected official split metadata")
     return aligned, embedding_dim, model_version
+
+
+def load_extra_data(
+    store_path: Path, labels_path: Path, embedding_dim: int, model_version: str,
+) -> pd.DataFrame:
+    """Load broad-only private labels; never include their identifiers in metadata."""
+    store, extra_dim, extra_version = load_embedding_store(store_path)
+    if extra_dim != embedding_dim or extra_version != model_version:
+        raise ValueError("extra embeddings must have the same dimension and model_version as FMA")
+    labels = pd.read_parquet(labels_path)
+    required = {"track_id", "broad_genre", "split", "artist_group", "child_labels_known", "eligible"}
+    if missing := sorted(required.difference(labels.columns)):
+        raise ValueError(f"extra labels are missing columns: {missing}")
+    if labels["track_id"].duplicated().any():
+        raise ValueError("extra labels contain duplicate track_id values")
+    if labels["child_labels_known"].isna().any() or not labels["child_labels_known"].eq(False).all():
+        raise ValueError("extra labels must explicitly mark child labels unknown")
+    if labels["eligible"].isna().any() or not labels["eligible"].isin([True, False]).all():
+        raise ValueError("extra label eligibility must be boolean")
+    labels = labels[labels["eligible"] & labels["broad_genre"].notna()].copy()
+    if not labels["broad_genre"].isin(BROAD_GENRES).all():
+        raise ValueError("extra labels contain an unknown broad genre")
+    if not labels["split"].isin(SPLIT_NAMES).all() or labels["artist_group"].isna().any():
+        raise ValueError("extra labels need an official split name and a non-null artist group")
+    if labels.groupby("artist_group")["split"].nunique().gt(1).any():
+        raise ValueError("extra labels are not artist-disjoint across splits")
+    if not labels["track_id"].isin(store["track_id"]).all():
+        raise ValueError("eligible extra labels are missing embeddings")
+    aligned = store.merge(
+        labels[["track_id", "broad_genre", "split", "artist_group"]],
+        on="track_id", how="inner", validate="one_to_one",
+    )
+    aligned = aligned.rename(columns={"broad_genre": "genre_top"})
+    aligned["artist_group"] = "library:" + aligned["artist_group"].astype(str)
+    aligned["genres_all"] = [()] * len(aligned)
+    aligned["children_known"] = False
+    aligned["source"] = "maintainer library"
+    aligned["license_family"] = "maintainer-owned"
+    return aligned
+
+
+def source_summary(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    """Return only aggregate provenance, never private rows or identifiers."""
+    return [
+        {
+            "source": source,
+            "total": int(len(rows)),
+            "splits": {
+                split: {
+                    "count": int((rows["split"] == split).sum()),
+                    "license_families": {
+                        str(family): int(count)
+                        for family, count in rows.loc[rows["split"] == split, "license_family"].value_counts().sort_index().items()
+                    },
+                }
+                for split in SPLIT_NAMES
+            },
+        }
+        for source, rows in frame.groupby("source", sort=True)
+    ]
 
 
 def load_taxonomy(genres_path: Path) -> pd.DataFrame:
@@ -274,7 +406,7 @@ def build_label_specs(
 ) -> list[LabelSpec]:
     train = frame[frame["split"] == "training"]
     validation = frame[frame["split"] == "validation"]
-    broad_ids = resolve_broad_ids(frame, taxonomy)
+    broad_ids = resolve_broad_ids(frame[frame["split"] != "test"], taxonomy)
     broad_id_set = set(broad_ids.values())
 
     specs: list[LabelSpec] = []
@@ -295,8 +427,8 @@ def build_label_specs(
             )
         )
 
-    train_counts = count_ids(train["genres_all"])
-    validation_counts = count_ids(validation["genres_all"])
+    train_counts = count_ids(train.loc[train.get("children_known", pd.Series(True, index=train.index)), "genres_all"])
+    validation_counts = count_ids(validation.loc[validation.get("children_known", pd.Series(True, index=validation.index)), "genres_all"])
     candidate_ids = sorted(
         genre_id
         for genre_id, count in train_counts.items()
@@ -342,6 +474,31 @@ def make_targets(frame: pd.DataFrame, specs: Sequence[LabelSpec]) -> np.ndarray:
             if spec.genre_id in genre_ids:
                 target[row_index, spec.index] = 1
     return target
+
+
+def make_label_mask(frame: pd.DataFrame, specs: Sequence[LabelSpec]) -> np.ndarray:
+    """Unknown child labels are neither negatives nor evaluation examples."""
+    known = np.ones((len(frame), len(specs)), dtype=bool)
+    child_indices = [spec.index for spec in specs if spec.kind == "child"]
+    if child_indices:
+        children_known = frame.get("children_known", pd.Series(True, index=frame.index))
+        if children_known.isna().any() or not children_known.isin([True, False]).all():
+            raise ValueError("children_known must be boolean for every row")
+        known[:, child_indices] = children_known.to_numpy(dtype=bool)[:, None]
+    return known
+
+
+def label_training_rows(
+    matrix: np.ndarray, targets: np.ndarray, mask: np.ndarray, label_index: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    selected = mask[:, label_index]
+    return matrix[selected], targets[selected, label_index]
+
+
+def classifier_class_weight(spec: LabelSpec, broad_policy: str) -> str | None:
+    if broad_policy == "balanced" or spec.kind == "child" or spec.train_positives < 300:
+        return "balanced"
+    return None
 
 
 def sigmoid(values: np.ndarray) -> np.ndarray:
@@ -457,15 +614,18 @@ def fit_label(
     seed: int,
     target_precision: float,
     min_threshold_predictions: int,
+    class_weight: str | None = "balanced",
 ) -> FittedLabel:
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import average_precision_score
 
+    if np.unique(y_train).size != 2 or np.unique(y_validation).size != 2:
+        raise ValueError("each label needs positive and negative known labels in training and validation")
     candidates: list[tuple[float, float, LogisticRegression]] = []
     for c_value in c_grid:
         classifier = LogisticRegression(
             C=float(c_value),
-            class_weight="balanced",
+            class_weight=class_weight,
             solver="liblinear",
             max_iter=max_iter,
             random_state=seed,
@@ -566,11 +726,17 @@ def evaluate(
     uncalibrated_probability: np.ndarray,
     specs: Sequence[LabelSpec],
     fitted: Sequence[FittedLabel],
+    label_mask: np.ndarray | None = None,
 ) -> dict[str, Any]:
+    if label_mask is None:
+        label_mask = np.ones_like(target, dtype=bool)
+    if label_mask.shape != target.shape:
+        raise ValueError("label mask must match the target matrix")
     label_metrics: list[dict[str, Any]] = []
     for spec, fit in zip(specs, fitted):
-        y_column = target[:, spec.index]
-        p_column = calibrated_probability[:, spec.index]
+        known = label_mask[:, spec.index]
+        y_column = target[known, spec.index]
+        p_column = calibrated_probability[known, spec.index]
         threshold_metrics = binary_threshold_metrics(y_column, p_column, fit.threshold)
         label_metrics.append(
             {
@@ -579,19 +745,21 @@ def evaluate(
                 "name": spec.name,
                 "kind": spec.kind,
                 "parent_name": spec.parent_name,
+                "known_examples": int(known.sum()),
+                "unknown_examples": int((~known).sum()),
                 "positives": int(y_column.sum()),
                 "negatives": int(len(y_column) - y_column.sum()),
                 "average_precision": safe_ap(y_column, p_column),
                 "roc_auc": safe_auc(y_column, p_column),
-                "brier": float(np.mean(np.square(p_column - y_column))),
+                "brier": float(np.mean(np.square(p_column - y_column))) if len(y_column) else None,
                 "brier_uncalibrated": float(
                     np.mean(
                         np.square(
-                            uncalibrated_probability[:, spec.index] - y_column
+                            uncalibrated_probability[known, spec.index] - y_column
                         )
                     )
-                ),
-                "ece_10_bin": expected_calibration_error(y_column, p_column),
+                ) if len(y_column) else None,
+                "ece_10_bin": expected_calibration_error(y_column, p_column) if len(y_column) else None,
                 "threshold": fit.threshold,
                 "threshold_enabled": fit.threshold_met_target,
                 **threshold_metrics,
@@ -600,9 +768,10 @@ def evaluate(
 
     broad_indices = [spec.index for spec in specs if spec.kind == "broad"]
     child_indices = [spec.index for spec in specs if spec.kind == "child"]
-    true_broad = np.argmax(target[:, broad_indices], axis=1)
-    predicted_broad = np.argmax(calibrated_probability[:, broad_indices], axis=1)
-    broad_confidence = np.max(calibrated_probability[:, broad_indices], axis=1)
+    broad_known = label_mask[:, broad_indices].all(axis=1)
+    true_broad = np.argmax(target[broad_known][:, broad_indices], axis=1)
+    predicted_broad = np.argmax(calibrated_probability[broad_known][:, broad_indices], axis=1)
+    broad_confidence = np.max(calibrated_probability[broad_known][:, broad_indices], axis=1)
     broad_correct = predicted_broad == true_broad
     selective_curve = []
     for threshold in (0.50, 0.60, 0.70, 0.80, 0.90):
@@ -623,9 +792,10 @@ def evaluate(
     )
     prediction = calibrated_probability >= thresholds[None, :]
     prediction[:, ~enabled] = False
+    prediction &= label_mask
     true_positive = int(np.logical_and(prediction, target == 1).sum())
     false_positive = int(np.logical_and(prediction, target == 0).sum())
-    false_negative = int(np.logical_and(~prediction, target == 1).sum())
+    false_negative = int((~prediction & (target == 1) & label_mask).sum())
     micro_precision = (
         true_positive / (true_positive + false_positive)
         if true_positive + false_positive
@@ -846,19 +1016,33 @@ def main() -> None:
     )
     if not c_grid or any(item <= 0.0 for item in c_grid):
         raise ValueError("--c-grid must contain positive values")
+    subsets = tuple(dict.fromkeys(item.strip() for item in args.subset.split(",") if item.strip()))
+    if not subsets or not set(subsets).issubset({"small", "medium", "large"}):
+        raise ValueError("--subset must contain official subset values: small,medium,large")
+    if bool(args.extra_store) != bool(args.extra_labels):
+        raise ValueError("--extra-store and --extra-labels must be supplied together")
 
     store_path = require_file(args.store, "embedding store")
     tracks_path = require_file(args.tracks, "FMA tracks metadata")
     genres_path = require_file(args.genres, "FMA genre taxonomy")
     output_dir = args.output_dir.expanduser().resolve()
+    if args.extra_store is not None or args.extra_labels is not None:
+        require_private_output(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     onnx_path = output_dir / f"{args.model_name}.onnx"
     metadata_path = output_dir / f"{args.model_name}.metadata.json"
 
-    print("Loading and aligning frozen embeddings to official FMA-small splits...")
+    print("Loading and aligning frozen embeddings to official FMA splits...")
     frame, embedding_dim, encoder_model_version = load_joined_data(
-        store_path, tracks_path
+        store_path, tracks_path, subsets=subsets, license_allow=bool(args.license_allow)
     )
+    if args.extra_store:
+        extra_frame = load_extra_data(
+            require_file(args.extra_store, "extra embedding store"),
+            require_file(args.extra_labels, "extra labels"),
+            embedding_dim, encoder_model_version,
+        )
+        frame = pd.concat([frame, extra_frame], ignore_index=True)
     taxonomy = load_taxonomy(genres_path)
     specs = build_label_specs(
         frame,
@@ -866,20 +1050,21 @@ def main() -> None:
         min_child_train_positives=args.min_child_train_positives,
         min_child_validation_positives=args.min_child_validation_positives,
     )
-    if not any(spec.kind == "child" for spec in specs):
-        raise ValueError("child selection policy selected no labels")
     targets = make_targets(frame, specs)
+    label_mask = make_label_mask(frame, specs)
 
     matrices: dict[str, np.ndarray] = {}
     split_targets: dict[str, np.ndarray] = {}
-    split_track_ids: dict[str, np.ndarray] = {}
+    split_label_masks: dict[str, np.ndarray] = {}
     for split_name in SPLIT_NAMES:
         mask = frame["split"].to_numpy() == split_name
+        if not mask.any():
+            raise ValueError(f"no usable rows in the {split_name} split")
         matrices[split_name] = np.stack(frame.loc[mask, "embedding"].to_list()).astype(
             np.float32
         )
         split_targets[split_name] = targets[mask]
-        split_track_ids[split_name] = frame.loc[mask, "track_id_int"].to_numpy()
+        split_label_masks[split_name] = label_mask[mask]
         print(
             f"  {split_name:10s}: {mask.sum():4d} tracks, "
             f"{len(specs)} labels, {embedding_dim}-d"
@@ -891,16 +1076,20 @@ def main() -> None:
     )
     fitted: list[FittedLabel] = []
     for spec in specs:
+        x_train, y_train = label_training_rows(
+            matrices["training"], split_targets["training"], split_label_masks["training"], spec.index,
+        )
+        x_validation, y_validation = label_training_rows(
+            matrices["validation"], split_targets["validation"], split_label_masks["validation"], spec.index,
+        )
         fit = fit_label(
-            matrices["training"],
-            split_targets["training"][:, spec.index],
-            matrices["validation"],
-            split_targets["validation"][:, spec.index],
+            x_train, y_train, x_validation, y_validation,
             c_grid=c_grid,
             max_iter=args.max_iter,
             seed=args.seed,
             target_precision=args.target_precision,
             min_threshold_predictions=args.min_threshold_predictions,
+            class_weight=classifier_class_weight(spec, args.broad_class_weight),
         )
         fitted.append(fit)
         print(
@@ -921,18 +1110,11 @@ def main() -> None:
             uncalibrated,
             specs,
             fitted,
+            label_mask=split_label_masks[split_name],
         )
 
     split_artist_ids = {
-        split_name: set(
-            pd.to_numeric(
-                frame.loc[frame["split"] == split_name, "artist_id"],
-                errors="coerce",
-            )
-            .dropna()
-            .astype(int)
-            .tolist()
-        )
+        split_name: set(frame.loc[frame["split"] == split_name, "artist_group"].dropna().astype(str))
         for split_name in SPLIT_NAMES
     }
     artist_overlap_counts = {
@@ -945,7 +1127,7 @@ def main() -> None:
     }
     if any(artist_overlap_counts.values()):
         raise ValueError(
-            "official split validation failed; artist IDs overlap: "
+            "split validation failed; artist groups overlap: "
             f"{artist_overlap_counts}"
         )
 
@@ -972,6 +1154,7 @@ def main() -> None:
         item.update(
             {
                 "selected_c": fit.selected_c,
+                "class_weight": classifier_class_weight(spec, args.broad_class_weight),
                 "validation_average_precision": fit.validation_ap,
                 "calibration": {
                     "type": "platt",
@@ -996,7 +1179,7 @@ def main() -> None:
 
     elapsed = time.perf_counter() - started
     metadata = {
-        "schema_version": 1,
+        "schema_version": 2,
         "model_name": args.model_name,
         "intended_use": "research_only",
         "provenance_warning": (
@@ -1007,7 +1190,7 @@ def main() -> None:
         "elapsed_seconds": elapsed,
         "model": {
             "format": "onnx",
-            "path": str(onnx_path),
+            "path": onnx_path.name,
             "sha256": sha256_file(onnx_path),
             "size_bytes": onnx_path.stat().st_size,
             "opset": args.opset,
@@ -1034,26 +1217,17 @@ def main() -> None:
         },
         "data": {
             "store": {
-                "path": str(store_path),
                 "sha256": sha256_file(store_path),
             },
             "tracks": {
-                "path": str(tracks_path),
                 "sha256": sha256_file(tracks_path),
             },
             "genres": {
-                "path": str(genres_path),
                 "sha256": sha256_file(genres_path),
             },
             "aligned_tracks": int(len(frame)),
             "split_counts": {
-                split_name: int(len(split_track_ids[split_name]))
-                for split_name in SPLIT_NAMES
-            },
-            "split_track_id_sha256": {
-                split_name: hashlib.sha256(
-                    np.sort(split_track_ids[split_name]).astype("<i8").tobytes()
-                ).hexdigest()
+                split_name: int(len(matrices[split_name]))
                 for split_name in SPLIT_NAMES
             },
             "split_artist_counts": {
@@ -1063,8 +1237,17 @@ def main() -> None:
             "artist_overlap_counts": artist_overlap_counts,
             "artist_disjoint": not any(artist_overlap_counts.values()),
         },
+        "data_sources": source_summary(frame),
+        "rights_filter": {
+            "enabled": bool(args.license_allow),
+            "allowed_fma_license_families": list(CLEAN_LICENSE_FAMILIES) if args.license_allow else None,
+            "applied_splits": ["training", "validation"] if args.license_allow else [],
+            "test_license_filter_applied": False,
+            "test_audio_is_evaluation_only": True,
+        },
         "selection_policy": {
-            "broad_labels": "all FMA-small track.genre_top labels",
+            "broad_labels": "FMA broad genres present in training/validation",
+            "subsets": list(subsets),
             "child_source": "track.genres_all",
             "child_parent_rule": "top_level must be one of the selected broad labels",
             "minimum_child_training_positives": args.min_child_train_positives,
@@ -1072,10 +1255,13 @@ def main() -> None:
                 args.min_child_validation_positives
             ),
             "selection_uses_test_labels": False,
+            "extra_rows": "broad labels only; child labels unknown and excluded from fitting and scoring",
         },
         "training": {
             "classifier": "one L2 logistic regression per label",
-            "class_weight": "balanced",
+            "broad_class_weight": args.broad_class_weight,
+            "rare_broad_positive_cutoff": 300,
+            "child_class_weight": "balanced",
             "solver": "liblinear",
             "c_grid": list(c_grid),
             "c_selection_metric": "validation average precision",
@@ -1101,13 +1287,6 @@ def main() -> None:
             "onnx": onnx.__version__,
             "onnxruntime": onnxruntime.__version__,
         },
-        "command": {
-            "store": str(store_path),
-            "tracks": str(tracks_path),
-            "genres": str(genres_path),
-            "output_dir": str(output_dir),
-            "model_name": args.model_name,
-        },
     }
     metadata_path.write_text(
         json.dumps(json_safe(metadata), indent=2, sort_keys=True) + "\n",
@@ -1116,18 +1295,14 @@ def main() -> None:
 
     test = split_metrics["test"]
     print("")
-    print("Held-out official FMA-small test results")
+    print("Held-out test results (FMA and eligible extra rows)")
     print(f"  broad top-1 accuracy: {test['broad_top1_accuracy']:.4f}")
     print(
         "  broad macro AP / ROC-AUC: "
         f"{test['broad']['macro_average_precision']:.4f} / "
         f"{test['broad']['macro_roc_auc']:.4f}"
     )
-    print(
-        "  child macro AP / ROC-AUC: "
-        f"{test['children']['macro_average_precision']:.4f} / "
-        f"{test['children']['macro_roc_auc']:.4f}"
-    )
+    print(f"  child macro AP / ROC-AUC: {test['children']['macro_average_precision']} / {test['children']['macro_roc_auc']}")
     print(
         "  threshold micro precision / recall / coverage: "
         f"{test['exported_thresholds']['micro_precision']:.4f} / "
