@@ -316,20 +316,20 @@ fun CollectionDetailScreen(
                             )
                         }
                         Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
-                            Text(
+                            MarqueeText(
                                 text = selection.title,
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !selectionMode,
                             )
                             selection.subtitle?.let { subtitle ->
-                                Text(
+                                MarqueeText(
                                     text = subtitle,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !selectionMode,
                                 )
                             }
                         }

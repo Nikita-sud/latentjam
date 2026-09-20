@@ -621,13 +621,13 @@ fun NowPlayingScreen(
                                 ),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
-                                Text(
+                                MarqueeText(
                                     text = shownTrack?.title
                                         ?: stringResource(Res.string.now_playing_nothing),
                                     style = MaterialTheme.typography.headlineSmall,
                                     textAlign = TextAlign.Center,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = shownTrack?.id == now.track?.id,
                                 )
                                 // Artist and album are places, so they are links: each opens
                                 // its own collection. The dash between them stays plain.
@@ -1192,13 +1192,11 @@ private fun CompactDragHandle() {
 @Composable
 private fun MetadataLink(text: String?, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
     if (text == null) return
-    Text(
+    MarqueeText(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textDecoration = if (onClick != null) TextDecoration.Underline else null,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
         modifier = if (onClick != null) {
             modifier
                 .clip(RoundedCornerShape(6.dp))

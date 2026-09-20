@@ -8,8 +8,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -78,14 +80,12 @@ internal fun TrackDetailsFace(
             .clip(RoundedCornerShape(24.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
-            .padding(start = 18.dp, end = 10.dp, top = 8.dp, bottom = 14.dp),
+            .padding(start = 18.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
+            MarqueeText(
                 text = track.title ?: stringResource(Res.string.track_untitled),
                 style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onClose) {
@@ -100,7 +100,7 @@ internal fun TrackDetailsFace(
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(end = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             DetailRow(stringResource(Res.string.info_artist), track.artist ?: notSet)
             DetailRow(stringResource(Res.string.info_album), track.album ?: notSet)
@@ -125,18 +125,14 @@ internal fun TrackDetailsFace(
                     ?: stringResource(Res.string.details_plays_none),
             )
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(2.dp))
         Row(
             modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedButton(onClick = onEditTags, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(stringResource(Res.string.info_edit), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
             onShowOnMap?.let { showOnMap ->
-                OutlinedButton(onClick = showOnMap, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = showOnMap, modifier = Modifier.weight(1f, fill = false)) {
                     Icon(Icons.Rounded.Map, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -145,6 +141,21 @@ internal fun TrackDetailsFace(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+            OutlinedButton(
+                onClick = onEditTags,
+                // Compact visible button; Material still reserves its normal accessible touch area.
+                modifier = Modifier.weight(1f, fill = false).defaultMinSize(minHeight = 32.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    stringResource(Res.string.info_edit),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -165,13 +176,11 @@ private fun DetailRow(label: String, value: String) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
+        MarqueeText(
             text = value,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
     }
 }
