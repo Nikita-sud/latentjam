@@ -12,6 +12,10 @@ plugins {
 // (git-ignored) names it. It is used ONLY when a build asks for it with
 // `-Platentjam.playSigning=true`: the GitHub releases keep the debug key, see buildTypes below.
 val playSigningRequested = providers.gradleProperty("latentjam.playSigning").orNull == "true"
+// `-Platentjam.fdroid=true` is what F-Droid's build server passes: one universal APK, no ABI
+// splits (they would share a versionCode, and fdroidserver expects exactly one output), and
+// no signing at all, because F-Droid signs with its own key after the build.
+val fdroidBuild = providers.gradleProperty("latentjam.fdroid").orNull == "true"
 val uploadKeystore: Properties? = rootProject.file("keystore.properties")
     .takeIf { it.isFile }
     ?.let { file -> Properties().apply { file.inputStream().use(::load) } }
@@ -67,10 +71,10 @@ android {
             // upgrade path by keeping its key. Google Play is a separate channel with its own
             // signature (Play App Signing re-signs uploads anyway), so only a build that asks
             // for it — `bundleRelease -Platentjam.playSigning=true` — uses the upload key.
-            signingConfig = if (playSigningRequested) {
-                signingConfigs.getByName("upload")
-            } else {
-                signingConfigs.getByName("debug")
+            signingConfig = when {
+                playSigningRequested -> signingConfigs.getByName("upload")
+                fdroidBuild -> null
+                else -> signingConfigs.getByName("debug")
             }
         }
     }
@@ -83,7 +87,7 @@ android {
     // Play-signed build turns them off.
     splits {
         abi {
-            isEnable = !playSigningRequested
+            isEnable = !playSigningRequested && !fdroidBuild
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = false
