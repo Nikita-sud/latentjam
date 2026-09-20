@@ -2051,12 +2051,29 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 )
                             }
                         }
-                        else -> when (val target = source.resolveGroup(catalog)) {
-                            is QueueSourceGroup.Album -> { { target.group.toSelection() } }
-                            is QueueSourceGroup.Artist -> { { target.group.toSelection() } }
-                            is QueueSourceGroup.Genre -> { { target.group.toSelection() } }
-                            is QueueSourceGroup.Folder -> { { target.group.toSelection() } }
-                            null -> return false
+                        else -> {
+                            // An auto playlist is rebuilt from its kind, exactly as the Playlists
+                            // tab opens it; its tracks are the current ones, not a stale copy.
+                            val auto = source.autoPlaylistKind()
+                                ?.let { kind -> autoPlaylists.firstOrNull { it.kind == kind } }
+                            if (auto != null) {
+                                {
+                                    CollectionSelection(
+                                        title = getString(auto.kind.titleRes()),
+                                        subtitle = trackCountLabel(auto.tracks.size),
+                                        artworkUri = auto.tracks.firstNotNullOfOrNull { it.artworkUri },
+                                        tracks = auto.tracks,
+                                        allowsTrackSelection = true,
+                                        routeId = "auto:${auto.kind.name}",
+                                    )
+                                }
+                            } else when (val target = source.resolveGroup(catalog)) {
+                                is QueueSourceGroup.Album -> { { target.group.toSelection() } }
+                                is QueueSourceGroup.Artist -> { { target.group.toSelection() } }
+                                is QueueSourceGroup.Genre -> { { target.group.toSelection() } }
+                                is QueueSourceGroup.Folder -> { { target.group.toSelection() } }
+                                null -> return false
+                            }
                         }
                     }
                     openCollection(

@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.AlbumGroup
 import io.github.nikitasud.latentjam.library.ArtistGroup
+import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.library.FolderGroup
 import io.github.nikitasud.latentjam.library.GenreGroup
 import io.github.nikitasud.latentjam.library.LibraryCatalog
@@ -73,6 +74,16 @@ internal class QueueSourceTest {
     @Test
     fun autoPlaylistsNeverResolveThroughTheirDisplayName() {
         assertNull(source("auto:NEVER_PLAYED").resolveGroup(catalog))
+    }
+
+    @Test
+    fun autoPlaylistsKeepTheirKindAsTheStableIdentity() {
+        val source = source("auto:NEVER_PLAYED", "Never played")
+        assertEquals(QueueSourceKind.LIBRARY_GROUP, source.kind)
+        assertEquals(AutoPlaylistKind.NEVER_PLAYED, source.autoPlaylistKind())
+        assertNull(source("auto:UNKNOWN").autoPlaylistKind())
+        assertNull(source("album:second").autoPlaylistKind())
+        assertNull(QueueSource(QueueSourceKind.COLLECTION, "Shared").autoPlaylistKind())
     }
 
     @Test

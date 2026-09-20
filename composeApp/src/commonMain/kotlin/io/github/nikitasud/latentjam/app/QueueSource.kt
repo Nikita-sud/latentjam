@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.tab_map
 import io.github.nikitasud.latentjam.app.generated.resources.tab_tracks
 import io.github.nikitasud.latentjam.library.AlbumGroup
 import io.github.nikitasud.latentjam.library.ArtistGroup
+import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.library.FolderGroup
 import io.github.nikitasud.latentjam.library.GenreGroup
 import io.github.nikitasud.latentjam.library.LibraryCatalog
@@ -53,7 +54,16 @@ internal fun CollectionSelection.queueSource(): QueueSource = when {
     else -> QueueSource(QueueSourceKind.COLLECTION, title)
 }
 
-private val LIBRARY_GROUP_PREFIXES = setOf("album", "artist", "genre", "folder")
+private val LIBRARY_GROUP_PREFIXES = setOf("album", "artist", "genre", "folder", "auto")
+
+/** An auto playlist is identified by its kind, never by its localized title. */
+internal fun QueueSource.autoPlaylistKind(): AutoPlaylistKind? {
+    if (kind != QueueSourceKind.LIBRARY_GROUP) return null
+    val route = reference ?: return null
+    if (route.substringBefore(':') != "auto") return null
+    val name = route.substringAfter(':')
+    return AutoPlaylistKind.entries.firstOrNull { it.name == name }
+}
 
 internal sealed interface QueueSourceGroup {
     data class Album(val group: AlbumGroup) : QueueSourceGroup
