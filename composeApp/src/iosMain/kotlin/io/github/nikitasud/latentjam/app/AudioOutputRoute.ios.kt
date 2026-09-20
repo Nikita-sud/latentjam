@@ -34,15 +34,16 @@ internal actual fun rememberAudioOutputRoute(): AudioOutputRoute? {
         ) {
             route.value = currentOutputRoute()
         }
+        route.value = currentOutputRoute()
         onDispose { NSNotificationCenter.defaultCenter.removeObserver(observer) }
     }
     return route.value
 }
 
-private fun currentOutputRoute(): AudioOutputRoute {
+private fun currentOutputRoute(): AudioOutputRoute? {
     val port = AVAudioSession.sharedInstance().currentRoute.outputs
         .firstOrNull() as? AVAudioSessionPortDescription
-        ?: return AudioOutputRoute(AudioOutputKind.SPEAKER, null)
+        ?: return null
     val kind = when (port.portType) {
         AVAudioSessionPortBluetoothA2DP,
         AVAudioSessionPortBluetoothLE,

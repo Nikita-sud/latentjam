@@ -40,7 +40,7 @@ import org.jetbrains.compose.resources.stringResource
 /** Where the sound is going right now. */
 internal enum class AudioOutputKind { SPEAKER, WIRED, BLUETOOTH, OTHER }
 
-/** [name] is the device's own name when the platform knows one; null falls back to the kind. */
+/** [name] is the device's own name when known; named kinds also have a localized fallback. */
 internal data class AudioOutputRoute(val kind: AudioOutputKind, val name: String?)
 
 /** The current output, kept current as devices come and go; null where the platform cannot say. */
@@ -66,10 +66,10 @@ internal fun AudioOutputStatus(route: AudioOutputRoute, onOpen: (() -> Unit)?, m
             AudioOutputKind.SPEAKER -> Res.string.output_phone_speaker
             AudioOutputKind.WIRED -> Res.string.output_headphones
             AudioOutputKind.BLUETOOTH -> Res.string.output_bluetooth
-            AudioOutputKind.OTHER -> Res.string.output_headphones
+            AudioOutputKind.OTHER -> return
         },
     )
-    val description = stringResource(Res.string.cd_output_route, label)
+    val description = if (onOpen != null) stringResource(Res.string.cd_output_route, label) else label
     Row(
         modifier = modifier
             .height(32.dp)
