@@ -53,6 +53,10 @@ GENRE_ALIASES = {
     "International": ["international", "world", "world music", "latin", "latin music", "latin pop", "reggae", "roots reggae", "dancehall", "ska", "dub", "afrobeat", "afrobeats", "afro pop", "afropop", "bossa nova", "samba", "salsa", "merengue", "bachata", "cumbia", "tango", "reggaeton", "flamenco", "fado", "klezmer", "traditional", "traditional music", "regional", "regional traditional", "balkan", "balkan folk", "romanian folk", "moldovan folk", "russian folk", "irish folk", "scottish folk", "indian classical", "hindustani", "carnatic", "qawwali", "arabic", "arabic folk", "turkish folk", "persian traditional", "african", "african traditional", "народная", "народная музыка", "румынская народная", "молдавская народная", "регги"],
     "Experimental": ["experimental", "avant garde", "avantgarde", "noise", "harsh noise", "noise music", "musique concrete", "electroacoustic", "sound art", "free improvisation", "экспериментальная", "авангард"],
 }
+GENRE_ALIASES["Instrumental"] += ["anime ost", "game ost", "epic orchestral", "tv score"]
+GENRE_ALIASES["Rock"] += ["russian rock", "soft rock", "arena rock"]
+GENRE_ALIASES["Electronic"] += ["euro disco"]
+GENRE_ALIASES["Hip-Hop"] += ["brazilian phonk"]
 
 
 def normalize_tag(value: str) -> str:

@@ -118,6 +118,23 @@ class LabelTests(unittest.TestCase):
         self.assertEqual(embedder.split_genre_tags(["rock; metal / punk,grunge", "rock"]), ["grunge", "metal", "punk", "rock"])
         self.assertEqual(embedder.tag_values({"TCON": TCON(text=["17"])}, ("TCON",)), ["Rock"])
 
+    def test_specific_soundtrack_and_style_aliases_preserve_exclusions(self):
+        aliases = {
+            "Instrumental": ["Anime OST", "Game OST", "Epic Orchestral", "TV Score"],
+            "Rock": ["Russian Rock", "Soft Rock", "Arena Rock"],
+            "Electronic": ["Euro-Disco"],
+            "Hip-Hop": ["Brazilian Phonk"],
+        }
+        for broad, tags in aliases.items():
+            for tag in tags:
+                with self.subTest(tag=tag):
+                    self.assertEqual(embedder.map_genres([tag]), (broad, ""))
+                    self.assertEqual(embedder.map_genres([tag, "Production Music"]), (None, "unmapped_tag"))
+        for ambiguous in ["Anime", "Ambient", "Funk", "R&B", "Soul", "Production Music"]:
+            with self.subTest(ambiguous=ambiguous):
+                self.assertEqual(embedder.map_genres([ambiguous]), (None, "unmapped_tag"))
+        self.assertEqual(embedder.map_genres(["Anime OST", "Soft Rock"]), (None, "multiple_broad_genres"))
+
     def test_vorbis_does_not_query_invalid_id3_or_mp4_keys(self):
         tags = VCommentDict()
         tags["GENRE"] = ["Rock"]
