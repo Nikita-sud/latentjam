@@ -105,7 +105,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -332,15 +331,8 @@ fun NowPlayingScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.surface,
-                            MaterialTheme.colorScheme.surface,
-                            accent.container,
-                        ),
-                    ),
-                ),
+                .background(MaterialTheme.colorScheme.surface)
+                .playerCloud(accent = accent, playing = now.isPlaying),
         ) {
             // Continues the sheet's own colour through the system-bar strip beneath it.
             //
