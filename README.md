@@ -107,12 +107,15 @@ your genres as the model hears them, and every track's menu can answer *"where d
 library?"*. The Map page is off by default; enable it in **Settings → Pages**.
 
 🔎 &nbsp;**Search that ranks like you expect** — title matches first, then artist and album, then genre,
-then meaning, with the matched text highlighted in every result. Folding is script- and
+then the lyrics embedded in the files, then meaning, with the matched text highlighted in every result. Folding is script- and
 spelling-aware (фонк finds *phonk*), and a local CC0 MusicBrainz index resolves artist aliases,
 transliterations and band-member names entirely on device, so a query and a tag that spell an artist
 differently still match.
 
-🎚️ &nbsp;**A real player underneath** — Media3 playback with a proper media session, an editable
+🎚️ &nbsp;**A real player underneath** — a full-screen player built for the thumb: the cover flips to
+the track's facts, holds for actions and swipes between tracks; a thin live seek bar scrubs finely
+and shows the lyric line under the handle; pause and resume fade instead of cutting; the top bar says
+where the sound is going. Beneath it, Media3 playback with a proper media session, an editable
 queue that survives restarts, playlists with M3U import/export and hand-drag ordering, album/artist/
 genre/folder browsing behind an A-Z rail, optional crossfade and volume normalization measured from
 real playback, embedded lyrics from mp3, FLAC and Opus (timed lyrics follow the song and a tap on a
