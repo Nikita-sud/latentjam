@@ -39,6 +39,21 @@ class PlayerFeelTest {
     }
 
     @Test
+    fun neighbourRevealIsContinuousDirectionalAndReversible() {
+        val outward = listOf(0f, -6f, -30f, -60f, -96f).map {
+            artworkNeighbourReveal(it, width = 400f, forward = true)
+        }
+        assertEquals(0f, outward.first())
+        assertTrue(outward.zipWithNext().all { (a, b) -> a < b })
+        assertEquals(1f, outward.last())
+        assertEquals(0f, artworkNeighbourReveal(-60f, 400f, forward = false))
+        assertEquals(outward[3], artworkNeighbourReveal(60f, 400f, forward = false))
+        assertEquals(0f, artworkNeighbourReveal(0f, 400f, forward = true))
+        assertEquals(1f, artworkNeighbourReveal(-800f, 400f, forward = true))
+        assertEquals(0f, artworkNeighbourReveal(-80f, 0f, forward = true))
+    }
+
+    @Test
     fun fineScrubSlowsWithDistanceBelowTheBar() {
         assertEquals(1, scrubFineFactor(dyBelowBar = 0f, halfAt = 40f, quarterAt = 90f))
         assertEquals(1, scrubFineFactor(dyBelowBar = 40f, halfAt = 40f, quarterAt = 90f))

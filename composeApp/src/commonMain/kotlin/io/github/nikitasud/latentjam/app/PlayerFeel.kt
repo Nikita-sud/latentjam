@@ -37,6 +37,14 @@ internal fun swipeShown(dx: Float, blocked: Boolean): Float =
 internal fun swipeCommits(dx: Float, width: Float, blocked: Boolean): Boolean =
     !blocked && width > 0f && abs(dx) > width * SWIPE_COMMIT_FRACTION
 
+/** Fade in only the revealed side, reaching full opacity before a swipe can commit. */
+internal fun artworkNeighbourReveal(travel: Float, width: Float, forward: Boolean): Float {
+    if (width <= 0f) return 0f
+    val towardsNeighbour = if (forward) -travel else travel
+    val progress = (towardsNeighbour / (width * 0.24f)).coerceIn(0f, 1f)
+    return progress * progress * (3f - 2f * progress)
+}
+
 /** Pulling the player down moves it three quarters of the way, so the release still feels light. */
 internal fun collapseShown(dy: Float): Float = dy.coerceAtLeast(0f) * COLLAPSE_FOLLOW
 

@@ -561,8 +561,10 @@ fun NowPlayingScreen(
                                     now.shuffleMode == ShuffleMode.SMART,
                                 canSkipBackward = now.track != null &&
                                     (previousRestarts || now.queueIndex > 0 || now.repeatMode == RepeatMode.ALL),
-                                neighbourArtwork = { forward ->
-                                    queueNeighbour(playback.state.value, forward)?.artworkUri
+                                neighbourTrack = { forward ->
+                                    // Use the same snapshot as the main cover; the live controller
+                                    // can already be one entry ahead while Compose catches up.
+                                    queueNeighbour(now, forward)
                                 },
                                 onCollapseDrag = { pulled ->
                                     if (pulled == 0f) {

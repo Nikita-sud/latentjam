@@ -61,6 +61,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -90,8 +93,8 @@ internal fun PlayerArtworkCard(
     onSkip: (forward: Boolean) -> Unit,
     canSkipForward: Boolean,
     canSkipBackward: Boolean,
-    /** Cover of the track a swipe in that direction would reach; null shows nothing peeking. */
-    neighbourArtwork: (forward: Boolean) -> String?,
+    /** Track a swipe in that direction would reach; a missing image still gets a cover face. */
+    neighbourTrack: (forward: Boolean) -> TrackDescriptor?,
     /** Called with the resisted pull in px while the finger drags down, and with 0f on release. */
     onCollapseDrag: (Float) -> Unit,
     onCollapse: () -> Unit,
@@ -113,12 +116,20 @@ internal fun PlayerArtworkCard(
     val holdRing = remember { Animatable(0f) }
     val angle = remember { Animatable(0f) }
     var holdCenter by remember { mutableStateOf(Offset.Zero) }
-    // Neighbour covers are composed only while a swipe is in flight: a decoded bitmap on each
-    // side of every player open would be paid for by every listener who never swipes.
+    // Only the two immediate neighbours are prepared while this player is open. Their layers
+    // stay transparent at rest, so image decoding never starts halfway through a swipe.
     var swiping by remember { mutableStateOf(false) }
     var pendingSkip by remember { mutableStateOf<Boolean?>(null) }
     var skipJob by remember { mutableStateOf<Job?>(null) }
     var dragTravel by remember { mutableStateOf<Float?>(null) }
+    val entry = track?.id to queueIndex
+    var motionEntry by remember { mutableStateOf(entry) }
+    // Track/preview content changes during composition; coroutine cleanup happens afterward.
+    // Never draw the new entry at the previous entry's parked swipe position, even for one frame.
+    val ownsMotion = motionEntry == entry
+    // Keep this decision for the arriving entry: clearing pendingSkip must not introduce a fade
+    // halfway through replacing the fully visible preview with the main cover.
+    val arrivedBySwipe = remember(entry) { pendingSkip != null }
     val backFacing by remember { derivedStateOf { angle.value > 90f } }
     val currentFlipped by rememberUpdatedState(flipped)
     val currentOnFlip by rememberUpdatedState(onFlip)
@@ -137,13 +148,17 @@ internal fun PlayerArtworkCard(
     // A committed swipe parks the cover off-screen with the neighbour's cover in its place. The
     // moment the track changes the real cover takes over at zero travel; nothing moves on screen
     // because the ghost stood exactly there. A skip that never lands springs back instead.
-    LaunchedEffect(track?.id, queueIndex) {
+    LaunchedEffect(entry) {
         skipJob?.cancel()
         travel.snapTo(0f)
         tilt.snapTo(0f)
+        pressScale.snapTo(1f)
+        holdRing.snapTo(0f)
+        angle.snapTo(if (flipped) 180f else 0f)
         dragTravel = null
         pendingSkip = null
         swiping = false
+        motionEntry = entry
     }
     LaunchedEffect(pendingSkip) {
         if (pendingSkip == null) return@LaunchedEffect
@@ -331,7 +346,7 @@ internal fun PlayerArtworkCard(
             }
             .drawWithContent {
                 drawContent()
-                val progress = holdRing.value
+                val progress = if (ownsMotion) holdRing.value else 0f
                 if (progress <= 0f) return@drawWithContent
                 val radius = HOLD_RING_RADIUS.toPx()
                 val stroke = Stroke(width = HOLD_RING_STROKE.toPx())
@@ -351,27 +366,41 @@ internal fun PlayerArtworkCard(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    translationX = dragTravel ?: travel.value
-                    scaleX = pressScale.value
-                    scaleY = pressScale.value
+                    translationX = if (ownsMotion) dragTravel ?: travel.value else 0f
+                    scaleX = if (ownsMotion) pressScale.value else 1f
+                    scaleY = scaleX
                 },
         ) {
-            if (swiping) {
-                val gapPx = with(density) { GHOST_GAP.toPx() }
-                GhostCover(uri = neighbourArtwork(false), offsetX = { width -> -(width + gapPx) })
-                GhostCover(uri = neighbourArtwork(true), offsetX = { width -> width + gapPx })
+            val gapPx = with(density) { GHOST_GAP.toPx() }
+            neighbourTrack(false)?.let { neighbour ->
+                GhostCover(
+                    uri = neighbour.artworkUri,
+                    forward = false,
+                    gapPx = gapPx,
+                    travel = { if (ownsMotion && swiping) dragTravel ?: travel.value else 0f },
+                    reduceMotion = reduceMotion,
+                )
+            }
+            neighbourTrack(true)?.let { neighbour ->
+                GhostCover(
+                    uri = neighbour.artworkUri,
+                    forward = true,
+                    gapPx = gapPx,
+                    travel = { if (ownsMotion && swiping) dragTravel ?: travel.value else 0f },
+                    reduceMotion = reduceMotion,
+                )
             }
             AnimatedContent(
                 targetState = track,
                 modifier = Modifier.graphicsLayer {
-                    rotationZ = if (reduceMotion) 0f else {
+                    rotationZ = if (reduceMotion || !ownsMotion) 0f else {
                         dragTravel?.let { it / size.width * SWIPE_TILT_DEGREES } ?: tilt.value
                     }
                 },
                 contentKey = { it?.id },
                 transitionSpec = {
                     // Swipes already moved the cover; the real one just takes the ghost's place.
-                    if (pendingSkip != null) {
+                    if (arrivedBySwipe) {
                         EnterTransition.None togetherWith ExitTransition.None
                     } else {
                         motionFadeThrough(reduceMotion)
@@ -380,8 +409,8 @@ internal fun PlayerArtworkCard(
                 label = "player-artwork",
             ) { shown ->
                 FlipCard(
-                    angle = { angle.value },
-                    backFacing = backFacing,
+                    angle = { if (ownsMotion) angle.value else if (flipped) 180f else 0f },
+                    backFacing = if (ownsMotion) backFacing else flipped,
                     front = { CoverFace(uri = shown?.artworkUri) },
                     back = details,
                     modifier = Modifier.inactiveForMotion(shown?.id != track?.id),
@@ -433,7 +462,18 @@ private fun FlipCard(
 }
 
 @Composable
-private fun CoverFace(uri: String?) {
+private fun CoverFace(uri: String?, fadeIn: Boolean = false) {
+    val context = LocalPlatformContext.current
+    val request = remember(context, uri, fadeIn) {
+        ImageRequest.Builder(context)
+            .data(uri)
+            // The incoming preview already decoded this image. Reuse it synchronously when
+            // AnimatedContent installs the real card, including its first loading frame.
+            .memoryCacheKey("player-cover:$uri")
+            .placeholderMemoryCacheKey("player-cover:$uri")
+            .crossfade(if (fadeIn) 120 else 0)
+            .build()
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -450,7 +490,7 @@ private fun CoverFace(uri: String?) {
         )
         if (uri != null) {
             AsyncImage(
-                model = uri,
+                model = request,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
@@ -459,22 +499,28 @@ private fun CoverFace(uri: String?) {
     }
 }
 
-/** A neighbour's cover, parked one card-width to the side so a swipe reveals it. */
+/** Prepared offscreen; distance-driven opacity makes both reveal and cancellation continuous. */
 @Composable
-private fun GhostCover(uri: String?, offsetX: (widthPx: Float) -> Float) {
-    if (uri == null) return
+private fun GhostCover(
+    uri: String?,
+    forward: Boolean,
+    gapPx: Float,
+    travel: () -> Float,
+    reduceMotion: Boolean,
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .graphicsLayer { translationX = offsetX(size.width) }
-            .clip(RoundedCornerShape(COVER_RADIUS)),
+            .graphicsLayer {
+                translationX = (size.width + gapPx) * if (forward) 1f else -1f
+                val reveal = artworkNeighbourReveal(travel(), size.width, forward)
+                alpha = reveal
+                val scale = if (reduceMotion) 1f else 0.97f + 0.03f * reveal
+                scaleX = scale
+                scaleY = scale
+            },
     ) {
-        AsyncImage(
-            model = uri,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-        )
+        CoverFace(uri = uri, fadeIn = !reduceMotion)
     }
 }
 
@@ -488,7 +534,7 @@ private val HOLD_RING_RADIUS: Dp = 27.dp
 private val HOLD_RING_STROKE: Dp = 3.dp
 private const val HOLD_MS = 450
 private const val HOLD_SINK = 0.97f
-private const val SWIPE_OUT_MS = 280
+private const val SWIPE_OUT_MS = 180
 private const val SKIP_SETTLE_TIMEOUT_MS = 1_500L
 private const val FLIP_MS = 360
 private const val FLIP_CAMERA_DISTANCE = 12f
