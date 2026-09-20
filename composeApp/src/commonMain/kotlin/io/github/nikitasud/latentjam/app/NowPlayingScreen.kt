@@ -411,6 +411,14 @@ fun NowPlayingScreen(
                                 contentDescription = stringResource(Res.string.action_close),
                             )
                         }
+                        // Where the sound is going, before the first note says so.
+                        val outputRoute = rememberAudioOutputRoute()
+                        if (outputRoute != null) {
+                            AudioOutputStatus(
+                                route = outputRoute,
+                                onOpen = rememberAudioOutputChooser(),
+                            )
+                        }
                         Spacer(modifier = Modifier.weight(1f))
                         if (now.track != null) {
                             IconButton(
