@@ -79,6 +79,8 @@ import org.koin.dsl.module
  */
 object AppGraph {
 
+    internal val lyricsSearchCache = LyricsSearchCache()
+
     private var koinApp: KoinApplication? = null
 
     /**

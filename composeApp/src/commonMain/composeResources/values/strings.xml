@@ -190,7 +190,7 @@
     <string name="cd_shuffle_smart">SMART shuffle on. Tap to change.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">Search</string>
+    <string name="search_placeholder">Track, artist or lyrics</string>
     <string name="cd_close_search">Close search</string>
     <string name="cd_clear_query">Clear query</string>
     <!-- %1$s is what the user typed -->

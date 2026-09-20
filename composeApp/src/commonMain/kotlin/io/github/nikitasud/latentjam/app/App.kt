@@ -2269,6 +2269,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     searchVisibilityState.targetState = showSearch
                     val searchOverlayActive = searchVisibilityState.currentState ||
                         searchVisibilityState.targetState
+                    // Fade the old page out before the search text appears, avoiding doubled
+                    // headings through a translucent overlay. The mini-player stays in place.
+                    val browseSearchAlpha = animateFloatAsState(
+                        targetValue = if (showSearch) 0f else 1f,
+                        animationSpec = tween(
+                            durationMillis = if (showSearch) 70 else 110,
+                            delayMillis = if (showSearch) 0 else 70,
+                        ),
+                        label = "browse-search-fade",
+                    )
                     val collectionTransition = updateTransition(
                         targetState = selectedCollection,
                         label = "collection-detail-state",
@@ -2279,11 +2289,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         // Collection detail and Search are full-screen layers drawn after this
                         // browse shell. Hide the covered tree from accessibility so TalkBack never
                         // reaches duplicate/underlying tabs and selection controls.
-                        modifier = if (collectionOverlayActive || searchOverlayActive) {
-                            Modifier.clearAndSetSemantics { }
-                        } else {
-                            Modifier
-                        },
+                        modifier = Modifier
+                            .graphicsLayer { alpha = browseSearchAlpha.value }
+                            .then(if (collectionOverlayActive || searchOverlayActive) {
+                                Modifier.clearAndSetSemantics { }
+                            } else {
+                                Modifier
+                            }),
                         topBar = {
                             Column {
                                 AnimatedContent(
@@ -3142,7 +3154,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 layoutDirection = layoutDirection,
                             )
                         },
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = browseSearchAlpha.value },
                     ) { animatedSelection ->
                     Box(
                         modifier = Modifier
@@ -3208,22 +3220,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     }
                     }
 
-                    // Search settles in from under the top bar rather than teleporting whole.
+                    // Keep the field anchored while the IME animates. Sliding a focused editor
+                    // can make Android pan the entire window to its transient coordinates.
                     if (searchOverlayActive) ModalPointerBlocker()
                     AnimatedVisibility(
                         visibleState = searchVisibilityState,
-                        enter = if (reduceMotion) {
-                            fadeIn(tween(120))
-                        } else {
-                            fadeIn(tween(Motion.APPEAR_MS)) +
-                                slideInVertically(tween(Motion.APPEAR_MS)) { -it / 10 }
-                        },
-                        exit = if (reduceMotion) {
-                            fadeOut(tween(90))
-                        } else {
-                            fadeOut(tween(Motion.REPLACE_MS)) +
-                                slideOutVertically(tween(Motion.REPLACE_MS)) { -it / 10 }
-                        },
+                        modifier = Modifier.fillMaxSize(),
+                        enter = fadeIn(tween(if (reduceMotion) 70 else 110, delayMillis = 70)),
+                        exit = fadeOut(tween(70)),
                     ) {
                         Box(
                             modifier = Modifier
@@ -3231,6 +3235,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 .inactiveDuringTransition(!searchVisibilityState.targetState),
                         ) {
                         SearchScreen(
+                            active = showSearch,
+                            readyForInput = showSearch && searchVisibilityState.isIdle,
                             songs = catalog?.songs.orEmpty(),
                             currentTrackId = currentTrack?.id,
                             currentTrackPlaying = currentTrackPlaying,

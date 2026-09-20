@@ -152,7 +152,7 @@
     <string name="cd_shuffle_smart">SMART-Zufallswiedergabe ist an. Tippe, um das zu ändern.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">Suchen</string>
+    <string name="search_placeholder">Titel, Interpret oder Liedtext</string>
     <string name="cd_close_search">Suche schließen</string>
     <string name="cd_clear_query">Suchtext löschen</string>
     <!-- %1$s is what the user typed -->

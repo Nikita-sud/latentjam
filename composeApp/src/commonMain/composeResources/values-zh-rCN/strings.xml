@@ -137,7 +137,7 @@
     <string name="cd_shuffle_smart">SMART 随机播放已开启。点按可切换。</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">搜索</string>
+    <string name="search_placeholder">歌曲、歌手或歌词</string>
     <string name="cd_close_search">关闭搜索</string>
     <string name="cd_clear_query">清除搜索内容</string>
     <!-- %1$s is what the user typed -->

@@ -27,14 +27,15 @@ import platform.posix.memcpy
 private const val MAX_TAG_BYTES = 8 * 1024 * 1024
 
 @Composable
-internal actual fun rememberLyricsReader(): suspend (TrackDescriptor) -> Lyrics? = remember {
+internal actual fun rememberLyricsReader(reportReadFailures: Boolean): suspend (TrackDescriptor) -> Lyrics? = remember(reportReadFailures) {
     { track ->
         withContext(Dispatchers.Default) {
             try {
                 readEmbeddedLyrics(track)
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (_: Throwable) {
+            } catch (failure: Exception) {
+                if (reportReadFailures) throw failure
                 null
             }
         }
@@ -47,7 +48,7 @@ private fun readEmbeddedLyrics(track: TrackDescriptor): Lyrics? {
     val url = track.audioUri?.takeIf(String::isNotBlank)?.let(NSURL::URLWithString) ?: return null
     if (!url.isFileURL()) return null
     val path = url.path ?: return null
-    val handle = NSFileHandle.fileHandleForReadingAtPath(path) ?: return null
+    val handle = checkNotNull(NSFileHandle.fileHandleForReadingAtPath(path)) { "Cannot open lyrics source" }
     return try {
         // Container-agnostic: ID3 USLT for mp3, Vorbis comments for FLAC and Ogg/Opus.
         EmbeddedLyrics.read(FileHandleByteSource(handle))

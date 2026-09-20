@@ -11,8 +11,8 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 /**
  * Reads lyrics embedded in the track's own file (ID3 `USLT`), fully offline.
  *
- * Returns null for files without embedded lyrics, non-ID3 containers, and platforms without a
- * reader yet. Main-safe: implementations do their IO off the caller's thread.
+ * Returns null for files without supported embedded lyrics. Search opts into read failures
+ * so a temporarily unreadable file cannot be cached as having no lyrics. Main-safe: implementations do their IO off the caller's thread.
  */
 @Composable
-internal expect fun rememberLyricsReader(): suspend (TrackDescriptor) -> Lyrics?
+internal expect fun rememberLyricsReader(reportReadFailures: Boolean = false): suspend (TrackDescriptor) -> Lyrics?

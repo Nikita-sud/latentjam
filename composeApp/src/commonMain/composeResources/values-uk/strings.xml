@@ -156,7 +156,7 @@
     <string name="cd_shuffle_smart">Перемішування SMART увімкнено. Торкніться, щоб змінити.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">Пошук</string>
+    <string name="search_placeholder">Трек, автор або слова</string>
     <string name="cd_close_search">Закрити пошук</string>
     <string name="cd_clear_query">Очистити запит</string>
     <!-- %1$s is what the user typed -->

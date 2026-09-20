@@ -167,7 +167,7 @@
     <string name="cd_shuffle_smart">تشغيل SMART العشوائي مفعّل. انقر للتغيير.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">بحث</string>
+    <string name="search_placeholder">أغنية أو فنان أو كلمات</string>
     <string name="cd_close_search">إغلاق البحث</string>
     <string name="cd_clear_query">مسح نص البحث</string>
     <!-- %1$s is what the user typed -->

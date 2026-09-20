@@ -137,7 +137,7 @@
     <string name="cd_shuffle_smart">SMART 셔플이 켜져 있습니다. 탭하면 변경됩니다.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">검색</string>
+    <string name="search_placeholder">곡, 아티스트 또는 가사</string>
     <string name="cd_close_search">검색 닫기</string>
     <string name="cd_clear_query">검색어 지우기</string>
     <!-- %1$s is what the user typed -->

@@ -195,6 +195,7 @@ internal fun TrackRow(
     onArtworkLoadStateChanged: ((requestUri: String, state: ArtworkLoadState) -> Unit)? = null,
     /** When set, occurrences of this query in the title/artist render emphasized. */
     highlightQuery: String? = null,
+    lyricSnippet: String? = null,
 ) {
     val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
@@ -346,6 +347,16 @@ internal fun TrackRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            lyricSnippet?.let { snippet ->
+                Text(
+                    text = emphasized(snippet, highlightQuery, highlight),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         if (selectionState == null && onMenu != null) {
             val title = track.title

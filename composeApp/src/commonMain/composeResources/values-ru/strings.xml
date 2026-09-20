@@ -149,7 +149,7 @@
     <string name="cd_shuffle_smart">Перемешивание SMART включено. Нажмите, чтобы изменить.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">Поиск</string>
+    <string name="search_placeholder">Трек, автор или слова</string>
     <string name="cd_close_search">Закрыть поиск</string>
     <string name="cd_clear_query">Очистить запрос</string>
     <string name="search_no_matches">Ничего не найдено по запросу «%1$s».</string>

@@ -154,7 +154,7 @@
     <string name="cd_shuffle_smart">La lecture aléatoire SMART est activée. Appuyez pour changer.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">Rechercher</string>
+    <string name="search_placeholder">Titre, artiste ou paroles</string>
     <string name="cd_close_search">Fermer la recherche</string>
     <string name="cd_clear_query">Effacer le texte de recherche</string>
     <!-- %1$s is what the user typed -->

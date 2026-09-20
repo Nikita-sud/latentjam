@@ -142,7 +142,7 @@
     <string name="cd_shuffle_smart">SMART karışık çalma açık. Değiştirmek için dokunun.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">Ara</string>
+    <string name="search_placeholder">Şarkı, sanatçı veya sözler</string>
     <string name="cd_close_search">Aramayı kapat</string>
     <string name="cd_clear_query">Arama metnini temizle</string>
     <!-- %1$s is what the user typed -->

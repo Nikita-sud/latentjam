@@ -17,16 +17,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-internal actual fun rememberLyricsReader(): suspend (TrackDescriptor) -> Lyrics? {
+internal actual fun rememberLyricsReader(reportReadFailures: Boolean): suspend (TrackDescriptor) -> Lyrics? {
     val context = LocalContext.current.applicationContext
-    return remember(context) {
+    return remember(context, reportReadFailures) {
         { track ->
             withContext(Dispatchers.IO) {
                 try {
                     readEmbeddedLyrics(context, track)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
-                } catch (_: Throwable) {
+                } catch (failure: Exception) {
+                    if (reportReadFailures) throw failure
                     null
                 }
             }
@@ -36,7 +37,7 @@ internal actual fun rememberLyricsReader(): suspend (TrackDescriptor) -> Lyrics?
 
 private fun readEmbeddedLyrics(context: Context, track: TrackDescriptor): Lyrics? {
     val uri = track.audioUri?.takeIf { it.isNotBlank() }?.let(Uri::parse) ?: return null
-    return context.contentResolver.openInputStream(uri)?.use { input ->
+    return checkNotNull(context.contentResolver.openInputStream(uri)) { "Cannot open lyrics source" }.use { input ->
         // Container-agnostic: ID3 USLT for mp3, Vorbis comments for FLAC and Ogg/Opus —
         // reading only ID3 silently answered "no lyrics" for every correctly tagged Opus.
         EmbeddedLyrics.read(InputStreamByteSource(input))

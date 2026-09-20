@@ -137,7 +137,7 @@
     <string name="cd_shuffle_smart">SMARTシャッフルがオンです。タップすると切り替わります。</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">検索</string>
+    <string name="search_placeholder">曲名・アーティスト・歌詞</string>
     <string name="cd_close_search">検索を閉じる</string>
     <string name="cd_clear_query">検索キーワードを消去</string>
     <!-- %1$s is what the user typed -->

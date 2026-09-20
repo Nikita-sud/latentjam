@@ -147,7 +147,7 @@
     <string name="cd_shuffle_smart">Redarea aleatorie SMART este activată. Atinge pentru a schimba.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">Caută</string>
+    <string name="search_placeholder">Piesă, artist sau versuri</string>
     <string name="cd_close_search">Închide căutarea</string>
     <string name="cd_clear_query">Șterge căutarea</string>
     <string name="search_no_matches">Niciun rezultat pentru „%1$s”.</string>

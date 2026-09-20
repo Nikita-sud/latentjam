@@ -143,7 +143,7 @@
     <string name="cd_shuffle_smart">Pemutaran acak SMART aktif. Ketuk untuk mengubah.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">Cari</string>
+    <string name="search_placeholder">Lagu, artis, atau lirik</string>
     <string name="cd_close_search">Tutup pencarian</string>
     <string name="cd_clear_query">Hapus teks pencarian</string>
     <!-- %1$s is what the user typed -->

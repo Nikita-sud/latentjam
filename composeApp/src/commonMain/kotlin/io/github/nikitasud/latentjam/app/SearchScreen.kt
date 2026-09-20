@@ -42,6 +42,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
@@ -101,6 +104,8 @@ import org.jetbrains.compose.resources.stringResource
 internal fun SearchScreen(
     songs: List<TrackDescriptor>,
     currentTrackId: TrackId?,
+    active: Boolean = true,
+    readyForInput: Boolean = true,
     /** Whether the player is audibly running; animates the current row's badge. */
     currentTrackPlaying: Boolean = false,
     selectedTrackIds: Set<TrackId> = emptySet(),
@@ -115,9 +120,6 @@ internal fun SearchScreen(
 ) {
     // The same long-press promise as every other track list: back leaves selection first.
     val selectionMode = selectedTrackIds.isNotEmpty()
-    PlatformBackHandler(enabled = true) {
-        if (selectionMode) onClearSelection() else onClose()
-    }
 
     val scope = rememberCoroutineScope()
     // Search lives inside the browse stack, which leaves composition during the player morph.
@@ -129,6 +131,21 @@ internal fun SearchScreen(
     var semanticQuery by remember(songs) { mutableStateOf("") }
     var searchIndex by remember(songs) { mutableStateOf<SearchIndex?>(null) }
     var results by remember(songs) { mutableStateOf<List<TrackDescriptor>>(emptyList()) }
+    var lyricDocuments by remember(songs) { mutableStateOf<Map<TrackId, LyricSearchDocument>>(emptyMap()) }
+    var lyricSnippets by remember(songs) { mutableStateOf<Map<TrackId, String>>(emptyMap()) }
+    var indexingLyrics by remember(songs) { mutableStateOf(true) }
+    val lyricsReader = rememberLyricsReader(reportReadFailures = true)
+    val lyricsStorage = rememberLyricsSearchStorage()
+    LaunchedEffect(songs, readyForInput, active) {
+        if (!active || !readyForInput) return@LaunchedEffect
+        indexingLyrics = true
+        withContext(Dispatchers.Default) {
+            AppGraph.lyricsSearchCache.load(songs, lyricsStorage, lyricsReader) { snapshot ->
+                lyricDocuments = snapshot
+            }
+        }
+        indexingLyrics = false
+    }
     var resultQuery by remember(songs) { mutableStateOf("") }
     var isSearching by remember(songs) { mutableStateOf(false) }
     var trackStats by remember { mutableStateOf<Map<TrackId, TrackStats>>(emptyMap()) }
@@ -157,12 +174,13 @@ internal fun SearchScreen(
         }
         if (loaded != null) trackStats = loaded
     }
-    LaunchedEffect(searchIndex, query, semantic, semanticQuery, entityResolver, trackStats) {
+    LaunchedEffect(searchIndex, query, semantic, semanticQuery, entityResolver, trackStats, lyricDocuments) {
         val needle = query.trim()
         val index = searchIndex
         if (needle.isBlank()) {
             isSearching = false
             results = emptyList()
+            lyricSnippets = emptyMap()
             resultQuery = needle
         } else if (index == null) {
             isSearching = true
@@ -174,25 +192,53 @@ internal fun SearchScreen(
             val nowMs = epochMillis()
             val calculated = withContext(Dispatchers.Default) {
                 val context = currentCoroutineContext()
-                hybridSearch(
+                val snippets = searchLyrics(lyricDocuments, needle) { context.ensureActive() }
+                val tracks = hybridSearch(
                     index = index,
                     query = needle,
                     semantic = matchingSemantic,
                     aliasMatches = entityResolver::matches,
                     stats = trackStats,
                     nowMs = nowMs,
+                    lyricMatches = snippets.keys,
                 ) {
                     context.ensureActive()
                 }
+                tracks to snippets
             }
-            results = calculated
+            results = calculated.first
+            lyricSnippets = calculated.second
             resultQuery = needle
             isSearching = false
         }
     }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val reduceMotion = rememberReduceMotion()
+
+    fun closeSearch() {
+        focusManager.clearFocus(force = true)
+        keyboard?.hide()
+        onClose()
+    }
+    PlatformBackHandler(enabled = active) {
+        if (selectionMode) onClearSelection() else closeSearch()
+    }
+    // History IO must not decide when Android brings the editor into view. Wait for the
+    // fixed-position surface to settle, including a cancelled exit/re-entry, then focus once.
+    LaunchedEffect(active, readyForInput) {
+        if (!active) {
+            focusManager.clearFocus(force = true)
+            keyboard?.hide()
+        } else if (readyForInput) {
+            withFrameNanos { }
+            focusRequester.requestFocus()
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { focusManager.clearFocus(force = true) }
+    }
 
     suspend fun refreshRecent(expectedRevision: Long = recentOperationRevision) {
         val loaded = try {
@@ -210,7 +256,6 @@ internal fun SearchScreen(
 
     LaunchedEffect(Unit) {
         refreshRecent(recentOperationRevision)
-        focusRequester.requestFocus()
     }
 
     // Encoder inference is local and fast, but still unnecessary on every keypress. Exact metadata
@@ -258,7 +303,7 @@ internal fun SearchScreen(
                 modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onClose) {
+                IconButton(onClick = ::closeSearch) {
                     Icon(
                         Icons.AutoMirrored.Rounded.ArrowBack,
                         contentDescription = stringResource(Res.string.cd_close_search),
@@ -323,9 +368,10 @@ internal fun SearchScreen(
             val searchPending = query.isNotBlank() &&
                 (isSearching || resultQuery != trimmedQuery)
             var showSearchProgress by remember { mutableStateOf(false) }
-            LaunchedEffect(searchPending, trimmedQuery) {
+            val lyricsPending = indexingLyrics && trimmedQuery.length >= 3
+            LaunchedEffect(searchPending, lyricsPending, trimmedQuery) {
                 showSearchProgress = false
-                if (searchPending) {
+                if (searchPending || lyricsPending) {
                     // Most local metadata searches finish within a frame. Only disclose work that
                     // lasts long enough to be perceived, otherwise the spinner itself is flicker.
                     delay(SEARCH_PROGRESS_DELAY_MS)
@@ -343,6 +389,7 @@ internal fun SearchScreen(
                 searchPending && showSearchProgress -> SearchContentMode.Loading
                 searchPending && recent.isNotEmpty() -> SearchContentMode.Recent
                 searchPending -> SearchContentMode.Blank
+                lyricsPending && results.isEmpty() -> SearchContentMode.Loading
                 query.isNotBlank() && results.isEmpty() -> SearchContentMode.NoMatches
                 query.isNotBlank() -> SearchContentMode.Results
                 recent.isNotEmpty() -> SearchContentMode.Recent
@@ -359,6 +406,7 @@ internal fun SearchScreen(
                     trimmedQuery
                 },
                 results = results,
+                lyricSnippets = lyricSnippets,
                 recent = recent,
             )
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -405,6 +453,7 @@ internal fun SearchScreen(
                                 isCurrent = track.id == currentTrackId,
                                 isPlaying = currentTrackPlaying,
                                 highlightQuery = shown.query,
+                                lyricSnippet = shown.lyricSnippets[track.id],
                                 onClick = {
                                     // A pending query deliberately keeps the settled snapshot
                                     // usable. The visible row therefore plays the visible queue,
@@ -484,7 +533,7 @@ internal fun SearchScreen(
                 }
                 }
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = searchPending && showSearchProgress && resultQuery.isNotBlank(),
+                    visible = (searchPending || lyricsPending) && showSearchProgress && results.isNotEmpty(),
                     modifier = Modifier.align(Alignment.TopCenter),
                     enter = androidx.compose.animation.fadeIn(tween(
                         if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS,
@@ -515,6 +564,7 @@ private data class SearchPresentation(
     val mode: SearchContentMode,
     val query: String,
     val results: List<TrackDescriptor>,
+    val lyricSnippets: Map<TrackId, String>,
     val recent: List<String>,
 )
 
@@ -617,6 +667,7 @@ internal fun hybridSearch(
     aliasMatches: (query: String, artist: String?) -> Boolean = { _, _ -> false },
     stats: Map<TrackId, TrackStats> = emptyMap(),
     nowMs: Long = 0L,
+    lyricMatches: Set<TrackId> = emptySet(),
 ): List<TrackDescriptor> = hybridSearch(
     index = SearchIndex.build(songs),
     query = query,
@@ -624,6 +675,7 @@ internal fun hybridSearch(
     aliasMatches = aliasMatches,
     stats = stats,
     nowMs = nowMs,
+    lyricMatches = lyricMatches,
 )
 
 private fun hybridSearch(
@@ -633,6 +685,7 @@ private fun hybridSearch(
     aliasMatches: (String, String?) -> Boolean,
     stats: Map<TrackId, TrackStats> = emptyMap(),
     nowMs: Long = 0L,
+    lyricMatches: Set<TrackId> = emptySet(),
     checkCancelled: () -> Unit = {},
 ): List<TrackDescriptor> {
     val needle = query.trim()
@@ -662,15 +715,12 @@ private fun hybridSearch(
             .thenBy { it.libraryOrder },
     )
 
-    val used = lexical.mapTo(HashSet()) { it.track.id }
     val entities = index.songs.asSequence()
         .onEach { checkCancelled() }
-        .filter { it.id !in used && aliasMatches(needle, it.artist) }
-        .onEach { used += it.id }
+        .filter { aliasMatches(needle, it.artist) }
     val expanded = SemanticGate.gate(semantic).asSequence()
         .onEach { checkCancelled() }
         .mapNotNull { index.byId[it.trackId] }
-        .filter { used.add(it.id) }
         .take(SEMANTIC_RESULT_LIMIT)
 
     // An alias hit is knowledge, not chance: "tsoi" resolving to Кино through the MusicBrainz
@@ -681,9 +731,11 @@ private fun hybridSearch(
     return (
         strong.asSequence().map { it.track } +
             entities +
+            index.songs.asSequence().filter { it.id in lyricMatches } +
             weak.asSequence().map { it.track } +
             expanded
         )
+        .distinctBy { it.id }
         .take(SEARCH_RESULT_LIMIT)
         .toList()
 }
@@ -781,7 +833,7 @@ private fun fieldQuality(
 // index and the query), then collapse the folded text to single-spaced alphanumeric tokens. The
 // fold is what lets a Latin-keyboard query reach non-Latin metadata; the collapse keeps the tokens
 // and edit-distance inputs the fuzzy matcher already expects.
-private fun normalizeSearchText(value: String): String = buildString(value.length) {
+internal fun normalizeSearchText(value: String): String = buildString(value.length) {
     var previousSpace = true
     SearchFold.fold(value).forEach { character ->
         when {

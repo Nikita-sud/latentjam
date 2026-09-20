@@ -156,7 +156,7 @@
     <string name="cd_shuffle_smart">Odtwarzanie losowe SMART włączone. Dotknij, aby zmienić.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">Szukaj</string>
+    <string name="search_placeholder">Utwór, wykonawca lub tekst</string>
     <string name="cd_close_search">Zamknij wyszukiwanie</string>
     <string name="cd_clear_query">Wyczyść zapytanie</string>
     <!-- %1$s is what the user typed -->

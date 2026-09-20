@@ -142,7 +142,7 @@
     <string name="cd_shuffle_smart">SMART शफ़ल चालू है. बदलने के लिए टैप करें.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">खोजें</string>
+    <string name="search_placeholder">गीत, कलाकार या बोल</string>
     <string name="cd_close_search">खोज बंद करें</string>
     <string name="cd_clear_query">खोज का टेक्स्ट मिटाएं</string>
     <!-- %1$s is what the user typed -->

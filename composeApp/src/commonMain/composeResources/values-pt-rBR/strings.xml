@@ -149,7 +149,7 @@
     <string name="cd_shuffle_smart">A ordem aleatória SMART está ativada. Toque para alterar.</string>
 
     <!-- ============================================================= search -->
-    <string name="search_placeholder">Buscar</string>
+    <string name="search_placeholder">Música, artista ou letra</string>
     <string name="cd_close_search">Fechar a busca</string>
     <string name="cd_clear_query">Limpar o texto da busca</string>
     <!-- %1$s is what the user typed -->
