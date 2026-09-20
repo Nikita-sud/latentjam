@@ -5,10 +5,10 @@ This is a deliberately small research experiment.  It does not retrain the
 audio encoder.  Instead, it:
 
 1. joins a frozen embedding parquet to the official FMA metadata splits;
-2. builds one-hot broad labels from ``track.genre_top`` and multi-hot child
-   labels from ``track.genres_all``;
+2. builds broad labels from ``track.genre_top`` and multi-hot child labels from
+   ``track.genres_all``, optionally adding official multi-genre training rows;
 3. selects child labels using training/validation support only;
-4. tunes one L2 logistic classifier per label on validation average precision;
+4. selects L2 regularization by validation AP or a frozen training-only CV plan;
 5. Platt-calibrates every label on validation logits;
 6. chooses per-label abstention thresholds on validation data only;
 7. evaluates once on the untouched official test split; and
@@ -110,6 +110,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--extra-store", type=Path)
     parser.add_argument("--extra-labels", type=Path)
     parser.add_argument(
+        "--multigenre-store", type=Path,
+        help="Additional FMA embeddings with multiple official broad genres. Only clean official training rows are used; validation/test rows remain excluded.",
+    )
+    parser.add_argument("--library-weight", type=float, default=1.0)
+    parser.add_argument("--multigenre-weight", type=float, default=1.0)
+    parser.add_argument(
+        "--mixed-root-store", type=Path,
+        help="Additional clean FMA training with required and other official roots; preserve required positives and ignore roots outside the output taxonomy.",
+    )
+    parser.add_argument("--mixed-root-weight", type=float, default=1.0)
+    parser.add_argument(
+        "--additional-positive-only", action="store_true",
+        help="For added multi/mixed-root training rows, mask absent broad and child tags as unknown while preserving every documented positive.",
+    )
+    parser.add_argument(
+        "--artist-weight-power", type=float, default=0.0,
+        help="Downweight repeated training artists by count raised to this power (0 to 1), normalized within each source.",
+    )
+    parser.add_argument(
+        "--calibration-prior-power", type=float, default=0.0,
+        help="Validation genre inverse-frequency weight power for broad Platt fits: 0 preserves observed priors, 1 gives equal genre mass.",
+    )
+    parser.add_argument(
         "--broad-class-weight", choices=("balanced", "rare"), default="balanced",
         help="Legacy balances every label; rare balances broad labels with fewer than 300 training positives. Child labels always stay balanced.",
     )
@@ -148,6 +171,10 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated inverse L2 regularization values.",
     )
     parser.add_argument("--max-iter", type=int, default=2_000)
+    parser.add_argument(
+        "--c-plan", type=Path,
+        help="Optional frozen training-artist-CV JSON plan for broad regularization, with exact source hashes; children retain validation AP selection.",
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--opset", type=int, default=17)
     return parser.parse_args()
@@ -174,6 +201,28 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def load_c_plan(
+    path: Path, broad_names: Iterable[str], sources: dict[str, Path],
+) -> dict[str, float]:
+    """Bind externally selected broad regularization to exact training inputs."""
+    plan = json.loads(path.read_text())
+    if plan.get("kind") != "training_artist_cv":
+        raise ValueError("C plan must identify training_artist_cv selection")
+    expected_hashes = {name: sha256_file(source) for name, source in sources.items()}
+    if plan.get("source_hashes") != expected_hashes:
+        raise ValueError("C plan source hashes must match the current input files exactly")
+    selected = plan.get("selected_c")
+    if not isinstance(selected, dict) or set(selected) != set(broad_names):
+        raise ValueError("C plan must select exactly the broad labels in the training data")
+    if any(
+        isinstance(value, bool) or not isinstance(value, (int, float))
+        or not math.isfinite(value) or value <= 0
+        for value in selected.values()
+    ):
+        raise ValueError("C plan values must be finite positive numbers")
+    return {name: float(value) for name, value in selected.items()}
 
 
 def parse_genre_ids(value: Any) -> tuple[int, ...]:
@@ -247,7 +296,8 @@ def load_embedding_store(store_path: Path) -> tuple[pd.DataFrame, int, str]:
 
 def load_joined_data(
     store_path: Path, tracks_path: Path, subsets: Sequence[str] = ("small",),
-    license_allow: bool = False,
+    license_allow: bool = False, taxonomy: pd.DataFrame | None = None,
+    include_multigenre: bool = False, allow_mixed_roots: bool = False,
 ) -> tuple[pd.DataFrame, int, str]:
     store, embedding_dim, model_version = load_embedding_store(store_path)
 
@@ -271,16 +321,35 @@ def load_joined_data(
     metadata["subset"] = tracks[("set", "subset")].astype(str)
     metadata["genre_top"] = tracks[("track", "genre_top")]
     metadata["genres_all"] = tracks[("track", "genres_all")].map(parse_genre_ids)
+    metadata["broad_genres"] = metadata["genre_top"].map(
+        lambda name: (name,) if name in BROAD_GENRES else ()
+    )
+    if include_multigenre:
+        if taxonomy is None:
+            raise ValueError("multi-genre FMA labels require the official taxonomy")
+        missing_broad = ~metadata["genre_top"].isin(BROAD_GENRES)
+        metadata.loc[missing_broad, "broad_genres"] = metadata.loc[
+            missing_broad, "genres_all"
+        ].map(lambda ids: taxonomy_broad_genres(ids, taxonomy, allow_mixed_roots=allow_mixed_roots))
+    metadata["multigenre"] = metadata["broad_genres"].map(len) > 1
+    metadata["mixed_roots"] = False
+    if include_multigenre and allow_mixed_roots:
+        metadata["mixed_roots"] = metadata["genres_all"].map(
+            lambda ids: bool(taxonomy_broad_genres(ids, taxonomy, allow_mixed_roots=True))
+            and not bool(taxonomy_broad_genres(ids, taxonomy))
+        )
+        metadata["multigenre"] |= metadata["mixed_roots"]
     metadata["artist_id"] = tracks[("artist", "id")]
     metadata["artist_group"] = metadata["artist_id"].map(lambda value: f"fma:{value}")
     metadata["source"] = "FMA"
     metadata["children_known"] = True
+    metadata["positive_only"] = False
     metadata["license_family"] = (
         tracks[("track", "license")].map(license_family)
         if ("track", "license") in tracks.columns else "other or unknown"
     )
     metadata = metadata[
-        metadata["subset"].isin(subsets) & metadata["genre_top"].isin(BROAD_GENRES)
+        metadata["subset"].isin(subsets) & metadata["broad_genres"].map(bool)
     ].copy()
 
     aligned = store.copy()
@@ -294,6 +363,56 @@ def load_joined_data(
     if aligned.empty:
         raise ValueError("no FMA embeddings aligned to the selected official split metadata")
     return aligned, embedding_dim, model_version
+
+
+def taxonomy_broad_genres(
+    ids: Sequence[int], taxonomy: pd.DataFrame, allow_mixed_roots: bool = False,
+) -> tuple[str, ...]:
+    """Keep documented roots, optionally projecting mixed roots onto the output set."""
+    if not ids or any(genre_id not in taxonomy.index for genre_id in ids):
+        return ()
+    root_ids = {int(taxonomy.loc[genre_id, "top_level"]) for genre_id in ids}
+    if any(root not in taxonomy.index for root in root_ids):
+        return ()
+    titles = {str(taxonomy.loc[root, "title"]) for root in root_ids}
+    if not titles.issubset(BROAD_GENRES) and not allow_mixed_roots:
+        return ()
+    return tuple(sorted(titles.intersection(BROAD_GENRES)))
+
+
+def load_multigenre_training_data(
+    store_path: Path, tracks_path: Path, taxonomy: pd.DataFrame,
+    embedding_dim: int, model_version: str, existing_ids: Iterable[Any],
+    mixed_roots_only: bool = False,
+    positive_only: bool = False,
+) -> tuple[pd.DataFrame, dict[str, int]]:
+    """Add clean official multilabel training rows without enlarging calibration."""
+    frame, dimension, version = load_joined_data(
+        store_path, tracks_path, subsets=("small", "medium", "large"),
+        license_allow=True, taxonomy=taxonomy, include_multigenre=True,
+        allow_mixed_roots=mixed_roots_only,
+    )
+    if dimension != embedding_dim or version != model_version:
+        raise ValueError("multi-genre embeddings must match the base dimension and model_version")
+    if frame["track_id"].astype(str).isin({str(value) for value in existing_ids}).any():
+        raise ValueError("multi-genre store overlaps existing FMA track IDs")
+    selected = (frame["split"] == "training") & frame["multigenre"] & clean_license_mask(frame)
+    if mixed_roots_only:
+        selected &= frame["mixed_roots"]
+    counts = {
+        "input_store_rows": int(len(pd.read_parquet(store_path, columns=["track_id"]))),
+        "selected_training": int(selected.sum()),
+        "excluded_validation": int((frame["split"] == "validation").sum()),
+        "excluded_test": int((frame["split"] == "test").sum()),
+        "excluded_single_genre_training": int(((frame["split"] == "training") & ~frame["multigenre"]).sum()),
+        "excluded_required_only_multigenre_training": int(((frame["split"] == "training") & frame["multigenre"] & ~frame["mixed_roots"]).sum()) if mixed_roots_only else 0,
+    }
+    counts["excluded_by_metadata_or_training_validation_rights"] = counts["input_store_rows"] - len(frame)
+    if not selected.any():
+        raise ValueError("multi-genre store contains no eligible clean training rows")
+    result = frame.loc[selected].copy()
+    result["positive_only"] = positive_only
+    return result, counts
 
 
 def load_extra_data(
@@ -327,9 +446,13 @@ def load_extra_data(
         on="track_id", how="inner", validate="one_to_one",
     )
     aligned = aligned.rename(columns={"broad_genre": "genre_top"})
+    aligned["broad_genres"] = aligned["genre_top"].map(lambda name: (name,))
+    aligned["multigenre"] = False
+    aligned["mixed_roots"] = False
     aligned["artist_group"] = "library:" + aligned["artist_group"].astype(str)
     aligned["genres_all"] = [()] * len(aligned)
     aligned["children_known"] = False
+    aligned["positive_only"] = False
     aligned["source"] = "maintainer library"
     aligned["license_family"] = "maintainer-owned"
     return aligned
@@ -382,7 +505,8 @@ def resolve_broad_ids(frame: pd.DataFrame, taxonomy: pd.DataFrame) -> dict[str, 
         title_to_ids.setdefault(str(row["title"]), []).append(int(genre_id))
 
     result: dict[str, int] = {}
-    for title in sorted(frame["genre_top"].dropna().astype(str).unique()):
+    titles = {name for names in row_broad_genres(frame) for name in names}
+    for title in sorted(titles):
         candidates = title_to_ids.get(title, [])
         top_level_candidates = [
             genre_id
@@ -396,6 +520,12 @@ def resolve_broad_ids(frame: pd.DataFrame, taxonomy: pd.DataFrame) -> dict[str, 
             )
         result[title] = top_level_candidates[0]
     return result
+
+
+def row_broad_genres(frame: pd.DataFrame) -> pd.Series:
+    if "broad_genres" in frame:
+        return frame["broad_genres"]
+    return frame["genre_top"].map(lambda name: (str(name),))
 
 
 def build_label_specs(
@@ -420,9 +550,9 @@ def build_label_specs(
                 parent_index=len(specs),
                 parent_genre_id=genre_id,
                 parent_name=title,
-                train_positives=int((train["genre_top"].astype(str) == title).sum()),
+                train_positives=int(row_broad_genres(train).map(lambda names: title in names).sum()),
                 validation_positives=int(
-                    (validation["genre_top"].astype(str) == title).sum()
+                    row_broad_genres(validation).map(lambda names: title in names).sum()
                 ),
             )
         )
@@ -465,10 +595,11 @@ def make_targets(frame: pd.DataFrame, specs: Sequence[LabelSpec]) -> np.ndarray:
     broad_index_by_name = {spec.name: spec.index for spec in broad_specs}
 
     for row_index, row in enumerate(frame.itertuples(index=False)):
-        broad_name = str(row.genre_top)
-        if broad_name not in broad_index_by_name:
-            raise ValueError(f"unknown broad genre in aligned data: {broad_name!r}")
-        target[row_index, broad_index_by_name[broad_name]] = 1
+        broad_names = getattr(row, "broad_genres", (str(row.genre_top),))
+        if not broad_names or any(name not in broad_index_by_name for name in broad_names):
+            raise ValueError("unknown or missing broad genre in aligned data")
+        for broad_name in broad_names:
+            target[row_index, broad_index_by_name[broad_name]] = 1
         genre_ids = set(row.genres_all)
         for spec in child_specs:
             if spec.genre_id in genre_ids:
@@ -485,6 +616,12 @@ def make_label_mask(frame: pd.DataFrame, specs: Sequence[LabelSpec]) -> np.ndarr
         if children_known.isna().any() or not children_known.isin([True, False]).all():
             raise ValueError("children_known must be boolean for every row")
         known[:, child_indices] = children_known.to_numpy(dtype=bool)[:, None]
+    positive_only = frame.get("positive_only", pd.Series(False, index=frame.index))
+    if positive_only.isna().any() or not positive_only.isin([True, False]).all():
+        raise ValueError("positive_only must be boolean for every row")
+    if positive_only.any():
+        rows = positive_only.to_numpy(dtype=bool)
+        known[rows] &= make_targets(frame, specs)[rows].astype(bool)
     return known
 
 
@@ -501,12 +638,49 @@ def classifier_class_weight(spec: LabelSpec, broad_policy: str) -> str | None:
     return None
 
 
+def sample_training_weights(
+    frame: pd.DataFrame, library_weight: float = 1.0,
+    multigenre_weight: float = 1.0, artist_power: float = 0.0,
+    mixed_root_weight: float = 1.0,
+) -> np.ndarray:
+    if min(library_weight, multigenre_weight, mixed_root_weight) <= 0 or not 0 <= artist_power <= 1:
+        raise ValueError("source weights must be positive and artist power must be in [0, 1]")
+    weights = pd.Series(1.0, index=frame.index)
+    for _, rows in frame.groupby("source"):
+        counts = rows["artist_group"].map(rows["artist_group"].value_counts()).to_numpy(dtype=float)
+        if not np.isfinite(counts).all():
+            raise ValueError("training weights require a known artist group")
+        artist_weights = counts ** -artist_power
+        weights.loc[rows.index] *= artist_weights / artist_weights.mean()
+    weights.loc[frame["source"] == "maintainer library"] *= library_weight
+    mixed = frame.get("mixed_roots", pd.Series(False, index=frame.index))
+    if "multigenre" in frame:
+        weights.loc[frame["multigenre"] & ~mixed] *= multigenre_weight
+    weights.loc[mixed] *= mixed_root_weight
+    return weights.to_numpy(dtype=np.float64)
+
+
+def calibration_weights(frame: pd.DataFrame, power: float = 0.0) -> np.ndarray:
+    """Set broad calibration priors using only exclusive validation labels."""
+    if not 0 <= power <= 1:
+        raise ValueError("calibration prior power must be in [0, 1]")
+    names = row_broad_genres(frame)
+    if names.map(len).ne(1).any():
+        raise ValueError("calibration requires single-genre validation rows")
+    single = names.map(lambda values: values[0])
+    weights = single.map(single.value_counts()).to_numpy(dtype=float) ** -power
+    return weights / weights.mean()
+
+
 def sigmoid(values: np.ndarray) -> np.ndarray:
     clipped = np.clip(values, -40.0, 40.0)
     return 1.0 / (1.0 + np.exp(-clipped))
 
 
-def fit_platt_scaling(logits: np.ndarray, target: np.ndarray, seed: int) -> tuple[float, float]:
+def fit_platt_scaling(
+    logits: np.ndarray, target: np.ndarray, seed: int,
+    sample_weight: np.ndarray | None = None,
+) -> tuple[float, float]:
     """Fit monotonic Platt scaling, falling back to prevalence correction."""
 
     from sklearn.linear_model import LogisticRegression
@@ -517,14 +691,14 @@ def fit_platt_scaling(logits: np.ndarray, target: np.ndarray, seed: int) -> tupl
         max_iter=2_000,
         random_state=seed,
     )
-    calibrator.fit(logits.reshape(-1, 1), target)
+    calibrator.fit(logits.reshape(-1, 1), target, sample_weight=sample_weight)
     scale = float(calibrator.coef_[0, 0])
     bias = float(calibrator.intercept_[0])
     if np.isfinite(scale) and np.isfinite(bias) and scale > 1e-6:
         return scale, bias
 
-    prevalence = float(np.clip(target.mean(), 1e-6, 1.0 - 1e-6))
-    mean_logit = float(np.mean(logits))
+    prevalence = float(np.clip(np.average(target, weights=sample_weight), 1e-6, 1.0 - 1e-6))
+    mean_logit = float(np.average(logits, weights=sample_weight))
     return 1.0, math.log(prevalence / (1.0 - prevalence)) - mean_logit
 
 
@@ -615,6 +789,8 @@ def fit_label(
     target_precision: float,
     min_threshold_predictions: int,
     class_weight: str | None = "balanced",
+    train_sample_weight: np.ndarray | None = None,
+    calibration_sample_weight: np.ndarray | None = None,
 ) -> FittedLabel:
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import average_precision_score
@@ -630,7 +806,7 @@ def fit_label(
             max_iter=max_iter,
             random_state=seed,
         )
-        classifier.fit(x_train, y_train)
+        classifier.fit(x_train, y_train, sample_weight=train_sample_weight)
         validation_logits = classifier.decision_function(x_validation)
         validation_ap = float(average_precision_score(y_validation, validation_logits))
         candidates.append((validation_ap, -float(c_value), classifier))
@@ -641,7 +817,7 @@ def fit_label(
         classifier.decision_function(x_validation), dtype=np.float64
     )
     calibration_scale, calibration_bias = fit_platt_scaling(
-        validation_logits, y_validation, seed
+        validation_logits, y_validation, seed, sample_weight=calibration_sample_weight
     )
     calibrated = sigmoid(calibration_scale * validation_logits + calibration_bias)
     threshold = select_threshold(
@@ -1021,6 +1197,10 @@ def main() -> None:
         raise ValueError("--subset must contain official subset values: small,medium,large")
     if bool(args.extra_store) != bool(args.extra_labels):
         raise ValueError("--extra-store and --extra-labels must be supplied together")
+    if min(args.library_weight, args.multigenre_weight, args.mixed_root_weight) <= 0:
+        raise ValueError("source weights must be positive")
+    if not 0 <= args.artist_weight_power <= 1 or not 0 <= args.calibration_prior_power <= 1:
+        raise ValueError("artist and calibration powers must be in [0, 1]")
 
     store_path = require_file(args.store, "embedding store")
     tracks_path = require_file(args.tracks, "FMA tracks metadata")
@@ -1036,6 +1216,27 @@ def main() -> None:
     frame, embedding_dim, encoder_model_version = load_joined_data(
         store_path, tracks_path, subsets=subsets, license_allow=bool(args.license_allow)
     )
+    taxonomy = load_taxonomy(genres_path)
+    multigenre_counts = None
+    multigenre_path = None
+    if args.multigenre_store:
+        multigenre_path = require_file(args.multigenre_store, "multi-genre embedding store")
+        multigenre_frame, multigenre_counts = load_multigenre_training_data(
+            multigenre_path, tracks_path, taxonomy, embedding_dim,
+            encoder_model_version, frame["track_id"],
+            positive_only=args.additional_positive_only,
+        )
+        frame = pd.concat([frame, multigenre_frame], ignore_index=True)
+    mixed_root_counts = None
+    mixed_root_path = None
+    if args.mixed_root_store:
+        mixed_root_path = require_file(args.mixed_root_store, "mixed-root embedding store")
+        mixed_root_frame, mixed_root_counts = load_multigenre_training_data(
+            mixed_root_path, tracks_path, taxonomy, embedding_dim,
+            encoder_model_version, frame["track_id"], mixed_roots_only=True,
+            positive_only=args.additional_positive_only,
+        )
+        frame = pd.concat([frame, mixed_root_frame], ignore_index=True)
     if args.extra_store:
         extra_frame = load_extra_data(
             require_file(args.extra_store, "extra embedding store"),
@@ -1043,13 +1244,22 @@ def main() -> None:
             embedding_dim, encoder_model_version,
         )
         frame = pd.concat([frame, extra_frame], ignore_index=True)
-    taxonomy = load_taxonomy(genres_path)
     specs = build_label_specs(
         frame,
         taxonomy,
         min_child_train_positives=args.min_child_train_positives,
         min_child_validation_positives=args.min_child_validation_positives,
     )
+    c_plan_path = require_file(args.c_plan, "broad regularization plan") if args.c_plan else None
+    planned_c: dict[str, float] = {}
+    if c_plan_path:
+        plan_sources = {"store": store_path, "tracks": tracks_path, "genres": genres_path}
+        for key in ("extra_store", "extra_labels", "multigenre_store", "mixed_root_store"):
+            if source := getattr(args, key):
+                plan_sources[key] = source.expanduser().resolve()
+        planned_c = load_c_plan(
+            c_plan_path, (spec.name for spec in specs if spec.kind == "broad"), plan_sources,
+        )
     targets = make_targets(frame, specs)
     label_mask = make_label_mask(frame, specs)
 
@@ -1070,6 +1280,16 @@ def main() -> None:
             f"{len(specs)} labels, {embedding_dim}-d"
         )
 
+    train_weights = sample_training_weights(
+        frame.loc[frame["split"] == "training"],
+        library_weight=args.library_weight, multigenre_weight=args.multigenre_weight,
+        artist_power=args.artist_weight_power,
+        mixed_root_weight=args.mixed_root_weight,
+    )
+    broad_calibration_weights = calibration_weights(
+        frame.loc[frame["split"] == "validation"], power=args.calibration_prior_power,
+    )
+
     print(
         f"Training {sum(spec.kind == 'broad' for spec in specs)} broad and "
         f"{sum(spec.kind == 'child' for spec in specs)} child classifiers..."
@@ -1084,12 +1304,17 @@ def main() -> None:
         )
         fit = fit_label(
             x_train, y_train, x_validation, y_validation,
-            c_grid=c_grid,
+            c_grid=(planned_c[spec.name],) if spec.name in planned_c else c_grid,
             max_iter=args.max_iter,
             seed=args.seed,
             target_precision=args.target_precision,
             min_threshold_predictions=args.min_threshold_predictions,
             class_weight=classifier_class_weight(spec, args.broad_class_weight),
+            train_sample_weight=train_weights[split_label_masks["training"][:, spec.index]],
+            calibration_sample_weight=(
+                broad_calibration_weights[split_label_masks["validation"][:, spec.index]]
+                if spec.kind == "broad" else None
+            ),
         )
         fitted.append(fit)
         print(
@@ -1154,13 +1379,21 @@ def main() -> None:
         item.update(
             {
                 "selected_c": fit.selected_c,
+                "c_selection": "training_artist_cv" if spec.name in planned_c else "validation_average_precision",
                 "class_weight": classifier_class_weight(spec, args.broad_class_weight),
+                "training_supervision": {
+                    "known_positives": int(((split_targets["training"][:, spec.index] == 1) & split_label_masks["training"][:, spec.index]).sum()),
+                    "known_negatives": int(((split_targets["training"][:, spec.index] == 0) & split_label_masks["training"][:, spec.index]).sum()),
+                    "unknown": int((~split_label_masks["training"][:, spec.index]).sum()),
+                    "known_sample_weight_sum_before_class_balancing": float(train_weights[split_label_masks["training"][:, spec.index]].sum()),
+                },
                 "validation_average_precision": fit.validation_ap,
                 "calibration": {
                     "type": "platt",
                     "scale": fit.calibration_scale,
                     "bias": fit.calibration_bias,
                     "fit_split": "validation",
+                    "genre_inverse_frequency_power": args.calibration_prior_power if spec.kind == "broad" else 0.0,
                 },
                 "abstention": {
                     "threshold": fit.threshold,
@@ -1219,6 +1452,16 @@ def main() -> None:
             "store": {
                 "sha256": sha256_file(store_path),
             },
+            "multigenre_store": {
+                "sha256": sha256_file(multigenre_path),
+                "selection_counts": multigenre_counts,
+            } if multigenre_path else None,
+            "mixed_root_store": {
+                "sha256": sha256_file(mixed_root_path),
+                "selection_counts": mixed_root_counts,
+            } if mixed_root_path else None,
+            "extra_store": {"sha256": sha256_file(args.extra_store.expanduser().resolve())} if args.extra_store else None,
+            "extra_labels": {"sha256": sha256_file(args.extra_labels.expanduser().resolve())} if args.extra_labels else None,
             "tracks": {
                 "sha256": sha256_file(tracks_path),
             },
@@ -1247,6 +1490,16 @@ def main() -> None:
         },
         "selection_policy": {
             "broad_labels": "FMA broad genres present in training/validation",
+            "multigenre_training": (
+                "All official taxonomy roots as positive broad labels; reject any root outside selected eight; clean training split only"
+                if args.multigenre_store else None
+            ),
+            "mixed_root_training": (
+                "Keep every documented required broad root as positive; ignore other roots; clean official training only"
+                if args.mixed_root_store else None
+            ),
+            "additional_absent_labels": "unknown and masked" if args.additional_positive_only else "annotation negatives",
+            "calibration_rows": "original exclusive-genre validation plus eligible library validation; added multi-genre validation excluded",
             "subsets": list(subsets),
             "child_source": "track.genres_all",
             "child_parent_rule": "top_level must be one of the selected broad labels",
@@ -1260,14 +1513,24 @@ def main() -> None:
         "training": {
             "classifier": "one L2 logistic regression per label",
             "broad_class_weight": args.broad_class_weight,
+            "library_sample_weight": args.library_weight,
+            "multigenre_sample_weight": args.multigenre_weight,
+            "mixed_root_sample_weight": args.mixed_root_weight,
+            "artist_inverse_frequency_power": args.artist_weight_power,
+            "sample_weight_normalization": "artist factors mean one within source, followed by explicit source multipliers; no final renormalization",
+            "broad_calibration_genre_inverse_frequency_power": args.calibration_prior_power,
             "rare_broad_positive_cutoff": 300,
             "child_class_weight": "balanced",
             "solver": "liblinear",
             "c_grid": list(c_grid),
-            "c_selection_metric": "validation average precision",
+            "c_selection_metric": (
+                "frozen training artist-CV plan for broad labels; validation AP for child labels"
+                if c_plan_path else "validation average precision"
+            ),
+            "broad_c_plan": {"sha256": sha256_file(c_plan_path), "kind": "training_artist_cv", "selected_c": planned_c} if c_plan_path else None,
             "calibration": "per-label Platt scaling on validation logits",
             "threshold_policy": (
-                "maximize validation recall subject to target precision and "
+                "maximize unweighted validation recall subject to target precision and "
                 "minimum prediction count; otherwise abstain"
             ),
             "target_precision": args.target_precision,
