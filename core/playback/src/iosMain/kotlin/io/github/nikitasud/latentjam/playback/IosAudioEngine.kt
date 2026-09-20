@@ -127,6 +127,11 @@ internal class IosAudioEngine : EqualizerController {
         player.pause()
     }
 
+    /** The pause/resume fade rides the mixer, leaving the player node and the equalizer alone. */
+    fun setTransportGain(gain: Float) {
+        engine.mainMixerNode.outputVolume = gain.coerceIn(0f, 1f)
+    }
+
     fun stop() {
         completionGeneration++
         player.stop()

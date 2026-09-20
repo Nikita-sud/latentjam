@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.time.TimeSource
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import platform.AVFAudio.AVAudioSession
@@ -109,6 +110,7 @@ internal class IosPlaybackController(
 ) : PlaybackController {
 
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var transportFadeJob: Job? = null
     private val mutableState = MutableStateFlow(NowPlaying())
     override val state: StateFlow<NowPlaying> = mutableState.asStateFlow()
 
@@ -298,11 +300,10 @@ internal class IosPlaybackController(
     override suspend fun togglePlayPause(): Unit = withContext(Dispatchers.Main) {
         if (queue.isEmpty()) return@withContext
         if (playing) {
-            pauseActiveBackend()
+            fadeOutAndPause()
             playing = false
-            deactivateAudioSession()
         } else {
-            playing = playActiveBackend()
+            playing = playActiveBackend(fadeIn = true)
             if (!playing) deactivateAudioSession()
         }
         updateTicker()
@@ -311,11 +312,53 @@ internal class IosPlaybackController(
 
     override suspend fun pause(): Unit = withContext(Dispatchers.Main) {
         if (queue.isEmpty() || !playing) return@withContext
-        pauseActiveBackend()
+        fadeOutAndPause()
         playing = false
-        deactivateAudioSession()
         updateTicker()
         pushState()
+    }
+
+    /**
+     * The sound leaves over [TRANSPORT_FADE_OUT_MS], then the backend pauses and the session
+     * lets go. The state says paused at once. Only the file backend has a mixer to ride; the
+     * music-library player pauses as it always did.
+     */
+    private fun fadeOutAndPause() {
+        transportFadeJob?.cancel()
+        if (activeBackend != PlaybackBackend.FILE) {
+            pauseActiveBackend()
+            deactivateAudioSession()
+            return
+        }
+        transportFadeJob = mainScope.launch {
+            val started = TimeSource.Monotonic.markNow()
+            while (true) {
+                val elapsed = started.elapsedNow().inWholeMilliseconds
+                audioEngine.setTransportGain(
+                    transportFadeFactor(elapsed, TRANSPORT_FADE_OUT_MS, fadingOut = true),
+                )
+                if (elapsed >= TRANSPORT_FADE_OUT_MS) break
+                delay(TRANSPORT_FADE_TICK_MS)
+            }
+            pauseBackendNow()
+            deactivateAudioSession()
+            audioEngine.setTransportGain(1f)
+        }
+    }
+
+    private fun fadeInAfterStart() {
+        transportFadeJob?.cancel()
+        transportFadeJob = mainScope.launch {
+            val started = TimeSource.Monotonic.markNow()
+            while (true) {
+                val elapsed = started.elapsedNow().inWholeMilliseconds
+                audioEngine.setTransportGain(
+                    transportFadeFactor(elapsed, TRANSPORT_FADE_IN_MS, fadingOut = false),
+                )
+                if (elapsed >= TRANSPORT_FADE_IN_MS) break
+                delay(TRANSPORT_FADE_TICK_MS)
+            }
+        }
     }
 
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
@@ -1049,16 +1092,28 @@ internal class IosPlaybackController(
         }
     }
 
+    /** An immediate pause; any fade in flight is over, and the mixer is back at full gain. */
     private fun pauseActiveBackend() {
+        transportFadeJob?.cancel()
+        transportFadeJob = null
+        audioEngine.setTransportGain(1f)
+        pauseBackendNow()
+    }
+
+    private fun pauseBackendNow() {
         when (activeBackend) {
             PlaybackBackend.FILE -> audioEngine.pause()
             PlaybackBackend.MEDIA_LIBRARY -> mediaPlayer.pause()
         }
     }
 
-    private fun playActiveBackend(): Boolean {
+    private fun playActiveBackend(fadeIn: Boolean = false): Boolean {
         if (!activateAudioSession()) return false
-        return when (activeBackend) {
+        transportFadeJob?.cancel()
+        transportFadeJob = null
+        val fading = fadeIn && activeBackend == PlaybackBackend.FILE
+        audioEngine.setTransportGain(if (fading) 0f else 1f)
+        val started = when (activeBackend) {
             PlaybackBackend.FILE -> audioEngine.play()
             PlaybackBackend.MEDIA_LIBRARY -> {
                 // Confirmed by wireMediaPlayer's Playing state. Setting it before `play()` would
@@ -1067,6 +1122,8 @@ internal class IosPlaybackController(
                 true
             }
         }
+        if (started && fading) fadeInAfterStart() else audioEngine.setTransportGain(1f)
+        return started
     }
 
     private fun seekActiveBackend(positionMs: Long) {
@@ -1421,6 +1478,9 @@ internal class IosPlaybackController(
 
         /** Seek-bar refresh cadence while playing. */
         const val TICKER_INTERVAL_MS = 500L
+
+        /** Fine enough for a 160 ms fade to sound like one movement, not steps. */
+        const val TRANSPORT_FADE_TICK_MS = 20L
 
         /** Past this point, "previous" restarts the track instead of stepping back. */
         const val RESTART_THRESHOLD_MS = 3_000L

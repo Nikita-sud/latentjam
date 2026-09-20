@@ -177,6 +177,7 @@ internal class AndroidPlaybackController(
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             updateTicker(isPlaying)
             if (!isPlaying) finishNormalizationRamp()
+            settleTransportFade(isPlaying)
             updateGainLoop(isPlaying)
             pushState()
         }
@@ -344,6 +345,21 @@ internal class AndroidPlaybackController(
     private var normalizationRampStartedAtMs: Long = 0L
     private var normalizationRampActive: Boolean = false
 
+    /**
+     * Main-thread-owned pause/resume fade, 1 when idle. A pause lets the sound leave over
+     * [TRANSPORT_FADE_OUT_MS] before the player actually pauses; a resume brings it back over
+     * [TRANSPORT_FADE_IN_MS]. Reversing mid-fade continues from the gain reached, never a jump.
+     */
+    private var transportFade: Float = 1f
+    private var transportFadeFrom: Float = 1f
+    private var transportFadeOut: Boolean = false
+    private var transportFadeStartedAtMs: Long = 0L
+    private var transportFadeActive: Boolean = false
+    private var pendingPause: Job? = null
+
+    /** True while a fade-out is on its way to a pause: the state already says paused. */
+    private var pausePending: Boolean = false
+
     override suspend fun setTrackVolumes(volumes: Map<String, Float>) {
         withContext(Dispatchers.Main.immediate) {
             trackVolumes = volumes.mapValues { (_, volume) ->
@@ -382,7 +398,8 @@ internal class AndroidPlaybackController(
         } else {
             1f
         }
-        val volume = (base * fade).coerceIn(0f, 1f)
+        val transport = currentTransportFade(SystemClock.elapsedRealtime())
+        val volume = (base * fade * transport).coerceIn(0f, 1f)
         if (player.volume != volume) player.volume = volume
     }
 
@@ -392,12 +409,16 @@ internal class AndroidPlaybackController(
         gainJob = null
         applyEffectiveVolume()
         if (!isPlaying) return
-        if (crossfadeMs <= 0L && !normalizationRampActive) return
+        if (crossfadeMs <= 0L && !normalizationRampActive && !transportFadeActive) return
         gainJob = mainScope.launch {
             while (isActive) {
                 applyEffectiveVolume()
                 val player = controller ?: break
-                val rampDelay = if (normalizationRampActive) GAIN_RAMP_TICK_MS else Long.MAX_VALUE
+                val rampDelay = if (normalizationRampActive || transportFadeActive) {
+                    GAIN_RAMP_TICK_MS
+                } else {
+                    Long.MAX_VALUE
+                }
                 val fadeDelay = crossfadeUpdateDelayMs(
                     positionMs = player.currentPosition,
                     durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L,
@@ -549,14 +570,15 @@ internal class AndroidPlaybackController(
 
     override suspend fun togglePlayPause(): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
-        if (player.isPlaying) {
-            player.pause()
+        if (player.isPlaying && !pausePending) {
+            fadeOutAndPause(player)
         } else {
             beginFreshRecoveryAttempt()
             // `play()` alone is a no-op after the final item reaches STATE_ENDED. Media controls
             // conventionally restart that item, and the in-app button must match them.
             if (player.playbackState == Player.STATE_ENDED) player.seekToDefaultPosition()
             if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            fadeIn(player)
             player.play()
         }
         pushState()
@@ -564,8 +586,71 @@ internal class AndroidPlaybackController(
 
     override suspend fun pause(): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
-        if (player.playWhenReady) player.pause()
+        if (player.playWhenReady && !pausePending) fadeOutAndPause(player)
         pushState()
+    }
+
+    /** The sound leaves first; the pause lands when it has gone. The state says paused at once. */
+    private fun fadeOutAndPause(player: Player) {
+        pendingPause?.cancel()
+        val now = SystemClock.elapsedRealtime()
+        transportFadeFrom = currentTransportFade(now)
+        transportFadeOut = true
+        transportFadeStartedAtMs = now
+        transportFadeActive = true
+        pausePending = true
+        updateGainLoop(true)
+        pendingPause = mainScope.launch {
+            delay(TRANSPORT_FADE_OUT_MS)
+            pausePending = false
+            player.pause()
+            pushState()
+        }
+    }
+
+    /** Silence before the first sample, then the sound arrives; a pause on its way is reversed. */
+    private fun fadeIn(player: Player) {
+        pendingPause?.cancel()
+        pendingPause = null
+        pausePending = false
+        val now = SystemClock.elapsedRealtime()
+        transportFadeFrom = if (transportFadeActive) currentTransportFade(now) else 0f
+        transportFadeOut = false
+        transportFadeStartedAtMs = now
+        transportFadeActive = true
+        applyEffectiveVolume()
+        updateGainLoop(player.isPlaying)
+    }
+
+    private fun currentTransportFade(nowMs: Long): Float {
+        if (!transportFadeActive) return transportFade
+        val elapsed = (nowMs - transportFadeStartedAtMs).coerceAtLeast(0L)
+        val duration = if (transportFadeOut) TRANSPORT_FADE_OUT_MS else TRANSPORT_FADE_IN_MS
+        val curve = transportFadeFactor(elapsed, duration, transportFadeOut)
+        transportFade = if (transportFadeOut) {
+            transportFadeFrom * curve
+        } else {
+            transportFadeFrom + (1f - transportFadeFrom) * curve
+        }
+        if (elapsed >= duration) transportFadeActive = false
+        return transportFade
+    }
+
+    /**
+     * Once the player itself reports a change of playing, no fade is in flight any more: the
+     * pause landed, or something outside the app — the notification, a headset — took over. Full
+     * gain from here, so an external resume is never stuck at silence.
+     */
+    private fun settleTransportFade(isPlaying: Boolean) {
+        if (!isPlaying) {
+            pendingPause?.cancel()
+            pendingPause = null
+            pausePending = false
+        }
+        if (!isPlaying || !transportFadeActive) {
+            transportFadeActive = false
+            transportFade = 1f
+        }
     }
 
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
@@ -1158,7 +1243,7 @@ internal class AndroidPlaybackController(
             ?: -1
         mutableState.value = NowPlaying(
             track = track,
-            isPlaying = player?.isPlaying == true,
+            isPlaying = player?.isPlaying == true && !pausePending,
             shuffleMode = mode,
             repeatMode = repeat,
             positionMs = if (anticipated != null) {
