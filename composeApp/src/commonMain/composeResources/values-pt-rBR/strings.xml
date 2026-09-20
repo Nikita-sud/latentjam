@@ -575,4 +575,5 @@
     <string name="output_headphones">Fones de ouvido</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">Tocando em %1$s. Toque para escolher onde tocar.</string>
+    <string name="now_playing_next">A seguir: %1$s</string>
 </resources>

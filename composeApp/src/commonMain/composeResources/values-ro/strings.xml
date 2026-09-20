@@ -567,4 +567,5 @@
     <string name="output_headphones">Căști</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">Se redă pe %1$s. Atinge pentru a alege unde se redă.</string>
+    <string name="now_playing_next">Urmează: %1$s</string>
 </resources>

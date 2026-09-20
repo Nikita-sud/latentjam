@@ -578,4 +578,5 @@
     <string name="output_headphones">Kopfhörer</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">Wiedergabe über %1$s. Tippen, um das Ausgabegerät zu wählen.</string>
+    <string name="now_playing_next">Als Nächstes: %1$s</string>
 </resources>

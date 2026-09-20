@@ -559,4 +559,5 @@
     <string name="output_headphones">헤드폰</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">%1$s에서 재생 중. 탭하여 출력 대상을 선택하세요.</string>
+    <string name="now_playing_next">다음: %1$s</string>
 </resources>

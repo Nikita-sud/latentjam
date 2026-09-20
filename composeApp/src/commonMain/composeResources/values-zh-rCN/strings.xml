@@ -559,4 +559,5 @@
     <string name="output_headphones">耳机</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">正在通过 %1$s 播放。点按选择播放设备。</string>
+    <string name="now_playing_next">下一首：%1$s</string>
 </resources>

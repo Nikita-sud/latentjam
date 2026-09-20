@@ -586,4 +586,5 @@
     <string name="output_headphones">Słuchawki</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">Odtwarzanie przez %1$s. Dotknij, aby wybrać, gdzie odtwarzać.</string>
+    <string name="now_playing_next">Następny: %1$s</string>
 </resources>

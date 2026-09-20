@@ -631,4 +631,5 @@
     <string name="output_headphones">Headphones</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">Playing on %1$s. Tap to choose where to play.</string>
+    <string name="now_playing_next">Next: %1$s</string>
 </resources>

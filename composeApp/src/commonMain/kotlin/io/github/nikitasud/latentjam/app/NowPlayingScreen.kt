@@ -55,6 +55,7 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Favorite
@@ -142,6 +143,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_on
 import io.github.nikitasud.latentjam.app.generated.resources.cd_shuffle_smart
 import io.github.nikitasud.latentjam.app.generated.resources.info_lyrics
 import io.github.nikitasud.latentjam.app.generated.resources.lyrics_not_found
+import io.github.nikitasud.latentjam.app.generated.resources.now_playing_next
 import io.github.nikitasud.latentjam.app.generated.resources.now_playing_nothing
 import io.github.nikitasud.latentjam.app.generated.resources.now_playing_source
 import io.github.nikitasud.latentjam.app.generated.resources.queue_title
@@ -177,6 +179,7 @@ import org.jetbrains.compose.resources.stringResource
 /** How much of the queue sheet stays visible under the player. */
 private val QueuePeekHeight = 84.dp
 private val PLAY_PAUSED_RADIUS = 36.dp
+private val NEXT_UP_HEIGHT = 40.dp
 private val PLAY_PLAYING_RADIUS = 24.dp
 private val SLEEP_TIMER_MINUTES = listOf(15, 30, 45, 60)
 private data class TrackMetadataPresentation(
@@ -711,7 +714,18 @@ fun NowPlayingScreen(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // What comes next, without opening the queue; a tap opens it anyway.
+                        NextUpRow(
+                            next = queueNeighbour(now, forward = true),
+                            onOpenQueue = {
+                                haptics.play(PlayerHaptic.TAP)
+                                scope.launch { sheetState.bottomSheetState.expand() }
+                            },
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             }
@@ -1044,6 +1058,56 @@ private const val LYRICS_HEADER_ITEMS = 1
 private const val LYRICS_ACTIVE_LINE_FRACTION = 0.35f
 private const val LYRICS_SHEET_HEIGHT_FRACTION = 0.85f
 
+
+/**
+ * The next track as one quiet line under the transport: its cover, "Next: title — artist", and a
+ * chevron. Absent at a hard end of the queue. Changes fade through like the metadata above.
+ */
+@Composable
+private fun NextUpRow(next: TrackDescriptor?, onOpenQueue: () -> Unit) {
+    val reduceMotion = rememberReduceMotion()
+    AnimatedContent(
+        targetState = next,
+        contentKey = { it?.id },
+        transitionSpec = { motionFadeThrough(reduceMotion) },
+        modifier = Modifier.fillMaxWidth(),
+        label = "next-up",
+    ) { shown ->
+        if (shown == null) {
+            Spacer(modifier = Modifier.height(NEXT_UP_HEIGHT))
+        } else {
+            val title = shown.title ?: stringResource(Res.string.track_untitled)
+            val artist = shown.artist ?: stringResource(Res.string.track_unknown_artist)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(NEXT_UP_HEIGHT)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(role = Role.Button, onClick = onOpenQueue)
+                    .inactiveForMotion(shown.id != next?.id)
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Artwork(uri = shown.artworkUri, size = 28.dp, cornerRadius = 6.dp)
+                Text(
+                    text = stringResource(Res.string.now_playing_next, "$title — $artist"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
 
 /** Artist or album under the title: a link when there is somewhere to go, plain text otherwise. */
 @Composable

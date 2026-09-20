@@ -566,4 +566,5 @@
     <string name="output_headphones">हेडफ़ोन</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">%1$s पर चल रहा है. कहाँ चलाना है यह चुनने के लिए टैप करें.</string>
+    <string name="now_playing_next">अगला: %1$s</string>
 </resources>

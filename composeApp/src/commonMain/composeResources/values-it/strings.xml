@@ -575,4 +575,5 @@
     <string name="output_headphones">Cuffie</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">In riproduzione su %1$s. Tocca per scegliere dove riprodurre.</string>
+    <string name="now_playing_next">Prossimo: %1$s</string>
 </resources>

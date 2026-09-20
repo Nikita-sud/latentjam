@@ -559,4 +559,5 @@
     <string name="output_headphones">ヘッドホン</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">%1$s で再生中。タップして出力先を選択します。</string>
+    <string name="now_playing_next">次: %1$s</string>
 </resources>

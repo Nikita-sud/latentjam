@@ -599,4 +599,5 @@
     <string name="output_headphones">سماعات الرأس</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">يُشغَّل عبر %1$s. انقر لاختيار مكان التشغيل.</string>
+    <string name="now_playing_next">التالي: %1$s</string>
 </resources>

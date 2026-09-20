@@ -580,4 +580,5 @@
     <string name="output_headphones">Casque</string>
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">Lecture sur %1$s. Appuyez pour choisir la sortie.</string>
+    <string name="now_playing_next">Ensuite : %1$s</string>
 </resources>
