@@ -20,9 +20,11 @@ combines funny-music, speech-synthesizer, laughter, jingle, and sound-effect
 evidence.  It is not a learned "meme" label and must be corroborated by
 metadata before a mix is named "Meme & Viral Audio".
 
-No personal-library examples are used to create weights, labels, thresholds,
-or aggregation rules.  An optional phone embedding store is distributionally
-audited only after the ONNX graph has been frozen.
+This export step does not train weights or select aggregation rules. Training
+data for the supplied genre branch is recorded in its source metadata. An
+optional phone embedding store is distributionally audited only after the
+ONNX graph has been frozen; that audit is not an independent holdout when the
+same library contributed to training the supplied genre branch.
 
 Example:
 
@@ -849,7 +851,11 @@ def export_onnx(
         temporary.unlink()
 
     graph = onnx.load(str(output_path))
+    properties = {item.key: item.value for item in graph.metadata_props}
+    properties["semantic_output_ids"] = json.dumps([spec.id for spec in OUTPUT_SPECS])
+    onnx.helper.set_model_props(graph, properties)
     onnx.checker.check_model(graph)
+    onnx.save(graph, str(output_path), save_as_external_data=False)
     session = ort.InferenceSession(
         str(output_path), providers=["CPUExecutionProvider"]
     )
@@ -900,7 +906,7 @@ def fma_threshold_metadata(
             else None
         ),
         "status": "enabled" if enabled else "abstain",
-        "source": "FMA official validation split",
+        "source": "supplied genre head validation rows (see source training metadata)",
         "target_precision": abstention.get("target_precision"),
         "validation_precision": abstention.get("validation_precision"),
         "validation_recall": abstention.get("validation_recall"),
@@ -1002,8 +1008,9 @@ def validate_phone_store(
     )
     return {
         "purpose": "post_export_distribution_audit_only",
-        "used_for_training": False,
-        "used_for_label_or_threshold_selection": False,
+        "used_for_training_by_export_step": False,
+        "used_for_label_or_threshold_selection_by_export_step": False,
+        "independent_holdout_claimed": False,
         "store_sha256": sha256_file(store_path),
         "rows": int(len(frame)),
         "valid_embeddings": int(len(matrix)),
@@ -1086,7 +1093,8 @@ def build_metadata(
                 "Exact MN10 classifier hidden projection; final classifier pruned "
                 f"from {len(audioset.label_names)} to {len(selected_audio)} classes."
             ),
-            "personal_data_used_for_weights_or_taxonomy": False,
+            "personal_data_used_by_export_step": False,
+            "genre_branch_training_data": "see provenance.fma_head.source_data_sources",
         },
         "labels": build_label_metadata(fma),
         "warnings": [
@@ -1117,6 +1125,7 @@ def build_metadata(
                 "source_model_name": fma_source_metadata.get("model_name"),
                 "source_intended_use": fma_source_metadata.get("intended_use"),
                 "source_warning": fma_source_metadata.get("provenance_warning"),
+                "source_data_sources": fma_source_metadata.get("data_sources", []),
             },
             "efficientat_checkpoint": {
                 "path": str(efficientat_path),

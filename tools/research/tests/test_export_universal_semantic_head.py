@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import numpy as np
+import onnx
 import torch
 
 
@@ -208,6 +210,12 @@ class ModelTests(unittest.TestCase):
                 fp16=False,
             )
             self.assertTrue(output.is_file())
+            properties = {
+                item.key: item.value for item in onnx.load(output).metadata_props
+            }
+            self.assertEqual(
+                json.loads(properties["semantic_output_ids"]), EXPECTED_OUTPUT_IDS
+            )
             self.assertLess(
                 report["onnx_parity_maximum_absolute_error"],
                 1e-5,
