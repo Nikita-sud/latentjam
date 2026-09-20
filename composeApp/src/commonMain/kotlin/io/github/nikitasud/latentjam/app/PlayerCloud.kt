@@ -21,13 +21,14 @@ import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlinx.coroutines.delay
 
 /**
  * The colour cloud behind the player: three soft discs in the track's colours that drift
  * slowly and breathe while the music plays.
  *
- * The phase advances on at most every third frame and only while playing, so a paused player
- * costs nothing and a playing one draws three gradient fills about twenty times a second.
+ * The phase advances at most twenty times a second and only while playing, including on high
+ * refresh-rate displays. A paused player schedules no animation work.
  * The phase is read inside the draw lambda alone: nothing recomposes for the motion. Reduce
  * Motion leaves the cloud still where it is. Colours are the accent the screen already animates
  * between tracks, so a skip recolours the cloud on the same fade.
@@ -38,19 +39,7 @@ internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifi
     val phase = remember { mutableFloatStateOf(0f) }
     LaunchedEffect(playing, reduceMotion) {
         if (!playing || reduceMotion) return@LaunchedEffect
-        var lastNanos = 0L
-        var pending = 0f
-        var frame = 0
-        while (true) {
-            withFrameNanos { now ->
-                if (lastNanos != 0L) pending += (now - lastNanos) / NANOS_PER_SECOND
-                lastNanos = now
-                if (++frame % FRAME_DIVISOR == 0) {
-                    phase.floatValue += pending
-                    pending = 0f
-                }
-            }
-        }
+        animatePlayerCloud { elapsed -> phase.floatValue += elapsed }
     }
     val density = LocalDensity.current
     val primary = accent.container
@@ -67,7 +56,8 @@ internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifi
         val drift = BLOB_DRIFT_DP * density.density
         onDrawBehind {
             val t = phase.floatValue
-            val breath = if (playing) 1f + BREATH_DEPTH * sin(t * TWO_PI / BREATH_PERIOD_S) else 1f
+            // Freeze the exact last appearance on pause; resetting the scale produces a snap.
+            val breath = 1f + BREATH_DEPTH * sin(t * TWO_PI / BREATH_PERIOD_S)
             for (index in brushes.indices) {
                 val anchor = BLOB_ANCHORS[index]
                 val period = BLOB_PERIODS_S[index]
@@ -75,6 +65,22 @@ internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifi
                 val cy = size.height * anchor.y + drift * cos(t * TWO_PI / (period + 4f) + index)
                 blob(brushes[index], radii[index], cx, cy, breath)
             }
+        }
+    }
+}
+
+/** Each callback advances the animation by the displayed time since the preceding update. */
+internal suspend fun animatePlayerCloud(onFrame: (elapsedSeconds: Float) -> Unit) {
+    var lastNanos = withFrameNanos { it }
+    while (true) {
+        // Sleep between draws instead of waking for every display frame, most of which used
+        // to be discarded. The frame clock still aligns each update with presentation.
+        delay(CLOUD_FRAME_INTERVAL_MS)
+        withFrameNanos { now ->
+            // A suspended frame clock (for example in the background) must not teleport the
+            // cloud when the player becomes visible again.
+            onFrame(((now - lastNanos) / NANOS_PER_SECOND).coerceIn(0f, MAX_FRAME_DELTA_S))
+            lastNanos = now
         }
     }
 }
@@ -108,7 +114,8 @@ internal fun rotateHue(colour: Color, degrees: Float): Color {
 }
 
 private const val NANOS_PER_SECOND = 1_000_000_000f
-private const val FRAME_DIVISOR = 3
+private const val CLOUD_FRAME_INTERVAL_MS = 50L
+private const val MAX_FRAME_DELTA_S = 0.1f
 private const val TWO_PI = (2 * PI).toFloat()
 private const val CLOUD_ALPHA = 0.6f
 private const val COMPANION_HUE_SHIFT = 28f
