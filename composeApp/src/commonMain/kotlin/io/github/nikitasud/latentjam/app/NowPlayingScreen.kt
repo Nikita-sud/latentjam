@@ -10,6 +10,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.RepeatMode as AnimationRepeatMode
@@ -23,6 +24,7 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -65,9 +67,6 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
-import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.SkipPrevious
-import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.CircularProgressIndicator
@@ -177,6 +176,8 @@ import org.jetbrains.compose.resources.stringResource
 
 /** How much of the queue sheet stays visible under the player. */
 private val QueuePeekHeight = 84.dp
+private val PLAY_PAUSED_RADIUS = 36.dp
+private val PLAY_PLAYING_RADIUS = 24.dp
 private val SLEEP_TIMER_MINUTES = listOf(15, 30, 45, 60)
 private data class TrackMetadataPresentation(
     val track: TrackDescriptor?,
@@ -240,6 +241,8 @@ fun NowPlayingScreen(
     onToggleFavorite: () -> Unit = {},
     /** Bumped by the app when "Information" is chosen from the player's own actions sheet. */
     detailsRequest: Int = 0,
+    smartQueueLength: Int = DEFAULT_SMART_QUEUE_LENGTH,
+    onSmartQueueLength: (Int) -> Unit = {},
     onEditTags: (TrackDescriptor) -> Unit = {},
     onShowOnMap: ((TrackDescriptor) -> Unit)? = null,
     onClose: () -> Unit,
@@ -261,6 +264,7 @@ fun NowPlayingScreen(
     var lyricsReadComplete by remember(lyricsSource) { mutableStateOf(false) }
     var showLyrics by remember(lyricsSource) { mutableStateOf(false) }
     val reduceMotion = rememberReduceMotion()
+    val haptics = LocalHapticFeedback.current
     // The cover's back face. Its play count is read once per turn, not observed: the history
     // changes on every listen, and the player must not rebuild for that.
     val currentTrackId = currentTrack?.id
@@ -630,16 +634,7 @@ fun NowPlayingScreen(
                             RepeatButton(mode = now.repeatMode) {
                                 scope.launch { playback.cycleRepeatMode() }
                             }
-                            IconButton(
-                                onClick = { scope.launch { playback.previous() } },
-                                modifier = Modifier.size(56.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.SkipPrevious,
-                                    contentDescription = stringResource(Res.string.action_previous),
-                                    modifier = Modifier.size(36.dp),
-                                )
-                            }
+                            SkipButton(forward = false, playback = playback, durationMs = now.durationMs)
                             val playPauseDescription = stringResource(
                                 if (now.isPlaying) {
                                     Res.string.action_pause
@@ -647,10 +642,27 @@ fun NowPlayingScreen(
                                     Res.string.action_play
                                 },
                             )
+                            // The button says what it is doing with its shape: a circle waits,
+                            // a rounded square plays. Colour stays the same, so the state never
+                            // depends on it.
+                            val playInteraction = remember { MutableInteractionSource() }
+                            val playCorner by animateDpAsState(
+                                targetValue = if (now.isPlaying) PLAY_PLAYING_RADIUS else PLAY_PAUSED_RADIUS,
+                                animationSpec = tween(
+                                    if (reduceMotion) Motion.REDUCED_MS else Motion.EMPHASIZED_MS,
+                                ),
+                                label = "play-shape",
+                            )
                             FilledIconButton(
-                                onClick = { scope.launch { playback.togglePlayPause() } },
+                                onClick = {
+                                    haptics.play(PlayerHaptic.TAP)
+                                    scope.launch { playback.togglePlayPause() }
+                                },
+                                shape = RoundedCornerShape(playCorner),
+                                interactionSource = playInteraction,
                                 modifier = Modifier
                                     .size(72.dp)
+                                    .scaleOnPress(playInteraction)
                                     .semantics { contentDescription = playPauseDescription },
                             ) {
                                 AnimatedContent(
@@ -671,19 +683,14 @@ fun NowPlayingScreen(
                                 )
                                 }
                             }
-                            IconButton(
-                                onClick = { scope.launch { playback.next() } },
-                                modifier = Modifier.size(56.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.SkipNext,
-                                    contentDescription = stringResource(Res.string.action_next),
-                                    modifier = Modifier.size(36.dp),
-                                )
-                            }
-                            ShuffleButton(mode = now.shuffleMode) {
-                                scope.launch { playback.cycleShuffleMode() }
-                            }
+                            SkipButton(forward = true, playback = playback, durationMs = now.durationMs)
+                            ModeButton(
+                                mode = now.shuffleMode,
+                                onCycle = { scope.launch { playback.cycleShuffleMode() } },
+                                onSelect = { chosen -> scope.launch { playback.setShuffleMode(chosen) } },
+                                smartQueueLength = smartQueueLength,
+                                onSmartQueueLength = onSmartQueueLength,
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -1147,49 +1154,6 @@ private fun RepeatButton(mode: RepeatMode, onClick: () -> Unit) {
     }
 }
 
-@Composable
-private fun ShuffleButton(mode: ShuffleMode, onClick: () -> Unit) {
-    val reduceMotion = rememberReduceMotion()
-    val tint by animateColorAsState(
-        targetValue = when (mode) {
-            ShuffleMode.OFF -> MaterialTheme.colorScheme.onSurfaceVariant
-            ShuffleMode.ON -> MaterialTheme.colorScheme.primary
-            ShuffleMode.SMART -> MaterialTheme.colorScheme.tertiary
-        },
-        animationSpec = tween(
-            if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
-        ),
-        label = "shuffle-tint",
-    )
-    val description = stringResource(
-        when (mode) {
-            ShuffleMode.OFF -> Res.string.cd_shuffle_off
-            ShuffleMode.ON -> Res.string.cd_shuffle_on
-            ShuffleMode.SMART -> Res.string.cd_shuffle_smart
-        },
-    )
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier
-            .size(48.dp)
-            .semantics { contentDescription = description },
-    ) {
-        AnimatedContent(
-            targetState = mode,
-            transitionSpec = { motionIconTransform(reduceMotion) },
-            label = "shuffle-mode",
-        ) { shownMode ->
-        Icon(
-            // SMART wears the app's own mark; plain shuffle keeps the
-            // standard glyph, so the three states never rely on tint alone.
-            imageVector = if (shownMode == ShuffleMode.SMART) LatentJamMark else Icons.Rounded.Shuffle,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.inactiveForMotion(shownMode != mode),
-        )
-        }
-    }
-}
 
 /**
  * One queue entry.

@@ -2138,6 +2138,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             trackMenuRequest = TrackMenuRequest(track, fromPlayer = true)
                         },
                         detailsRequest = playerDetailsRequest,
+                        smartQueueLength = smartQueueLength,
+                        onSmartQueueLength = settings::setSmartQueueLength,
                         onEditTags = { infoTarget = it },
                         onShowOnMap = if (StartPage.MAP in visiblePages) {
                             { track -> showTrackOnMap(track) }
