@@ -1,0 +1,1 @@
+Local music player with an on-device recommender. No account, no network.
