@@ -8,6 +8,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -96,6 +97,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -155,16 +157,19 @@ import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer_minutes
 import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer_off
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
+import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.SleepTimerState
 import io.github.nikitasud.latentjam.playback.ShuffleMode
+import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.library.tags.Lyrics
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlin.time.TimeMark
@@ -235,6 +240,10 @@ fun NowPlayingScreen(
     onAddQueueToPlaylist: () -> Unit,
     isFavorite: Boolean = false,
     onToggleFavorite: () -> Unit = {},
+    /** Bumped by the app when "Information" is chosen from the player's own actions sheet. */
+    detailsRequest: Int = 0,
+    onEditTags: (TrackDescriptor) -> Unit = {},
+    onShowOnMap: ((TrackDescriptor) -> Unit)? = null,
     onClose: () -> Unit,
 ) {
     // Position is intentionally projected out. It changes twice per second, while artwork, queue,
@@ -254,6 +263,31 @@ fun NowPlayingScreen(
     var lyricsReadComplete by remember(lyricsSource) { mutableStateOf(false) }
     var showLyrics by remember(lyricsSource) { mutableStateOf(false) }
     val reduceMotion = rememberReduceMotion()
+    // The cover's back face. Its play count is read once per turn, not observed: the history
+    // changes on every listen, and the player must not rebuild for that.
+    val currentTrackId = currentTrack?.id
+    var flipped by remember(currentTrackId) { mutableStateOf(false) }
+    var trackStats by remember(currentTrackId) { mutableStateOf<TrackStats?>(null) }
+    LaunchedEffect(detailsRequest) {
+        if (detailsRequest > 0) flipped = true
+    }
+    LaunchedEffect(flipped, currentTrackId) {
+        if (flipped && currentTrackId != null) trackStats = AppGraph.history.stats()[currentTrackId]
+    }
+    // Pulling the cover down carries the whole surface; read only by the layer below, so the
+    // drag never recomposes the screen. On release it springs home or hands over to the morph.
+    val collapseOffset = remember { mutableFloatStateOf(0f) }
+    var collapseJob by remember { mutableStateOf<Job?>(null) }
+    fun settleCollapse(durationMs: Int) {
+        collapseJob?.cancel()
+        collapseJob = scope.launch {
+            animate(
+                initialValue = collapseOffset.floatValue,
+                targetValue = 0f,
+                animationSpec = tween(durationMs),
+            ) { value, _ -> collapseOffset.floatValue = value }
+        }
+    }
     // Merely opening the player must stay cheap: a tag can contain megabytes of artwork before its
     // USLT frame. The bounded off-main read starts only after the explicit Lyrics tap, then remains
     // cached for this source while the expanded player is alive.
@@ -273,10 +307,11 @@ fun NowPlayingScreen(
         // Same shared container as the mini-player pill: the pill grows into
         // this screen instead of being swapped for it.
         modifier = if (reduceMotion) {
-            Modifier.fillMaxSize()
+            Modifier.fillMaxSize().collapsePull(collapseOffset)
         } else with(sharedScope) {
             Modifier
                 .fillMaxSize()
+                .collapsePull(collapseOffset)
                 .sharedBounds(
                     rememberSharedContentState(PLAYER_SURFACE_KEY),
                     animatedScope,
@@ -483,8 +518,42 @@ fun NowPlayingScreen(
                         modifier = Modifier.weight(1f).padding(horizontal = 24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        LargeArtwork(
-                            uri = now.track?.artworkUri,
+                        PlayerArtworkCard(
+                            track = now.track,
+                            flipped = flipped,
+                            onFlip = { flipped = it },
+                            onHold = { now.track?.let(onTrackMenu) },
+                            onSkip = { forward ->
+                                scope.launch { if (forward) playback.next() else playback.previous() }
+                            },
+                            canSkipForward = now.queueIndex in 0 until now.queue.lastIndex ||
+                                now.repeatMode == RepeatMode.ALL ||
+                                now.shuffleMode == ShuffleMode.SMART,
+                            canSkipBackward = now.queueIndex > 0 || now.repeatMode == RepeatMode.ALL,
+                            neighbourArtwork = { forward -> queueNeighbour(now, forward)?.artworkUri },
+                            onCollapseDrag = { pulled ->
+                                if (pulled == 0f) {
+                                    settleCollapse(Motion.APPEAR_MS)
+                                } else {
+                                    collapseJob?.cancel()
+                                    collapseOffset.floatValue = pulled
+                                }
+                            },
+                            onCollapse = {
+                                onClose()
+                                settleCollapse(Motion.EMPHASIZED_MS)
+                            },
+                            details = {
+                                now.track?.let { track ->
+                                    TrackDetailsFace(
+                                        track = track,
+                                        stats = trackStats,
+                                        onEditTags = { onEditTags(track) },
+                                        onShowOnMap = onShowOnMap?.let { show -> { show(track) } },
+                                        onClose = { flipped = false },
+                                    )
+                                }
+                            },
                             modifier = if (reduceMotion) Modifier else with(sharedScope) {
                                 Modifier.sharedElement(
                                     rememberSharedContentState(ARTWORK_KEY),
@@ -987,32 +1056,29 @@ private fun PlaybackSeekBar(playback: PlaybackController, durationMs: Long) {
     }
 }
 
-@Composable
-private fun LargeArtwork(uri: String?, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Rounded.MusicNote,
-            contentDescription = null,
-            modifier = Modifier.size(96.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (uri != null) {
-            AsyncImage(
-                model = uri,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        }
-    }
+/** The track a swipe in that direction reaches, honouring queue repeat; null at a hard end. */
+private fun queueNeighbour(now: NowPlaying, forward: Boolean): TrackDescriptor? {
+    val size = now.queue.size
+    if (size == 0 || now.queueIndex < 0) return null
+    val step = if (forward) 1 else -1
+    val raw = now.queueIndex + step
+    val index = if (now.repeatMode == RepeatMode.ALL) ((raw % size) + size) % size else raw
+    return now.queue.getOrNull(index)
 }
+
+/** The pull-down: the surface follows the finger and shrinks a little towards its bottom edge. */
+private fun Modifier.collapsePull(offset: androidx.compose.runtime.MutableFloatState): Modifier =
+    graphicsLayer {
+        val pulled = offset.floatValue
+        translationY = pulled
+        val scale = 1f - (pulled / COLLAPSE_SCALE_DIVISOR).coerceIn(0f, COLLAPSE_MAX_SHRINK)
+        scaleX = scale
+        scaleY = scale
+        transformOrigin = TransformOrigin(0.5f, 1f)
+    }
+
+private const val COLLAPSE_SCALE_DIVISOR = 3_200f
+private const val COLLAPSE_MAX_SHRINK = 0.1f
 
 @Composable
 private fun SleepTimerDialog(

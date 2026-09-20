@@ -467,6 +467,8 @@ private data class TrackMenuRequest(
     val track: TrackDescriptor,
     val sourcePlaylistId: String? = null,
     val sourcePlaylistTitle: String? = null,
+    /** Raised from the full player: "Information" turns the cover over instead of opening a sheet. */
+    val fromPlayer: Boolean = false,
 )
 
 /** Exit-frame styling retained without observable state: the live branch never reads it. */
@@ -720,6 +722,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             ?: songSort.defaultDirection
         var showSettings by rememberSaveable { mutableStateOf(false) }
         var infoTarget by remember { mutableStateOf<TrackDescriptor?>(null) }
+        var playerDetailsRequest by remember { mutableStateOf(0) }
         var showNowPlaying by remember { mutableStateOf(false) }
         var showSearch by remember { mutableStateOf(false) }
         var selectedCollection by remember { mutableStateOf<CollectionSelection?>(null) }
@@ -1993,6 +1996,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
+        // The page assembles on arrival at the tab, and MapTab's focus effect fires as soon as
+        // it is ready — so the action works even before the first Map visit.
+        fun showTrackOnMap(track: TrackDescriptor) {
+            mapFocusTrackId = track.id
+            updateTrackSelection(emptySet())
+            updateSelectedCollection(null)
+            showSearch = false
+            showNowPlaying = false
+            navigateToRootTab(StartPage.MAP)
+        }
+
         fun showAlbumOf(track: TrackDescriptor) {
             val album = catalog?.albums
                 ?.firstOrNull { group -> group.tracks.any { it.id == track.id } } ?: return
@@ -2120,7 +2134,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         onStartSleepTimer = sleepTimer::startCountdown,
                         onSleepAtEndOfTrack = sleepTimer::startAtEndOfTrack,
                         onCancelSleepTimer = sleepTimer::cancel,
-                        onTrackMenu = { track -> trackMenuRequest = TrackMenuRequest(track) },
+                        onTrackMenu = { track ->
+                            trackMenuRequest = TrackMenuRequest(track, fromPlayer = true)
+                        },
+                        detailsRequest = playerDetailsRequest,
+                        onEditTags = { infoTarget = it },
+                        onShowOnMap = if (StartPage.MAP in visiblePages) {
+                            { track -> showTrackOnMap(track) }
+                        } else null,
                         onAddQueueToPlaylist = {
                             playback.state.value.queue
                                 .takeIf { it.isNotEmpty() }
@@ -3407,17 +3428,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onAddToQueue = { scope.launch { playback.addToQueue(target) } },
                 isFavorite = target.id in favoriteIds,
                 onToggleFavorite = { toggleFavorite(target.id) },
-                // The page assembles on arrival at the tab, and MapTab's focus effect fires as
-                // soon as it is ready — so the action works even before the first Map visit.
                 onShowOnMap = if (StartPage.MAP in visiblePages) {
-                    {
-                        mapFocusTrackId = target.id
-                        updateTrackSelection(emptySet())
-                        updateSelectedCollection(null)
-                        showSearch = false
-                        showNowPlaying = false
-                        navigateToRootTab(StartPage.MAP)
-                    }
+                    { showTrackOnMap(target) }
                 } else null,
                 onAddToPlaylist = { addToPlaylistSelection = listOf(target) },
                 // Only from inside a user playlist whose list actually holds this track. The
@@ -3525,7 +3537,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onGoToArtist = target.artist?.takeIf(String::isNotBlank)?.let {
                     { showArtistOf(target) }
                 },
-                onInfo = { infoTarget = target },
+                onInfo = {
+                    if (request.fromPlayer) playerDetailsRequest++ else infoTarget = target
+                },
                 isTrackExcludedFromSmart = trackExcluded,
                 isArtistExcludedFromSmart = artistExcluded,
                 onToggleTrackSmartExclusion = {
