@@ -49,12 +49,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -88,6 +90,21 @@ internal data class RailFinalJump(
     val generation: Int,
     val bucketIndex: Int,
 )
+
+/** One gesture's letter ticks. Rapidly skipped letters never queue up delayed vibrations. */
+internal class RailHapticState {
+    private var previousBucket: Int? = null
+    private var lastTickTimeMs: Long? = null
+
+    fun select(bucketIndex: Int, timeMs: Long): Boolean {
+        if (bucketIndex == previousBucket) return false
+        previousBucket = bucketIndex
+        val lastTick = lastTickTimeMs
+        if (lastTick != null && timeMs - lastTick < 70L) return false
+        lastTickTimeMs = timeMs
+        return true
+    }
+}
 
 /** Pure gesture state: preview is cheap, while real list navigation is committed once on UP. */
 internal class RailScrubCoordinator {
@@ -642,6 +659,7 @@ private fun AlphabetRail(
     val activeIndex = buckets.indexOf(activeBucket).coerceAtLeast(0)
     val railDescription = stringResource(Res.string.cd_alphabet_index)
     val density = LocalDensity.current
+    val haptics = LocalHapticFeedback.current
     val labelHeight = maxOf(
         RailLabelHeight,
         with(density) { MaterialTheme.typography.labelSmall.fontSize.toDp() * 1.45f },
@@ -667,6 +685,9 @@ private fun AlphabetRail(
                 )
                 setProgress { target ->
                     val index = target.roundToInt().coerceIn(0, buckets.lastIndex)
+                    if (index != activeIndex) {
+                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    }
                     onSelectionStart()
                     onSelect(index, (index + 0.5f) / buckets.size * railHeightPx)
                     onSelectionEnd()
@@ -675,13 +696,17 @@ private fun AlphabetRail(
             }
             // One recognizer owns down/move/up. Separate tap and drag detectors race each other
             // and the surrounding pager, especially at Samsung's back-gesture edge.
-            .pointerInput(buckets, gestureKey) {
+            .pointerInput(buckets, gestureKey, haptics) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    val feedback = RailHapticState()
                     down.consume()
                     onSelectionStart()
                     try {
                         railBucketIndexAt(down.position.y, railHeightPx, buckets.size)?.let {
+                            if (feedback.select(it, down.uptimeMillis)) {
+                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            }
                             onSelect(it, down.position.y)
                         }
                         while (true) {
@@ -691,7 +716,12 @@ private fun AlphabetRail(
                                 change.position.y,
                                 railHeightPx,
                                 buckets.size,
-                            )?.let { onSelect(it, change.position.y) }
+                            )?.let {
+                                if (feedback.select(it, change.uptimeMillis)) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                }
+                                onSelect(it, change.position.y)
+                            }
                             change.consume()
                             // The UP event carries the finger's true final position. Process it
                             // before ending the gesture or a fast scrub can stop several buckets

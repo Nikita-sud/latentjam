@@ -47,14 +47,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.cd_seek_position
 import io.github.nikitasud.latentjam.app.generated.resources.cd_time_toggle
-import io.github.nikitasud.latentjam.app.generated.resources.seek_fine_half
-import io.github.nikitasud.latentjam.app.generated.resources.seek_fine_quarter
 import io.github.nikitasud.latentjam.library.tags.Lyrics
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import kotlinx.coroutines.delay
@@ -96,7 +96,6 @@ internal fun PlayerSeekBar(
     // ticker cannot snap the handle back to where it was before the seek landed.
     var overrideMs by remember(playback, trackId, queueIndex) { mutableStateOf<Long?>(null) }
     var scrubbing by remember(playback, trackId, queueIndex) { mutableStateOf(false) }
-    var fine by remember(playback, trackId, queueIndex) { mutableIntStateOf(1) }
     var showRemaining by remember { mutableStateOf(false) }
     var bandWidth by remember { mutableIntStateOf(0) }
     val shownMs = (overrideMs ?: positionMs).coerceIn(0L, duration)
@@ -170,10 +169,9 @@ internal fun PlayerSeekBar(
                             .roundToLong()
                         haptics.play(PlayerHaptic.TAP)
                         scrubbing = true
-                        fine = 1
                         overrideMs = target
                         var lastX = down.position.x
-                        var edge = 0
+                        val scrubHaptics = ScrubHapticState(duration, target, down.uptimeMillis)
                         var released = false
                         try {
                             while (true) {
@@ -190,14 +188,9 @@ internal fun PlayerSeekBar(
                                 )
                                 target = (target + scrubDeltaMs(dx, width, duration, factor))
                                     .coerceIn(0L, duration)
-                                val atEdge = when (target) {
-                                    0L -> -1
-                                    duration -> 1
-                                    else -> 0
+                                if (!change.changedToUpIgnoreConsumed()) {
+                                    scrubHaptics.moveTo(target, change.uptimeMillis)?.let(haptics::play)
                                 }
-                                if (atEdge != 0 && atEdge != edge) haptics.play(PlayerHaptic.EDGE)
-                                edge = atEdge
-                                fine = factor
                                 overrideMs = target
                                 if (change.changedToUpIgnoreConsumed()) {
                                     released = true
@@ -258,11 +251,6 @@ internal fun PlayerSeekBar(
                 }
                 ScrubBubble(
                     time = formatDuration(shownMs),
-                    fineLabel = when (fine) {
-                        2 -> stringResource(Res.string.seek_fine_half)
-                        4 -> stringResource(Res.string.seek_fine_quarter)
-                        else -> null
-                    },
                     lyric = lyricAtHandle,
                     handleCentreX = handleCentre,
                 )
@@ -301,7 +289,6 @@ internal fun PlayerSeekBar(
 @Composable
 private fun ScrubBubble(
     time: String,
-    fineLabel: String?,
     lyric: String?,
     handleCentreX: Float,
 ) {
@@ -311,7 +298,11 @@ private fun ScrubBubble(
         contentColor = MaterialTheme.colorScheme.inverseOnSurface,
         shadowElevation = 6.dp,
         modifier = Modifier.layout { measurable, constraints ->
-            val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+            // The bubble floats outside the 40 dp touch band. Only its width is constrained
+            // by that band; measuring its height there clips lyrics and enlarged text.
+            val placeable = measurable.measure(
+                constraints.copy(minWidth = 0, minHeight = 0, maxHeight = Constraints.Infinity),
+            )
             val gap = BUBBLE_GAP.roundToPx()
             layout(constraints.maxWidth, 0) {
                 val x = (handleCentreX - placeable.width / 2f).roundToLong().toInt()
@@ -323,22 +314,16 @@ private fun ScrubBubble(
         Column(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(text = time, style = MaterialTheme.typography.titleSmall)
-                if (fineLabel != null) {
-                    Text(
-                        text = fineLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(bottom = 1.dp),
-                    )
-                }
-            }
+            Text(text = time, style = MaterialTheme.typography.titleSmall, maxLines = 1)
             if (lyric != null) {
                 Text(
                     text = lyric,
                     style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
+                    minLines = 2,
+                    maxLines = 2,
+                    textAlign = TextAlign.Center,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.widthIn(max = LYRIC_MAX_WIDTH),
                 )

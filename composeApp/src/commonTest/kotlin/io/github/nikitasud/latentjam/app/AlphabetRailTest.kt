@@ -56,6 +56,48 @@ internal class AlphabetRailTest {
     }
 
     @Test
+    fun firstLetterTicksButHoldingAndReleasingTheSameLetterDoNot() {
+        val feedback = RailHapticState()
+        assertTrue(feedback.select(5, 100L))
+        assertFalse(feedback.select(5, 200L))
+        assertFalse(feedback.select(5, 1_000L))
+    }
+
+    @Test
+    fun changingLettersTicksInBothDirections() {
+        val feedback = RailHapticState()
+        assertTrue(feedback.select(5, 0L))
+        assertTrue(feedback.select(6, 70L))
+        assertTrue(feedback.select(5, 140L))
+    }
+
+    @Test
+    fun rapidLettersAreCoalescedWithoutADelayedTickWhileHoldingStill() {
+        val feedback = RailHapticState()
+        assertTrue(feedback.select(0, 0L))
+        assertFalse(feedback.select(1, 20L))
+        assertFalse(feedback.select(2, 40L))
+        assertFalse(feedback.select(2, 200L))
+        assertTrue(feedback.select(3, 210L))
+        assertFalse(feedback.select(4, 250L))
+        assertTrue(feedback.select(5, 280L))
+    }
+
+    @Test
+    fun aNewTouchGetsFeedbackEvenOnTheSameLetter() {
+        assertTrue(RailHapticState().select(4, 1_000L))
+        assertTrue(RailHapticState().select(4, 1_010L))
+    }
+
+    @Test
+    fun crossingManyCondensedLettersProducesOneTickAtTheNewPosition() {
+        val feedback = RailHapticState()
+        assertTrue(feedback.select(0, 0L))
+        assertTrue(feedback.select(90, 100L))
+        assertFalse(feedback.select(90, 200L))
+    }
+
+    @Test
     fun rapidDragPreviewsEveryBucketAndKeepsExactFinalBucket() {
         val coordinator = RailScrubCoordinator()
         val previews = mutableListOf<Int>()
