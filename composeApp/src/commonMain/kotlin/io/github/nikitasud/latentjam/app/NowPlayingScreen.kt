@@ -80,8 +80,6 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -620,7 +618,7 @@ fun NowPlayingScreen(
 
                         Spacer(modifier = Modifier.weight(1f))
 
-                        PlaybackSeekBar(playback = playback, durationMs = now.durationMs)
+                        PlayerSeekBar(playback = playback, durationMs = now.durationMs, lyrics = lyrics)
 
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -1021,40 +1019,6 @@ private const val LYRICS_HEADER_ITEMS = 1
 private const val LYRICS_ACTIVE_LINE_FRACTION = 0.35f
 private const val LYRICS_SHEET_HEIGHT_FRACTION = 0.85f
 
-/** The only expanded-player subtree that observes the coarse position ticker. */
-@Composable
-private fun PlaybackSeekBar(playback: PlaybackController, durationMs: Long) {
-    val positionMs by remember(playback) {
-        playback.state.map { it.positionMs }.distinctUntilChanged()
-    }.collectAsState(playback.state.value.positionMs)
-    val scope = rememberCoroutineScope()
-    // Local value while the thumb is being dragged, so the ticker does not fight the finger.
-    var dragPositionMs by remember { mutableStateOf<Long?>(null) }
-    val duration = durationMs.coerceAtLeast(1)
-    val sliderPosition = (dragPositionMs ?: positionMs).coerceIn(0, duration)
-
-    Slider(
-        value = sliderPosition.toFloat(),
-        onValueChange = { dragPositionMs = it.toLong() },
-        onValueChangeFinished = {
-            dragPositionMs?.let { target -> scope.launch { playback.seekTo(target) } }
-            dragPositionMs = null
-        },
-        valueRange = 0f..duration.toFloat(),
-        modifier = Modifier.fillMaxWidth(),
-        colors = SliderDefaults.colors(
-            thumbColor = MaterialTheme.colorScheme.onSurface,
-            activeTrackColor = MaterialTheme.colorScheme.onSurface,
-        ),
-    )
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(text = formatDuration(sliderPosition), style = MaterialTheme.typography.labelSmall)
-        Text(text = formatDuration(durationMs), style = MaterialTheme.typography.labelSmall)
-    }
-}
 
 /** The track a swipe in that direction reaches, honouring queue repeat; null at a hard end. */
 private fun queueNeighbour(now: NowPlaying, forward: Boolean): TrackDescriptor? {
