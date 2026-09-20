@@ -21,7 +21,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlin.time.TimeSource
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import platform.AVFAudio.AVAudioSession
@@ -111,6 +110,7 @@ internal class IosPlaybackController(
 
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var transportFadeJob: Job? = null
+    private val transportFade = TransportFadeState()
     private val mutableState = MutableStateFlow(NowPlaying())
     override val state: StateFlow<NowPlaying> = mutableState.asStateFlow()
 
@@ -330,41 +330,56 @@ internal class IosPlaybackController(
             deactivateAudioSession()
             return
         }
+        transportFade.beginPause(transportTimeMs())
+        audioEngine.setTransportGain(transportFade.gainAt(transportTimeMs()))
         transportFadeJob = mainScope.launch {
-            val started = TimeSource.Monotonic.markNow()
             while (true) {
-                val elapsed = started.elapsedNow().inWholeMilliseconds
-                audioEngine.setTransportGain(
-                    transportFadeFactor(elapsed, TRANSPORT_FADE_OUT_MS, fadingOut = true),
-                )
-                if (elapsed >= TRANSPORT_FADE_OUT_MS) break
+                audioEngine.setTransportGain(transportFade.gainAt(transportTimeMs()))
+                if (!transportFade.active) break
                 delay(TRANSPORT_FADE_TICK_MS)
             }
             pauseBackendNow()
             deactivateAudioSession()
-            audioEngine.setTransportGain(1f)
+            resetTransportFade()
+            // The node advanced during the fade after the ticker stopped. Publish its actual
+            // paused position, including to the lock screen, instead of leaving it 160 ms behind.
+            invalidateNowPlayingInfo()
+            pushState()
         }
     }
 
     private fun fadeInAfterStart() {
         transportFadeJob?.cancel()
         transportFadeJob = mainScope.launch {
-            val started = TimeSource.Monotonic.markNow()
             while (true) {
-                val elapsed = started.elapsedNow().inWholeMilliseconds
-                audioEngine.setTransportGain(
-                    transportFadeFactor(elapsed, TRANSPORT_FADE_IN_MS, fadingOut = false),
-                )
-                if (elapsed >= TRANSPORT_FADE_IN_MS) break
+                audioEngine.setTransportGain(transportFade.gainAt(transportTimeMs()))
+                if (!transportFade.active) break
                 delay(TRANSPORT_FADE_TICK_MS)
             }
+            transportFadeJob = null
         }
+    }
+
+    private fun transportTimeMs(): Long = (uptimeSeconds() * 1000).toLong()
+
+    private fun resetTransportFade() {
+        transportFadeJob?.cancel()
+        transportFadeJob = null
+        transportFade.reset()
+        audioEngine.setTransportGain(1f)
     }
 
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
         if (queue.isEmpty()) return@withContext
-        appendSmartNextIfNeeded()
-        advance()
+        if (queueIndex in 0 until queue.lastIndex) {
+            // Planning may suspend on inference or another append. A known successor can sound
+            // immediately; replenish its future after the skip, matching the Android transport.
+            advance()
+            mainScope.launch { appendSmartNextIfNeeded() }
+        } else {
+            appendSmartNextIfNeeded()
+            advance()
+        }
     }
 
     override suspend fun previous(): Unit = withContext(Dispatchers.Main) {
@@ -372,16 +387,18 @@ internal class IosPlaybackController(
         val previousIndex = queueIndex
         val previousPositionMs = positionMs()
         val wasPlaying = playing
+        val targetIndex = previousPlaybackQueueIndex(queue.size, queueIndex, previousPositionMs, repeat)
+        if (targetIndex < 0) return@withContext
         // Player-standard: restart the track unless you are already at its start.
-        if (previousPositionMs > RESTART_THRESHOLD_MS || queueIndex <= 0) {
+        if (targetIndex == previousIndex) {
             seekActiveBackend(0L)
             invalidateNowPlayingInfo()
         } else {
             val loaded = loadPlayableFrom(
-                startIndex = previousIndex - 1,
+                startIndex = targetIndex,
                 direction = -1,
                 autoPlay = wasPlaying,
-                wrap = false,
+                wrap = repeat == RepeatMode.ALL,
             )
             if (!loaded) {
                 restorePreviousPlayback(previousIndex, previousPositionMs, wasPlaying)
@@ -769,6 +786,8 @@ internal class IosPlaybackController(
      * the new item as it goes. Returns false when the entry cannot be opened.
      */
     private fun loadCurrentItem(autoPlay: Boolean): Boolean {
+        // A delayed pause belongs to the old native item, including when switching backends.
+        resetTransportFade()
         val track = queue.getOrNull(queueIndex) ?: run {
             stopBackendsAfterLoadFailure()
             return false
@@ -884,6 +903,7 @@ internal class IosPlaybackController(
         activeBackend = PlaybackBackend.FILE
         audioEngine.stop()
         mediaPlayer.stop()
+        resetTransportFade()
         audioEngine.setOutputSupportsEqualizer(true)
         playing = false
         deactivateAudioSession()
@@ -910,7 +930,7 @@ internal class IosPlaybackController(
     }
 
     private fun onItemEnded(itemGeneration: Long) {
-        if (!isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) return
+        if (!playing || !isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) return
         if (repeat == RepeatMode.ONE) {
             seekActiveBackend(0L)
             playing = playActiveBackend()
@@ -919,12 +939,12 @@ internal class IosPlaybackController(
             return
         }
         mainScope.launch {
-            if (!isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) {
+            if (!playing || !isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) {
                 return@launch
             }
             // Top up before advancing so SMART always has somewhere to go.
             appendSmartNextIfNeeded()
-            if (!isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) {
+            if (!playing || !isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) {
                 return@launch
             }
             advance()
@@ -995,10 +1015,10 @@ internal class IosPlaybackController(
         mainScope.launch {
             if (activeBackend != PlaybackBackend.FILE) return@launch
             if (began) {
-                if (playing) {
-                    // iOS has already deactivated the session for the interruption.
-                    audioSessionActive = false
-                    pausedByInterruption = true
+                // iOS has already deactivated the session, even during a requested pause fade.
+                audioSessionActive = false
+                if (playing || transportFade.pausePending) {
+                    pausedByInterruption = playing
                     pauseFromSystem(deactivateSession = false)
                 }
             } else {
@@ -1024,7 +1044,9 @@ internal class IosPlaybackController(
         val oldDeviceGone = reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable.toLong()
         if (!oldDeviceGone) return
         mainScope.launch {
-            if (activeBackend == PlaybackBackend.FILE && playing) pauseFromSystem()
+            if (activeBackend == PlaybackBackend.FILE && (playing || transportFade.pausePending)) {
+                pauseFromSystem()
+            }
         }
     }
 
@@ -1094,10 +1116,8 @@ internal class IosPlaybackController(
 
     /** An immediate pause; any fade in flight is over, and the mixer is back at full gain. */
     private fun pauseActiveBackend() {
-        transportFadeJob?.cancel()
-        transportFadeJob = null
-        audioEngine.setTransportGain(1f)
         pauseBackendNow()
+        resetTransportFade()
     }
 
     private fun pauseBackendNow() {
@@ -1112,7 +1132,8 @@ internal class IosPlaybackController(
         transportFadeJob?.cancel()
         transportFadeJob = null
         val fading = fadeIn && activeBackend == PlaybackBackend.FILE
-        audioEngine.setTransportGain(if (fading) 0f else 1f)
+        if (fading) transportFade.beginResume(transportTimeMs()) else transportFade.reset()
+        audioEngine.setTransportGain(transportFade.gainAt(transportTimeMs()))
         val started = when (activeBackend) {
             PlaybackBackend.FILE -> audioEngine.play()
             PlaybackBackend.MEDIA_LIBRARY -> {
@@ -1122,7 +1143,7 @@ internal class IosPlaybackController(
                 true
             }
         }
-        if (started && fading) fadeInAfterStart() else audioEngine.setTransportGain(1f)
+        if (started && fading) fadeInAfterStart() else resetTransportFade()
         return started
     }
 
@@ -1481,9 +1502,6 @@ internal class IosPlaybackController(
 
         /** Fine enough for a 160 ms fade to sound like one movement, not steps. */
         const val TRANSPORT_FADE_TICK_MS = 20L
-
-        /** Past this point, "previous" restarts the track instead of stepping back. */
-        const val RESTART_THRESHOLD_MS = 3_000L
 
         /**
          * How close two transport events have to be to count as one press.

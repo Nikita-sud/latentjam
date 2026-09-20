@@ -21,6 +21,9 @@ public enum class ShuffleMode { OFF, ON, SMART }
 /** Repeat positions: no repeat, repeat the queue, repeat one track. */
 public enum class RepeatMode { OFF, ALL, ONE }
 
+/** Past this position, Previous restarts the current track instead of selecting its predecessor. */
+public const val PREVIOUS_RESTART_THRESHOLD_MS: Long = 3_000L
+
 /**
  * Snapshot of what is playing right now — the UI's single source of truth.
  *

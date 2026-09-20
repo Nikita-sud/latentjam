@@ -542,6 +542,7 @@ public class PlaybackService : MediaLibraryService() {
         val player = ExoPlayer.Builder(this)
             .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true)
+            .setMaxSeekToPreviousPositionMs(PREVIOUS_RESTART_THRESHOLD_MS)
             .build()
             .apply { setAudioSessionId(audioSessionId) }
         playbackPlayer = player

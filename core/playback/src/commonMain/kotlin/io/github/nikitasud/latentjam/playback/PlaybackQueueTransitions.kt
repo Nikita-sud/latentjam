@@ -469,3 +469,16 @@ internal fun shouldRestartConsumedSegment(pausedFrame: Long, fileLength: Long): 
 /** True only for an end/notification callback issued by the still-current playback item. */
 internal fun isCurrentPlaybackItemGeneration(expected: Long, current: Long): Boolean =
     expected == current
+
+/** Manual Previous follows queue order (including repeat-all), or restarts the current row. */
+internal fun previousPlaybackQueueIndex(
+    queueSize: Int,
+    currentIndex: Int,
+    positionMs: Long,
+    repeatMode: RepeatMode,
+): Int {
+    if (currentIndex !in 0 until queueSize) return -1
+    if (positionMs > PREVIOUS_RESTART_THRESHOLD_MS) return currentIndex
+    if (currentIndex > 0) return currentIndex - 1
+    return if (repeatMode == RepeatMode.ALL) queueSize - 1 else currentIndex
+}

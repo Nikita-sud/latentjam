@@ -472,6 +472,30 @@ internal class PlaybackQueueTransitionsTest {
         assertFalse(isCurrentPlaybackItemGeneration(expected = 8L, current = 9L))
     }
 
+    @Test
+    fun `previous wraps at the first row only for repeat all`() {
+        assertEquals(2, previousPlaybackQueueIndex(3, 0, 0L, RepeatMode.ALL))
+        assertEquals(0, previousPlaybackQueueIndex(3, 0, 0L, RepeatMode.OFF))
+        assertEquals(0, previousPlaybackQueueIndex(3, 0, 0L, RepeatMode.ONE))
+        assertEquals(0, previousPlaybackQueueIndex(1, 0, 0L, RepeatMode.ALL))
+    }
+
+    @Test
+    fun `previous restarts only after the shared position threshold`() {
+        for (mode in RepeatMode.entries) {
+            assertEquals(0, previousPlaybackQueueIndex(3, 1, PREVIOUS_RESTART_THRESHOLD_MS, mode))
+            assertEquals(1, previousPlaybackQueueIndex(3, 1, PREVIOUS_RESTART_THRESHOLD_MS + 1L, mode))
+        }
+        assertEquals(0, previousPlaybackQueueIndex(3, 0, PREVIOUS_RESTART_THRESHOLD_MS + 1L, RepeatMode.ALL))
+    }
+
+    @Test
+    fun `previous ignores empty and stale queue positions`() {
+        assertEquals(-1, previousPlaybackQueueIndex(0, -1, 0L, RepeatMode.ALL))
+        assertEquals(-1, previousPlaybackQueueIndex(3, -1, 0L, RepeatMode.ALL))
+        assertEquals(-1, previousPlaybackQueueIndex(3, 3, 0L, RepeatMode.ALL))
+    }
+
     private fun track(id: String): TrackDescriptor = TrackDescriptor(TrackId(id), title = id)
 
     @Test
