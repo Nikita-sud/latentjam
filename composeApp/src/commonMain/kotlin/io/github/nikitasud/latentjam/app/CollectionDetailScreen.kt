@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -332,6 +333,22 @@ fun CollectionDetailScreen(
                                 )
                             }
                         }
+                        // Shuffle and play sit with the name they act on. They used to live on a
+                        // rounded surface below, mirroring the Tracks tab — but that surface holds
+                        // a sort selector there, and empty here it read as a slider with no handle.
+                        FilledTonalIconButton(onClick = onShuffle) {
+                            Icon(
+                                Icons.Rounded.Shuffle,
+                                contentDescription = stringResource(Res.string.action_shuffle),
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        FilledIconButton(onClick = { onPlayTrack(0) }) {
+                            Icon(
+                                Icons.Rounded.PlayArrow,
+                                contentDescription = stringResource(Res.string.action_play),
+                            )
+                        }
                     }
                 }
                 }
@@ -373,7 +390,6 @@ fun CollectionDetailScreen(
                             onToggleSelection = onToggleSelection,
                             onStartSelection = onStartSelection,
                             onPlayTrack = onPlayTrack,
-                            onShuffle = onShuffle,
                             onTrackMenu = onTrackMenu,
                         )
                     }
@@ -391,7 +407,6 @@ fun CollectionDetailScreen(
                         onToggleSelection = onToggleSelection,
                         onStartSelection = onStartSelection,
                         onPlayTrack = onPlayTrack,
-                        onShuffle = onShuffle,
                         onTrackMenu = onTrackMenu,
                     )
                 }
@@ -418,51 +433,12 @@ private fun CollectionTrackLazyColumn(
     onToggleSelection: (TrackDescriptor) -> Unit,
     onStartSelection: (TrackDescriptor) -> Unit,
     onPlayTrack: (Int) -> Unit,
-    onShuffle: () -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
 ) {
     val reduceMotion = rememberReduceMotion()
     val unknownTitle = stringResource(Res.string.track_untitled)
     val unknownArtist = stringResource(Res.string.track_unknown_artist)
     LazyColumn(state = listState, contentPadding = contentPadding) {
-        item(key = "actions") {
-            // Shuffle and play live on their own rounded surface, mirroring the Tracks tab.
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    FilledTonalIconButton(
-                        onClick = onShuffle,
-                        enabled = !selectionMode,
-                    ) {
-                        Icon(
-                            Icons.Rounded.Shuffle,
-                            contentDescription = stringResource(Res.string.action_shuffle),
-                        )
-                    }
-                    Spacer(modifier = Modifier.padding(horizontal = 6.dp))
-                    FilledIconButton(
-                        onClick = { onPlayTrack(0) },
-                        enabled = !selectionMode,
-                    ) {
-                        Icon(
-                            Icons.Rounded.PlayArrow,
-                            contentDescription = stringResource(Res.string.action_play),
-                        )
-                    }
-                }
-            }
-        }
         val sections = selection.sections
         if (sections == null) {
             itemsIndexed(

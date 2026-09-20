@@ -260,8 +260,11 @@ internal fun ListWithRail(
     val inset = PaddingValues(
         start = contentPadding.calculateStartPadding(layoutDirection),
         top = contentPadding.calculateTopPadding(),
+        // The gutter belongs to a rail that is actually on screen. Reserving it for every list
+        // that merely qualified left short album and artist pages with an empty strip down
+        // the right-hand side and rows that stopped short of their own header's buttons.
         end = contentPadding.calculateEndPadding(layoutDirection) +
-            if (railCandidate) RailWidth + RailGap else 0.dp,
+            if (showRail) RailWidth + RailGap else 0.dp,
         bottom = contentPadding.calculateBottomPadding(),
     )
     val artworkReporter: ((ArtworkLoadKey, ArtworkLoadState) -> Unit)? =
@@ -396,8 +399,11 @@ internal fun GridListWithRail(
     val inset = PaddingValues(
         start = contentPadding.calculateStartPadding(layoutDirection),
         top = contentPadding.calculateTopPadding(),
+        // The gutter belongs to a rail that is actually on screen. Reserving it for every list
+        // that merely qualified left short album and artist pages with an empty strip down
+        // the right-hand side and rows that stopped short of their own header's buttons.
         end = contentPadding.calculateEndPadding(layoutDirection) +
-            if (railCandidate) RailWidth + RailGap else 0.dp,
+            if (showRail) RailWidth + RailGap else 0.dp,
         bottom = contentPadding.calculateBottomPadding(),
     )
     val artworkReporter: ((ArtworkLoadKey, ArtworkLoadState) -> Unit)? =
