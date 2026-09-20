@@ -717,7 +717,7 @@ fun NowPlayingScreen(
                             }
                             SkipButton(forward = false, playback = playback, durationMs = now.durationMs)
                             val playPauseDescription = stringResource(
-                                if (now.isPlaying) {
+                                if (now.showPauseButton) {
                                     Res.string.action_pause
                                 } else {
                                     Res.string.action_play
@@ -728,7 +728,7 @@ fun NowPlayingScreen(
                             // depends on it.
                             val playInteraction = remember { MutableInteractionSource() }
                             val playCorner by animateDpAsState(
-                                targetValue = if (now.isPlaying) PLAY_PLAYING_RADIUS else PLAY_PAUSED_RADIUS,
+                                targetValue = if (now.showPauseButton) PLAY_PLAYING_RADIUS else PLAY_PAUSED_RADIUS,
                                 animationSpec = tween(
                                     if (reduceMotion) Motion.REDUCED_MS else Motion.EMPHASIZED_MS,
                                 ),
@@ -747,7 +747,7 @@ fun NowPlayingScreen(
                                     .semantics { contentDescription = playPauseDescription },
                             ) {
                                 AnimatedContent(
-                                    targetState = now.isPlaying,
+                                    targetState = now.showPauseButton,
                                     transitionSpec = { motionIconTransform(reduceMotion) },
                                     label = "play-pause",
                                 ) { playing ->
@@ -760,7 +760,7 @@ fun NowPlayingScreen(
                                     contentDescription = null,
                                     modifier = Modifier
                                         .size(36.dp)
-                                        .inactiveForMotion(playing != now.isPlaying),
+                                        .inactiveForMotion(playing != now.showPauseButton),
                                 )
                                 }
                             }

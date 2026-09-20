@@ -783,6 +783,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val currentTrackPlaying by remember(playback) {
             playback.state.map { it.isPlaying }.distinctUntilChanged()
         }.collectAsState(playback.state.value.isPlaying)
+        val showPauseButton by remember(playback) {
+            playback.state.map { it.showPauseButton }.distinctUntilChanged()
+        }.collectAsState(playback.state.value.showPauseButton)
         val selectionMode = selectedTrackIds.isNotEmpty() && (
             selectedTab == StartPage.TRACKS || selectedTab in GROUP_TABS || showSearch ||
                 selectedCollection?.allowsTrackSelection == true
@@ -796,7 +799,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // in an ordinary main-thread holder: while a live track exists none of these fallback
         // fields are read, so updating them must not itself invalidate the shell.
         val lastMiniPresentation = remember {
-            LastMiniPresentation(currentTrack, accent, currentTrackPlaying)
+            LastMiniPresentation(currentTrack, accent, showPauseButton)
         }
         SideEffect {
             if (currentTrack != null) {
@@ -805,7 +808,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 // scheduling a second whole-shell recomposition for every colour-animation tick.
                 lastMiniPresentation.track = currentTrack
                 lastMiniPresentation.accent = accent
-                lastMiniPresentation.isPlaying = currentTrackPlaying
+                lastMiniPresentation.isPlaying = showPauseButton
             }
         }
         val shareTracks = rememberTrackSharer()
@@ -3450,7 +3453,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     lastMiniPresentation.accent
                                 },
                                 isPlaying = if (currentTrack != null) {
-                                    currentTrackPlaying
+                                    showPauseButton
                                 } else {
                                     lastMiniPresentation.isPlaying
                                 },

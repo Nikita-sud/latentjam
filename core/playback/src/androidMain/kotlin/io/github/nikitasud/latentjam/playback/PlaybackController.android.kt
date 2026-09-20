@@ -1225,6 +1225,11 @@ internal class AndroidPlaybackController(
         mutableState.value = NowPlaying(
             track = track,
             isPlaying = player?.isPlaying == true && !transportFade.pausePending,
+            showPauseButton = player != null && showPauseButton(
+                playWhenReady = player.playWhenReady,
+                playbackState = player.playbackState,
+                pausePending = transportFade.pausePending,
+            ),
             shuffleMode = mode,
             repeatMode = repeat,
             positionMs = if (anticipated != null) {

@@ -38,6 +38,8 @@ public const val PREVIOUS_RESTART_THRESHOLD_MS: Long = 3_000L
  * @property sourceQueue Canonical natural-order queue from which playback was started. SMART may
  *   replace [queue]'s future with recommendations, but this source remains intact so leaving SMART
  *   and restoring a saved session can return to the original playlist or collection.
+ * @property showPauseButton Transport intent, including brief buffering after a seek. Separate
+ *   from [isPlaying], so controls stay stable without counting buffering as listening time.
  */
 public data class NowPlaying(
     public val track: TrackDescriptor? = null,
@@ -49,6 +51,7 @@ public data class NowPlaying(
     public val queue: List<TrackDescriptor> = emptyList(),
     public val queueIndex: Int = -1,
     public val sourceQueue: List<TrackDescriptor> = emptyList(),
+    public val showPauseButton: Boolean = isPlaying,
 )
 
 /**
