@@ -84,10 +84,12 @@ public class PlaybackService : MediaLibraryService() {
             // is refused, the deferred toggle dies, playback never flips. NEXT worked because
             // only PLAY_PAUSE is deferred.
             //
-            // So: untrusted callers now connect with a TRANSPORT-ONLY surface — exactly the
-            // reach any installed app already has through the system's media-key dispatch —
-            // and none of what the rejection was protecting: no queue mutation, no setting
-            // media items, no stop, no custom commands.
+            // So: untrusted callers now connect with a TRANSPORT-AND-VOLUME surface — exactly
+            // the reach any installed app already has through the system's media-key dispatch
+            // and AudioManager — and none of what the rejection was protecting: no queue
+            // mutation, no setting media items, no stop, no custom commands. Device volume is
+            // in because an OEM's output panel drives the slider through the session; without
+            // these commands its slider moves and the sound does not.
             if (!controller.isTrusted) {
                 return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                     .setAvailableSessionCommands(SessionCommands.EMPTY)
@@ -102,6 +104,9 @@ public class PlaybackService : MediaLibraryService() {
                                 Player.COMMAND_SEEK_BACK,
                                 Player.COMMAND_SEEK_FORWARD,
                                 Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
+                                Player.COMMAND_GET_DEVICE_VOLUME,
+                                Player.COMMAND_SET_DEVICE_VOLUME_WITH_FLAGS,
+                                Player.COMMAND_ADJUST_DEVICE_VOLUME_WITH_FLAGS,
                             )
                             .build(),
                     )
