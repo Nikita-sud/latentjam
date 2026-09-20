@@ -606,4 +606,29 @@
     <string name="duplicates_kbps">%1$d kbps</string>
     <string name="unit_megabytes">%1$s MB</string>
     <string name="snack_duplicates_dismissed">Marked as different recordings</string>
+    <!-- Player: cover, track details, seek bar, mode button, output -->
+    <string name="cd_player_artwork">Cover. Tap for track details, hold for actions, swipe sideways to change track, drag down to close.</string>
+    <string name="details_title">Track details</string>
+    <string name="details_language">Language</string>
+    <string name="details_format">Format</string>
+    <string name="details_file">File</string>
+    <string name="details_plays">Plays</string>
+    <string name="details_plays_none">Not played yet</string>
+    <string name="details_original_year">First released</string>
+    <string name="cd_details_close">Back to the cover</string>
+    <string name="player_mode_title">Playback mode</string>
+    <string name="player_mode_off">In order</string>
+    <string name="player_mode_shuffle">Shuffle</string>
+    <string name="player_mode_smart">SMART</string>
+    <string name="cd_mode_button">Playback mode: %1$s. Tap to change, hold to choose.</string>
+    <string name="cd_seek_position">Playback position</string>
+    <string name="cd_time_toggle">Switch between remaining and total time</string>
+    <string name="seek_fine_half">½ speed</string>
+    <string name="seek_fine_quarter">¼ speed</string>
+    <string name="cd_skip_next_hold">Next track. Hold to fast-forward.</string>
+    <string name="cd_skip_previous_hold">Previous track. Hold to rewind.</string>
+    <string name="output_phone_speaker">Phone speaker</string>
+    <string name="output_headphones">Headphones</string>
+    <string name="output_bluetooth">Bluetooth</string>
+    <string name="cd_output_route">Playing on %1$s. Tap to choose where to play.</string>
 </resources>
