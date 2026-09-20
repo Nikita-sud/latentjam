@@ -22,3 +22,6 @@ tools/research/results/
 keystore.properties
 *.jks
 *.keystore
+
+# research output is never committed: it carries the maintainer's own library
+output/
