@@ -567,4 +567,8 @@
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">%1$s पर चल रहा है. कहाँ चलाना है यह चुनने के लिए टैप करें.</string>
     <string name="now_playing_next">अगला: %1$s</string>
+    <string name="output_title">ऑडियो आउटपुट</string>
+    <string name="output_current">मौजूदा आउटपुट</string>
+    <string name="output_connect_device">डिवाइस कनेक्ट करें</string>
+    <string name="output_selection_failed">डिवाइस उपलब्ध नहीं है। कनेक्शन जाँचें।</string>
 </resources>

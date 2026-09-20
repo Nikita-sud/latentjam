@@ -589,4 +589,8 @@
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">Звук іде в %1$s. Торкніться, щоб вибрати, куди грати.</string>
     <string name="now_playing_next">Далі: %1$s</string>
+    <string name="output_title">Виведення звуку</string>
+    <string name="output_current">Поточний вихід</string>
+    <string name="output_connect_device">Підключити пристрій</string>
+    <string name="output_selection_failed">Пристрій недоступний. Перевірте підключення.</string>
 </resources>

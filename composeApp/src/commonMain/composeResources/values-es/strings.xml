@@ -576,4 +576,8 @@
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">Sonando en %1$s. Toca para elegir dónde reproducir.</string>
     <string name="now_playing_next">A continuación: %1$s</string>
+    <string name="output_title">Salida de audio</string>
+    <string name="output_current">Salida actual</string>
+    <string name="output_connect_device">Conectar un dispositivo</string>
+    <string name="output_selection_failed">Dispositivo no disponible. Comprueba la conexión.</string>
 </resources>

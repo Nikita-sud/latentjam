@@ -47,14 +47,14 @@ internal data class AudioOutputRoute(val kind: AudioOutputKind, val name: String
 @Composable
 internal expect fun rememberAudioOutputRoute(): AudioOutputRoute?
 
-/** Opens the platform's own place for choosing an output, or null where there is none to open. */
+/** Opens the output chooser, or null where there is none to open. */
 @Composable
 internal expect fun rememberAudioOutputChooser(): (() -> Unit)?
 
 /**
  * The output as a status in the player's top bar: an icon and the device's name.
  *
- * A tap opens the platform's chooser where one exists; otherwise the status simply states the
+ * A tap opens the output chooser where one exists; otherwise the status simply states the
  * fact, which is most of its value — knowing the sound will come out of the speaker before the
  * first note does.
  */

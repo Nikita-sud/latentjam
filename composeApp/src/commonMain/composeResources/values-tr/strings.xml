@@ -567,4 +567,8 @@
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">%1$s üzerinden çalıyor. Nerede çalınacağını seçmek için dokunun.</string>
     <string name="now_playing_next">Sıradaki: %1$s</string>
+    <string name="output_title">Ses çıkışı</string>
+    <string name="output_current">Geçerli çıkış</string>
+    <string name="output_connect_device">Cihaz bağla</string>
+    <string name="output_selection_failed">Cihaz kullanılamıyor. Bağlantıyı kontrol edin.</string>
 </resources>

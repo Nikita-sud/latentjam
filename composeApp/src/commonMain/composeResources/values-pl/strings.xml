@@ -587,4 +587,8 @@
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">Odtwarzanie przez %1$s. Dotknij, aby wybrać, gdzie odtwarzać.</string>
     <string name="now_playing_next">Następny: %1$s</string>
+    <string name="output_title">Wyjście dźwięku</string>
+    <string name="output_current">Bieżące wyjście</string>
+    <string name="output_connect_device">Połącz urządzenie</string>
+    <string name="output_selection_failed">Urządzenie niedostępne. Sprawdź połączenie.</string>
 </resources>

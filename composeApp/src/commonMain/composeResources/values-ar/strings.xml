@@ -600,4 +600,8 @@
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">يُشغَّل عبر %1$s. انقر لاختيار مكان التشغيل.</string>
     <string name="now_playing_next">التالي: %1$s</string>
+    <string name="output_title">إخراج الصوت</string>
+    <string name="output_current">الإخراج الحالي</string>
+    <string name="output_connect_device">توصيل جهاز</string>
+    <string name="output_selection_failed">الجهاز غير متاح. تحقق من الاتصال.</string>
 </resources>

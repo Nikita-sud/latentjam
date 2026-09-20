@@ -560,4 +560,8 @@
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">%1$s で再生中。タップして出力先を選択します。</string>
     <string name="now_playing_next">次: %1$s</string>
+    <string name="output_title">音声出力</string>
+    <string name="output_current">現在の出力先</string>
+    <string name="output_connect_device">デバイスを接続</string>
+    <string name="output_selection_failed">デバイスを利用できません。接続を確認してください。</string>
 </resources>

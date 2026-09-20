@@ -4,19 +4,15 @@
  */
 package io.github.nikitasud.latentjam.app
 
-import android.content.ActivityNotFoundException
 import android.content.Context
-import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.MediaRouter
-import android.media.MediaRouter2
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -126,25 +122,4 @@ private val WIRED_TYPES: Set<Int> = buildSet {
     add(AudioDeviceInfo.TYPE_LINE_ANALOG)
     add(AudioDeviceInfo.TYPE_LINE_DIGITAL)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) add(AudioDeviceInfo.TYPE_USB_HEADSET)
-}
-
-/** Android 14+ has a public output picker; earlier releases can open Bluetooth settings. */
-@Composable
-internal actual fun rememberAudioOutputChooser(): (() -> Unit)? {
-    val context = LocalContext.current
-    return remember(context) {
-        {
-            val opened = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
-                MediaRouter2.getInstance(context).showSystemOutputSwitcher()
-            if (!opened) {
-                val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                try {
-                    context.startActivity(intent)
-                } catch (_: ActivityNotFoundException) {
-                    // A device without Bluetooth settings has nowhere else to send this.
-                }
-            }
-        }
-    }
 }

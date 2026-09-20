@@ -566,4 +566,8 @@
     <string name="output_bluetooth">Bluetooth</string>
     <string name="cd_output_route">Diputar di %1$s. Ketuk untuk memilih tempat memutar.</string>
     <string name="now_playing_next">Berikutnya: %1$s</string>
+    <string name="output_title">Output audio</string>
+    <string name="output_current">Output saat ini</string>
+    <string name="output_connect_device">Hubungkan perangkat</string>
+    <string name="output_selection_failed">Perangkat tidak tersedia. Periksa koneksi.</string>
 </resources>
