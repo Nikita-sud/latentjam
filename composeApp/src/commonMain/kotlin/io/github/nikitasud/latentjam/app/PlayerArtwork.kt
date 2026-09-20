@@ -160,9 +160,10 @@ internal fun PlayerArtworkCard(
     val ringColor = MaterialTheme.colorScheme.onSurface
     val ringTrack = ringColor.copy(alpha = 0.18f)
     Box(
+        // Square, as tall as the space allows and never wider than the screen: the column above
+        // hands the cover the spare height, and this is what lets it shrink.
         modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
+            .aspectRatio(1f, matchHeightConstraintsFirst = true)
             .semantics {
                 contentDescription = description
                 role = Role.Button

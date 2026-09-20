@@ -181,9 +181,14 @@ import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /** How much of the queue sheet stays visible under the player. */
-private val QueuePeekHeight = 84.dp
+private val QueueTitleRowHeight = 40.dp
+private val QueueHandleHeight = 18.dp
+
+// Exactly the handle and the title row. Anything more shows a sliver of the first queue
+// row under the title, which reads as a stray strip above the navigation bar.
+private val QueuePeekHeight = QueueHandleHeight + QueueTitleRowHeight
 private val PLAY_PAUSED_RADIUS = 36.dp
-private val NEXT_UP_HEIGHT = 40.dp
+private val NEXT_UP_HEIGHT = 36.dp
 /** Long enough that skipping through the queue reads no tag on the way; short enough to feel instant. */
 private const val LYRICS_PROBE_DELAY_MS = 400L
 private val PLAY_PLAYING_RADIUS = 24.dp
@@ -392,9 +397,12 @@ fun NowPlayingScreen(
                 sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 sheetShadowElevation = 0.dp,
                 containerColor = Color.Transparent,
+                // The stock handle pads itself to 48 dp; the peek is a strip, not a toolbar.
+                sheetDragHandle = { CompactDragHandle() },
                 sheetContent = {
                     QueueSheetContent(
                         queue = now.queue,
+                        onExpand = { scope.launch { sheetState.bottomSheetState.expand() } },
                         currentIndex = now.queueIndex,
                         isPlaying = now.isPlaying,
                         canReorder = now.shuffleMode != ShuffleMode.ON,
@@ -516,60 +524,72 @@ fun NowPlayingScreen(
                         modifier = Modifier.weight(1f).padding(horizontal = 24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        PlayerArtworkCard(
-                            track = now.track,
-                            queueIndex = now.queueIndex,
-                            skipChangesTrack = { forward ->
-                                val live = playback.state.value
-                                if (forward) live.queue.size > 1 || live.shuffleMode == ShuffleMode.SMART
-                                else live.positionMs <= PREVIOUS_RESTART_THRESHOLD_MS && live.queue.size > 1
-                            },
-                            flipped = flipped,
-                            onFlip = { flipped = it },
-                            onHold = { now.track?.let(onTrackMenu) },
-                            onSkip = { forward ->
-                                scope.launch { if (forward) playback.next() else playback.previous() }
-                            },
-                            canSkipForward = now.queueIndex in 0 until now.queue.lastIndex ||
-                                now.repeatMode == RepeatMode.ALL ||
-                                now.shuffleMode == ShuffleMode.SMART,
-                            canSkipBackward = now.track != null &&
-                                (previousRestarts || now.queueIndex > 0 || now.repeatMode == RepeatMode.ALL),
-                            neighbourArtwork = { forward ->
-                                queueNeighbour(playback.state.value, forward)?.artworkUri
-                            },
-                            onCollapseDrag = { pulled ->
-                                if (pulled == 0f) {
-                                    settleCollapse(Motion.APPEAR_MS)
-                                } else {
-                                    collapseJob?.cancel()
-                                    collapseOffset.floatValue = pulled
-                                }
-                            },
-                            onCollapse = {
-                                onClose()
-                                settleCollapse(Motion.EMPHASIZED_MS)
-                            },
-                            details = {
-                                now.track?.let { track ->
-                                    TrackDetailsFace(
-                                        track = track,
-                                        stats = trackStats,
-                                        onEditTags = { onEditTags(track) },
-                                        onShowOnMap = onShowOnMap?.let { show -> { show(track) } },
-                                        onClose = { flipped = false },
+                        // The cover owns whatever height is spare and gives it up first: on a
+                        // short screen or with large text it shrinks below the width rather than
+                        // squeezing the words and controls packed underneath it.
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            PlayerArtworkCard(
+                                track = now.track,
+                                queueIndex = now.queueIndex,
+                                skipChangesTrack = { forward ->
+                                    val live = playback.state.value
+                                    if (forward) live.queue.size > 1 || live.shuffleMode == ShuffleMode.SMART
+                                    else live.positionMs <= PREVIOUS_RESTART_THRESHOLD_MS && live.queue.size > 1
+                                },
+                                flipped = flipped,
+                                onFlip = { flipped = it },
+                                onHold = { now.track?.let(onTrackMenu) },
+                                onSkip = { forward ->
+                                    scope.launch { if (forward) playback.next() else playback.previous() }
+                                },
+                                canSkipForward = now.queueIndex in 0 until now.queue.lastIndex ||
+                                    now.repeatMode == RepeatMode.ALL ||
+                                    now.shuffleMode == ShuffleMode.SMART,
+                                canSkipBackward = now.track != null &&
+                                    (previousRestarts || now.queueIndex > 0 || now.repeatMode == RepeatMode.ALL),
+                                neighbourArtwork = { forward ->
+                                    queueNeighbour(playback.state.value, forward)?.artworkUri
+                                },
+                                onCollapseDrag = { pulled ->
+                                    if (pulled == 0f) {
+                                        settleCollapse(Motion.APPEAR_MS)
+                                    } else {
+                                        collapseJob?.cancel()
+                                        collapseOffset.floatValue = pulled
+                                    }
+                                },
+                                onCollapse = {
+                                    onClose()
+                                    settleCollapse(Motion.EMPHASIZED_MS)
+                                },
+                                details = {
+                                    now.track?.let { track ->
+                                        TrackDetailsFace(
+                                            track = track,
+                                            stats = trackStats,
+                                            onEditTags = { onEditTags(track) },
+                                            onShowOnMap = onShowOnMap?.let { show -> { show(track) } },
+                                            onClose = { flipped = false },
+                                        )
+                                    }
+                                },
+                                modifier = if (reduceMotion) Modifier else with(sharedScope) {
+                                    Modifier.sharedElement(
+                                        rememberSharedContentState(ARTWORK_KEY),
+                                        animatedScope,
+                                        boundsTransform = motionBoundsTransform(),
                                     )
-                                }
-                            },
-                            modifier = if (reduceMotion) Modifier else with(sharedScope) {
-                                Modifier.sharedElement(
-                                    rememberSharedContentState(ARTWORK_KEY),
-                                    animatedScope,
-                                    boundsTransform = motionBoundsTransform(),
-                                )
-                            },
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
+                                },
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         // Cover, colour and words now change as one event when the queue advances.
                         // The small fade-through keeps a skip legible without sending the whole
@@ -670,12 +690,13 @@ fun NowPlayingScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.weight(1f))
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         PlayerSeekBar(playback = playback, durationMs = now.durationMs, lyrics = lyrics)
 
-                        Spacer(modifier = Modifier.height(12.dp))
-
+                        // The transport follows the time labels directly: the labels sit at the
+                        // edges and the play button in the middle, so nothing touches. What matters
+                        // is the line-to-button distance, kept equal to the button-to-next-up one.
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -743,7 +764,7 @@ fun NowPlayingScreen(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(34.dp))
 
                         // What comes next, without opening the queue; a tap opens it anyway.
                         NextUpRow(
@@ -754,7 +775,7 @@ fun NowPlayingScreen(
                             },
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                     }
                 }
             }
@@ -1138,6 +1159,25 @@ private fun NextUpRow(next: TrackDescriptor?, onOpenQueue: () -> Unit) {
     }
 }
 
+/** A 4 dp pill with just enough room to find it, instead of the stock handle's 48 dp of padding. */
+@Composable
+private fun CompactDragHandle() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(QueueHandleHeight)
+            .padding(top = 8.dp, bottom = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 32.dp, height = 4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
+        )
+    }
+}
+
 /** Artist or album under the title: a link when there is somewhere to go, plain text otherwise. */
 @Composable
 private fun MetadataLink(text: String?, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
@@ -1468,6 +1508,7 @@ private fun QueueSheetContent(
     onRemoveAt: (Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
     onSaveQueue: () -> Unit,
+    onExpand: () -> Unit = {},
 ) {
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = currentIndex.coerceAtLeast(0),
@@ -1485,7 +1526,14 @@ private fun QueueSheetContent(
     var dragOffsetY by remember { mutableStateOf(0f) }
     var dragTargetIndex by remember { mutableStateOf<Int?>(null) }
     Column(modifier = Modifier.fillMaxWidth()) {
-        Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+        val expandLabel = stringResource(Res.string.queue_title)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(QueueTitleRowHeight)
+                .clickable(role = Role.Button, onClickLabel = expandLabel, onClick = onExpand)
+                .padding(bottom = 4.dp),
+        ) {
             AnimatedContent(
                 targetState = queue.size,
                 transitionSpec = { motionFadeThrough(reduceMotion) },
@@ -1506,13 +1554,13 @@ private fun QueueSheetContent(
             AnimatedContent(
                 targetState = queue.isNotEmpty(),
                 transitionSpec = { motionIconTransform(reduceMotion) },
-                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 7.dp),
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
                 label = "save-queue",
             ) { canSave ->
-                Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(QueueTitleRowHeight), contentAlignment = Alignment.Center) {
                     if (canSave) {
                         // A queue worth keeping — often SMART's work — becomes a playlist in two taps.
-                        IconButton(onClick = onSaveQueue) {
+                        IconButton(onClick = onSaveQueue, modifier = Modifier.size(QueueTitleRowHeight)) {
                             Icon(
                                 imageVector = Icons.Rounded.LibraryAdd,
                                 contentDescription =

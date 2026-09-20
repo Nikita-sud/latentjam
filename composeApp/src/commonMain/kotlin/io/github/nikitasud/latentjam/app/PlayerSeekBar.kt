@@ -165,7 +165,7 @@ internal fun PlayerSeekBar(
                         val width = size.width.toFloat()
                         if (width <= 0f || trackId == null || durationMs <= 0L) return@awaitEachGesture
                         down.consume()
-                        val bandCentre = size.height / 2f
+                        val bandCentre = LINE_FROM_TOP.toPx()
                         var target = ((down.position.x / width).coerceIn(0f, 1f) * duration)
                             .roundToLong()
                         haptics.play(PlayerHaptic.TAP)
@@ -223,7 +223,7 @@ internal fun PlayerSeekBar(
                     val handleW = HANDLE_WIDTH.toPx()
                     val handleH = handleHeight.toPx()
                     val gap = SEGMENT_GAP.toPx()
-                    val centreY = size.height / 2f
+                    val centreY = LINE_FROM_TOP.toPx()
                     val handleX = (shownMs.toFloat() / duration) * (size.width - handleW)
                     val remainingStart = handleX + handleW + gap
                     if (remainingStart < size.width) {
@@ -291,7 +291,7 @@ internal fun PlayerSeekBar(
                         haptics.play(PlayerHaptic.TAP)
                         showRemaining = !showRemaining
                     }
-                    .padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+                    .padding(start = 12.dp, top = 2.dp, bottom = 2.dp),
             )
         }
     }
@@ -347,7 +347,11 @@ private fun ScrubBubble(
     }
 }
 
-private val BAND_HEIGHT: Dp = 44.dp
+// The band is the touch target; the line sits below its middle so the labels can tuck in
+// under the handle (17 dp half-height while scrubbing) without the transport drifting away.
+// Line to play button and play button to next-up row then come out equal on the player.
+private val BAND_HEIGHT: Dp = 40.dp
+private val LINE_FROM_TOP: Dp = 22.dp
 private val LINE_RESTING: Dp = 4.dp
 private val LINE_SCRUBBING: Dp = 6.dp
 private val HANDLE_RESTING: Dp = 26.dp
