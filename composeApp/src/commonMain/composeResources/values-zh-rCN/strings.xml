@@ -129,6 +129,7 @@
     <string name="queue_title">播放队列</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">播放队列 · %1$d</string>
+    <string name="queue_row_continuation">不是推荐 — 只是让音乐继续播放</string>
     <string name="cd_repeat_off">循环播放已关闭。点按可循环播放整个队列。</string>
     <string name="cd_repeat_all">正在循环播放整个队列。点按可切换为单曲循环。</string>
     <string name="cd_repeat_one">正在单曲循环。点按可关闭循环播放。</string>

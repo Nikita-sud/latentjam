@@ -141,6 +141,7 @@
     <string name="queue_title">Fila</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Fila · %1$d</string>
+    <string name="queue_row_continuation">Não é uma recomendação — para a música não parar</string>
     <string name="cd_repeat_off">A repetição está desativada. Toque para repetir a fila.</string>
     <string name="cd_repeat_all">Repetindo a fila. Toque para repetir uma única música.</string>
     <string name="cd_repeat_one">Repetindo uma única música. Toque para desativar a repetição.</string>

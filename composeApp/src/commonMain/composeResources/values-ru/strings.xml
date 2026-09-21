@@ -141,6 +141,7 @@
     <string name="cd_now_playing">Сейчас играет</string>
     <string name="queue_title">Очередь</string>
     <string name="queue_title_count">Очередь · %1$d</string>
+    <string name="queue_row_continuation">Не рекомендация — чтобы музыка не прерывалась</string>
     <string name="cd_repeat_off">Повтор выключен. Нажмите, чтобы повторять очередь.</string>
     <string name="cd_repeat_all">Повтор очереди. Нажмите, чтобы повторять один трек.</string>
     <string name="cd_repeat_one">Повтор одного трека. Нажмите, чтобы выключить повтор.</string>

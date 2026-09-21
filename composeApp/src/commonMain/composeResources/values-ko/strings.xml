@@ -129,6 +129,7 @@
     <string name="queue_title">재생 대기열</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">재생 대기열 · %1$d</string>
+    <string name="queue_row_continuation">추천이 아닙니다 — 재생을 이어가기 위한 곡</string>
     <string name="cd_repeat_off">반복이 꺼져 있습니다. 탭하면 대기열 전체를 반복합니다.</string>
     <string name="cd_repeat_all">대기열 전체를 반복하고 있습니다. 탭하면 한 곡 반복으로 바뀝니다.</string>
     <string name="cd_repeat_one">한 곡을 반복하고 있습니다. 탭하면 반복이 꺼집니다.</string>

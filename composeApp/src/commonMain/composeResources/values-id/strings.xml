@@ -135,6 +135,7 @@
     <string name="queue_title">Antrean</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Antrean · %1$d</string>
+    <string name="queue_row_continuation">Bukan rekomendasi — agar musik terus berjalan</string>
     <string name="cd_repeat_off">Pengulangan nonaktif. Ketuk untuk mengulang antrean.</string>
     <string name="cd_repeat_all">Antrean sedang diulang. Ketuk untuk mengulang satu lagu.</string>
     <string name="cd_repeat_one">Satu lagu sedang diulang. Ketuk untuk menonaktifkan pengulangan.</string>

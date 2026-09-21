@@ -144,6 +144,7 @@
     <string name="queue_title">Warteschlange</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Warteschlange · %1$d</string>
+    <string name="queue_row_continuation">Keine Empfehlung – damit die Musik weiterläuft</string>
     <string name="cd_repeat_off">Wiederholung ist aus. Tippe, um die Warteschlange zu wiederholen.</string>
     <string name="cd_repeat_all">Die Warteschlange wird wiederholt. Tippe, um einen einzelnen Titel zu wiederholen.</string>
     <string name="cd_repeat_one">Ein einzelner Titel wird wiederholt. Tippe, um die Wiederholung auszuschalten.</string>

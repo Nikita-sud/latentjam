@@ -148,6 +148,7 @@
     <string name="queue_title">Kolejka</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Kolejka · %1$d</string>
+    <string name="queue_row_continuation">To nie rekomendacja – żeby muzyka grała dalej</string>
     <string name="cd_repeat_off">Powtarzanie wyłączone. Dotknij, aby powtarzać kolejkę.</string>
     <string name="cd_repeat_all">Kolejka jest powtarzana. Dotknij, aby powtarzać jeden utwór.</string>
     <string name="cd_repeat_one">Utwór jest powtarzany. Dotknij, aby wyłączyć powtarzanie.</string>

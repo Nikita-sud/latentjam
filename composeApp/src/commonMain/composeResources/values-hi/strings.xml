@@ -134,6 +134,7 @@
     <string name="queue_title">क्यू</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">क्यू · %1$d</string>
+    <string name="queue_row_continuation">यह सुझाव नहीं है — ताकि संगीत चलता रहे</string>
     <string name="cd_repeat_off">दोहराना बंद है. पूरे क्यू को दोहराने के लिए टैप करें.</string>
     <string name="cd_repeat_all">पूरा क्यू दोहराया जा रहा है. सिर्फ़ एक गाना दोहराने के लिए टैप करें.</string>
     <string name="cd_repeat_one">एक ही गाना दोहराया जा रहा है. दोहराना बंद करने के लिए टैप करें.</string>

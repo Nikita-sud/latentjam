@@ -30,8 +30,9 @@ import kotlin.time.TimeSource
  * playback lands somewhere the plan did not predict (the user skipped, or picked a track by hand) —
  * that track becomes the seed of the next chain, which is what the user just asked for.
  *
- * Abstains when neither the audio nor trusted-metadata path can plan. The controller leaves the
- * queue short in that case; it never disguises a random pick as SMART.
+ * Abstains when neither the audio nor trusted-metadata path can plan. It never disguises a random
+ * pick as SMART — but abstention must not end the session either, so [continuation] supplies a
+ * clearly labelled unheard track and the walk resumes as soon as the engine can answer.
  */
 class EngineNextTrackChooser(
     private val engine: SimilarityEngine,
@@ -44,6 +45,9 @@ class EngineNextTrackChooser(
     private var planned = ArrayDeque<TrackId>()
     private var expectedNext: TrackId? = null
     private var plannedWithGroups: List<Set<TrackId>> = emptyList()
+
+    /** Artists of the last few continuations, so a run of them cannot become an album dump. */
+    private val recentContinuationArtists = ArrayDeque<String>()
 
     override suspend fun choose(
         current: TrackDescriptor,
@@ -92,6 +96,36 @@ class EngineNextTrackChooser(
         null
     }
 
+    /**
+     * Not a recommendation, and never dressed as one: the longest-unheard track still available.
+     *
+     * The controller asks for this only after [choose] abstained, labels the row, and comes back
+     * to [choose] at the very next transition — so this keeps a session alive while the index
+     * warms up or a plan momentarily fails, instead of leaving the listener in silence.
+     */
+    override suspend fun continuation(
+        current: TrackDescriptor,
+        recentIds: List<TrackId>,
+        candidates: List<TrackDescriptor>,
+    ): TrackDescriptor? = mutex.withLock {
+        val lastPlayedAtMs = runCatching { history.stats() }
+            .getOrNull()
+            ?.mapValues { (_, stats) -> stats.lastPlayedAtMs }
+            .orEmpty()
+        val chosen = smartContinuationTrack(
+            candidates = candidates,
+            lastPlayedAtMs = lastPlayedAtMs,
+            avoidArtists = recentContinuationArtists.toSet(),
+        ) ?: return@withLock null
+        continuationArtistKey(chosen)?.let { artist ->
+            recentContinuationArtists.addLast(artist)
+            while (recentContinuationArtists.size > CONTINUATION_ARTIST_SPACING) {
+                recentContinuationArtists.removeFirst()
+            }
+        }
+        chosen
+    }
+
     private companion object {
         /**
          * Tracks planned per chain. Matches the length the chain's weighting was tuned at: long
@@ -99,8 +133,39 @@ class EngineNextTrackChooser(
          * still reflects what the listener picked rather than where it drifted.
          */
         const val CHAIN_LENGTH = 12
+
+        /** How many continuations must pass before the same artist may continue the queue again. */
+        const val CONTINUATION_ARTIST_SPACING = 3
     }
 }
+
+/**
+ * Picks the track that keeps SMART playing when the recommender cannot: the one the listener has
+ * not heard, or heard longest ago, skipping [avoidArtists] so consecutive continuations do not
+ * walk an album end to end.
+ *
+ * Deliberately deterministic — never random. Randomness here would be indistinguishable from the
+ * shuffle SMART exists to replace, and a listener who reports "it played something odd" deserves
+ * an answer that can be reproduced. Library order breaks ties, and the artist filter yields rather
+ * than returning nothing when every remaining candidate shares one artist: silence is the worse
+ * outcome. `null` means the pool really is empty, which ends the queue honestly.
+ */
+internal fun smartContinuationTrack(
+    candidates: List<TrackDescriptor>,
+    lastPlayedAtMs: Map<TrackId, Long>,
+    avoidArtists: Set<String>,
+): TrackDescriptor? {
+    if (candidates.isEmpty()) return null
+    // Stable sort: equally unheard candidates keep the order the library handed over.
+    val ordered = candidates.sortedBy { track -> lastPlayedAtMs[track.id] ?: Long.MIN_VALUE }
+    return ordered.firstOrNull { track ->
+        continuationArtistKey(track)?.let { it !in avoidArtists } ?: true
+    } ?: ordered.first()
+}
+
+/** Null for an unknown artist: those tracks share no artist and must not be spaced as if they did. */
+private fun continuationArtistKey(track: TrackDescriptor): String? =
+    track.artist?.trim()?.takeIf(String::isNotEmpty)?.lowercase()
 
 /** Projects the private append-only history log into SMART's model-only value type. */
 internal suspend fun smartHistoryFor(

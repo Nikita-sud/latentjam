@@ -139,6 +139,7 @@
     <string name="cd_now_playing">Se redă acum</string>
     <string name="queue_title">Coadă</string>
     <string name="queue_title_count">Coadă · %1$d</string>
+    <string name="queue_row_continuation">Nu e o recomandare — ca muzica să continue</string>
     <string name="cd_repeat_off">Repetarea este dezactivată. Atinge pentru a repeta coada.</string>
     <string name="cd_repeat_all">Se repetă coada. Atinge pentru a repeta o singură piesă.</string>
     <string name="cd_repeat_one">Se repetă o singură piesă. Atinge pentru a dezactiva repetarea.</string>

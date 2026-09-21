@@ -440,17 +440,13 @@ public class PlaybackService : MediaLibraryService() {
      * OEM Bluetooth stacks, System UI. One line per EXTERNAL command with the source package,
      * what arrived, and whether audio was actually playing at that instant — so "my headphones
      * did not pause it" becomes attributable days later instead of folklore. Bounded on disk
-     * and best-effort by design.
+     * and best-effort by design — see [MediaBlackBox], which SMART's abstentions share.
      */
     private fun recordExternalMediaEvent(source: String?, what: String) {
-        runCatching {
-            val file = java.io.File(filesDir, "media_commands.log")
-            if (file.length() > 128_000) file.delete()
-            file.appendText(
-                "${System.currentTimeMillis()} ${source ?: "?"} $what " +
-                    "playing=${playbackPlayer?.isPlaying}\n",
-            )
-        }
+        MediaBlackBox.record(
+            filesDir,
+            "${source ?: "?"} $what playing=${playbackPlayer?.isPlaying}",
+        )
     }
 
     /** Keeps stateful notification icons in step with changes from either the app or System UI. */

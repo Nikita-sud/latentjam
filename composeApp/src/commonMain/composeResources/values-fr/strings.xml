@@ -146,6 +146,7 @@
     <string name="queue_title">File d’attente</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">File d’attente · %1$d</string>
+    <string name="queue_row_continuation">Pas une recommandation – pour que la musique continue</string>
     <string name="cd_repeat_off">La répétition est désactivée. Appuyez pour répéter la file d’attente.</string>
     <string name="cd_repeat_all">La file d’attente est en répétition. Appuyez pour répéter un seul morceau.</string>
     <string name="cd_repeat_one">Un seul morceau est en répétition. Appuyez pour désactiver la répétition.</string>

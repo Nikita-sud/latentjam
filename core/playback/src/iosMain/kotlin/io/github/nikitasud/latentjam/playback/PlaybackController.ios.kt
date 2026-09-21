@@ -144,6 +144,12 @@ internal class IosPlaybackController(
     private var smartLibrarySupplied: Boolean = false
     private var smartLookahead: Int = DEFAULT_SMART_LOOKAHEAD
 
+    /**
+     * Queue rows that exist because SMART could not recommend, not because it did — published so
+     * the queue can say so, and pruned with the queue itself.
+     */
+    private val smartContinuationIds = mutableSetOf<TrackId>()
+
     private var mode: ShuffleMode = ShuffleMode.OFF
     private var repeat: RepeatMode = RepeatMode.OFF
     private var playing: Boolean = false
@@ -722,11 +728,22 @@ internal class IosPlaybackController(
             ).filter { it.id !in queued }
             if (candidates.isEmpty()) break
 
-            val chosen = runCatching { chooser.choose(seed, recentIds, candidates) }
+            val recommended = runCatching { chooser.choose(seed, recentIds, candidates) }
                 .getOrNull()
-                // SMART must never present a random row as a recommendation. If neither local
-                // model path can answer yet, leave the queue short and retry later.
-                ?: break
+            // SMART must never present a random row as a recommendation — but abstaining must
+            // not end the session either. A continuation keeps playing under its own label, in
+            // small batches, so the next transition can hand the walk back to the recommender.
+            val continuation = when {
+                recommended != null -> null
+                !smartMayContinue(
+                    queueSize = queue.size,
+                    currentIndex = queueIndex,
+                    isContinuation = { index -> queue[index].id in smartContinuationIds },
+                ) -> null
+                else -> runCatching { chooser.continuation(seed, recentIds, candidates) }
+                    .getOrNull()
+            }
+            val chosen = recommended ?: continuation ?: break
             // Inference suspends. Another coroutine may have replaced the queue, switched modes,
             // manually edited its tail, or refreshed eligibility while the chooser was working.
             if (
@@ -741,6 +758,7 @@ internal class IosPlaybackController(
                 break
             }
             queue = queue + chosen
+            if (continuation != null) smartContinuationIds += chosen.id
             queueGeneration++
             appended = true
         }
@@ -1331,6 +1349,9 @@ internal class IosPlaybackController(
 
     private fun pushState() {
         val track = queue.getOrNull(queueIndex)
+        // A row that left the queue takes its label with it, and a track the recommender later
+        // picks on its own merits is not still marked as a continuation.
+        smartContinuationIds.retainAll(queue.mapTo(HashSet()) { it.id })
         mutableState.value = NowPlaying(
             track = track,
             isPlaying = playing,
@@ -1341,6 +1362,7 @@ internal class IosPlaybackController(
             queue = queue,
             queueIndex = if (queue.isEmpty()) -1 else queueIndex,
             sourceQueue = pool,
+            smartContinuationIds = smartContinuationIds.toSet(),
         )
         publishNowPlayingInfo(track)
     }

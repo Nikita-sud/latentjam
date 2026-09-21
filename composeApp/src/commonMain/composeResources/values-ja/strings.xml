@@ -129,6 +129,7 @@
     <string name="queue_title">再生キュー</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">再生キュー · %1$d</string>
+    <string name="queue_row_continuation">おすすめではありません — 再生を続けるための曲</string>
     <string name="cd_repeat_off">リピートはオフです。タップするとキュー全体をリピートします。</string>
     <string name="cd_repeat_all">キュー全体をリピート中です。タップすると1曲リピートに切り替わります。</string>
     <string name="cd_repeat_one">1曲をリピート中です。タップするとリピートがオフになります。</string>

@@ -152,6 +152,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.lyrics_not_found
 import io.github.nikitasud.latentjam.app.generated.resources.now_playing_next
 import io.github.nikitasud.latentjam.app.generated.resources.now_playing_nothing
 import io.github.nikitasud.latentjam.app.generated.resources.now_playing_source
+import io.github.nikitasud.latentjam.app.generated.resources.queue_row_continuation
 import io.github.nikitasud.latentjam.app.generated.resources.queue_title
 import io.github.nikitasud.latentjam.app.generated.resources.queue_title_count
 import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer
@@ -411,6 +412,7 @@ fun NowPlayingScreen(
                 sheetContent = {
                     QueueSheetContent(
                         queue = now.queue,
+                        continuationIds = now.smartContinuationIds,
                         onExpand = { scope.launch { sheetState.bottomSheetState.expand() } },
                         currentIndex = now.queueIndex,
                         isPlaying = now.isPlaying,
@@ -1364,6 +1366,8 @@ private fun QueueRow(
     onClick: () -> Unit,
     onMenu: () -> Unit,
     modifier: Modifier = Modifier,
+    /** SMART could not recommend here and kept playing instead. Said plainly, not implied. */
+    isContinuation: Boolean = false,
 ) {
     val reduceMotion = rememberReduceMotion()
     val rowAlpha by animateFloatAsState(
@@ -1427,6 +1431,17 @@ private fun QueueRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (isContinuation) {
+                // Its own line rather than a suffix on the artist: the credit must not be
+                // truncated to make room for a caveat about how the row got here.
+                Text(
+                    text = stringResource(Res.string.queue_row_continuation),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         track.durationMs?.let { duration ->
             Text(
@@ -1507,6 +1522,8 @@ private fun PlayingBars(isPlaying: Boolean, tint: Color) {
 @Composable
 private fun QueueSheetContent(
     queue: List<TrackDescriptor>,
+    /** Rows SMART appended to keep playing while it could not recommend; labelled, never hidden. */
+    continuationIds: Set<TrackId>,
     currentIndex: Int,
     isPlaying: Boolean,
     /** False under random shuffle: the sheet shows a traversal, not the player's list. */
@@ -1691,6 +1708,7 @@ private fun QueueSheetContent(
                             isCurrent = index == currentIndex,
                             // Everything above the playhead has been heard this session.
                             isPlayed = index < currentIndex,
+                            isContinuation = track.id in continuationIds,
                             isPlaying = isPlaying,
                             onClick = { onPlayAt(index) },
                             onMenu = { onTrackMenu(track) },

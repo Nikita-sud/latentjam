@@ -141,6 +141,7 @@
     <string name="queue_title">Cola</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Cola · %1$d</string>
+    <string name="queue_row_continuation">No es una recomendación: para que la música siga sonando</string>
     <string name="cd_repeat_off">La repetición está desactivada. Toca para repetir la cola.</string>
     <string name="cd_repeat_all">Se está repitiendo la cola. Toca para repetir una sola canción.</string>
     <string name="cd_repeat_one">Se está repitiendo una sola canción. Toca para desactivar la repetición.</string>

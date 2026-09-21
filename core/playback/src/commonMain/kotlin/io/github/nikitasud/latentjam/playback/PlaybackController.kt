@@ -14,7 +14,8 @@ import org.koin.core.module.Module
  *
  * [SMART] delegates next-track choice to a [NextTrackChooser] backed by the
  * local similarity engine. If the chooser cannot answer yet, SMART abstains
- * rather than presenting a random track as a recommendation.
+ * rather than presenting a random track as a recommendation — and keeps
+ * playing with a labelled [NextTrackChooser.continuation] instead of stopping.
  */
 public enum class ShuffleMode { OFF, ON, SMART }
 
@@ -40,6 +41,9 @@ public const val PREVIOUS_RESTART_THRESHOLD_MS: Long = 3_000L
  *   and restoring a saved session can return to the original playlist or collection.
  * @property showPauseButton Transport intent, including brief buffering after a seek. Separate
  *   from [isPlaying], so controls stay stable without counting buffering as listening time.
+ * @property smartContinuationIds Queue rows SMART appended to keep playing while it could not
+ *   recommend — see [NextTrackChooser.continuation]. The UI labels them, because a track that is
+ *   merely unheard must never be presented as something the recommender chose.
  */
 public data class NowPlaying(
     public val track: TrackDescriptor? = null,
@@ -52,6 +56,7 @@ public data class NowPlaying(
     public val queueIndex: Int = -1,
     public val sourceQueue: List<TrackDescriptor> = emptyList(),
     public val showPauseButton: Boolean = isPlaying,
+    public val smartContinuationIds: Set<TrackId> = emptySet(),
 )
 
 /**
@@ -62,12 +67,28 @@ public data class NowPlaying(
  * into this shape. Return `null` to abstain; the controller keeps the queue
  * short and retries when more local index data is available.
  */
-public fun interface NextTrackChooser {
+public interface NextTrackChooser {
     public suspend fun choose(
         current: TrackDescriptor,
         recentIds: List<TrackId>,
         candidates: List<TrackDescriptor>,
     ): TrackDescriptor?
+
+    /**
+     * What keeps the music going when [choose] abstains — explicitly NOT a recommendation.
+     *
+     * Abstention is correct (a random track presented as SMART's work would be a lie), but
+     * silence is not: the queue used to simply end, and because SMART only tops up on queue
+     * transitions, nothing ever asked again. Implementations return a track the listener has not
+     * heard, or heard longest ago, so playback continues honestly until the recommender can
+     * answer; the controller labels those rows and returns to real recommendations at the next
+     * transition. Returning `null` — genuinely nothing left to play — still ends the queue.
+     */
+    public suspend fun continuation(
+        current: TrackDescriptor,
+        recentIds: List<TrackId>,
+        candidates: List<TrackDescriptor>,
+    ): TrackDescriptor? = null
 }
 
 /**

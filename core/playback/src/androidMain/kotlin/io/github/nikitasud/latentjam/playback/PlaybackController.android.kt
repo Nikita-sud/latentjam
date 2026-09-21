@@ -28,6 +28,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.media3.session.SessionResult
+import io.github.nikitasud.latentjam.smart.EngineState
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -64,7 +65,9 @@ import kotlin.coroutines.resumeWithException
  * controller tops it back up from the injected [NextTrackChooser], continuing the walk from
  * the tail each time. Skipping or finishing a track therefore always has
  * somewhere to go, there is a readable queue rather than a single next-track
- * hint, and the played queue doubles as listening history.
+ * hint, and the played queue doubles as listening history. When the chooser cannot recommend,
+ * the queue continues with labelled [NextTrackChooser.continuation] rows rather than running out
+ * — and if it did run out, [resumeExhaustedSmartQueue] reopens it.
  *
  * All MediaController access is confined to the main thread, per Media3's threading contract.
  * Immutable queue metadata and MediaItems are prepared on a worker first, so tapping a track in a
@@ -113,6 +116,13 @@ internal class AndroidPlaybackController(
     private var smartLibrary: List<TrackDescriptor> = emptyList()
     private var smartLibrarySupplied: Boolean = false
     private var smartLookahead: Int = DEFAULT_SMART_LOOKAHEAD
+
+    /**
+     * Queue rows that exist because SMART could not recommend, not because it did. Published so
+     * the queue can say so, and pruned with the queue itself — a row that left takes its label
+     * with it, and a track the recommender later picks on its own merits is not still marked.
+     */
+    private val smartContinuationIds = mutableSetOf<TrackId>()
     private var poolById: Map<String, TrackDescriptor> = emptyMap()
     private var smartById: Map<String, TrackDescriptor> = emptyMap()
     private var mode: ShuffleMode = ShuffleMode.OFF
@@ -195,6 +205,11 @@ internal class AndroidPlaybackController(
             // Reaching READY proves the recovery chain found a readable item. Forget failures from
             // that completed chain so a later repeat/session may legitimately retry those tracks.
             if (playbackState == Player.STATE_READY) failedRecoveryIds.clear()
+            // The one moment no queue transition follows. Without this, a SMART queue that reached
+            // its end stayed ended for the rest of the session however ready the engine became.
+            if (playbackState == Player.STATE_ENDED) {
+                mainScope.launch { resumeExhaustedSmartQueue() }
+            }
             // Duration is commonly unavailable until READY. Re-plan a loop that may currently be
             // doing coarse unknown-duration checks so fade-out starts at the exact boundary.
             updateGainLoop(controller?.isPlaying == true)
@@ -1013,6 +1028,63 @@ internal class AndroidPlaybackController(
      */
     private suspend fun appendSmartNextIfNeeded() = appendMutex.withLock { appendSmartNext() }
 
+    /**
+     * Main-thread only. Reopens a SMART queue that already ran dry.
+     *
+     * Playback parks past the final row in [Player.STATE_ENDED], where `play()` is a no-op and an
+     * appended row would sit there silently, so the first new row is selected explicitly. Only a
+     * transport that still wants to play is restarted — see [smartResumeIndexAfterExhaustion].
+     */
+    private suspend fun resumeExhaustedSmartQueue() {
+        val player = controller ?: return
+        if (mode != ShuffleMode.SMART) return
+        if (player.playbackState != Player.STATE_ENDED || !player.playWhenReady) return
+        val queueSizeBefore = player.mediaItemCount
+        if (queueSizeBefore == 0) return
+        val tailIdBefore = player.getMediaItemAt(queueSizeBefore - 1).mediaId
+        appendSmartNextIfNeeded()
+        // Planning suspends. A tap that replaced the queue meanwhile would leave this seeking into
+        // the middle of someone else's list, so resume only onto a queue that merely GREW: same
+        // player, same mode, and the row this one ended on still in place.
+        if (controller !== player || mode != ShuffleMode.SMART) return
+        if (
+            queueSizeBefore > player.mediaItemCount ||
+            player.getMediaItemAt(queueSizeBefore - 1).mediaId != tailIdBefore
+        ) {
+            return
+        }
+        val resumeIndex = smartResumeIndexAfterExhaustion(
+            queueSizeBefore = queueSizeBefore,
+            queueSizeAfter = player.mediaItemCount,
+            playbackEnded = player.playbackState == Player.STATE_ENDED,
+            playWhenReady = player.playWhenReady,
+        ) ?: return
+        player.seekTo(resumeIndex, 0L)
+        player.play()
+    }
+
+    /**
+     * One black-box line per abstention, next to the transport's own (see [PlaybackService]).
+     *
+     * "SMART stopped again" is otherwise unattributable days later: the engine's reasons live in
+     * logcat, which no listener can send. The engine state and the indexed count separate a cold
+     * or failed engine from a genuinely exhausted candidate pool, and [continued] records whether
+     * the listener heard silence or a labelled continuation.
+     */
+    private fun recordSmartAbstention(candidateCount: Int, queueSize: Int, continued: Boolean) {
+        val engineState = when (val state = engine.state.value) {
+            is EngineState.Ready -> "ready(indexed=${state.indexedCount})"
+            is EngineState.Failed -> "failed"
+            EngineState.Initializing -> "initializing"
+            EngineState.Uninitialized -> "uninitialized"
+        }
+        mediaBlackBox(
+            context,
+            "smart abstain engine=$engineState candidates=$candidateCount " +
+                "queue=$queueSize continued=$continued",
+        )
+    }
+
     /** Main-thread only. Keeps physical SMART history/current and removes every later row. */
     private fun removeUnplayedSmartFuture(player: Player) {
         if (player.mediaItemCount == 0) return
@@ -1057,6 +1129,7 @@ internal class AndroidPlaybackController(
         if (player.mediaItemCount == 0) return
 
         var appended = false
+        var abstentionRecorded = false
         // Each pass appends exactly one item, so the shortfall shrinks by one and the loop needs at
         // most [smartLookahead] passes. The counter also caps it if a player ever fails to reflect an
         // append immediately, which would otherwise spin.
@@ -1095,12 +1168,37 @@ internal class AndroidPlaybackController(
             ).filter { it.id !in queued }
             if (candidates.isEmpty()) break
 
-            val chosen = runCatching { chooser.choose(seed, recentIds, candidates) }
+            val recommended = runCatching { chooser.choose(seed, recentIds, candidates) }
                 .getOrNull()
-                // SMART must never present a random row as a recommendation. If neither the
-                // acoustic nor metadata path can answer yet, keep the honest short queue and let
-                // the next index update / transition retry.
-                ?: break
+            // SMART must never present a random row as a recommendation. Abstention stays
+            // abstention — but it must not end the session: the queue only tops up on
+            // transitions, so a queue left short by one unlucky moment used to drain and then
+            // never be asked again. A continuation keeps playing under its own label until the
+            // recommender can answer, and the batch stays small so the next transition asks it.
+            val mayContinue = smartMayContinue(
+                queueSize = player.mediaItemCount,
+                currentIndex = player.currentMediaItemIndex,
+                isContinuation = { index ->
+                    TrackId(player.getMediaItemAt(index).mediaId) in smartContinuationIds
+                },
+            )
+            val continuation = when {
+                recommended != null -> null
+                !mayContinue -> null
+                else -> runCatching { chooser.continuation(seed, recentIds, candidates) }
+                    .getOrNull()
+            }
+            // One line per top-up pass, not per row: a cold engine would otherwise flush the
+            // transport's own history out of the bounded black box within an afternoon.
+            if (recommended == null && !abstentionRecorded) {
+                abstentionRecorded = true
+                recordSmartAbstention(
+                    candidateCount = candidates.size,
+                    queueSize = player.mediaItemCount,
+                    continued = continuation != null,
+                )
+            }
+            val chosen = recommended ?: continuation ?: break
 
             // The chooser suspends for local inference. A new play request, mode change, manual
             // queue edit, or library replacement may have happened while it was working. Never add
@@ -1118,6 +1216,7 @@ internal class AndroidPlaybackController(
                 break
             }
             player.addMediaItem(chosen.toMediaItem())
+            if (continuation != null) smartContinuationIds += chosen.id
             queueGeneration++
             appended = true
         }
@@ -1133,6 +1232,9 @@ internal class AndroidPlaybackController(
         val physicalRows = (0 until player.mediaItemCount).map { itemIndex ->
             trackById(player.getMediaItemAt(itemIndex).mediaId)
         }
+        smartContinuationIds.retainAll(
+            physicalRows.mapNotNullTo(HashSet()) { row -> row?.id },
+        )
         val traversalOrder = playerTraversalOrder(player)
         val snapshot = playbackQueueSnapshot(
             physicalRows = physicalRows,
@@ -1241,6 +1343,7 @@ internal class AndroidPlaybackController(
             queue = visibleQueue,
             queueIndex = visibleQueueIndex,
             sourceQueue = pool,
+            smartContinuationIds = smartContinuationIds.toSet(),
         )
     }
 

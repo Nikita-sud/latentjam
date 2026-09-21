@@ -159,6 +159,7 @@
     <string name="queue_title">قائمة الانتظار</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">قائمة الانتظار · %1$d</string>
+    <string name="queue_row_continuation">ليس اقتراحًا — لمواصلة تشغيل الموسيقى</string>
     <string name="cd_repeat_off">التكرار متوقف. انقر لتكرار قائمة الانتظار.</string>
     <string name="cd_repeat_all">يتم تكرار قائمة الانتظار. انقر لتكرار مقطع واحد.</string>
     <string name="cd_repeat_one">يتم تكرار مقطع واحد. انقر لإيقاف التكرار.</string>

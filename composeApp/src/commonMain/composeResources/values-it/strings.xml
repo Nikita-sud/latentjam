@@ -141,6 +141,7 @@
     <string name="queue_title">Coda</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Coda · %1$d</string>
+    <string name="queue_row_continuation">Non è un consiglio: serve a non fermare la musica</string>
     <string name="cd_repeat_off">La ripetizione è disattivata. Tocca per ripetere la coda.</string>
     <string name="cd_repeat_all">Ripetizione della coda attiva. Tocca per ripetere un solo brano.</string>
     <string name="cd_repeat_one">Ripetizione di un solo brano attiva. Tocca per disattivare la ripetizione.</string>

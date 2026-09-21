@@ -134,6 +134,7 @@
     <string name="queue_title">Sıra</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Sıra · %1$d</string>
+    <string name="queue_row_continuation">Öneri değil — müzik devam etsin diye</string>
     <string name="cd_repeat_off">Tekrar kapalı. Sıranın tamamını tekrarlamak için dokunun.</string>
     <string name="cd_repeat_all">Sıranın tamamı tekrarlanıyor. Tek parçayı tekrarlamak için dokunun.</string>
     <string name="cd_repeat_one">Tek parça tekrarlanıyor. Tekrarı kapatmak için dokunun.</string>

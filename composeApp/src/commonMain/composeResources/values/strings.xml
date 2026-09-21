@@ -182,6 +182,7 @@
     <string name="queue_title">Queue</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Queue · %1$d</string>
+    <string name="queue_row_continuation">Not a recommendation — keeping the music going</string>
     <string name="cd_repeat_off">Repeat off. Tap to repeat the queue.</string>
     <string name="cd_repeat_all">Repeating the queue. Tap to repeat one track.</string>
     <string name="cd_repeat_one">Repeating one track. Tap to turn repeat off.</string>

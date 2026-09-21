@@ -148,6 +148,7 @@
     <string name="queue_title">Черга</string>
     <!-- %1$d is how many tracks are in the queue -->
     <string name="queue_title_count">Черга · %1$d</string>
+    <string name="queue_row_continuation">Не рекомендація — щоб музика не уривалася</string>
     <string name="cd_repeat_off">Повтор вимкнено. Торкніться, щоб повторювати чергу.</string>
     <string name="cd_repeat_all">Черга повторюється. Торкніться, щоб повторювати один трек.</string>
     <string name="cd_repeat_one">Трек повторюється. Торкніться, щоб вимкнути повтор.</string>
