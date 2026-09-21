@@ -23,6 +23,12 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Media3 declares this for its bandwidth meter; the player only ever reads local files and
+         the meter degrades to "unknown network" without it, so the permission is dropped. -->
+    <uses-permission
+        android:name="android.permission.ACCESS_NETWORK_STATE"
+        tools:node="remove" />
+
     <!-- State leaves the device only through the user's explicit backup export. -->
     <application
         android:name="io.github.nikitasud.latentjam.app.LatentJamApplication"
