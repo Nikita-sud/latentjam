@@ -85,6 +85,13 @@ android {
     // emulators — the release upload simply never includes that file. A Play bundle splits by
     // ABI on Google's side and AGP refuses to build one while these splits are on, so the
     // Play-signed build turns them off.
+    packaging {
+        // F-Droid serves one universal APK, so its download size matters more than the
+        // install-time extraction that compressed native libraries cost. The other channels
+        // keep AGP's default: uncompressed, page-aligned libraries loaded straight from the APK.
+        jniLibs.useLegacyPackaging = fdroidBuild
+    }
+
     splits {
         abi {
             isEnable = !playSigningRequested && !fdroidBuild
