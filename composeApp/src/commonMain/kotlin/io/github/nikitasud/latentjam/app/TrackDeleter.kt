@@ -11,14 +11,21 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 internal fun canDeleteTrack(track: TrackDescriptor): Boolean =
     !track.audioUri.isNullOrBlank() && !track.id.value.startsWith("ios-media:")
 
-/**
- * Deletes a track's file from the device.
- *
- * Platform-specific because deletion is a privileged, user-confirmed
- * operation: on Android 11+ the system itself presents the confirmation and
- * performs the delete, which is exactly the guarantee we want for something
- * irreversible. [onDeleted] fires only when a delete actually happened, so
- * the caller can refresh its library snapshot.
- */
+/** Counts are retained even when only part of a request succeeds. */
+data class TrackDeleteReport(
+    val deleted: Int = 0,
+    val denied: Int = 0,
+    val failed: Int = 0,
+    val cancelled: Int = 0,
+) {
+    val total: Int get() = deleted + denied + failed + cancelled
+    val isSilent: Boolean get() = deleted == 0 && denied == 0 && failed == 0
+    val isPartial: Boolean get() = deleted > 0 && deleted < total
+    val needsSummary: Boolean get() = isPartial || (total > 1 && (denied > 0 || failed > 0))
+}
+
+/** Reports the completed request, including partial success; cancellation alone is silent. */
 @Composable
-expect fun rememberTrackDeleter(onDeleted: () -> Unit): (List<TrackDescriptor>) -> Unit
+expect fun rememberTrackDeleter(
+    onResult: (TrackDeleteReport) -> Unit,
+): (List<TrackDescriptor>) -> Unit

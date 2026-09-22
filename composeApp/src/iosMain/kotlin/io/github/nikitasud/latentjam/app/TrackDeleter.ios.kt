@@ -31,9 +31,11 @@ import platform.Foundation.NSUserDomainMask
  */
 @OptIn(ExperimentalForeignApi::class)
 @Composable
-actual fun rememberTrackDeleter(onDeleted: () -> Unit): (List<TrackDescriptor>) -> Unit {
+actual fun rememberTrackDeleter(
+    onResult: (TrackDeleteReport) -> Unit,
+): (List<TrackDescriptor>) -> Unit {
     val scope = rememberCoroutineScope()
-    val currentOnDeleted = rememberUpdatedState(onDeleted)
+    val currentOnResult = rememberUpdatedState(onResult)
     return { tracks ->
         val safeRelatives = tracks.mapNotNull { track ->
             track.id.value.takeIf { relative ->
@@ -45,13 +47,13 @@ actual fun rememberTrackDeleter(onDeleted: () -> Unit): (List<TrackDescriptor>) 
         }.distinct()
         if (safeRelatives.isNotEmpty()) {
             scope.launch {
-                val deletedAny = withContext(Dispatchers.Default) {
+                val report = withContext(Dispatchers.Default) {
                     val documents = NSSearchPathForDirectoriesInDomains(
                         NSDocumentDirectory,
                         NSUserDomainMask,
                         true,
-                    ).firstOrNull() as? String ?: return@withContext false
-                    var removed = false
+                    ).firstOrNull() as? String ?: return@withContext TrackDeleteReport(failed = safeRelatives.size)
+                    var removed = 0
                     safeRelatives.forEach { safeRelative ->
                         val path = if (documents.endsWith('/')) {
                             documents + safeRelative
@@ -62,12 +64,12 @@ actual fun rememberTrackDeleter(onDeleted: () -> Unit): (List<TrackDescriptor>) 
                             val error = alloc<ObjCObjectVar<NSError?>>()
                             NSFileManager.defaultManager.removeItemAtPath(path, error.ptr)
                         }) {
-                            removed = true
+                            removed++
                         }
                     }
-                    removed
+                    TrackDeleteReport(deleted = removed, failed = safeRelatives.size - removed)
                 }
-                if (deletedAny) currentOnDeleted.value()
+                currentOnResult.value(report)
             }
         }
     }

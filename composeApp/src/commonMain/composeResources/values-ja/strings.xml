@@ -68,6 +68,9 @@
     <string name="sort_direction_ascending">昇順</string>
     <string name="sort_direction_descending">降順</string>
     <string name="snack_track_deleted">曲を削除しました</string>
+    <string name="snack_track_delete_denied">これらの曲を削除するにはファイルへのアクセスが必要です。</string>
+    <string name="snack_track_delete_failed">ファイルを削除できませんでした</string>
+    <string name="snack_track_delete_summary">削除：%1$d。アクセス拒否：%2$d。失敗：%3$d。キャンセル：%4$d。</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">何曲か再生すると、また聴きたくなるものがここに集まります。</string>
@@ -368,7 +371,7 @@
     <string name="action_retry">もう一度試す</string>
 
     <string name="settings_language">言語</string>
-    <string name="settings_language_body">LatentJam はシステムまたはアプリごとの言語設定に従います。システム設定で変更できます。</string>
+    <string name="settings_language_body">システム設定で言語を変更します。</string>
     <string name="settings_audio_access">音楽へのアクセス</string>
     <string name="settings_audio_access_allowed">許可済み</string>
     <string name="settings_audio_access_blocked">ブロック中</string>

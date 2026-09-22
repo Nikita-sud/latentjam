@@ -78,6 +78,9 @@
     <string name="sort_direction_ascending">Rosnąco</string>
     <string name="sort_direction_descending">Malejąco</string>
     <string name="snack_track_deleted">Utwór usunięty</string>
+    <string name="snack_track_delete_denied">Do usunięcia tych utworów potrzebny jest dostęp do plików.</string>
+    <string name="snack_track_delete_failed">Nie udało się usunąć pliku</string>
+    <string name="snack_track_delete_summary">Usunięto: %1$d. Odmowa dostępu: %2$d. Błędy: %3$d. Anulowano: %4$d.</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Posłuchaj kilku utworów, a ta strona zapełni się rzeczami, do których warto wrócić.</string>
@@ -393,7 +396,7 @@
     <string name="action_retry">Spróbuj ponownie</string>
 
     <string name="settings_language">Język</string>
-    <string name="settings_language_body">LatentJam używa języka systemu lub języka wybranego dla aplikacji. Zmień go w ustawieniach systemu.</string>
+    <string name="settings_language_body">Zmień język w ustawieniach systemu.</string>
     <string name="settings_audio_access">Dostęp do muzyki</string>
     <string name="settings_audio_access_allowed">Dozwolony</string>
     <string name="settings_audio_access_blocked">Zablokowany</string>

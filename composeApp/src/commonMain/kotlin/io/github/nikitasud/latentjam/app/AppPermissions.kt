@@ -86,6 +86,15 @@ interface AppPermissions {
 
     /** Opens the most specific notification settings page this platform provides. */
     fun openNotificationSettings()
+
+    /**
+     * Opens where the listener can actually change LatentJam's language on THIS system version.
+     *
+     * Per-app languages exist only on Android 13 and newer; sending an older device to its app
+     * info page — which is what a single "open app settings" did — is a dead end, because the
+     * language lives in the system-wide settings there.
+     */
+    fun openLanguageSettings()
 }
 
 /** Koin binding for the platform permission/status implementation. */

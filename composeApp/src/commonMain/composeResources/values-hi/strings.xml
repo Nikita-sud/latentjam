@@ -70,6 +70,9 @@
     <string name="sort_direction_ascending">आरोही</string>
     <string name="sort_direction_descending">अवरोही</string>
     <string name="snack_track_deleted">गाना मिटाया गया</string>
+    <string name="snack_track_delete_denied">इन गानों को हटाने के लिए फ़ाइल एक्सेस चाहिए।</string>
+    <string name="snack_track_delete_failed">फ़ाइल हटाई नहीं जा सकी</string>
+    <string name="snack_track_delete_summary">मिटाए गए: %1$d। एक्सेस अस्वीकृत: %2$d। विफल: %3$d। रद्द: %4$d।</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">कुछ गाने चलाएं और यह पेज उन चीज़ों से भर जाएगा जिन पर लौटना बनता है.</string>
@@ -375,7 +378,7 @@
     <string name="action_retry">फिर से कोशिश करें</string>
 
     <string name="settings_language">भाषा</string>
-    <string name="settings_language_body">LatentJam आपके सिस्टम या ऐप के लिए चुनी गई भाषा का उपयोग करता है। इसे सिस्टम सेटिंग में बदलें।</string>
+    <string name="settings_language_body">सिस्टम सेटिंग में भाषा बदलें।</string>
     <string name="settings_audio_access">संगीत की पहुँच</string>
     <string name="settings_audio_access_allowed">अनुमति है</string>
     <string name="settings_audio_access_blocked">अवरुद्ध</string>

@@ -77,6 +77,9 @@
     <string name="sort_direction_ascending">Crescente</string>
     <string name="sort_direction_descending">Decrescente</string>
     <string name="snack_track_deleted">Brano eliminato</string>
+    <string name="snack_track_delete_denied">Per eliminare questi brani serve l’accesso ai file.</string>
+    <string name="snack_track_delete_failed">Impossibile eliminare il file</string>
+    <string name="snack_track_delete_summary">Eliminati: %1$d. Accesso negato: %2$d. Errori: %3$d. Annullati: %4$d.</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Ascolta qualche brano e questa pagina si riempirà di cose su cui vale la pena tornare.</string>
@@ -382,7 +385,7 @@
     <string name="action_retry">Riprova</string>
 
     <string name="settings_language">Lingua</string>
-    <string name="settings_language_body">LatentJam segue la lingua del sistema o quella scelta per l’app. Modificala nelle impostazioni di sistema.</string>
+    <string name="settings_language_body">Cambia la lingua nelle impostazioni di sistema.</string>
     <string name="settings_audio_access">Accesso alla musica</string>
     <string name="settings_audio_access_allowed">Consentito</string>
     <string name="settings_audio_access_blocked">Bloccato</string>

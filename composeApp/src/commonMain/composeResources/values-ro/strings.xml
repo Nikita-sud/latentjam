@@ -73,6 +73,9 @@
     <string name="sort_direction_ascending">Crescător</string>
     <string name="sort_direction_descending">Descrescător</string>
     <string name="snack_track_deleted">Piesă ștearsă</string>
+    <string name="snack_track_delete_denied">Pentru a șterge aceste piese este necesar accesul la fișiere.</string>
+    <string name="snack_track_delete_failed">Fișierul nu a putut fi șters</string>
+    <string name="snack_track_delete_summary">Șterse: %1$d. Acces refuzat: %2$d. Eșuate: %3$d. Anulate: %4$d.</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Ascultă câteva piese și pagina asta se va umple cu lucruri la care merită să revii.</string>
@@ -373,7 +376,7 @@
     <string name="action_retry">Încearcă din nou</string>
 
     <string name="settings_language">Limbă</string>
-    <string name="settings_language_body">LatentJam folosește limba sistemului sau limba aleasă pentru aplicație. Schimb-o în setările sistemului.</string>
+    <string name="settings_language_body">Schimbă limba în setările sistemului.</string>
     <string name="settings_audio_access">Acces la muzică</string>
     <string name="settings_audio_access_allowed">Permis</string>
     <string name="settings_audio_access_blocked">Blocat</string>

@@ -70,6 +70,9 @@
     <string name="sort_direction_ascending">Artan</string>
     <string name="sort_direction_descending">Azalan</string>
     <string name="snack_track_deleted">Parça silindi</string>
+    <string name="snack_track_delete_denied">Bu parçaları silmek için dosya erişimi gerekiyor.</string>
+    <string name="snack_track_delete_failed">Dosya silinemedi</string>
+    <string name="snack_track_delete_summary">Silinen: %1$d. Erişim reddedilen: %2$d. Başarısız: %3$d. İptal edilen: %4$d.</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Birkaç parça çal, bu sayfa geri dönmeye değer şeylerle dolsun.</string>
@@ -375,7 +378,7 @@
     <string name="action_retry">Yeniden dene</string>
 
     <string name="settings_language">Dil</string>
-    <string name="settings_language_body">LatentJam sistem dilini veya uygulama için seçilen dili kullanır. Sistem ayarlarından değiştirin.</string>
+    <string name="settings_language_body">Dili sistem ayarlarından değiştirin.</string>
     <string name="settings_audio_access">Müzik erişimi</string>
     <string name="settings_audio_access_allowed">İzin verildi</string>
     <string name="settings_audio_access_blocked">Engellendi</string>

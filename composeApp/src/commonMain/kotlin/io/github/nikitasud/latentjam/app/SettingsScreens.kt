@@ -475,7 +475,7 @@ fun SettingsScreen(
                     )
                     SettingsPage.APPEARANCE -> AppearanceSettings(
                         settings = settings,
-                        onOpenSystemSettings = permissions::openAppSettings,
+                        onOpenLanguageSettings = permissions::openLanguageSettings,
                     )
                     SettingsPage.PAGES -> PagesSettings(settings)
                     SettingsPage.LIBRARY -> LibrarySettings(
@@ -662,7 +662,7 @@ private fun SettingsRoot(
 @Composable
 private fun AppearanceSettings(
     settings: AppSettings,
-    onOpenSystemSettings: () -> Unit,
+    onOpenLanguageSettings: () -> Unit,
 ) {
     val theme by settings.themeMode.collectAsState()
     val colorMode by settings.trackColorMode.collectAsState()
@@ -718,7 +718,7 @@ private fun AppearanceSettings(
                 SettingsRow(
                     title = stringResource(Res.string.settings_language),
                     subtitle = stringResource(Res.string.settings_language_body),
-                    onClick = onOpenSystemSettings,
+                    onClick = onOpenLanguageSettings,
                 )
             }
         }

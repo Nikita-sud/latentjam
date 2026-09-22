@@ -83,6 +83,9 @@
     <string name="sort_direction_ascending">تصاعدي</string>
     <string name="sort_direction_descending">تنازلي</string>
     <string name="snack_track_deleted">تم حذف المقطع</string>
+    <string name="snack_track_delete_denied">يلزم الوصول إلى الملفات لحذف هذه المقاطع.</string>
+    <string name="snack_track_delete_failed">تعذّر حذف الملف</string>
+    <string name="snack_track_delete_summary">تم الحذف: %1$d. رُفض الوصول: %2$d. فشل: %3$d. أُلغي: %4$d.</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">شغّل بضعة مقاطع وستمتلئ هذه الصفحة بما يستحق العودة إليه.</string>
@@ -408,7 +411,7 @@
     <string name="action_retry">إعادة المحاولة</string>
 
     <string name="settings_language">اللغة</string>
-    <string name="settings_language_body">يتبع LatentJam لغة النظام أو اللغة المخصصة للتطبيق. غيّرها في إعدادات النظام.</string>
+    <string name="settings_language_body">غيّر اللغة في إعدادات النظام.</string>
     <string name="settings_audio_access">الوصول إلى الموسيقى</string>
     <string name="settings_audio_access_allowed">مسموح</string>
     <string name="settings_audio_access_blocked">محظور</string>

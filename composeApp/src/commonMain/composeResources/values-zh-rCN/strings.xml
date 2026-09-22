@@ -68,6 +68,9 @@
     <string name="sort_direction_ascending">升序</string>
     <string name="sort_direction_descending">降序</string>
     <string name="snack_track_deleted">已删除歌曲</string>
+    <string name="snack_track_delete_denied">删除这些曲目需要文件访问权限。</string>
+    <string name="snack_track_delete_failed">无法删除该文件</string>
+    <string name="snack_track_delete_summary">已删除：%1$d。访问被拒绝：%2$d。失败：%3$d。已取消：%4$d。</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">先听几首歌，这里就会出现值得再听的内容。</string>
@@ -368,7 +371,7 @@
     <string name="action_retry">重试</string>
 
     <string name="settings_language">语言</string>
-    <string name="settings_language_body">LatentJam 使用系统语言或单独为应用选择的语言。请在系统设置中更改。</string>
+    <string name="settings_language_body">在系统设置中更改语言。</string>
     <string name="settings_audio_access">音乐访问权限</string>
     <string name="settings_audio_access_allowed">已允许</string>
     <string name="settings_audio_access_blocked">已阻止</string>

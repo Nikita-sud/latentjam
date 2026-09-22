@@ -72,6 +72,9 @@
     <string name="sort_direction_ascending">По возрастанию</string>
     <string name="sort_direction_descending">По убыванию</string>
     <string name="snack_track_deleted">Трек удалён</string>
+    <string name="snack_track_delete_denied">Для удаления этих треков нужен доступ к файлам.</string>
+    <string name="snack_track_delete_failed">Не удалось удалить файл</string>
+    <string name="snack_track_delete_summary">Удалено: %1$d. Нет доступа: %2$d. Ошибок: %3$d. Отменено: %4$d.</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Послушайте несколько треков — и здесь появится то, к чему стоит вернуться.</string>
@@ -384,7 +387,7 @@
     <string name="action_retry">Повторить</string>
 
     <string name="settings_language">Язык</string>
-    <string name="settings_language_body">LatentJam использует язык системы или выбранный для приложения язык. Изменить его можно в настройках системы.</string>
+    <string name="settings_language_body">Изменить язык в системных настройках.</string>
     <string name="settings_audio_access">Доступ к музыке</string>
     <string name="settings_audio_access_allowed">Разрешён</string>
     <string name="settings_audio_access_blocked">Заблокирован</string>

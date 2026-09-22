@@ -53,6 +53,9 @@ internal class IosAppPermissions : AppPermissions {
 
     override fun openNotificationSettings() = openAppSettings()
 
+    /** iOS keeps the per-app language switch on the app's own Settings page, at every version. */
+    override fun openLanguageSettings() = openAppSettings()
+
     private fun readAudioStatus(): AppPermissionStatus = when (MPMediaLibrary.authorizationStatus()) {
         MPMediaLibraryAuthorizationStatusAuthorized -> AppPermissionStatus.GRANTED
         MPMediaLibraryAuthorizationStatusNotDetermined -> AppPermissionStatus.NOT_DETERMINED

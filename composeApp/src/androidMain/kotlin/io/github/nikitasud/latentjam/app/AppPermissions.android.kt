@@ -87,6 +87,23 @@ internal class AndroidAppPermissions(private val context: Context) : AppPermissi
         }
     }
 
+    override fun openLanguageSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // The per-app language screen itself, rather than the app info page that merely links
+            // to it. [launchSettings] still falls back to app info if a ROM omits the screen.
+            launchSettings(
+                Intent(
+                    Settings.ACTION_APP_LOCALE_SETTINGS,
+                    Uri.fromParts("package", context.packageName, null),
+                ),
+            )
+        } else {
+            // Before 13 there is no per-app language at all: the only place that changes what
+            // LatentJam speaks is the system-wide list under Language & input.
+            launchSettings(Intent(Settings.ACTION_LOCALE_SETTINGS))
+        }
+    }
+
     private fun launchSettings(intent: Intent) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { context.startActivity(intent) }

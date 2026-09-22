@@ -77,6 +77,9 @@
     <string name="sort_direction_ascending">Crescente</string>
     <string name="sort_direction_descending">Decrescente</string>
     <string name="snack_track_deleted">Música excluída</string>
+    <string name="snack_track_delete_denied">É preciso acesso aos arquivos para excluir estas faixas.</string>
+    <string name="snack_track_delete_failed">Não foi possível excluir o arquivo</string>
+    <string name="snack_track_delete_summary">Excluídos: %1$d. Acesso negado: %2$d. Falhas: %3$d. Cancelados: %4$d.</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Ouça algumas músicas e esta página vai se encher de coisas que valem a pena revisitar.</string>
@@ -382,7 +385,7 @@
     <string name="action_retry">Tentar novamente</string>
 
     <string name="settings_language">Idioma</string>
-    <string name="settings_language_body">O LatentJam usa o idioma do sistema ou o escolhido para o app. Altere nas configurações do sistema.</string>
+    <string name="settings_language_body">Altere o idioma nas configurações do sistema.</string>
     <string name="settings_audio_access">Acesso à música</string>
     <string name="settings_audio_access_allowed">Permitido</string>
     <string name="settings_audio_access_blocked">Bloqueado</string>

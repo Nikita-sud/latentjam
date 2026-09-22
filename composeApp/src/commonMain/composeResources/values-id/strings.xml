@@ -74,6 +74,9 @@
     <string name="sort_direction_ascending">Menaik</string>
     <string name="sort_direction_descending">Menurun</string>
     <string name="snack_track_deleted">Lagu dihapus</string>
+    <string name="snack_track_delete_denied">Akses berkas diperlukan untuk menghapus lagu-lagu ini.</string>
+    <string name="snack_track_delete_failed">Berkas tidak dapat dihapus</string>
+    <string name="snack_track_delete_summary">Dihapus: %1$d. Akses ditolak: %2$d. Gagal: %3$d. Dibatalkan: %4$d.</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Putar beberapa lagu dan halaman ini akan terisi hal-hal yang layak didengar lagi.</string>
@@ -374,7 +377,7 @@
     <string name="action_retry">Coba lagi</string>
 
     <string name="settings_language">Bahasa</string>
-    <string name="settings_language_body">LatentJam mengikuti bahasa sistem atau bahasa per aplikasi Anda. Ubah di setelan sistem.</string>
+    <string name="settings_language_body">Ubah bahasa di pengaturan sistem.</string>
     <string name="settings_audio_access">Akses musik</string>
     <string name="settings_audio_access_allowed">Diizinkan</string>
     <string name="settings_audio_access_blocked">Diblokir</string>

@@ -80,6 +80,9 @@
     <string name="sort_direction_ascending">Ascending</string>
     <string name="sort_direction_descending">Descending</string>
     <string name="snack_track_deleted">Track deleted</string>
+    <string name="snack_track_delete_denied">File access is needed to delete these tracks.</string>
+    <string name="snack_track_delete_failed">Could not delete the file</string>
+    <string name="snack_track_delete_summary">Deleted: %1$d. Access denied: %2$d. Failed: %3$d. Cancelled: %4$d.</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">Play a few tracks and this page will fill up with things worth returning to.</string>
@@ -437,7 +440,7 @@
     <string name="action_retry">Try again</string>
 
     <string name="settings_language">Language</string>
-    <string name="settings_language_body">LatentJam follows your system or per-app language. Change it in system settings.</string>
+    <string name="settings_language_body">Change the language in system settings.</string>
     <string name="settings_audio_access">Music access</string>
     <string name="settings_audio_access_allowed">Allowed</string>
     <string name="settings_audio_access_blocked">Blocked</string>

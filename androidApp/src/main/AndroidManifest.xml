@@ -12,6 +12,13 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!-- Deleting a track's file. Android 10 asks the owner for consent per file and Android 11+
+         runs the delete itself, so this is needed only up to Android 9 — where no such mechanism
+         exists — and is requested at the moment of a delete, never at launch. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
     <!-- Background playback via the Media3 session service. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />

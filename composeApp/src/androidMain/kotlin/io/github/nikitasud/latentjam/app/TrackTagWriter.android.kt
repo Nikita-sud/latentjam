@@ -43,10 +43,8 @@ import kotlin.coroutines.resume
  *
  * The consent step is [MediaStore.createWriteRequest], the same
  * system-owns-the-decision pattern the delete path uses. It only exists from
- * API 30; below that a write to media the app does not own needs
- * `WRITE_EXTERNAL_STORAGE`, which this app deliberately does not request, so
- * editing reports itself [TagWriteOutcome.Unavailable] there rather than
- * failing at the last moment.
+ * API 30. The tag editor does not implement the older per-file consent or storage-permission
+ * flows, so editing reports [TagWriteOutcome.Unavailable] below API 30.
  */
 @Composable
 actual fun rememberTagWriter(

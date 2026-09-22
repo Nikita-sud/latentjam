@@ -68,6 +68,9 @@
     <string name="sort_direction_ascending">오름차순</string>
     <string name="sort_direction_descending">내림차순</string>
     <string name="snack_track_deleted">곡을 삭제했습니다</string>
+    <string name="snack_track_delete_denied">이 곡들을 삭제하려면 파일 접근 권한이 필요합니다.</string>
+    <string name="snack_track_delete_failed">파일을 삭제할 수 없습니다</string>
+    <string name="snack_track_delete_summary">삭제: %1$d. 접근 거부: %2$d. 실패: %3$d. 취소: %4$d.</string>
 
     <!-- =========================================================== for you -->
     <string name="foryou_empty">몇 곡만 들어 보면 다시 듣고 싶은 것들이 이 페이지에 쌓입니다.</string>
@@ -368,7 +371,7 @@
     <string name="action_retry">다시 시도</string>
 
     <string name="settings_language">언어</string>
-    <string name="settings_language_body">LatentJam은 시스템 언어 또는 앱별 언어를 사용합니다. 시스템 설정에서 변경하세요.</string>
+    <string name="settings_language_body">시스템 설정에서 언어를 변경하세요.</string>
     <string name="settings_audio_access">음악 접근 권한</string>
     <string name="settings_audio_access_allowed">허용됨</string>
     <string name="settings_audio_access_blocked">차단됨</string>

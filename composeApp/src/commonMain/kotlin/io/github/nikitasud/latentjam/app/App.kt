@@ -198,6 +198,9 @@ import io.github.nikitasud.latentjam.app.generated.resources.snack_playlist_crea
 import io.github.nikitasud.latentjam.app.generated.resources.snack_playlist_deleted
 import io.github.nikitasud.latentjam.app.generated.resources.snack_playlist_track_removed
 import io.github.nikitasud.latentjam.app.generated.resources.snack_smart_exclusion_failed
+import io.github.nikitasud.latentjam.app.generated.resources.snack_track_delete_denied
+import io.github.nikitasud.latentjam.app.generated.resources.snack_track_delete_failed
+import io.github.nikitasud.latentjam.app.generated.resources.snack_track_delete_summary
 import io.github.nikitasud.latentjam.app.generated.resources.snack_track_deleted
 import io.github.nikitasud.latentjam.app.generated.resources.snack_track_excluded_from_smart
 import io.github.nikitasud.latentjam.app.generated.resources.snack_track_included_in_smart
@@ -1284,6 +1287,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     // is meaningful when every original playlist row was deleted while a
                     // generated SMART current row survived.
                     sourceTracks = savedSourceQueue,
+                    smartContinuationIds = saved.smartContinuationIds.mapTo(HashSet(), ::TrackId),
                 )
             }
             val index = loaded.indexOfFirst { it.id.value == saved.trackId }
@@ -1960,19 +1964,26 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
-        // Rescan after a delete so the removed track leaves every list at once.
-        val deleteTrack = rememberTrackDeleter {
+        val deleteTrack = rememberTrackDeleter { report ->
             scope.launch {
-                // A successful deletion proves only that target is gone, not that every media
-                // source was readable during the follow-up scan (iOS app-owned files remain
-                // editable while Music-library access is denied). Let the refreshed permission
-                // state decide whether absence is authoritative; the explicit known-track set
-                // below still clears playback after deleting the final real track.
-                scanLibrary()
-                playback.retainQueue(
-                    library.allKnownTracks().mapTo(mutableSetOf()) { track -> track.id },
-                )
-                snackbar.showSnackbar(getString(Res.string.snack_track_deleted))
+                if (report.deleted > 0) {
+                    // Retain the library's permission-aware pruning after any successful removal.
+                    scanLibrary()
+                    playback.retainQueue(
+                        library.allKnownTracks().mapTo(mutableSetOf()) { track -> track.id },
+                    )
+                }
+                val message = when {
+                    report.isSilent -> null
+                    report.needsSummary -> getString(
+                        Res.string.snack_track_delete_summary,
+                        report.deleted, report.denied, report.failed, report.cancelled,
+                    )
+                    report.denied > 0 -> getString(Res.string.snack_track_delete_denied)
+                    report.failed > 0 -> getString(Res.string.snack_track_delete_failed)
+                    else -> getString(Res.string.snack_track_deleted)
+                }
+                message?.let { snackbar.showSnackbar(it) }
             }
         }
 
