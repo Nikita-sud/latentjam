@@ -81,6 +81,7 @@ class AppSettingsTest {
             sourceQueueTrackIds = listOf("playlist,first", "playlist:second|tail"),
             queueIndex = 1,
             sourceQueuePersisted = true,
+            smartContinuationIds = setOf("imported,file|with:delimiters", "音楽/曲"),
         )
 
         assertEquals(state, decodeResumeQueueState(encodeResumeQueueState(state)))
@@ -101,11 +102,46 @@ class AppSettingsTest {
     }
 
     @Test
-    fun `resume queue codec rejects legacy versions and truncated payloads`() {
+    fun `v2 resume queues migrate with their source and no invented continuation labels`() {
+        val decoded = decodeResumeQueueState("LJQ2|1|2|1:a1:b|1|3|1:a1:b1:c")
+        val expected = ResumeQueueState(listOf("a", "b"), listOf("a", "b", "c"), 1)
+        assertEquals(expected, decoded)
+        assertEquals(expected, decodeResumeQueueState(encodeResumeQueueState(decoded!!)))
+        assertEquals(
+            ResumeQueueState(listOf("a"), emptyList(), 0, sourceQueuePersisted = false),
+            decodeResumeQueueState("LJQ2|0|1|1:a|0|0|"),
+        )
+    }
+
+    @Test
+    fun `resume provenance only refers to the saved live queue`() {
+        val state = ResumeQueueState(
+            queueTrackIds = listOf("current", "next"),
+            sourceQueueTrackIds = listOf("current", "source-only"),
+            queueIndex = 0,
+            smartContinuationIds = setOf("next", "source-only", "deleted"),
+        )
+        assertEquals(
+            state.copy(smartContinuationIds = setOf("next")),
+            decodeResumeQueueState(encodeResumeQueueState(state)),
+        )
+        assertEquals(
+            emptySet(),
+            decodeResumeQueueState("LJQ3|0|1|1:a|1|0||1|1:b")?.smartContinuationIds,
+        )
+    }
+
+    @Test
+    fun `resume queue codec rejects unknown versions and truncated payloads`() {
         assertNull(decodeResumeQueueState("a,b,c"))
+        assertNull(decodeResumeQueueState("LJQ4|0|0||0|0|"))
         assertNull(decodeResumeQueueState("LJQ2|0|1|4:abc"))
         assertNull(decodeResumeQueueState("LJQ2|0|10001||1|0|"))
         assertNull(decodeResumeQueueState("LJQ2|0|0||0|1|1:a"))
+        assertNull(decodeResumeQueueState("LJQ3|0|1|1:a|1|0|"))
+        assertNull(decodeResumeQueueState("LJQ3|0|1|1:a|1|0||1|4:abc"))
+        assertNull(decodeResumeQueueState("LJQ3|0|1|1:a|1|0||10001|"))
+        assertNull(decodeResumeQueueState("LJQ3|0|1|1:a|1|0||-1|"))
     }
 
     @Test
@@ -129,6 +165,10 @@ class AppSettingsTest {
             false,
             saved.sameSessionExceptPosition(saved.copy(queueTrackIds = listOf("current", "other"))),
         )
+        val labelled = saved.copy(smartContinuationIds = setOf("next"))
+        assertEquals(false, saved.sameSessionExceptPosition(labelled))
+        assertEquals(false, labelled.sameSessionExceptPosition(saved))
+        assertEquals(true, labelled.sameSessionExceptPosition(labelled.copy(positionMs = 20_000)))
     }
 
     @Test

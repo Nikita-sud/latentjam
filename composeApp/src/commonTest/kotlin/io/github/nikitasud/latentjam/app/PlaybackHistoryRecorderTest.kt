@@ -154,6 +154,7 @@ internal class PlaybackHistoryRecorderTest {
             startIndex: Int,
             positionMs: Long,
             sourceTracks: List<TrackDescriptor>?,
+            smartContinuationIds: Set<TrackId>,
         ) = Unit
         override suspend fun cycleRepeatMode() = RepeatMode.OFF
         override suspend fun retainQueue(trackIds: Set<TrackId>) = Unit

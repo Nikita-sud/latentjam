@@ -259,6 +259,9 @@ object AppGraph {
                             // originating playlist/collection instead of the recommendation tail.
                             sourceQueueTrackIds = sourceQueueIds,
                             sourceQueuePersisted = persistedSourceQueue != null,
+                            smartContinuationIds = if (persistableLiveQueue == null) emptySet() else {
+                                now.smartContinuationIds.mapTo(HashSet()) { it.value }
+                            },
                         )
                     }
                 }

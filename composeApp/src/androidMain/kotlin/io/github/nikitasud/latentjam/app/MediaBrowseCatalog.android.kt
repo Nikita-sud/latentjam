@@ -11,6 +11,7 @@ import io.github.nikitasud.latentjam.playback.MediaBrowseCollection
 import io.github.nikitasud.latentjam.playback.MediaBrowseRegistry
 import io.github.nikitasud.latentjam.playback.MediaPlaybackResume
 import io.github.nikitasud.latentjam.playback.ShuffleMode
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -95,6 +96,7 @@ private suspend fun buildMediaPlaybackResume(): MediaPlaybackResume? {
             positionMs = saved.positionMs.coerceAtLeast(0L),
             shuffleMode = mode,
             sourceTracks = source,
+            smartContinuationIds = saved.smartContinuationIds.mapTo(HashSet(), ::TrackId),
         )
     }
 

@@ -252,12 +252,15 @@ internal class IosPlaybackController(
         withContext(Dispatchers.Main) {
             if (tracks.isEmpty()) return@withContext
             val previousQueue = queue
+            val previousContinuations = smartContinuationIds.toSet()
             val previousPool = pool
             val previousIndex = queueIndex
             val previousPositionMs = positionMs()
             val wasPlaying = playing
             val start = startIndex.coerceIn(0, tracks.lastIndex)
             pool = tracks
+            // These are new user-selected rows, even if their ids were in the previous queue.
+            smartContinuationIds.clear()
 
             when (mode) {
                 // SMART owns its queue: begin with the tapped track alone and let
@@ -291,6 +294,8 @@ internal class IosPlaybackController(
             // an unreadable row from the requested collection.
             if (!loaded && previousIndex in previousQueue.indices) {
                 queue = previousQueue
+                smartContinuationIds.clear()
+                smartContinuationIds.addAll(previousContinuations)
                 pool = previousPool
                 queueGeneration++
                 loaded = restorePreviousPlayback(
@@ -615,13 +620,18 @@ internal class IosPlaybackController(
         startIndex: Int,
         positionMs: Long,
         sourceTracks: List<TrackDescriptor>?,
+        smartContinuationIds: Set<TrackId>,
     ): Unit = withContext(Dispatchers.Main) {
         if (tracks.isEmpty()) return@withContext
-        val restorePlan = playbackResumePlan(tracks, startIndex, sourceTracks)
+        val restorePlan = playbackResumePlan(tracks, startIndex, sourceTracks, smartContinuationIds)
         // The live queue and canonical source are independent on resume: SMART's saved future is
         // restored exactly, while leaving SMART can still reconstruct the originating playlist.
         pool = restorePlan.sourceQueue
         queue = restorePlan.liveQueue
+        this@IosPlaybackController.smartContinuationIds.apply {
+            clear()
+            addAll(restorePlan.smartContinuationIds)
+        }
         queueIndex = restorePlan.currentIndex
         queueGeneration++
         val refillAfterPendingInvalidation = mode == ShuffleMode.SMART &&
@@ -671,10 +681,12 @@ internal class IosPlaybackController(
                 // may not exist in the source; keep it at the playhead instead of coercing the
                 // missing lookup to source index zero while its audio continues.
                 val ordered = sourceOrderKeepingCurrent(source = pool, current = current)
+                smartContinuationIds.retainAll(setOf(current.id))
                 queue = ordered.tracks
                 queueIndex = ordered.currentIndex
             }
             ShuffleMode.ON -> if (current != null && pool.isNotEmpty()) {
+                smartContinuationIds.retainAll(setOf(current.id))
                 queue = listOf(current) + (pool.filter { it.id != current.id }).shuffled()
                 queueIndex = 0
             }

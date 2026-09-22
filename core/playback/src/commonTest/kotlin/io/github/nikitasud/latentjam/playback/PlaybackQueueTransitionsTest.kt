@@ -148,6 +148,37 @@ internal class PlaybackQueueTransitionsTest {
     }
 
     @Test
+    fun `restored continuations consume the budget before the first top up`() {
+        val live = listOf(a, b, c, manual)
+        val savedIds = mutableSetOf(b.id, c.id, manual.id)
+        val resumed = playbackResumePlan(live, 0, listOf(a), savedIds)
+        savedIds.clear()
+
+        assertEquals(setOf(b.id, c.id, manual.id), resumed.smartContinuationIds)
+        assertFalse(
+            smartMayContinue(live.size, resumed.currentIndex) { index ->
+                live[index].id in resumed.smartContinuationIds
+            },
+        )
+        assertTrue(
+            smartMayContinue(live.size, 1) { index ->
+                live[index].id in resumed.smartContinuationIds
+            },
+        )
+    }
+
+    @Test
+    fun `resume drops continuation labels for deleted and source-only rows`() {
+        val resumed = playbackResumePlan(
+            liveQueue = listOf(a, manual),
+            currentIndex = 0,
+            sourceQueue = listOf(a, b),
+            smartContinuationIds = setOf(b.id, c.id, manual.id),
+        )
+        assertEquals(setOf(manual.id), resumed.smartContinuationIds)
+    }
+
+    @Test
     fun `resume preserves a known source that became empty after deletion`() {
         assertEquals(
             PlaybackResumePlan(

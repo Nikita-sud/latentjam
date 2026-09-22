@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.playback
 
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 
 /** One browsable collection (a user playlist) offered to external browsers. */
 public class MediaBrowseCollection(
@@ -34,6 +35,7 @@ public class MediaPlaybackResume(
     public val shuffleMode: ShuffleMode,
     /** Canonical natural order used when leaving SMART; null means the live queue is the source. */
     public val sourceTracks: List<TrackDescriptor>?,
+    public val smartContinuationIds: Set<TrackId> = emptySet(),
 )
 
 /**

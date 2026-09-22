@@ -127,6 +127,7 @@ private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackControl
         startIndex: Int,
         positionMs: Long,
         sourceTracks: List<TrackDescriptor>?,
+        smartContinuationIds: Set<TrackId>,
     ) = Unit
     override suspend fun cycleRepeatMode(): RepeatMode = RepeatMode.OFF
     override suspend fun playNext(track: TrackDescriptor) = Unit

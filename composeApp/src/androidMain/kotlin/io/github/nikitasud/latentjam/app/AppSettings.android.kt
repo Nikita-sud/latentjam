@@ -160,7 +160,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         val position = runCatching { preferences.getLong(KEY_RESUME_POSITION, 0L) }.getOrNull() ?: 0L
         val encodedQueueState = readString(KEY_RESUME_QUEUE_STATE)
         val queueState = encodedQueueState?.let(::decodeResumeQueueState)
-        // The former comma codec is read only when no v2 value exists. A malformed v2 payload must
+        // The former comma codec is read only when no versioned value exists. A malformed payload must
         // not silently pair with a stale legacy queue left by an interrupted migration.
         val legacyQueueIds = if (encodedQueueState == null) {
             readString(KEY_RESUME_QUEUE)
@@ -182,6 +182,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
             queueIndex = queueState?.queueIndex ?: -1,
             sourceQueueTrackIds = queueState?.sourceQueueTrackIds.orEmpty(),
             sourceQueuePersisted = queueState?.sourceQueuePersisted ?: false,
+            smartContinuationIds = queueState?.smartContinuationIds.orEmpty(),
         )
     }
 
@@ -228,6 +229,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
                                 sourceQueueTrackIds = state.sourceQueueTrackIds,
                                 queueIndex = state.queueIndex,
                                 sourceQueuePersisted = state.sourceQueuePersisted,
+                                smartContinuationIds = state.smartContinuationIds,
                             ),
                         ),
                     )

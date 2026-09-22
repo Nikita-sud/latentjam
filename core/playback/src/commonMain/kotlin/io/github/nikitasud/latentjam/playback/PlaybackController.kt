@@ -195,12 +195,14 @@ public interface PlaybackController {
      * `null` keeps sessions written before source queues were persisted backward compatible by
      * using [tracks]. An explicitly empty list is meaningful: the saved source existed but every
      * row was deleted while a generated SMART current row survived.
+     * [smartContinuationIds] restores the saved labels and continuation budget before any top-up.
      */
     public suspend fun restoreQueue(
         tracks: List<TrackDescriptor>,
         startIndex: Int,
         positionMs: Long,
         sourceTracks: List<TrackDescriptor>? = null,
+        smartContinuationIds: Set<TrackId> = emptySet(),
     )
 
     /** Advances OFF → ALL → ONE → OFF and returns the new mode. */

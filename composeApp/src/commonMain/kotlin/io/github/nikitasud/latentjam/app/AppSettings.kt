@@ -141,6 +141,7 @@ internal data class ResumeQueueState(
     val sourceQueueTrackIds: List<String>,
     val queueIndex: Int,
     val sourceQueuePersisted: Boolean = true,
+    val smartContinuationIds: Set<String> = emptySet(),
 )
 
 /**
@@ -173,12 +174,25 @@ internal fun encodeResumeQueueState(state: ResumeQueueState): String = buildStri
         append(':')
         append(id)
     }
+    val continuationIds = state.smartContinuationIds.intersect(state.queueTrackIds.toSet()).sorted()
+    append('|')
+    append(continuationIds.size)
+    append('|')
+    continuationIds.forEach { id ->
+        append(id.length)
+        append(':')
+        append(id)
+    }
 }
 
-/** Returns null for a different version or any truncated/type-corrupt payload. */
+/** Reads current and v2 queues; older queues have no saved continuation labels. */
 internal fun decodeResumeQueueState(value: String): ResumeQueueState? {
-    if (!value.startsWith(RESUME_QUEUE_STATE_PREFIX)) return null
-    var offset = RESUME_QUEUE_STATE_PREFIX.length
+    val prefix = when {
+        value.startsWith(RESUME_QUEUE_STATE_PREFIX) -> RESUME_QUEUE_STATE_PREFIX
+        value.startsWith(LEGACY_RESUME_QUEUE_STATE_PREFIX) -> LEGACY_RESUME_QUEUE_STATE_PREFIX
+        else -> return null
+    }
+    var offset = prefix.length
 
     fun readIntToken(): Int? {
         val delimiter = value.indexOf('|', startIndex = offset)
@@ -219,16 +233,26 @@ internal fun decodeResumeQueueState(value: String): ResumeQueueState? {
     val sourceCount = readIntToken() ?: return null
     val sourceIds = readIds(sourceCount) ?: return null
     if (!sourcePersisted && sourceIds.isNotEmpty()) return null
+    val continuationIds = if (prefix == RESUME_QUEUE_STATE_PREFIX) {
+        if (value.getOrNull(offset) != '|') return null
+        offset++
+        val count = readIntToken() ?: return null
+        readIds(count)?.toSet() ?: return null
+    } else {
+        emptySet()
+    }
     if (offset != value.length) return null
     return ResumeQueueState(
         queueTrackIds = queueIds,
         sourceQueueTrackIds = sourceIds,
         queueIndex = queueIndex,
         sourceQueuePersisted = sourcePersisted,
+        smartContinuationIds = continuationIds.intersect(queueIds.toSet()),
     )
 }
 
-private const val RESUME_QUEUE_STATE_PREFIX = "LJQ2|"
+private const val RESUME_QUEUE_STATE_PREFIX = "LJQ3|"
+private const val LEGACY_RESUME_QUEUE_STATE_PREFIX = "LJQ2|"
 private const val MAX_DECODED_RESUME_QUEUE_IDS = 10_000
 
 /**
@@ -344,6 +368,8 @@ data class ResumePlayback(
     val sourceQueueTrackIds: List<String> = emptyList(),
     /** Whether [sourceQueueTrackIds] was explicitly saved; distinguishes known empty from absent. */
     val sourceQueuePersisted: Boolean = false,
+    /** Saved provenance for rows in [queueTrackIds]; absent from older sessions. */
+    val smartContinuationIds: Set<String> = emptySet(),
 )
 
 /** True when persistence can update only the small position field and retain queue metadata. */
@@ -356,6 +382,7 @@ internal fun ResumePlayback.sameSessionExceptPosition(other: ResumePlayback): Bo
         queueTrackIds == other.queueTrackIds &&
         queueIndex == other.queueIndex &&
         sourceQueueTrackIds == other.sourceQueueTrackIds &&
-        sourceQueuePersisted == other.sourceQueuePersisted
+        sourceQueuePersisted == other.sourceQueuePersisted &&
+        smartContinuationIds == other.smartContinuationIds
 
 expect fun appSettingsModule(): Module

@@ -157,6 +157,7 @@ private suspend fun PlaybackController.ensureWidgetQueue(): Boolean {
         startIndex = resume.startIndex,
         positionMs = resume.positionMs,
         sourceTracks = resume.sourceTracks,
+        smartContinuationIds = resume.smartContinuationIds,
     )
     return state.value.queue.isNotEmpty()
 }

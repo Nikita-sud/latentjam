@@ -551,6 +551,9 @@ internal class AndroidPlaybackController(
                 // A newly selected track supersedes any delayed pause of the previous item.
                 resetTransportFade()
 
+                // A manual play request creates new rows, even when their track ids overlap.
+                smartContinuationIds.clear()
+                anticipatedResumption = null
                 if (currentMode == ShuffleMode.SMART) {
                     // SMART owns its queue: start from the tapped track alone and let the chooser
                     // build the path forward. Do not construct hundreds of unused MediaItems.
@@ -845,13 +848,14 @@ internal class AndroidPlaybackController(
         startIndex: Int,
         positionMs: Long,
         sourceTracks: List<TrackDescriptor>?,
+        smartContinuationIds: Set<TrackId>,
     ) {
         if (tracks.isEmpty()) return
         // Same generation contract as play(): a user tap that lands during a slow restore must
         // win, and the restore must then abandon its stale queue rather than clobber the tap's.
         val requestGeneration = playRequestGeneration.incrementAndGet()
         val prepared = withContext(Dispatchers.Default) {
-            val restorePlan = playbackResumePlan(tracks, startIndex, sourceTracks)
+            val restorePlan = playbackResumePlan(tracks, startIndex, sourceTracks, smartContinuationIds)
             val live = preparePlayback(
                 tracks = restorePlan.liveQueue,
                 startIndex = restorePlan.currentIndex,
@@ -860,19 +864,24 @@ internal class AndroidPlaybackController(
                 includeFullQueue = true,
             )
             val source = restorePlan.sourceQueue
-            Triple(live, source, source.associateBy { it.id.value } + live.byId)
+            Triple(live, restorePlan, source.associateBy { it.id.value } + live.byId)
         }
         withContext(Dispatchers.Main.immediate) {
             if (playRequestGeneration.get() != requestGeneration) return@withContext
             val player = controller()
             if (playRequestGeneration.get() != requestGeneration) return@withContext
             val live = prepared.first
-            pool = prepared.second
+            pool = prepared.second.sourceQueue
             // The live SMART queue can contain generated rows absent from the canonical source;
             // retain descriptors for both so queue/state reconstruction never loses those rows.
             poolById = prepared.third
             queueGeneration++
             beginFreshRecoveryAttempt()
+            this@AndroidPlaybackController.smartContinuationIds.apply {
+                clear()
+                addAll(prepared.second.smartContinuationIds)
+            }
+            anticipatedResumption = null
             val startPositionMs = positionMs.coerceAtLeast(0L)
             player.setMediaItems(live.fullQueue!!, live.startIndex, startPositionMs)
             // [tracks] is NowPlaying.queue: already the exact saved traversal order for ON. Keep
@@ -952,6 +961,7 @@ internal class AndroidPlaybackController(
                     // indicator. Keep the native current item and splice source rows around it;
                     // replacing the whole playlist + prepare() reloads audio and caused a gap.
                     val current = sourceOrder.tracks[sourceOrder.currentIndex]
+                    smartContinuationIds.retainAll(setOf(current.id))
                     poolById = poolById + (current.id.value to current)
                     player.shuffleModeEnabled = false
                     if (!replaceQueueAroundCurrent(player, sourceOrder)) {
@@ -1233,7 +1243,8 @@ internal class AndroidPlaybackController(
             trackById(player.getMediaItemAt(itemIndex).mediaId)
         }
         smartContinuationIds.retainAll(
-            physicalRows.mapNotNullTo(HashSet()) { row -> row?.id },
+            // The resumption handoff may precede Media3 installing its timeline.
+            (anticipatedResumption?.tracks ?: physicalRows).mapNotNullTo(HashSet()) { row -> row?.id },
         )
         val traversalOrder = playerTraversalOrder(player)
         val snapshot = playbackQueueSnapshot(
@@ -1289,6 +1300,10 @@ internal class AndroidPlaybackController(
         // The live SMART queue can contain generated rows absent from its canonical source.
         poolById = (source + resume.tracks).associateBy { it.id.value }
         mode = resume.shuffleMode
+        smartContinuationIds.clear()
+        smartContinuationIds.addAll(
+            resume.smartContinuationIds.intersect(resume.tracks.mapTo(HashSet()) { it.id }),
+        )
         anticipatedResumption = resume.takeIf { actualIds.isEmpty() }
         // Ownership has moved into this controller's pool/pending state; release the global URI
         // graph even when Media3 has not installed the timeline yet.

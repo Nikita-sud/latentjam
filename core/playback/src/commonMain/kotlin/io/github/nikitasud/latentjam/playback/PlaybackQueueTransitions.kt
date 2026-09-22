@@ -70,6 +70,7 @@ internal data class PlaybackResumePlan(
     val liveQueue: List<TrackDescriptor>,
     val sourceQueue: List<TrackDescriptor>,
     val currentIndex: Int,
+    val smartContinuationIds: Set<TrackId> = emptySet(),
 )
 
 /**
@@ -84,6 +85,7 @@ internal fun playbackResumePlan(
     liveQueue: List<TrackDescriptor>,
     currentIndex: Int,
     sourceQueue: List<TrackDescriptor>?,
+    smartContinuationIds: Set<TrackId> = emptySet(),
 ): PlaybackResumePlan {
     val stableLive = liveQueue.toList()
     val stableSource = sourceQueue?.toList() ?: stableLive
@@ -91,6 +93,7 @@ internal fun playbackResumePlan(
         liveQueue = stableLive,
         sourceQueue = stableSource,
         currentIndex = if (stableLive.isEmpty()) -1 else currentIndex.coerceIn(stableLive.indices),
+        smartContinuationIds = smartContinuationIds.intersect(stableLive.mapTo(HashSet()) { it.id }),
     )
 }
 
