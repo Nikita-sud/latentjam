@@ -166,11 +166,14 @@ internal data class TrackMeta(
     val isHub: Boolean = MetadataRerank.isHubGenre(genre)
 
     /**
-     * Artist under the chain's spacing and cap rules. Untagged tracks share the empty key
-     * deliberately: they behave as one artist, so a run of them gets spaced apart like any other
-     * repeat rather than clustering because nothing identified them.
+     * Artist under the chain's spacing and cap rules. An empty key supplies no artist identity
+     * and must not group unrelated untagged tracks under one artist.
      */
     val artistKey: String = MetadataRerank.normalizeArtist(primaryArtist ?: artist)
+
+    /** A shared title alone cannot identify a repeat across different or unknown artists. */
+    val titleArtistKey: Pair<String, String>? =
+        if (normalizedTitle.isNotEmpty() && artistKey.isNotEmpty()) artistKey to normalizedTitle else null
 
     /** What era this track belongs to: the recording's year, not the edition's. */
     val eraYear: Int? get() = originalYear ?: year

@@ -14,6 +14,7 @@ import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorCoverage
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorFusion
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -566,9 +567,9 @@ internal class DefaultSimilarityEngine(
             // Metadata is cheap enough to create on demand and gives first launch an honest local
             // result while the acoustic index is still cold.
             indexTextVector(seed)
-            // A prior metadata save may have failed after the row was installed in memory. Queue
-            // generation must not silently report success while leaving that dirty cache unsaved.
-            persistTextIndex()
+            // In-memory vectors can serve playback even if their durable checkpoint fails.
+            // Keep dirty flags intact so indexing or the next query retries the write.
+            persistForPlayback("metadata", ::persistTextIndex)
 
             // First-launch indexing is progressive. Whichever track the listener actually picked
             // must still be a valid anchor even when its background batch has not reached it yet.
@@ -580,7 +581,7 @@ internal class DefaultSimilarityEngine(
                 }
                 if (seed.audioUri.isNullOrBlank()) {
                     rememberAudioFailure(seed)
-                    persistAudioIndex()
+                    persistForPlayback("audio", ::persistAudioIndex)
                     return@withLock metadataFallback(
                         seed, library, length, history, companionGroups,
                     )
@@ -591,7 +592,7 @@ internal class DefaultSimilarityEngine(
                         onFailure = { throwable ->
                             if (throwable.toEngineError() is EngineError.InvalidAudio) {
                                 rememberAudioFailure(seed)
-                                persistAudioIndex()
+                                persistForPlayback("audio", ::persistAudioIndex)
                             }
                             null
                         },
@@ -604,7 +605,7 @@ internal class DefaultSimilarityEngine(
                         seed, library, length, history, companionGroups,
                     )
                 }
-                persistAudioIndex()
+                persistForPlayback("audio", ::persistAudioIndex)
                 mutableState.value = EngineState.Ready(indexedCount = index.size)
             }
 
@@ -912,6 +913,17 @@ internal class DefaultSimilarityEngine(
         textIndexDirty = false
     }
 
+    /** Query checkpoint failures must not turn a usable in-memory index into silence. */
+    private suspend fun persistForPlayback(kind: String, save: suspend () -> Unit) {
+        try {
+            save()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            println("SMART: $kind checkpoint pending retry (${failure::class.simpleName})")
+        }
+    }
+
     private fun currentAudioSnapshot(): StoredIndexSnapshot {
         val entries = index.entries()
         return StoredIndexSnapshot(
@@ -1031,10 +1043,11 @@ internal class DefaultSimilarityEngine(
         /** v2: the trusted string gained the original year and a language word; every text vector re-encodes once. */
         const val TEXT_IDENTITY_VERSION = "text-v2"
 
-        /** Small libraries promote only when at least 80% of their tracks have usable audio. */
+        /** The warm-up floor cannot exceed the remaining library, including its seed. */
         fun requiredAudioCorpus(librarySize: Int): Int {
             val coverageTarget = (librarySize * 4 + 4) / 5
-            return maxOf(MIN_AUDIO_CORPUS_FLOOR, coverageTarget).coerceAtMost(MIN_AUDIO_CORPUS)
+            return maxOf(MIN_AUDIO_CORPUS_FLOOR, coverageTarget)
+                .coerceAtMost(minOf(MIN_AUDIO_CORPUS, librarySize))
         }
     }
 }

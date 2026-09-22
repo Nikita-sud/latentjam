@@ -15,6 +15,27 @@ import kotlin.test.assertTrue
 internal class MetadataFallbackQueueTest {
 
     @Test
+    fun `untagged artists do not block a metadata queue`() {
+        val tracks = (0..12).map { row -> track("unknown-$row", "", "Rock").copy(artist = null) }
+        val index = InMemoryVectorIndex(dim = 3).apply {
+            tracks.forEach { upsert(it.id, floatArrayOf(1f, 0f, 0f)) }
+        }
+        val queue = MetadataFallbackQueue.build(tracks.first(), tracks.drop(1), 12, index)
+        assertEquals(tracks.drop(1).map { it.id }, queue)
+    }
+
+    @Test
+    fun `shared title across artists is allowed but a same artist remaster remains excluded`() {
+        val seed = track("seed", "Seed Artist", "Rock").copy(title = "Intro")
+        val copy = track("copy", "Seed Artist", "Rock").copy(title = "Intro (Remaster)")
+        val other = track("other", "Other Artist", "Rock").copy(title = "Intro (Version 2)")
+        val index = InMemoryVectorIndex(dim = 3).apply {
+            listOf(seed, copy, other).forEach { upsert(it.id, floatArrayOf(1f, 0f, 0f)) }
+        }
+        assertEquals(listOf(other.id), MetadataFallbackQueue.build(seed, listOf(copy, other), 12, index))
+    }
+
+    @Test
     fun `cold audio index uses trusted text similarity instead of random order`() {
         val seed = track("seed", "Seed Artist", "Rock")
         val rock = track("rock", "Other Artist", "Rock")

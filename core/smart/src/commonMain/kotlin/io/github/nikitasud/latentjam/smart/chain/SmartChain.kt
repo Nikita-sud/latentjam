@@ -202,7 +202,20 @@ internal class SmartChain(
         }
 
         val excludedRows = sessionExclusions(seedRow, context.sessionRows, length)
-        val pool = buildPool(seedRow, state, excludedRows)
+        val initialPool = buildPool(seedRow, state, excludedRows)
+        val seedTitle = snapshot.tracks[seedRow].meta.titleArtistKey
+        // A bounded retrieval can contain only alternate releases of the seed. Search past
+        // those rows before abstaining; leave every productive pool and its scores unchanged.
+        val pool = if (seedTitle != null && initialPool.isNotEmpty() &&
+            initialPool.all { snapshot.tracks[it].meta.titleArtistKey == seedTitle }
+        ) {
+            val duplicateRows = snapshot.tracks.indices.filterTo(HashSet()) {
+                snapshot.tracks[it].meta.titleArtistKey == seedTitle
+            }
+            buildPool(seedRow, state, excludedRows + duplicateRows)
+        } else {
+            initialPool
+        }
         if (pool.isEmpty()) return ChainResult.EMPTY
         // Pool positions carry snapshot rows; the semantic z-scores and fused candidate block are
         // computed per pool position so everything lines up with candidate `pool[i]` below.
@@ -252,10 +265,8 @@ internal class SmartChain(
         // artist. Once such a track is picked it enters this window normally, preventing an
         // artist/album dump while avoiding the old behaviour where the best neighbour was
         // forbidden merely because the user started from it.
-        val seenTitles = HashSet<String>()
-        snapshot.tracks[seedRow].meta.normalizedTitle
-            .takeIf(String::isNotEmpty)
-            ?.let(seenTitles::add)
+        val seenTitles = HashSet<Pair<String, String>>()
+        seedTitle?.let(seenTitles::add)
         val artistPlays = HashMap<String, Int>()
 
         // Seed-relative semantic z: computed once against the ORIGINAL pick, constant for the walk.
@@ -268,9 +279,11 @@ internal class SmartChain(
         fun isEligible(i: Int): Boolean {
             if (i in used) return false
             val meta = snapshot.tracks[pool[i]].meta
-            if (meta.artistKey in recentArtists) return false
-            if (meta.normalizedTitle.isNotEmpty() && meta.normalizedTitle in seenTitles) return false
-            if ((artistPlays[meta.artistKey] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP) return false
+            if (meta.artistKey.isNotEmpty() && meta.artistKey in recentArtists) return false
+            if (meta.titleArtistKey in seenTitles) return false
+            if (meta.artistKey.isNotEmpty() &&
+                (artistPlays[meta.artistKey] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP
+            ) return false
             return true
         }
 
@@ -447,7 +460,7 @@ internal class SmartChain(
             used.add(chosenIndex)
             val pickedMeta = snapshot.tracks[pickedRow].meta
             if (Genres.families(pickedMeta.genre).any { it in seedGenres }) seedFamilyPicks++
-            if (pickedMeta.normalizedTitle.isNotEmpty()) seenTitles.add(pickedMeta.normalizedTitle)
+            pickedMeta.titleArtistKey?.let(seenTitles::add)
             artistPlays[pickedMeta.artistKey] = (artistPlays[pickedMeta.artistKey] ?: 0) + 1
             recentArtists.addLast(pickedMeta.artistKey)
             while (recentArtists.size > ChainConfig.CHAIN_ARTIST_SPACING) recentArtists.removeFirst()

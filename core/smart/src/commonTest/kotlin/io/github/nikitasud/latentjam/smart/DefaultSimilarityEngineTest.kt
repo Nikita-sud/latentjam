@@ -1210,7 +1210,7 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
-    fun `tiny audio corpus keeps the honest metadata fallback`() = runTest {
+    fun `fully indexed tiny audio corpus uses the zero padded scorer`() = runTest {
         val predictor = CountingPredictor()
         val tracks = smartLibrary(23)
         val backend = FakeEmbeddingBackend(
@@ -1236,12 +1236,13 @@ internal class DefaultSimilarityEngineTest {
 
         val queue = engine.smartQueue(tracks.first(), tracks.drop(1), length = 5)
 
-        assertTrue(queue.isEmpty(), "this harness deliberately has no metadata encoder")
-        assertEquals(0, predictor.scoreCalls)
+        assertEquals(5, queue.size)
+        assertEquals(5, queue.toSet().size)
+        assertTrue(predictor.scoreCalls > 0)
     }
 
     @Test
-    fun `under twenty four tracks metadata fallback still honors marked playlist quota`() = runTest {
+    fun `partially indexed small library metadata fallback still honors marked playlist quota`() = runTest {
         val tracks = smartLibrary(23)
         val remote = tracks.last().copy(genre = "Dance")
         val library = tracks.dropLast(1) + remote
@@ -1266,7 +1267,8 @@ internal class DefaultSimilarityEngineTest {
             textStore = FakeIndexStore(),
         )
         engine.initialize()
-        engine.indexLibrary(library)
+        engine.indexLibrary(library.dropLast(1))
+        engine.ensureMetadataVectors(library)
         val seed = library.first()
 
         val queue = engine.smartQueue(

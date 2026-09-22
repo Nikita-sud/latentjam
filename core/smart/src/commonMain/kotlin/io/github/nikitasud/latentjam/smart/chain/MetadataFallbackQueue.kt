@@ -58,8 +58,8 @@ internal object MetadataFallbackQueue {
         var nextQuotaGroupPosition = 0
         val recentArtists = ArrayDeque<String>()
         recentArtists.addLast(seedMeta.artistKey)
-        val seenTitles = HashSet<String>()
-        seedMeta.normalizedTitle.takeIf(String::isNotEmpty)?.let(seenTitles::add)
+        val seenTitles = HashSet<Pair<String, String>>()
+        seedMeta.titleArtistKey?.let(seenTitles::add)
 
         while (result.size < length) {
             var best: Candidate? = null
@@ -71,8 +71,8 @@ internal object MetadataFallbackQueue {
             for (candidate in candidates) {
                 if (candidate.track.id in used) continue
                 val meta = candidate.track.toMeta()
-                if (meta.artistKey in recentArtists) continue
-                if (meta.normalizedTitle.isNotEmpty() && meta.normalizedTitle in seenTitles) continue
+                if (meta.artistKey.isNotEmpty() && meta.artistKey in recentArtists) continue
+                if (meta.titleArtistKey in seenTitles) continue
 
                 val multiplier = (MetadataRerank.adjustMultiplier(anchorMeta, meta) *
                     durationSanityMultiplier(meta.durationMs) *
@@ -116,7 +116,7 @@ internal object MetadataFallbackQueue {
             val meta = picked.track.toMeta()
             result += picked.track.id
             used += picked.track.id
-            meta.normalizedTitle.takeIf(String::isNotEmpty)?.let(seenTitles::add)
+            meta.titleArtistKey?.let(seenTitles::add)
             recentArtists.addLast(meta.artistKey)
             while (recentArtists.size > ChainConfig.CHAIN_ARTIST_SPACING) {
                 recentArtists.removeFirst()

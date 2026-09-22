@@ -65,7 +65,19 @@ class EngineNextTrackChooser(
             plannedWithGroups = groups
             planned.clear()
         }
-        if (planned.isEmpty()) {
+        fun nextPlanned(): TrackDescriptor? {
+            while (planned.isNotEmpty()) {
+                val id = planned.removeFirst()
+                val chosen = candidates.firstOrNull { it.id == id } ?: continue
+                expectedNext = chosen.id
+                return chosen
+            }
+            return null
+        }
+        // Eligibility can change without the playhead moving. Exhaust an obsolete cached plan
+        // before deciding whether to replan, so available tracks are considered in this call.
+        nextPlanned()?.let { return@withLock it }
+        if (candidates.isNotEmpty()) {
             val started = TimeSource.Monotonic.markNow()
             planned = ArrayDeque(
                 engine.smartQueue(
@@ -73,7 +85,7 @@ class EngineNextTrackChooser(
                     candidates,
                     CHAIN_LENGTH,
                     smartHistoryFor(history, current),
-                    companionGroups(),
+                    groups,
                 ),
             )
             println(
@@ -82,17 +94,10 @@ class EngineNextTrackChooser(
             )
         }
 
-        // A planned track can vanish from the candidate pool (played meanwhile, or removed).
-        while (planned.isNotEmpty()) {
-            val next = planned.removeFirst()
-            val chosen = candidates.firstOrNull { it.id == next }
-            if (chosen != null) {
-                expectedNext = chosen.id
-                return@withLock chosen
-            }
-        }
+        // At most one new plan per call, including when the engine itself returns no usable ids.
+        nextPlanned()?.let { return@withLock it }
         expectedNext = null
-        println("SMART: no local plan available — waiting for index")
+        println("SMART: no eligible local plan candidates=${candidates.size}")
         null
     }
 
