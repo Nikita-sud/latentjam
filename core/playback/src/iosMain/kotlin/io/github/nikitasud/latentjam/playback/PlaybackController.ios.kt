@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -149,6 +150,8 @@ internal class IosPlaybackController(
      * the queue can say so, and pruned with the queue itself.
      */
     private val smartContinuationIds = mutableSetOf<TrackId>()
+    private val continuationSnapshot = PlaybackContinuationSnapshot()
+    private val pendingAdvance = PendingPlaybackAdvance()
 
     private var mode: ShuffleMode = ShuffleMode.OFF
     private var repeat: RepeatMode = RepeatMode.OFF
@@ -251,6 +254,7 @@ internal class IosPlaybackController(
     override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int): Unit =
         withContext(Dispatchers.Main) {
             if (tracks.isEmpty()) return@withContext
+            pendingAdvance.invalidate()
             val previousQueue = queue
             val previousContinuations = smartContinuationIds.toSet()
             val previousPool = pool
@@ -309,6 +313,7 @@ internal class IosPlaybackController(
         }
 
     override suspend fun togglePlayPause(): Unit = withContext(Dispatchers.Main) {
+        pendingAdvance.invalidate()
         if (queue.isEmpty()) return@withContext
         if (playing) {
             fadeOutAndPause()
@@ -322,6 +327,7 @@ internal class IosPlaybackController(
     }
 
     override suspend fun pause(): Unit = withContext(Dispatchers.Main) {
+        pendingAdvance.invalidate()
         if (queue.isEmpty() || !playing) return@withContext
         fadeOutAndPause()
         playing = false
@@ -382,18 +388,19 @@ internal class IosPlaybackController(
 
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
         if (queue.isEmpty()) return@withContext
+        pendingAdvance.invalidate()
         if (queueIndex in 0 until queue.lastIndex) {
             // Planning may suspend on inference or another append. A known successor can sound
             // immediately; replenish its future after the skip, matching the Android transport.
             advance()
             mainScope.launch { appendSmartNextIfNeeded() }
         } else {
-            appendSmartNextIfNeeded()
-            advance()
+            pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) { advance() }
         }
     }
 
     override suspend fun previous(): Unit = withContext(Dispatchers.Main) {
+        pendingAdvance.invalidate()
         if (queue.isEmpty()) return@withContext
         val previousIndex = queueIndex
         val previousPositionMs = positionMs()
@@ -419,6 +426,7 @@ internal class IosPlaybackController(
     }
 
     override suspend fun seekTo(positionMs: Long): Unit = withContext(Dispatchers.Main) {
+        pendingAdvance.invalidate()
         seekActiveBackend(positionMs)
         // iOS extrapolates the lock-screen position from the playback rate, so a
         // seek it was not told about leaves the lock screen counting from the old
@@ -623,6 +631,7 @@ internal class IosPlaybackController(
         smartContinuationIds: Set<TrackId>,
     ): Unit = withContext(Dispatchers.Main) {
         if (tracks.isEmpty()) return@withContext
+        pendingAdvance.invalidate()
         val restorePlan = playbackResumePlan(tracks, startIndex, sourceTracks, smartContinuationIds)
         // The live queue and canonical source are independent on resume: SMART's saved future is
         // restored exactly, while leaving SMART can still reconstruct the originating playlist.
@@ -671,6 +680,7 @@ internal class IosPlaybackController(
             return mode
         }
         // Invalidate an inference started under the previous mode before it can publish.
+        pendingAdvance.invalidate()
         queueGeneration++
         mode = requested
         val current = queue.getOrNull(queueIndex)
@@ -740,8 +750,7 @@ internal class IosPlaybackController(
             ).filter { it.id !in queued }
             if (candidates.isEmpty()) break
 
-            val recommended = runCatching { chooser.choose(seed, recentIds, candidates) }
-                .getOrNull()
+            val recommended = awaitPlaybackRecommendation { chooser.choose(seed, recentIds, candidates) }
             // SMART must never present a random row as a recommendation — but abstaining must
             // not end the session either. A continuation keeps playing under its own label, in
             // small batches, so the next transition can hand the walk back to the recommender.
@@ -752,8 +761,7 @@ internal class IosPlaybackController(
                     currentIndex = queueIndex,
                     isContinuation = { index -> queue[index].id in smartContinuationIds },
                 ) -> null
-                else -> runCatching { chooser.continuation(seed, recentIds, candidates) }
-                    .getOrNull()
+                else -> awaitPlaybackRecommendation { chooser.continuation(seed, recentIds, candidates) }
             }
             val chosen = recommended ?: continuation ?: break
             // Inference suspends. Another coroutine may have replaced the queue, switched modes,
@@ -785,6 +793,7 @@ internal class IosPlaybackController(
      * showing a track the player never loaded, with the audio stopped.
      */
     private fun advance() {
+        val wasPlaying = playing
         val previousIndex = queueIndex
         val previousPositionMs = positionMs()
         val startIndex = queueIndex + 1
@@ -800,7 +809,7 @@ internal class IosPlaybackController(
         val loaded = loadPlayableFrom(
             startIndex = startIndex,
             direction = 1,
-            autoPlay = true,
+            autoPlay = wasPlaying,
             wrap = wrap,
         )
         if (!loaded && previousIndex in queue.indices) {
@@ -816,6 +825,7 @@ internal class IosPlaybackController(
      * the new item as it goes. Returns false when the entry cannot be opened.
      */
     private fun loadCurrentItem(autoPlay: Boolean): Boolean {
+        pendingAdvance.invalidate()
         // A delayed pause belongs to the old native item, including when switching backends.
         resetTransportFade()
         val track = queue.getOrNull(queueIndex) ?: run {
@@ -927,6 +937,7 @@ internal class IosPlaybackController(
 
     /** Stops both native players while a bounded scan considers another candidate. */
     private fun stopBackendsAfterLoadFailure() {
+        pendingAdvance.invalidate()
         ++playbackItemGeneration
         mediaItemStarted = false
         // Set first so the MediaPlayer stop notification cannot advance the queue being repaired.
@@ -965,6 +976,8 @@ internal class IosPlaybackController(
             seekActiveBackend(0L)
             playing = playActiveBackend()
             if (!playing) deactivateAudioSession()
+            updateTicker()
+            invalidateNowPlayingInfo()
             pushState()
             return
         }
@@ -972,12 +985,12 @@ internal class IosPlaybackController(
             if (!playing || !isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) {
                 return@launch
             }
-            // Top up before advancing so SMART always has somewhere to go.
-            appendSmartNextIfNeeded()
-            if (!playing || !isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) {
-                return@launch
+            // A seek, pause, or newer item chosen during inference also supersedes this end.
+            pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) {
+                if (playing && isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) {
+                    advance()
+                }
             }
-            advance()
         }
     }
 
@@ -1122,12 +1135,14 @@ internal class IosPlaybackController(
                     }
                     MPMusicPlaybackState.MPMusicPlaybackStatePaused,
                     -> {
+                        pendingAdvance.invalidate()
                         playing = false
                         deactivateAudioSession()
                         updateTicker()
                         pushState()
                     }
                     MPMusicPlaybackState.MPMusicPlaybackStateInterrupted -> {
+                        pendingAdvance.invalidate()
                         playing = false
                         audioSessionActive = false
                         updateTicker()
@@ -1146,6 +1161,7 @@ internal class IosPlaybackController(
 
     /** An immediate pause; any fade in flight is over, and the mixer is back at full gain. */
     private fun pauseActiveBackend() {
+        pendingAdvance.invalidate()
         pauseBackendNow()
         resetTransportFade()
     }
@@ -1322,6 +1338,7 @@ internal class IosPlaybackController(
                     mediaPlayer.playbackState == MPMusicPlaybackState.MPMusicPlaybackStateInterrupted
         }
         if (playing && backendPaused) {
+            pendingAdvance.invalidate()
             playing = false
             deactivateAudioSession()
             // Same press, same rule as the observers: this is the system moving
@@ -1361,9 +1378,6 @@ internal class IosPlaybackController(
 
     private fun pushState() {
         val track = queue.getOrNull(queueIndex)
-        // A row that left the queue takes its label with it, and a track the recommender later
-        // picks on its own merits is not still marked as a continuation.
-        smartContinuationIds.retainAll(queue.mapTo(HashSet()) { it.id })
         mutableState.value = NowPlaying(
             track = track,
             isPlaying = playing,
@@ -1374,7 +1388,7 @@ internal class IosPlaybackController(
             queue = queue,
             queueIndex = if (queue.isEmpty()) -1 else queueIndex,
             sourceQueue = pool,
-            smartContinuationIds = smartContinuationIds.toSet(),
+            smartContinuationIds = continuationSnapshot.get(queue, smartContinuationIds),
         )
         publishNowPlayingInfo(track)
     }
@@ -1417,36 +1431,36 @@ internal class IosPlaybackController(
     private fun nowPlayingArtwork(track: TrackDescriptor): MPMediaItemArtwork? {
         val id = track.id.value
         val image = artworkCache[id]
-            ?: loadArtwork(track.artworkUri)?.also { loaded ->
-                cacheArtwork(id, loaded, real = true)
-            }
             ?: renderFallbackArtwork(identityTrackColorSeed(id).toArgb())?.also { fallback ->
                 cacheArtwork(id, fallback)
             }
             ?: return null
 
-        if (id !in realArtworkIds && id !in latentArtworkIds) requestLatentArtwork(track)
+        if (id !in realArtworkIds && id !in latentArtworkIds) requestArtwork(track)
         return MPMediaItemArtwork(boundsSize = image.size) { _ -> image }
     }
 
-    /** iOS library artwork cache URIs are local file URLs; never perform network I/O here. */
-    private fun loadArtwork(uri: String?): UIImage? {
-        val url = uri?.let(NSURL::URLWithString) ?: return null
-        if (!url.isFileURL()) return null
-        val path = url.path ?: return null
-        return UIImage.imageWithContentsOfFile(path)
-    }
-
-    /** Upgrades an identity cover when its local fingerprint becomes available. */
-    private fun requestLatentArtwork(track: TrackDescriptor) {
+    /** Identity is immediate; bounded real cover I/O and optional latent lookup are asynchronous. */
+    private fun requestArtwork(track: TrackDescriptor) {
         val id = track.id.value
         if (!fallbackArtworkInFlight.add(id)) return
         mainScope.launch {
             try {
-                val embedding = runCatching { engine.embedding(track.id) }.getOrNull() ?: return@launch
-                val image = renderFallbackArtwork(latentTrackColorSeed(embedding).toArgb())
-                    ?: return@launch
-                cacheArtwork(id, image, latent = true)
+                val cover = withContext(Dispatchers.Default) { loadPlaybackArtwork(track.artworkUri) }
+                if (cover != null) {
+                    cacheArtwork(id, cover, real = true)
+                } else {
+                    val embedding = try {
+                        engine.embedding(track.id)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        null
+                    } ?: return@launch
+                    val image = renderFallbackArtwork(latentTrackColorSeed(embedding).toArgb())
+                        ?: return@launch
+                    cacheArtwork(id, image, latent = true)
+                }
                 if (queue.getOrNull(queueIndex)?.id == track.id) {
                     invalidateNowPlayingInfo()
                     pushState()
@@ -1480,7 +1494,8 @@ internal class IosPlaybackController(
     /** A small local cover is enough for System UI to derive a stable player colour. */
     private fun renderFallbackArtwork(argb: Int): UIImage? {
         val size = FALLBACK_ARTWORK_SIZE
-        UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), true, 0.0)
+        // This is a fixed-size media-session thumbnail, not a point-sized view on a 3x display.
+        UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), true, 1.0)
         try {
             val context = UIGraphicsGetCurrentContext() ?: return null
             val red = ((argb ushr 16) and 0xFF) / 255.0
@@ -1525,7 +1540,7 @@ internal class IosPlaybackController(
         const val MEDIA_ID_PREFIX = "ios-media:"
         const val DEFAULT_SMART_LOOKAHEAD = 20
         const val MAX_SMART_LOOKAHEAD = 100
-        const val MAX_ARTWORK_CACHE = 32
+        const val MAX_ARTWORK_CACHE = 16
         const val FALLBACK_ARTWORK_SIZE = 96.0
 
         /** How many queue entries before the seed are passed to the chooser. */

@@ -94,6 +94,8 @@ internal class IosAudioEngine : EqualizerController {
                 return false
             }
             player.play()
+        } else {
+            engine.pause()
         }
         return true
     }
@@ -125,6 +127,9 @@ internal class IosAudioEngine : EqualizerController {
     fun pause() {
         pausedFrame = currentFrame()
         player.pause()
+        // Pausing a node alone leaves AVAudioEngine's hardware render loop running silently.
+        // Keep its prepared graph for resume, but release the idle audio hardware now.
+        engine.pause()
     }
 
     /** The pause/resume fade rides the mixer, leaving the player node and the equalizer alone. */
@@ -135,6 +140,7 @@ internal class IosAudioEngine : EqualizerController {
     fun stop() {
         completionGeneration++
         player.stop()
+        engine.stop()
         currentFile = null
         completion = null
         segmentStartFrame = 0L

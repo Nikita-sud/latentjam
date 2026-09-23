@@ -5,10 +5,12 @@
 package io.github.nikitasud.latentjam.library
 
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
-/** A user-made playlist: a name and an ordered list of track ids. */
+/** A user-made playlist: a name, ordered track ids, and an optional private cover reference. */
 public data class Playlist(
     public val id: String,
     public val name: String,
@@ -16,6 +18,8 @@ public data class Playlist(
     public val createdAtMs: Long = 0,
     /** The listener asked SMART to keep this playlist's tracks together (an explicit opt-in). */
     public val includeInSmart: Boolean = false,
+    /** App-owned cover token, resolved by the platform; null uses artwork from the tracks. */
+    public val customArtworkRef: String? = null,
 )
 
 /** Exact ordered membership around one durable playlist edit. */
@@ -36,6 +40,12 @@ public interface Playlists {
         trackIds: List<TrackId> = emptyList(),
     ): Playlist
     public suspend fun rename(id: String, name: String)
+    /**
+     * Stores a durable, platform-owned cover reference. Null or blank restores automatic artwork.
+     * Returns false if the playlist was deleted while a picker was open. The caller owns image
+     * files and may discard an unused new image after false or a failed write.
+     */
+    public suspend fun setArtwork(id: String, artworkRef: String?): Boolean
     public suspend fun delete(id: String)
     public suspend fun addTracks(id: String, trackIds: List<TrackId>)
     public suspend fun removeTracks(
@@ -102,7 +112,6 @@ public class DefaultPlaylists(
             createdAtMs = nowMillis(),
         )
         persist(listOf(created) + playlists)
-        playlists.add(0, created)
         created
     }
 
@@ -112,7 +121,6 @@ public class DefaultPlaylists(
         if (index >= 0) {
             val changed = playlists[index].copy(name = name.trim().ifEmpty { "Untitled playlist" })
             persist(playlists.toMutableList().also { it[index] = changed })
-            playlists[index] = changed
         }
     }
 
@@ -121,8 +129,18 @@ public class DefaultPlaylists(
         val replacement = playlists.filterNot { it.id == id }
         if (replacement.size != playlists.size) {
             persist(replacement)
-            playlists.removeAll { it.id == id }
         }
+    }
+
+    override suspend fun setArtwork(id: String, artworkRef: String?): Boolean = mutex.withLock {
+        ensureLoaded()
+        val index = playlists.indexOfFirst { it.id == id }
+        if (index < 0) return@withLock false
+        val normalized = artworkRef?.trim()?.takeIf(String::isNotEmpty)
+        if (playlists[index].customArtworkRef == normalized) return@withLock true
+        val changed = playlists[index].copy(customArtworkRef = normalized)
+        persist(playlists.toMutableList().also { it[index] = changed })
+        true
     }
 
     override suspend fun move(id: String, toIndex: Int): Unit = mutex.withLock {
@@ -133,8 +151,6 @@ public class DefaultPlaylists(
         if (from == target) return@withLock
         val reordered = playlists.toMutableList().apply { add(target, removeAt(from)) }
         persist(reordered)
-        playlists.clear()
-        playlists += reordered
     }
 
     override suspend fun toggleIncludeInSmart(id: String): Boolean = mutex.withLock {
@@ -143,7 +159,6 @@ public class DefaultPlaylists(
         if (index < 0) return@withLock false
         val changed = playlists[index].copy(includeInSmart = !playlists[index].includeInSmart)
         persist(playlists.toMutableList().also { it[index] = changed })
-        playlists[index] = changed
         changed.includeInSmart
     }
 
@@ -156,11 +171,10 @@ public class DefaultPlaylists(
         // set with the playlist's current contents, then let `add` both test and
         // reserve each id so duplicates in this batch are ignored as well.
         val seen = existing.toHashSet()
-        val additions = trackIds.map { it.value }.filter(seen::add)
+        val additions = trackIds.map { it.value }.filter(String::isNotBlank).filter(seen::add)
         if (additions.isNotEmpty()) {
             val changed = playlists[index].copy(trackIds = existing + additions)
             persist(playlists.toMutableList().also { it[index] = changed })
-            playlists[index] = changed
         }
     }
 
@@ -177,7 +191,6 @@ public class DefaultPlaylists(
         if (remaining.size != before.size) {
             val changed = playlists[index].copy(trackIds = remaining)
             persist(playlists.toMutableList().also { it[index] = changed })
-            playlists[index] = changed
         }
         PlaylistTrackChange(before.map(::TrackId), remaining.map(::TrackId))
     }
@@ -199,7 +212,6 @@ public class DefaultPlaylists(
         if (replacementValues != expectedValues) {
             val changed = playlists[index].copy(trackIds = replacementValues)
             persist(playlists.toMutableList().also { it[index] = changed })
-            playlists[index] = changed
         }
         true
     }
@@ -210,9 +222,7 @@ public class DefaultPlaylists(
         require(replacement.map(Playlist::id).toSet().size == replacement.size) {
             "Playlist ids must be unique"
         }
-        store.write(replacement.map(PlaylistSerializer::serialize))
-        this.playlists.clear()
-        this.playlists += replacement
+        persist(replacement)
     }
 
     private suspend fun ensureLoaded() {
@@ -230,9 +240,16 @@ public class DefaultPlaylists(
         loaded = true
     }
 
-    /** Durable state advances before the in-memory view, so a failed write never looks successful. */
-    private suspend fun persist(replacement: List<Playlist>) {
+    /**
+     * Called with the mutex held: commit durable state and its cache together. A cancelled caller
+     * may have already written to disk before returning from the store's dispatcher; publishing
+     * the same state here prevents a later edit from silently overwriting that successful save.
+     * A failed write still leaves the cache untouched.
+     */
+    private suspend fun persist(replacement: List<Playlist>): Unit = withContext(NonCancellable) {
         store.write(replacement.map(PlaylistSerializer::serialize))
+        playlists.clear()
+        playlists += replacement
     }
 
     private fun Playlist.normalizedForRestore(): Playlist {
@@ -240,6 +257,7 @@ public class DefaultPlaylists(
         return copy(
             name = name.trim().ifEmpty { "Untitled playlist" },
             trackIds = trackIds.filter(String::isNotBlank).distinct(),
+            customArtworkRef = customArtworkRef?.trim()?.takeIf(String::isNotEmpty),
         )
     }
 }
@@ -254,23 +272,34 @@ internal object PlaylistSerializer {
     private const val TRACK = ','
     private const val FORMAT_V2 = "v2"
     private const val FORMAT_V3 = "v3"
+    private const val FORMAT_V4 = "v4"
 
     fun serialize(playlist: Playlist): String = listOf(
-        FORMAT_V3,
+        FORMAT_V4,
         playlist.id.encodeHex(),
         playlist.name.encodeHex(),
         playlist.createdAtMs.toString(),
         playlist.trackIds.joinToString(TRACK.toString()) { it.encodeHex() },
         if (playlist.includeInSmart) "1" else "0",
+        playlist.customArtworkRef.orEmpty().encodeHex(),
     ).joinToString(FIELD.toString())
 
     fun parse(line: String): Playlist? {
         val parts = line.split(FIELD)
         return when (parts.firstOrNull()) {
+            FORMAT_V4 -> parseV4(parts)
             FORMAT_V3 -> parseV3(parts)
             FORMAT_V2 -> parseV2(parts)
             else -> parseV1(parts)
         }
+    }
+
+    /** Missing or damaged optional artwork falls back to automatic without losing the playlist. */
+    private fun parseV4(parts: List<String>): Playlist? {
+        if (parts.size !in 6..7) return null
+        return parseV3(parts.subList(0, 6))?.copy(
+            customArtworkRef = parts.getOrNull(6)?.decodeHex()?.takeIf(String::isNotBlank),
+        )
     }
 
     /** v3 = v2 plus the SMART opt-in flag; a v2 line simply reads as "not opted in". */

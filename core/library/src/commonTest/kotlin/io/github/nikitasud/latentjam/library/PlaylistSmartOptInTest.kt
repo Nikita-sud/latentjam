@@ -36,17 +36,16 @@ internal class PlaylistSmartOptInTest {
 
     @Test
     fun v2LinesReadAsNotOptedIn() = runTest {
-        // A playlist saved before the flag existed must parse as opted OUT, not fail. Recreate
-        // a v2 line from the v3 one: drop the trailing flag field, restore the version tag.
+        // A playlist saved before the flag existed must parse as opted OUT, not fail. Keep only
+        // the original five fields so this fixture remains v2 as new optional fields are added.
         val store = FakeStore()
         val playlists = DefaultPlaylists(store)
         val created = playlists.create("Mood", trackIds = listOf(io.github.nikitasud.latentjam.smart.TrackId("a")))
         playlists.toggleIncludeInSmart(created.id)
 
         val separator = ''
-        val v3Line = store.lines.single()
-        assertTrue(v3Line.startsWith("v3$separator"))
-        val v2Line = "v2" + v3Line.removePrefix("v3").substringBeforeLast(separator)
+        val v2Line = store.lines.single().split(separator).take(5).toMutableList()
+            .apply { this[0] = "v2" }.joinToString(separator.toString())
         store.lines = listOf(v2Line)
 
         val reloaded = DefaultPlaylists(store).all().single()
@@ -59,7 +58,8 @@ internal class PlaylistSmartOptInTest {
     fun v3RejectsCorruptSmartFlag() {
         val valid = PlaylistSerializer.serialize(
             Playlist(id = "id", name = "Mood", includeInSmart = true),
-        )
+        ).split('\u001f').take(6).toMutableList()
+            .apply { this[0] = "v3" }.joinToString("\u001f")
 
         assertNull(PlaylistSerializer.parse(valid.replaceAfterLast('\u001f', "yes")))
     }

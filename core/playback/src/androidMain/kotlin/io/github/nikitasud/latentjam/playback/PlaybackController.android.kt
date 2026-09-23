@@ -133,6 +133,9 @@ internal class AndroidPlaybackController(
     private var cachedQueue: List<TrackDescriptor> = emptyList()
     /** Maps each user-visible queue row back to Media3's physical playlist index. */
     private var cachedQueueMediaIndices: List<Int> = emptyList()
+    private var cachedVisibleQueueIndices = IntArray(0)
+    private val continuationSnapshot = PlaybackContinuationSnapshot()
+    private val pendingAdvance = PendingPlaybackAdvance()
     private var tickerJob: Job? = null
     private var repeat: RepeatMode = RepeatMode.OFF
 
@@ -165,6 +168,7 @@ internal class AndroidPlaybackController(
 
     private val playerListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            pendingAdvance.invalidate()
             if (controller?.mediaItemCount != 0) anticipatedResumption = null
             controller?.let(::adoptActiveResumption)
             snapNormalizationToCurrentTrack()
@@ -196,6 +200,7 @@ internal class AndroidPlaybackController(
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            pendingAdvance.invalidate()
             if (!playWhenReady) resetTransportFade()
             updateGainLoop(controller?.isPlaying == true)
             pushState()
@@ -266,6 +271,7 @@ internal class AndroidPlaybackController(
             newPosition: Player.PositionInfo,
             reason: Int,
         ) {
+            pendingAdvance.invalidate()
             // System UI and Bluetooth controllers can seek while paused, when the ticker is off.
             // Recompute gain too: while paused the fade loop is off, so otherwise resuming after a
             // seek to a boundary can emit one full-volume buffer before its first scheduled tick.
@@ -516,7 +522,10 @@ internal class AndroidPlaybackController(
     override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int) {
         if (tracks.isEmpty()) return
         val requestGeneration = playRequestGeneration.incrementAndGet()
-        val modeAtRequest = withContext(Dispatchers.Main.immediate) { mode }
+        val modeAtRequest = withContext(Dispatchers.Main.immediate) {
+            pendingAdvance.invalidate()
+            mode
+        }
         var prepared = withContext(Dispatchers.Default) {
             preparePlayback(
                 tracks = tracks,
@@ -592,6 +601,7 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun togglePlayPause(): Unit = withContext(Dispatchers.Main) {
+        pendingAdvance.invalidate()
         val player = controller ?: return@withContext
         if (player.playWhenReady && player.playbackState != Player.STATE_ENDED && !transportFade.pausePending) {
             fadeOutAndPause(player)
@@ -608,6 +618,7 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun pause(): Unit = withContext(Dispatchers.Main) {
+        pendingAdvance.invalidate()
         val player = controller ?: return@withContext
         if (player.playWhenReady && !transportFade.pausePending) fadeOutAndPause(player)
         pushState()
@@ -652,6 +663,7 @@ internal class AndroidPlaybackController(
 
     override suspend fun next(): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
+        pendingAdvance.invalidate()
         beginFreshRecoveryAttempt()
         if (player.hasNextMediaItem()) {
             player.seekToNextMediaItem()
@@ -660,16 +672,18 @@ internal class AndroidPlaybackController(
             // Prediction must not delay a skip when a playable item is already queued.
             mainScope.launch { appendSmartNextIfNeeded() }
         } else {
-            appendSmartNextIfNeeded()
-            if (player.hasNextMediaItem()) {
-                player.seekToNextMediaItem()
-                if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) {
+                if (controller === player && player.hasNextMediaItem()) {
+                    player.seekToNextMediaItem()
+                    if (player.playbackState == Player.STATE_IDLE) player.prepare()
+                }
+                pushState()
             }
-            pushState()
         }
     }
 
     override suspend fun previous(): Unit = withContext(Dispatchers.Main) {
+        pendingAdvance.invalidate()
         val player = controller ?: return@withContext
         beginFreshRecoveryAttempt()
         player.seekToPrevious()
@@ -678,6 +692,7 @@ internal class AndroidPlaybackController(
     }
 
     override suspend fun seekTo(positionMs: Long): Unit = withContext(Dispatchers.Main) {
+        pendingAdvance.invalidate()
         val player = controller ?: return@withContext
         player.seekTo(positionMs)
         pushState()
@@ -687,6 +702,7 @@ internal class AndroidPlaybackController(
         val player = controller ?: return@withContext
         val mediaItemIndex = cachedQueueMediaIndices.getOrNull(queueIndex) ?: return@withContext
         if (mediaItemIndex !in 0 until player.mediaItemCount) return@withContext
+        pendingAdvance.invalidate()
         beginFreshRecoveryAttempt()
         resetTransportFade()
         applyEffectiveVolume()
@@ -854,6 +870,7 @@ internal class AndroidPlaybackController(
         // Same generation contract as play(): a user tap that lands during a slow restore must
         // win, and the restore must then abandon its stale queue rather than clobber the tap's.
         val requestGeneration = playRequestGeneration.incrementAndGet()
+        withContext(Dispatchers.Main.immediate) { pendingAdvance.invalidate() }
         val prepared = withContext(Dispatchers.Default) {
             val restorePlan = playbackResumePlan(tracks, startIndex, sourceTracks, smartContinuationIds)
             val live = preparePlayback(
@@ -941,6 +958,7 @@ internal class AndroidPlaybackController(
             return
         }
         val previousMode = mode
+        pendingAdvance.invalidate()
         beginFreshRecoveryAttempt()
         queueGeneration++
         mode = nextMode
@@ -1052,25 +1070,25 @@ internal class AndroidPlaybackController(
         val queueSizeBefore = player.mediaItemCount
         if (queueSizeBefore == 0) return
         val tailIdBefore = player.getMediaItemAt(queueSizeBefore - 1).mediaId
-        appendSmartNextIfNeeded()
-        // Planning suspends. A tap that replaced the queue meanwhile would leave this seeking into
-        // the middle of someone else's list, so resume only onto a queue that merely GREW: same
-        // player, same mode, and the row this one ended on still in place.
-        if (controller !== player || mode != ShuffleMode.SMART) return
-        if (
-            queueSizeBefore > player.mediaItemCount ||
-            player.getMediaItemAt(queueSizeBefore - 1).mediaId != tailIdBefore
-        ) {
-            return
+        pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) {
+            // Planning suspends. A replacement, seek or pause must supersede this old end event,
+            // even if a later queue happens to contain the same tail ID at the same index.
+            if (controller !== player || mode != ShuffleMode.SMART) return@afterPlanning
+            if (
+                queueSizeBefore > player.mediaItemCount ||
+                player.getMediaItemAt(queueSizeBefore - 1).mediaId != tailIdBefore
+            ) {
+                return@afterPlanning
+            }
+            val resumeIndex = smartResumeIndexAfterExhaustion(
+                queueSizeBefore = queueSizeBefore,
+                queueSizeAfter = player.mediaItemCount,
+                playbackEnded = player.playbackState == Player.STATE_ENDED,
+                playWhenReady = player.playWhenReady,
+            ) ?: return@afterPlanning
+            player.seekTo(resumeIndex, 0L)
+            player.play()
         }
-        val resumeIndex = smartResumeIndexAfterExhaustion(
-            queueSizeBefore = queueSizeBefore,
-            queueSizeAfter = player.mediaItemCount,
-            playbackEnded = player.playbackState == Player.STATE_ENDED,
-            playWhenReady = player.playWhenReady,
-        ) ?: return
-        player.seekTo(resumeIndex, 0L)
-        player.play()
     }
 
     /**
@@ -1178,8 +1196,7 @@ internal class AndroidPlaybackController(
             ).filter { it.id !in queued }
             if (candidates.isEmpty()) break
 
-            val recommended = runCatching { chooser.choose(seed, recentIds, candidates) }
-                .getOrNull()
+            val recommended = awaitPlaybackRecommendation { chooser.choose(seed, recentIds, candidates) }
             // SMART must never present a random row as a recommendation. Abstention stays
             // abstention — but it must not end the session: the queue only tops up on
             // transitions, so a queue left short by one unlucky moment used to drain and then
@@ -1195,8 +1212,7 @@ internal class AndroidPlaybackController(
             val continuation = when {
                 recommended != null -> null
                 !mayContinue -> null
-                else -> runCatching { chooser.continuation(seed, recentIds, candidates) }
-                    .getOrNull()
+                else -> awaitPlaybackRecommendation { chooser.continuation(seed, recentIds, candidates) }
             }
             // One line per top-up pass, not per row: a cold engine would otherwise flush the
             // transport's own history out of the bounded black box within an afternoon.
@@ -1242,10 +1258,6 @@ internal class AndroidPlaybackController(
         val physicalRows = (0 until player.mediaItemCount).map { itemIndex ->
             trackById(player.getMediaItemAt(itemIndex).mediaId)
         }
-        smartContinuationIds.retainAll(
-            // The resumption handoff may precede Media3 installing its timeline.
-            (anticipatedResumption?.tracks ?: physicalRows).mapNotNullTo(HashSet()) { row -> row?.id },
-        )
         val traversalOrder = playerTraversalOrder(player)
         val snapshot = playbackQueueSnapshot(
             physicalRows = physicalRows,
@@ -1254,6 +1266,11 @@ internal class AndroidPlaybackController(
         )
         cachedQueue = snapshot.rows
         cachedQueueMediaIndices = snapshot.mediaItemIndices
+        cachedVisibleQueueIndices = IntArray(player.mediaItemCount) { -1 }.also { visibleIndices ->
+            snapshot.mediaItemIndices.forEachIndexed { visibleIndex, mediaIndex ->
+                visibleIndices[mediaIndex] = visibleIndex
+            }
+        }
     }
 
     /** Main-thread-only physical indices in the order the current transport traverses them. */
@@ -1335,7 +1352,7 @@ internal class AndroidPlaybackController(
         val track = player?.currentMediaItem?.mediaId?.let(::trackById) ?: anticipatedTrack
         val visibleQueue = cachedQueue.ifEmpty { anticipated?.tracks.orEmpty() }
         val visibleQueueIndex = player?.currentMediaItemIndex
-            ?.let(cachedQueueMediaIndices::indexOf)
+            ?.let(cachedVisibleQueueIndices::getOrNull)
             ?.takeIf { it >= 0 }
             ?: anticipated?.startIndex
             ?: -1
@@ -1358,7 +1375,7 @@ internal class AndroidPlaybackController(
             queue = visibleQueue,
             queueIndex = visibleQueueIndex,
             sourceQueue = pool,
-            smartContinuationIds = smartContinuationIds.toSet(),
+            smartContinuationIds = continuationSnapshot.get(visibleQueue, smartContinuationIds),
         )
     }
 
@@ -1477,13 +1494,18 @@ internal class AndroidPlaybackController(
             Handler(Looper.getMainLooper()).post(runnable)
         }
         future.addListener({
+            if (!continuation.isActive) return@addListener
             try {
                 continuation.resume(future.get())
             } catch (t: Throwable) {
                 continuation.resumeWithException(t)
             }
         }, mainExecutor)
-        continuation.invokeOnCancellation { future.cancel(true) }
+        // Cancellation can race a completed connection. Cancelling an already-completed Future
+        // does nothing; Media3's releaseFuture also releases that otherwise orphaned controller.
+        continuation.invokeOnCancellation {
+            mainExecutor.execute { MediaController.releaseFuture(future) }
+        }
     }
 
     /** Delegates the one shuffle edit a MediaController cannot express to the owning service. */
