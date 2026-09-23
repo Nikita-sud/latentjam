@@ -11,6 +11,9 @@
 
 <p align="center">
   <a href="https://github.com/Nikita-sud/latentjam/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/Nikita-sud/latentjam?style=flat-square&color=2E7D32"></a>
+  <a href="https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/"><img alt="F-Droid" src="https://img.shields.io/f-droid/v/io.github.nikitasud.latentjam.kmp?style=flat-square&color=1976D2&logo=fdroid&logoColor=white"></a>
+  <a href="https://github.com/Nikita-sud/latentjam/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/Nikita-sud/latentjam/total?style=flat-square&color=00695C&label=downloads"></a>
+  <a href="https://github.com/Nikita-sud/latentjam/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/Nikita-sud/latentjam?style=flat-square&color=F9A825"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-8E24AA.svg?style=flat-square"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platform-Android%20%7C%20iOS-1450A8?style=flat-square">
   <img alt="Kotlin Multiplatform" src="https://img.shields.io/badge/Kotlin%20Multiplatform-7F52FF?style=flat-square&logo=kotlin&logoColor=white">
@@ -56,8 +59,13 @@ One engine. Two platforms. Nothing in the cloud.
 
 ## Install
 
-Grab the latest build from the [Releases page](https://github.com/Nikita-sud/latentjam/releases/latest).
+On Android, the easiest route is **[F-Droid](https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/)**, which builds the
+app from this source and keeps it updated. Everything else comes from the
+[Releases page](https://github.com/Nikita-sud/latentjam/releases/latest).
 
+- **F-Droid** — search for LatentJam or open the link above. That build is signed with F-Droid's key
+  rather than the one used for the APKs here, so the two cannot replace each other: to switch,
+  export your data first (Settings → Local backup), uninstall, then install and restore.
 - **Android** — download the `arm64` APK (right for virtually every phone from the last decade; an
   `armv7` build exists for old 32-bit devices) and open it on the phone. You will need to allow
   installing unknown apps and tap through Play Protect's sideload warning. Requires **Android 7.0+**.
