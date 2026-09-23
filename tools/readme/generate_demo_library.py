@@ -9,6 +9,7 @@ Run: python3 tools/readme/generate_demo_library.py --output-dir /tmp/latentjam-r
 
 The four artists and releases are fictional. The artwork is original vector
 geometry and the quiet audio is original synthesized sine-tone harmony.
+Original timed lyrics are embedded for UI demonstrations; the audio has no vocals.
 No personal media, external recordings, downloaded art, or network is used.
 Generated media belongs outside the source repository.
 """
@@ -33,6 +34,37 @@ ALBUMS = [
     dict(artist='Juniper Signal', album='Golden Hours', genre='Indie', year=2025, color='#b75637', bg='#f0e3c9', notes=[146.8324,184.9972,220,277.1826], tracks=[('Golden Hours',204),('Small Adventures',191),('Sunroom',223),('The Way Home',248)]),
     dict(artist='Sora Atlas', album='Quiet Orbit', genre='Downtempo', year=2025, color='#dfc6f4', bg='#423354', notes=[123.4708,164.8138,195.9977,246.9417], tracks=[('Quiet Orbit',258),('Weightless',235),('Open Skies',209),('Goodnight, Satellite',274)]),
 ]
+LYRICS = json.loads(Path(__file__).with_name('demo_lyrics.json').read_text())
+assert set(LYRICS) == {title for album in ALBUMS for title, _ in album['tracks']}
+
+
+def timed_lyrics(title, artist, duration):
+    # Repeat the four-line refrain after the final verse, as a short sixteen-line song.
+    words = LYRICS[title] + LYRICS[title][4:8]
+    lines = [f'[ti:{title}]', f'[ar:{artist}]', '[by:LatentJam original demo lyrics]']
+    for index, line in enumerate(words):
+        centiseconds = round((4 + index * (duration - 12) / (len(words) - 1)) * 100)
+        minutes, remainder = divmod(centiseconds, 6000)
+        seconds, fraction = divmod(remainder, 100)
+        lines.append(f'[{minutes:02d}:{seconds:02d}.{fraction:02d}]{line}')
+    return '\n'.join(lines) + '\n'
+
+
+def generate_track(job):
+    command, lyrics = job
+    subprocess.run(command, check=True)
+    output = Path(command[-1])
+    data = output.read_bytes()
+    # FFmpeg writes a generic TXXX for "lyrics". Use the standard USLT frame that
+    # both shipping readers consume; all input here is our own ID3v2.3 output.
+    assert data[:6] == b'ID3\x03\x00\x00', 'Expected plain ID3v2.3 from FFmpeg'
+    tag_size = sum(value << (7 * (3 - index)) for index, value in enumerate(data[6:10]))
+    body = b'\x01eng\xff\xfe\x00\x00' + lyrics.encode('utf-16')
+    frame = b'USLT' + len(body).to_bytes(4, 'big') + b'\x00\x00' + body
+    new_size = tag_size + len(frame)
+    assert new_size < (1 << 28)
+    header_size = bytes((new_size >> shift) & 0x7f for shift in (21, 14, 7, 0))
+    output.write_bytes(data[:6] + header_size + frame + data[10:])
 
 def art_for(i, a):
     bg,c=a['bg'],a['color']
@@ -64,12 +96,17 @@ for ai,a in enumerate(ALBUMS):
         # Original, quiet sine-tone harmony, slowly breathing with an 8-second envelope.
         tone='+'.join(f'sin(2*PI*{n}*t)' for n in a['notes'])
         source=f"aevalsrc=0.007*(0.55-0.45*cos(2*PI*t/8))*({tone}):s=22050:d={duration}"
+        lyrics=timed_lyrics(title,a['artist'],duration)
         cmd=['ffmpeg','-hide_banner','-loglevel','error','-y','-f','lavfi','-i',source,'-i',str(cover),'-map','0:a','-map','1:v','-c:a','libmp3lame','-b:a','24k','-ac','1','-af','afade=t=in:d=3,afade=t=out:st='+str(duration-3)+':d=3','-c:v','copy','-id3v2_version','3','-metadata','title='+title,'-metadata','artist='+a['artist'],'-metadata','album_artist='+a['artist'],'-metadata','album='+a['album'],'-metadata','genre='+a['genre'],'-metadata','date='+str(a['year']),'-metadata','track='+str(number)+'/4','-metadata','comment=Original synthetic demo audio for LatentJam screenshots. Fictional release.','-metadata:s:v','title=Album cover','-metadata:s:v','comment=Cover (front)',str(output)]
-        jobs.append(cmd)
-        manifest.append(dict(title=title,artist=a['artist'],album=a['album'],genre=a['genre'],year=a['year'],track=number,durationMs=duration*1000,filename=output.name,relativePath=str(output.relative_to(MUSIC)),path=str(output),coverPath=str(cover),fictional=True))
+        cmd[-1:-1] = ['-metadata', 'language=eng']
+        jobs.append((cmd, lyrics))
+        lyrics_path=ROOT/'Lyrics'/a['artist']/a['album']/f'{number:02d} - {title}.lrc'
+        lyrics_path.parent.mkdir(parents=True,exist_ok=True)
+        lyrics_path.write_text(lyrics)
+        manifest.append(dict(title=title,artist=a['artist'],album=a['album'],genre=a['genre'],year=a['year'],track=number,durationMs=duration*1000,filename=output.name,relativePath=str(output.relative_to(MUSIC)),path=str(output),coverPath=str(cover),lyricsPath=str(lyrics_path),lyricsLanguage='eng',timedLyrics=True,fictional=True))
 
 with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-    list(pool.map(lambda cmd:subprocess.run(cmd,check=True),jobs))
+    list(pool.map(generate_track,jobs))
 (ROOT/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
-(ROOT/'README.txt').write_text('Original fictional demo library generated for LatentJam README media.\nAll cover art uses original vector geometry. All audio uses original synthesized sine tones.\nNo real user tracks, third-party recordings, photos, or downloaded artwork.\nRun python3 tools/readme/generate_demo_library.py to reproduce. Requires ffmpeg, rsvg-convert, and Pillow.\n')
+(ROOT/'README.txt').write_text('Original fictional demo library generated for LatentJam README media.\nAll cover art uses original vector geometry. All audio uses original synthesized sine tones.\nOriginal English timed lyrics are embedded in every MP3 and exported under Lyrics/.\nTiming demonstrates lyrics follow and seek; the synthesized audio contains no vocals.\nNo real user tracks, third-party recordings, photos, or downloaded artwork.\nRun python3 tools/readme/generate_demo_library.py to reproduce. Requires ffmpeg, rsvg-convert, and Pillow.\n')
 print(f'Generated {len(manifest)} demo tracks, {len(ALBUMS)} covers, {sum(Path(t["path"]).stat().st_size for t in manifest)/1024/1024:.1f} MiB.')

@@ -247,3 +247,59 @@ Changes are local and uncommitted. No release has been published and no personal
   without clearing data; emulator launch and the final rail appearance were checked. These
   new transitions were visually tested on the emulator, not independently on Samsung or iOS.
   Final APK SHA-256: `e9a71cebeb36e1311c007451a77ed3c12753150b4b13431aae84af2cade1daed`.
+
+## Follow-up: queue correctness and interaction audit (2026-09-23)
+
+- A fresh playlist Shuffle session now starts its actual playback traversal at the selected
+  random seed. Subsequent Next keeps that order and advances its cursor. Playlist Play restores
+  the playlist's natural order. Stored playlist rows are not reordered by playback.
+- Android queue edits use Media3's serialized player-command path: a private playlist-metadata
+  envelope is consumed directly in a service-side ForwardingPlayer override. Custom session
+  commands can overtake asynchronous media-item resolution; metadata-change listeners also
+  miss repeated commands because MediaMetadata equality ignores Bundle contents. Intercepting
+  the ordered command itself avoids both issues without publishing its payload as metadata.
+- Play next inserts directly after the current occurrence; Add to queue appends to the visible
+  traversal end, including with native shuffle enabled. Moving shuffled rows changes that same
+  native traversal while retaining the loaded track and position. Restored ON sessions install
+  the saved traversal exactly instead of generating a new permutation. Commands carry only
+  indices/one item, with no full-playlist IPC or per-tick shuffle work.
+- A SwipeToDismiss confirmation could run twice and delete the next row after the first removal.
+  Each keyed row now submits removal once. Queue reordering is enabled in Shuffle too. iOS
+  library filtering retains the exact current duplicate occurrence, or the next surviving row
+  when the current track was removed. Starting a queue manually from empty clears its stale
+  playlist-source label.
+- Resume persistence ignores empty startup emissions, but clears the saved session after an
+  established queue becomes empty. Paused/seek positions are saved precisely; active playback
+  retains ten-second position buckets and queue-ID snapshot caching to bound disk/CPU work.
+
+### Runtime checks on the Android release demo
+
+- Fresh shuffle, repeated fresh shuffle, Next and reordered Next matched the displayed rows.
+- Play next and append in Shuffle preserved the relative order of all existing rows.
+- Removed current, future, last and only rows. One swipe removed exactly one occurrence;
+  removing one of two identical tracks retained the other occurrence and its paused position.
+- Empty-queue manual insertion stayed paused. Its source label no longer named the old playlist.
+- Repeat OFF stopped at the boundary; ALL wrapped forwards and backwards; manual Next under
+  ONE still advanced when a next row existed. Repeat was returned to OFF after verification.
+- SMART generated its continuation while retaining the seed and pause state. Returning to OFF
+  retained the current recommendation and returned to the original manual source queue.
+- Restart/update retained saved shuffle traversal and current occurrence in the middle of it.
+- SMART policy changes still intentionally rebuild the unplayed future; this audit does not
+  introduce per-occurrence manual-pinning persistence across a recommendation-policy rebuild.
+- Final resume checks: paused seek to 1:32 survived process replacement without rounding;
+  removing the only row and restarting left the queue empty and the mini-player absent.
+
+### Validation and delivery
+
+- All 622 host tests passed: 107 in core playback and 515 in composeApp, with no failures,
+  errors or skipped tests. Regression coverage includes seed/traversal permutations, duplicate
+  occurrences, reordering, library retention, startup versus queue-clear persistence, exact
+  paused seeks and bounded active-playback writes.
+- Final Android release assembly and composeApp iOS-simulator Kotlin compilation passed.
+  Log: `/tmp/latentjam-queue-resume-validation.log`; earlier runtime-fix build logs:
+  `/tmp/latentjam-queue-audit-ordered-edits.log`, `/tmp/latentjam-queue-swipe-guard.log`.
+- Updated emulator-5554 without clearing app data. Samsung was not connected during this audit;
+  no new physical-device or iOS runtime verification is claimed. The original demo library and
+  saved playlists remain intact; queue-only edits were used for the manual cases above.
+- Final arm64 release APK SHA-256:
+  `f508d8196ef70fd5738d9f63871581628d33ae97d02e1212892d8760cc0653e1`.

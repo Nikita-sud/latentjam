@@ -43,19 +43,19 @@ page can resurface the records you own and forgot.
 One engine. Two platforms. Nothing in the cloud.
 
 <p align="center">
-  <img src="docs/media/walkthrough.gif" width="270" alt="LatentJam 0.4.0: track details, cover swipes, seeking, audio output and the queue">
+  <img src="docs/media/walkthrough.gif" width="270" alt="LatentJam: opening the player and following synchronized lyrics">
 </p>
 
-<p align="center"><a href="docs/media/player-demo.mp4">Watch the new player · 24 seconds</a> · <a href="docs/media/walkthrough.mp4">Full app walkthrough · 40 seconds</a></p>
+<p align="center"><a href="docs/media/player-demo.mp4">Player & lyrics · 25 seconds</a> · <a href="docs/media/walkthrough.mp4">Explore the app · 46 seconds</a></p>
 
 <p align="center">
   <img src="docs/media/for-you.png" width="170" alt="For You page">&nbsp;&nbsp;
   <img src="docs/media/player.png" width="170" alt="Now playing">&nbsp;&nbsp;
-  <img src="docs/media/player-details.png" width="170" alt="Track details on the back of the cover">&nbsp;&nbsp;
-  <img src="docs/media/statistics.png" width="170" alt="Statistics dashboard">
+  <img src="docs/media/lyrics.png" width="170" alt="Synchronized lyrics with tap-to-seek">&nbsp;&nbsp;
+  <img src="docs/media/playlists.png" width="170" alt="Favorite, recent and personal playlists">
 </p>
 
-<p align="center"><sub>Recorded in v0.4.0 on a demo library of fictional artists, original cover art and synthesized audio. More screenshots and capture details are in <a href="docs/media/README.md">docs/media</a>.</sub></p>
+<p align="center"><sub>Captured from the current v0.5.1 Android build with fictional artists, original artwork and timed demo lyrics. Explore both themes, the library map and capture details in <a href="docs/media/README.md">docs/media</a>.</sub></p>
 
 ## Install
 

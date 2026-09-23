@@ -22,9 +22,8 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 MEDIA = os.path.join(REPO, "docs", "media")
 ICON = os.path.join(REPO, "iosApp", "iosApp", "Assets.xcassets", "AppIcon.appiconset", "AppIcon-1024.png")
 
-# Order on the store page: what the app is for first, the player second. docs/media/map.png is
-# a Russian-locale capture, so it stays out of the en-US set; a Russian listing can use it.
-SCREENSHOTS = ["for-you", "player", "statistics", "pages"]
+# Current English demo captures: discovery, playback, lyrics, and library exploration.
+SCREENSHOTS = ["for-you", "player", "lyrics", "playlists", "map", "tracks-light", "statistics", "pages"]
 STATUS_BAR_PX = 100   # 1080 x 2340 emulator capture: clock and icons live in the top 100 px
 GESTURE_BAR_PX = 80   # the navigation pill lives in the bottom 80 px
 BACKGROUND = (12, 12, 12)

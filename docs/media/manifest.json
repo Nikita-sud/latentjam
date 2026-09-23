@@ -1,0 +1,141 @@
+{
+  "capturedOn": "2026-09-23",
+  "platform": "Android",
+  "versionName": "0.5.1",
+  "versionCode": 9,
+  "videosVersionName": "0.5.0",
+  "buildType": "release",
+  "source": "dedicated LJ demo emulator",
+  "demoTracks": 16,
+  "timedLines": 256,
+  "screenshots": [
+    {
+      "file": "audio-output.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 473153
+    },
+    {
+      "file": "for-you.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 511725
+    },
+    {
+      "file": "lyrics.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 215585
+    },
+    {
+      "file": "map-landscape.png",
+      "width": 2340,
+      "height": 1080,
+      "bytes": 115992
+    },
+    {
+      "file": "map.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 88335
+    },
+    {
+      "file": "pages.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 281830
+    },
+    {
+      "file": "player-details.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 313146
+    },
+    {
+      "file": "player.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 557622
+    },
+    {
+      "file": "playlist.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 350325
+    },
+    {
+      "file": "playlists.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 388945
+    },
+    {
+      "file": "queue.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 274433
+    },
+    {
+      "file": "statistics.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 322756
+    },
+    {
+      "file": "tracks-light.png",
+      "width": 1080,
+      "height": 2340,
+      "bytes": 355660
+    }
+  ],
+  "videos": [
+    {
+      "file": "player-demo.mp4",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 1080,
+          "height": 2340,
+          "r_frame_rate": "30/1"
+        }
+      ],
+      "format": {
+        "duration": "25.000000",
+        "size": "1448170"
+      }
+    },
+    {
+      "file": "walkthrough.mp4",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 720,
+          "height": 1560,
+          "r_frame_rate": "30/1"
+        }
+      ],
+      "format": {
+        "duration": "46.000000",
+        "size": "1297593"
+      }
+    },
+    {
+      "file": "walkthrough.gif",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 360,
+          "height": 780,
+          "r_frame_rate": "10/1"
+        }
+      ],
+      "format": {
+        "duration": "14.200000",
+        "size": "1548538"
+      }
+    }
+  ]
+}

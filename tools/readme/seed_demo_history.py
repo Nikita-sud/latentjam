@@ -31,6 +31,7 @@ parser.add_argument('--now-ms', type=int, default=int(time.time()*1000))
 parser.add_argument('--timezone', default='UTC')
 parser.add_argument('--theme', choices=['LIGHT', 'DARK', 'SYSTEM'], default='DARK')
 parser.add_argument('--start-page', default='for_you', choices=['for_you','tracks','albums','playlists','statistics'])
+parser.add_argument('--show-map', action='store_true', help='Include Map in the capture page carousel')
 args = parser.parse_args()
 
 def require(condition, message):
@@ -117,7 +118,10 @@ def string(key,value): ET.SubElement(prefs,'string',{'name':key}).text=value
 def boolean(key,value): ET.SubElement(prefs,'boolean',{'name':key,'value':str(value).lower()})
 string('theme_mode',args.theme)
 string('start_page',args.start_page)
-string('page_layout_v1','LJPL1|for_you,tracks,albums,playlists,statistics,artists,genres,folders,map|map')
+string('page_layout_v1',
+       'LJPL1|for_you,map,playlists,tracks,albums,artists,genres,folders,statistics|'
+       if args.show_map else
+       'LJPL1|for_you,tracks,albums,playlists,statistics,artists,genres,folders,map|map')
 string('track_color_mode','dynamic')
 boolean('save_listening_history',True)
 boolean('remember_searches',False)
