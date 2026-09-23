@@ -33,7 +33,7 @@
     <string name="action_share">Bagikan</string>
     <string name="action_select_all">Pilih semua</string>
     <string name="action_deselect_all">Batalkan semua pilihan</string>
-    <string name="selection_count">Dipilih: %1$d</string>
+    <string name="selection_count">Lagu dipilih: %1$d</string>
     <string name="action_add">Tambahkan</string>
     <string name="cd_more_options">Opsi lainnya</string>
     <string name="cd_search_library">Cari di pustaka</string>
@@ -115,6 +115,9 @@
 
     <string name="map_headline_unplayed_total">Wilayah peta: %2$s · Tanpa riwayat pemutaran: %1$d.</string>
     <string name="map_select_region">Pilih wilayah</string>
+    <string name="map_fullscreen">Buka peta layar penuh</string>
+    <string name="map_exit_fullscreen">Keluar dari peta layar penuh</string>
+    <string name="map_gesture_hint">Gunakan dua jari untuk menggeser atau memperbesar peta.</string>
     <string name="map_reset_view">Atur ulang tampilan peta</string>
     <string name="map_region_unplayed">Belum diputar di sini: %1$d</string>
     <string name="map_action_play_unheard">Putar yang belum didengar</string>
@@ -171,6 +174,9 @@
     <string name="playlist_add_to_title">Tambahkan "%1$s" ke playlist</string>
     <string name="playlist_add_to_title_generic">Tambahkan lagu ke playlist</string>
     <string name="playlist_rename_title">Ganti nama playlist</string>
+    <string name="action_change_playlist_cover">Ubah sampul</string>
+    <string name="action_reset_playlist_cover">Gunakan sampul otomatis</string>
+    <string name="playlist_cover_error">Tidak dapat mengubah sampul playlist. Coba gambar lain.</string>
     <string name="snack_playlist_created">Playlist "%1$s" dibuat</string>
     <string name="snack_playlist_deleted">Playlist "%1$s" dihapus</string>
     <string name="snack_added_to_playlist">Ditambahkan ke "%1$s"</string>
@@ -495,7 +501,7 @@
     <string name="foryou_journey_title">Dari “%1$s” ke “%2$s”</string>
     <string name="settings_pages">Halaman</string>
     <string name="settings_pages_subtitle">Visibilitas, urutan, dan halaman awal</string>
-    <string name="settings_pages_body">Pilih halaman yang ditampilkan dan gunakan panah untuk mengubah urutannya. Peta dinonaktifkan secara default.</string>
+    <string name="settings_pages_body">Seret untuk mengubah urutan. Nonaktifkan halaman yang tidak digunakan.</string>
     <string name="settings_pages_last_visible">Tetap aktifkan setidaknya satu halaman.</string>
     <string name="settings_page_position">Posisi %1$d dari %2$d</string>
     <string name="settings_page_move_up">Pindahkan %1$s ke atas</string>
@@ -574,4 +580,17 @@
     <string name="output_current">Output saat ini</string>
     <string name="output_connect_device">Hubungkan perangkat</string>
     <string name="output_selection_failed">Perangkat tidak tersedia. Periksa koneksi.</string>
+    <string name="queue_reorder">Ubah urutan lagu</string>
+    <string name="queue_reorder_shuffle">Beralih ke Berurutan untuk mengubah urutan antrean</string>
+    <string name="playlists_yours">Playlist Anda</string>
+    <string name="playlists_empty_body">Buat playlist atau impor berkas M3U untuk mengumpulkan musik Anda.</string>
+    <string name="playlists_automatic">Otomatis</string>
+    <string name="settings_pages_order">Urutan</string>
+    <string name="settings_opens_on_launch">Dibuka saat memulai</string>
+    <string name="settings_reorder_page">Ubah urutan %1$s</string>
+    <string name="settings_backup_subtitle">Ekspor atau pulihkan</string>
+    <string name="duplicates_groups">Grup</string>
+    <string name="duplicates_summary_title">Grup: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">Salinan tambahan: %1$d</string>
+    <string name="duplicates_copy_count">Salinan: %1$d</string>
 </resources>

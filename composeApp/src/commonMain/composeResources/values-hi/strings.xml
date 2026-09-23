@@ -28,7 +28,7 @@
     <string name="action_share">शेयर करें</string>
     <string name="action_select_all">सभी चुनें</string>
     <string name="action_deselect_all">सभी का चयन हटाएँ</string>
-    <string name="selection_count">चुने गए: %1$d</string>
+    <string name="selection_count">चुने गए ट्रैक: %1$d</string>
     <string name="action_add">जोड़ें</string>
     <string name="cd_more_options">और विकल्प</string>
     <string name="cd_search_library">लाइब्रेरी में खोजें</string>
@@ -114,6 +114,9 @@
 
     <string name="map_headline_unplayed_total">मानचित्र के क्षेत्र: %2$s · चलाने का कोई रिकॉर्ड नहीं: %1$d.</string>
     <string name="map_select_region">क्षेत्र चुनें</string>
+    <string name="map_fullscreen">नक्शा पूरी स्क्रीन पर खोलें</string>
+    <string name="map_exit_fullscreen">पूरी स्क्रीन वाले नक्शे से बाहर निकलें</string>
+    <string name="map_gesture_hint">नक्शे को खिसकाने या ज़ूम करने के लिए दो उँगलियों का इस्तेमाल करें।</string>
     <string name="map_reset_view">मानचित्र दृश्य रीसेट करें</string>
     <string name="map_region_unplayed">यहाँ नहीं बजाए गए: %1$d</string>
     <string name="map_action_play_unheard">अनसुने ट्रैक चलाएँ</string>
@@ -171,6 +174,9 @@
     <string name="playlist_add_to_title">"%1$s" को इसमें जोड़ें</string>
     <string name="playlist_add_to_title_generic">गाने को इसमें जोड़ें</string>
     <string name="playlist_rename_title">प्लेलिस्ट का नाम बदलें</string>
+    <string name="action_change_playlist_cover">कवर बदलें</string>
+    <string name="action_reset_playlist_cover">अपने आप चुना गया कवर इस्तेमाल करें</string>
+    <string name="playlist_cover_error">प्लेलिस्ट का कवर नहीं बदला जा सका। कोई दूसरी तस्वीर आज़माएँ।</string>
     <string name="snack_playlist_created">"%1$s" बनाई गई</string>
     <string name="snack_playlist_deleted">"%1$s" मिटाई गई</string>
     <string name="snack_added_to_playlist">"%1$s" में जोड़ा गया</string>
@@ -496,7 +502,7 @@
     <string name="foryou_journey_title">“%1$s” से “%2$s” तक</string>
     <string name="settings_pages">पेज</string>
     <string name="settings_pages_subtitle">दिखने वाले पेज, क्रम और शुरुआती पेज</string>
-    <string name="settings_pages_body">दिखने वाले पेज चुनें और तीरों से उनका क्रम बदलें। मैप डिफ़ॉल्ट रूप से बंद रहता है।</string>
+    <string name="settings_pages_body">क्रम बदलने के लिए खींचें। जिन पेजों का इस्तेमाल नहीं करते, उन्हें बंद करें।</string>
     <string name="settings_pages_last_visible">कम से कम एक पेज चालू रखें।</string>
     <string name="settings_page_position">%2$d में से स्थान %1$d</string>
     <string name="settings_page_move_up">%1$s को ऊपर ले जाएँ</string>
@@ -575,4 +581,17 @@
     <string name="output_current">मौजूदा आउटपुट</string>
     <string name="output_connect_device">डिवाइस कनेक्ट करें</string>
     <string name="output_selection_failed">डिवाइस उपलब्ध नहीं है। कनेक्शन जाँचें।</string>
+    <string name="queue_reorder">ट्रैक का क्रम बदलें</string>
+    <string name="queue_reorder_shuffle">कतार का क्रम बदलने के लिए क्रम में मोड चुनें</string>
+    <string name="playlists_yours">आपकी प्लेलिस्ट</string>
+    <string name="playlists_empty_body">अपने संगीत को एक साथ रखने के लिए प्लेलिस्ट बनाएँ या M3U फ़ाइल आयात करें।</string>
+    <string name="playlists_automatic">अपने आप बनाई गई</string>
+    <string name="settings_pages_order">क्रम</string>
+    <string name="settings_opens_on_launch">शुरू करने पर खुले</string>
+    <string name="settings_reorder_page">%1$s का क्रम बदलें</string>
+    <string name="settings_backup_subtitle">एक्सपोर्ट या रिस्टोर करें</string>
+    <string name="duplicates_groups">समूह</string>
+    <string name="duplicates_summary_title">समूह: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">अतिरिक्त कॉपियाँ: %1$d</string>
+    <string name="duplicates_copy_count">कॉपियाँ: %1$d</string>
 </resources>

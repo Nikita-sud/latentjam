@@ -19,13 +19,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.BluetoothSearching
+import androidx.compose.material.icons.automirrored.rounded.BluetoothSearching
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -168,7 +168,7 @@ private fun AudioOutputChooserSheet(onDismiss: () -> Unit) {
                 val icon = when {
                     kind == AudioOutputKind.WIRED -> Icons.Rounded.Headphones
                     kind == AudioOutputKind.BLUETOOTH || choice.bluetooth -> Icons.Rounded.Bluetooth
-                    else -> Icons.Rounded.Speaker
+                    else -> Icons.AutoMirrored.Rounded.VolumeUp
                 }
                 val name = if (choice.selected && currentOutput != null) {
                     currentOutput.name ?: stringResource(when (currentOutput.kind) {
@@ -198,7 +198,7 @@ private fun AudioOutputChooserSheet(onDismiss: () -> Unit) {
                                 failed = true
                                 refresh()
                             } else try {
-                                router?.selectRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO, choice.route)
+                                router.selectRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO, choice.route)
                                 failed = false
                                 refresh()
                             } catch (_: SecurityException) {
@@ -211,7 +211,7 @@ private fun AudioOutputChooserSheet(onDismiss: () -> Unit) {
             ListItem(
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 headlineContent = { Text(stringResource(Res.string.output_connect_device)) },
-                leadingContent = { Icon(Icons.Rounded.BluetoothSearching, null) },
+                leadingContent = { Icon(Icons.AutoMirrored.Rounded.BluetoothSearching, null) },
                 trailingContent = { Icon(Icons.Rounded.ChevronRight, null) },
                 modifier = Modifier.clickable(enabled = !dismissing, role = Role.Button) {
                     // Leave a visible error if settings cannot open. A successful handoff removes

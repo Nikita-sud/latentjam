@@ -13,10 +13,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.Speaker
-import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -91,10 +90,10 @@ internal fun AudioOutputStatus(route: AudioOutputRoute, onOpen: (() -> Unit)?, m
     ) {
         Icon(
             imageVector = when (route.kind) {
-                AudioOutputKind.SPEAKER -> Icons.Rounded.Speaker
+                AudioOutputKind.SPEAKER -> Icons.AutoMirrored.Rounded.VolumeUp
                 AudioOutputKind.WIRED -> Icons.Rounded.Headphones
                 AudioOutputKind.BLUETOOTH -> Icons.Rounded.Bluetooth
-                AudioOutputKind.OTHER -> Icons.Rounded.VolumeUp
+                AudioOutputKind.OTHER -> Icons.AutoMirrored.Rounded.VolumeUp
             },
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,

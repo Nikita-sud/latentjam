@@ -17,15 +17,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -44,9 +45,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -54,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_retry
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
@@ -70,7 +77,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.stats_comparison_mo
 import io.github.nikitasud.latentjam.app.generated.resources.stats_comparison_same
 import io.github.nikitasud.latentjam.app.generated.resources.stats_coverage
 import io.github.nikitasud.latentjam.app.generated.resources.stats_coverage_detail
-import io.github.nikitasud.latentjam.app.generated.resources.stats_dashboard_title
 import io.github.nikitasud.latentjam.app.generated.resources.stats_days_ago
 import io.github.nikitasud.latentjam.app.generated.resources.stats_days_short
 import io.github.nikitasud.latentjam.app.generated.resources.stats_distinct_tracks
@@ -139,7 +145,9 @@ internal fun ListeningStatsSettings(
     tracks: List<TrackDescriptor>,
     contentPadding: PaddingValues = PaddingValues(bottom = 24.dp),
     active: Boolean = true,
+    accent: TrackAccent? = null,
 ) {
+    val accentInk = accent?.let { browseAccentInk(it) } ?: MaterialTheme.colorScheme.primary
     var periodName by rememberSaveable { mutableStateOf(StatsPeriod.MONTH.name) }
     val period = StatsPeriod.entries.firstOrNull { it.name == periodName } ?: StatsPeriod.MONTH
     val historyRevision by AppGraph.historyRevision.collectAsState()
@@ -193,28 +201,32 @@ internal fun ListeningStatsSettings(
         }
     }
 
-    LazyColumn(
+    FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(key = "filters") {
-            Column(modifier = Modifier.padding(horizontal = 20.dp).padding(top = 20.dp)) {
-                Text(
-                    text = stringResource(Res.string.stats_dashboard_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.semantics { heading() },
-                )
+            // The browse carousel and Settings top bar already name this page. Start with the
+            // reporting period so the content has one hierarchy in either entry point.
+            Column(modifier = Modifier.padding(horizontal = 20.dp).padding(top = 3.dp)) {
                 FlowRow(
-                    modifier = Modifier.padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     StatsPeriod.entries.forEach { candidate ->
                         FilterChip(
                             selected = candidate == period,
                             onClick = { periodName = candidate.name },
                             label = { Text(stringResource(candidate.titleRes())) },
+                            modifier = Modifier.heightIn(min = 34.dp),
+                            shape = RoundedCornerShape(17.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = Color.Transparent,
+                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                selectedContainerColor = MaterialTheme.colorScheme.onSurface,
+                                selectedLabelColor = MaterialTheme.colorScheme.surface,
+                            ),
                         )
                     }
                 }
@@ -236,7 +248,7 @@ internal fun ListeningStatsSettings(
                     CircularProgressIndicator()
                 }
             }
-            return@LazyColumn
+            return@FadingLazyColumn
         }
         if (failedRequest === request) {
             item(key = "error") {
@@ -245,16 +257,19 @@ internal fun ListeningStatsSettings(
                         text = stringResource(Res.string.stats_load_failed),
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    OutlinedButton(onClick = { retryRevision += 1 }) {
+                    OutlinedButton(
+                        onClick = { retryRevision += 1 },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    ) {
                         Text(stringResource(Res.string.action_retry))
                     }
                 }
             }
-            if (displayed == null) return@LazyColumn
+            if (displayed == null) return@FadingLazyColumn
         }
-        val result = displayed ?: return@LazyColumn
+        val result = displayed ?: return@FadingLazyColumn
         val current = result.overview
-        item(key = "listening-summary") { ListeningHero(current, period) }
+        item(key = "listening-summary") { ListeningHero(current, period, accentInk) }
         if (current.plays == 0) {
             item(key = "empty") {
                 StatsCard {
@@ -271,78 +286,73 @@ internal fun ListeningStatsSettings(
                     StatsNote(stringResource(Res.string.stats_history_note))
                 }
             }
-            return@LazyColumn
+            return@FadingLazyColumn
+        }
+        item(key = "habits") { ListeningHabits(current) }
+        if (result.tracksById.isNotEmpty()) {
+            item(key = "library-coverage") {
+                LibraryCoverage(current, result.tracksById.size, accentInk)
+            }
         }
         item(key = "daily-activity") {
             StatsCard {
                 StatsTitle(stringResource(Res.string.stats_activity))
                 StatsNote(stringResource(Res.string.stats_calendar_days, current.dailyListening.size))
-                DailyBars(current.dailyListening)
+                DailyBars(current.dailyListening, accentInk)
             }
         }
-        item(key = "habits") { ListeningHabits(current) }
         item(key = "listening-style") {
             StatsCard {
                 StatsTitle(stringResource(Res.string.stats_listening_style))
-                ShareMeter(stringResource(Res.string.stats_finished_share), current.completionRate)
-                ShareMeter(stringResource(Res.string.stats_skipped_share), current.skipRate)
+                ShareMeter(stringResource(Res.string.stats_finished_share), current.completionRate, color = accentInk)
+                ShareMeter(stringResource(Res.string.stats_skipped_share), current.skipRate, color = accentInk)
                 ShareMeter(
                     stringResource(Res.string.stats_repeat_share),
                     current.repeatPlays.toFloat() / current.plays,
+                    color = accentInk,
                 )
-            }
-        }
-        if (result.tracksById.isNotEmpty()) {
-            item(key = "library-coverage") {
-                LibraryCoverage(current, result.tracksById.size)
             }
         }
         item(key = "time-of-day") {
             StatsCard {
                 StatsTitle(stringResource(Res.string.stats_by_hour))
-                HourBars(current.playsByHour)
+                HourBars(current.playsByHour, accentInk)
             }
         }
         if (current.topArtists.isNotEmpty()) {
-            item(key = "artists-title") {
-                StatsSectionTitle(stringResource(Res.string.stats_top_artists))
-            }
-            items(
-                count = current.topArtists.size,
-                key = { index -> "artist:${current.topArtists[index].artist}" },
-            ) { index ->
-                val artist = current.topArtists[index]
-                RankedRow(
-                    rank = index + 1,
-                    title = artist.artist,
-                    plays = artist.plays,
-                    playedMs = artist.playedMs,
-                    share = artist.plays.toFloat() / current.topArtists.first().plays,
-                )
+            item(key = "top-artists") {
+                StatsCard {
+                    StatsTitle(stringResource(Res.string.stats_top_artists))
+                    current.topArtists.forEachIndexed { index, artist ->
+                        RankedRow(
+                            rank = index + 1,
+                            title = artist.artist,
+                            plays = artist.plays,
+                            playedMs = artist.playedMs,
+                        )
+                    }
+                }
             }
         }
         if (current.topTracks.isNotEmpty()) {
-            item(key = "tracks-title") {
-                StatsSectionTitle(stringResource(Res.string.stats_top_tracks))
-            }
-            items(
-                count = current.topTracks.size,
-                key = { index -> "track:${current.topTracks[index].trackId}" },
-            ) { index ->
-                val entry = current.topTracks[index]
-                val descriptor = result.tracksById[entry.trackId] ?: return@items
-                RankedRow(
-                    rank = index + 1,
-                    title = descriptor.title?.takeIf { it.isNotBlank() }
-                        ?: stringResource(Res.string.track_untitled),
-                    subtitle = descriptor.artist?.takeIf { it.isNotBlank() }
-                        ?: stringResource(Res.string.track_unknown_artist),
-                    artworkUri = descriptor.artworkUri,
-                    showArtwork = true,
-                    plays = entry.plays,
-                    playedMs = entry.playedMs,
-                    share = entry.plays.toFloat() / current.topTracks.first().plays,
-                )
+            item(key = "top-tracks") {
+                StatsCard {
+                    StatsTitle(stringResource(Res.string.stats_top_tracks))
+                    current.topTracks.forEachIndexed { index, entry ->
+                        val descriptor = result.tracksById[entry.trackId] ?: return@forEachIndexed
+                        RankedRow(
+                            rank = index + 1,
+                            title = descriptor.title?.takeIf { it.isNotBlank() }
+                                ?: stringResource(Res.string.track_untitled),
+                            subtitle = descriptor.artist?.takeIf { it.isNotBlank() }
+                                ?: stringResource(Res.string.track_unknown_artist),
+                            artworkUri = descriptor.artworkUri,
+                            showArtwork = true,
+                            plays = entry.plays,
+                            playedMs = entry.playedMs,
+                        )
+                    }
+                }
             }
         }
         item(key = "history-note") {
@@ -361,17 +371,22 @@ private fun StatsPeriod.titleRes() = when (this) {
 }
 
 @Composable
-private fun ListeningHero(overview: ListeningOverview, period: StatsPeriod) {
-    StatsCard(color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+private fun ListeningHero(overview: ListeningOverview, period: StatsPeriod, accentInk: Color) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
         Text(
-            text = stringResource(Res.string.stats_time_listened),
-            style = MaterialTheme.typography.labelLarge,
+            text = (stringResource(Res.string.stats_time_listened) + " · " +
+                stringResource(period.titleRes())).uppercase(),
+            style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 0.5.sp,
+            ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             text = formatListenedTime(overview.playedMs),
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.displaySmall.copy(fontSize = 44.sp, lineHeight = 52.sp),
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 2.dp),
         )
         val previous = overview.previousPeriod
         if (previous != null && period.days != null) {
@@ -390,34 +405,34 @@ private fun ListeningHero(overview: ListeningOverview, period: StatsPeriod) {
                 )
                 else -> stringResource(Res.string.stats_comparison_same, period.days)
             }
-            StatsNote(comparison)
+            Text(
+                text = comparison,
+                style = MaterialTheme.typography.bodySmall,
+                color = accentInk,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
-        Box(
-            Modifier.fillMaxWidth().height(1.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        )
         FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             maxItemsInEachRow = 3,
         ) {
-            Metric(
-                value = overview.plays.toString(),
-                label = stringResource(Res.string.stats_plays),
-                modifier = Modifier.weight(1f).widthIn(min = 80.dp),
-            )
-            Metric(
-                value = overview.distinctTracks.toString(),
-                label = stringResource(Res.string.stats_distinct_tracks),
-                modifier = Modifier.weight(1f).widthIn(min = 80.dp),
-            )
-            Metric(
-                value = overview.distinctArtists.toString(),
-                label = stringResource(Res.string.tab_artists),
-                modifier = Modifier.weight(1f).widthIn(min = 80.dp),
-            )
+            HeroMetric(overview.plays.toString(), stringResource(Res.string.stats_plays), Modifier.weight(1f))
+            HeroMetric(overview.distinctTracks.toString(), stringResource(Res.string.stats_distinct_tracks), Modifier.weight(1f))
+            HeroMetric(overview.distinctArtists.toString(), stringResource(Res.string.tab_artists), Modifier.weight(1f))
         }
+    }
+}
+
+@Composable
+private fun HeroMetric(value: String, label: String, modifier: Modifier) {
+    Surface(
+        modifier = modifier.widthIn(min = 88.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Metric(value, label, Modifier.padding(14.dp), large = true)
     }
 }
 
@@ -454,7 +469,7 @@ private fun ListeningHabits(overview: ListeningOverview) {
                 )
                 Text(
                     text = "${stringResource(Res.string.stats_streak_longest)} · ${overview.longestStreakDays} $days",
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
                 )
@@ -465,15 +480,10 @@ private fun ListeningHabits(overview: ListeningOverview) {
 }
 
 @Composable
-private fun LibraryCoverage(overview: ListeningOverview, librarySize: Int) {
+private fun LibraryCoverage(overview: ListeningOverview, librarySize: Int, accentInk: Color) {
     StatsCard {
         StatsTitle(stringResource(Res.string.stats_coverage))
         val share = overview.libraryTracksHeard.toFloat() / librarySize.coerceAtLeast(1)
-        Text(
-            text = percent(share),
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-        )
         StatsNote(
             stringResource(
                 Res.string.stats_coverage_detail,
@@ -481,7 +491,7 @@ private fun LibraryCoverage(overview: ListeningOverview, librarySize: Int) {
                 pluralStringResource(Res.plurals.count_tracks, librarySize, librarySize),
             ),
         )
-        ProportionBar(share)
+        ProportionBar(share, color = accentInk)
         ShareMeter(
             label = stringResource(Res.string.stats_smart_share),
             share = overview.smartPlays.toFloat() / overview.plays.coerceAtLeast(1),
@@ -493,13 +503,30 @@ private fun LibraryCoverage(overview: ListeningOverview, librarySize: Int) {
 }
 
 @Composable
-private fun DailyBars(days: List<DailyListening>) {
+private fun DailyBars(days: List<DailyListening>, accentInk: Color) {
     if (days.isEmpty()) return
     val maxDuration = days.maxOf { it.playedMs }.coerceAtLeast(1L)
     val today = days.last().epochDay
-    var selectedDay by remember(days) { mutableStateOf(today) }
+    var selectedDay by remember(days) { mutableStateOf<Long?>(null) }
+    val selectedIndex = days.indexOfFirst { it.epochDay == selectedDay }.takeIf { it >= 0 } ?: days.lastIndex
+    val selectedEntry = days[selectedIndex]
+    val selectedSummary = stringResource(
+        Res.string.stats_chart_day_summary,
+        statsDayLabel((today - selectedEntry.epochDay).toInt()),
+        pluralStringResource(Res.plurals.privacy_history_listens, selectedEntry.plays, selectedEntry.plays),
+        formatListenedTime(selectedEntry.playedMs),
+    )
     Row(
-        modifier = Modifier.fillMaxWidth().height(104.dp),
+        modifier = Modifier.fillMaxWidth().height(92.dp).semantics {
+            stateDescription = selectedSummary
+            progressBarRangeInfo = ProgressBarRangeInfo(
+                selectedIndex.toFloat(), 0f..days.lastIndex.toFloat(), (days.size - 2).coerceAtLeast(0),
+            )
+            setProgress { index ->
+                selectedDay = days[index.roundToInt().coerceIn(0, days.lastIndex)].epochDay
+                true
+            }
+        },
         horizontalArrangement = Arrangement.spacedBy(if (days.size <= 7) 8.dp else 3.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
@@ -513,7 +540,7 @@ private fun DailyBars(days: List<DailyListening>) {
             )
             // Zero activity is only a quiet baseline, never a visible invented listening amount.
             val height = if (day.playedMs > 0) {
-                (100f * (day.playedMs.toDouble() / maxDuration).toFloat()).coerceAtLeast(3f)
+                (88f * (day.playedMs.toDouble() / maxDuration).toFloat()).coerceAtLeast(3f)
             } else {
                 2f
             }
@@ -534,9 +561,9 @@ private fun DailyBars(days: List<DailyListening>) {
                     modifier = Modifier.fillMaxWidth().height(height.dp)
                         .background(
                             color = when {
-                                isSelected -> MaterialTheme.colorScheme.primary
+                                isSelected -> accentInk
                                 day.playedMs == 0L -> MaterialTheme.colorScheme.outlineVariant
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                                else -> accentInk.copy(alpha = 0.62f)
                             },
                             shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp),
                         )
@@ -560,22 +587,18 @@ private fun DailyBars(days: List<DailyListening>) {
             modifier = Modifier.weight(1f),
         )
     }
-    val selected = days.firstOrNull { it.epochDay == selectedDay } ?: days.last()
-    Text(
-        text = stringResource(
-            Res.string.stats_chart_day_summary,
-            statsDayLabel((today - selected.epochDay).toInt()),
-            pluralStringResource(Res.plurals.privacy_history_listens, selected.plays, selected.plays),
-            formatListenedTime(selected.playedMs),
-        ),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-    )
+    if (selectedDay != null) {
+        Text(
+            text = selectedSummary,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
     if (days.none { it.plays > 0 }) StatsNote(stringResource(Res.string.stats_recent_empty))
 }
 
 @Composable
-private fun HourBars(playsByHour: List<Int>) {
+private fun HourBars(playsByHour: List<Int>, accentInk: Color) {
     val peakPlays = playsByHour.maxOrNull()?.takeIf { it > 0 } ?: return
     val peakHour = playsByHour.indexOf(peakPlays)
     StatsNote(stringResource(Res.string.stats_peak_hour, "${peakHour.toString().padStart(2, '0')}:00"))
@@ -591,8 +614,8 @@ private fun HourBars(playsByHour: List<Int>) {
                 modifier = Modifier.weight(1f)
                     .height(if (plays == 0) 2.dp else (60f * plays / peakPlays).coerceAtLeast(3f).dp)
                     .background(
-                        color = if (plays == peakPlays) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.outlineVariant,
+                        color = if (plays == peakPlays) accentInk
+                        else accentInk.copy(alpha = 0.5f),
                         shape = RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp),
                     )
                     .clearAndSetSemantics { contentDescription = description },
@@ -617,69 +640,64 @@ private fun RankedRow(
     title: String,
     plays: Int,
     playedMs: Long,
-    share: Float,
     subtitle: String? = null,
     artworkUri: String? = null,
     showArtwork: Boolean = false,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    val listeningSummary = pluralStringResource(Res.plurals.privacy_history_listens, plays, plays) +
+        " · " + formatListenedTime(playedMs)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp)
+            .semantics(mergeDescendants = true) { },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp).semantics(mergeDescendants = true) { },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        Text(
+            text = rank.toString(),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.widthIn(min = with(LocalDensity.current) { 20.sp.toDp() }),
+        )
+        if (showArtwork) Artwork(uri = artworkUri, size = 40.dp, cornerRadius = 12.dp)
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = rank.toString().padStart(2, '0'),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            if (showArtwork) Artwork(uri = artworkUri, size = 40.dp, cornerRadius = 8.dp)
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (subtitle != null) {
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (subtitle != null) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Text(
-                    text = pluralStringResource(Res.plurals.privacy_history_listens, plays, plays) +
-                        " · " + formatListenedTime(playedMs),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                ProportionBar(share, modifier = Modifier.padding(top = 3.dp))
             }
         }
+        Text(
+            text = plays.toString(),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.clearAndSetSemantics { contentDescription = listeningSummary },
+        )
     }
 }
 
 @Composable
 private fun StatsCard(
-    color: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    color: Color = MaterialTheme.colorScheme.surfaceContainer,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(16.dp),
         color = color,
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             content = content,
         )
@@ -687,12 +705,15 @@ private fun StatsCard(
 }
 
 @Composable
-private fun Metric(value: String, label: String, modifier: Modifier = Modifier) {
+private fun Metric(value: String, label: String, modifier: Modifier = Modifier, large: Boolean = false) {
     Column(modifier = modifier.semantics(mergeDescendants = true) { }) {
         Text(
             text = value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontSize = if (large) 24.sp else 22.sp,
+                lineHeight = if (large) 32.sp else 28.sp,
+            ),
+            fontWeight = FontWeight.Normal,
         )
         Text(
             text = label,
@@ -707,7 +728,7 @@ private fun StatsTitle(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Medium,
         modifier = modifier.semantics { heading() },
     )
 }
@@ -740,7 +761,7 @@ private fun ShareMeter(
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Text(percent(share), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            Text(percent(share), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         ProportionBar(share, color = color)
     }
@@ -754,13 +775,13 @@ private fun ProportionBar(
     color: Color = MaterialTheme.colorScheme.primary,
 ) {
     Box(
-        modifier = modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))
+        modifier = modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))
             .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
             .clearAndSetSemantics { },
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth(share.coerceIn(0f, 1f)).height(4.dp)
-                .background(color, RoundedCornerShape(2.dp)),
+            modifier = Modifier.fillMaxWidth(share.coerceIn(0f, 1f)).height(6.dp)
+                .background(color, RoundedCornerShape(3.dp)),
         )
     }
 }

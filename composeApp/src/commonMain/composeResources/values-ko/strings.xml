@@ -28,7 +28,7 @@
     <string name="action_share">공유</string>
     <string name="action_select_all">모두 선택</string>
     <string name="action_deselect_all">모두 선택 해제</string>
-    <string name="selection_count">선택됨: %1$d</string>
+    <string name="selection_count">선택한 곡: %1$d</string>
     <string name="action_add">추가</string>
     <string name="cd_more_options">옵션 더보기</string>
     <string name="cd_search_library">라이브러리 검색</string>
@@ -109,6 +109,9 @@
 
     <string name="map_headline_unplayed_total">지도 영역: %2$s · 재생 기록 없음: %1$d.</string>
     <string name="map_select_region">영역 선택</string>
+    <string name="map_fullscreen">지도를 전체 화면으로 열기</string>
+    <string name="map_exit_fullscreen">전체 화면 지도 닫기</string>
+    <string name="map_gesture_hint">두 손가락으로 지도를 이동하거나 확대하세요.</string>
     <string name="map_reset_view">지도 보기 초기화</string>
     <string name="map_region_unplayed">여기서 재생하지 않음: %1$d</string>
     <string name="map_action_play_unheard">안 들은 곡 재생</string>
@@ -165,6 +168,9 @@
     <string name="playlist_add_to_title">‘%1$s’ 추가 위치</string>
     <string name="playlist_add_to_title_generic">곡 추가 위치</string>
     <string name="playlist_rename_title">플레이리스트 이름 변경</string>
+    <string name="action_change_playlist_cover">커버 변경</string>
+    <string name="action_reset_playlist_cover">자동 커버 사용</string>
+    <string name="playlist_cover_error">재생목록 커버를 변경하지 못했습니다. 다른 이미지를 사용해 보세요.</string>
     <string name="snack_playlist_created">"%1$s" 플레이리스트를 만들었습니다</string>
     <string name="snack_playlist_deleted">"%1$s" 플레이리스트를 삭제했습니다</string>
     <string name="snack_added_to_playlist">"%1$s"에 추가했습니다</string>
@@ -489,7 +495,7 @@
     <string name="foryou_journey_title">“%1$s”에서 “%2$s”까지</string>
     <string name="settings_pages">페이지</string>
     <string name="settings_pages_subtitle">표시 여부, 순서 및 시작 페이지</string>
-    <string name="settings_pages_body">표시할 페이지를 선택하고 화살표로 순서를 바꾸세요. 지도는 기본적으로 꺼져 있습니다.</string>
+    <string name="settings_pages_body">드래그하여 순서를 변경하세요. 사용하지 않는 페이지는 끄세요.</string>
     <string name="settings_pages_last_visible">최소 한 페이지는 켜 두세요.</string>
     <string name="settings_page_position">전체 %2$d개 중 %1$d번째</string>
     <string name="settings_page_move_up">%1$s 위로 이동</string>
@@ -568,4 +574,17 @@
     <string name="output_current">현재 출력</string>
     <string name="output_connect_device">기기 연결</string>
     <string name="output_selection_failed">기기를 사용할 수 없습니다. 연결을 확인하세요.</string>
+    <string name="queue_reorder">곡 순서 변경</string>
+    <string name="queue_reorder_shuffle">대기열 순서를 변경하려면 순서대로 재생으로 전환하세요</string>
+    <string name="playlists_yours">내 재생목록</string>
+    <string name="playlists_empty_body">재생목록을 만들거나 M3U 파일을 가져와 음악을 모아 보세요.</string>
+    <string name="playlists_automatic">자동</string>
+    <string name="settings_pages_order">순서</string>
+    <string name="settings_opens_on_launch">시작 시 열기</string>
+    <string name="settings_reorder_page">%1$s 순서 변경</string>
+    <string name="settings_backup_subtitle">내보내기 또는 복원</string>
+    <string name="duplicates_groups">그룹</string>
+    <string name="duplicates_summary_title">그룹: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">추가 사본: %1$d</string>
+    <string name="duplicates_copy_count">사본: %1$d</string>
 </resources>

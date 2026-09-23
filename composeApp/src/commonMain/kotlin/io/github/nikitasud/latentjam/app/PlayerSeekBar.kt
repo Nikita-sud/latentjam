@@ -23,7 +23,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -81,10 +80,11 @@ internal fun PlayerSeekBar(
     durationMs: Long,
     lyrics: Lyrics?,
     modifier: Modifier = Modifier,
+    active: Boolean = true,
 ) {
     val position by remember(playback) {
         playback.state.map { Triple(it.track?.id, it.queueIndex, it.positionMs) }.distinctUntilChanged()
-    }.collectAsState(playback.state.value.let { Triple(it.track?.id, it.queueIndex, it.positionMs) })
+    }.collectPlayerState(playback.state.value.let { Triple(it.track?.id, it.queueIndex, it.positionMs) }, active)
     val trackId = position.first
     val queueIndex = position.second
     val positionMs = position.third
@@ -156,13 +156,13 @@ internal fun PlayerSeekBar(
                         true
                     }
                 }
-                .pointerInput(playback, trackId, queueIndex, durationMs, haptics) {
+                .pointerInput(playback, trackId, queueIndex, durationMs, haptics, active) {
                     val halfAt = SCRUB_HALF_AT.toPx()
                     val quarterAt = SCRUB_QUARTER_AT.toPx()
                     awaitEachGesture {
                         val down = awaitFirstDown()
                         val width = size.width.toFloat()
-                        if (width <= 0f || trackId == null || durationMs <= 0L) return@awaitEachGesture
+                        if (!active || width <= 0f || trackId == null || durationMs <= 0L) return@awaitEachGesture
                         down.consume()
                         val bandCentre = LINE_FROM_TOP.toPx()
                         var target = ((down.position.x / width).coerceIn(0f, 1f) * duration)
@@ -171,6 +171,7 @@ internal fun PlayerSeekBar(
                         scrubbing = true
                         overrideMs = target
                         var lastX = down.position.x
+                        var dragged = false
                         val scrubHaptics = ScrubHapticState(duration, target, down.uptimeMillis)
                         var released = false
                         try {
@@ -179,6 +180,9 @@ internal fun PlayerSeekBar(
                                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                 if (change.isConsumed) break
                                 change.consume()
+                                if (!dragged && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
+                                    dragged = true
+                                }
                                 val dx = change.position.x - lastX
                                 lastX = change.position.x
                                 val factor = scrubFineFactor(
@@ -202,7 +206,9 @@ internal fun PlayerSeekBar(
                             if (!released) overrideMs = null
                         }
                         if (!released) return@awaitEachGesture
-                        haptics.play(PlayerHaptic.RELEASE)
+                        // A tap already acknowledged the position on contact. Reserve the
+                        // end tick for a scrub, so a single tap never fires two vibrations.
+                        if (dragged) haptics.play(PlayerHaptic.RELEASE)
                         scope.launch {
                             val current = playback.state.value
                             if (current.track?.id == trackId && current.queueIndex == queueIndex) {

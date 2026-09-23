@@ -32,7 +32,7 @@
     <string name="action_share">مشاركة</string>
     <string name="action_select_all">تحديد الكل</string>
     <string name="action_deselect_all">إلغاء تحديد الكل</string>
-    <string name="selection_count">تم التحديد: %1$d</string>
+    <string name="selection_count">المقاطع المحددة: %1$d</string>
     <string name="action_add">إضافة</string>
     <string name="cd_more_options">خيارات أخرى</string>
     <string name="cd_search_library">البحث في المكتبة</string>
@@ -139,6 +139,9 @@
 
     <string name="map_headline_unplayed_total">مناطق الخريطة: %2$s · بلا تشغيل في السجل: %1$d.</string>
     <string name="map_select_region">اختيار منطقة</string>
+    <string name="map_fullscreen">فتح الخريطة بملء الشاشة</string>
+    <string name="map_exit_fullscreen">إغلاق الخريطة بملء الشاشة</string>
+    <string name="map_gesture_hint">استخدم إصبعين لتحريك الخريطة أو تكبيرها.</string>
     <string name="map_reset_view">إعادة ضبط عرض الخريطة</string>
     <string name="map_region_unplayed">لم تُشغّل هنا: %1$d</string>
     <string name="map_action_play_unheard">تشغيل غير المسموع</string>
@@ -200,6 +203,9 @@
     <string name="playlist_add_to_title">إضافة «%1$s» إلى قائمة تشغيل</string>
     <string name="playlist_add_to_title_generic">إضافة المقطع الصوتي إلى قائمة تشغيل</string>
     <string name="playlist_rename_title">إعادة تسمية قائمة التشغيل</string>
+    <string name="action_change_playlist_cover">تغيير الغلاف</string>
+    <string name="action_reset_playlist_cover">استخدام غلاف تلقائي</string>
+    <string name="playlist_cover_error">تعذّر تغيير غلاف قائمة التشغيل. جرّب صورة أخرى.</string>
     <string name="snack_playlist_created">تم إنشاء "%1$s"</string>
     <string name="snack_playlist_deleted">تم حذف "%1$s"</string>
     <string name="snack_added_to_playlist">تمت الإضافة إلى "%1$s"</string>
@@ -529,7 +535,7 @@
     <string name="foryou_journey_title">من «%1$s» إلى «%2$s»</string>
     <string name="settings_pages">الصفحات</string>
     <string name="settings_pages_subtitle">الظهور والترتيب وصفحة البدء</string>
-    <string name="settings_pages_body">اختر الصفحات التي تظهر واستخدم الأسهم لتغيير ترتيبها. الخريطة معطّلة افتراضيًا.</string>
+    <string name="settings_pages_body">اسحب لإعادة الترتيب. عطّل الصفحات التي لا تستخدمها.</string>
     <string name="settings_pages_last_visible">أبقِ صفحة واحدة على الأقل مفعّلة.</string>
     <string name="settings_page_position">الموضع %1$d من %2$d</string>
     <string name="settings_page_move_up">نقل %1$s إلى الأعلى</string>
@@ -608,4 +614,17 @@
     <string name="output_current">الإخراج الحالي</string>
     <string name="output_connect_device">توصيل جهاز</string>
     <string name="output_selection_failed">الجهاز غير متاح. تحقق من الاتصال.</string>
+    <string name="queue_reorder">إعادة ترتيب المقطع</string>
+    <string name="queue_reorder_shuffle">بدّل إلى التشغيل بالترتيب لإعادة ترتيب قائمة الانتظار</string>
+    <string name="playlists_yours">قوائم التشغيل الخاصة بك</string>
+    <string name="playlists_empty_body">أنشئ قائمة تشغيل أو استورد ملف M3U لجمع موسيقاك.</string>
+    <string name="playlists_automatic">تلقائية</string>
+    <string name="settings_pages_order">الترتيب</string>
+    <string name="settings_opens_on_launch">تُفتح عند التشغيل</string>
+    <string name="settings_reorder_page">إعادة ترتيب %1$s</string>
+    <string name="settings_backup_subtitle">تصدير أو استعادة</string>
+    <string name="duplicates_groups">المجموعات</string>
+    <string name="duplicates_summary_title">المجموعات: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">النسخ الإضافية: %1$d</string>
+    <string name="duplicates_copy_count">النسخ: %1$d</string>
 </resources>

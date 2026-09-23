@@ -38,7 +38,7 @@
     <string name="action_share">Teilen</string>
     <string name="action_select_all">Alle auswählen</string>
     <string name="action_deselect_all">Auswahl aufheben</string>
-    <string name="selection_count">Ausgewählt: %1$d</string>
+    <string name="selection_count">Ausgewählte Titel: %1$d</string>
     <string name="action_add">Hinzufügen</string>
     <string name="cd_more_options">Weitere Optionen</string>
     <string name="cd_search_library">Bibliothek durchsuchen</string>
@@ -124,6 +124,9 @@
 
     <string name="map_headline_unplayed_total">Kartenregionen: %2$s · Ohne gespeicherte Wiedergaben: %1$d.</string>
     <string name="map_select_region">Bereich wählen</string>
+    <string name="map_fullscreen">Karte im Vollbild öffnen</string>
+    <string name="map_exit_fullscreen">Vollbildkarte schließen</string>
+    <string name="map_gesture_hint">Mit zwei Fingern die Karte verschieben oder zoomen.</string>
     <string name="map_reset_view">Kartenansicht zurücksetzen</string>
     <string name="map_region_unplayed">Hier noch nicht gespielt: %1$d</string>
     <string name="map_action_play_unheard">Ungehörte abspielen</string>
@@ -181,6 +184,9 @@
     <string name="playlist_add_to_title">„%1$s“ zu einer Playlist hinzufügen</string>
     <string name="playlist_add_to_title_generic">Titel zu einer Playlist hinzufügen</string>
     <string name="playlist_rename_title">Playlist umbenennen</string>
+    <string name="action_change_playlist_cover">Cover ändern</string>
+    <string name="action_reset_playlist_cover">Automatisches Cover verwenden</string>
+    <string name="playlist_cover_error">Das Playlist-Cover konnte nicht geändert werden. Versuche es mit einem anderen Bild.</string>
     <string name="snack_playlist_created">Playlist "%1$s" erstellt</string>
     <string name="snack_playlist_deleted">Playlist "%1$s" gelöscht</string>
     <string name="snack_added_to_playlist">Zu "%1$s" hinzugefügt</string>
@@ -506,7 +512,7 @@
     <string name="foryou_journey_title">Von „%1$s“ bis „%2$s“</string>
     <string name="settings_pages">Seiten</string>
     <string name="settings_pages_subtitle">Sichtbarkeit, Reihenfolge und Startseite</string>
-    <string name="settings_pages_body">Wähle die sichtbaren Seiten und ändere ihre Reihenfolge mit den Pfeilen. Die Karte ist standardmäßig ausgeschaltet.</string>
+    <string name="settings_pages_body">Zum Sortieren ziehen. Nicht verwendete Seiten ausschalten.</string>
     <string name="settings_pages_last_visible">Mindestens eine Seite muss eingeschaltet bleiben.</string>
     <string name="settings_page_position">Position %1$d von %2$d</string>
     <string name="settings_page_move_up">%1$s nach oben verschieben</string>
@@ -587,4 +593,17 @@
     <string name="output_current">Aktuelle Ausgabe</string>
     <string name="output_connect_device">Gerät verbinden</string>
     <string name="output_selection_failed">Gerät nicht verfügbar. Prüfe die Verbindung.</string>
+    <string name="queue_reorder">Titel neu anordnen</string>
+    <string name="queue_reorder_shuffle">Zum Neuordnen der Warteschlange zu „Der Reihe nach“ wechseln</string>
+    <string name="playlists_yours">Deine Playlists</string>
+    <string name="playlists_empty_body">Erstelle eine Playlist oder importiere eine M3U-Datei, um deine Musik zu sammeln.</string>
+    <string name="playlists_automatic">Automatisch</string>
+    <string name="settings_pages_order">Reihenfolge</string>
+    <string name="settings_opens_on_launch">Beim Start öffnen</string>
+    <string name="settings_reorder_page">%1$s neu anordnen</string>
+    <string name="settings_backup_subtitle">Exportieren oder wiederherstellen</string>
+    <string name="duplicates_groups">Gruppen</string>
+    <string name="duplicates_summary_title">Gruppen: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">Zusätzliche Kopien: %1$d</string>
+    <string name="duplicates_copy_count">Kopien: %1$d</string>
 </resources>

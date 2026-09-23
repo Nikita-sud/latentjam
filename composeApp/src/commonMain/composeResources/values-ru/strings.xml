@@ -28,7 +28,7 @@
     <string name="action_share">Поделиться</string>
     <string name="action_select_all">Выбрать все</string>
     <string name="action_deselect_all">Снять выделение</string>
-    <string name="selection_count">Выбрано: %1$d</string>
+    <string name="selection_count">Выбрано треков: %1$d</string>
     <string name="action_add">Добавить</string>
     <string name="cd_more_options">Другие действия</string>
     <string name="cd_search_library">Поиск по медиатеке</string>
@@ -122,6 +122,9 @@
 
     <string name="map_headline_unplayed_total">В областях карты: %2$s · Ещё не слушали: %1$d.</string>
     <string name="map_select_region">Выбрать область</string>
+    <string name="map_fullscreen">Открыть карту на весь экран</string>
+    <string name="map_exit_fullscreen">Закрыть полноэкранную карту</string>
+    <string name="map_gesture_hint">Перемещайте и масштабируйте карту двумя пальцами.</string>
     <string name="map_reset_view">Сбросить вид карты</string>
     <string name="map_region_unplayed">Ещё не слушали здесь: %1$d</string>
     <string name="map_action_play_unheard">Слушать новое</string>
@@ -174,6 +177,9 @@
     <string name="playlist_add_to_title">Добавить «%1$s» в плейлист</string>
     <string name="playlist_add_to_title_generic">Добавить трек в плейлист</string>
     <string name="playlist_rename_title">Переименовать плейлист</string>
+    <string name="action_change_playlist_cover">Изменить обложку</string>
+    <string name="action_reset_playlist_cover">Использовать автоматическую обложку</string>
+    <string name="playlist_cover_error">Не удалось изменить обложку плейлиста. Попробуйте другое изображение.</string>
     <string name="snack_playlist_created">Плейлист «%1$s» создан</string>
     <string name="snack_playlist_deleted">Плейлист «%1$s» удалён</string>
     <string name="snack_added_to_playlist">Добавлено в «%1$s»</string>
@@ -507,7 +513,7 @@
     <string name="foryou_journey_title">От «%1$s» до «%2$s»</string>
     <string name="settings_pages">Страницы</string>
     <string name="settings_pages_subtitle">Видимость, порядок и стартовая страница</string>
-    <string name="settings_pages_body">Выберите, какие страницы показывать, и измените их порядок стрелками. Карта по умолчанию выключена.</string>
+    <string name="settings_pages_body">Перетащите, чтобы изменить порядок. Отключите ненужные страницы.</string>
     <string name="settings_pages_last_visible">Оставьте хотя бы одну страницу включённой.</string>
     <string name="settings_page_position">Позиция %1$d из %2$d</string>
     <string name="settings_page_move_up">Переместить «%1$s» выше</string>
@@ -588,4 +594,17 @@
     <string name="output_current">Текущий выход</string>
     <string name="output_connect_device">Подключить устройство</string>
     <string name="output_selection_failed">Устройство недоступно. Проверьте подключение.</string>
+    <string name="queue_reorder">Изменить порядок трека</string>
+    <string name="queue_reorder_shuffle">Переключитесь на «По порядку», чтобы изменить очередь</string>
+    <string name="playlists_yours">Ваши плейлисты</string>
+    <string name="playlists_empty_body">Создайте плейлист или импортируйте файл M3U, чтобы собрать музыку вместе.</string>
+    <string name="playlists_automatic">Автоматические</string>
+    <string name="settings_pages_order">Порядок</string>
+    <string name="settings_opens_on_launch">При запуске</string>
+    <string name="settings_reorder_page">Изменить порядок: %1$s</string>
+    <string name="settings_backup_subtitle">Экспорт или восстановление</string>
+    <string name="duplicates_groups">Группы</string>
+    <string name="duplicates_summary_title">Группы: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">Лишние копии: %1$d</string>
+    <string name="duplicates_copy_count">Копии: %1$d</string>
 </resources>

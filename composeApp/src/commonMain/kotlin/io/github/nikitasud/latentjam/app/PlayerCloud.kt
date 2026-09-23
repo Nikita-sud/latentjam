@@ -20,6 +20,9 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.LocalDensity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -38,21 +41,27 @@ import kotlinx.coroutines.delay
 @Composable
 internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifier {
     val reduceMotion = rememberReduceMotion()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val phase = remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(playing, reduceMotion) {
+    LaunchedEffect(playing, reduceMotion, lifecycle) {
         if (!playing || reduceMotion) return@LaunchedEffect
-        animatePlayerCloud { elapsed -> phase.floatValue += elapsed }
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            animatePlayerCloud { elapsed -> phase.floatValue += elapsed }
+        }
     }
     val density = LocalDensity.current
-    // A toned container reads on a light surface, but on a dark one it is a dark colour on
-    // black: invisible. There the cloud paints with the cover's own colour, lifted out of the
-    // shadows when the cover itself is dark.
+    // A dark surface needs a lifted cover colour; a light one needs a bounded pastel of the
+    // same hue. Reusing the already-whitened container washed pale covers almost to white.
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val primary = if (dark) liftForDarkSurface(accent.vivid) else accent.container
-    val companion = rotateHue(primary, COMPANION_HUE_SHIFT)
+    val primary = if (dark) liftForDarkSurface(accent.vivid) else tintForLightSurface(accent.vivid)
+    val companion = rotateHue(primary, if (dark) COMPANION_HUE_SHIFT else 12f)
     val alpha = if (dark) CLOUD_ALPHA_DARK else CLOUD_ALPHA_LIGHT
     return drawWithCache {
-        val radii = BLOB_RADII_DP.map { it * density.density }
+        // A nearly neutral light floor lets each drifting cloud remain distinct. A stronger
+        // same-hue floor erases the visible movement, even while the cloud clock is advancing.
+        val baseWash = primary.copy(alpha = CLOUD_BASE_ALPHA_LIGHT)
+        val radiusScale = if (dark) 1f else LIGHT_BLOB_RADIUS_SCALE
+        val radii = BLOB_RADII_DP.map { it * density.density * radiusScale }
         val brushes = listOf(primary, companion, primary).mapIndexed { index, colour ->
             Brush.radialGradient(
                 colors = listOf(colour.copy(alpha = alpha), colour.copy(alpha = 0f)),
@@ -62,6 +71,7 @@ internal fun Modifier.playerCloud(accent: TrackAccent, playing: Boolean): Modifi
         }
         val drift = BLOB_DRIFT_DP * density.density
         onDrawBehind {
+            if (!dark) drawRect(baseWash)
             val t = phase.floatValue
             // Freeze the exact last appearance on pause; resetting the scale produces a snap.
             val breath = 1f + BREATH_DEPTH * sin(t * TWO_PI / BREATH_PERIOD_S)
@@ -126,6 +136,23 @@ internal fun liftForDarkSurface(colour: Color): Color {
     )
 }
 
+/**
+ * A clearly coloured light surface, including very pale and very dark sampled covers.
+ * At L=.80/S<=.72 every RGB channel is at least .656. Even arbitrary cloud overlaps followed
+ * by a 10% black current-row wash retain over 4.5:1 with the light theme's #2E2E2E secondary ink.
+ */
+internal fun tintForLightSurface(colour: Color): Color {
+    // A truly neutral cover/theme stays neutral instead of acquiring an invented hue.
+    val hsl = colour.toHsl() ?: return Color(0.92f, 0.92f, 0.92f, colour.alpha)
+    val (hue, saturation) = hsl
+    return Color.hsl(
+        hue = hue,
+        saturation = saturation.coerceIn(0.58f, 0.72f),
+        lightness = 0.80f,
+        alpha = colour.alpha,
+    )
+}
+
 /** Hue in degrees, saturation and lightness in 0..1; null for a grey, which has no hue. */
 private fun Color.toHsl(): Triple<Float, Float, Float>? {
     val max = maxOf(red, green, blue)
@@ -146,7 +173,9 @@ private const val NANOS_PER_SECOND = 1_000_000_000f
 private const val CLOUD_FRAME_INTERVAL_MS = 50L
 private const val MAX_FRAME_DELTA_S = 0.1f
 private const val TWO_PI = (2 * PI).toFloat()
-private const val CLOUD_ALPHA_LIGHT = 0.6f
+private const val CLOUD_BASE_ALPHA_LIGHT = 0.04f
+private const val CLOUD_ALPHA_LIGHT = 0.98f
+private const val LIGHT_BLOB_RADIUS_SCALE = 1.15f
 private const val CLOUD_ALPHA_DARK = 0.7f
 private const val DARK_MIN_LIGHTNESS = 0.45f
 private const val DARK_MIN_SATURATION = 0.45f

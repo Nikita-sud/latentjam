@@ -5,8 +5,11 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
@@ -19,6 +22,7 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
@@ -30,8 +34,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 
 /**
  * The app's shared motion vocabulary.
@@ -50,6 +56,12 @@ internal object Motion {
     /** Content being replaced: slightly shorter than incoming, so the swap reads forward. */
     const val REPLACE_MS = 180
 
+    /** Page depth and its initiating control share one short, finite settle. */
+    const val NAVIGATION_MS = 260
+
+    /** Quick response followed by a smooth stop, without overshoot or a spring tail. */
+    val NavigationEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+
     /** Full-surface transformations are the only motion allowed to take this long. */
     const val EMPHASIZED_MS = 320
 
@@ -60,14 +72,23 @@ internal object Motion {
     const val PRESS_SCALE = 0.98f
 }
 
+/** The closing path retraces the opening path, rather than vanishing before the morph finishes. */
+internal fun chromeNavigationSpec(reduceMotion: Boolean, opening: Boolean): FiniteAnimationSpec<Float> =
+    if (reduceMotion) snap() else tween(
+        durationMillis = if (opening) Motion.EMPHASIZED_MS else Motion.NAVIGATION_MS,
+        easing = if (opening) Motion.NavigationEasing else
+            Easing { 1f - Motion.NavigationEasing.transform(1f - it) },
+    )
+
 /** Standard enter for content that arrives in place (sections, pages, results). */
 @Composable
 internal fun motionAppearEnter(): EnterTransition {
     if (rememberReduceMotion()) return fadeIn(tween(Motion.REDUCED_MS))
-    return fadeIn(tween(Motion.APPEAR_MS)) +
+    val maxRisePx = with(LocalDensity.current) { 12.dp.roundToPx() }
+    return fadeIn(tween(Motion.REPLACE_MS, easing = LinearEasing)) +
         slideInVertically(
-            animationSpec = tween(Motion.APPEAR_MS),
-            initialOffsetY = { it / 12 },
+            animationSpec = tween(Motion.APPEAR_MS, easing = Motion.NavigationEasing),
+            initialOffsetY = { minOf(it / 12, maxRisePx) },
         )
 }
 
@@ -80,9 +101,9 @@ internal fun motionAppearExit(): ExitTransition = fadeOut(
 /**
  * Shared-axis transition for navigation depth.
  *
- * Forward pages enter from the reading direction and move the old page gently away; back reverses
- * the relationship. The short travel preserves context without making a phone-sized page feel as
- * though it crossed the whole display. RTL is a real reversal rather than a mirrored screenshot.
+ * Forward pages move farther than the receding page; back returns that page from the shallower
+ * offset. Only position and opacity animate, so full-screen lazy content keeps stable constraints.
+ * RTL reverses the same depth relationship.
  */
 internal fun motionPageTransform(
     forward: Boolean,
@@ -92,7 +113,8 @@ internal fun motionPageTransform(
     ContentTransform(
         targetContentEnter = motionPageEnter(forward, reduceMotion, layoutDirection),
         initialContentExit = motionPageExit(forward, reduceMotion, layoutDirection),
-        sizeTransform = motionSizeTransform(reduceMotion, Motion.APPEAR_MS),
+        targetContentZIndex = if (forward) 1f else 0f,
+        sizeTransform = null,
     )
 
 internal fun motionPageEnter(
@@ -103,9 +125,9 @@ internal fun motionPageEnter(
     if (reduceMotion) return fadeIn(tween(Motion.REDUCED_MS))
     val direction = motionDirection(forward, layoutDirection)
     return slideInHorizontally(
-        tween(Motion.APPEAR_MS, easing = LinearOutSlowInEasing),
-    ) { width -> width / 8 * direction } +
-        fadeIn(tween(Motion.APPEAR_MS, easing = LinearOutSlowInEasing))
+        tween(Motion.NAVIGATION_MS, easing = Motion.NavigationEasing),
+    ) { width -> width / (if (forward) 12 else 24) * direction } +
+        fadeIn(tween(Motion.REPLACE_MS, delayMillis = 30, easing = LinearEasing))
 }
 
 internal fun motionPageExit(
@@ -116,9 +138,9 @@ internal fun motionPageExit(
     if (reduceMotion) return fadeOut(tween(Motion.REDUCED_MS))
     val direction = motionDirection(forward, layoutDirection)
     return slideOutHorizontally(
-        tween(Motion.REPLACE_MS, easing = FastOutLinearInEasing),
-    ) { width -> -width / 10 * direction } +
-        fadeOut(tween(Motion.REPLACE_MS, easing = FastOutLinearInEasing))
+        tween(Motion.REPLACE_MS, easing = Motion.NavigationEasing),
+    ) { width -> -width / (if (forward) 24 else 12) * direction } +
+        fadeOut(tween(Motion.REPLACE_MS / 2, easing = FastOutLinearInEasing))
 }
 
 private fun motionDirection(forward: Boolean, layoutDirection: LayoutDirection): Int {
@@ -126,20 +148,28 @@ private fun motionDirection(forward: Boolean, layoutDirection: LayoutDirection):
     return if (forward) readingDirection else -readingDirection
 }
 
-/** Fade-through for content states that replace one another without changing navigation depth. */
-internal fun motionFadeThrough(reduceMotion: Boolean): ContentTransform {
+/**
+ * Content replacement without a depth change. Clear old text before the new text becomes opaque;
+ * never scale an entire list. Small forms can opt into size interpolation, but pages do no animated
+ * measurement by default.
+ */
+internal fun motionFadeThrough(reduceMotion: Boolean, animateSize: Boolean = false): ContentTransform {
+    val size = if (animateSize) motionSizeTransform(reduceMotion, Motion.APPEAR_MS) else null
     if (reduceMotion) {
         return ContentTransform(
             targetContentEnter = fadeIn(tween(Motion.REDUCED_MS)),
             initialContentExit = fadeOut(tween(Motion.REDUCED_MS)),
-            sizeTransform = motionSizeTransform(true, Motion.REDUCED_MS),
+            sizeTransform = size,
         )
     }
     return ContentTransform(
-        targetContentEnter = fadeIn(tween(durationMillis = 160, delayMillis = 40)) +
-            scaleIn(tween(Motion.APPEAR_MS), initialScale = 0.985f),
-        initialContentExit = fadeOut(tween(Motion.QUICK_MS)),
-        sizeTransform = motionSizeTransform(false, Motion.APPEAR_MS),
+        targetContentEnter = fadeIn(tween(
+            durationMillis = Motion.APPEAR_MS - Motion.QUICK_MS / 2,
+            delayMillis = Motion.QUICK_MS / 2,
+            easing = LinearEasing,
+        )),
+        initialContentExit = fadeOut(tween(Motion.REDUCED_MS, easing = LinearEasing)),
+        sizeTransform = size,
     )
 }
 
@@ -149,14 +179,15 @@ internal fun motionIconTransform(reduceMotion: Boolean): ContentTransform {
         return ContentTransform(
             targetContentEnter = fadeIn(tween(Motion.REDUCED_MS)),
             initialContentExit = fadeOut(tween(Motion.REDUCED_MS)),
-            sizeTransform = motionSizeTransform(true, Motion.REDUCED_MS),
+            sizeTransform = null,
         )
     }
     return ContentTransform(
-        targetContentEnter = fadeIn(tween(Motion.QUICK_MS)) +
-            scaleIn(tween(Motion.QUICK_MS), initialScale = 0.88f),
-        initialContentExit = fadeOut(tween(Motion.REDUCED_MS)),
-        sizeTransform = motionSizeTransform(false, Motion.QUICK_MS),
+        targetContentEnter = fadeIn(tween(Motion.QUICK_MS, easing = LinearEasing)) +
+            scaleIn(tween(Motion.QUICK_MS, easing = Motion.NavigationEasing), initialScale = 0.92f),
+        initialContentExit = fadeOut(tween(Motion.REDUCED_MS, easing = LinearEasing)) +
+            scaleOut(tween(Motion.REDUCED_MS), targetScale = 0.92f),
+        sizeTransform = null,
     )
 }
 
@@ -164,7 +195,7 @@ internal fun motionSizeTransform(reduceMotion: Boolean, durationMillis: Int): Si
     SizeTransform(clip = false) { _, _ ->
         if (reduceMotion) snap() else tween(
             durationMillis = durationMillis,
-            easing = LinearOutSlowInEasing,
+            easing = Motion.NavigationEasing,
         )
     }
 
@@ -172,7 +203,7 @@ internal fun motionSizeTransform(reduceMotion: Boolean, durationMillis: Int): Si
 internal fun motionBoundsTransform(): BoundsTransform = BoundsTransform { _, _ ->
     tween(
         durationMillis = Motion.EMPHASIZED_MS,
-        easing = LinearOutSlowInEasing,
+        easing = Motion.NavigationEasing,
     )
 }
 
@@ -202,7 +233,7 @@ internal fun Modifier.scaleOnPress(interactionSource: MutableInteractionSource):
     val reduceMotion = rememberReduceMotion()
     val scale by animateFloatAsState(
         targetValue = if (pressed && !reduceMotion) Motion.PRESS_SCALE else 1f,
-        animationSpec = spring(
+        animationSpec = if (reduceMotion) snap() else spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow,
         ),

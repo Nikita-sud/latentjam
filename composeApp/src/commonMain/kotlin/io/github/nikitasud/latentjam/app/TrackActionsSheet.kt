@@ -8,32 +8,47 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.Bedtime
-import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.automirrored.outlined.PlaylistAdd
+import androidx.compose.material.icons.outlined.Album
+import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.PersonOff
+import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.outlined.PlaylistRemove
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.LibraryAdd
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Map
-import androidx.compose.material.icons.rounded.PlaylistRemove
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.ThumbDown
-import androidx.compose.material.icons.rounded.ThumbUp
-import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -72,13 +87,13 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_include_arti
 import io.github.nikitasud.latentjam.app.generated.resources.action_include_track_in_smart
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_play_next
+import io.github.nikitasud.latentjam.app.generated.resources.action_share
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_playlist
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_latentjam
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message_generic
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_title
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_tracks_message
-import io.github.nikitasud.latentjam.app.generated.resources.label_track
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
@@ -121,6 +136,8 @@ internal fun TrackActionsSheet(
     canDelete: Boolean,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
+    /** Null only when this track cannot be shared by the platform. */
+    onShare: (() -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
@@ -160,30 +177,40 @@ internal fun TrackActionsSheet(
 
     ModalBottomSheet(
         onDismissRequest = { dismissThen {} },
+        // Keep top clearance outside the measured sheet: position-dependent content insets
+        // can resize a tall menu and continuously move its expanded anchor while it settles.
+        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)),
+        contentWindowInsets = {
+            WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+        },
         sheetState = sheetState,
         sheetGesturesEnabled = !dismissalInFlight,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        dragHandle = {
+            Box(modifier = Modifier.fillMaxWidth().height(20.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 32.dp, height = 4.dp)
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(2.dp)),
+                )
+            }
+        },
     ) {
         // The complete action set is taller than compact phones (and grows further with large
         // accessibility text). Let the sheet and this content negotiate nested scrolling so the
         // non-destructive visibility action and delete confirmation can never be stranded below
         // the viewport.
         Column(
-            modifier = Modifier
-                .verticalScroll(rememberScrollState())
-                .navigationBarsPadding(),
+            modifier = Modifier.verticalScroll(rememberScrollState()),
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Artwork(uri = track.artworkUri, size = 56.dp, cornerRadius = 16.dp)
-                Column {
-                    Text(
-                        text = stringResource(Res.string.label_track),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                Artwork(uri = track.artworkUri, size = 56.dp, cornerRadius = 12.dp)
+                Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                     Text(
                         text = track.title ?: stringResource(Res.string.track_untitled),
                         style = MaterialTheme.typography.titleMedium,
@@ -191,72 +218,85 @@ internal fun TrackActionsSheet(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = track.artist ?: stringResource(Res.string.track_unknown_artist),
+                        text = listOfNotNull(
+                            track.artist ?: stringResource(Res.string.track_unknown_artist),
+                            track.album?.takeIf { it.isNotBlank() },
+                        ).joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                IconButton(onClick = { dismissWhile(onToggleFavorite) }, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        contentDescription = stringResource(
+                            if (isFavorite) Res.string.action_remove_favorite else Res.string.action_add_favorite,
+                        ),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                FilledIconButton(
+                    onClick = { dismissWhile(onPlay) },
+                    modifier = Modifier.size(48.dp),
+                ) {
+                    Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(Res.string.action_play))
+                }
             }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SheetPrimaryAction(stringResource(Res.string.action_play_next), Modifier.weight(1f)) {
+                    dismissWhile(onPlayNext)
+                }
+                SheetPrimaryAction(stringResource(Res.string.action_add_to_queue), Modifier.weight(1f)) {
+                    dismissWhile(onAddToQueue)
+                }
+            }
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+            onShare?.let { share ->
+                SheetAction(
+                    Icons.Outlined.Share,
+                    stringResource(Res.string.action_share),
+                ) { dismissThen(share) }
+            }
             SheetAction(
-                Icons.Rounded.PlayArrow,
-                stringResource(Res.string.action_play),
-            ) { dismissWhile(onPlay) }
-            SheetAction(
-                Icons.AutoMirrored.Rounded.PlaylistAdd,
-                stringResource(Res.string.action_play_next),
-            ) { dismissWhile(onPlayNext) }
-            SheetAction(
-                Icons.AutoMirrored.Rounded.QueueMusic,
-                stringResource(Res.string.action_add_to_queue),
-            ) { dismissWhile(onAddToQueue) }
-            SheetAction(
-                Icons.Rounded.LibraryAdd,
+                Icons.AutoMirrored.Outlined.PlaylistAdd,
                 stringResource(Res.string.action_add_to_playlist),
             ) { dismissThen(onAddToPlaylist) }
-            SheetAction(
-                if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                stringResource(
-                    if (isFavorite) {
-                        Res.string.action_remove_favorite
-                    } else {
-                        Res.string.action_add_favorite
-                    },
-                ),
-            ) { dismissWhile(onToggleFavorite) }
             onRemoveFromPlaylist?.let { removeFromPlaylist ->
                 SheetAction(
-                    Icons.Rounded.PlaylistRemove,
+                    Icons.Outlined.PlaylistRemove,
                     stringResource(Res.string.action_remove_from_playlist),
                 ) { dismissWhile(removeFromPlaylist) }
             }
             onGoToAlbum?.let { goToAlbum ->
                 SheetAction(
-                    Icons.Rounded.Album,
+                    Icons.Outlined.Album,
                     stringResource(Res.string.action_go_to_album),
                 ) { dismissThen(goToAlbum) }
             }
             onGoToArtist?.let { goToArtist ->
                 SheetAction(
-                    Icons.Rounded.Person,
+                    Icons.Outlined.PersonOutline,
                     stringResource(Res.string.action_go_to_artist),
                 ) { dismissThen(goToArtist) }
             }
             onShowOnMap?.let { showOnMap ->
                 SheetAction(
-                    Icons.Rounded.Map,
+                    Icons.Outlined.Map,
                     stringResource(Res.string.action_show_on_map),
                 ) { dismissThen(showOnMap) }
             }
             SheetAction(
-                Icons.Rounded.Info,
+                Icons.Outlined.Info,
                 stringResource(Res.string.action_information),
             ) { dismissThen(onInfo) }
             onSleepTimer?.let { sleepTimer ->
                 SheetAction(
-                    icon = Icons.Rounded.Bedtime,
+                    icon = Icons.Outlined.Bedtime,
                     label = stringResource(Res.string.sleep_timer),
                     supporting = when (val timer = sleepTimerState) {
                         is SleepTimerState.Countdown -> stringResource(
@@ -269,12 +309,12 @@ internal fun TrackActionsSheet(
                     },
                 ) { dismissThen(sleepTimer) }
             }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
             // An artist-level exclusion already covers every one of their tracks. Surface its
             // restore action first; a dormant track-specific rule appears after the artist returns.
             if (!isArtistExcludedFromSmart) {
                 SheetAction(
-                    if (isTrackExcludedFromSmart) Icons.Rounded.ThumbUp else Icons.Rounded.ThumbDown,
+                    Icons.Outlined.Block,
                     stringResource(
                         if (isTrackExcludedFromSmart) {
                             Res.string.action_include_track_in_smart
@@ -286,7 +326,7 @@ internal fun TrackActionsSheet(
             }
             onToggleArtistSmartExclusion?.let { toggleArtist ->
                 SheetAction(
-                    if (isArtistExcludedFromSmart) Icons.Rounded.ThumbUp else Icons.Rounded.ThumbDown,
+                    Icons.Outlined.PersonOff,
                     stringResource(
                         if (isArtistExcludedFromSmart) {
                             Res.string.action_include_artist_in_smart
@@ -296,15 +336,14 @@ internal fun TrackActionsSheet(
                     ),
                 ) { dismissWhile(toggleArtist) }
             }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
             SheetAction(
-                Icons.Rounded.VisibilityOff,
+                Icons.Outlined.VisibilityOff,
                 stringResource(Res.string.action_remove_from_latentjam),
             ) { dismissWhile(onHide) }
             if (canDelete) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 SheetAction(
-                    icon = Icons.Rounded.DeleteOutline,
+                    icon = Icons.Outlined.DeleteOutline,
                     label = stringResource(Res.string.action_delete_from_device),
                     tint = MaterialTheme.colorScheme.error,
                 ) { dismissThen(onDelete) }
@@ -406,13 +445,13 @@ internal fun SelectionRemovalSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
             )
             SheetAction(
-                icon = Icons.Rounded.VisibilityOff,
+                icon = Icons.Outlined.VisibilityOff,
                 label = stringResource(Res.string.action_remove_from_latentjam),
             ) { dismissWhile(onHide) }
             if (canDeleteFromDevice) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 SheetAction(
-                    icon = Icons.Rounded.DeleteOutline,
+                    icon = Icons.Outlined.DeleteOutline,
                     label = stringResource(Res.string.action_delete_from_device),
                     tint = MaterialTheme.colorScheme.error,
                 ) { dismissThen(onDeleteFromDevice) }
@@ -449,6 +488,22 @@ internal fun DeleteTracksDialog(
 }
 
 @Composable
+private fun SheetPrimaryAction(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 48.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+        )
+    }
+}
+
+@Composable
 private fun SheetAction(
     icon: ImageVector,
     label: String,
@@ -457,20 +512,21 @@ private fun SheetAction(
     supporting: String? = null,
     onClick: () -> Unit,
 ) {
-    val resolvedTint = if (tint == Color.Unspecified) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        tint
-    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 14.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = resolvedTint)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp),
+        )
         Column {
             Text(
                 text = label,

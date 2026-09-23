@@ -381,6 +381,7 @@ internal class LocalBackupTest {
         val fixture = fixture(listOf(current, imported))
         val existingPlaylist = fixture.playlists.create("Mix")
         fixture.playlists.addTracks(existingPlaylist.id, listOf(current.id))
+        fixture.playlists.setArtwork(existingPlaylist.id, "local-cover.jpg")
         val existingEvent = event(current.id, 100)
         fixture.history.record(existingEvent)
 
@@ -404,10 +405,39 @@ internal class LocalBackupTest {
         val mergedPlaylist = fixture.playlists.all().single()
         assertContentEquals(listOf("current", "imported"), mergedPlaylist.trackIds)
         assertTrue(mergedPlaylist.includeInSmart)
+        assertEquals("local-cover.jpg", mergedPlaylist.customArtworkRef)
         assertContentEquals(
             listOf(existingEvent, event(imported.id, 200)),
             fixture.history.recentEvents(Int.MAX_VALUE).asReversed(),
         )
+    }
+
+    @Test
+    fun metadataBackupRestoresAutomaticArtworkWithoutExportingLocalCoverReferences() = runTest {
+        val member = track("one", "One", "Artist", "Album", 120_000)
+        val fixture = fixture(listOf(member))
+        val playlist = fixture.playlists.create("Custom cover", listOf(member.id))
+        val coverReference = "b174a44e-3e93-42f5-a26a-0f4ad2577591.jpg"
+        fixture.playlists.setArtwork(playlist.id, coverReference)
+
+        val encoded = fixture.service.exportEncoded()
+        val captured = LocalBackupCodec.decode(encoded).playlists.single()
+        assertEquals(
+            LocalBackupPlaylist(playlist.id, playlist.name, playlist.createdAtMs, playlist.trackIds),
+            captured,
+        )
+        assertFalse(encoded.contains(coverReference))
+        assertFalse(encoded.contains(coverReference.encodeToByteArray().joinToString("") {
+            (it.toInt() and 0xff).toString(16).padStart(2, '0')
+        }))
+
+        fixture.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+
+        val restored = fixture.playlists.all().single()
+        assertEquals(playlist.id, restored.id)
+        assertEquals(playlist.name, restored.name)
+        assertEquals(playlist.trackIds, restored.trackIds)
+        assertNull(restored.customArtworkRef)
     }
 
     @Test

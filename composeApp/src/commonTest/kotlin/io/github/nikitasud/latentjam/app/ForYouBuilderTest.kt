@@ -283,6 +283,7 @@ class ForYouBuilderTest {
         val row = result.sections.first { it.kind == ForYouSectionKind.WORTH_REVISITING }
         val collections = row.cards.mapNotNull { it.collection }
         assertEquals(listOf("Think"), collections.map { it.title })
+        assertEquals("p1", collections.single().playlistId)
         // The caption counts what actually went quiet, not the playlist's length: the hero claimed
         // one of the four before the row was built. It carries the number, not a rendered string,
         // so the UI can pick the right plural form for it.

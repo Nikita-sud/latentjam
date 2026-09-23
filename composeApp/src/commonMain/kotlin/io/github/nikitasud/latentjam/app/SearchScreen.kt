@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -25,10 +26,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.Icon
@@ -39,8 +40,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.withFrameNanos
@@ -55,19 +54,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_clear
 import io.github.nikitasud.latentjam.app.generated.resources.cd_clear_query
-import io.github.nikitasud.latentjam.app.generated.resources.cd_close_search
 import io.github.nikitasud.latentjam.app.generated.resources.cd_forget_search
+import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.search_hint_count
 import io.github.nikitasud.latentjam.app.generated.resources.search_no_matches
 import io.github.nikitasud.latentjam.app.generated.resources.search_placeholder
@@ -104,8 +108,11 @@ import org.jetbrains.compose.resources.stringResource
 internal fun SearchScreen(
     songs: List<TrackDescriptor>,
     currentTrackId: TrackId?,
+    accent: TrackAccent? = null,
     active: Boolean = true,
     readyForInput: Boolean = true,
+    openProgress: () -> Float = { 1f },
+    buttonBounds: Rect? = null,
     /** Whether the player is audibly running; animates the current row's badge. */
     currentTrackPlaying: Boolean = false,
     selectedTrackIds: Set<TrackId> = emptySet(),
@@ -126,6 +133,8 @@ internal fun SearchScreen(
     // Save the text alongside its result-list scroll position so returning never becomes a new
     // search session merely because the listener checked Now Playing.
     var query by rememberSaveable { mutableStateOf("") }
+    val resultsListState = rememberLazyListState()
+    var resultScrollQuery by rememberSaveable { mutableStateOf<String?>(null) }
     var recent by remember { mutableStateOf<List<String>>(emptyList()) }
     var semantic by remember(songs) { mutableStateOf<List<ScoredTrack>>(emptyList()) }
     var semanticQuery by remember(songs) { mutableStateOf("") }
@@ -291,7 +300,12 @@ internal fun SearchScreen(
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    val accentInk = accent?.let { browseAccentInk(it) } ?: MaterialTheme.colorScheme.primary
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -299,69 +313,58 @@ internal fun SearchScreen(
                 .navigationBarsPadding()
                 .imePadding(),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            SearchNavigationBar(
+                progress = openProgress,
+                origin = buttonBounds,
+                onClose = ::closeSearch,
             ) {
-                IconButton(onClick = ::closeSearch) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = stringResource(Res.string.cd_close_search),
-                    )
-                }
-                TextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier.weight(1f).focusRequester(focusRequester),
-                    placeholder = {
-                        Text(
-                            text = stringResource(Res.string.search_placeholder),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    textStyle = MaterialTheme.typography.titleMedium,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(
-                        onSearch = {
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        enabled = active && readyForInput,
+                        modifier = Modifier.weight(1f).padding(start = 14.dp)
+                            .heightIn(min = 48.dp).focusRequester(focusRequester),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        cursorBrush = SolidColor(accentInk),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = {
                             focusManager.clearFocus()
                             remember(query)
+                        }),
+                        decorationBox = { editor ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (query.isEmpty()) {
+                                    Text(
+                                        text = stringResource(Res.string.search_placeholder),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                    )
+                                }
+                                editor()
+                            }
                         },
-                    ),
-                    trailingIcon = {
-                        AnimatedContent(
-                            targetState = query.isNotEmpty(),
-                            transitionSpec = { motionIconTransform(reduceMotion) },
-                            label = "clear-query",
-                        ) { showClear ->
-                            // Keep both animation states the same size: the field text should not
-                            // slide sideways when the affordance appears or disappears.
-                            Box(
-                                modifier = Modifier.size(48.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                if (showClear) {
-                                    IconButton(onClick = { query = "" }) {
-                                        Icon(
-                                            Icons.Rounded.Close,
-                                            contentDescription =
-                                                stringResource(Res.string.cd_clear_query),
-                                        )
-                                    }
+                    )
+                    AnimatedContent(
+                        targetState = query.isNotEmpty(),
+                        transitionSpec = { motionIconTransform(reduceMotion) },
+                        label = "clear-query",
+                    ) { showClear ->
+                        // Reserve the same slot in both states so the query never shifts.
+                        Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                            if (showClear) {
+                                IconButton(onClick = { query = "" }, modifier = Modifier.size(48.dp)) {
+                                    Icon(
+                                        Icons.Rounded.Close,
+                                        contentDescription = stringResource(Res.string.cd_clear_query),
+                                    )
                                 }
                             }
                         }
-                    },
-                    // A bare field: the row itself is the search affordance, so
-                    // a filled box and underline would only add furniture.
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                    ),
-                )
+                    }
             }
 
             val trimmedQuery = query.trim()
@@ -409,7 +412,21 @@ internal fun SearchScreen(
                 lyricSnippets = lyricSnippets,
                 recent = recent,
             )
-            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            // Keep the query marker beside the saveable list state, outside transient content
+            // modes. Returning from the player must not turn a restored query into a new search.
+            // A changed/cleared query still starts from the best match; late semantic results
+            // for the same query preserve the reader's position.
+            LaunchedEffect(presentation.query) {
+                if (resultScrollQuery != presentation.query) {
+                    resultsListState.scrollToItem(0)
+                    resultScrollQuery = presentation.query
+                }
+            }
+            Box(modifier = Modifier.fillMaxWidth().weight(1f).graphicsLayer {
+                val p = if (reduceMotion) 1f else navigationPhase(openProgress(), 0.45f, 1f)
+                alpha = p
+                translationY = 12.dp.toPx() * (1f - p)
+            }) {
                 AnimatedContent(
                     targetState = presentation,
                     contentKey = { it.mode },
@@ -422,14 +439,6 @@ internal fun SearchScreen(
                         .fillMaxSize()
                         .inactiveForMotion(shown.mode != presentation.mode),
                 ) {
-                // A NEW query's results must start from their best match — the ranking's whole
-                // point lives in the first rows. Keyed on the shown snapshot's query: a late
-                // semantic arrival for the SAME query updates the list without yanking a reader
-                // who already scrolled.
-                val resultsListState = rememberLazyListState()
-                LaunchedEffect(shown.query) {
-                    resultsListState.scrollToItem(0)
-                }
                 when (shown.mode) {
                     SearchContentMode.Loading -> SearchLoading()
 
@@ -438,9 +447,21 @@ internal fun SearchScreen(
 
                     SearchContentMode.Results -> LazyColumn(
                         state = resultsListState,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().fadingListTop { resultsListState.canScrollBackward },
                         contentPadding = PaddingValues(bottom = bottomInset),
                     ) {
+                        item(key = "result-count") {
+                            Text(
+                                text = pluralStringResource(
+                                    Res.plurals.count_tracks, shown.results.size, shown.results.size,
+                                ).uppercase(),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    letterSpacing = 0.4.sp,
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
+                            )
+                        }
                         // Do not use animateItem here: search rank is allowed to change while the
                         // query and semantic expansion settle, and rows chasing their old position
                         // would make typing feel unstable.
@@ -450,6 +471,8 @@ internal fun SearchScreen(
                         ) { index, track ->
                             TrackRow(
                                 track = track,
+                                currentAccent = accentInk,
+                                showDuration = false,
                                 isCurrent = track.id == currentTrackId,
                                 isPlaying = currentTrackPlaying,
                                 highlightQuery = shown.query,
@@ -489,6 +512,7 @@ internal fun SearchScreen(
 
                     SearchContentMode.Recent -> RecentSearchList(
                         recent = shown.recent,
+                        bottomInset = bottomInset,
                         onPick = { picked ->
                             query = picked
                             focusManager.clearFocus()
@@ -571,6 +595,7 @@ private data class SearchPresentation(
 @Composable
 private fun RecentSearchList(
     recent: List<String>,
+    bottomInset: Dp,
     onPick: (String) -> Unit,
     onRemove: (String) -> Unit,
     onClearAll: () -> Unit,
@@ -590,11 +615,11 @@ private fun RecentSearchList(
             TextButton(onClick = onClearAll) { Text(stringResource(Res.string.action_clear)) }
         }
         Surface(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceContainer,
         ) {
-            LazyColumn {
+            FadingLazyColumn(contentPadding = PaddingValues(bottom = bottomInset)) {
                 items(recent, key = { it }) { entry ->
                     Row(
                         modifier = Modifier
@@ -627,7 +652,7 @@ private fun RecentSearchList(
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f).padding(vertical = 12.dp),
                         )
-                        IconButton(onClick = { onRemove(entry) }) {
+                        IconButton(onClick = { onRemove(entry) }, modifier = Modifier.size(48.dp)) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = stringResource(Res.string.cd_forget_search, entry),
@@ -643,11 +668,12 @@ private fun RecentSearchList(
 
 @Composable
 private fun CenteredHint(text: String) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.fillMaxSize().padding(20.dp), contentAlignment = Alignment.Center) {
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
     }
 }

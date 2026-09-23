@@ -19,7 +19,6 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
@@ -47,9 +46,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -59,6 +60,7 @@ import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
@@ -102,6 +104,8 @@ internal fun PlayerArtworkCard(
     queueIndex: Int = -1,
     /** Restarts keep the current cover and return it immediately after the skip action. */
     skipChangesTrack: (forward: Boolean) -> Boolean = { true },
+    /** Neighbour decodes wait until the player has finished entering; a swipe prepares them now. */
+    prepareNeighbours: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -178,7 +182,19 @@ internal fun PlayerArtworkCard(
         // Square, as tall as the space allows and never wider than the screen: the column above
         // hands the cover the spare height, and this is what lets it shrink.
         modifier = modifier
-            .aspectRatio(1f, matchHeightConstraintsFirst = true)
+            .layout { measurable, constraints ->
+                // aspectRatio falls back to width when remaining height is zero. On a short
+                // player that can draw a full-width cover over every control below its slot.
+                val side = when {
+                    constraints.hasBoundedWidth && constraints.hasBoundedHeight ->
+                        minOf(constraints.maxWidth, constraints.maxHeight)
+                    constraints.hasBoundedWidth -> constraints.maxWidth
+                    constraints.hasBoundedHeight -> constraints.maxHeight
+                    else -> 0
+                }
+                val placeable = measurable.measure(Constraints.fixed(side, side))
+                layout(side, side) { placeable.placeRelative(0, 0) }
+            }
             .semantics {
                 contentDescription = description
                 role = Role.Button
@@ -248,6 +264,7 @@ internal fun PlayerArtworkCard(
                                 skipJob?.cancel()
                                 swiping = true
                                 var armed = false
+                                var thresholdAnnounced = false
                                 var rejected = false
                                 var dx: Float
                                 while (true) {
@@ -256,7 +273,10 @@ internal fun PlayerArtworkCard(
                                     val blocked = (dx > 0f && !currentCanBackward) ||
                                         (dx < 0f && !currentCanForward)
                                     val nowArmed = swipeCommits(dx, width, blocked)
-                                    if (nowArmed && !armed) haptics.play(PlayerHaptic.THRESHOLD)
+                                    if (nowArmed && !thresholdAnnounced && change.pressed) {
+                                        haptics.play(PlayerHaptic.THRESHOLD)
+                                        thresholdAnnounced = true
+                                    }
                                     armed = nowArmed
                                     if (blocked && abs(dx) > rejectTravel) rejected = true
                                     // Finger movement is read directly by the layer; no coroutine
@@ -305,10 +325,15 @@ internal fun PlayerArtworkCard(
                             }
                             ArtworkDragAxis.VERTICAL -> {
                                 collapsing = true
+                                var thresholdAnnounced = false
                                 var dy: Float
                                 while (true) {
                                     if (change.isConsumed) return@awaitEachGesture
                                     dy = change.position.y - down.position.y
+                                    if (collapseCommits(dy, collapseThreshold) && !thresholdAnnounced && change.pressed) {
+                                        haptics.play(PlayerHaptic.THRESHOLD)
+                                        thresholdAnnounced = true
+                                    }
                                     currentOnCollapseDrag(collapseShown(dy))
                                     change.consume()
                                     if (change.changedToUpIgnoreConsumed()) break
@@ -319,12 +344,11 @@ internal fun PlayerArtworkCard(
                                     haptics.play(PlayerHaptic.TAP)
                                     currentOnCollapse()
                                 } else {
-                                    haptics.play(PlayerHaptic.RELEASE)
                                     currentOnCollapseDrag(0f)
                                 }
                                 finished = true
                             }
-                            ArtworkDragAxis.CANCELLED, null -> Unit
+                            ArtworkDragAxis.CANCELLED -> Unit
                         }
                     } finally {
                         settlePress()
@@ -372,7 +396,7 @@ internal fun PlayerArtworkCard(
                 },
         ) {
             val gapPx = with(density) { GHOST_GAP.toPx() }
-            neighbourTrack(false)?.let { neighbour ->
+            neighbourTrack(false)?.takeIf { prepareNeighbours || swiping }?.let { neighbour ->
                 GhostCover(
                     uri = neighbour.artworkUri,
                     forward = false,
@@ -381,7 +405,7 @@ internal fun PlayerArtworkCard(
                     reduceMotion = reduceMotion,
                 )
             }
-            neighbourTrack(true)?.let { neighbour ->
+            neighbourTrack(true)?.takeIf { prepareNeighbours || swiping }?.let { neighbour ->
                 GhostCover(
                     uri = neighbour.artworkUri,
                     forward = true,
@@ -464,6 +488,7 @@ private fun FlipCard(
 @Composable
 private fun CoverFace(uri: String?, fadeIn: Boolean = false) {
     val context = LocalPlatformContext.current
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val request = remember(context, uri, fadeIn) {
         ImageRequest.Builder(context)
             .data(uri)
@@ -477,7 +502,13 @@ private fun CoverFace(uri: String?, fadeIn: Boolean = false) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .shadow(elevation = COVER_ELEVATION, shape = RoundedCornerShape(COVER_RADIUS), clip = false)
+            .shadow(
+                elevation = if (dark) COVER_ELEVATION else 8.dp,
+                shape = RoundedCornerShape(COVER_RADIUS),
+                clip = false,
+                ambientColor = if (dark) Color.Black else Color.Black.copy(alpha = 0.12f),
+                spotColor = if (dark) Color.Black else Color.Black.copy(alpha = 0.18f),
+            )
             .clip(RoundedCornerShape(COVER_RADIUS))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,

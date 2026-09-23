@@ -28,7 +28,7 @@
     <string name="action_share">共有</string>
     <string name="action_select_all">すべて選択</string>
     <string name="action_deselect_all">すべて選択解除</string>
-    <string name="selection_count">選択済み：%1$d</string>
+    <string name="selection_count">選択した曲：%1$d</string>
     <string name="action_add">追加</string>
     <string name="cd_more_options">その他のオプション</string>
     <string name="cd_search_library">ライブラリを検索</string>
@@ -109,6 +109,9 @@
 
     <string name="map_headline_unplayed_total">マップの領域内：%2$s · 再生履歴なし：%1$d。</string>
     <string name="map_select_region">エリアを選択</string>
+    <string name="map_fullscreen">マップを全画面で開く</string>
+    <string name="map_exit_fullscreen">全画面マップを閉じる</string>
+    <string name="map_gesture_hint">2本の指でマップを移動・拡大できます。</string>
     <string name="map_reset_view">地図の表示をリセット</string>
     <string name="map_region_unplayed">ここで未再生: %1$d</string>
     <string name="map_action_play_unheard">未再生の曲を再生</string>
@@ -165,6 +168,9 @@
     <string name="playlist_add_to_title">「%1$s」の追加先</string>
     <string name="playlist_add_to_title_generic">曲の追加先</string>
     <string name="playlist_rename_title">プレイリストの名前を変更</string>
+    <string name="action_change_playlist_cover">カバーを変更</string>
+    <string name="action_reset_playlist_cover">自動カバーを使用</string>
+    <string name="playlist_cover_error">プレイリストのカバーを変更できませんでした。別の画像をお試しください。</string>
     <string name="snack_playlist_created">「%1$s」を作成しました</string>
     <string name="snack_playlist_deleted">「%1$s」を削除しました</string>
     <string name="snack_added_to_playlist">「%1$s」に追加しました</string>
@@ -489,7 +495,7 @@
     <string name="foryou_journey_title">「%1$s」から「%2$s」へ</string>
     <string name="settings_pages">ページ</string>
     <string name="settings_pages_subtitle">表示、順序、開始ページ</string>
-    <string name="settings_pages_body">表示するページを選び、矢印で順序を変更できます。マップは初期設定ではオフです。</string>
+    <string name="settings_pages_body">ドラッグして並べ替えます。使わないページはオフにできます。</string>
     <string name="settings_pages_last_visible">少なくとも1つのページをオンにしてください。</string>
     <string name="settings_page_position">%2$dページ中%1$d番目</string>
     <string name="settings_page_move_up">%1$sを上に移動</string>
@@ -568,4 +574,17 @@
     <string name="output_current">現在の出力先</string>
     <string name="output_connect_device">デバイスを接続</string>
     <string name="output_selection_failed">デバイスを利用できません。接続を確認してください。</string>
+    <string name="queue_reorder">曲を並べ替え</string>
+    <string name="queue_reorder_shuffle">キューを並べ替えるには順番再生に切り替えてください</string>
+    <string name="playlists_yours">マイプレイリスト</string>
+    <string name="playlists_empty_body">プレイリストを作成するか、M3Uファイルを読み込んで音楽をまとめましょう。</string>
+    <string name="playlists_automatic">自動</string>
+    <string name="settings_pages_order">順序</string>
+    <string name="settings_opens_on_launch">起動時に開く</string>
+    <string name="settings_reorder_page">%1$s を並べ替え</string>
+    <string name="settings_backup_subtitle">エクスポートまたは復元</string>
+    <string name="duplicates_groups">グループ</string>
+    <string name="duplicates_summary_title">グループ数：%1$d · %2$s</string>
+    <string name="duplicates_summary_extra">余分なコピー：%1$d</string>
+    <string name="duplicates_copy_count">コピー数：%1$d</string>
 </resources>

@@ -6,7 +6,11 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,10 +27,17 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.QueueMusic
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.Button
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -33,28 +45,44 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_back
+import io.github.nikitasud.latentjam.app.generated.resources.action_change_playlist_cover
+import io.github.nikitasud.latentjam.app.generated.resources.action_reset_playlist_cover
+import io.github.nikitasud.latentjam.app.generated.resources.action_smart_keep_together
+import io.github.nikitasud.latentjam.app.generated.resources.cd_more_options
+import io.github.nikitasud.latentjam.app.generated.resources.map_action_smart_here
+import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.action_close
 import io.github.nikitasud.latentjam.app.generated.resources.action_deselect_all
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
@@ -65,6 +93,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artis
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -231,54 +260,66 @@ fun CollectionDetailScreen(
     onStartSelection: (TrackDescriptor) -> Unit = {},
     onClearSelection: () -> Unit = {},
     onToggleAllSelection: () -> Unit = {},
+    /** Explicit Play action starts in order; tapping a track preserves the current mode. */
+    onPlay: () -> Unit,
     onPlayTrack: (Int) -> Unit,
     onShuffle: () -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
     onClose: () -> Unit,
     /** Room at the foot of the list for the mini-player floating over this screen. */
     bottomInset: Dp = 0.dp,
+    currentAccent: Color? = null,
+    accent: TrackAccent? = null,
+    onStartSmart: (() -> Unit)? = null,
+    onChangeCover: (() -> Unit)? = null,
+    onResetCover: (() -> Unit)? = null,
+    coverEditBusy: Boolean = false,
+    onToggleSmart: (() -> Unit)? = null,
+    includeInSmart: Boolean = false,
+    active: Boolean = true,
+    /** Includes the shared cover transition, which can outlive the page's own entrance. */
+    entrySettled: Boolean = true,
+    artworkModifier: Modifier = Modifier,
 ) {
     val selectionMode = selection.allowsTrackSelection && selectedTrackIds.isNotEmpty()
     val reduceMotion = rememberReduceMotion()
-    PlatformBackHandler(enabled = true) {
+    PlatformBackHandler(enabled = active) {
         if (selectionMode) onClearSelection() else onClose()
     }
 
-    // Opening a collection that contains the player's track lands on that track — the reason to
-    // open the album of what's playing is almost always to see where in it you are. Keyed on route
-    // identity so reconciliation copies (a deleted track, a live playlist edit) never yank the
-    // list, while go-to-album from another collection re-anchors.
+    // A new collection opens with its artwork and actions. Content reconciliation keeps the
+    // route identity, so a library refresh never resets a listener's deliberate scroll position.
     val listState = rememberLazyListState()
+    var scrollRouteId by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(selection.routeId) {
-        val flat = selection.tracks.indexOfFirst { it.id == currentTrackId }
-        if (flat < 0) return@LaunchedEffect
-        // Translate the flat track position into a list-item position: the actions row comes
-        // first, and sectioned lists interleave one header before each section.
-        val sections = selection.sections
-        val item = if (sections == null) {
-            flat + 1
-        } else {
-            var running = 0
-            var headers = 1
-            for (section in sections) {
-                if (flat < running + section.tracks.size) break
-                running += section.tracks.size
-                headers++
-            }
-            flat + headers + 1
+        // A return from Now Playing restores both values; only a different route starts at
+        // its hero, rather than resetting the saved position when this screen re-enters.
+        if (scrollRouteId != selection.routeId) {
+            listState.scrollToItem(0)
+            scrollRouteId = selection.routeId
         }
-        // Two rows of context above the anchored track.
-        listState.scrollToItem((item - 2).coerceAtLeast(0))
     }
+    var optionsOpen by remember(selection.routeId) { mutableStateOf(false) }
+    val entryRevealModifier = playlistEntryRevealModifier(
+        selection = selection,
+        currentTrackId = currentTrackId,
+        listState = listState,
+        active = active,
+        entrySettled = entrySettled,
+    )
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    Surface(
+        modifier = Modifier.fillMaxSize().then(entryRevealModifier)
+            .background(MaterialTheme.colorScheme.surface).browseCloud(accent),
+        color = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .navigationBarsPadding(),
         ) {
-            // Title and count sit in the bar itself rather than under a large cover: this screen
-            // is a list you came to play, and a hero image would push the first track off-screen.
+            // The quiet navigation bar leaves the collection's name with its artwork.
             AnimatedContent(
                 targetState = SelectionBarPresentation(
                     selecting = selectionMode,
@@ -303,51 +344,78 @@ fun CollectionDetailScreen(
                     )
                 } else {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(start = 4.dp, end = 8.dp),
+                        modifier = Modifier.fillMaxWidth().statusBarsPadding()
+                            .heightIn(min = 56.dp).padding(horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        IconButton(onClick = onClose) {
-                            Icon(
-                                Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = stringResource(Res.string.action_back),
-                            )
+                        IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(Res.string.action_back))
                         }
-                        Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
-                            MarqueeText(
-                                text = selection.title,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !selectionMode,
-                            )
-                            selection.subtitle?.let { subtitle ->
-                                MarqueeText(
-                                    text = subtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    enabled = !selectionMode,
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box {
+                            IconButton(onClick = { optionsOpen = true }, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Rounded.MoreVert,
+                                    contentDescription = stringResource(Res.string.cd_more_options))
+                            }
+                            DropdownMenu(
+                                expanded = optionsOpen,
+                                onDismissRequest = { optionsOpen = false },
+                                shape = RoundedCornerShape(20.dp),
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            ) {
+                                onChangeCover?.let { changeCover ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(Res.string.action_change_playlist_cover)) },
+                                        leadingIcon = { Icon(Icons.Outlined.Image, null, Modifier.size(20.dp)) },
+                                        enabled = !coverEditBusy,
+                                        onClick = { optionsOpen = false; changeCover() },
+                                    )
+                                }
+                                onResetCover?.let { resetCover ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(Res.string.action_reset_playlist_cover)) },
+                                        leadingIcon = { Icon(Icons.Outlined.Restore, null, Modifier.size(20.dp)) },
+                                        enabled = !coverEditBusy,
+                                        onClick = { optionsOpen = false; resetCover() },
+                                    )
+                                }
+                                onToggleSmart?.let { toggleSmart ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(Res.string.action_smart_keep_together)) },
+                                        leadingIcon = {
+                                            Icon(Icons.AutoMirrored.Outlined.QueueMusic, null, Modifier.size(20.dp))
+                                        },
+                                        trailingIcon = if (includeInSmart) {
+                                            { Icon(Icons.Outlined.Check, null, Modifier.size(20.dp)) }
+                                        } else null,
+                                        onClick = { optionsOpen = false; toggleSmart() },
+                                    )
+                                }
+                                if (onChangeCover != null) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(Res.string.action_play)) },
+                                    leadingIcon = { Icon(Icons.Outlined.PlayArrow, null, Modifier.size(20.dp)) },
+                                    onClick = { optionsOpen = false; onPlay() },
+                                    enabled = selection.tracks.isNotEmpty(),
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(Res.string.action_shuffle)) },
+                                    leadingIcon = { Icon(Icons.Outlined.Shuffle, null, Modifier.size(20.dp)) },
+                                    onClick = { optionsOpen = false; onShuffle() },
+                                    enabled = selection.tracks.isNotEmpty(),
+                                )
+                                if (selection.allowsTrackSelection) DropdownMenuItem(
+                                    text = { Text(stringResource(Res.string.action_select_all)) },
+                                    leadingIcon = { Icon(Icons.Outlined.SelectAll, null, Modifier.size(20.dp)) },
+                                    onClick = { optionsOpen = false; onToggleAllSelection() },
                                 )
                             }
-                        }
-                        // Shuffle and play sit with the name they act on. They used to live on a
-                        // rounded surface below, mirroring the Tracks tab — but that surface holds
-                        // a sort selector there, and empty here it read as a slider with no handle.
-                        FilledTonalIconButton(onClick = onShuffle) {
-                            Icon(
-                                Icons.Rounded.Shuffle,
-                                contentDescription = stringResource(Res.string.action_shuffle),
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        FilledIconButton(onClick = { onPlayTrack(0) }) {
-                            Icon(
-                                Icons.Rounded.PlayArrow,
-                                contentDescription = stringResource(Res.string.action_play),
-                            )
                         }
                     }
                 }
@@ -375,9 +443,10 @@ fun CollectionDetailScreen(
                         contentPadding = listContentPadding,
                         listState = listState,
                         // This screen is a full-bleed Surface, not the tab panel.
-                        previewContainerColor = MaterialTheme.colorScheme.surface,
                     ) { railPadding, shownListState, artworkReporter, isPreview ->
                         CollectionTrackLazyColumn(
+                            artworkModifier = if (isPreview) Modifier else artworkModifier,
+                            onChangeCover = if (!isPreview && !coverEditBusy) onChangeCover else null,
                             selection = selection,
                             listState = shownListState,
                             contentPadding = railPadding,
@@ -385,16 +454,23 @@ fun CollectionDetailScreen(
                             selectedTrackIds = selectedTrackIds,
                             currentTrackId = currentTrackId,
                             currentTrackPlaying = currentTrackPlaying,
+                            currentAccent = currentAccent,
                             isPreview = isPreview,
                             artworkReporter = artworkReporter,
                             onToggleSelection = onToggleSelection,
                             onStartSelection = onStartSelection,
+                            onPlay = onPlay,
                             onPlayTrack = onPlayTrack,
+                            onShuffle = onShuffle,
+                            onStartSmart = onStartSmart,
                             onTrackMenu = onTrackMenu,
                         )
                     }
                 } else {
                     CollectionTrackLazyColumn(
+                        artworkModifier = artworkModifier,
+                        modifier = Modifier.fadingListTop { listState.canScrollBackward },
+                        onChangeCover = if (!coverEditBusy) onChangeCover else null,
                         selection = selection,
                         listState = listState,
                         contentPadding = listContentPadding,
@@ -402,11 +478,15 @@ fun CollectionDetailScreen(
                         selectedTrackIds = selectedTrackIds,
                         currentTrackId = currentTrackId,
                         currentTrackPlaying = currentTrackPlaying,
+                        currentAccent = currentAccent,
                         isPreview = false,
                         artworkReporter = null,
                         onToggleSelection = onToggleSelection,
                         onStartSelection = onStartSelection,
+                        onPlay = onPlay,
                         onPlayTrack = onPlayTrack,
+                        onShuffle = onShuffle,
+                        onStartSmart = onStartSmart,
                         onTrackMenu = onTrackMenu,
                     )
                 }
@@ -420,25 +500,147 @@ fun CollectionDetailScreen(
 }
 
 @Composable
+private fun CollectionHero(
+    selection: CollectionSelection,
+    artworkModifier: Modifier,
+    enabled: Boolean,
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit,
+    onStartSmart: (() -> Unit)?,
+    onChangeCover: (() -> Unit)?,
+) {
+    val albumYear = remember(selection.tracks) {
+        selection.tracks.mapNotNull { it.year }.distinct().singleOrNull()?.toString()
+    }
+    val metadata = if (selection.routeId.startsWith("album:")) {
+        listOfNotNull(selection.subtitle, albumYear,
+            pluralStringResource(Res.plurals.count_tracks, selection.tracks.size, selection.tracks.size))
+            .joinToString(" · ")
+    } else selection.subtitle
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        val changeCoverLabel = stringResource(Res.string.action_change_playlist_cover)
+        Box(
+            modifier = Modifier.clip(RoundedCornerShape(24.dp)).then(
+                if (onChangeCover != null && enabled) {
+                    Modifier.clickable(onClickLabel = changeCoverLabel, onClick = onChangeCover)
+                } else Modifier,
+            ),
+        ) {
+            Artwork(
+                uri = selection.artworkUri,
+                size = 176.dp,
+                cornerRadius = 24.dp,
+                modifier = artworkModifier,
+            )
+            if (onChangeCover != null && enabled) {
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = changeCoverLabel,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
+                        .padding(7.dp).size(18.dp),
+                )
+            }
+        }
+        Text(
+            text = selection.title,
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+        )
+        metadata?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Row(
+            modifier = Modifier.padding(top = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            FilledTonalIconButton(
+                onClick = onShuffle,
+                enabled = enabled && selection.tracks.isNotEmpty(),
+                modifier = Modifier.size(48.dp),
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+            ) {
+                Icon(Icons.Rounded.Shuffle, stringResource(Res.string.action_shuffle), modifier = Modifier.size(21.dp))
+            }
+            FilledIconButton(
+                onClick = onPlay,
+                enabled = enabled && selection.tracks.isNotEmpty(),
+                modifier = Modifier.size(56.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.onSurface,
+                    contentColor = MaterialTheme.colorScheme.surface,
+                ),
+            ) {
+                Icon(Icons.Rounded.PlayArrow, stringResource(Res.string.action_play), modifier = Modifier.size(25.dp))
+            }
+            if (onStartSmart != null) FilledTonalIconButton(
+                onClick = onStartSmart,
+                enabled = enabled && selection.tracks.isNotEmpty(),
+                modifier = Modifier.size(48.dp),
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.tertiary,
+                ),
+            ) {
+                Icon(LatentJamMark, stringResource(Res.string.map_action_smart_here), modifier = Modifier.size(24.dp))
+            }
+        }
+    }
+}
+
+@Composable
 private fun CollectionTrackLazyColumn(
     selection: CollectionSelection,
+    artworkModifier: Modifier,
     listState: LazyListState,
     contentPadding: PaddingValues,
     selectionMode: Boolean,
     selectedTrackIds: Set<TrackId>,
     currentTrackId: TrackId?,
     currentTrackPlaying: Boolean,
+    currentAccent: Color?,
     isPreview: Boolean,
     artworkReporter: ((ArtworkLoadKey, ArtworkLoadState) -> Unit)?,
     onToggleSelection: (TrackDescriptor) -> Unit,
     onStartSelection: (TrackDescriptor) -> Unit,
+    onPlay: () -> Unit,
     onPlayTrack: (Int) -> Unit,
+    onShuffle: () -> Unit,
+    onStartSmart: (() -> Unit)?,
     onTrackMenu: (TrackDescriptor) -> Unit,
+    modifier: Modifier = Modifier,
+    onChangeCover: (() -> Unit)? = null,
 ) {
     val reduceMotion = rememberReduceMotion()
     val unknownTitle = stringResource(Res.string.track_untitled)
     val unknownArtist = stringResource(Res.string.track_unknown_artist)
-    LazyColumn(state = listState, contentPadding = contentPadding) {
+    LazyColumn(modifier = modifier, state = listState, contentPadding = contentPadding) {
+        item(key = "collection-hero", contentType = "collection-hero") {
+            CollectionHero(
+                artworkModifier = artworkModifier,
+                onChangeCover = onChangeCover,
+                selection = selection,
+                enabled = !selectionMode && !isPreview,
+                onPlay = onPlay,
+                onShuffle = onShuffle,
+                onStartSmart = onStartSmart,
+            )
+        }
         val sections = selection.sections
         if (sections == null) {
             itemsIndexed(
@@ -470,12 +672,12 @@ private fun CollectionTrackLazyColumn(
                         Modifier
                     },
                 ) {
-                    val showDivider = index < selection.tracks.lastIndex
                     if (isPreview) {
                         Column {
                             RailScrubPreviewTrackRow(
                                 track = track,
                                 isCurrent = track.id == currentTrackId,
+                                currentAccent = if (track.id == currentTrackId) currentAccent else null,
                                 selectionState = if (selectionMode) {
                                     track.id in selectedTrackIds
                                 } else {
@@ -483,19 +685,20 @@ private fun CollectionTrackLazyColumn(
                                 },
                                 unknownTitle = unknownTitle,
                                 unknownArtist = unknownArtist,
+                                secondaryText = if (selection.routeId.startsWith("album:")) track.durationMs?.let(::formatDuration) else null,
+                                showDuration = !selection.routeId.startsWith("album:"),
                             )
-                            if (showDivider) CollectionTrackDivider()
                         }
                     } else {
                         CollectionTrackRow(
                             track = track,
                             flatIndex = index,
-                            showDivider = showDivider,
                             selection = selection,
                             selectionMode = selectionMode,
                             selectedTrackIds = selectedTrackIds,
                             currentTrackId = currentTrackId,
                             currentTrackPlaying = currentTrackPlaying,
+                            currentAccent = currentAccent,
                             onArtworkLoadStateChanged = artworkReporter?.let { report ->
                                 artworkKey?.let { expectedKey ->
                                     { requestUri, state ->
@@ -521,8 +724,8 @@ private fun CollectionTrackLazyColumn(
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(
-                            start = 16.dp,
-                            end = 16.dp,
+                            start = 20.dp,
+                            end = 20.dp,
                             top = 16.dp,
                             bottom = 4.dp,
                         ),
@@ -566,12 +769,12 @@ private fun CollectionTrackLazyColumn(
                             Modifier
                         },
                     ) {
-                        val showDivider = indexInSection < section.tracks.lastIndex
                         if (isPreview) {
                             Column {
                                 RailScrubPreviewTrackRow(
                                     track = track,
                                     isCurrent = track.id == currentTrackId,
+                                    currentAccent = if (track.id == currentTrackId) currentAccent else null,
                                     selectionState = if (selectionMode) {
                                         track.id in selectedTrackIds
                                     } else {
@@ -579,19 +782,20 @@ private fun CollectionTrackLazyColumn(
                                     },
                                     unknownTitle = unknownTitle,
                                     unknownArtist = unknownArtist,
+                                    secondaryText = if (selection.routeId.startsWith("album:")) track.durationMs?.let(::formatDuration) else null,
+                                    showDuration = !selection.routeId.startsWith("album:"),
                                 )
-                                if (showDivider) CollectionTrackDivider()
                             }
                         } else {
                             CollectionTrackRow(
                                 track = track,
                                 flatIndex = flatIndex,
-                                showDivider = showDivider,
-                                selection = selection,
+                                    selection = selection,
                                 selectionMode = selectionMode,
                                 selectedTrackIds = selectedTrackIds,
                                 currentTrackId = currentTrackId,
                                 currentTrackPlaying = currentTrackPlaying,
+                                currentAccent = currentAccent,
                                 onArtworkLoadStateChanged = artworkReporter?.let { report ->
                                     artworkKey?.let { expectedKey ->
                                         { requestUri, state ->
@@ -618,12 +822,12 @@ private fun CollectionTrackLazyColumn(
 private fun CollectionTrackRow(
     track: TrackDescriptor,
     flatIndex: Int,
-    showDivider: Boolean,
     selection: CollectionSelection,
     selectionMode: Boolean,
     selectedTrackIds: Set<TrackId>,
     currentTrackId: TrackId?,
     currentTrackPlaying: Boolean,
+    currentAccent: Color?,
     onArtworkLoadStateChanged: ((requestUri: String, state: ArtworkLoadState) -> Unit)?,
     onToggleSelection: (TrackDescriptor) -> Unit,
     onStartSelection: (TrackDescriptor) -> Unit,
@@ -633,8 +837,11 @@ private fun CollectionTrackRow(
     TrackRow(
         track = track,
         isCurrent = track.id == currentTrackId,
-        isPlaying = currentTrackPlaying,
+        isPlaying = currentTrackPlaying && track.id == currentTrackId,
+        currentAccent = if (track.id == currentTrackId) currentAccent else null,
         onArtworkLoadStateChanged = onArtworkLoadStateChanged,
+        secondaryText = if (selection.routeId.startsWith("album:")) track.durationMs?.let(::formatDuration) else null,
+        showDuration = !selection.routeId.startsWith("album:"),
         onClick = {
             if (selectionMode) onToggleSelection(track) else onPlayTrack(flatIndex)
         },
@@ -656,17 +863,6 @@ private fun CollectionTrackRow(
         },
         onMenu = if (selectionMode) null else ({ onTrackMenu(track) }),
     )
-    if (showDivider) {
-        CollectionTrackDivider()
-    }
-}
-
-@Composable
-private fun CollectionTrackDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(start = 88.dp, end = 16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    )
 }
 
 /** Data retained with a contextual bar while it exits, avoiding a visible "0 selected" frame. */
@@ -677,7 +873,6 @@ internal data class SelectionBarPresentation(
 )
 
 /** Contextual app bar shared by the Tracks page and user-playlist multi-selection. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SelectionTopAppBar(
     count: Int,
@@ -686,58 +881,61 @@ internal fun SelectionTopAppBar(
     onToggleAll: () -> Unit,
 ) {
     val reduceMotion = rememberReduceMotion()
-    TopAppBar(
-        title = {
-            AnimatedContent(
-                targetState = count,
-                transitionSpec = { motionFadeThrough(reduceMotion) },
-                label = "selection-count",
-            ) { currentCount ->
-                Text(
-                    text = stringResource(Res.string.selection_count, currentCount),
-                    modifier = Modifier.inactiveForMotion(currentCount != count),
-                )
-            }
-        },
-        navigationIcon = {
-            IconButton(onClick = onClose) {
-                Icon(
-                    imageVector = Icons.Rounded.Close,
-                    contentDescription = stringResource(Res.string.action_close),
-                )
-            }
-        },
-        actions = {
-            val description = stringResource(
-                if (allSelected) {
-                    Res.string.action_deselect_all
-                } else {
-                    Res.string.action_select_all
+    Row(
+        modifier = Modifier.fillMaxWidth().statusBarsPadding()
+            .heightIn(min = 56.dp).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = stringResource(Res.string.action_close),
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        AnimatedContent(
+            targetState = count,
+            transitionSpec = { motionFadeThrough(reduceMotion) },
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+            label = "selection-count",
+        ) { currentCount ->
+            val description = stringResource(Res.string.selection_count, currentCount)
+            Text(
+                // Keep the number readable at large font sizes; accessibility still names the
+                // selection context, while the visible count uses the existing compact plural.
+                text = pluralStringResource(Res.plurals.count_tracks, currentCount, currentCount),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clearAndSetSemantics {
+                    if (currentCount == count) contentDescription = description
                 },
             )
-            IconButton(
-                onClick = onToggleAll,
-                modifier = Modifier.semantics { contentDescription = description },
-            ) {
-                AnimatedContent(
-                    targetState = allSelected,
-                    transitionSpec = { motionIconTransform(reduceMotion) },
-                    label = "select-all-glyph",
-                ) { selected ->
-                    Icon(
-                        imageVector = if (selected) {
-                            Icons.Rounded.CheckCircle
-                        } else {
-                            Icons.Rounded.RadioButtonUnchecked
-                        },
-                        contentDescription = null,
-                        modifier = Modifier.inactiveForMotion(selected != allSelected),
-                    )
-                }
+        }
+        val description = stringResource(
+            if (allSelected) Res.string.action_deselect_all else Res.string.action_select_all,
+        )
+        IconButton(
+            onClick = onToggleAll,
+            modifier = Modifier.size(48.dp).semantics { contentDescription = description },
+        ) {
+            AnimatedContent(
+                targetState = allSelected,
+                transitionSpec = { motionIconTransform(reduceMotion) },
+                label = "select-all-glyph",
+            ) { selected ->
+                Icon(
+                    imageVector = if (selected) {
+                        Icons.Rounded.CheckCircle
+                    } else {
+                        Icons.Rounded.RadioButtonUnchecked
+                    },
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
             }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
-    )
+        }
+    }
 }

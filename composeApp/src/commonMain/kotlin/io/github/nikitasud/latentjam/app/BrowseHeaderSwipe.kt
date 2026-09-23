@@ -4,10 +4,13 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.gestures.snapping.SnapLayoutInfoProvider
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.gestures.snapping.snapFlingBehavior
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -20,6 +23,7 @@ import androidx.compose.ui.unit.dp
 /** Shares the content's scroll state, without making the label strip a second scrolling list. */
 @Composable
 internal fun Modifier.browseHeaderSwipe(pagerState: PagerState, enabled: Boolean): Modifier {
+    val reduceMotion = rememberReduceMotion()
     val flingThreshold = with(LocalDensity.current) { 400.dp.toPx() }
     val snapLayout = remember(pagerState, flingThreshold) {
         object : SnapLayoutInfoProvider {
@@ -39,6 +43,19 @@ internal fun Modifier.browseHeaderSwipe(pagerState: PagerState, enabled: Boolean
             }
         }
     }
+    val decay = rememberSplineBasedDecay<Float>()
+    val fling = remember(snapLayout, decay, reduceMotion) {
+        snapFlingBehavior(
+            snapLayoutInfoProvider = snapLayout,
+            decayAnimationSpec = decay,
+            // Dragging stays directly under the finger. Only the release settle uses the
+            // navigation clock; reduced motion settles immediately to the same chosen page.
+            snapAnimationSpec = if (reduceMotion) snap() else tween(
+                durationMillis = Motion.NAVIGATION_MS,
+                easing = Motion.NavigationEasing,
+            ),
+        )
+    }
     return scrollable(
         state = pagerState,
         orientation = Orientation.Horizontal,
@@ -46,7 +63,7 @@ internal fun Modifier.browseHeaderSwipe(pagerState: PagerState, enabled: Boolean
         reverseDirection = LocalLayoutDirection.current == LayoutDirection.Ltr,
         // PagerDefaults depends on pointer history collected inside HorizontalPager. Header
         // gestures never reach it, so use the actual page offset and release velocity instead.
-        flingBehavior = rememberSnapFlingBehavior(snapLayout),
+        flingBehavior = fling,
     )
 }
 

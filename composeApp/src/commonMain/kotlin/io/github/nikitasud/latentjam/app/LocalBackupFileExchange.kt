@@ -19,6 +19,8 @@ internal sealed interface LocalBackupFileResult<out T> {
 internal data class LocalBackupFileExchange(
     val export: (encoded: String, suggestedName: String) -> Unit,
     val import: () -> Unit,
+    /** Includes a platform picker or retained document IO after a configuration change. */
+    val inProgress: Boolean = false,
 )
 
 /**

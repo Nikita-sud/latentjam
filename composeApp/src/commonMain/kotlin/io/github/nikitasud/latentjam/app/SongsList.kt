@@ -4,11 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -19,32 +15,42 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
@@ -63,7 +69,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * The Songs tab for large libraries: sorted per [sort], sticky index headers,
+ * The Songs tab for large libraries: sorted per [sort], scrolling index headers,
  * and an A–Z rail in its own pill — position-based navigation instead of
  * endless flinging (Fitts's law for ~1000-row lists). While dragging, the
  * letter appears beside the finger rather than over the list, so the titles
@@ -86,6 +92,8 @@ internal fun SectionedSongsList(
     onStartSelection: (TrackDescriptor) -> Unit = {},
     onPlay: (queue: List<TrackDescriptor>, index: Int) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
+    currentAccent: Color? = null,
+    onRailScrubbingChange: (Boolean) -> Unit = {},
 ) {
     val sections = remember(songs, sort, sortDirection) {
         SongSorting.sections(songs, sort, sortDirection)
@@ -114,26 +122,26 @@ internal fun SectionedSongsList(
     val emittedTracks = remember(indexed) {
         buildList<TrackDescriptor?> {
             indexed.forEach { section ->
-                add(null) // Sticky header occupies one LazyColumn emission index.
+                add(null) // Section header occupies one LazyColumn emission index.
                 addAll(section.tracks)
             }
         }
     }
     var railScrubbing by remember(railCatalogKey) { mutableStateOf(false) }
+    val reportRailScrubbing by rememberUpdatedState(onRailScrubbingChange)
+    DisposableEffect(railCatalogKey) {
+        onDispose { reportRailScrubbing(false) }
+    }
     var railPreviewBucketIndex by remember(railCatalogKey) { mutableStateOf<Int?>(null) }
     val railPreviewListState = rememberLazyListState()
-    val previewVisibility = remember(railCatalogKey) { MutableTransitionState(false) }
     val previewRequested = railScrubbing && railPreviewBucketIndex != null
-    previewVisibility.targetState = previewRequested
-    val previewOccluding = previewRequested ||
-        previewVisibility.currentState || previewVisibility.targetState
     val unknownTitle = stringResource(Res.string.track_untitled)
     val unknownArtist = stringResource(Res.string.track_unknown_artist)
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
-            userScrollEnabled = !previewOccluding,
+            userScrollEnabled = !previewRequested,
             // Keeps row content — especially the overflow buttons — clear of
             // the rail so neither is hard to hit. Keep the inset inside the
             // scrolling content: outer padding exposed the page background as
@@ -144,11 +152,13 @@ internal fun SectionedSongsList(
             ),
             modifier = Modifier
                 .fillMaxSize()
-                .inactiveForMotion(previewOccluding),
+                .graphicsLayer { alpha = if (previewRequested) 0f else 1f }
+                .fadingListTop { listState.canScrollBackward }
+                .inactiveForMotion(previewRequested),
         ) {
             indexed.forEach { section ->
                 if (showIndex) {
-                    stickyHeader(key = "header-${section.bucket}", contentType = "header") {
+                    item(key = "header-${section.bucket}", contentType = "header") {
                         SectionHeader(section.bucket)
                     }
                 }
@@ -171,7 +181,9 @@ internal fun SectionedSongsList(
                         TrackRow(
                             track = track,
                             isCurrent = track.id == currentTrackId,
-                            isPlaying = currentTrackPlaying,
+                            isPlaying = currentTrackPlaying && track.id == currentTrackId,
+                            currentAccent = if (track.id == currentTrackId) currentAccent else null,
+                            rowEndInset = 0.dp,
                             onClick = {
                                 if (selectionMode) {
                                     onToggleSelection(track)
@@ -211,15 +223,14 @@ internal fun SectionedSongsList(
             }
         }
 
-        RailScrubPreviewLayer(
-            visibility = previewVisibility,
+        if (previewRequested) RailScrubPreviewLayer(
             listState = railPreviewListState,
             indexed = indexed,
             currentTrackId = currentTrackId,
+            currentAccent = currentAccent,
             selectedTrackIds = if (selectionMode) selectedTrackIds else null,
             unknownTitle = unknownTitle,
             unknownArtist = unknownArtist,
-            reduceMotion = reduceMotion,
             bottomPadding = contentPadding.calculateBottomPadding() + 12.dp,
         )
 
@@ -242,13 +253,13 @@ internal fun SectionedSongsList(
                         ?: return@onJump
                     val loadCycle = artworkLoadGate.begin()
                     try {
-                        // First let the opaque preview cover the old viewport. The real list then
-                        // moves exactly once underneath it. Starting the cycle before that move
+                        // First swap the old viewport for its transparent mirror. The hidden real
+                        // list then moves exactly once. Starting the cycle before that move
                         // retains even an immediate memory-cache callback from the target rows.
                         withFrameNanos { }
                         listState.scrollToItem(targetIndex)
                         withFrameNanos { }
-                        // The mirror and real list share sticky/content-padding/row geometry, so
+                        // The mirror and real list share header/content-padding/row geometry, so
                         // no approximate-to-exact correction occurs. Only the actual final
                         // viewport participates in the readiness gate; canceled transient
                         // thumbnail requests cannot delay the final reveal.
@@ -269,7 +280,10 @@ internal fun SectionedSongsList(
                         artworkLoadGate.end(loadCycle)
                     }
                 },
-                onScrubbingChange = { railScrubbing = it },
+                onScrubbingChange = {
+                    railScrubbing = it
+                    reportRailScrubbing(it)
+                },
             )
         }
         ScrollToTopButton(
@@ -367,70 +381,59 @@ internal class ArtworkLoadGate {
 }
 
 /**
- * Opaque lightweight mirror of the real list. Identical LazyColumn/sticky-header geometry makes
+ * Transparent lightweight mirror of the real list. Identical LazyColumn/header geometry makes
  * end clamping stable throughout drag and release while the interactive real viewport stays
  * frozen. Its only asynchronous work is constrained 48dp artwork thumbnails.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RailScrubPreviewLayer(
-    visibility: MutableTransitionState<Boolean>,
     listState: LazyListState,
     indexed: List<IndexedSection>,
     currentTrackId: TrackId?,
+    currentAccent: Color?,
     selectedTrackIds: Set<TrackId>?,
     unknownTitle: String,
     unknownArtist: String,
-    reduceMotion: Boolean,
     bottomPadding: Dp,
 ) {
-    AnimatedVisibility(
-        visibleState = visibility,
-        // It must cover in the first frame; a translucent enter exposes the hidden list jump on
-        // a very fast gesture. Only the final reveal dissolves.
-        enter = EnterTransition.None,
-        exit = fadeOut(
-            tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
-        ),
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clipToBounds()
+            .fadingListTop { listState.canScrollBackward }
+            .inactiveForMotion(true),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clipToBounds()
-                // The tracks tab sits on the surfaceContainer panel; the mirror must match it
-                // exactly or the cover shows as the whole list darkening while scrubbing.
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .inactiveForMotion(true),
+        LazyColumn(
+            state = listState,
+            userScrollEnabled = false,
+            contentPadding = PaddingValues(
+                end = RailWidth + RailGap,
+                bottom = bottomPadding,
+            ),
+            modifier = Modifier.fillMaxSize(),
         ) {
-            LazyColumn(
-                state = listState,
-                userScrollEnabled = false,
-                contentPadding = PaddingValues(
-                    end = RailWidth + RailGap,
-                    bottom = bottomPadding,
-                ),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                indexed.forEach { section ->
-                    stickyHeader(
-                        key = "rail-preview-header-${section.bucket}",
-                        contentType = "header",
-                    ) {
-                        SectionHeader(section.bucket)
-                    }
-                    itemsIndexed(
-                        items = section.tracks,
-                        key = { _, track -> "rail-preview-${track.id.value}" },
-                        contentType = { _, _ -> "track" },
-                    ) { _, track ->
-                        RailScrubPreviewTrackRow(
-                            track = track,
-                            isCurrent = track.id == currentTrackId,
-                            selectionState = selectedTrackIds?.let { track.id in it },
-                            unknownTitle = unknownTitle,
-                            unknownArtist = unknownArtist,
-                        )
-                    }
+            indexed.forEach { section ->
+                item(
+                    key = "rail-preview-header-${section.bucket}",
+                    contentType = "header",
+                ) {
+                    SectionHeader(section.bucket)
+                }
+                itemsIndexed(
+                    items = section.tracks,
+                    key = { _, track -> "rail-preview-${track.id.value}" },
+                    contentType = { _, _ -> "track" },
+                ) { _, track ->
+                    RailScrubPreviewTrackRow(
+                        track = track,
+                        isCurrent = track.id == currentTrackId,
+                        currentAccent = if (track.id == currentTrackId) currentAccent else null,
+                        selectionState = selectedTrackIds?.let { track.id in it },
+                        unknownTitle = unknownTitle,
+                        unknownArtist = unknownArtist,
+                        rowEndInset = 0.dp,
+                    )
                 }
             }
         }
@@ -444,71 +447,65 @@ internal fun RailScrubPreviewTrackRow(
     selectionState: Boolean?,
     unknownTitle: String,
     unknownArtist: String,
+    currentAccent: Color? = null,
+    rowEndInset: Dp = 8.dp,
+    secondaryText: String? = null,
+    showDuration: Boolean = true,
 ) {
+    val accent = currentAccent ?: MaterialTheme.colorScheme.primary
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 60.dp)
-            .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = 8.dp, end = rowEndInset)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (isCurrent) accent.copy(alpha = 0.10f) else Color.Transparent)
+            .heightIn(min = 64.dp)
+            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (selectionState != null) {
             Icon(
-                imageVector = if (selectionState) {
-                    Icons.Rounded.CheckCircle
-                } else {
-                    Icons.Rounded.RadioButtonUnchecked
-                },
+                imageVector = if (selectionState) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
                 contentDescription = null,
-                tint = if (selectionState) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
+                tint = if (selectionState) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(28.dp),
             )
-            Spacer(modifier = Modifier.width(12.dp))
         }
-        // The mirror stays cheap (no gestures, menus, selection motion, or row animations), but
-        // still asks Coil only for the same 48dp thumbnail the user expects to follow the rail.
-        // Disposed transient rows cancel their requests; the final viewport is then already warm.
         Artwork(uri = track.artworkUri, size = 48.dp)
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center,
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = track.title ?: unknownTitle,
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (isCurrent) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
+                color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = track.artist ?: unknownArtist,
+                text = secondaryText ?: track.artist ?: unknownArtist,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (selectionState == null) {
-            // TrackRow has a 12dp arrangement gap before its 48dp menu button.
-            Spacer(modifier = Modifier.width(60.dp))
-        } else {
-            track.durationMs?.let { durationMs ->
-                Spacer(modifier = Modifier.width(12.dp))
+        if (isCurrent && selectionState == null) NowPlayingIndicator(animating = false, tint = accent)
+        if (showDuration) {
+            track.durationMs?.let { duration ->
                 Text(
-                    text = formatDuration(durationMs),
-                    style = MaterialTheme.typography.labelSmall,
+                    text = formatDuration(duration),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 12.dp),
+                    maxLines = 1,
+                    modifier = Modifier.widthIn(min = 34.dp),
                 )
+            }
+        }
+        if (selectionState == null) {
+            // The scrub mirror is non-interactive, but must look exactly like the real row.
+            Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.MoreVert, contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
             }
         }
     }
@@ -516,15 +513,23 @@ internal fun RailScrubPreviewTrackRow(
 
 @Composable
 private fun SectionHeader(bucket: String) {
-    Text(
-        text = bucket,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 22.dp).padding(start = 28.dp, end = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = bucket,
+            style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 0.7.sp,
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Box(
+            modifier = Modifier.weight(1f).height(1.dp)
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)),
+        )
+    }
 }
 
 // ------------------------------------------------------------------ indexing

@@ -24,3 +24,6 @@ internal actual fun PlatformThemeEffect(darkTheme: Boolean) {
         }
     }
 }
+
+internal actual fun fullscreenDialogProperties(): androidx.compose.ui.window.DialogProperties =
+    androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)

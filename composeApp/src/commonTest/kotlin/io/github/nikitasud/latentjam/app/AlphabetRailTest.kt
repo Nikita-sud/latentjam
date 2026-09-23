@@ -56,6 +56,29 @@ internal class AlphabetRailTest {
     }
 
     @Test
+    fun sectionLookupKeepsExactBoundariesAndLatestDuplicateAnchor() {
+        val starts = listOf(3, 8, 8, 15, 27)
+        assertEquals(null, currentRailBucketIndex(0, emptyList()))
+        assertEquals(0, currentRailBucketIndex(0, starts))
+        assertEquals(0, currentRailBucketIndex(7, starts))
+        assertEquals(2, currentRailBucketIndex(8, starts))
+        assertEquals(2, currentRailBucketIndex(14, starts))
+        assertEquals(3, currentRailBucketIndex(15, starts))
+        assertEquals(4, currentRailBucketIndex(27, starts))
+    }
+
+    @Test
+    fun sectionLookupMatchesLinearSelectionAcrossALargeMixedScriptRail() {
+        val starts = List(4_096) { index -> index * index / 4 }
+        for (itemIndex in 0..starts.last() step 997) {
+            assertEquals(
+                starts.indexOfLast { it <= itemIndex },
+                currentRailBucketIndex(itemIndex, starts),
+            )
+        }
+    }
+
+    @Test
     fun firstLetterTicksButHoldingAndReleasingTheSameLetterDoNot() {
         val feedback = RailHapticState()
         assertTrue(feedback.select(5, 100L))

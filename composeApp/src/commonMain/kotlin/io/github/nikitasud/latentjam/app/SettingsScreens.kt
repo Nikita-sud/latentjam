@@ -6,14 +6,19 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,8 +28,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -39,10 +45,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.ArrowDownward
-import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -64,6 +71,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -74,14 +82,23 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -93,12 +110,24 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.Dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_back
+import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_order
+import io.github.nikitasud.latentjam.app.generated.resources.settings_opens_on_launch
+import io.github.nikitasud.latentjam.app.generated.resources.settings_reorder_page
+import io.github.nikitasud.latentjam.app.generated.resources.settings_backup_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_groups
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_summary_title
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_summary_extra
+import io.github.nikitasud.latentjam.app.generated.resources.duplicates_copy_count
 import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.snack_duplicates_dismissed
 import io.github.nikitasud.latentjam.app.generated.resources.unit_megabytes
@@ -113,7 +142,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.duplicates_recommen
 import io.github.nikitasud.latentjam.app.generated.resources.duplicates_not_duplicates
 import io.github.nikitasud.latentjam.app.generated.resources.duplicates_keep_selected
 import io.github.nikitasud.latentjam.app.generated.resources.duplicates_keep_recommended
-import io.github.nikitasud.latentjam.app.generated.resources.duplicates_summary
 import io.github.nikitasud.latentjam.app.generated.resources.action_clear
 import io.github.nikitasud.latentjam.app.generated.resources.action_close
 import io.github.nikitasud.latentjam.app.generated.resources.action_remove_from_latentjam
@@ -213,7 +241,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_pages
 import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_last_visible
-import io.github.nikitasud.latentjam.app.generated.resources.settings_page_position
 import io.github.nikitasud.latentjam.app.generated.resources.settings_page_move_up
 import io.github.nikitasud.latentjam.app.generated.resources.settings_page_move_down
 import io.github.nikitasud.latentjam.app.generated.resources.settings_pages_reset
@@ -358,6 +385,10 @@ private enum class SettingsPage {
     LICENSES,
 }
 
+private fun String.settingsStack(): List<SettingsPage> = split(ROUTE_SEPARATOR)
+    .mapNotNull { name -> SettingsPage.entries.firstOrNull { it.name == name } }
+    .ifEmpty { listOf(SettingsPage.ROOT) }
+
 /** Every settings action is backed by a real app capability; there are no placeholder toggles. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -384,83 +415,117 @@ fun SettingsScreen(
     onClearListeningHistory: suspend () -> Unit,
     onClearRecentSearches: suspend () -> Unit,
     snackbarHostState: SnackbarHostState,
+    accent: TrackAccent? = null,
+    rootOpenProgress: () -> Float = { 1f },
+    rootButtonBounds: Rect? = null,
+    active: Boolean = true,
     onClose: () -> Unit,
 ) {
     val library = remember { AppGraph.library }
     val permissions = remember { AppGraph.permissions }
     var savedStack by rememberSaveable { mutableStateOf(SettingsPage.ROOT.name) }
-    val stack = savedStack.split(ROUTE_SEPARATOR)
-        .mapNotNull { name -> SettingsPage.entries.firstOrNull { it.name == name } }
-        .ifEmpty { listOf(SettingsPage.ROOT) }
+    val stack = remember(savedStack) { savedStack.settingsStack() }
     val rootListState = rememberLazyListState()
+    // Only navigation parents retain their scroll position. Retaining the whole page would
+    // also revive old confirmation dialogs and busy flags after a cancelled operation.
+    val libraryListState = rememberLazyListState()
+    val intelligenceListState = rememberLazyListState()
+    val aboutListState = rememberLazyListState()
     val reduceMotion = rememberReduceMotion()
     val layoutDirection = LocalLayoutDirection.current
+    // Header and body share a clock, including when Back reverses a push before it settles.
+    val pageTransition = updateTransition(targetState = stack, label = "settings-navigation")
 
-    fun open(next: SettingsPage) {
-        savedStack = (stack + next).joinToString(ROUTE_SEPARATOR)
+    fun open(from: SettingsPage, next: SettingsPage) {
+        val current = savedStack.settingsStack()
+        // An outgoing row can finish a tap before recomposition removes its input tree.
+        if (current.last() != from || next in current) return
+        savedStack = (current + next).joinToString(ROUTE_SEPARATOR)
     }
 
     fun goBack() {
-        if (stack.size == 1) {
+        val current = savedStack.settingsStack()
+        if (current.size == 1) {
             onClose()
         } else {
-            savedStack = stack.dropLast(1).joinToString(ROUTE_SEPARATOR)
+            savedStack = current.dropLast(1).joinToString(ROUTE_SEPARATOR)
         }
     }
 
-    PlatformBackHandler(enabled = true, onBack = ::goBack)
+    PlatformBackHandler(enabled = active, onBack = ::goBack)
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).browseCloud(accent)) {
         Scaffold(
+            containerColor = Color.Transparent,
+            // The artwork glow is painted by the parent; a transparent scaffold cannot infer
+            // a contrasting content color from its own container.
+            contentColor = MaterialTheme.colorScheme.onSurface,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     title = {
-                        AnimatedContent(
-                            targetState = stack,
+                        pageTransition.AnimatedContent(
                             contentKey = { it.last() },
                             transitionSpec = {
                                 motionPageTransform(
-                                    forward = targetState.size >= initialState.size,
+                                    forward = targetState.size > initialState.size,
                                     reduceMotion = reduceMotion,
                                     layoutDirection = layoutDirection,
                                 )
                             },
-                            label = "settings-title",
+                            contentAlignment = Alignment.CenterStart,
                         ) { animatedStack ->
                             Text(
                                 text = stringResource(animatedStack.last().titleResource()),
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.inactiveForMotion(
                                     animatedStack.last() != stack.last(),
-                                ),
+                                ).graphicsLayer {
+                                    val p = if (reduceMotion) 1f else
+                                        navigationPhase(rootOpenProgress(), 0.2f, 0.9f)
+                                    alpha = p
+                                    val direction = if (layoutDirection == LayoutDirection.Ltr) 1f else -1f
+                                    translationX = -16.dp.toPx() * direction * (1f - p)
+                                },
                             )
                         }
                     },
                     navigationIcon = {
                         IconButton(onClick = ::goBack) {
-                            Icon(
-                                Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = stringResource(Res.string.action_back),
-                            )
+                            if (stack.size == 1) {
+                                SettingsBackIcon(rootOpenProgress, rootButtonBounds)
+                            } else {
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = stringResource(Res.string.action_back),
+                                )
+                            }
                         }
                     },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 )
             },
         ) { padding ->
-            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding).graphicsLayer {
+                val p = if (reduceMotion) 1f else navigationPhase(rootOpenProgress(), 0.3f, 1f)
+                alpha = p
+                val direction = if (layoutDirection == LayoutDirection.Ltr) 1f else -1f
+                translationX = -24.dp.toPx() * direction * (1f - p)
+            }) {
                 // Direction-aware: drilling in slides forward, backing out slides back — the axis
                 // carries the navigation model, so depth is legible without reading the title.
-                AnimatedContent(
-                    targetState = stack,
+                pageTransition.AnimatedContent(
+                    modifier = Modifier.fillMaxSize(),
                     contentKey = { it.last() },
                     transitionSpec = {
                         motionPageTransform(
-                            forward = targetState.size >= initialState.size,
+                            forward = targetState.size > initialState.size,
                             reduceMotion = reduceMotion,
                             layoutDirection = layoutDirection,
                         )
                     },
-                    label = "settings-page",
                 ) { animatedStack ->
                 Box(
                     modifier = Modifier
@@ -471,7 +536,7 @@ fun SettingsScreen(
                     SettingsPage.ROOT -> SettingsRoot(
                         listState = rootListState,
                         equalizer = equalizer,
-                        onOpen = ::open,
+                        onOpen = { open(SettingsPage.ROOT, it) },
                     )
                     SettingsPage.APPEARANCE -> AppearanceSettings(
                         settings = settings,
@@ -479,6 +544,7 @@ fun SettingsScreen(
                     )
                     SettingsPage.PAGES -> PagesSettings(settings)
                     SettingsPage.LIBRARY -> LibrarySettings(
+                        listState = libraryListState,
                         trackCount = tracks.size,
                         loading = libraryLoading,
                         refreshing = libraryRefreshing,
@@ -487,7 +553,7 @@ fun SettingsScreen(
                         permissions = permissions,
                         onRefreshLibrary = onRefreshLibrary,
                         onImportAudio = onImportAudio,
-                        onOpen = ::open,
+                        onOpen = { open(SettingsPage.LIBRARY, it) },
                     )
                     SettingsPage.SOURCES -> SourcesSettings(
                         library = library,
@@ -509,12 +575,14 @@ fun SettingsScreen(
                         snackbarHostState = snackbarHostState,
                     )
                     SettingsPage.STATS -> ListeningStatsSettings(
+                        accent = accent,
                         history = history,
                         tracks = tracks,
                         active = stack.last() == SettingsPage.STATS,
                     )
                     SettingsPage.EQUALIZER -> EqualizerSettings(equalizer, settings)
                     SettingsPage.INTELLIGENCE -> IntelligenceSettings(
+                        listState = intelligenceListState,
                         settings = settings,
                         engine = engine,
                         tracks = tracks,
@@ -523,7 +591,7 @@ fun SettingsScreen(
                         onRebuildAnalysis = onRebuildAnalysis,
                         permissions = permissions,
                         snackbarHostState = snackbarHostState,
-                        onOpen = ::open,
+                        onOpen = { open(SettingsPage.INTELLIGENCE, it) },
                     )
                     SettingsPage.INTELLIGENCE_PROBLEMS -> IntelligenceProblemsSettings(
                         tracks = tracks,
@@ -551,9 +619,10 @@ fun SettingsScreen(
                         onBackupRestored = onBackupRestored,
                         snackbarHostState = snackbarHostState,
                     )
-                    SettingsPage.ABOUT -> AboutSettings(onOpenLicenses = {
-                        open(SettingsPage.LICENSES)
-                    })
+                    SettingsPage.ABOUT -> AboutSettings(
+                        listState = aboutListState,
+                        onOpenLicenses = { open(SettingsPage.ABOUT, SettingsPage.LICENSES) },
+                    )
                     SettingsPage.LICENSES -> LicensesSettings()
                 }
                 }
@@ -594,43 +663,50 @@ private fun SettingsRoot(
         equalizerState.enabled -> stringResource(Res.string.state_on)
         else -> stringResource(Res.string.state_off)
     }
-    LazyColumn(
+    FadingLazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
         item {
-            SettingsSection(stringResource(Res.string.settings_section_preferences)) {
+            SettingsCardSection(stringResource(Res.string.settings_section_preferences)) {
                 SettingsRow(
+                    horizontalPadding = 16.dp,
                     title = stringResource(Res.string.settings_pages),
                     subtitle = stringResource(Res.string.settings_pages_subtitle),
                     onClick = { onOpen(SettingsPage.PAGES) },
                 )
                 SettingsRow(
+                    horizontalPadding = 16.dp,
                     title = stringResource(Res.string.settings_appearance),
                     subtitle = stringResource(Res.string.settings_appearance_subtitle),
                     onClick = { onOpen(SettingsPage.APPEARANCE) },
                 )
                 SettingsRow(
+                    horizontalPadding = 16.dp,
                     title = stringResource(Res.string.settings_equalizer),
-                    subtitle = equalizerSubtitle,
+                    subtitle = equalizerSubtitle.takeUnless { equalizerState.available },
+                    value = equalizerSubtitle.takeIf { equalizerState.available },
                     onClick = { onOpen(SettingsPage.EQUALIZER) },
                 )
             }
         }
         item {
-            SettingsSection(stringResource(Res.string.settings_section_music)) {
+            SettingsCardSection(stringResource(Res.string.settings_section_music)) {
                 SettingsRow(
+                    horizontalPadding = 16.dp,
                     title = stringResource(Res.string.settings_library),
                     subtitle = stringResource(Res.string.settings_library_subtitle),
                     onClick = { onOpen(SettingsPage.LIBRARY) },
                 )
                 SettingsRow(
+                    horizontalPadding = 16.dp,
                     title = stringResource(Res.string.settings_smart_engine),
                     subtitle = stringResource(Res.string.settings_smart_engine_subtitle),
                     onClick = { onOpen(SettingsPage.INTELLIGENCE) },
                 )
                 SettingsRow(
+                    horizontalPadding = 16.dp,
                     title = stringResource(Res.string.settings_stats),
                     subtitle = stringResource(Res.string.settings_stats_subtitle),
                     onClick = { onOpen(SettingsPage.STATS) },
@@ -638,18 +714,21 @@ private fun SettingsRoot(
             }
         }
         item {
-            SettingsSection(stringResource(Res.string.settings_section_data_support)) {
+            SettingsCardSection(stringResource(Res.string.settings_section_data_support)) {
                 SettingsRow(
+                    horizontalPadding = 16.dp,
                     title = stringResource(Res.string.settings_privacy),
                     subtitle = stringResource(Res.string.settings_privacy_subtitle),
                     onClick = { onOpen(SettingsPage.PRIVACY) },
                 )
                 SettingsRow(
+                    horizontalPadding = 16.dp,
                     title = stringResource(Res.string.settings_backup),
-                    subtitle = stringResource(Res.string.settings_backup_body),
+                    subtitle = stringResource(Res.string.settings_backup_subtitle),
                     onClick = { onOpen(SettingsPage.BACKUP) },
                 )
                 SettingsRow(
+                    horizontalPadding = 16.dp,
                     title = stringResource(Res.string.settings_about),
                     subtitle = stringResource(Res.string.settings_about_subtitle),
                     onClick = { onOpen(SettingsPage.ABOUT) },
@@ -667,7 +746,7 @@ private fun AppearanceSettings(
     val theme by settings.themeMode.collectAsState()
     val colorMode by settings.trackColorMode.collectAsState()
 
-    LazyColumn(
+    FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -727,33 +806,52 @@ private fun AppearanceSettings(
 
 @Composable
 private fun PagesSettings(settings: AppSettings) {
+    val haptics = LocalHapticFeedback.current
     val savedLayout by settings.pageLayout.collectAsState()
     val preferredStartPage by settings.startPage.collectAsState()
     val layout = remember(savedLayout) { savedLayout.normalized() }
     val visiblePages = remember(layout) { layout.visiblePages }
     val startPage = layout.resolveStartPage(preferredStartPage)
     val reduceMotion = rememberReduceMotion()
+    val listState = rememberLazyListState()
     var choosingStartPage by rememberSaveable { mutableStateOf(false) }
 
-    LazyColumn(
+    FadingLazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
         item(key = "page-introduction") {
-            SettingsSection(title = null) {
-                SettingsBody(stringResource(Res.string.settings_pages_body))
+            SettingsBody(stringResource(Res.string.settings_pages_body))
+            SettingsCardSection(stringResource(Res.string.settings_start_page)) {
                 SettingsRow(
-                    title = stringResource(Res.string.settings_start_page),
-                    subtitle = stringResource(startPage.titleResource()),
+                    title = stringResource(Res.string.settings_opens_on_launch),
+                    subtitle = null,
+                    value = stringResource(startPage.titleResource()),
+                    horizontalPadding = 16.dp,
                     onClick = { choosingStartPage = true },
                 )
             }
+            SettingsGroupTitle(stringResource(Res.string.settings_pages_order))
         }
         itemsIndexed(layout.order, key = { _, page -> page.name }) { position, page ->
             val enabled = page in visiblePages
             val canDisable = !enabled || visiblePages.size > 1
             val label = stringResource(page.titleResource())
-            Column(
+            val moveUpLabel = stringResource(Res.string.settings_page_move_up, label)
+            val moveDownLabel = stringResource(Res.string.settings_page_move_down, label)
+            var menuOpen by remember(page) { mutableStateOf(false) }
+            var dragging by remember(page) { mutableStateOf(false) }
+            var dragOffset by remember(page) { mutableFloatStateOf(0f) }
+            var dragRows by remember(page) { mutableStateOf(emptyList<PageReorderItem>()) }
+            var dragOrder by remember(page) { mutableStateOf(emptyList<StartPage>()) }
+            val shape = RoundedCornerShape(
+                topStart = if (position == 0) 16.dp else 0.dp,
+                topEnd = if (position == 0) 16.dp else 0.dp,
+                bottomStart = if (position == layout.order.lastIndex) 16.dp else 0.dp,
+                bottomEnd = if (position == layout.order.lastIndex) 16.dp else 0.dp,
+            )
+            Row(
                 modifier = Modifier
                     .animateItem(
                         fadeInSpec = null,
@@ -761,74 +859,101 @@ private fun PagesSettings(settings: AppSettings) {
                         fadeOutSpec = null,
                     )
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 56.dp)
-                        .toggleable(
-                            value = enabled,
-                            enabled = canDisable,
-                            role = Role.Switch,
-                            onValueChange = { show ->
-                                settings.setPageLayout(
-                                    settings.pageLayout.value.withPageEnabled(page, show),
-                                )
+                    .zIndex(if (dragging) 1f else 0f)
+                    .graphicsLayer { translationY = dragOffset }
+                    .padding(horizontal = 20.dp)
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .pointerInput(page, layout.order) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                haptics.play(PlayerHaptic.HOLD)
+                                dragging = true
+                                dragOffset = 0f
+                                dragOrder = layout.order
+                                dragRows = listState.layoutInfo.visibleItemsInfo.mapNotNull { item ->
+                                    layout.order.firstOrNull { it.name == item.key }?.let {
+                                        PageReorderItem(it, item.offset, item.size)
+                                    }
+                                }
                             },
+                            onDrag = { change, amount -> change.consume(); dragOffset += amount.y },
+                            onDragEnd = {
+                                val current = settings.pageLayout.value
+                                val next = current.reorderPageAfterDrag(page, dragOrder, dragRows, dragOffset)
+                                dragging = false
+                                dragOffset = 0f
+                                if (next != current) {
+                                    settings.setPageLayout(next)
+                                    haptics.play(PlayerHaptic.RELEASE)
+                                }
+                            },
+                            onDragCancel = { dragging = false; dragOffset = 0f },
                         )
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                        if (!canDisable) {
-                            Text(
-                                text = stringResource(Res.string.settings_pages_last_visible),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                    }
+                    .semantics {
+                        customActions = buildList {
+                            if (position > 0) add(CustomAccessibilityAction(moveUpLabel) {
+                                settings.setPageLayout(settings.pageLayout.value.movePage(page, -1)); true
+                            })
+                            if (position < layout.order.lastIndex) add(CustomAccessibilityAction(moveDownLabel) {
+                                settings.setPageLayout(settings.pageLayout.value.movePage(page, 1)); true
+                            })
                         }
                     }
-                    Switch(checked = enabled, enabled = canDisable, onCheckedChange = null)
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(
-                            Res.string.settings_page_position,
-                            position + 1,
-                            layout.order.size,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
+                    .toggleable(
+                        value = enabled,
+                        enabled = canDisable,
+                        role = Role.Switch,
+                        onValueChange = { show ->
+                            settings.setPageLayout(settings.pageLayout.value.withPageEnabled(page, show))
+                        },
                     )
-                    IconButton(
-                        enabled = position > 0,
-                        onClick = {
-                            settings.setPageLayout(settings.pageLayout.value.movePage(page, -1))
-                        },
-                    ) {
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box {
+                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(48.dp)) {
                         Icon(
-                            imageVector = Icons.Rounded.ArrowUpward,
-                            contentDescription = stringResource(Res.string.settings_page_move_up, label),
+                            imageVector = Icons.Rounded.DragHandle,
+                            contentDescription = stringResource(Res.string.settings_reorder_page, label),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    IconButton(
-                        enabled = position < layout.order.lastIndex,
-                        onClick = {
-                            settings.setPageLayout(settings.pageLayout.value.movePage(page, 1))
-                        },
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ArrowDownward,
-                            contentDescription = stringResource(Res.string.settings_page_move_down, label),
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(moveUpLabel) },
+                            enabled = position > 0,
+                            onClick = {
+                                menuOpen = false
+                                settings.setPageLayout(settings.pageLayout.value.movePage(page, -1))
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(moveDownLabel) },
+                            enabled = position < layout.order.lastIndex,
+                            onClick = {
+                                menuOpen = false
+                                settings.setPageLayout(settings.pageLayout.value.movePage(page, 1))
+                            },
                         )
                     }
                 }
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (!canDisable) {
+                        Text(
+                            text = stringResource(Res.string.settings_pages_last_visible),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Switch(checked = enabled, enabled = canDisable, onCheckedChange = null)
             }
         }
         item(key = "reset-pages") {
@@ -931,6 +1056,7 @@ private fun <T> ChoiceChips(
 
 @Composable
 private fun LibrarySettings(
+    listState: LazyListState,
     trackCount: Int,
     loading: Boolean,
     refreshing: Boolean,
@@ -944,7 +1070,8 @@ private fun LibrarySettings(
     val audioAccess by permissions.audioLibraryStatus.collectAsState()
     LaunchedEffect(permissions) { permissions.refresh() }
 
-    LazyColumn(
+    FadingLazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -1057,7 +1184,7 @@ private fun SourcesSettings(
 
     LaunchedEffect(library) { loadSources() }
 
-    LazyColumn(
+    FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -1183,7 +1310,7 @@ private fun HiddenTracksSettings(
 
     LaunchedEffect(library) { loadHiddenTracks() }
 
-    LazyColumn(
+    FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -1293,7 +1420,7 @@ private fun EqualizerSettings(equalizer: EqualizerController, settings: AppSetti
     val scope = rememberCoroutineScope()
     val normalizeVolume by settings.normalizeVolume.collectAsState()
 
-    LazyColumn(
+    FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -1375,7 +1502,7 @@ private fun EqualizerSettings(equalizer: EqualizerController, settings: AppSetti
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
                 )
             }
-            return@LazyColumn
+            return@FadingLazyColumn
         }
 
         item {
@@ -1506,6 +1633,8 @@ private fun BandSlider(
     val thumbColor = if (enabled) activeColor else activeColor.copy(alpha = 0.35f)
     var displayValue by remember(label) { mutableFloatStateOf(value) }
     var dragging by remember(label) { mutableStateOf(false) }
+    val currentValue by rememberUpdatedState(value)
+    val currentOnChangeFinished by rememberUpdatedState(onChangeFinished)
     LaunchedEffect(value, dragging) {
         if (!dragging) displayValue = value
     }
@@ -1552,21 +1681,32 @@ private fun BandSlider(
                 .pointerInput(enabled, range) {
                     if (!enabled) return@pointerInput
                     awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val down = awaitFirstDown()
                         dragging = true
                         var latest = bandValueForY(down.position.y, size.height.toFloat(), range)
-                        displayValue = latest
-                        down.consume()
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull() ?: break
-                            if (!change.pressed) break
-                            latest = bandValueForY(change.position.y, size.height.toFloat(), range)
+                        var released = false
+                        try {
                             displayValue = latest
-                            change.consume()
+                            down.consume()
+                            while (true) {
+                                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
+                                    ?: break
+                                if (change.isConsumed) break
+                                latest = bandValueForY(change.position.y, size.height.toFloat(), range)
+                                displayValue = latest
+                                if (change.changedToUpIgnoreConsumed()) {
+                                    change.consume()
+                                    released = true
+                                    break
+                                }
+                                if (!change.pressed) break
+                                change.consume()
+                            }
+                            if (released) currentOnChangeFinished(latest)
+                        } finally {
+                            dragging = false
+                            if (!released) displayValue = currentValue
                         }
-                        dragging = false
-                        onChangeFinished(latest)
                     }
                 },
         ) {
@@ -1642,6 +1782,7 @@ private fun formatDecibels(millibels: Float): String {
 
 @Composable
 private fun IntelligenceSettings(
+    listState: LazyListState,
     settings: AppSettings,
     engine: SimilarityEngine,
     tracks: List<TrackDescriptor>,
@@ -1677,11 +1818,13 @@ private fun IntelligenceSettings(
         emptyMap()
     }
     val done = if (indexingMatchesLibrary) indexing.done.coerceIn(0, tracks.size) else 0
-    var rebuilding by rememberSaveable { mutableStateOf(false) }
+    // The request belongs to this composition; restoring its old busy flag cannot restore its job.
+    var rebuilding by remember { mutableStateOf(false) }
     var confirmRebuild by rememberSaveable { mutableStateOf(false) }
     val operationFailed = stringResource(Res.string.settings_library_manage_failed)
 
-    LazyColumn(
+    FadingLazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -1878,7 +2021,7 @@ private fun IntelligenceProblemsSettings(
     val manageFailed = stringResource(Res.string.settings_library_manage_failed)
     val removedMessage = stringResource(Res.string.snack_removed_from_latentjam)
 
-    LazyColumn(
+    FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -2131,12 +2274,12 @@ private fun DuplicatesSettings(
     val extraCopies = groups.sumOf { it.copies.size - 1 }
     val reclaimable = groups.sumOf { it.reclaimableBytes(survivorOf(it).track.id) }
 
-    LazyColumn(
+    FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
         item(key = "duplicates-intro") {
-            SettingsSection(stringResource(Res.string.settings_duplicates)) {
+            SettingsSection(title = null) {
                 SettingsBody(stringResource(Res.string.settings_duplicates_body))
                 when {
                     scanning -> {
@@ -2161,24 +2304,42 @@ private fun DuplicatesSettings(
                         SettingsBody(stringResource(Res.string.settings_duplicates_empty))
                     }
                     else -> {
-                        SettingsBody(
-                            stringResource(
-                                Res.string.duplicates_summary,
-                                groups.size,
-                                extraCopies,
-                                stringResource(Res.string.unit_megabytes, megabytesLabel(reclaimable)),
-                            ),
-                        )
-                        FilledTonalButton(
-                            // The selection IS the recommendation unless the listener changed a
-                            // row; a changed row is an explicit "keep this one" and the bulk
-                            // action must never discard the copy someone just marked to keep.
-                            onClick = { pendingMerge = groups.map { it to survivorOf(it) } },
-                            enabled = !busy,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            shape = RoundedCornerShape(16.dp),
                         ) {
-                            Text(stringResource(Res.string.duplicates_keep_recommended))
+                            Row(
+                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = stringResource(
+                                            Res.string.duplicates_summary_title,
+                                            groups.size,
+                                            stringResource(Res.string.unit_megabytes, megabytesLabel(reclaimable)),
+                                        ),
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    Text(
+                                        text = stringResource(Res.string.duplicates_summary_extra, extraCopies),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                FilledTonalButton(
+                                    // An explicit survivor selection still wins over the recommendation.
+                                    onClick = { pendingMerge = groups.map { it to survivorOf(it) } },
+                                    enabled = !busy,
+                                    modifier = Modifier.widthIn(max = 150.dp).heightIn(min = 48.dp),
+                                ) {
+                                    Text(stringResource(Res.string.duplicates_keep_recommended))
+                                }
+                            }
                         }
+                        SettingsGroupTitle(stringResource(Res.string.duplicates_groups))
                     }
                 }
             }
@@ -2271,6 +2432,7 @@ private fun DuplicatesSettings(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DuplicateGroupCard(
     group: DuplicateGroup,
@@ -2284,21 +2446,20 @@ private fun DuplicateGroupCard(
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
-        Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 6.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
             Text(
                 text = survivor.track.title ?: stringResource(Res.string.track_untitled),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 4.dp),
             )
             Text(
                 text = listOfNotNull(
                     survivor.track.artist,
-                    pluralStringResource(Res.plurals.count_tracks, group.copies.size, group.copies.size),
+                    stringResource(Res.string.duplicates_copy_count, group.copies.size),
                     stringResource(
                         Res.string.duplicates_reclaimable,
                         stringResource(
@@ -2309,9 +2470,10 @@ private fun DuplicateGroupCard(
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp, bottom = 6.dp),
+                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
             )
-            group.copies.forEach { copy ->
+            group.copies.forEachIndexed { index, copy ->
+                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 DuplicateCopyRow(
                     copy = copy,
                     selected = copy.track.id == survivor.track.id,
@@ -2321,11 +2483,15 @@ private fun DuplicateGroupCard(
                     onHide = { onHideCopy(copy) },
                 )
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 TextButton(onClick = onDismiss, enabled = enabled) {
                     Text(stringResource(Res.string.duplicates_not_duplicates))
                 }
-                FilledTonalButton(onClick = { onKeep(survivor) }, enabled = enabled) {
+                Button(onClick = { onKeep(survivor) }, enabled = enabled) {
                     Text(stringResource(Res.string.duplicates_keep_selected))
                 }
             }
@@ -2356,6 +2522,7 @@ private fun DuplicateCopyRow(
         ?: copy.track.title
         ?: stringResource(Res.string.track_untitled)
     val details = listOfNotNull(
+        copy.track.album,
         copy.track.folderPath,
         copy.track.fileName?.takeIf { facts.isNotEmpty() },
         copy.plays.takeIf { it > 0 }?.let {
@@ -2372,14 +2539,15 @@ private fun DuplicateCopyRow(
                 role = Role.RadioButton,
                 onClick = onSelect,
             )
-            .padding(vertical = 4.dp),
+            .heightIn(min = 48.dp)
+            .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected, onClick = null, enabled = enabled)
         Column(modifier = Modifier.weight(1f).padding(start = 4.dp, end = 4.dp)) {
             Text(
                 text = headline,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -2482,7 +2650,7 @@ private fun SmartExclusionsSettings(
         }
     }
 
-    LazyColumn(
+    FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -2591,10 +2759,12 @@ private fun BackupSettings(
             smartExclusions = AppGraph.smartExclusions,
         )
     }
-    var busy by rememberSaveable { mutableStateOf(false) }
+    // Export/restore jobs are composition-scoped. A recreated screen must never inherit a busy
+    // flag from work that was cancelled with the old screen.
+    var busy by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<String?>(null) }
     var selectedSections by remember { mutableStateOf(LocalBackupSections()) }
-    var confirmReplace by rememberSaveable { mutableStateOf(false) }
+    var confirmReplace by remember { mutableStateOf(false) }
     val exportSuccess = stringResource(Res.string.backup_export_success)
     val importSuccess = stringResource(Res.string.backup_import_success)
     val failedMessage = stringResource(Res.string.backup_failed)
@@ -2626,6 +2796,7 @@ private fun BackupSettings(
             }
         },
     )
+    val controlsBusy = busy || exchange.inProgress
 
     fun restore(mode: LocalBackupRestoreMode) {
         val encoded = pendingImport ?: return
@@ -2661,7 +2832,7 @@ private fun BackupSettings(
         }
     }
 
-    LazyColumn(
+    FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -2669,7 +2840,7 @@ private fun BackupSettings(
             SettingsSection(stringResource(Res.string.settings_backup)) {
                 SettingsBody(stringResource(Res.string.settings_backup_body))
                 SettingsBody(stringResource(Res.string.backup_destination_warning))
-                if (busy) {
+                if (controlsBusy) {
                     LinearProgressIndicator(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                     )
@@ -2677,7 +2848,7 @@ private fun BackupSettings(
                 SettingsActionRow(
                     title = stringResource(Res.string.backup_export),
                     subtitle = null,
-                    enabled = !busy,
+                    enabled = !controlsBusy,
                     onClick = {
                         busy = true
                         scope.launch {
@@ -2697,7 +2868,7 @@ private fun BackupSettings(
                 SettingsActionRow(
                     title = stringResource(Res.string.backup_import),
                     subtitle = null,
-                    enabled = !busy,
+                    enabled = !controlsBusy,
                     onClick = {
                         busy = true
                         exchange.import()
@@ -2939,7 +3110,7 @@ private fun PrivacySettings(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
+        FadingLazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
@@ -3167,10 +3338,11 @@ private fun ConfirmSettingsAction(
 // --------------------------------------------------------------- about
 
 @Composable
-private fun AboutSettings(onOpenLicenses: () -> Unit) {
+private fun AboutSettings(listState: LazyListState, onOpenLicenses: () -> Unit) {
     val uriHandler = LocalUriHandler.current
     val version = rememberAppVersion()
-    LazyColumn(
+    FadingLazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -3206,7 +3378,7 @@ private fun AboutSettings(onOpenLicenses: () -> Unit) {
 
 @Composable
 private fun LicensesSettings() {
-    LazyColumn(
+    FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -3244,6 +3416,32 @@ private fun LicensesSettings() {
 }
 
 // -------------------------------------------------------------------- pieces
+
+@Composable
+private fun SettingsGroupTitle(title: String) {
+    Text(
+        text = title.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        letterSpacing = 0.4.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.semantics { heading() }
+            .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
+    )
+}
+
+@Composable
+private fun SettingsCardSection(title: String, content: @Composable () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        SettingsGroupTitle(title)
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 4.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+        ) {
+            Column { content() }
+        }
+    }
+}
 
 @Composable
 private fun SettingsSection(title: String?, content: @Composable () -> Unit) {
@@ -3287,12 +3485,19 @@ private fun SettingsBody(text: String) {
 }
 
 @Composable
-private fun SettingsRow(title: String, subtitle: String?, onClick: () -> Unit) {
+private fun SettingsRow(
+    title: String,
+    subtitle: String?,
+    onClick: () -> Unit,
+    value: String? = null,
+    horizontalPadding: Dp = 20.dp,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .padding(horizontal = horizontalPadding, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -3302,8 +3507,19 @@ private fun SettingsRow(title: String, subtitle: String?, onClick: () -> Unit) {
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
+        }
+        value?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 12.dp, end = 8.dp).widthIn(max = 140.dp),
+            )
         }
         Icon(
             imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,

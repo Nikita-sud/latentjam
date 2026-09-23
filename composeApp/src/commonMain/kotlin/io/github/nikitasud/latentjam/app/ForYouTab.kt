@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -16,16 +18,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -47,9 +49,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
@@ -94,13 +99,17 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun ForYouTab(
     page: ForYouPage,
+    accent: TrackAccent? = null,
     contentPadding: PaddingValues,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     onPlay: (List<TrackDescriptor>, Int) -> Unit,
     onPlayHero: (ForYouHero) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
+    onOpenCollection: (ForYouCollection) -> Unit,
     onOpenWorld: (ForYouCard) -> Unit = {},
+    /** Current presentation only: changing artwork must not rebuild or reorder recommendations. */
+    playlistArtworkUris: Map<String, String> = emptyMap(),
 ) {
     val reduceMotion = rememberReduceMotion()
     PullToRefreshBox(
@@ -120,7 +129,7 @@ fun ForYouTab(
                 )
             }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
+            FadingLazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
                 page.hero?.let { hero ->
                     item(key = "hero") {
                         Box(
@@ -134,7 +143,7 @@ fun ForYouTab(
                                 ),
                             ),
                         ) {
-                            HeroCard(hero, onPlay = { onPlayHero(hero) })
+                            HeroCard(hero, accent = accent, onPlay = { onPlayHero(hero) })
                         }
                     }
                 }
@@ -151,18 +160,21 @@ fun ForYouTab(
                         ),
                     ) {
                     Text(
-                        text = section.title(),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        text = section.title().uppercase(),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            letterSpacing = 0.4.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(
                             start = 20.dp,
                             end = 20.dp,
-                            top = 20.dp,
-                            bottom = 10.dp,
+                            top = 18.dp,
+                            bottom = 8.dp,
                         ),
                     )
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(horizontal = 20.dp),
                     ) {
                         items(section.cards, key = { it.track.id.value }) { card ->
@@ -183,6 +195,8 @@ fun ForYouTab(
                             ) {
                             ForYouCardItem(
                                 card = card,
+                                artworkUri = card.collection?.playlistId?.let(playlistArtworkUris::get)
+                                    ?: card.track.artworkUri,
                                 onClick = {
                                     when {
                                         // A world is a hundred-odd tracks, and there are two
@@ -191,10 +205,9 @@ fun ForYouTab(
                                         // tap that meant "show me this" was indistinguishable from
                                         // the tap that meant "play it".
                                         section.kind == ForYouSectionKind.WORLDS -> onOpenWorld(card)
-                                        // A collection card plays its own contents; a track card
-                                        // plays the row from that point, so the rest of the shelf
-                                        // stays available.
-                                        card.collection != null -> onPlay(card.collection.tracks, 0)
+                                        // Browsing a collection should not replace playback. Its
+                                        // detail page's play control is the commitment to a new queue.
+                                        card.collection != null -> onOpenCollection(card.collection)
                                         else -> {
                                             val tracks = section.cards
                                                 .filter { it.collection == null }
@@ -206,7 +219,11 @@ fun ForYouTab(
                                         }
                                     }
                                 },
-                                onLongClick = { onTrackMenu(card.track) },
+                                onLongClick = if (card.collection == null) {
+                                    { onTrackMenu(card.track) }
+                                } else {
+                                    null
+                                },
                             )
                             }
                         }
@@ -303,7 +320,7 @@ internal fun WorldActionsSheet(
     ) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             Row(
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
@@ -335,7 +352,7 @@ internal fun WorldActionsSheet(
             // Seeded from the cover, which is the world's most central track — so the journey
             // starts from the middle of the region rather than from its edge.
             SheetAction(
-                icon = Icons.Rounded.AutoAwesome,
+                icon = LatentJamMark,
                 label = stringResource(Res.string.foryou_world_smart),
                 onClick = { dismissWhile(onStartSmart) },
             )
@@ -352,8 +369,9 @@ private fun SheetAction(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 14.dp),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
@@ -385,19 +403,16 @@ private fun ForYouKicker.text(): String = when (this) {
 }
 
 /**
- * A card is mostly its cover.
- *
- * Row titles are read about a quarter as often as the leftmost item is looked at, so the artwork
- * carries the row and the text underneath is support. Both text slots are fixed at one line so cards
- * keep a common baseline whatever the title length — ragged card heights were a recurring complaint
- * in the previous implementation, and a fixed slot is the fix rather than ellipsizing after layout.
+ * Artwork identifies the item; title and artist remain readable even when a recommendation has a
+ * reason. Collection cards separate opening their contents from explicitly starting playback.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ForYouCardItem(
     card: ForYouCard,
+    artworkUri: String?,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
 ) {
     // The whole card is the touch target, but the press ripple is shown only on the cover — a
     // default clickable would paint the entire column, text and all, with a grey rectangle on
@@ -407,7 +422,7 @@ private fun ForYouCardItem(
     val interaction = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
-            .width(140.dp)
+            .width(132.dp)
             .scaleOnPress(interaction)
             .combinedClickable(
                 interactionSource = interaction,
@@ -417,11 +432,11 @@ private fun ForYouCardItem(
             ),
     ) {
         Artwork(
-            uri = card.track.artworkUri,
-            size = 140.dp,
-            cornerRadius = 12.dp,
+            uri = artworkUri,
+            size = 132.dp,
+            cornerRadius = 16.dp,
             modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .indication(interaction, ripple()),
         )
         Text(
@@ -433,15 +448,32 @@ private fun ForYouCardItem(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
-        // The caption replaces the artist where there is one, because "10× before" is the reason
-        // this card is here and the artist is already legible from the cover.
+        val collection = card.collection
+        val collectionArtist = remember(collection) {
+            collection?.tracks?.mapNotNull { it.artist?.takeIf(String::isNotBlank) }
+                ?.distinct()?.singleOrNull()
+        }
+        // A mixed collection must not be credited to its representative cover's artist.
+        val artist = if (collection == null) {
+            card.track.artist?.takeIf(String::isNotBlank)
+                ?: stringResource(Res.string.track_unknown_artist)
+        } else {
+            collectionArtist
+        }
         val caption = card.caption
-        Text(
-            text = if (caption != null) {
+        val reason = when {
+            caption != null -> {
                 caption.text()
-            } else {
-                card.track.artist ?: stringResource(Res.string.track_unknown_artist)
-            },
+            }
+            collection != null -> pluralStringResource(
+                Res.plurals.count_tracks,
+                collection.tracks.size,
+                collection.tracks.size,
+            )
+            else -> null
+        }
+        Text(
+            text = listOfNotNull(artist, reason).joinToString(" · "),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -460,32 +492,39 @@ private fun ForYouCardItem(
  * alone: the personal signal decides what to start from, the model decides what follows.
  */
 @Composable
-private fun HeroCard(hero: ForYouHero, onPlay: () -> Unit) {
+private fun HeroCard(hero: ForYouHero, accent: TrackAccent?, onPlay: () -> Unit) {
+    val tint = accent?.vivid ?: MaterialTheme.colorScheme.primary
+    val ink = accent?.let { browseAccentInk(it) } ?: MaterialTheme.colorScheme.primary
     val interaction = remember { MutableInteractionSource() }
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(start = 20.dp, end = 20.dp, bottom = 4.dp)
             .scaleOnPress(interaction)
             .clickable(
                 interactionSource = interaction,
                 indication = ripple(),
                 onClick = onPlay,
             ),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(24.dp),
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, ink.copy(alpha = 0.16f)),
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.background(Brush.linearGradient(
+                listOf(tint.copy(alpha = 0.22f), tint.copy(alpha = 0.05f)),
+            )).padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Artwork(uri = hero.track.artworkUri, size = 96.dp, cornerRadius = 14.dp)
+            Artwork(uri = hero.track.artworkUri, size = 92.dp, cornerRadius = 16.dp)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = hero.kicker.text(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    text = hero.kicker.text().uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 0.5.sp,
+                    ),
+                    color = ink,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -495,7 +534,7 @@ private fun HeroCard(hero: ForYouHero, onPlay: () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = 4.dp),
                 )
                 Text(
                     text = hero.track.artist ?: stringResource(Res.string.track_unknown_artist),
@@ -507,7 +546,11 @@ private fun HeroCard(hero: ForYouHero, onPlay: () -> Unit) {
             }
             // Icon-only and fixed size: a labelled button here clips under translation and large
             // font scales, which is a mistake this project has already made three times.
-            FilledIconButton(onClick = onPlay) {
+            FilledIconButton(
+                onClick = onPlay,
+                modifier = Modifier.size(48.dp),
+                shape = RoundedCornerShape(24.dp),
+            ) {
                 Icon(
                     imageVector = Icons.Rounded.PlayArrow,
                     contentDescription = stringResource(Res.string.action_play),

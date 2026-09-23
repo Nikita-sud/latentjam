@@ -119,6 +119,8 @@ data class ForYouCard(
 data class ForYouCollection(
     val title: String,
     val tracks: List<TrackDescriptor>,
+    /** Stable owner when this offer represents a user-created playlist. */
+    val playlistId: String? = null,
 )
 
 data class ForYouSection(
@@ -534,7 +536,7 @@ object ForYouBuilder {
                 ForYouCard(
                     track = members.first(),
                     caption = ForYouCaption.TrackCount(members.size),
-                    collection = ForYouCollection(playlist.name, members),
+                    collection = ForYouCollection(playlist.name, members, playlistId = playlist.id),
                 ),
             )
         }

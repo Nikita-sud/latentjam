@@ -5,10 +5,14 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -16,7 +20,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,8 +40,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -46,6 +52,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -64,8 +72,6 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
@@ -73,14 +79,13 @@ import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.cd_alphabet_index
 import io.github.nikitasud.latentjam.library.SongSorting
-import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
-/** Reserved width and touch target. The visible pill stays narrow inside it. */
-internal val RailWidth = 48.dp
+/** Compact index column; normal list scrolling remains the larger gesture target. */
+internal val RailWidth = 30.dp
 internal val RailGap = 4.dp
 private val RailPillWidth = 26.dp
 private val BubbleSize = 56.dp
@@ -184,7 +189,15 @@ internal fun currentRailBucketIndex(
 ): Int? {
     if (startIndexes.isEmpty()) return null
     if (atEnd) return startIndexes.lastIndex
-    return startIndexes.indexOfLast { it <= itemIndex }.coerceAtLeast(0)
+    // Anchors are sorted by emitted row. An upper-bound search also handles equal anchors and
+    // avoids walking thousands of mixed-script buckets each time the viewport changes rows.
+    var low = 0
+    var high = startIndexes.size
+    while (low < high) {
+        val middle = low + (high - low) / 2
+        if (startIndexes[middle] <= itemIndex) low = middle + 1 else high = middle
+    }
+    return (low - 1).coerceAtLeast(0)
 }
 
 /** Convenience adapter for a one-item-per-name alphabetic group list. */
@@ -194,6 +207,8 @@ internal fun GroupListWithRail(
     /** Optional artwork identities, one per row, used only for the bounded release handoff. */
     artworkKeys: List<ArtworkLoadKey?> = emptyList(),
     contentPadding: PaddingValues,
+    indexEnabled: Boolean = true,
+    onScrubbingChange: (Boolean) -> Unit = {},
     content: @Composable BoxScope.(
         railPadding: PaddingValues,
         listState: LazyListState,
@@ -206,9 +221,11 @@ internal fun GroupListWithRail(
     val rail = remember(names) { railIndexOf(names) }
     ListWithRail(
         rail = rail,
-        catalogKey = names to artworkKeys,
+        catalogKey = Triple(names, artworkKeys, indexEnabled),
         artworkKeys = artworkKeys,
         contentPadding = contentPadding,
+        indexEnabled = indexEnabled,
+        onScrubbingChange = onScrubbingChange,
         content = { railPadding, listState, artworkReporter, _ ->
             content(railPadding, listState, artworkReporter)
         },
@@ -225,13 +242,9 @@ internal fun ListWithRail(
     catalogKey: Any,
     artworkKeys: List<ArtworkLoadKey?>,
     contentPadding: PaddingValues,
+    indexEnabled: Boolean = true,
     listState: LazyListState = rememberLazyListState(),
-    /**
-     * What the scrub mirror paints behind its rows. Must equal the panel this list sits on —
-     * any other value turns the "invisible" cover into the whole list dimming while the finger
-     * is on the rail. Defaults to the tab panel; full-screen Surface hosts pass surface.
-     */
-    previewContainerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    onScrubbingChange: (Boolean) -> Unit = {},
     content: @Composable BoxScope.(
         railPadding: PaddingValues,
         listState: LazyListState,
@@ -242,7 +255,7 @@ internal fun ListWithRail(
     require(rail.buckets.size == rail.startIndexes.size) {
         "rail buckets and anchors must stay aligned"
     }
-    val railCandidate = rail.buckets.size > 1
+    val railCandidate = indexEnabled && rail.buckets.size > 1
     val showRail by remember(railCandidate, listState) {
         derivedStateOf {
             railCandidate &&
@@ -255,13 +268,12 @@ internal fun ListWithRail(
     val railCatalogKey = remember(catalogKey, rail, artworkKeys) { Any() }
     val artworkLoadGate = remember(railCatalogKey) { ArtworkLoadGate() }
     var railScrubbing by remember(railCatalogKey) { mutableStateOf(false) }
+    val reportScrubbing by rememberUpdatedState(onScrubbingChange)
+    DisposableEffect(railCatalogKey) {
+        onDispose { reportScrubbing(false) }
+    }
     var previewBucketIndex by remember(railCatalogKey) { mutableStateOf<Int?>(null) }
-    val previewVisibility = remember(railCatalogKey) { MutableTransitionState(false) }
     val previewRequested = railScrubbing && previewBucketIndex != null
-    previewVisibility.targetState = previewRequested
-    val previewOccluding = previewRequested ||
-        previewVisibility.currentState || previewVisibility.targetState
-    val reduceMotion = rememberReduceMotion()
     val hasArtwork = remember(artworkKeys) { artworkKeys.any { it != null } }
     val activeBucket by remember(rail, listState) {
         derivedStateOf {
@@ -294,24 +306,21 @@ internal fun ListWithRail(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .inactiveForMotion(previewOccluding),
+                .graphicsLayer { alpha = if (previewRequested) 0f else 1f }
+                .fadingListTop { listState.canScrollBackward }
+                .inactiveForMotion(previewRequested),
         ) {
             content(inset, listState, artworkReporter, false)
         }
 
-        AnimatedVisibility(
-            visibleState = previewVisibility,
-            // Cover the old viewport immediately. Only revealing the committed list fades.
-            enter = EnterTransition.None,
-            exit = fadeOut(
-                tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
-            ),
-        ) {
+        // Swap the two viewports atomically: at most one draws, and neither paints over the
+        // page's artwork glow. The real list remains measured for the bounded artwork gate.
+        if (previewRequested) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .clipToBounds()
-                    .background(previewContainerColor)
+                    .fadingListTop { previewListState.canScrollBackward }
                     .inactiveForMotion(true),
             ) {
                 // This is the exact same list/layout as the real surface. Only its state differs,
@@ -355,7 +364,10 @@ internal fun ListWithRail(
                         artworkLoadGate.end(loadCycle)
                     }
                 },
-                onScrubbingChange = { railScrubbing = it },
+                onScrubbingChange = {
+                    railScrubbing = it
+                    reportScrubbing(it)
+                },
             )
         }
     }
@@ -371,6 +383,7 @@ internal fun GridListWithRail(
     catalogKey: Any,
     artworkKeys: List<ArtworkLoadKey?>,
     contentPadding: PaddingValues,
+    onScrubbingChange: (Boolean) -> Unit = {},
     content: @Composable BoxScope.(
         railPadding: PaddingValues,
         gridState: LazyGridState,
@@ -394,13 +407,12 @@ internal fun GridListWithRail(
     val railCatalogKey = remember(catalogKey, rail, artworkKeys) { Any() }
     val artworkLoadGate = remember(railCatalogKey) { ArtworkLoadGate() }
     var railScrubbing by remember(railCatalogKey) { mutableStateOf(false) }
+    val reportScrubbing by rememberUpdatedState(onScrubbingChange)
+    DisposableEffect(railCatalogKey) {
+        onDispose { reportScrubbing(false) }
+    }
     var previewBucketIndex by remember(railCatalogKey) { mutableStateOf<Int?>(null) }
-    val previewVisibility = remember(railCatalogKey) { MutableTransitionState(false) }
     val previewRequested = railScrubbing && previewBucketIndex != null
-    previewVisibility.targetState = previewRequested
-    val previewOccluding = previewRequested ||
-        previewVisibility.currentState || previewVisibility.targetState
-    val reduceMotion = rememberReduceMotion()
     val hasArtwork = remember(artworkKeys) { artworkKeys.any { it != null } }
     val activeBucket by remember(rail, gridState) {
         derivedStateOf {
@@ -434,25 +446,19 @@ internal fun GridListWithRail(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .inactiveForMotion(previewOccluding),
+                .graphicsLayer { alpha = if (previewRequested) 0f else 1f }
+                .fadingListTop { gridState.canScrollBackward }
+                .inactiveForMotion(previewRequested),
         ) {
             content(inset, gridState, artworkReporter, false)
         }
 
-        AnimatedVisibility(
-            visibleState = previewVisibility,
-            enter = EnterTransition.None,
-            exit = fadeOut(
-                tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS),
-            ),
-        ) {
+        if (previewRequested) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .clipToBounds()
-                    // The albums grid sits on the tab panel; the mirror must match it exactly
-                    // or the cover shows as a dim flash while scrubbing.
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .fadingListTop { previewGridState.canScrollBackward }
                     .inactiveForMotion(true),
             ) {
                 content(inset, previewGridState, null, true)
@@ -493,7 +499,10 @@ internal fun GridListWithRail(
                         artworkLoadGate.end(loadCycle)
                     }
                 },
-                onScrubbingChange = { railScrubbing = it },
+                onScrubbingChange = {
+                    railScrubbing = it
+                    reportScrubbing(it)
+                },
             )
         }
     }
@@ -514,6 +523,31 @@ internal fun BoxScope.AlphabetRailOverlay(
     onPreviewJump: (bucketIndex: Int) -> Unit = {},
     onJump: suspend (bucketIndex: Int, animated: Boolean) -> Unit,
     onScrubbingChange: (Boolean) -> Unit = {},
+) {
+    val pageSlot = LocalPageRailSlot.current
+    if (pageSlot != null) {
+        PublishPageRail(
+            pageSlot, buckets, catalogKey, bottomPadding, activeBucket,
+            onPreviewJump, onJump, onScrubbingChange,
+        )
+    } else {
+        StandaloneAlphabetRailOverlay(
+            buckets, catalogKey, bottomPadding, activeBucket,
+            onPreviewJump, onJump, onScrubbingChange,
+        )
+    }
+}
+
+@Composable
+internal fun BoxScope.StandaloneAlphabetRailOverlay(
+    buckets: List<String>,
+    catalogKey: Any = buckets,
+    bottomPadding: Dp,
+    activeBucket: String? = null,
+    onPreviewJump: (bucketIndex: Int) -> Unit = {},
+    onJump: suspend (bucketIndex: Int, animated: Boolean) -> Unit,
+    onScrubbingChange: (Boolean) -> Unit = {},
+    interactive: Boolean = true,
 ) {
     var previewIndex by remember(catalogKey) { mutableStateOf<Int?>(null) }
     var settlingIndex by remember(catalogKey) { mutableStateOf<Int?>(null) }
@@ -537,12 +571,13 @@ internal fun BoxScope.AlphabetRailOverlay(
     val reduceMotion = rememberReduceMotion()
 
     DisposableEffect(catalogKey) {
+        val finishScrubbing = onScrubbingChange
         onDispose {
             // Invalidate before cancelling: the cancelled job's finally block must not clear a
             // newer gesture that may begin after a catalog/sort replacement.
             scrubCoordinator.cancel()
             finalJumpJob?.cancel()
-            latestOnScrubbingChange(false)
+            finishScrubbing(false)
         }
     }
 
@@ -592,8 +627,19 @@ internal fun BoxScope.AlphabetRailOverlay(
         }
     }
 
+    fun cancelSelection() {
+        // Losing the pointer (navigation, catalog replacement, interruption) is not a drop.
+        // Invalidate before cancelling so an older settling job cannot reveal a newer preview.
+        scrubCoordinator.cancel()
+        finalJumpJob?.cancel()
+        previewIndex = null
+        settlingIndex = null
+        latestOnScrubbingChange(false)
+    }
+
     AlphabetRail(
         buckets = buckets,
+        interactive = interactive,
         gestureKey = catalogKey,
         activeBucket = previewBucket ?: settlingBucket ?: activeBucket,
         modifier = Modifier
@@ -608,11 +654,15 @@ internal fun BoxScope.AlphabetRailOverlay(
         onSelectionStart = ::beginSelection,
         onSelect = ::select,
         onSelectionEnd = ::endSelection,
+        onSelectionCancel = ::cancelSelection,
     )
 
-    // Letter bubble tracks the finger and sits beside the rail.
-    previewBucket?.let { bucket ->
-        Surface(
+    // Finger position remains immediate; all animation lives inside this small overlay.
+    key(catalogKey) {
+        RailLetterBubble(
+            bucket = previewBucket,
+            bucketIndex = previewIndex,
+            reduceMotion = reduceMotion,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .offset {
@@ -630,14 +680,73 @@ internal fun BoxScope.AlphabetRailOverlay(
                     )
                 }
                 .size(bubbleDiameter),
+        )
+    }
+}
+
+/** A single live letter: fast scrubs never accumulate a stack of outgoing animated labels. */
+@Composable
+private fun RailLetterBubble(
+    bucket: String?,
+    bucketIndex: Int?,
+    reduceMotion: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    var retainedBucket by remember { mutableStateOf<String?>(null) }
+    val shownBucket = bucket ?: retainedBucket
+    SideEffect { if (bucket != null) retainedBucket = bucket }
+
+    val letterProgress = remember { Animatable(1f) }
+    var previousIndex by remember { mutableStateOf<Int?>(null) }
+    var letterDirection by remember { mutableStateOf(0f) }
+    LaunchedEffect(bucketIndex, reduceMotion) {
+        val previous = previousIndex
+        previousIndex = bucketIndex
+        if (bucketIndex != null && previous != null && bucketIndex != previous && !reduceMotion) {
+            letterDirection = if (bucketIndex > previous) 1f else -1f
+            letterProgress.snapTo(0f)
+            letterProgress.animateTo(1f, tween(Motion.QUICK_MS, easing = LinearOutSlowInEasing))
+        } else {
+            letterProgress.snapTo(1f)
+        }
+    }
+
+    AnimatedVisibility(
+        visible = bucket != null,
+        modifier = modifier.clearAndSetSemantics { },
+        enter = if (reduceMotion) {
+            fadeIn(tween(Motion.REDUCED_MS))
+        } else {
+            fadeIn(tween(Motion.QUICK_MS)) +
+                scaleIn(
+                    animationSpec = spring(dampingRatio = 0.78f, stiffness = 500f),
+                    initialScale = 0.86f,
+                )
+        },
+        exit = if (reduceMotion) {
+            fadeOut(tween(Motion.REDUCED_MS))
+        } else {
+            fadeOut(tween(Motion.REPLACE_MS)) +
+                scaleOut(tween(Motion.REPLACE_MS), targetScale = 0.94f)
+        },
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
             shape = CircleShape,
             color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.82f),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = bucket,
+                    text = shownBucket.orEmpty(),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.inverseOnSurface,
+                    modifier = Modifier.graphicsLayer {
+                        // Read animation state only while drawing this label; lazy lists and
+                        // the rail's hit area never remeasure or recompose for these frames.
+                        val remaining = if (reduceMotion) 0f else 1f - letterProgress.value
+                        translationY = letterDirection * 5.dp.toPx() * remaining
+                        alpha = 1f - 0.28f * remaining
+                    },
                 )
             }
         }
@@ -648,18 +757,24 @@ internal fun BoxScope.AlphabetRailOverlay(
 @Composable
 private fun AlphabetRail(
     buckets: List<String>,
+    interactive: Boolean,
     gestureKey: Any,
     activeBucket: String?,
     modifier: Modifier = Modifier,
     onSelectionStart: () -> Unit,
     onSelect: (index: Int, y: Float) -> Unit,
     onSelectionEnd: () -> Unit,
+    onSelectionCancel: () -> Unit,
 ) {
     var railHeightPx by remember { mutableStateOf(0) }
     val activeIndex = buckets.indexOf(activeBucket).coerceAtLeast(0)
     val railDescription = stringResource(Res.string.cd_alphabet_index)
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
+    val latestOnSelectionStart by rememberUpdatedState(onSelectionStart)
+    val latestOnSelect by rememberUpdatedState(onSelect)
+    val latestOnSelectionEnd by rememberUpdatedState(onSelectionEnd)
+    val latestOnSelectionCancel by rememberUpdatedState(onSelectionCancel)
     val labelHeight = maxOf(
         RailLabelHeight,
         with(density) { MaterialTheme.typography.labelSmall.fontSize.toDp() * 1.45f },
@@ -668,14 +783,12 @@ private fun AlphabetRail(
         RailPillWidth,
         with(density) { MaterialTheme.typography.labelSmall.fontSize.toDp() * 1.35f },
     ).coerceAtMost(RailWidth)
-    val minimumLabelHeightPx = with(density) { labelHeight.roundToPx() }
-    val condensed = railHeightPx > 0 && buckets.size * minimumLabelHeightPx > railHeightPx
 
     Box(
         modifier = modifier
             .width(RailWidth)
             .onSizeChanged { railHeightPx = it.height }
-            .semantics {
+            .then(if (!interactive) Modifier.clearAndSetSemantics { } else Modifier.semantics {
                 contentDescription = railDescription
                 stateDescription = buckets.getOrNull(activeIndex).orEmpty()
                 progressBarRangeInfo = ProgressBarRangeInfo(
@@ -700,14 +813,15 @@ private fun AlphabetRail(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val feedback = RailHapticState()
+                    var released = false
                     down.consume()
-                    onSelectionStart()
+                    latestOnSelectionStart()
                     try {
                         railBucketIndexAt(down.position.y, railHeightPx, buckets.size)?.let {
                             if (feedback.select(it, down.uptimeMillis)) {
                                 haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                             }
-                            onSelect(it, down.position.y)
+                            latestOnSelect(it, down.position.y)
                         }
                         while (true) {
                             val event = awaitPointerEvent()
@@ -718,21 +832,24 @@ private fun AlphabetRail(
                                 buckets.size,
                             )?.let {
                                 if (feedback.select(it, change.uptimeMillis)) {
-                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
                                 }
-                                onSelect(it, change.position.y)
+                                latestOnSelect(it, change.position.y)
                             }
                             change.consume()
                             // The UP event carries the finger's true final position. Process it
                             // before ending the gesture or a fast scrub can stop several buckets
                             // behind where the user lifted.
-                            if (!change.pressed) break
+                            if (!change.pressed) {
+                                released = true
+                                break
+                            }
                         }
                     } finally {
-                        onSelectionEnd()
+                        if (released) latestOnSelectionEnd() else latestOnSelectionCancel()
                     }
                 }
-            },
+            }),
     ) {
         Surface(
             modifier = Modifier
@@ -743,103 +860,17 @@ private fun AlphabetRail(
                 // decorative and must not become dozens of separate accessibility stops.
                 .clearAndSetSemantics { },
             shape = RoundedCornerShape(percent = 50),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+            // Pages slide behind this stationary rail. Pre-composite the tint so moving
+            // artwork cannot show through its letters during the page handoff.
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                .compositeOver(MaterialTheme.colorScheme.background),
         ) {
-            if (condensed) {
-                // Mixed-script libraries can have far more initials than readable text slots.
-                // Keep Samsung Music's letter-index pattern, sample only as many labels as fit,
-                // and always show the exact current initial at its proportional position. The
-                // finger bubble exposes every intermediate initial while scrubbing.
-                val activeFraction = if (buckets.lastIndex > 0) {
-                    activeIndex.toFloat() / buckets.lastIndex
-                } else {
-                    0f
-                }
-                val verticalPaddingPx = with(density) { 12.dp.roundToPx() }
-                val availablePx = (
-                    railHeightPx - verticalPaddingPx - minimumLabelHeightPx
-                    ).coerceAtLeast(0)
-                val guideCount = (availablePx / minimumLabelHeightPx).coerceIn(2, 32)
-                val guideIndexes = remember(buckets, guideCount) {
-                    (0 until guideCount)
-                        .map { guideIndex ->
-                            (
-                                guideIndex.toFloat() /
-                                    (guideCount - 1) *
-                                    buckets.lastIndex
-                                ).roundToInt()
-                        }
-                        .distinct()
-                }
-                Box(modifier = Modifier.fillMaxSize().padding(vertical = 6.dp)) {
-                    guideIndexes.forEach { guideIndex ->
-                        val guideFraction = guideIndex.toFloat() / buckets.lastIndex
-                        val clearOfActive = abs(guideFraction - activeFraction) * availablePx >=
-                            minimumLabelHeightPx
-                        if (guideIndex != activeIndex && clearOfActive) {
-                            Text(
-                                text = buckets[guideIndex],
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(labelHeight)
-                                    .offset {
-                                        IntOffset(
-                                            x = 0,
-                                            y = (guideFraction * availablePx).roundToInt(),
-                                        )
-                                    },
-                            )
-                        }
-                    }
-                    Text(
-                        text = buckets.getOrNull(activeIndex).orEmpty(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(labelHeight)
-                            .offset {
-                                IntOffset(
-                                    x = 0,
-                                    y = (activeFraction * availablePx).roundToInt(),
-                                )
-                            },
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier.padding(vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    buckets.forEach { bucket ->
-                        val active = bucket == activeBucket
-                        Box(
-                            modifier = Modifier.weight(1f).fillMaxWidth(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = bucket,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                                color = if (active) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                                maxLines = 1,
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-                    }
-                }
-            }
+            MorphingRailLetters(
+                buckets = buckets,
+                activeBucket = activeBucket,
+                railHeightPx = railHeightPx,
+                labelHeight = labelHeight,
+            )
         }
     }
 }

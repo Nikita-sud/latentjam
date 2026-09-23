@@ -5,22 +5,40 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.SheetValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,6 +50,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.nikitasud.latentjam.app.generated.resources.Res
+import io.github.nikitasud.latentjam.app.generated.resources.details_file
+import io.github.nikitasud.latentjam.app.generated.resources.details_format
 import io.github.nikitasud.latentjam.app.generated.resources.info_album
 import io.github.nikitasud.latentjam.app.generated.resources.info_artist
 import io.github.nikitasud.latentjam.app.generated.resources.info_cancel
@@ -43,7 +63,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.info_edit_note
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit_refused
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit_unavailable
 import io.github.nikitasud.latentjam.app.generated.resources.info_genre
-import io.github.nikitasud.latentjam.app.generated.resources.info_location
 import io.github.nikitasud.latentjam.app.generated.resources.info_not_set
 import io.github.nikitasud.latentjam.app.generated.resources.info_save
 import io.github.nikitasud.latentjam.app.generated.resources.info_saving
@@ -85,12 +104,12 @@ internal fun TrackInfoSheet(
 ) {
     val lyricsSource = track.lyricsSourceIdentity()
     val reduceMotion = rememberReduceMotion()
-    var editing by remember(track.id) { mutableStateOf(false) }
-    var title by remember(track.id) { mutableStateOf(track.title.orEmpty()) }
-    var artist by remember(track.id) { mutableStateOf(track.artist.orEmpty()) }
-    var album by remember(track.id) { mutableStateOf(track.album.orEmpty()) }
-    var genre by remember(track.id) { mutableStateOf(track.genre.orEmpty()) }
-    var year by remember(track.id) { mutableStateOf(track.year?.toString().orEmpty()) }
+    var editing by rememberSaveable(track.id.value) { mutableStateOf(false) }
+    var title by rememberSaveable(track.id.value) { mutableStateOf(track.title.orEmpty()) }
+    var artist by rememberSaveable(track.id.value) { mutableStateOf(track.artist.orEmpty()) }
+    var album by rememberSaveable(track.id.value) { mutableStateOf(track.album.orEmpty()) }
+    var genre by rememberSaveable(track.id.value) { mutableStateOf(track.genre.orEmpty()) }
+    var year by rememberSaveable(track.id.value) { mutableStateOf(track.year?.toString().orEmpty()) }
     var saving by remember(track.id) { mutableStateOf(false) }
     var failure by remember(track.id) { mutableStateOf<TagWriteOutcome?>(null) }
     var lyrics by remember(lyricsSource) { mutableStateOf<String?>(null) }
@@ -113,20 +132,68 @@ internal fun TrackInfoSheet(
         }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp),
-        ) {
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val edits = TagEdits(
+        title = title.trim().takeIf { it != track.title.orEmpty() },
+        artist = artist.trim().takeIf { it != track.artist.orEmpty() },
+        album = album.trim().takeIf { it != track.album.orEmpty() },
+        genre = genre.trim().takeIf { it != track.genre.orEmpty() },
+        year = year.trim().takeIf { it != track.year?.toString().orEmpty() },
+    )
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { !saving || it != SheetValue.Hidden },
+    )
+
+    val fileLabel = remember(track.folderPath, track.fileName, track.audioUri) {
+        track.fileName?.let { name ->
+            track.folderPath?.takeIf(String::isNotBlank)?.let { folder ->
+                "${folder.trimEnd('/')}/$name"
+            } ?: name
+        } ?: track.audioUri
+    }
+    val formatLabel = remember(track.fileName, track.sizeBytes, track.durationMs) {
+        fileFormatLabel(track.fileName, track.sizeBytes, track.durationMs)
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = { if (!saving) onDismiss() },
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        dragHandle = {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier.size(width = 32.dp, height = 4.dp)
+                        .background(
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            RoundedCornerShape(2.dp),
+                        ),
+                )
+            }
+        },
+    ) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
+            Column(
+                modifier = Modifier.weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+            ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Artwork(uri = track.artworkUri, size = 64.dp)
+                Artwork(uri = track.artworkUri, size = 56.dp)
                 Column(modifier = Modifier.weight(1f)) {
+                    if (editing) Text(
+                        stringResource(Res.string.info_edit),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Text(
                         text = track.title ?: stringResource(Res.string.track_untitled),
                         style = MaterialTheme.typography.titleMedium,
@@ -135,11 +202,27 @@ internal fun TrackInfoSheet(
                     )
                     Text(
                         text = track.artist ?: stringResource(Res.string.track_unknown_artist),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                }
+                if (!editing) {
+                    FilledTonalIconButton(
+                        onClick = { editing = true },
+                        modifier = Modifier.size(48.dp),
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                    ) {
+                        Icon(
+                            Icons.Rounded.Edit,
+                            contentDescription = stringResource(Res.string.info_edit),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
 
@@ -150,13 +233,15 @@ internal fun TrackInfoSheet(
             ) { isEditing ->
                 if (isEditing) {
                     Column(
-                        modifier = Modifier.inactiveForMotion(isEditing != editing),
+                        modifier = Modifier.inactiveForMotion(isEditing != editing)
+                            .padding(top = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                    MetadataField(stringResource(Res.string.info_title), title) { title = it }
-                    MetadataField(stringResource(Res.string.info_artist), artist) { artist = it }
-                    MetadataField(stringResource(Res.string.info_album), album) { album = it }
-                    MetadataField(stringResource(Res.string.info_genre), genre) { genre = it }
-                    MetadataField(stringResource(Res.string.info_year), year) { input ->
+                    MetadataField(stringResource(Res.string.info_title), title, enabled = !saving) { title = it }
+                    MetadataField(stringResource(Res.string.info_artist), artist, enabled = !saving) { artist = it }
+                    MetadataField(stringResource(Res.string.info_album), album, enabled = !saving) { album = it }
+                    MetadataField(stringResource(Res.string.info_genre), genre, enabled = !saving) { genre = it }
+                    MetadataField(stringResource(Res.string.info_year), year, enabled = !saving, last = true) { input ->
                         // Filtered at entry rather than validated on save: a year is digits, and
                         // rejecting the field afterwards would lose the rest of the edit.
                         year = input.filter(Char::isDigit).take(4)
@@ -184,62 +269,11 @@ internal fun TrackInfoSheet(
                         modifier = Modifier.padding(vertical = 12.dp),
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Button(
-                            enabled = !saving,
-                            onClick = {
-                                // An untouched field sends null, which leaves that frame exactly as
-                                // it is. A field the user emptied sends "", which removes it — the
-                                // two have to stay distinguishable all the way down to the writer.
-                                val edits = TagEdits(
-                                    title = title.trim().takeIf { it != track.title.orEmpty() },
-                                    artist = artist.trim().takeIf { it != track.artist.orEmpty() },
-                                    album = album.trim().takeIf { it != track.album.orEmpty() },
-                                    genre = genre.trim().takeIf { it != track.genre.orEmpty() },
-                                    year = year.trim()
-                                        .takeIf { it != track.year?.toString().orEmpty() },
-                                )
-                                if (edits.isEmpty) {
-                                    onDismiss()
-                                } else {
-                                    failure = null
-                                    saving = true
-                                    saveTags(track, edits)
-                                }
-                            },
-                        ) {
-                            AnimatedContent(
-                                targetState = saving,
-                                transitionSpec = { motionFadeThrough(reduceMotion) },
-                                label = "track-info-save-state",
-                            ) { isSaving ->
-                                Text(
-                                    stringResource(
-                                        if (isSaving) {
-                                            Res.string.info_saving
-                                        } else {
-                                            Res.string.info_save
-                                        },
-                                    ),
-                                    modifier = Modifier.inactiveForMotion(isSaving != saving),
-                                )
-                            }
-                        }
-                        TextButton(
-                            enabled = !saving,
-                            onClick = { editing = false },
-                        ) { Text(stringResource(Res.string.info_cancel)) }
-                    }
                     }
                 } else {
                     Column(
                         modifier = Modifier.inactiveForMotion(isEditing != editing),
                     ) {
-                    InfoRow(stringResource(Res.string.info_title), track.title)
-                    InfoRow(stringResource(Res.string.info_artist), track.artist)
                     InfoRow(stringResource(Res.string.info_album), track.album)
                     InfoRow(stringResource(Res.string.info_genre), track.genre)
                     InfoRow(stringResource(Res.string.info_year), track.year?.toString())
@@ -247,7 +281,8 @@ internal fun TrackInfoSheet(
                         stringResource(Res.string.info_duration),
                         track.durationMs?.let(::formatDuration),
                     )
-                    InfoRow(stringResource(Res.string.info_location), track.audioUri)
+                    InfoRow(stringResource(Res.string.details_format), formatLabel)
+                    InfoRow(stringResource(Res.string.details_file), fileLabel, showDivider = false)
                     lyrics?.let { text ->
                         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                             Text(
@@ -261,15 +296,42 @@ internal fun TrackInfoSheet(
                             )
                         }
                     }
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 24.dp)) {
-                        Button(onClick = { editing = true }) {
-                            Text(stringResource(Res.string.info_edit))
-                        }
-                    }
                     }
                 }
             }
             Spacer(modifier = Modifier.padding(bottom = 8.dp))
+            }
+            if (editing) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f))
+                EditorActions(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    cancelLabel = stringResource(Res.string.info_cancel),
+                    confirmLabel = stringResource(if (saving) Res.string.info_saving else Res.string.info_save),
+                    confirmEnabled = !edits.isEmpty,
+                    busy = saving,
+                    onCancel = {
+                        focus.clearFocus()
+                        keyboard?.hide()
+                        title = track.title.orEmpty()
+                        artist = track.artist.orEmpty()
+                        album = track.album.orEmpty()
+                        genre = track.genre.orEmpty()
+                        year = track.year?.toString().orEmpty()
+                        failure = null
+                        editing = false
+                    },
+                    onConfirm = {
+                        if (!saving && !edits.isEmpty) {
+                            focus.clearFocus()
+                            keyboard?.hide()
+                            failure = null
+                            saving = true
+                            // Null leaves an untouched frame intact; an empty string removes it.
+                            saveTags(track, edits)
+                        }
+                    },
+                )
+            }
         }
     }
 }
@@ -292,32 +354,55 @@ private fun failureMessage(outcome: TagWriteOutcome): String = when (outcome) {
 }
 
 @Composable
-private fun InfoRow(label: String, value: String?) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.info_not_set),
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (value.isNullOrBlank()) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-        )
+private fun InfoRow(label: String, value: String?, showDivider: Boolean = true) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(92.dp).alignByBaseline(),
+            )
+            Text(
+                text = value?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.info_not_set),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (value.isNullOrBlank()) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                modifier = Modifier.weight(1f).alignByBaseline(),
+            )
+        }
+        if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
 @Composable
-private fun MetadataField(label: String, value: String, onChange: (String) -> Unit) {
-    OutlinedTextField(
+private fun MetadataField(
+    label: String,
+    value: String,
+    enabled: Boolean,
+    last: Boolean = false,
+    onChange: (String) -> Unit,
+) {
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    EditorTextField(
+        label = label,
         value = value,
         onValueChange = onChange,
-        label = { Text(label) },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        enabled = enabled,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (last) KeyboardType.Number else KeyboardType.Text,
+            imeAction = if (last) ImeAction.Done else ImeAction.Next,
+        ),
+        keyboardActions = KeyboardActions(
+            onNext = { focus.moveFocus(FocusDirection.Down) },
+            onDone = { focus.clearFocus(); keyboard?.hide() },
+        ),
     )
 }

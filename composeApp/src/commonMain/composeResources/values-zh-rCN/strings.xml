@@ -28,7 +28,7 @@
     <string name="action_share">分享</string>
     <string name="action_select_all">全选</string>
     <string name="action_deselect_all">取消全选</string>
-    <string name="selection_count">已选择：%1$d</string>
+    <string name="selection_count">已选曲目：%1$d</string>
     <string name="action_add">添加</string>
     <string name="cd_more_options">更多选项</string>
     <string name="cd_search_library">搜索音乐库</string>
@@ -109,6 +109,9 @@
 
     <string name="map_headline_unplayed_total">地图区域内：%2$s · 无播放记录：%1$d。</string>
     <string name="map_select_region">选择区域</string>
+    <string name="map_fullscreen">全屏打开地图</string>
+    <string name="map_exit_fullscreen">退出全屏地图</string>
+    <string name="map_gesture_hint">用双指移动或缩放地图。</string>
     <string name="map_reset_view">重置地图视图</string>
     <string name="map_region_unplayed">尚未在此播放：%1$d</string>
     <string name="map_action_play_unheard">播放未听过的曲目</string>
@@ -165,6 +168,9 @@
     <string name="playlist_add_to_title">将“%1$s”添加到</string>
     <string name="playlist_add_to_title_generic">将歌曲添加到</string>
     <string name="playlist_rename_title">重命名播放列表</string>
+    <string name="action_change_playlist_cover">更换封面</string>
+    <string name="action_reset_playlist_cover">使用自动封面</string>
+    <string name="playlist_cover_error">无法更换播放列表封面。请尝试其他图片。</string>
     <string name="snack_playlist_created">已创建“%1$s”</string>
     <string name="snack_playlist_deleted">已删除“%1$s”</string>
     <string name="snack_added_to_playlist">已添加到“%1$s”</string>
@@ -489,7 +495,7 @@
     <string name="foryou_journey_title">从《%1$s》到《%2$s》</string>
     <string name="settings_pages">页面</string>
     <string name="settings_pages_subtitle">显示状态、顺序和启动页面</string>
-    <string name="settings_pages_body">选择要显示的页面，并使用箭头调整顺序。地图默认关闭。</string>
+    <string name="settings_pages_body">拖动以调整顺序。关闭不使用的页面。</string>
     <string name="settings_pages_last_visible">请至少保留一个开启的页面。</string>
     <string name="settings_page_position">第 %1$d 位，共 %2$d 个</string>
     <string name="settings_page_move_up">上移%1$s</string>
@@ -568,4 +574,17 @@
     <string name="output_current">当前输出</string>
     <string name="output_connect_device">连接设备</string>
     <string name="output_selection_failed">设备不可用。请检查连接。</string>
+    <string name="queue_reorder">调整曲目顺序</string>
+    <string name="queue_reorder_shuffle">切换到顺序播放以调整队列顺序</string>
+    <string name="playlists_yours">你的播放列表</string>
+    <string name="playlists_empty_body">创建播放列表或导入 M3U 文件，将音乐整理在一起。</string>
+    <string name="playlists_automatic">自动</string>
+    <string name="settings_pages_order">顺序</string>
+    <string name="settings_opens_on_launch">启动时打开</string>
+    <string name="settings_reorder_page">调整%1$s的顺序</string>
+    <string name="settings_backup_subtitle">导出或恢复</string>
+    <string name="duplicates_groups">分组</string>
+    <string name="duplicates_summary_title">分组：%1$d · %2$s</string>
+    <string name="duplicates_summary_extra">多余副本：%1$d</string>
+    <string name="duplicates_copy_count">副本：%1$d</string>
 </resources>

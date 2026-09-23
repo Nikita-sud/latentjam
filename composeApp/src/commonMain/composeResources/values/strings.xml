@@ -35,7 +35,7 @@
     <string name="action_share">Share</string>
     <string name="action_select_all">Select all</string>
     <string name="action_deselect_all">Deselect all</string>
-    <string name="selection_count">Selected: %1$d</string>
+    <string name="selection_count">Selected tracks: %1$d</string>
     <string name="action_add">Add</string>
     <string name="cd_more_options">More options</string>
     <!-- Content descriptions for the top bar. -->
@@ -153,6 +153,9 @@
 
     <string name="map_headline_unplayed_total">Mapped regions: %2$s · No recorded plays: %1$d.</string>
     <string name="map_select_region">Choose region</string>
+    <string name="map_fullscreen">Open map full screen</string>
+    <string name="map_exit_fullscreen">Exit full-screen map</string>
+    <string name="map_gesture_hint">Use two fingers to move or zoom the map.</string>
     <string name="map_reset_view">Reset map view</string>
     <string name="map_region_unplayed">Not played here: %1$d</string>
     <string name="map_action_play_unheard">Play unheard</string>
@@ -219,6 +222,9 @@
     <string name="playlist_add_to_title">Add "%1$s" to</string>
     <string name="playlist_add_to_title_generic">Add track to</string>
     <string name="playlist_rename_title">Rename playlist</string>
+    <string name="action_change_playlist_cover">Change cover</string>
+    <string name="action_reset_playlist_cover">Use automatic cover</string>
+    <string name="playlist_cover_error">Couldn't change the playlist cover. Try another image.</string>
     <!-- %1$s is a playlist name -->
     <string name="snack_playlist_created">Created "%1$s"</string>
     <string name="snack_playlist_deleted">Deleted "%1$s"</string>
@@ -558,7 +564,7 @@
     <string name="foryou_journey_title">From “%1$s” to “%2$s”</string>
     <string name="settings_pages">Pages</string>
     <string name="settings_pages_subtitle">Visibility, order and opening page</string>
-    <string name="settings_pages_body">Choose which pages appear and use the arrows to change their order. Map is off by default.</string>
+    <string name="settings_pages_body">Drag to reorder. Switch off pages you do not use.</string>
     <string name="settings_pages_last_visible">Keep at least one page on.</string>
     <string name="settings_page_position">Position %1$d of %2$d</string>
     <string name="settings_page_move_up">Move %1$s up</string>
@@ -640,4 +646,17 @@
     <string name="output_current">Current output</string>
     <string name="output_connect_device">Connect a device</string>
     <string name="output_selection_failed">Device unavailable. Check the connection.</string>
+    <string name="queue_reorder">Reorder track</string>
+    <string name="queue_reorder_shuffle">Switch to In order to rearrange the queue</string>
+    <string name="playlists_yours">Your playlists</string>
+    <string name="playlists_empty_body">Create a playlist or import an M3U file to keep your music together.</string>
+    <string name="playlists_automatic">Automatic</string>
+    <string name="settings_pages_order">Order</string>
+    <string name="settings_opens_on_launch">Opens on launch</string>
+    <string name="settings_reorder_page">Reorder %1$s</string>
+    <string name="settings_backup_subtitle">Export or restore</string>
+    <string name="duplicates_groups">Groups</string>
+    <string name="duplicates_summary_title">Groups: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">Extra copies: %1$d</string>
+    <string name="duplicates_copy_count">Copies: %1$d</string>
 </resources>

@@ -31,7 +31,7 @@
     <string name="action_share">Поділитися</string>
     <string name="action_select_all">Вибрати все</string>
     <string name="action_deselect_all">Зняти виділення</string>
-    <string name="selection_count">Вибрано: %1$d</string>
+    <string name="selection_count">Вибрано треків: %1$d</string>
     <string name="action_add">Додати</string>
     <string name="cd_more_options">Інші дії</string>
     <string name="cd_search_library">Пошук у бібліотеці</string>
@@ -128,6 +128,9 @@
 
     <string name="map_headline_unplayed_total">В областях карти: %2$s · Ще не слухали: %1$d.</string>
     <string name="map_select_region">Вибрати область</string>
+    <string name="map_fullscreen">Відкрити карту на весь екран</string>
+    <string name="map_exit_fullscreen">Закрити повноекранну карту</string>
+    <string name="map_gesture_hint">Переміщуйте й масштабуйте карту двома пальцями.</string>
     <string name="map_reset_view">Скинути вигляд карти</string>
     <string name="map_region_unplayed">Ще не слухали тут: %1$d</string>
     <string name="map_action_play_unheard">Слухати нове</string>
@@ -187,6 +190,9 @@
     <string name="playlist_add_to_title">Додати «%1$s» до плейлиста</string>
     <string name="playlist_add_to_title_generic">Додати трек до плейлиста</string>
     <string name="playlist_rename_title">Перейменувати плейлист</string>
+    <string name="action_change_playlist_cover">Змінити обкладинку</string>
+    <string name="action_reset_playlist_cover">Використати автоматичну обкладинку</string>
+    <string name="playlist_cover_error">Не вдалося змінити обкладинку плейлиста. Спробуйте інше зображення.</string>
     <string name="snack_playlist_created">Плейлист «%1$s» створено</string>
     <string name="snack_playlist_deleted">Плейлист «%1$s» видалено</string>
     <string name="snack_added_to_playlist">Додано до «%1$s»</string>
@@ -516,7 +522,7 @@
     <string name="foryou_journey_title">Від «%1$s» до «%2$s»</string>
     <string name="settings_pages">Сторінки</string>
     <string name="settings_pages_subtitle">Видимість, порядок і початкова сторінка</string>
-    <string name="settings_pages_body">Виберіть сторінки для показу та змінюйте їхній порядок стрілками. Мапу типово вимкнено.</string>
+    <string name="settings_pages_body">Перетягніть, щоб змінити порядок. Вимкніть непотрібні сторінки.</string>
     <string name="settings_pages_last_visible">Залиште хоча б одну сторінку ввімкненою.</string>
     <string name="settings_page_position">Позиція %1$d із %2$d</string>
     <string name="settings_page_move_up">Перемістити «%1$s» вище</string>
@@ -597,4 +603,17 @@
     <string name="output_current">Поточний вихід</string>
     <string name="output_connect_device">Підключити пристрій</string>
     <string name="output_selection_failed">Пристрій недоступний. Перевірте підключення.</string>
+    <string name="queue_reorder">Змінити порядок треку</string>
+    <string name="queue_reorder_shuffle">Перемкніться на «За порядком», щоб змінити чергу</string>
+    <string name="playlists_yours">Ваші списки відтворення</string>
+    <string name="playlists_empty_body">Створіть список відтворення або імпортуйте файл M3U, щоб зібрати музику разом.</string>
+    <string name="playlists_automatic">Автоматичні</string>
+    <string name="settings_pages_order">Порядок</string>
+    <string name="settings_opens_on_launch">Відкривати під час запуску</string>
+    <string name="settings_reorder_page">Змінити порядок: %1$s</string>
+    <string name="settings_backup_subtitle">Експорт або відновлення</string>
+    <string name="duplicates_groups">Групи</string>
+    <string name="duplicates_summary_title">Групи: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">Зайві копії: %1$d</string>
+    <string name="duplicates_copy_count">Копії: %1$d</string>
 </resources>

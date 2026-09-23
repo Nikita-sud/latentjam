@@ -27,10 +27,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -55,9 +57,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -87,7 +89,7 @@ internal enum class ArtworkLoadState { LOADING, TERMINAL }
 internal fun Artwork(
     uri: String?,
     size: Dp,
-    cornerRadius: Dp = 8.dp,
+    cornerRadius: Dp = 12.dp,
     modifier: Modifier = Modifier,
     onLoadStateChanged: ((requestUri: String, state: ArtworkLoadState) -> Unit)? = null,
 ) {
@@ -161,6 +163,10 @@ internal fun RetainedArtwork(
         }
         Crossfade(
             targetState = displayedUri,
+            // During collapse the shared element already has the large cover's animated
+            // bounds. Its bitmap must fill those bounds instead of immediately drawing at
+            // the pill's final 48dp size inside a still-large shared placeholder.
+            modifier = Modifier.matchParentSize(),
             animationSpec = tween(
                 if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
             ),
@@ -170,13 +176,14 @@ internal fun RetainedArtwork(
                 uri = shownUri,
                 size = size,
                 cornerRadius = cornerRadius,
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }
 }
 
 /**
- * Standard track row: artwork, title/artist, and either a duration or an
+ * Standard track row: artwork, title/artist, duration and an optional
  * overflow button that raises the track-actions sheet.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -196,20 +203,14 @@ internal fun TrackRow(
     /** When set, occurrences of this query in the title/artist render emphasized. */
     highlightQuery: String? = null,
     lyricSnippet: String? = null,
+    /** Accessible artwork-derived accent shared with the player; null uses the theme accent. */
+    currentAccent: Color? = null,
+    rowEndInset: Dp = 8.dp,
+    secondaryText: String? = null,
+    showDuration: Boolean = true,
 ) {
-    val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
-    val titleColor by animateColorAsState(
-        targetValue = if (isCurrent) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        },
-        animationSpec = tween(
-            if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
-        ),
-        label = "track-title-color",
-    )
+    val accent = currentAccent ?: MaterialTheme.colorScheme.primary
     // The badge is visual; this is the same fact for ears. Resolved before the modifier chain
     // because stringResource is composable.
     val nowPlayingDescription = if (isCurrent) {
@@ -225,6 +226,9 @@ internal fun TrackRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(start = 8.dp, end = rowEndInset)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (isCurrent) accent.copy(alpha = 0.10f) else Color.Transparent)
             .then(
                 if (selectionState != null || nowPlayingDescription != null) {
                     Modifier.semantics {
@@ -242,16 +246,13 @@ internal fun TrackRow(
             )
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = onLongClick?.let { longClick ->
-                    {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        longClick()
-                    }
-                },
+                // combinedClickable supplies the platform long-press feedback itself. A manual
+                // pulse here doubles it and can outlive the action that opened selection mode.
+                onLongClick = onLongClick,
             )
-            .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         AnimatedVisibility(
             visible = selectionState != null,
@@ -290,34 +291,11 @@ internal fun TrackRow(
             )
             }
         }
-        Box {
-            Artwork(
-                uri = track.artworkUri,
-                size = 48.dp,
-                onLoadStateChanged = onArtworkLoadStateChanged,
-            )
-            androidx.compose.animation.AnimatedVisibility(
-                visible = isCurrent,
-                enter = fadeIn(tween(
-                    if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS,
-                )),
-                exit = fadeOut(tween(
-                    if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS,
-                )),
-            ) {
-                // The player's track wears its badge on the artwork: a tinted title alone
-                // proved too quiet to spot while scanning a list.
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black.copy(alpha = 0.45f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    NowPlayingIndicator(animating = isPlaying)
-                }
-            }
-        }
+        Artwork(
+            uri = track.artworkUri,
+            size = 48.dp,
+            onLoadStateChanged = onArtworkLoadStateChanged,
+        )
         Column(modifier = Modifier.weight(1f)) {
             // Research-standard result emphasis: BOLD the matched term (the convention search
             // UIs settled on), plus a step up in tone so the emphasis survives bold-ish fonts.
@@ -325,23 +303,19 @@ internal fun TrackRow(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Text(
-                text = emphasized(
-                    text = track.title ?: stringResource(Res.string.track_untitled),
-                    query = highlightQuery,
-                    style = highlight,
-                ),
-                style = MaterialTheme.typography.bodyLarge,
-                color = titleColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            val title = track.title ?: stringResource(Res.string.track_untitled)
+            val secondary = secondaryText ?: track.artist ?: stringResource(Res.string.track_unknown_artist)
+            AnimatedTrackTitle(
+                text = remember(title, highlightQuery, highlight) {
+                    emphasized(title, highlightQuery, highlight)
+                },
+                targetColor = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
+                reduceMotion = reduceMotion,
             )
             Text(
-                text = emphasized(
-                    text = track.artist ?: stringResource(Res.string.track_unknown_artist),
-                    query = highlightQuery,
-                    style = highlight,
-                ),
+                text = remember(secondary, highlightQuery, highlight) {
+                    emphasized(secondary, highlightQuery, highlight)
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -349,12 +323,28 @@ internal fun TrackRow(
             )
             lyricSnippet?.let { snippet ->
                 Text(
-                    text = emphasized(snippet, highlightQuery, highlight),
-                    style = MaterialTheme.typography.bodySmall,
+                    text = remember(snippet, highlightQuery, highlight) {
+                        emphasized(snippet, highlightQuery, highlight)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (isCurrent && selectionState == null) {
+            NowPlayingIndicator(animating = isPlaying, tint = accent)
+        }
+        if (showDuration) {
+            track.durationMs?.let { duration ->
+                Text(
+                    text = formatDuration(duration),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier.widthIn(min = 34.dp),
                 )
             }
         }
@@ -365,24 +355,33 @@ internal fun TrackRow(
             } else {
                 stringResource(Res.string.cd_track_options_generic)
             }
-            IconButton(onClick = onMenu) {
+            IconButton(onClick = onMenu, modifier = Modifier.size(48.dp)) {
                 Icon(
                     imageVector = Icons.Rounded.MoreVert,
                     contentDescription = menuDescription,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            track.durationMs?.let { duration ->
-                Text(
-                    text = formatDuration(duration),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 12.dp),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
     }
+}
+
+/** Color motion only recomposes this label, leaving artwork, gestures and search matching idle. */
+@Composable
+private fun AnimatedTrackTitle(text: AnnotatedString, targetColor: Color, reduceMotion: Boolean) {
+    val color by animateColorAsState(
+        targetValue = targetColor,
+        animationSpec = tween(if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS),
+        label = "track-title-color",
+    )
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyLarge,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 internal fun formatDuration(durationMs: Long): String {
@@ -393,20 +392,26 @@ internal fun formatDuration(durationMs: Long): String {
 }
 
 /**
- * The "this row is the player's track" badge: three bars over the artwork, moving while audio
+ * The "this row is the player's track" badge: three trailing bars, moving while audio
  * runs and frozen mid-pose while paused. The distinction is deliberate — motion promises sound,
  * and a paused player keeping a dancing row would promise wrong.
  *
- * White on the artwork scrim rather than the theme accent: the scrim is dark in both themes,
- * and a light-theme primary can be too dark to read against it.
+ * The trailing badge uses the same readable accent as the current title. Its bar heights are
+ * read only by the graphics layer so playback never remeasures the row each frame.
  */
 @Composable
-private fun NowPlayingIndicator(animating: Boolean) {
+internal fun NowPlayingIndicator(animating: Boolean, tint: Color) {
     val reduceMotion = rememberReduceMotion()
-    val fractions = if (animating && !reduceMotion) {
-        val transition = rememberInfiniteTransition(label = "now-playing")
-        BAR_PHASES_MS.map { phase ->
-            transition.animateFloat(
+    val transition = if (animating && !reduceMotion) {
+        rememberInfiniteTransition(label = "now-playing")
+    } else null
+    Row(
+        modifier = Modifier.height(16.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        BAR_PHASES_MS.forEachIndexed { index, phase ->
+            val fraction = transition?.animateFloat(
                 initialValue = 0.3f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
@@ -415,22 +420,16 @@ private fun NowPlayingIndicator(animating: Boolean) {
                     initialStartOffset = StartOffset(phase),
                 ),
                 label = "bar",
-            ).value
-        }
-    } else {
-        PAUSED_BAR_FRACTIONS
-    }
-    Row(
-        modifier = Modifier.height(16.dp),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        for (fraction in fractions) {
+            )
             Box(
                 modifier = Modifier
                     .width(3.dp)
-                    .fillMaxHeight(fraction)
-                    .background(Color.White, RoundedCornerShape(1.5.dp)),
+                    .fillMaxHeight()
+                    .graphicsLayer {
+                        transformOrigin = TransformOrigin(0.5f, 1f)
+                        scaleY = fraction?.value ?: PAUSED_BAR_FRACTIONS[index]
+                    }
+                    .background(tint, RoundedCornerShape(2.dp)),
             )
         }
     }

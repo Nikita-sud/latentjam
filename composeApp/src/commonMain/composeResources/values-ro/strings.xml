@@ -31,7 +31,7 @@
     <string name="action_share">Distribuie</string>
     <string name="action_select_all">Selectează tot</string>
     <string name="action_deselect_all">Deselectează tot</string>
-    <string name="selection_count">Selectate: %1$d</string>
+    <string name="selection_count">Piese selectate: %1$d</string>
     <string name="action_add">Adaugă</string>
     <string name="cd_more_options">Mai multe opțiuni</string>
     <string name="cd_search_library">Caută în bibliotecă</string>
@@ -120,6 +120,9 @@
 
     <string name="map_headline_unplayed_total">Regiunile hărții: %2$s · Fără redări în istoric: %1$d.</string>
     <string name="map_select_region">Alege regiunea</string>
+    <string name="map_fullscreen">Deschide harta pe tot ecranul</string>
+    <string name="map_exit_fullscreen">Închide harta pe tot ecranul</string>
+    <string name="map_gesture_hint">Folosește două degete pentru a deplasa sau mări harta.</string>
     <string name="map_reset_view">Resetează harta</string>
     <string name="map_region_unplayed">Neredate aici: %1$d</string>
     <string name="map_action_play_unheard">Redă neascultate</string>
@@ -171,6 +174,9 @@
     <string name="playlist_add_to_title">Adaugă „%1$s” în</string>
     <string name="playlist_add_to_title_generic">Adaugă piesa în</string>
     <string name="playlist_rename_title">Redenumește playlistul</string>
+    <string name="action_change_playlist_cover">Schimbă coperta</string>
+    <string name="action_reset_playlist_cover">Folosește coperta automată</string>
+    <string name="playlist_cover_error">Coperta playlistului nu a putut fi schimbată. Încearcă altă imagine.</string>
     <string name="snack_playlist_created">Playlistul „%1$s” a fost creat</string>
     <string name="snack_playlist_deleted">Playlistul „%1$s” a fost șters</string>
     <string name="snack_added_to_playlist">Adăugat în „%1$s”</string>
@@ -495,7 +501,7 @@
     <string name="foryou_journey_title">De la „%1$s” la „%2$s”</string>
     <string name="settings_pages">Pagini</string>
     <string name="settings_pages_subtitle">Vizibilitate, ordine și pagina de pornire</string>
-    <string name="settings_pages_body">Alege ce pagini apar și folosește săgețile pentru a le schimba ordinea. Harta este dezactivată implicit.</string>
+    <string name="settings_pages_body">Trage pentru a reordona. Dezactivează paginile pe care nu le folosești.</string>
     <string name="settings_pages_last_visible">Păstrează cel puțin o pagină activată.</string>
     <string name="settings_page_position">Poziția %1$d din %2$d</string>
     <string name="settings_page_move_up">Mută %1$s în sus</string>
@@ -576,4 +582,17 @@
     <string name="output_current">Ieșirea curentă</string>
     <string name="output_connect_device">Conectează un dispozitiv</string>
     <string name="output_selection_failed">Dispozitiv indisponibil. Verifică conexiunea.</string>
+    <string name="queue_reorder">Reordonează piesa</string>
+    <string name="queue_reorder_shuffle">Treci la În ordine pentru a rearanja coada</string>
+    <string name="playlists_yours">Listele tale de redare</string>
+    <string name="playlists_empty_body">Creează o listă de redare sau importă un fișier M3U pentru a-ți reuni muzica.</string>
+    <string name="playlists_automatic">Automate</string>
+    <string name="settings_pages_order">Ordine</string>
+    <string name="settings_opens_on_launch">Se deschide la pornire</string>
+    <string name="settings_reorder_page">Reordonează %1$s</string>
+    <string name="settings_backup_subtitle">Exportă sau restaurează</string>
+    <string name="duplicates_groups">Grupuri</string>
+    <string name="duplicates_summary_title">Grupuri: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">Copii suplimentare: %1$d</string>
+    <string name="duplicates_copy_count">Copii: %1$d</string>
 </resources>

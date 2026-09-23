@@ -28,7 +28,7 @@
     <string name="action_share">Paylaş</string>
     <string name="action_select_all">Tümünü seç</string>
     <string name="action_deselect_all">Tümünün seçimini kaldır</string>
-    <string name="selection_count">Seçildi: %1$d</string>
+    <string name="selection_count">Seçilen parçalar: %1$d</string>
     <string name="action_add">Ekle</string>
     <string name="cd_more_options">Diğer seçenekler</string>
     <string name="cd_search_library">Kitaplıkta ara</string>
@@ -114,6 +114,9 @@
 
     <string name="map_headline_unplayed_total">Haritadaki bölgeler: %2$s · Kayıtlı çalma yok: %1$d.</string>
     <string name="map_select_region">Bölge seç</string>
+    <string name="map_fullscreen">Haritayı tam ekran aç</string>
+    <string name="map_exit_fullscreen">Tam ekran haritadan çık</string>
+    <string name="map_gesture_hint">Haritayı iki parmağınızla taşıyın veya yakınlaştırın.</string>
     <string name="map_reset_view">Harita görünümünü sıfırla</string>
     <string name="map_region_unplayed">Burada çalınmamış: %1$d</string>
     <string name="map_action_play_unheard">Dinlenmeyenleri çal</string>
@@ -171,6 +174,9 @@
     <string name="playlist_add_to_title">"%1$s" parçasını şuraya ekle</string>
     <string name="playlist_add_to_title_generic">Parçayı şuraya ekle</string>
     <string name="playlist_rename_title">Çalma listesini yeniden adlandır</string>
+    <string name="action_change_playlist_cover">Kapağı değiştir</string>
+    <string name="action_reset_playlist_cover">Otomatik kapak kullan</string>
+    <string name="playlist_cover_error">Çalma listesi kapağı değiştirilemedi. Başka bir görsel deneyin.</string>
     <string name="snack_playlist_created">"%1$s" oluşturuldu</string>
     <string name="snack_playlist_deleted">"%1$s" silindi</string>
     <string name="snack_added_to_playlist">"%1$s" listesine eklendi</string>
@@ -496,7 +502,7 @@
     <string name="foryou_journey_title">“%1$s” → “%2$s”</string>
     <string name="settings_pages">Sayfalar</string>
     <string name="settings_pages_subtitle">Görünürlük, sıra ve başlangıç sayfası</string>
-    <string name="settings_pages_body">Görünecek sayfaları seçin ve oklarla sıralarını değiştirin. Harita varsayılan olarak kapalıdır.</string>
+    <string name="settings_pages_body">Sıralamak için sürükleyin. Kullanmadığınız sayfaları kapatın.</string>
     <string name="settings_pages_last_visible">En az bir sayfayı açık tutun.</string>
     <string name="settings_page_position">%2$d sayfa içinde %1$d. sıra</string>
     <string name="settings_page_move_up">%1$s sayfasını yukarı taşı</string>
@@ -575,4 +581,17 @@
     <string name="output_current">Geçerli çıkış</string>
     <string name="output_connect_device">Cihaz bağla</string>
     <string name="output_selection_failed">Cihaz kullanılamıyor. Bağlantıyı kontrol edin.</string>
+    <string name="queue_reorder">Parçayı yeniden sırala</string>
+    <string name="queue_reorder_shuffle">Kuyruğu yeniden sıralamak için Sırayla moduna geçin</string>
+    <string name="playlists_yours">Çalma listeleriniz</string>
+    <string name="playlists_empty_body">Müziğinizi bir araya getirmek için çalma listesi oluşturun veya M3U dosyası içe aktarın.</string>
+    <string name="playlists_automatic">Otomatik</string>
+    <string name="settings_pages_order">Sıralama</string>
+    <string name="settings_opens_on_launch">Başlangıçta açılır</string>
+    <string name="settings_reorder_page">%1$s sayfasını yeniden sırala</string>
+    <string name="settings_backup_subtitle">Dışa aktar veya geri yükle</string>
+    <string name="duplicates_groups">Gruplar</string>
+    <string name="duplicates_summary_title">Gruplar: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">Fazladan kopyalar: %1$d</string>
+    <string name="duplicates_copy_count">Kopyalar: %1$d</string>
 </resources>

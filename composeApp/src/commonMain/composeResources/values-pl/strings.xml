@@ -31,7 +31,7 @@
     <string name="action_share">Udostępnij</string>
     <string name="action_select_all">Zaznacz wszystko</string>
     <string name="action_deselect_all">Odznacz wszystko</string>
-    <string name="selection_count">Wybrano: %1$d</string>
+    <string name="selection_count">Wybrane utwory: %1$d</string>
     <string name="action_add">Dodaj</string>
     <string name="cd_more_options">Więcej opcji</string>
     <string name="cd_search_library">Szukaj w bibliotece</string>
@@ -128,6 +128,9 @@
 
     <string name="map_headline_unplayed_total">Obszary mapy: %2$s · Bez odtworzeń w historii: %1$d.</string>
     <string name="map_select_region">Wybierz obszar</string>
+    <string name="map_fullscreen">Otwórz mapę na pełnym ekranie</string>
+    <string name="map_exit_fullscreen">Zamknij mapę pełnoekranową</string>
+    <string name="map_gesture_hint">Przesuwaj i powiększaj mapę dwoma palcami.</string>
     <string name="map_reset_view">Resetuj widok mapy</string>
     <string name="map_region_unplayed">Nieodtwarzane tutaj: %1$d</string>
     <string name="map_action_play_unheard">Odtwórz niesłuchane</string>
@@ -187,6 +190,9 @@
     <string name="playlist_add_to_title">Dodaj „%1$s” do playlisty</string>
     <string name="playlist_add_to_title_generic">Dodaj utwór do playlisty</string>
     <string name="playlist_rename_title">Zmień nazwę playlisty</string>
+    <string name="action_change_playlist_cover">Zmień okładkę</string>
+    <string name="action_reset_playlist_cover">Użyj automatycznej okładki</string>
+    <string name="playlist_cover_error">Nie udało się zmienić okładki playlisty. Spróbuj użyć innego obrazu.</string>
     <string name="snack_playlist_created">Utworzono „%1$s”</string>
     <string name="snack_playlist_deleted">Usunięto „%1$s”</string>
     <string name="snack_added_to_playlist">Dodano do „%1$s”</string>
@@ -516,7 +522,7 @@
     <string name="foryou_journey_title">Od „%1$s” do „%2$s”</string>
     <string name="settings_pages">Strony</string>
     <string name="settings_pages_subtitle">Widoczność, kolejność i strona startowa</string>
-    <string name="settings_pages_body">Wybierz widoczne strony i zmieniaj ich kolejność strzałkami. Mapa jest domyślnie wyłączona.</string>
+    <string name="settings_pages_body">Przeciągnij, aby zmienić kolejność. Wyłącz nieużywane strony.</string>
     <string name="settings_pages_last_visible">Co najmniej jedna strona musi pozostać włączona.</string>
     <string name="settings_page_position">Pozycja %1$d z %2$d</string>
     <string name="settings_page_move_up">Przenieś %1$s w górę</string>
@@ -595,4 +601,17 @@
     <string name="output_current">Bieżące wyjście</string>
     <string name="output_connect_device">Połącz urządzenie</string>
     <string name="output_selection_failed">Urządzenie niedostępne. Sprawdź połączenie.</string>
+    <string name="queue_reorder">Zmień kolejność utworu</string>
+    <string name="queue_reorder_shuffle">Przełącz na Po kolei, aby zmienić kolejność kolejki</string>
+    <string name="playlists_yours">Twoje playlisty</string>
+    <string name="playlists_empty_body">Utwórz playlistę lub zaimportuj plik M3U, aby zebrać swoją muzykę.</string>
+    <string name="playlists_automatic">Automatyczne</string>
+    <string name="settings_pages_order">Kolejność</string>
+    <string name="settings_opens_on_launch">Otwórz po uruchomieniu</string>
+    <string name="settings_reorder_page">Zmień pozycję: %1$s</string>
+    <string name="settings_backup_subtitle">Eksportuj lub przywróć</string>
+    <string name="duplicates_groups">Grupy</string>
+    <string name="duplicates_summary_title">Grupy: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">Dodatkowe kopie: %1$d</string>
+    <string name="duplicates_copy_count">Kopie: %1$d</string>
 </resources>

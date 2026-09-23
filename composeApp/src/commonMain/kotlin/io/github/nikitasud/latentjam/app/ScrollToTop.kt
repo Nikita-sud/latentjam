@@ -72,10 +72,14 @@ internal fun BoxScope.ScrollToTopButton(
         SmallFloatingActionButton(
             onClick = {
                 scope.launch {
-                    if (listState.firstVisibleItemIndex > SCROLL_TO_TOP_SNAP_FROM) {
-                        listState.scrollToItem(SCROLL_TO_TOP_SNAP_FROM)
+                    if (reduceMotion) {
+                        listState.scrollToItem(0)
+                    } else {
+                        if (listState.firstVisibleItemIndex > SCROLL_TO_TOP_SNAP_FROM) {
+                            listState.scrollToItem(SCROLL_TO_TOP_SNAP_FROM)
+                        }
+                        listState.animateScrollToItem(0)
                     }
-                    listState.animateScrollToItem(0)
                 }
             },
             // A circle in inverse surface, like the play/shuffle circles: the button floats

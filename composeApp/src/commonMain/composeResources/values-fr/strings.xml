@@ -40,7 +40,7 @@
     <string name="action_share">Partager</string>
     <string name="action_select_all">Tout sélectionner</string>
     <string name="action_deselect_all">Tout désélectionner</string>
-    <string name="selection_count">Sélectionnés : %1$d</string>
+    <string name="selection_count">Titres sélectionnés : %1$d</string>
     <string name="action_add">Ajouter</string>
     <string name="cd_more_options">Plus d'options</string>
     <string name="cd_search_library">Rechercher dans la bibliothèque</string>
@@ -126,6 +126,9 @@
 
     <string name="map_headline_unplayed_total">Régions de la carte : %2$s · Sans écoute enregistrée : %1$d.</string>
     <string name="map_select_region">Choisir une région</string>
+    <string name="map_fullscreen">Ouvrir la carte en plein écran</string>
+    <string name="map_exit_fullscreen">Quitter la carte en plein écran</string>
+    <string name="map_gesture_hint">Déplacez ou zoomez la carte avec deux doigts.</string>
     <string name="map_reset_view">Réinitialiser la carte</string>
     <string name="map_region_unplayed">Non écoutés ici : %1$d</string>
     <string name="map_action_play_unheard">Écouter les non joués</string>
@@ -183,6 +186,9 @@
     <string name="playlist_add_to_title">Ajouter « %1$s » à une playlist</string>
     <string name="playlist_add_to_title_generic">Ajouter le morceau à une playlist</string>
     <string name="playlist_rename_title">Renommer la playlist</string>
+    <string name="action_change_playlist_cover">Changer la pochette</string>
+    <string name="action_reset_playlist_cover">Utiliser la pochette automatique</string>
+    <string name="playlist_cover_error">Impossible de changer la pochette de la playlist. Essayez une autre image.</string>
     <string name="snack_playlist_created">Playlist "%1$s" créée</string>
     <string name="snack_playlist_deleted">Playlist "%1$s" supprimée</string>
     <string name="snack_added_to_playlist">Ajouté à "%1$s"</string>
@@ -508,7 +514,7 @@
     <string name="foryou_journey_title">De « %1$s » à « %2$s »</string>
     <string name="settings_pages">Pages</string>
     <string name="settings_pages_subtitle">Visibilité, ordre et page d’accueil</string>
-    <string name="settings_pages_body">Choisissez les pages à afficher et utilisez les flèches pour changer leur ordre. La carte est désactivée par défaut.</string>
+    <string name="settings_pages_body">Faites glisser pour réorganiser. Désactivez les pages inutilisées.</string>
     <string name="settings_pages_last_visible">Gardez au moins une page activée.</string>
     <string name="settings_page_position">Position %1$d sur %2$d</string>
     <string name="settings_page_move_up">Monter %1$s</string>
@@ -589,4 +595,17 @@
     <string name="output_current">Sortie actuelle</string>
     <string name="output_connect_device">Connecter un appareil</string>
     <string name="output_selection_failed">Appareil indisponible. Vérifiez la connexion.</string>
+    <string name="queue_reorder">Réorganiser le titre</string>
+    <string name="queue_reorder_shuffle">Passez en mode Dans l’ordre pour réorganiser la file</string>
+    <string name="playlists_yours">Vos playlists</string>
+    <string name="playlists_empty_body">Créez une playlist ou importez un fichier M3U pour regrouper votre musique.</string>
+    <string name="playlists_automatic">Automatiques</string>
+    <string name="settings_pages_order">Ordre</string>
+    <string name="settings_opens_on_launch">À ouvrir au démarrage</string>
+    <string name="settings_reorder_page">Réorganiser %1$s</string>
+    <string name="settings_backup_subtitle">Exporter ou restaurer</string>
+    <string name="duplicates_groups">Groupes</string>
+    <string name="duplicates_summary_title">Groupes : %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">Copies supplémentaires : %1$d</string>
+    <string name="duplicates_copy_count">Copies : %1$d</string>
 </resources>
