@@ -104,8 +104,6 @@ internal fun PlayerArtworkCard(
     queueIndex: Int = -1,
     /** Restarts keep the current cover and return it immediately after the skip action. */
     skipChangesTrack: (forward: Boolean) -> Boolean = { true },
-    /** Neighbour decodes wait until the player has finished entering; a swipe prepares them now. */
-    prepareNeighbours: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -396,7 +394,7 @@ internal fun PlayerArtworkCard(
                 },
         ) {
             val gapPx = with(density) { GHOST_GAP.toPx() }
-            neighbourTrack(false)?.takeIf { prepareNeighbours || swiping }?.let { neighbour ->
+            neighbourTrack(false)?.let { neighbour ->
                 GhostCover(
                     uri = neighbour.artworkUri,
                     forward = false,
@@ -405,7 +403,7 @@ internal fun PlayerArtworkCard(
                     reduceMotion = reduceMotion,
                 )
             }
-            neighbourTrack(true)?.takeIf { prepareNeighbours || swiping }?.let { neighbour ->
+            neighbourTrack(true)?.let { neighbour ->
                 GhostCover(
                     uri = neighbour.artworkUri,
                     forward = true,

@@ -44,6 +44,19 @@ internal class PlaybackQueueTransitionsTest {
     private val manual = track("manual")
 
     @Test
+    fun `library removal retains the exact current duplicate occurrence`() {
+        assertEquals(1, retainedQueueIndex(listOf(a, b, a, c), 2, setOf(a.id, c.id)))
+    }
+
+    @Test
+    fun `library removal skips deleted rows without skipping surviving next tracks`() {
+        assertEquals(0, retainedQueueIndex(listOf(a, b, c, manual), 1, setOf(c.id, manual.id)))
+        assertEquals(0, retainedQueueIndex(listOf(a, b), 1, setOf(a.id)))
+        assertEquals(-1, retainedQueueIndex(listOf(a, b), 0, emptySet()))
+        assertEquals(-1, retainedQueueIndex(emptyList(), -1, setOf(a.id)))
+    }
+
+    @Test
     fun `shuffle off restores source order when current belongs to source`() {
         assertEquals(
             PlaybackQueueOrder(tracks = listOf(a, b, c), currentIndex = 1),
@@ -84,22 +97,13 @@ internal class PlaybackQueueTransitionsTest {
     }
 
     @Test
-    fun `restored on command failure remains native shuffle on instead of throwing`() {
-        assertEquals(
-            RestoredOnShufflePolicy(
-                order = RestoredOnShuffleOrder.SAVED_IDENTITY,
-                nativeShuffleEnabled = true,
-            ),
-            restoredOnShufflePolicy(identityOrderInstalled = true),
-        )
-        assertEquals(
-            RestoredOnShufflePolicy(
-                order = RestoredOnShuffleOrder.NATIVE_RANDOM_FALLBACK,
-                nativeShuffleEnabled = true,
-            ),
-            restoredOnShufflePolicy(identityOrderInstalled = false),
-        )
-        assertContentEquals(intArrayOf(0, 1, 2), restoredOnIdentityTraversal(queueSize = 3))
+    fun `saved shuffled traversal restores without randomizing rows again`() {
+        val saved = listOf(c, a, manual, b)
+        val snapshot = playbackQueueSnapshot(saved, restoredOnIdentityTraversal(saved.size), 2)
+        assertEquals(saved, snapshot.rows)
+        assertEquals(2, snapshot.currentRowIndex)
+        assertEquals(b, snapshot.rows[snapshot.currentRowIndex + 1])
+        assertContentEquals(intArrayOf(), restoredOnIdentityTraversal(-1))
     }
 
     @Test
@@ -478,6 +482,88 @@ internal class PlaybackQueueTransitionsTest {
                 currentMediaItemIndex = 0,
             ),
         )
+    }
+
+    @Test
+    fun `fresh shuffle starts at its selected song and retains every remaining row`() {
+        val nativeOrder = intArrayOf(2, 0, 3, 1)
+        val anchored = shuffleOrderStartingAt(nativeOrder, currentMediaItemIndex = 3)
+        assertContentEquals(intArrayOf(3, 1, 2, 0), anchored)
+        assertContentEquals(intArrayOf(2, 0, 3, 1), nativeOrder)
+        val source = listOf(a, b, c, manual)
+        val first = playbackQueueSnapshot(source, anchored, currentMediaItemIndex = 3)
+        assertEquals(0, first.currentRowIndex)
+        assertEquals(listOf(manual, b, c, a), first.rows)
+        // Advancing follows the same native order. Do not move each new current song to the top.
+        val next = playbackQueueSnapshot(source, anchored, currentMediaItemIndex = 1)
+        assertEquals(first.rows, next.rows)
+        assertEquals(1, next.currentRowIndex)
+    }
+
+    @Test
+    fun `fresh shuffle can start at every position including native last`() {
+        val original = intArrayOf(4, 1, 3, 0, 2)
+        for (seed in original) {
+            val order = shuffleOrderStartingAt(original, seed)
+            assertEquals(seed, order.first())
+            assertEquals(original.toSet(), order.toSet())
+            assertEquals(original.size, order.size)
+        }
+    }
+
+    @Test
+    fun `fresh shuffle retains duplicate song occurrences by their physical indices`() {
+        val order = shuffleOrderStartingAt(intArrayOf(0, 2, 1), 2)
+        val snapshot = playbackQueueSnapshot(listOf(a, b, a), order, 2)
+        assertEquals(0, snapshot.currentRowIndex)
+        assertEquals(listOf(a, b, a), snapshot.rows)
+        assertEquals(listOf(2, 1, 0), snapshot.mediaItemIndices)
+    }
+
+    @Test
+    fun `fresh shuffle safely normalizes invalid orders and missing selections`() {
+        assertContentEquals(intArrayOf(2, 0, 1), shuffleOrderStartingAt(intArrayOf(1, 1, 8), 2))
+        assertContentEquals(intArrayOf(1, 0), shuffleOrderStartingAt(intArrayOf(1, 0), -1))
+        assertContentEquals(intArrayOf(0), shuffleOrderStartingAt(intArrayOf(0), 0))
+        assertContentEquals(intArrayOf(), shuffleOrderStartingAt(intArrayOf(), 0))
+    }
+
+    @Test
+    fun `append in shuffle preserves every existing row and puts new occurrence last`() {
+        val old = intArrayOf(2, 0, 3, 1)
+        val appended = shuffleOrderAppendingNext(old, currentMediaItemIndex = -1)
+        assertContentEquals(intArrayOf(2, 0, 3, 1, 4), appended)
+        val snapshot = playbackQueueSnapshot(listOf(a, b, c, manual, a), appended, 0)
+        assertEquals(1, snapshot.currentRowIndex)
+        assertEquals(listOf(c, a, manual, b, a), snapshot.rows)
+        assertContentEquals(intArrayOf(2, 0, 3, 1), old)
+        assertContentEquals(intArrayOf(0), shuffleOrderAppendingNext(intArrayOf(), -1))
+    }
+
+    @Test
+    fun `shuffle reorder preserves the loaded occurrence including duplicate tracks`() {
+        val rows = listOf(a, b, a, c)
+        val old = intArrayOf(2, 0, 3, 1)
+        val reordered = shuffleOrderMovingRow(old, fromMediaItemIndex = 1, toMediaItemIndex = 0)
+        assertContentEquals(intArrayOf(2, 1, 0, 3), reordered)
+        val snapshot = playbackQueueSnapshot(rows, reordered, currentMediaItemIndex = 0)
+        assertEquals(2, snapshot.currentRowIndex)
+        assertEquals(listOf(a, b, a, c), snapshot.rows)
+        assertContentEquals(old, shuffleOrderMovingRow(reordered, 1, 3))
+        assertContentEquals(old, shuffleOrderMovingRow(old, -1, 0))
+        assertContentEquals(old, shuffleOrderMovingRow(old, 2, 2))
+    }
+
+    @Test
+    fun `all shuffled moves retain a complete permutation and the selected occurrence`() {
+        val original = intArrayOf(3, 1, 4, 0, 2)
+        for (from in original) for (to in original) for (current in original) {
+            val result = shuffleOrderMovingRow(original, from, to)
+            assertEquals(original.toSet(), result.toSet())
+            assertEquals(original.size, result.size)
+            val snapshot = playbackQueueSnapshot(original.indices.toList(), result, current)
+            assertEquals(current, snapshot.rows[snapshot.currentRowIndex])
+        }
     }
 
     @Test

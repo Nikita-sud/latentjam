@@ -118,8 +118,6 @@ public class PlaybackService : MediaLibraryService() {
                 .setAvailableSessionCommands(
                     result.availableSessionCommands.buildUpon()
                         .add(CycleShuffleModeCommand)
-                        .add(InsertShufflePlayNextCommand)
-                        .add(MaterializeRestoredShuffleOrderCommand)
                         .build(),
                 )
                 .setAvailablePlayerCommands(result.availablePlayerCommands)
@@ -166,44 +164,6 @@ public class PlaybackService : MediaLibraryService() {
                 when (customCommand) {
                     CycleShuffleModeCommand -> {
                         AndroidShuffleModeRegistry.cycle()
-                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
-                    }
-
-                    InsertShufflePlayNextCommand -> {
-                        val player = playbackPlayer
-                            ?: return Futures.immediateFuture(
-                                SessionResult(SessionResult.RESULT_ERROR_INVALID_STATE),
-                            )
-                        val item = runCatching {
-                            args.getBundle(PlayNextMediaItemBundleKey)?.let { bundle ->
-                                MediaItem.fromBundle(bundle, MediaLibraryInfo.INTERFACE_VERSION)
-                            }
-                        }.getOrNull()
-                        if (item?.localConfiguration == null || item.mediaId.isBlank()) {
-                            return Futures.immediateFuture(
-                                SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE),
-                            )
-                        }
-                        insertPlayNext(player, item)
-                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
-                    }
-
-                    MaterializeRestoredShuffleOrderCommand -> {
-                        val player = playbackPlayer
-                            ?: return Futures.immediateFuture(
-                                SessionResult(SessionResult.RESULT_ERROR_INVALID_STATE),
-                            )
-                        // The controller has already installed NowPlaying.queue physically in its
-                        // persisted traversal order. Identity is therefore the exact saved Next
-                        // chain. Enable native shuffle only after installing it, so both player
-                        // listeners continue to report logical ON without an OFF transition.
-                        player.setShuffleOrder(
-                            DefaultShuffleOrder(
-                                restoredOnIdentityTraversal(player.mediaItemCount),
-                                System.nanoTime(),
-                            ),
-                        )
-                        player.shuffleModeEnabled = true
                         return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                     }
                 }
@@ -501,6 +461,56 @@ public class PlaybackService : MediaLibraryService() {
         }
     }
 
+    private var lastQueueEditRequest: Long? = null
+
+    /** Runs synchronously inside the ordered metadata command, before later prepare/play calls. */
+    private fun applyQueueEdit(marker: android.os.Bundle) {
+        val player = playbackPlayer ?: return
+        when (marker.getString(AndroidQueueCommand.OPERATION)) {
+            AndroidQueueCommand.START, AndroidQueueCommand.RESTORE -> {
+                if (
+                    !player.shuffleModeEnabled ||
+                    player.currentMediaItem?.mediaId != marker.getString(AndroidQueueCommand.MEDIA_ID) ||
+                    player.currentMediaItemIndex != marker.getInt(AndroidQueueCommand.INDEX, -1) ||
+                    player.mediaItemCount != marker.getInt(AndroidQueueCommand.SIZE, -1)
+                ) return
+                val order = if (marker.getString(AndroidQueueCommand.OPERATION) == AndroidQueueCommand.RESTORE) {
+                    restoredOnIdentityTraversal(player.mediaItemCount)
+                } else {
+                    shuffleOrderStartingAt(nativeTraversal(player), player.currentMediaItemIndex)
+                }
+                player.setShuffleOrder(DefaultShuffleOrder(order, System.nanoTime()))
+            }
+            AndroidQueueCommand.PLAY_NEXT, AndroidQueueCommand.APPEND -> {
+                val item = runCatching {
+                    marker.getBundle(AndroidQueueCommand.ITEM)?.let {
+                        MediaItem.fromBundle(it, MediaLibraryInfo.INTERFACE_VERSION)
+                    }
+                }.getOrNull() ?: return
+                if (item.localConfiguration == null || item.mediaId.isBlank()) return
+                insertManualQueueItem(
+                    player, item,
+                    playNext = marker.getString(AndroidQueueCommand.OPERATION) == AndroidQueueCommand.PLAY_NEXT,
+                )
+            }
+            AndroidQueueCommand.MOVE -> {
+                if (!player.shuffleModeEnabled ||
+                    player.mediaItemCount != marker.getInt(AndroidQueueCommand.SIZE, -1)
+                ) return
+                val reordered = shuffleOrderMovingRow(
+                    nativeTraversal(player),
+                    marker.getInt(AndroidQueueCommand.FROM, -1),
+                    marker.getInt(AndroidQueueCommand.TO, -1),
+                )
+                player.setShuffleOrder(DefaultShuffleOrder(reordered, System.nanoTime()))
+            }
+        }
+    }
+
+    private fun nativeTraversal(player: ExoPlayer): IntArray = player.shuffleOrder.let { order ->
+        boundedQueueOrder(player.mediaItemCount, order.firstIndex, order::getNextIndex)
+    }
+
     /** Restores the saved logical queue order after Media3 installs resumption's media items. */
     private fun applyPendingResumptionMode() {
         val mode = pendingResumptionMode ?: return
@@ -550,7 +560,23 @@ public class PlaybackService : MediaLibraryService() {
         // Announced rather than injected: this service is built by the system and cannot see
         // the app's scoped Koin graph. Whoever owns the equalizer picks the session up from here.
         AudioSessionRegistry.publish(audioSessionId)
-        val sessionBuilder = MediaLibrarySession.Builder(this, player, sessionCallback)
+        val sessionPlayer = object : androidx.media3.common.ForwardingPlayer(player) {
+            override fun setPlaylistMetadata(playlistMetadata: MediaMetadata) {
+                val marker = playlistMetadata.extras?.getBundle(AndroidQueueCommand.KEY)
+                if (marker == null) {
+                    super.setPlaylistMetadata(playlistMetadata)
+                    return
+                }
+                // Intercept the ordered command itself: MediaMetadata.equals intentionally
+                // ignores bundle contents, so an onPlaylistMetadataChanged listener silently
+                // loses every subsequent edit. Do not publish private commands as metadata.
+                val request = marker.getLong(AndroidQueueCommand.REQUEST)
+                if (lastQueueEditRequest == request) return
+                lastQueueEditRequest = request
+                applyQueueEdit(marker)
+            }
+        }
+        val sessionBuilder = MediaLibrarySession.Builder(this, sessionPlayer, sessionCallback)
             .setMediaButtonPreferences(
                 mediaButtonPreferences(player, AndroidShuffleModeRegistry.mode.value),
             )
@@ -666,29 +692,23 @@ public class PlaybackService : MediaLibraryService() {
      * `DefaultShuffleOrder.cloneAndInsert` intentionally chooses a random traversal slot. This
      * service is the only layer that owns the real ExoPlayer (the app sees a MediaController), so
      * it appends physically and then installs the old permutation with that new index directly
-     * after the playhead. Native next/previous and system media controls continue using ExoPlayer.
+     * after the playhead or at the traversal end. Native media controls use that same order.
      */
-    private fun insertPlayNext(player: ExoPlayer, item: MediaItem) {
-        if (player.mediaItemCount == 0) {
-            player.addMediaItem(item)
-            return
-        }
-        if (!player.shuffleModeEnabled) {
-            val insertAt = (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
+    private fun insertManualQueueItem(player: ExoPlayer, item: MediaItem, playNext: Boolean) {
+        if (!player.shuffleModeEnabled || player.mediaItemCount == 0) {
+            val insertAt = if (playNext && player.mediaItemCount > 0) {
+                (player.currentMediaItemIndex + 1).coerceAtMost(player.mediaItemCount)
+            } else player.mediaItemCount
             player.addMediaItem(insertAt, item)
             return
         }
-
-        val shuffleOrder = player.shuffleOrder
-        val oldTraversal = boundedQueueOrder(
-            queueSize = player.mediaItemCount,
-            firstIndex = shuffleOrder.firstIndex,
-            nextIndex = shuffleOrder::getNextIndex,
-        )
-        val extendedTraversal = shuffleOrderAppendingNext(
-            existingOrder = oldTraversal,
-            currentMediaItemIndex = player.currentMediaItemIndex,
-        )
+        val oldTraversal = nativeTraversal(player)
+        val extendedTraversal = if (playNext) {
+            shuffleOrderAppendingNext(oldTraversal, player.currentMediaItemIndex)
+        } else {
+            // A missing playhead means append to the end of traversal, not a random position.
+            shuffleOrderAppendingNext(oldTraversal, currentMediaItemIndex = -1)
+        }
         player.addMediaItem(item)
         player.setShuffleOrder(DefaultShuffleOrder(extendedTraversal, System.nanoTime()))
     }

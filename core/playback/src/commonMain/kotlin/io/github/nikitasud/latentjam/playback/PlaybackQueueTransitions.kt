@@ -36,34 +36,21 @@ internal fun playbackQueueSplice(order: PlaybackQueueOrder): PlaybackQueueSplice
     )
 }
 
-/** Result policy for materializing the exact traversal of a persisted ON queue. */
-internal enum class RestoredOnShuffleOrder {
-    SAVED_IDENTITY,
-    NATIVE_RANDOM_FALLBACK,
-}
-
-internal data class RestoredOnShufflePolicy(
-    val order: RestoredOnShuffleOrder,
-    val nativeShuffleEnabled: Boolean,
-)
-
-/**
- * Native shuffle stays enabled in either result. The fallback may lose exact saved Next order, but
- * remains a coherent ON queue and never turns a recoverable resume into a launch exception.
- */
-internal fun restoredOnShufflePolicy(identityOrderInstalled: Boolean): RestoredOnShufflePolicy =
-    RestoredOnShufflePolicy(
-        order = if (identityOrderInstalled) {
-            RestoredOnShuffleOrder.SAVED_IDENTITY
-        } else {
-            RestoredOnShuffleOrder.NATIVE_RANDOM_FALLBACK
-        },
-        nativeShuffleEnabled = true,
-    )
-
 /** Physical permutation installed after the persisted ON traversal is materialized as the queue. */
 internal fun restoredOnIdentityTraversal(queueSize: Int): IntArray =
     IntArray(queueSize.coerceAtLeast(0)) { it }
+
+/** Keeps the exact occurrence after filtering; if removed, selects the next surviving row. */
+internal fun retainedQueueIndex(
+    rows: List<TrackDescriptor>,
+    currentIndex: Int,
+    retainedIds: Set<TrackId>,
+): Int {
+    val remaining = rows.count { it.id in retainedIds }
+    if (remaining == 0) return -1
+    val preceding = rows.take(currentIndex.coerceIn(0, rows.size)).count { it.id in retainedIds }
+    return preceding.coerceAtMost(remaining - 1)
+}
 
 /** Complete launch-resume inputs shared by both platform controllers. */
 internal data class PlaybackResumePlan(
@@ -380,6 +367,25 @@ internal fun boundedQueueOrder(
     return order
 }
 
+/** A fresh shuffled session has no played prefix: rotate the random path to its selected seed. */
+internal fun shuffleOrderStartingAt(
+    existingOrder: IntArray,
+    currentMediaItemIndex: Int,
+): IntArray {
+    val size = existingOrder.size
+    val seen = BooleanArray(size)
+    val valid = existingOrder.all { index ->
+        if (index !in 0 until size || seen[index]) false else {
+            seen[index] = true
+            true
+        }
+    }
+    val order = if (valid) existingOrder else IntArray(size) { it }
+    val start = order.indexOf(currentMediaItemIndex)
+    if (start <= 0) return order.copyOf()
+    return IntArray(size) { order[(start + it) % size] }
+}
+
 /** Queue rows plus their corresponding indices in the platform player's physical playlist. */
 internal data class PlaybackQueueSnapshot<T : Any>(
     val rows: List<T>,
@@ -463,6 +469,18 @@ internal fun shuffleOrderAppendingNext(
             else -> stableOrder[position - 1]
         }
     }
+}
+
+/** Reorders traversal only, retaining physical occurrence indices and the loaded current item. */
+internal fun shuffleOrderMovingRow(
+    existingOrder: IntArray,
+    fromMediaItemIndex: Int,
+    toMediaItemIndex: Int,
+): IntArray {
+    val from = existingOrder.indexOf(fromMediaItemIndex)
+    val to = existingOrder.indexOf(toMediaItemIndex)
+    if (from < 0 || to < 0 || from == to) return existingOrder.copyOf()
+    return existingOrder.toMutableList().apply { add(to, removeAt(from)) }.toIntArray()
 }
 
 /** Pure state behind restarting an AVAudioPlayerNode segment after natural completion. */

@@ -3757,8 +3757,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     AppGraph.queueSource.value = null
                     scope.launch { playback.play(listOf(target), 0) }
                 },
-                onPlayNext = { scope.launch { playback.playNext(target) } },
-                onAddToQueue = { scope.launch { playback.addToQueue(target) } },
+                onPlayNext = {
+                    scope.launch {
+                        if (playback.state.value.queue.isEmpty()) AppGraph.queueSource.value = null
+                        playback.playNext(target)
+                    }
+                },
+                onAddToQueue = {
+                    scope.launch {
+                        if (playback.state.value.queue.isEmpty()) AppGraph.queueSource.value = null
+                        playback.addToQueue(target)
+                    }
+                },
                 onShare = if (target.audioUri != null) {
                     { shareTracks(listOf(target)) }
                 } else null,

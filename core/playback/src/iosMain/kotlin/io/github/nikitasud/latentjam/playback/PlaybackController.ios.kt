@@ -477,7 +477,7 @@ internal class IosPlaybackController(
     override suspend fun retainQueue(trackIds: Set<TrackId>): Unit = withContext(Dispatchers.Main) {
         if (queue.isEmpty()) return@withContext
         val current = queue.getOrNull(queueIndex)
-        val previousIndex = queueIndex
+        val retainedIndex = retainedQueueIndex(queue, queueIndex, trackIds)
         val wasPlaying = playing
         val kept = queue.filter { it.id in trackIds }
         if (kept.size == queue.size) return@withContext
@@ -491,11 +491,11 @@ internal class IosPlaybackController(
         }
         if (current != null && current.id in trackIds) {
             // The playing track survived; only its position in the queue may have shifted.
-            queueIndex = kept.indexOfFirst { it.id == current.id }
+            queueIndex = retainedIndex
         } else {
             // The current entry was deleted: behave like it ended and move to the track that
             // now occupies its slot, keeping whether we were playing.
-            val replacementIndex = previousIndex.coerceIn(0, kept.lastIndex)
+            val replacementIndex = retainedIndex
             val loaded = loadPlayableFrom(
                 startIndex = replacementIndex,
                 direction = 1,

@@ -21,7 +21,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -188,7 +187,6 @@ import io.github.nikitasud.latentjam.library.tags.Lyrics
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -308,17 +306,6 @@ fun NowPlayingScreen(
     var lyricsReadComplete by remember(lyricsSource) { mutableStateOf(false) }
     var showLyrics by remember(lyricsSource) { mutableStateOf(false) }
     val reduceMotion = rememberReduceMotion()
-    // The first frame should build the visible player, not decode neighbouring covers and
-    // compose a screenful of swipeable queue rows hidden below the peek. Wait for the actual
-    // enter transition, not a timer (system animation scale can change its duration).
-    var deferredContentReady by remember { mutableStateOf(false) }
-    LaunchedEffect(animatedScope.transition) {
-        snapshotFlow {
-            animatedScope.transition.currentState == EnterExitState.Visible &&
-                !animatedScope.transition.isRunning
-        }.first { it }
-        deferredContentReady = true
-    }
     val haptics = LocalHapticFeedback.current
     // The cover's back face. Its play count is read once per turn, not observed: the history
     // changes on every listen, and the player must not rebuild for that.
@@ -391,7 +378,7 @@ fun NowPlayingScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.surface)
-                .playerCloud(accent = accent, playing = active && deferredContentReady && now.isPlaying),
+                .playerCloud(accent = accent, playing = active && now.isPlaying),
         ) {
             // Continues the sheet's own colour through the system-bar strip beneath it.
             //
@@ -445,8 +432,6 @@ fun NowPlayingScreen(
                 sheetDragHandle = { CompactDragHandle() },
                 sheetContent = {
                     QueueSheetContent(
-                        contentReady = deferredContentReady,
-                        onPrepareContent = { deferredContentReady = true },
                         accent = accent,
                         queue = now.queue,
                         continuationIds = now.smartContinuationIds,
@@ -455,7 +440,7 @@ fun NowPlayingScreen(
                         isPlaying = now.isPlaying,
                         showPauseButton = now.showPauseButton,
                         onTogglePlayback = { scope.launch { playback.togglePlayPause() } },
-                        canReorder = now.shuffleMode != ShuffleMode.ON,
+                        canReorder = true,
                         onPlayAt = { index -> scope.launch { playback.playAt(index) } },
                         onTrackMenu = onQueueTrackMenu,
                         onRemoveAt = { index -> scope.launch { playback.removeQueueItem(index) } },
@@ -573,7 +558,6 @@ fun NowPlayingScreen(
                         modifier = Modifier.weight(1f),
                         artwork = {
                             PlayerArtworkCard(
-                                prepareNeighbours = deferredContentReady,
                                 track = now.track,
                                 queueIndex = now.queueIndex,
                                 skipChangesTrack = { forward ->
@@ -1635,8 +1619,6 @@ private fun PlayingBars(isPlaying: Boolean, tint: Color) {
  */
 @Composable
 private fun QueueSheetContent(
-    contentReady: Boolean,
-    onPrepareContent: () -> Unit,
     accent: TrackAccent,
     queue: List<TrackDescriptor>,
     /** Rows SMART appended to keep playing while it could not recommend; labelled, never hidden. */
@@ -1645,7 +1627,7 @@ private fun QueueSheetContent(
     isPlaying: Boolean,
     showPauseButton: Boolean,
     onTogglePlayback: () -> Unit,
-    /** False under random shuffle: the sheet shows a traversal, not the player's list. */
+    /** Both platforms reorder the visible traversal while keeping the current item loaded. */
     canReorder: Boolean,
     onPlayAt: (Int) -> Unit,
     onTrackMenu: (TrackDescriptor) -> Unit,
@@ -1659,9 +1641,7 @@ private fun QueueSheetContent(
     )
     val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
-    val queueIdentity = remember(queue, contentReady) {
-        if (contentReady) queueIdentitySnapshot(queue) else QueueIdentitySnapshot(false)
-    }
+    val queueIdentity = remember(queue) { queueIdentitySnapshot(queue) }
     val hasDuplicateIds = queueIdentity.hasDuplicateTrackIds
     var previouslyHadDuplicateIds by remember { mutableStateOf(hasDuplicateIds) }
     val ambiguousItemIdentity = hasDuplicateIds || previouslyHadDuplicateIds
@@ -1671,16 +1651,7 @@ private fun QueueSheetContent(
     var draggingIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
     var dragTargetIndex by remember { mutableStateOf<Int?>(null) }
-    Column(modifier = Modifier.fillMaxWidth().then(
-        if (contentReady) Modifier else Modifier.pointerInput(Unit) {
-            // A quick queue gesture takes priority over deferred work. Observe the down
-            // without consuming it, so the sheet's own drag recognizer keeps the gesture.
-            awaitPointerEventScope {
-                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-            }
-            onPrepareContent()
-        },
-    )) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         val expandLabel = stringResource(Res.string.queue_title)
         Box(
             modifier = Modifier
@@ -1747,29 +1718,23 @@ private fun QueueSheetContent(
             // that safely, so those queues use positional keys and disable item animations.
             itemsIndexed(
                 queue,
-                key = { index, track ->
-                    if (contentReady) queueLazyItemKey(queueIdentity, index, track) else index
-                },
+                key = { index, track -> queueLazyItemKey(queueIdentity, index, track) },
             ) { index, track ->
-                if (!contentReady) {
-                    // Only measured below the closed peek. Keep its offscreen extent without
-                    // images, swipe state, semantics or row animations during player entry.
-                    Spacer(Modifier.fillMaxWidth().height(62.dp))
-                    return@itemsIndexed
-                }
                 // Duplicate occurrences cannot be distinguished by TrackId alone. Reset gesture
                 // state on any structural queue change so a survivor never inherits a removed
                 // duplicate's dismissed anchor. queueIdentity is reference-equal and therefore
                 // avoids hashing/comparing the entire queue once for every visible row.
                 androidx.compose.runtime.key(queueIdentity) {
+                var removalRequested by remember { mutableStateOf(false) }
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = { value ->
-                        if (value != SwipeToDismissBoxValue.Settled) {
+                        // Anchored dragging can ask to confirm the same target more than once.
+                        // Removing twice would consume the row that shifted into this index.
+                        if (value != SwipeToDismissBoxValue.Settled && !removalRequested) {
+                            removalRequested = true
                             onRemoveAt(index)
-                            true
-                        } else {
-                            false
                         }
+                        true
                     },
                 )
                 Box(

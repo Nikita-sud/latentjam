@@ -45,7 +45,6 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -189,9 +188,9 @@ object AppGraph {
             )
             // Remembers where listening stood, so the next launch reopens with the same track
             // parked in the player and the same shuffle mode — SMART stays on across restarts.
-            // Never cleared on a null track: launch itself starts with no track, and wiping the
-            // saved session at that moment would defeat the restore it exists for. Position is
-            // bucketed to 10 s so the ~2 Hz playback ticker does not become 2 Hz disk writes.
+            // Ignore the empty launch state until playback has a session to restore or create.
+            // Later empty states clear the saved queue. While playing, bucket position to 10 s
+            // so the ~2 Hz ticker does not become 2 Hz disk writes; pause/seek keeps exact time.
             appScope.launch {
                 // Android's ticker reuses immutable queue snapshots between actual queue edits.
                 // Preserve their projected ids too: otherwise a 10k-row queue allocates 20k string
@@ -202,9 +201,7 @@ object AppGraph {
                 var cachedSourceQueueIds: List<String> = emptyList()
                 combine(playback.state, queueSource) { now, source ->
                     if (now.track == null) {
-                        // Keep the durable resume record, but do not retain a stopped session's
-                        // potentially 10k-row descriptor graphs merely to accelerate a ticker
-                        // that no longer exists.
+                        // Release a stopped session's potentially 10k-row descriptor graphs.
                         cachedLiveQueue = null
                         cachedLiveQueueIds = emptyList()
                         cachedSourceQueue = null
@@ -245,7 +242,7 @@ object AppGraph {
                         ResumePlayback(
                             trackId = track.id.value,
                             shuffleMode = now.shuffleMode.name,
-                            positionMs = now.positionMs - (now.positionMs % 10_000),
+                            positionMs = resumePositionMs(now.positionMs, now.isPlaying),
                             sourceKind = source?.kind?.name,
                             sourceName = source?.name,
                             sourceReference = source?.reference,
@@ -265,8 +262,7 @@ object AppGraph {
                         )
                     }
                 }
-                    .filterNotNull()
-                    .distinctUntilChanged()
+                    .resumePlaybackWrites()
                     .collect(settings::setResumePlayback)
             }
         }
