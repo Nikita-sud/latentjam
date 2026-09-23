@@ -23,4 +23,5 @@
     <string name="widget_next">अगला</string>
     <string name="browse_playlists">प्लेलिस्ट</string>
     <string name="browse_tracks">गाने</string>
+    <string name="widget_mode_in_order">क्रम से</string>
 </resources>

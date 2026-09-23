@@ -23,4 +23,5 @@
     <string name="widget_next">Nächster Titel</string>
     <string name="browse_playlists">Playlists</string>
     <string name="browse_tracks">Titel</string>
+    <string name="widget_mode_in_order">Der Reihe nach</string>
 </resources>

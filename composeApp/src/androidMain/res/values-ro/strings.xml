@@ -23,4 +23,5 @@
     <string name="widget_next">Piesa următoare</string>
     <string name="browse_playlists">Playlisturi</string>
     <string name="browse_tracks">Piese</string>
+    <string name="widget_mode_in_order">În ordine</string>
 </resources>

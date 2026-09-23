@@ -23,4 +23,5 @@
     <string name="widget_next">Berikutnya</string>
     <string name="browse_playlists">Playlist</string>
     <string name="browse_tracks">Lagu</string>
+    <string name="widget_mode_in_order">Berurutan</string>
 </resources>

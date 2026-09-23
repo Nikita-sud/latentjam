@@ -23,4 +23,5 @@
     <string name="widget_next">下一首</string>
     <string name="browse_playlists">播放列表</string>
     <string name="browse_tracks">歌曲</string>
+    <string name="widget_mode_in_order">按顺序</string>
 </resources>

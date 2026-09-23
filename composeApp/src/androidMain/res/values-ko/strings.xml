@@ -23,4 +23,5 @@
     <string name="widget_next">다음 곡</string>
     <string name="browse_playlists">플레이리스트</string>
     <string name="browse_tracks">곡</string>
+    <string name="widget_mode_in_order">순서대로</string>
 </resources>

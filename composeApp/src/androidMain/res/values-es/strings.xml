@@ -23,4 +23,5 @@
     <string name="widget_next">Siguiente</string>
     <string name="browse_playlists">Listas</string>
     <string name="browse_tracks">Canciones</string>
+    <string name="widget_mode_in_order">En orden</string>
 </resources>

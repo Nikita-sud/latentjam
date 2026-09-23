@@ -23,4 +23,5 @@
     <string name="widget_next">Наступний трек</string>
     <string name="browse_playlists">Плейлисти</string>
     <string name="browse_tracks">Треки</string>
+    <string name="widget_mode_in_order">По порядку</string>
 </resources>

@@ -23,4 +23,5 @@
     <string name="widget_next">Sonraki</string>
     <string name="browse_playlists">Çalma listeleri</string>
     <string name="browse_tracks">Parçalar</string>
+    <string name="widget_mode_in_order">Sırayla</string>
 </resources>
