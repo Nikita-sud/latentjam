@@ -64,15 +64,30 @@ public data class ListenEvent(
         private const val FORMAT_V2 = "v2"
         private const val FORMAT_V3 = "v3"
         private const val FORMAT_V4 = "v4"
+        private const val V4_FIELDS = 12
 
-        /** Returns `null` for corrupt or unknown-version lines (they are skipped). */
+        private fun isLaterVersion(version: String): Boolean =
+            version.startsWith('v') && (version.drop(1).toIntOrNull() ?: 0) > 4
+
+        /**
+         * Returns `null` for corrupt or unknown-version lines (they are skipped).
+         *
+         * A line from a version newer than v4 is read as its v4 prefix, because later versions only
+         * append fields. After a downgrade, a listen written by the newer build then keeps the fields
+         * this build knows instead of disappearing the next time the log is rewritten.
+         */
         public fun parse(line: String): ListenEvent? {
-            val parts = line.split("|")
+            val raw = line.split("|")
+            val parts = if (isLaterVersion(raw[0]) && raw.size >= V4_FIELDS) {
+                listOf(FORMAT_V4) + raw.subList(1, V4_FIELDS)
+            } else {
+                raw
+            }
             val version = parts[0]
             val expectedFields = when (version) {
                 FORMAT_V1, FORMAT_V2 -> 8
                 FORMAT_V3 -> 9
-                FORMAT_V4 -> 12
+                FORMAT_V4 -> V4_FIELDS
                 else -> return null
             }
             if (parts.size != expectedFields) return null
@@ -141,7 +156,9 @@ public data class ListenEvent(
  *   first track after the plan's seed. Null when SMART did not recommend it: the listener's own
  *   pick, a source-queue row, or a labelled continuation played while SMART abstained.
  * @property parentId Stable id of the collection the queue was started from, such as
- *   `playlist:<id>` or `album:<key>`; null when that source has no stable id.
+ *   `playlist:<id>` or `album:<key>`; null when that source has no stable id. In SMART mode it stays
+ *   that collection while SMART draws later tracks from the whole library; [smartPlanPosition] tells
+ *   those tracks apart.
  */
 public data class ListenOrigin(
     public val start: ListenStart? = null,

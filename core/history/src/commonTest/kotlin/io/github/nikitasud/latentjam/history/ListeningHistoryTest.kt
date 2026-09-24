@@ -113,6 +113,16 @@ internal class ListeningHistoryTest {
     }
 
     @Test
+    fun aLineFromANewerFormatKeepsTheFieldsThisBuildKnows() {
+        // Later versions only append fields; a downgrade must not drop what a newer build recorded.
+        val newer = v4Line().replaceFirst("v4|", "v5|") + "|a field from the future"
+        assertEquals(ListenEvent.parse(v4Line()), ListenEvent.parse(newer))
+        assertEquals(v4Line(), assertNotNull(ListenEvent.parse(newer)).serialize())
+        assertNull(ListenEvent.parse("v5|3432|1|2||1|0"), "too short to hold the fields this build reads")
+        assertNull(ListenEvent.parse(v4Line().replaceFirst("v4|", "vx|")), "not a version")
+    }
+
+    @Test
     fun malformedOriginFieldsMakeAV4LineCorrupt() {
         assertNotNull(ListenEvent.parse(v4Line()))
         assertNull(ListenEvent.parse(v4Line(planPosition = "0")), "plan positions count from 1")
