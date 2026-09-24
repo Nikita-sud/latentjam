@@ -802,6 +802,7 @@ internal class AndroidPlaybackController(
             insertion = SourceQueueInsertion.PLAY_NEXT,
         )
         poolById = poolById + (track.id.value to track)
+        releaseSmartPlanPosition(smartPlanPositions, track.id)
         val item = track.toMediaItem()
         if (player.mediaItemCount == 0) {
             // Queue actions are allowed before the first play. Cue the first item paused, matching
@@ -829,6 +830,7 @@ internal class AndroidPlaybackController(
             insertion = SourceQueueInsertion.APPEND,
         )
         poolById = poolById + (track.id.value to track)
+        releaseSmartPlanPosition(smartPlanPositions, track.id)
         if (player.mediaItemCount == 0) {
             player.pause()
             player.setMediaItem(track.toMediaItem())

@@ -79,6 +79,16 @@ internal fun recordSmartPlanPosition(
 }
 
 /**
+ * The listener queued [trackId] by hand, so that play is theirs. Plan positions are kept per track,
+ * not per row: without this, an earlier SMART pick played again through Play next or Add to queue
+ * would reach the listening log as SMART's recommendation. A SMART row of the same track still
+ * waiting in the queue loses its position too, because the listener chose that track as well.
+ */
+internal fun releaseSmartPlanPosition(positions: MutableMap<TrackId, Int>, trackId: TrackId) {
+    positions.remove(trackId)
+}
+
+/**
  * Published SMART plan positions, rebuilt only after structural queue edits — the same contract as
  * [PlaybackContinuationSnapshot]. A row that left the queue takes its position with it, so a track
  * the listener later queues by hand is not mistaken for SMART's pick.

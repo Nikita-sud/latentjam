@@ -104,6 +104,15 @@ internal class PlaybackStartsTest {
     }
 
     @Test
+    fun `a track queued by hand loses the plan position an earlier SMART row left`() {
+        val positions = mutableMapOf(a to 3, b to 4)
+        // SMART played A from slot 3 earlier; the listener now queues A again with Play next.
+        releaseSmartPlanPosition(positions, a)
+
+        assertEquals(mapOf(b to 4), positions)
+    }
+
+    @Test
     fun `a row that left the queue takes its plan position with it`() {
         val snapshot = PlaybackPlanPositionSnapshot()
         val positions = mutableMapOf(a to 1, b to 2)
