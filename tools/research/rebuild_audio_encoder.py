@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Rebuild the shipped audio encoder with a four-step FFT front end and INT8 weights.
+"""Rebuild the audio encoder from the original v0.5.1 model with an FFT front end and INT8 weights.
 
-The shipped graph computes its log-mel front end with a 1024-point DFT written as a convolution over
+The original graph computes its log-mel front end with a 1024-point DFT written as a convolution over
 1,026 stored kernels: 1.05 GMAC per 10 s window, about a third of the encoder, and 4.2 MB. This tool
 keeps every other operation and weight and replaces only that DFT. The same transform is computed as
 two 32-point stages (Cooley-Tukey, 1024 = 32 x 32) of plain matrix products. The math is identical;
@@ -13,8 +13,12 @@ activation ranges from calibration windows the caller supplies. The front end st
 Calibration audio for the published graph: the first 10 s of 200 Free Music Archive tracks released
 under CC BY, CC BY-SA, CC0 or public domain. No audio is stored in the model.
 
+Run from the repository root. The current bundled model is already converted; extract the original
+from the release tag as the input, so its unquantized weights are used:
+
+    git show v0.5.1:androidApp/src/main/assets/ml/mnv4_audio.onnx > /tmp/mnv4_audio_v0.5.1.onnx
     python3 tools/research/rebuild_audio_encoder.py \\
-        androidApp/src/main/assets/ml/mnv4_audio.onnx /tmp/mnv4_audio.onnx \\
+        /tmp/mnv4_audio_v0.5.1.onnx /tmp/mnv4_audio.onnx \\
         --calibration fma_calibration.npy        # int16 [N, 320000], mono, 32 kHz
 """
 import argparse
@@ -111,13 +115,19 @@ def cosines(reference: str, candidate: str, windows: np.ndarray) -> np.ndarray:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("shipped", type=Path)
+    parser.add_argument("source", type=Path, help="original v0.5.1 convolution-DFT model (see example above)")
     parser.add_argument("output", type=Path)
     parser.add_argument("--calibration", type=Path, help="int16 [N, 320000] windows; omit for an fp32 graph")
     args = parser.parse_args()
 
+    source = onnx.load(args.source)
+    required = {"encoder.mel.kernel_cos", "encoder.mel.mel_fb"}
+    if not required.issubset(t.name for t in source.graph.initializer):
+        parser.error("source must be the original convolution-DFT model, not the converted bundled model. "
+                     "Extract it with: git show v0.5.1:androidApp/src/main/assets/ml/mnv4_audio.onnx "
+                     "> /tmp/mnv4_audio_v0.5.1.onnx")
+    fp32 = to_fp32(source)
     work = Path(tempfile.mkdtemp())
-    fp32 = to_fp32(onnx.load(args.shipped))
     inits = {t.name: numpy_helper.to_array(t) for t in fp32.graph.initializer}
     window = inits["encoder.mel.kernel_cos"][0, 0, :]          # k = 0 row of window * cos(2 pi k n / N)
     mel_fb = inits["encoder.mel.mel_fb"]
