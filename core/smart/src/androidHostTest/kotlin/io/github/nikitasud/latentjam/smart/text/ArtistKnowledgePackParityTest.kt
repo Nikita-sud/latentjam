@@ -43,4 +43,22 @@ class ArtistKnowledgePackParityTest {
         assertTrue(checked > 0, "the fixture held no descriptors")
         println("ARTIST_PACK_PARITY ok: $checked descriptors match")
     }
+
+    /** Same idea for the adapter: `ARTIST_ADAPTER_PARITY` holds artist_adapter.bin and cases.tsv from
+     *  tools/research/export_artist_adapter.py --parity (input vector, expected output). */
+    @Test
+    fun kotlinAdapterMatchesTheExportersForwardPass() {
+        val dir = System.getenv("ARTIST_ADAPTER_PARITY")?.let(::File)?.takeIf(File::isDirectory) ?: return
+        val adapter = assertNotNull(ArtistAdapter.parse(File(dir, "artist_adapter.bin").readBytes()))
+        var checked = 0
+        File(dir, "cases.tsv").readLines().filter(String::isNotEmpty).forEach { line ->
+            val (input, expected) = line.split("\t").map { field -> field.split(",").map(String::toFloat) }
+            val actual = assertNotNull(adapter.descriptor(input.toFloatArray()))
+            val cosine = expected.indices.sumOf { expected[it].toDouble() * actual[it] }
+            assertTrue(cosine > 0.9999, "case $checked: cosine $cosine")
+            checked++
+        }
+        assertTrue(checked > 0, "the fixture held no cases")
+        println("ARTIST_ADAPTER_PARITY ok: $checked outputs match")
+    }
 }

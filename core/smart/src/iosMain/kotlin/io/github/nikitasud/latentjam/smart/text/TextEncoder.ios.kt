@@ -108,13 +108,17 @@ public actual fun smartTextEncoderModule(): Module = module {
         }
     }
     single {
-        ArtistKnowledge(get()) {
-            val path = NSBundle.mainBundle.pathForResource(
-                name = "artist_knowledge", ofType = "bin", inDirectory = "ml",
-            ) ?: NSBundle.mainBundle.pathForResource(name = "artist_knowledge", ofType = "bin")
+        fun resource(name: String): ByteArray? {
+            val path = NSBundle.mainBundle.pathForResource(name = name, ofType = "bin", inDirectory = "ml")
+                ?: NSBundle.mainBundle.pathForResource(name = name, ofType = "bin")
             val data = path?.let { NSFileManager.defaultManager.contentsAtPath(it) }
             val pointer = data?.bytes?.reinterpret<ByteVar>()
-            if (pointer == null) null else pointer.readBytes(data.length.toInt())
+            return if (pointer == null) null else pointer.readBytes(data.length.toInt())
         }
+        ArtistKnowledge(
+            get(),
+            loadPack = { resource("artist_knowledge") },
+            loadAdapter = { resource("artist_adapter") },
+        )
     }
 }

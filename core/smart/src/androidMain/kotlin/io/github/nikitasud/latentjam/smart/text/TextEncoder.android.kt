@@ -135,11 +135,11 @@ public actual fun smartTextEncoderModule(): Module = module {
     }
     single {
         val context = get<Context>()
-        ArtistKnowledge(get()) {
-            runCatching { context.assets.open(ARTIST_KNOWLEDGE_ASSET).use { it.readBytes() } }.getOrNull()
-        }
+        fun asset(name: String) = runCatching { context.assets.open(name).use { it.readBytes() } }.getOrNull()
+        ArtistKnowledge(get(), loadPack = { asset(ARTIST_KNOWLEDGE_ASSET) }, loadAdapter = { asset(ARTIST_ADAPTER_ASSET) })
     }
 }
 
 private const val MUSIC_ENTITY_ASSET = "ml/music_entities_250k.bin"
 private const val ARTIST_KNOWLEDGE_ASSET = "ml/artist_knowledge.bin"
+private const val ARTIST_ADAPTER_ASSET = "ml/artist_adapter.bin"

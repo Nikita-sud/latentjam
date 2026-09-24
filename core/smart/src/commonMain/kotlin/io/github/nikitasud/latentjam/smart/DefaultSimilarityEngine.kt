@@ -980,7 +980,7 @@ internal class DefaultSimilarityEngine(
         id = id,
         audio = audio,
         text = textIndex?.vector(id),
-        descriptor = artistKnowledge?.descriptor(artist, artists.firstOrNull()),
+        descriptor = artistKnowledge?.descriptor(artist, artists.firstOrNull(), textIndex?.vector(id)),
         energy = energy ?: Float.NaN,
         meta = TrackMeta(
             title, artist, album, genre, year, durationMs,

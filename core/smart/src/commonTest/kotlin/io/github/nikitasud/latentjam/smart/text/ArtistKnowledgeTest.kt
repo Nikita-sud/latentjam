@@ -30,6 +30,32 @@ class ArtistKnowledgeTest {
     }
 
     @Test
+    fun `an artist the pack misses gets the adapter's guess from the track's text vector`() {
+        val knowledge = ArtistKnowledge(entities, loadPack = { pack() }, loadAdapter = { identityAdapter() })
+        val guess = assertNotNull(knowledge.descriptor("Nobody", text = floatArrayOf(1f, 0f, 0f, 0f)))
+
+        assertEquals(1f, guess[0], 1e-4f)
+        // A known artist still reads the pack, whatever the text says.
+        assertVector(floatArrayOf(0f, half, half, 0f), knowledge.descriptor("Beta", text = floatArrayOf(1f, 0f, 0f, 0f)))
+        // Without a pack the adapter stays silent: it only fills the pack's gaps.
+        assertNull(ArtistKnowledge(entities, loadPack = { null }, loadAdapter = { identityAdapter() })
+            .descriptor("Nobody", text = floatArrayOf(1f, 0f, 0f, 0f)))
+    }
+
+    /** Width 4, hidden 4, W1 = W2 = identity, zero biases. */
+    private fun identityAdapter(): ByteArray {
+        val out = ArrayList<Byte>()
+        fun u16(value: Int) { out += (value and 0xff).toByte(); out += (value shr 8).toByte() }
+        "LJADPT1\u0000".encodeToByteArray().forEach { out += it }
+        u16(1); u16(0); u16(4); u16(4)
+        repeat(2) {
+            for (row in 0 until 4) for (col in 0 until 4) u16(if (row == col) 0x3C00 else 0)
+            repeat(4) { u16(0) }
+        }
+        return out.toByteArray()
+    }
+
+    @Test
     fun `unknown, unconfident, blank and pack-less lookups have no descriptor`() {
         val knowledge = ArtistKnowledge(entities) { pack() }
 
