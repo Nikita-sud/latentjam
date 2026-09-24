@@ -3260,7 +3260,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     }
 
                     val showShuffle = !selectionMode && !railScrubbing && !searchOverlayActive && !collectionOverlayActive &&
-                        (selectedTab == StartPage.TRACKS || selectedTab in GROUP_TABS) &&
+                        selectedTab.showsShuffleAll() &&
                         catalog?.songs?.isNotEmpty() == true
                     AnimatedVisibility(
                         visible = showShuffle,
@@ -4569,6 +4569,14 @@ private fun MapPageState.presentationKey(): String = when (this) {
 
 /** Group pages support track selection regardless of their position in the carousel. */
 private val GROUP_TABS = setOf(StartPage.ALBUMS, StartPage.ARTISTS, StartPage.GENRES, StartPage.FOLDERS)
+
+/**
+ * Pages that list or recommend the library carry the floating Shuffle all. Statistics and the Map
+ * describe the library rather than lead into it, so the button stays off them.
+ */
+private val SHUFFLE_ALL_PAGES = GROUP_TABS + setOf(StartPage.FOR_YOU, StartPage.PLAYLISTS, StartPage.TRACKS)
+
+internal fun StartPage.showsShuffleAll(): Boolean = this in SHUFFLE_ALL_PAGES
 
 /** Persist-and-report granularity for library indexing. */
 // Weeks of context, not days: the daypart and phase sections fold over this window, and at a
