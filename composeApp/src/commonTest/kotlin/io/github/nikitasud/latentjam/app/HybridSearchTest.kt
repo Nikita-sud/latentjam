@@ -199,13 +199,56 @@ class HybridSearchTest {
         artist: String? = null,
         album: String? = null,
         genre: String? = null,
+        year: Int? = null,
     ) = TrackDescriptor(
         id = TrackId(id),
         title = title,
         artist = artist,
         album = album,
         genre = genre,
+        year = year,
     )
+
+    @Test
+    fun `a decade keeps results to its years and a title that is the query still leads`() {
+        val takeOnMe = track("take", "Take On Me", "a-ha", year = 1985)
+        val rockSong = track("rock", "Rock Song", "Band", genre = "Rock", year = 1987)
+        val rockNow = track("now", "Rock Now", "Band", genre = "Rock", year = 2015)
+        val song1985 = track("1985", "1985", "Bowling for Soup", year = 2004)
+        val lights = track("lights", "Blinding Lights", "The Weeknd", year = 2019)
+        val songs = listOf(takeOnMe, rockSong, rockNow, song1985, lights)
+
+        assertEquals(listOf(rockSong.id, takeOnMe.id), hybridSearch(songs, "80s", emptyList()).map { it.id })
+        assertEquals(listOf(rockSong.id, takeOnMe.id), hybridSearch(songs, "песни 80-х", emptyList()).map { it.id })
+        assertEquals(listOf(rockSong.id), hybridSearch(songs, "rock 80s", emptyList()).map { it.id })
+        assertEquals(listOf(song1985.id, takeOnMe.id), hybridSearch(songs, "1985", emptyList()).map { it.id })
+    }
+
+    @Test
+    fun `in a time-only search the most played tracks of those years come first`() {
+        val quiet = track("quiet", "A Song", year = 1983)
+        val loved = track("loved", "B Song", year = 1981)
+        val stats = mapOf(
+            loved.id to TrackStats(plays = 9, completions = 9, skips = 0, totalPlayedMs = 0L, lastPlayedAtMs = 1_000L),
+        )
+
+        assertEquals(
+            listOf(loved.id, quiet.id),
+            hybridSearch(listOf(quiet, loved), "80s", emptyList(), stats = stats, nowMs = 1_000L).map { it.id },
+        )
+    }
+
+    @Test
+    fun `a number that turns out to name something falls back to the ordinary search`() {
+        val style = track("style", "Style", "Taylor Swift", album = "1989", year = 2014)
+        val result = hybridSearch(
+            songs = listOf(style),
+            query = "Taylor Swift 1989",
+            semantic = ranked(listOf(ScoredTrack(style.id, 0.8f))),
+        )
+
+        assertEquals(listOf(style.id), result.map { it.id })
+    }
 
     @Test
     fun `a title match outranks any artist or album match`() {

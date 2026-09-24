@@ -712,17 +712,81 @@ private fun hybridSearch(
     stats: Map<TrackId, TrackStats> = emptyMap(),
     nowMs: Long = 0L,
     lyricMatches: Set<TrackId> = emptySet(),
+    readYears: Boolean = true,
     checkCancelled: () -> Unit = {},
 ): List<TrackDescriptor> {
     val needle = query.trim()
     val normalizedNeedle = normalizeSearchText(needle)
     if (normalizedNeedle.isEmpty()) return emptyList()
+    val lexical = lexicalRanking(index, normalizedNeedle, stats, nowMs, checkCancelled)
+    val (strong, weak) = lexical.partition { it.rank % QUALITY_SPAN <= 2 }
+
+    val years = if (readYears) SearchYears.parse(needle) else null
+    if (years != null) {
+        // "rock 80s", "песни 80-х", "1985": the rest of the query, kept to those years by the tags.
+        // A title or album that literally is the query ("1985", "Summer of '69") still leads.
+        val within = if (years.subject.isBlank()) {
+            index.songs.asSequence()
+                .onEach { checkCancelled() }
+                .filter(years::admits)
+                .sortedWith(
+                    compareByDescending<TrackDescriptor> { track ->
+                        val stat = stats[track.id]
+                        SearchAffinity.affinity(stat?.plays ?: 0, stat?.lastPlayedAtMs ?: 0L, nowMs)
+                    }.thenBy { it.title.orEmpty().lowercase() },
+                )
+                .toList()
+        } else {
+            hybridSearch(
+                index, years.subject, semantic, aliasMatches, stats, nowMs, lyricMatches, readYears = false,
+                checkCancelled = checkCancelled,
+            ).filter(years::admits)
+        }
+        // Nothing from those years: the number was a name after all ("Taylor Swift 1989").
+        if (within.isNotEmpty()) {
+            return (strong.map { it.track } + within).distinctBy { it.id }.take(SEARCH_RESULT_LIMIT)
+        }
+    }
+
+    val entities = index.songs.asSequence()
+        .onEach { checkCancelled() }
+        .filter { aliasMatches(needle, it.artist) }
+    val expanded = SemanticGate.gate(semantic).asSequence()
+        .onEach { checkCancelled() }
+        .mapNotNull { index.byId[it.trackId] }
+        .take(SEMANTIC_RESULT_LIMIT)
+
+    // An alias hit is knowledge, not chance: "tsoi" resolving to Кино through the MusicBrainz
+    // member index is an exact identification and belongs above typo-family and bare-substring
+    // guesses — the reported failure had every Кино track buried under "Can\u2019t Stop"-grade
+    // fuzz. Confident lexical tiers (exact, prefix, token-prefix) still lead.
+    return (
+        strong.asSequence().map { it.track } +
+            entities +
+            index.songs.asSequence().filter { it.id in lyricMatches } +
+            weak.asSequence().map { it.track } +
+            expanded
+        )
+        .distinctBy { it.id }
+        .take(SEARCH_RESULT_LIMIT)
+        .toList()
+}
+
+/**
+ * Within a lexical-rank tier, order by play affinity (plays × recency decay) then name — a
+ * frequently/recently played match floats to the top of its group. The rank itself keeps the
+ * exact/prefix tiers pinned above deeper substring/fuzzy matches, so an exact title is never
+ * buried under a more-played substring hit.
+ */
+private fun lexicalRanking(
+    index: SearchIndex,
+    normalizedNeedle: String,
+    stats: Map<TrackId, TrackStats>,
+    nowMs: Long,
+    checkCancelled: () -> Unit,
+): List<RankedTrack> {
     val queryTokens = searchTokens(normalizedNeedle)
-    // Within a lexical-rank tier, order by play affinity (plays × recency decay) then name — a
-    // frequently/recently played match floats to the top of its group. The rank itself keeps the
-    // exact/prefix tiers pinned above deeper substring/fuzzy matches, so an exact title is never
-    // buried under a more-played substring hit.
-    val lexical = index.documents.mapIndexedNotNull { documentIndex, document ->
+    return index.documents.mapIndexedNotNull { documentIndex, document ->
         if (documentIndex % CANCELLATION_CHECK_INTERVAL == 0) checkCancelled()
         document.lexicalRank(normalizedNeedle, queryTokens)?.let { rank ->
             val stat = stats[document.track.id]
@@ -740,30 +804,6 @@ private fun hybridSearch(
             .thenBy { it.nameKey }
             .thenBy { it.libraryOrder },
     )
-
-    val entities = index.songs.asSequence()
-        .onEach { checkCancelled() }
-        .filter { aliasMatches(needle, it.artist) }
-    val expanded = SemanticGate.gate(semantic).asSequence()
-        .onEach { checkCancelled() }
-        .mapNotNull { index.byId[it.trackId] }
-        .take(SEMANTIC_RESULT_LIMIT)
-
-    // An alias hit is knowledge, not chance: "tsoi" resolving to Кино through the MusicBrainz
-    // member index is an exact identification and belongs above typo-family and bare-substring
-    // guesses — the reported failure had every Кино track buried under "Can\u2019t Stop"-grade
-    // fuzz. Confident lexical tiers (exact, prefix, token-prefix) still lead.
-    val (strong, weak) = lexical.partition { it.rank % QUALITY_SPAN <= 2 }
-    return (
-        strong.asSequence().map { it.track } +
-            entities +
-            index.songs.asSequence().filter { it.id in lyricMatches } +
-            weak.asSequence().map { it.track } +
-            expanded
-        )
-        .distinctBy { it.id }
-        .take(SEARCH_RESULT_LIMIT)
-        .toList()
 }
 
 /**
