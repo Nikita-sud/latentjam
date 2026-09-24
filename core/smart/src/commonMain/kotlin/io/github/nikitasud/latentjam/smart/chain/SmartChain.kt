@@ -858,7 +858,7 @@ internal class SmartChain(
         val zDesc = SemanticZ.poolZ(
             snapshot.centeredDescriptor,
             snapshot.hasDescriptor,
-            SmartSnapshot.DESCRIPTOR_DIM,
+            snapshot.descriptorDim,
             refRow,
             poolRows,
         )

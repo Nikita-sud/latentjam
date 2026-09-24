@@ -50,6 +50,11 @@ internal class SmartSnapshot private constructor(
     val centeredDescriptor: FloatArray?,
     val hasDescriptor: BooleanArray?,
     /**
+     * Width of the descriptor rows, taken from the data. The recorded research fixtures carry 768,
+     * and the artist knowledge pack decodes to 384.
+     */
+    val descriptorDim: Int,
+    /**
      * Unit-normalised but UNCENTERED text rows. Candidate generation ranks this space separately;
      * the learned scorer receives it as optional conditioning.
      */
@@ -81,15 +86,16 @@ internal class SmartSnapshot private constructor(
         val has = hasDescriptor ?: return null
         if (rowA < 0 || rowB < 0 || !has[rowA] || !has[rowB]) return null
         var dot = 0f
-        val baseA = rowA * DESCRIPTOR_DIM
-        val baseB = rowB * DESCRIPTOR_DIM
-        for (d in 0 until DESCRIPTOR_DIM) dot += dc[baseA + d] * dc[baseB + d]
+        val baseA = rowA * descriptorDim
+        val baseB = rowB * descriptorDim
+        for (d in 0 until descriptorDim) dot += dc[baseA + d] * dc[baseB + d]
         return dot
     }
 
     companion object {
         const val AUDIO_DIM = 960
         const val TEXT_DIM = 384
+        /** Descriptor width when no track carries one; the recorded research fixtures' width. */
         const val DESCRIPTOR_DIM = 768
 
         /**
@@ -139,7 +145,12 @@ internal class SmartSnapshot private constructor(
             }
 
             val (text, hasText) = centeredMasked(usable, TEXT_DIM) { it.text }
-            val (descriptor, hasDescriptor) = centeredMasked(usable, DESCRIPTOR_DIM) { it.descriptor }
+            // One width per snapshot: the first usable descriptor sets it, and rows of another width
+            // count as absent rather than being truncated.
+            val descriptorDim = usable.firstNotNullOfOrNull { track ->
+                track.descriptor?.takeIf { it.isNotEmpty() && norm(it) > 1e-9f }?.size
+            } ?: DESCRIPTOR_DIM
+            val (descriptor, hasDescriptor) = centeredMasked(usable, descriptorDim) { it.descriptor }
             val rawText = if (hasText == null) null else FloatArray(n * TEXT_DIM).also { out ->
                 for (i in 0 until n) if (hasText[i]) {
                     val v = usable[i].text!!
@@ -158,6 +169,7 @@ internal class SmartSnapshot private constructor(
                 hasText = hasText,
                 centeredDescriptor = descriptor,
                 hasDescriptor = hasDescriptor,
+                descriptorDim = descriptorDim,
                 rawText = rawText,
             )
         }
