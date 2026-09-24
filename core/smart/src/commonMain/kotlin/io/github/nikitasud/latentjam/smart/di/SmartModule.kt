@@ -13,6 +13,7 @@ import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartClock
 import io.github.nikitasud.latentjam.smart.SmartEngineConfig
 import io.github.nikitasud.latentjam.smart.VectorIndex
+import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CoroutineDispatcher
 import org.koin.core.module.Module
@@ -120,6 +121,7 @@ public val smartEngineModule: Module = module {
             dispatcher = get(smartEngineDispatcherQualifier),
             predictor = getOrNull<PredictorRuntime>(),
             textEncoder = getOrNull<TextEncoder>(),
+            artistKnowledge = getOrNull<ArtistKnowledge>(),
             textIndex = get<VectorIndex>(smartTextIndexQualifier),
             textStore = get<IndexStore>(smartTextIndexQualifier),
             clock = getOrNull<SmartClock>() ?: SmartClock,

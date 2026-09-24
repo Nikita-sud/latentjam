@@ -179,4 +179,7 @@ public class MusicEntityResolver(
 
     public fun matches(query: String, libraryArtist: String?): Boolean =
         index?.matches(query, libraryArtist) == true
+
+    /** The entity ids [name] resolves to, most popular first; empty when the pack is absent. */
+    public fun resolve(name: String): IntArray = index?.resolve(name) ?: IntArray(0)
 }

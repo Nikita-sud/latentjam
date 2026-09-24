@@ -13,6 +13,7 @@ import io.github.nikitasud.latentjam.smart.chain.TrackMeta
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorCoverage
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorFusion
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
+import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -52,6 +53,8 @@ internal class DefaultSimilarityEngine(
     // nearest-neighbour picks rather than failing, which is how iOS behaves today.
     private val predictor: PredictorRuntime? = null,
     private val textEncoder: TextEncoder? = null,
+    /** Teacher knowledge about artists for the chain's descriptor space; absent, the space stays empty. */
+    private val artistKnowledge: ArtistKnowledge? = null,
     private val textIndex: VectorIndex? = null,
     private val textStore: IndexStore? = null,
     private val clock: SmartClock = SmartClock.Unknown,
@@ -977,6 +980,7 @@ internal class DefaultSimilarityEngine(
         id = id,
         audio = audio,
         text = textIndex?.vector(id),
+        descriptor = artistKnowledge?.descriptor(artist, artists.firstOrNull()),
         energy = energy ?: Float.NaN,
         meta = TrackMeta(
             title, artist, album, genre, year, durationMs,
