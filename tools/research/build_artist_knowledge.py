@@ -11,11 +11,14 @@ describes entity id i of the index that ships beside it:
 3. Embed descriptors with the shipped MiniLM (384-d, mean-pooled, L2-normalized).
 4. Fit product quantization on the pack itself and encode: 8 sub-spaces x 256 centroids by default. PQ-8
    measured equal to PQ-16 within noise in this format, and costs 13 B per entity instead of 21.
-5. Write the layout ArtistKnowledgePack.kt reads. Entities without a descriptor get confidence 0 and
-   read as absent.
+5. Write the layout ArtistKnowledgePack.kt reads. With --attributes the teacher also fills structured
+   attributes (languages, country, decades, genres, energy, confidence). The record's confidence byte
+   is then the teacher's own confidence, so entries below 0.5 read as absent, and its two language
+   bytes index LANGUAGES. train_artist_adapter.py reads the same attribute cache. Entities without a
+   descriptor get confidence 0 and read as absent.
 
     python3 tools/research/build_artist_knowledge.py entities.jsonl.gz out/artist_knowledge.bin \\
-        --cache out/artist_descriptors.json --limit 250000 [--teacher]
+        --cache out/artist_descriptors.json --attributes out/artist_attributes.json --limit 250000 [--teacher]
 """
 import argparse
 import asyncio
@@ -36,6 +39,19 @@ SYSTEM = ("You describe music artists for a music recommender. Reply with ONE li
           "or moment they suit. Do not repeat the artist name. No quotes, no preamble. If you do not know the "
           "artist, say only what the name itself makes likely and stay generic rather than inventing facts.")
 K, DIM, CONFIDENT = 256, 384, 200
+ATTRIBUTES_SYSTEM = (
+    "You annotate music artists for a recommender. Answer in json with exactly these keys: "
+    "\"languages\": list of ISO 639-1 codes of the languages they mainly sing in, or [\"instrumental\"]; "
+    "\"country\": ISO 3166-1 alpha-2 code of the country the artist comes from, or null; "
+    "\"decades\": list of decades they were most active, like [1970, 1980]; "
+    "\"genres\": up to 3 short lowercase genre names; "
+    "\"energy\": integer 1 (very calm) to 5 (very intense) for their typical music; "
+    "\"confidence\": number 0 to 1, how sure you are that you know this specific artist. "
+    "If you do not know the artist, guess only from the name and set confidence below 0.3.")
+# Language bytes index this list (0 = unknown); append only, never reorder.
+LANGUAGES = ["en", "ru", "ro", "uk", "ja", "ko", "zh", "es", "pt", "fr", "de", "it", "tr", "pl", "ar", "hi",
+             "kk", "be", "sr", "hr", "bg", "el", "he", "fa", "nl", "sv", "fi", "no", "da", "cs", "hu", "id",
+             "th", "vi", "tl", "ka", "hy", "az", "uz", "la", "instrumental"]
 
 
 def read_entities(path: Path, limit: int | None) -> list[str]:
@@ -49,7 +65,8 @@ def read_entities(path: Path, limit: int | None) -> list[str]:
     return names
 
 
-async def describe(names: list[str], cache: dict, cache_path: Path, concurrency: int = 48) -> None:
+async def describe(names: list[str], cache: dict, cache_path: Path, concurrency: int = 48,
+                   attributes: bool = False) -> None:
     import aiohttp
     key = os.environ["LLM_KEY"]
     todo = sorted({normalize(n): n for n in names if normalize(n) and normalize(n) not in cache}.items())
@@ -58,6 +75,10 @@ async def describe(names: list[str], cache: dict, cache_path: Path, concurrency:
     async def one(session, normalized, name):
         body = {"model": "deepseek-flash", "temperature": 0.2, "max_tokens": 80, "thinking": {"type": "disabled"},
                 "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": f"Artist: {name}"}]}
+        if attributes:
+            body.update(temperature=0.1, max_tokens=160, response_format={"type": "json_object"},
+                        messages=[{"role": "system", "content": ATTRIBUTES_SYSTEM},
+                                  {"role": "user", "content": f"Artist: {name}"}])
         async with semaphore:
             for attempt in range(4):
                 try:
@@ -65,6 +86,9 @@ async def describe(names: list[str], cache: dict, cache_path: Path, concurrency:
                                             headers={"Authorization": f"Bearer {key}"},
                                             timeout=aiohttp.ClientTimeout(total=120)) as response:
                         text = (await response.json())["choices"][0]["message"]["content"].strip()
+                        if attributes:
+                            cache[normalized] = json.loads(text)
+                            return
                         lines = [t.strip().strip('"') for t in text.splitlines() if t.strip()]
                         cache[normalized] = lines[0] if lines else ""
                         return
@@ -126,12 +150,16 @@ def main() -> None:
     parser.add_argument("--limit", type=int, help="the same popularity-ranked cap as the entity index")
     parser.add_argument("--teacher", action="store_true", help="describe uncached entities through the API")
     parser.add_argument("--subspaces", type=int, default=8, choices=(8, 16, 32), help="PQ sub-spaces (bytes per code)")
+    parser.add_argument("--attributes", type=Path, help="attribute cache, normalized name -> teacher JSON")
     args = parser.parse_args()
 
     names = read_entities(args.entities, args.limit)
     cache = json.loads(args.cache.read_text()) if args.cache.exists() else {}
+    attributes = json.loads(args.attributes.read_text()) if args.attributes and args.attributes.exists() else {}
     if args.teacher:
         asyncio.run(describe(names, cache, args.cache))
+        if args.attributes:
+            asyncio.run(describe(names, attributes, args.attributes, attributes=True))
     described = [i for i, n in enumerate(names) if cache.get(normalize(n))]
     print(f"{len(described)} of {len(names)} entities have a descriptor", flush=True)
 
@@ -147,7 +175,11 @@ def main() -> None:
     for row, entity in enumerate(described):
         records[entity, :M] = codes[row]
         records[entity, M:M + 2] = np.frombuffer(struct.pack("<H", fnv1a64(normalize(names[entity])) & 0xFFFF), np.uint8)
-        records[entity, M + 4] = CONFIDENT
+        teacher = attributes.get(normalize(names[entity])) or {}
+        confidence = teacher.get("confidence")
+        records[entity, M + 4] = CONFIDENT if not isinstance(confidence, (int, float)) else int(round(255 * min(max(confidence, 0.0), 1.0)))
+        for slot, code in enumerate((teacher.get("languages") or [])[:2]):
+            records[entity, M + 2 + slot] = LANGUAGES.index(code) + 1 if code in LANGUAGES else 0
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("wb") as handle:
         handle.write(struct.pack("<8sIHBHI", b"LJKNOW1\0", 1, DIM, M, K, len(names)))
