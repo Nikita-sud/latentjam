@@ -428,6 +428,8 @@ def build_pool(lib, seed, state):
             if c is not None:
                 desc_scores[r] = c
     desc_order = order_desc(desc_scores, seed, eligible_finite=True)
+    # With a descriptor, the descriptor channel also takes the trusted-text channel's turn.
+    text_turn = text_order if not desc_order else []
 
     pool, seen = [], set()
     i = 0
@@ -436,8 +438,8 @@ def build_pool(lib, seed, state):
             seen.add(anchor_order[i]); pool.append(anchor_order[i])
         if len(pool) < POOL_SIZE and state_order[i] not in seen:
             seen.add(state_order[i]); pool.append(state_order[i])
-        if len(pool) < POOL_SIZE and i < len(text_order) and text_order[i] not in seen:
-            seen.add(text_order[i]); pool.append(text_order[i])
+        if len(pool) < POOL_SIZE and i < len(text_turn) and text_turn[i] not in seen:
+            seen.add(text_turn[i]); pool.append(text_turn[i])
         if len(pool) < POOL_SIZE and i < len(desc_order) and desc_order[i] not in seen:
             seen.add(desc_order[i]); pool.append(desc_order[i])
         i += 1

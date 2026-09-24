@@ -766,17 +766,20 @@ internal class SmartChain(
             .sortedByDescending { textScores[it] }
             .toIntArray()
         // A fourth channel ranks by the descriptor space (what a teacher knows about the artist),
-        // when the seed has a descriptor. Without one it is empty, so the pool is exactly the
-        // three-channel one.
+        // when the seed has a descriptor. It then also takes the trusted-text channel's turn: the
+        // descriptor is what the teacher knows about the same artist, and swapping measured
+        // +1.5 cold / +1.0 history P@10 on the listener, MPD +-1 (smart-bench exp_desc_quota.py).
+        // Without a descriptor it is empty, so the pool is exactly the three-channel one.
         val descriptorOrder = descriptorOrder(seedRow, excluded)
+        val textTurn = if (descriptorOrder.isEmpty()) textOrder else IntArray(0)
         val pool = ArrayList<Int>(PredictorRuntime.POOL_SIZE)
         val seen = HashSet<Int>()
         var i = 0
         while (pool.size < PredictorRuntime.POOL_SIZE && i < anchorOrder.size) {
             if (seen.add(anchorOrder[i])) pool.add(anchorOrder[i])
             if (pool.size < PredictorRuntime.POOL_SIZE && seen.add(stateOrder[i])) pool.add(stateOrder[i])
-            if (pool.size < PredictorRuntime.POOL_SIZE && i < textOrder.size && seen.add(textOrder[i])) {
-                pool.add(textOrder[i])
+            if (pool.size < PredictorRuntime.POOL_SIZE && i < textTurn.size && seen.add(textTurn[i])) {
+                pool.add(textTurn[i])
             }
             if (pool.size < PredictorRuntime.POOL_SIZE && i < descriptorOrder.size && seen.add(descriptorOrder[i])) {
                 pool.add(descriptorOrder[i])
