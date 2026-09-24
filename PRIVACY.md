@@ -8,7 +8,10 @@ installed from Google Play, the App Store, or a build downloaded from this repos
 LatentJam collects no personal data. It has no account, no analytics, no advertising, no
 crash reporting and no server. The Android app does not even request the internet permission,
 so it cannot send anything anywhere. Everything the app knows lives on your device and
-leaves it only if you copy it out yourself.
+leaves it only if you copy it out yourself. Like every music player, though, it hands the
+track that is playing (and, on Android, the queue) to the system's media controls, where the
+operating system and apps allowed to control media or read notifications, such as a voice
+assistant, can read them on their own terms.
 
 ## What the app reads on your device
 
