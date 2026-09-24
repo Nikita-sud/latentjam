@@ -9,8 +9,10 @@ describes entity id i of the index that ships beside it:
    the prompt with facts measured worse. Descriptors are cached by normalized name and resumable, and
    only --teacher calls the API (key in LLM_KEY).
 3. Embed descriptors with the shipped MiniLM (384-d, mean-pooled, L2-normalized).
-4. Fit product quantization on the pack itself and encode: 8 sub-spaces x 256 centroids by default. PQ-8
-   measured equal to PQ-16 within noise in this format, and costs 13 B per entity instead of 21.
+4. Fit product quantization on the pack itself and encode: 16 sub-spaces x 256 centroids by default. On
+   the full 350k-entity build PQ-16 beat PQ-8 on the listener's library (+1.1 to +1.5 pp P@10) and
+   matched it on the MPD libraries, for 21 B per entity instead of 13. (On a 2.9k-artist prototype the
+   two measured equal; the codebooks fit a small pack much better.)
 5. Write the layout ArtistKnowledgePack.kt reads. With --attributes the teacher also fills structured
    attributes (languages, country, decades, genres, energy, confidence). The record's confidence byte
    is then the teacher's own confidence, so entries below 0.5 read as absent, and its two language
@@ -149,17 +151,18 @@ def main() -> None:
     parser.add_argument("--cache", type=Path, required=True, help="descriptor cache, normalized name -> text")
     parser.add_argument("--limit", type=int, help="the same popularity-ranked cap as the entity index")
     parser.add_argument("--teacher", action="store_true", help="describe uncached entities through the API")
-    parser.add_argument("--subspaces", type=int, default=8, choices=(8, 16, 32), help="PQ sub-spaces (bytes per code)")
+    parser.add_argument("--subspaces", type=int, default=16, choices=(8, 16, 32), help="PQ sub-spaces (bytes per code)")
     parser.add_argument("--attributes", type=Path, help="attribute cache, normalized name -> teacher JSON")
+    parser.add_argument("--concurrency", type=int, default=48, help="parallel teacher requests")
     args = parser.parse_args()
 
     names = read_entities(args.entities, args.limit)
     cache = json.loads(args.cache.read_text()) if args.cache.exists() else {}
     attributes = json.loads(args.attributes.read_text()) if args.attributes and args.attributes.exists() else {}
     if args.teacher:
-        asyncio.run(describe(names, cache, args.cache))
+        asyncio.run(describe(names, cache, args.cache, args.concurrency))
         if args.attributes:
-            asyncio.run(describe(names, attributes, args.attributes, attributes=True))
+            asyncio.run(describe(names, attributes, args.attributes, args.concurrency, attributes=True))
     described = [i for i, n in enumerate(names) if cache.get(normalize(n))]
     print(f"{len(described)} of {len(names)} entities have a descriptor", flush=True)
 

@@ -7,6 +7,8 @@ Version 2.0, included in the repository root:
   mnv4_audio.onnx
   predictor_state.onnx
   predictor_scorer_n100.onnx
+  artist_knowledge.bin
+  artist_adapter.bin
 
 Copyright (c) 2026 LatentJam Project
 
@@ -57,6 +59,26 @@ Apache-2.0. EfficientAT code and published weights are licensed MIT:
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
+
+artist_knowledge.bin holds one product-quantized 384-dimensional vector per
+artist of music_entities_250k.bin, so the two files ship together. Each vector
+is the bundled MiniLM text encoder's embedding of a one-line description of
+the artist that DeepSeek-V4.1-Flash wrote from the artist's name alone; the
+description text is not included. Each record also keeps a 16-bit fingerprint
+of the artist's normalized name, up to two language indices and the model's
+own confidence. artist_adapter.bin is a two-layer network trained by LatentJam
+that guesses such a vector from a track's metadata vector when the pack does
+not cover the artist. It was trained only on metadata strings synthesized from
+the same model's structured artist attributes (languages, decades, genres),
+never on a listener's library. DeepSeek's terms of use permit using its
+outputs, including for training.
+
+music_entities_250k.bin is a hash index over artist names and aliases: the
+250,000 MusicBrainz artists with the most artist credits, then musicians,
+singers and groups from Wikidata that have a Wikipedia article and fall
+outside that list, ranked by article count. MusicBrainz core data and Wikidata
+are both CC0. The index stores only 64-bit name hashes and integer ids, never
+the names themselves.
 
 The text encoder and vocabulary are an ONNX/int8 export of
 sentence-transformers/all-MiniLM-L6-v2, licensed Apache-2.0:
