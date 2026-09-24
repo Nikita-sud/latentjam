@@ -414,8 +414,8 @@
     <string name="settings_license_text_model_body">Paketli metin kodlayıcı ve sözlüğü, LatentJam tarafından sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) modelini yeniden üretecek şekilde eğitildi ve Apache-2.0 lisanslıdır.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">Cihazdaki model çıkarımı, MIT Lisansı altındaki Microsoft ONNX Runtime’ı kullanır. Telif hakkı © Microsoft Corporation.</string>
-    <string name="settings_license_aliases">MusicBrainz verileri</string>
-    <string name="settings_license_aliases_body">Paketli sanatçı diğer ad arama verileri MusicBrainz’den türetilmiş ve CC0 kapsamında sunulmuştur.</string>
+    <string name="settings_license_aliases">MusicBrainz ve Wikidata</string>
+    <string name="settings_license_aliases_body">Paketli sanatçı diğer ad arama verileri MusicBrainz ve Wikidata’dan türetilmiş ve CC0 kapsamında sunulmuştur.</string>
     <string name="settings_license_libraries">Üçüncü taraf kitaplıklar</string>
     <string name="settings_license_libraries_body">LatentJam; Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin ve Coil’i izin verici Apache-2.0 veya MIT lisanslarıyla kullanır. Tam bildirimler kaynak dağıtımına dahildir.</string>
 

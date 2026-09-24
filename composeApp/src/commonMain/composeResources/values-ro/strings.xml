@@ -412,8 +412,8 @@
     <string name="settings_license_text_model_body">Codificatorul de text inclus și vocabularul său au fost antrenate de LatentJam să reproducă sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) și sunt Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">Inferența modelelor pe dispozitiv folosește Microsoft ONNX Runtime sub Licența MIT. Copyright © Microsoft Corporation.</string>
-    <string name="settings_license_aliases">Date MusicBrainz</string>
-    <string name="settings_license_aliases_body">Datele incluse pentru căutarea aliasurilor artiștilor provin din MusicBrainz și sunt oferite sub CC0.</string>
+    <string name="settings_license_aliases">MusicBrainz și Wikidata</string>
+    <string name="settings_license_aliases_body">Datele incluse pentru căutarea aliasurilor artiștilor provin din MusicBrainz și Wikidata și sunt oferite sub CC0.</string>
     <string name="settings_license_libraries">Biblioteci terțe</string>
     <string name="settings_license_libraries_body">LatentJam folosește Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin și Coil sub licențe permisive Apache-2.0 sau MIT. Notificările complete sunt incluse în distribuția sursă.</string>
 

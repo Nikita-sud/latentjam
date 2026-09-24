@@ -4,8 +4,11 @@
  */
 package io.github.nikitasud.latentjam.smart.text
 
+import io.github.nikitasud.latentjam.smart.text.EntityIndexBytes.KEYS_OFFSET
+import io.github.nikitasud.latentjam.smart.text.EntityIndexBytes.KEY_SIZE
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -18,7 +21,7 @@ class MusicEntityIndexTest {
         // 17 is a person and 42 is their group. The alias resolves to both; the group name to 42.
         val index = assertNotNull(
             MusicEntityIndex.parse(
-                pack(
+                EntityIndexBytes.of(
                     "viktor tsoi" to intArrayOf(17, 42),
                     "виктор" to intArrayOf(17, 42),
                     "кино" to intArrayOf(42),
@@ -28,9 +31,20 @@ class MusicEntityIndexTest {
         )
 
         assertContentEquals(intArrayOf(17, 42), index.resolve("Viktor Tsoi"))
+        assertContentEquals(intArrayOf(42), index.resolve("KINO"))
         assertTrue(index.matches("Виктор", "КИНО"))
         assertTrue(index.matches("Viktor Tsoi", "Kino"))
         assertFalse(index.matches("Виктор", "Unrelated artist"))
+        assertEquals(0, index.resolve("unrelated").size)
+    }
+
+    @Test
+    fun `a key reads its values up to the next key and the last key up to the end`() {
+        val index = assertNotNull(
+            MusicEntityIndex.parse(EntityIndexBytes.of("alpha" to intArrayOf(1), "beta" to intArrayOf(2, 3, 4))),
+        )
+        assertContentEquals(intArrayOf(2, 3, 4), index.resolve("beta"))
+        assertContentEquals(intArrayOf(1), index.resolve("alpha"))
     }
 
     @Test
@@ -42,67 +56,43 @@ class MusicEntityIndexTest {
 
     @Test
     fun `corrupt packs fail closed`() {
+        val good = EntityIndexBytes.of("name" to intArrayOf(1))
+        assertNotNull(MusicEntityIndex.parse(good))
         assertNull(MusicEntityIndex.parse(byteArrayOf(1, 2, 3)))
-        assertNull(MusicEntityIndex.parse(pack("name" to intArrayOf(1)).copyOf(24)))
+        assertNull(MusicEntityIndex.parse(good.copyOf(24)))
+        assertNull(MusicEntityIndex.parse(good.copyOf(good.size - 1)))
+        assertNull(MusicEntityIndex.parse(good.copyOf().also { it[5] = '1'.code.toByte() }))
     }
 
     @Test
-    fun `hash table must be strictly sorted for binary search`() {
-        val bytes = pack(
-            "alpha" to intArrayOf(1),
-            "beta" to intArrayOf(2),
-        )
-        val first = bytes.copyOfRange(20, 36)
-        val second = bytes.copyOfRange(36, 52)
-        second.copyInto(bytes, destinationOffset = 20)
-        first.copyInto(bytes, destinationOffset = 36)
+    fun `hashes must be strictly sorted within a bucket for binary search`() {
+        val bucket = 0x1234uL shl 32
+        val sorted = listOf(bucket or 5uL to intArrayOf(1), bucket or 9uL to intArrayOf(2))
+        assertNotNull(MusicEntityIndex.parse(EntityIndexBytes.hashed(sorted)))
+        assertNull(MusicEntityIndex.parse(EntityIndexBytes.hashed(sorted.reversed(), sort = false)))
+        assertNull(MusicEntityIndex.parse(EntityIndexBytes.hashed(listOf(sorted[0], sorted[0]))))
+    }
 
-        assertNull(MusicEntityIndex.parse(bytes))
+    @Test
+    fun `the bucket directory must cover every key in order`() {
+        val bytes = EntityIndexBytes.of("alpha" to intArrayOf(1), "beta" to intArrayOf(2))
+        // The last slot has to equal the key count.
+        assertNull(MusicEntityIndex.parse(bytes.copyOf().also { EntityIndexBytes.writeInt(it, KEYS_OFFSET - 4, 1) }))
+        // No slot may point past the keys.
+        assertNull(MusicEntityIndex.parse(bytes.copyOf().also { EntityIndexBytes.writeInt(it, 24 + 4, 3) }))
     }
 
     @Test
     fun `every entity value slice must be bounded sorted and refer to a known entity`() {
-        val outOfBounds = pack("name" to intArrayOf(1))
-        writeInt(outOfBounds, 20 + 8, 1)
-
-        assertNull(MusicEntityIndex.parse(outOfBounds))
-        assertNull(MusicEntityIndex.parse(pack("name" to intArrayOf(2, 1))))
-        assertNull(MusicEntityIndex.parse(pack("name" to intArrayOf(100))))
-    }
-
-    private fun pack(vararg mappings: Pair<String, IntArray>): ByteArray {
-        val ordered = mappings
-            .map { (key, values) -> MusicEntityIndex.fnv1a64(key.encodeToByteArray()) to values }
-            .sortedBy { it.first }
-        val valueCount = ordered.sumOf { it.second.size }
-        val bytes = ByteArray(20 + ordered.size * 16 + valueCount * 4)
-        byteArrayOf(0x4c, 0x4a, 0x45, 0x4e, 0x54, 0x31, 0, 0).copyInto(bytes)
-        writeInt(bytes, 8, ordered.size)
-        writeInt(bytes, 12, valueCount)
-        writeInt(bytes, 16, 100)
-        var valueOffset = 0
-        ordered.forEachIndexed { index, (hash, values) ->
-            val entry = 20 + index * 16
-            writeULong(bytes, entry, hash)
-            writeInt(bytes, entry + 8, valueOffset)
-            writeUShort(bytes, entry + 12, values.size)
-            values.forEachIndexed { offset, value ->
-                writeInt(bytes, 20 + ordered.size * 16 + (valueOffset + offset) * 4, value)
-            }
-            valueOffset += values.size
-        }
-        return bytes
-    }
-
-    private fun writeInt(bytes: ByteArray, offset: Int, value: Int) {
-        for (index in 0 until 4) bytes[offset + index] = (value ushr (index * 8)).toByte()
-    }
-
-    private fun writeUShort(bytes: ByteArray, offset: Int, value: Int) {
-        for (index in 0 until 2) bytes[offset + index] = (value ushr (index * 8)).toByte()
-    }
-
-    private fun writeULong(bytes: ByteArray, offset: Int, value: ULong) {
-        for (index in 0 until 8) bytes[offset + index] = (value shr (index * 8)).toByte()
+        val twoKeys = EntityIndexBytes.of("alpha" to intArrayOf(1), "beta" to intArrayOf(2))
+        // The first key starts at the first value.
+        assertNull(MusicEntityIndex.parse(twoKeys.copyOf().also { EntityIndexBytes.writeU24(it, KEYS_OFFSET + 4, 1) }))
+        // A key cannot be empty: the second key starting where the first does leaves the first nothing.
+        assertNull(MusicEntityIndex.parse(twoKeys.copyOf().also { EntityIndexBytes.writeU24(it, KEYS_OFFSET + KEY_SIZE + 4, 0) }))
+        // Nor can a key start past the end of the values.
+        assertNull(MusicEntityIndex.parse(twoKeys.copyOf().also { EntityIndexBytes.writeU24(it, KEYS_OFFSET + KEY_SIZE + 4, 5) }))
+        assertNull(MusicEntityIndex.parse(EntityIndexBytes.of("name" to intArrayOf(2, 1))))
+        assertNull(MusicEntityIndex.parse(EntityIndexBytes.of("name" to intArrayOf(1, 1))))
+        assertNull(MusicEntityIndex.parse(EntityIndexBytes.of("name" to intArrayOf(100))))
     }
 }

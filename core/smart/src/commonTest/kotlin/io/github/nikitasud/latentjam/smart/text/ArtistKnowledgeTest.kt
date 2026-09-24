@@ -91,19 +91,6 @@ class ArtistKnowledgeTest {
     }
 
     /** A MusicEntityIndex whose normalized names each resolve to one entity id. */
-    private fun entityIndex(vararg names: Pair<String, Int>): ByteArray {
-        val ordered = names.map { (key, id) -> MusicEntityIndex.fnv1a64(key.encodeToByteArray()) to id }.sortedBy { it.first }
-        val bytes = ByteArray(20 + ordered.size * 16 + ordered.size * 4)
-        byteArrayOf(0x4c, 0x4a, 0x45, 0x4e, 0x54, 0x31, 0, 0).copyInto(bytes)
-        fun int(offset: Int, value: Int) { for (i in 0 until 4) bytes[offset + i] = (value ushr (i * 8)).toByte() }
-        int(8, ordered.size); int(12, ordered.size); int(16, names.size)
-        ordered.forEachIndexed { index, (hash, id) ->
-            val entry = 20 + index * 16
-            for (i in 0 until 8) bytes[entry + i] = (hash shr (i * 8)).toByte()
-            int(entry + 8, index)
-            bytes[entry + 12] = 1
-            int(20 + ordered.size * 16 + index * 4, id)
-        }
-        return bytes
-    }
+    private fun entityIndex(vararg names: Pair<String, Int>): ByteArray =
+        EntityIndexBytes.of(*names.map { (key, id) -> key to intArrayOf(id) }.toTypedArray(), entityCount = names.size)
 }

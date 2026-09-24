@@ -407,8 +407,8 @@
     <string name="settings_license_text_model_body">번들 텍스트 인코더와 어휘는 sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0)를 재현하도록 LatentJam이 학습시켰으며 Apache-2.0입니다.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">기기 내 모델 추론은 MIT 라이선스의 Microsoft ONNX Runtime을 사용합니다. 저작권 © Microsoft Corporation.</string>
-    <string name="settings_license_aliases">MusicBrainz 데이터</string>
-    <string name="settings_license_aliases_body">번들 아티스트 별칭 검색 데이터는 MusicBrainz에서 파생되며 CC0으로 제공됩니다.</string>
+    <string name="settings_license_aliases">MusicBrainz 및 Wikidata</string>
+    <string name="settings_license_aliases_body">번들 아티스트 별칭 검색 데이터는 MusicBrainz 및 Wikidata에서 파생되며 CC0으로 제공됩니다.</string>
     <string name="settings_license_libraries">타사 라이브러리</string>
     <string name="settings_license_libraries_body">LatentJam은 허용적인 Apache-2.0 또는 MIT 라이선스로 Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin 및 Coil을 사용합니다. 전체 고지는 소스 배포판에 포함됩니다.</string>
 

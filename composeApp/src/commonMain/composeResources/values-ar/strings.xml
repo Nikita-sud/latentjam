@@ -447,8 +447,8 @@
     <string name="settings_license_text_model_body">مُرمِّز النص المضمّن ومفرداته درّبهما LatentJam لمحاكاة sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0)، وهما مرخّصان وفق Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">يستخدم استدلال النماذج على الجهاز Microsoft ONNX Runtime بموجب ترخيص MIT. حقوق النشر © Microsoft Corporation.</string>
-    <string name="settings_license_aliases">بيانات MusicBrainz</string>
-    <string name="settings_license_aliases_body">بيانات البحث المضمّنة عن الأسماء البديلة للفنانين مشتقة من MusicBrainz ومتاحة وفق CC0.</string>
+    <string name="settings_license_aliases">MusicBrainz وWikidata</string>
+    <string name="settings_license_aliases_body">بيانات البحث المضمّنة عن الأسماء البديلة للفنانين مشتقة من MusicBrainz وWikidata ومتاحة وفق CC0.</string>
     <string name="settings_license_libraries">مكتبات الجهات الخارجية</string>
     <string name="settings_license_libraries_body">يستخدم LatentJam كلًا من Kotlin وcoroutines وCompose Multiplatform وAndroidX Media3 وKoin وCoil بموجب تراخيص Apache-2.0 أو MIT المتساهلة. الإشعارات الكاملة مضمّنة في توزيع المصدر.</string>
 

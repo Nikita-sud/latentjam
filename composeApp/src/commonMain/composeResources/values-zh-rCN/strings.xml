@@ -407,8 +407,8 @@
     <string name="settings_license_text_model_body">内置的文本编码器及其词表由 LatentJam 训练以复现 sentence-transformers/all-MiniLM-L6-v2（Apache-2.0），采用 Apache-2.0。</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">设备端模型推理使用采用 MIT 许可证的 Microsoft ONNX Runtime。版权所有 © Microsoft Corporation。</string>
-    <string name="settings_license_aliases">MusicBrainz 数据</string>
-    <string name="settings_license_aliases_body">内置的艺人别名搜索数据源自 MusicBrainz，并以 CC0 提供。</string>
+    <string name="settings_license_aliases">MusicBrainz 和 Wikidata</string>
+    <string name="settings_license_aliases_body">内置的艺人别名搜索数据源自 MusicBrainz 和 Wikidata，并以 CC0 提供。</string>
     <string name="settings_license_libraries">第三方库</string>
     <string name="settings_license_libraries_body">LatentJam 使用 Kotlin、coroutines、Compose Multiplatform、AndroidX Media3、Koin 和 Coil，均采用宽松的 Apache-2.0 或 MIT 许可证。完整声明随源代码分发。</string>
 

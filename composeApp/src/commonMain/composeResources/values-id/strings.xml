@@ -413,8 +413,8 @@
     <string name="settings_license_text_model_body">Enkoder teks bawaan dan kosakatanya dilatih oleh LatentJam untuk meniru sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) dan berlisensi Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">Inferensi model di perangkat memakai Microsoft ONNX Runtime dengan Lisensi MIT. Hak cipta © Microsoft Corporation.</string>
-    <string name="settings_license_aliases">Data MusicBrainz</string>
-    <string name="settings_license_aliases_body">Data pencarian alias artis bawaan berasal dari MusicBrainz dan disediakan dengan CC0.</string>
+    <string name="settings_license_aliases">MusicBrainz dan Wikidata</string>
+    <string name="settings_license_aliases_body">Data pencarian alias artis bawaan berasal dari MusicBrainz dan Wikidata dan disediakan dengan CC0.</string>
     <string name="settings_license_libraries">Pustaka pihak ketiga</string>
     <string name="settings_license_libraries_body">LatentJam memakai Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin, dan Coil dengan lisensi permisif Apache-2.0 atau MIT. Pemberitahuan lengkap disertakan dalam distribusi sumber.</string>
 

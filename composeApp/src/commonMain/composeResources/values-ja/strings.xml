@@ -407,8 +407,8 @@
     <string name="settings_license_text_model_body">同梱のテキストエンコーダーと語彙は、sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) を再現するよう LatentJam が学習させたもので、Apache-2.0 です。</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">端末上のモデル推論には、MIT License の Microsoft ONNX Runtime を使用しています。Copyright © Microsoft Corporation.</string>
-    <string name="settings_license_aliases">MusicBrainz データ</string>
-    <string name="settings_license_aliases_body">同梱のアーティスト別名検索データは MusicBrainz から派生し、CC0 で提供されています。</string>
+    <string name="settings_license_aliases">MusicBrainz と Wikidata</string>
+    <string name="settings_license_aliases_body">同梱のアーティスト別名検索データは MusicBrainz と Wikidata から派生し、CC0 で提供されています。</string>
     <string name="settings_license_libraries">サードパーティ製ライブラリ</string>
     <string name="settings_license_libraries_body">LatentJam は、寛容な Apache-2.0 または MIT ライセンスの下で Kotlin、coroutines、Compose Multiplatform、AndroidX Media3、Koin、Coil を使用しています。完全な表示はソース配布物に含まれています。</string>
 

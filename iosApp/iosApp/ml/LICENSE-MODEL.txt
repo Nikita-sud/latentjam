@@ -83,7 +83,7 @@ music_entities_250k.bin is a hash index over artist names and aliases: the
 250,000 MusicBrainz artists with the most artist credits, then musicians,
 singers and groups from Wikidata that have a Wikipedia article and fall
 outside that list, ranked by article count. MusicBrainz core data and Wikidata
-are both CC0. The index stores only 64-bit name hashes and integer ids, never
+are both CC0. The index stores only 48-bit name hashes and integer ids, never
 the names themselves.
 
 text_encoder.onnx is a three-layer, 256-wide BERT that LatentJam trained to

@@ -11,32 +11,44 @@ package io.github.nikitasud.latentjam.smart.text
  * entity ids; a member name additionally resolves to their groups. A query matches a library artist
  * when those id sets intersect. The sorted hash table keeps the global pack small and makes lookup
  * independent of library size.
+ *
+ * Layout `LJENT2`, little endian:
+ * - magic `LJENT2\0\0`, u32 key count, u32 value count, u32 entity count, four reserved bytes
+ * - 65,537 u32 key positions: where the keys whose 48-bit hash has each top-16-bit value start,
+ *   then the key count
+ * - per key, sorted by hash: the hash's low 32 bits and the u24 offset of its first value; a key's
+ *   values run to the next key's offset, the last key's to the value count
+ * - the values: u24 entity ids, sorted within each key
+ *
+ * A key hash is the low 48 bits of FNV-1a 64 over a normalized name or name token. The shipped
+ * index has no collision at 48 bits; one would only make a name ambiguous.
  */
 public class MusicEntityIndex private constructor(
     private val bytes: ByteArray,
-    private val entryCount: Int,
-    private val valuesOffset: Int,
+    private val keyCount: Int,
+    private val valueCount: Int,
 ) {
+    private val valuesOffset = KEYS_OFFSET + keyCount * KEY_SIZE
 
     /** Resolves a full name or a stored name token to sorted MusicBrainz entity ids. */
     public fun resolve(value: String): IntArray {
         val normalized = normalize(value)
         if (normalized.isEmpty()) return IntArray(0)
-        val target = fnv1a64(normalized.encodeToByteArray())
-        var low = 0
-        var high = entryCount - 1
+        val hash = fnv1a64(normalized.encodeToByteArray()) and HASH_MASK
+        val bucket = (hash shr 32).toInt()
+        val target = (hash and 0xffffffffuL).toLong()
+        var low = u32(bytes, HEADER_SIZE + bucket * 4).toInt()
+        var high = u32(bytes, HEADER_SIZE + (bucket + 1) * 4).toInt() - 1
         while (low <= high) {
             val middle = (low + high).ushr(1)
-            val entry = HEADER_SIZE + middle * ENTRY_SIZE
-            val found = readULong(entry)
-            val comparison = found.compareTo(target)
+            val found = u32(bytes, KEYS_OFFSET + middle * KEY_SIZE)
             when {
-                comparison < 0 -> low = middle + 1
-                comparison > 0 -> high = middle - 1
+                found < target -> low = middle + 1
+                found > target -> high = middle - 1
                 else -> {
-                    val start = readInt(entry + 8)
-                    val count = readUShort(entry + 12)
-                    return IntArray(count) { index -> readInt(valuesOffset + (start + index) * 4) }
+                    val start = firstValue(middle)
+                    val end = if (middle + 1 < keyCount) firstValue(middle + 1) else valueCount
+                    return IntArray(end - start) { index -> u24(bytes, valuesOffset + (start + index) * 3) }
                 }
             }
         }
@@ -61,80 +73,69 @@ public class MusicEntityIndex private constructor(
         return false
     }
 
-    private fun readInt(offset: Int): Int =
-        (bytes[offset].toInt() and 0xff) or
-            ((bytes[offset + 1].toInt() and 0xff) shl 8) or
-            ((bytes[offset + 2].toInt() and 0xff) shl 16) or
-            ((bytes[offset + 3].toInt() and 0xff) shl 24)
-
-    private fun readUShort(offset: Int): Int =
-        (bytes[offset].toInt() and 0xff) or ((bytes[offset + 1].toInt() and 0xff) shl 8)
-
-    private fun readULong(offset: Int): ULong {
-        var result = 0uL
-        for (index in 0 until 8) {
-            result = result or ((bytes[offset + index].toULong() and 0xffuL) shl (index * 8))
-        }
-        return result
-    }
+    private fun firstValue(key: Int): Int = u24(bytes, KEYS_OFFSET + key * KEY_SIZE + 4)
 
     public companion object {
-        private const val HEADER_SIZE = 20
-        private const val ENTRY_SIZE = 16
-        private val MAGIC = byteArrayOf(0x4c, 0x4a, 0x45, 0x4e, 0x54, 0x31, 0, 0)
+        private const val HEADER_SIZE = 24
+        private const val BUCKETS = 1 shl 16
+        private const val KEYS_OFFSET = HEADER_SIZE + (BUCKETS + 1) * 4
+        private const val KEY_SIZE = 7
+        private const val HASH_MASK = 0xffffffffffffuL
+        private val MAGIC = "LJENT2\u0000\u0000".encodeToByteArray()
 
-        /** Returns null for a missing/corrupt asset so ordinary metadata search remains available. */
+        /** Returns null for a missing, corrupt or other-format asset so ordinary metadata search remains available. */
         public fun parse(bytes: ByteArray): MusicEntityIndex? {
-            if (bytes.size < HEADER_SIZE || !MAGIC.indices.all { bytes[it] == MAGIC[it] }) return null
-            fun intAt(offset: Int): Int =
-                (bytes[offset].toInt() and 0xff) or
-                    ((bytes[offset + 1].toInt() and 0xff) shl 8) or
-                    ((bytes[offset + 2].toInt() and 0xff) shl 16) or
-                    ((bytes[offset + 3].toInt() and 0xff) shl 24)
-            fun uShortAt(offset: Int): Int =
-                (bytes[offset].toInt() and 0xff) or
-                    ((bytes[offset + 1].toInt() and 0xff) shl 8)
-            fun uLongAt(offset: Int): ULong {
-                var result = 0uL
-                for (index in 0 until 8) {
-                    result = result or
-                        ((bytes[offset + index].toULong() and 0xffuL) shl (index * 8))
-                }
-                return result
-            }
-            val entryCount = intAt(8)
-            val valueCount = intAt(12)
-            val entityCount = intAt(16)
-            if (entryCount < 0 || valueCount < 0 || entityCount < 0) return null
-            val valuesOffset = HEADER_SIZE.toLong() + entryCount.toLong() * ENTRY_SIZE
-            val required = valuesOffset + valueCount.toLong() * 4
-            if (valuesOffset > Int.MAX_VALUE || required != bytes.size.toLong()) return null
-
-            // resolve() binary-searches hashes, and matches() merge-scans each id slice. Validate
-            // both ordering contracts once here so corrupt optional assets fail closed instead of
-            // producing false negatives or an out-of-bounds read later on a user query.
+            if (bytes.size < KEYS_OFFSET || !MAGIC.indices.all { bytes[it] == MAGIC[it] }) return null
+            val keyCount = u32(bytes, 8)
+            val valueCount = u32(bytes, 12)
+            val entityCount = u32(bytes, 16)
+            if (valueCount > U24_LIMIT || entityCount > U24_LIMIT) return null
+            val valuesOffset = KEYS_OFFSET + keyCount * KEY_SIZE
+            if (valuesOffset + valueCount * 3 != bytes.size.toLong()) return null
+            val keys = keyCount.toInt()
+            val values = valueCount.toInt()
             val valuesStart = valuesOffset.toInt()
-            var previousHash: ULong? = null
-            for (index in 0 until entryCount) {
-                val entry = HEADER_SIZE + index * ENTRY_SIZE
-                val hash = uLongAt(entry)
-                val lastHash = previousHash
-                if (lastHash != null && hash <= lastHash) return null
-                previousHash = hash
 
-                val start = intAt(entry + 8)
-                val count = uShortAt(entry + 12)
-                if (start < 0 || start.toLong() + count > valueCount.toLong()) return null
-
+            // resolve() binary-searches each bucket's hashes and reads a key's values up to the next
+            // key's offset; matches() merge-scans the sorted ids. Check all of it once here, so a
+            // corrupt optional asset fails closed instead of answering a query wrongly later.
+            if (u32(bytes, HEADER_SIZE) != 0L || u32(bytes, HEADER_SIZE + BUCKETS * 4) != keyCount) return null
+            for (bucket in 0 until BUCKETS) {
+                val first = u32(bytes, HEADER_SIZE + bucket * 4)
+                val last = u32(bytes, HEADER_SIZE + (bucket + 1) * 4)
+                if (last < first || last > keyCount) return null
+                var previousHash = -1L
+                for (key in first.toInt() until last.toInt()) {
+                    val hash = u32(bytes, KEYS_OFFSET + key * KEY_SIZE)
+                    if (hash <= previousHash) return null
+                    previousHash = hash
+                }
+            }
+            if (keys == 0) return if (values == 0) MusicEntityIndex(bytes, 0, 0) else null
+            if (u24(bytes, KEYS_OFFSET + 4) != 0) return null
+            for (key in 0 until keys) {
+                val start = u24(bytes, KEYS_OFFSET + key * KEY_SIZE + 4)
+                val end = if (key + 1 < keys) u24(bytes, KEYS_OFFSET + (key + 1) * KEY_SIZE + 4) else values
+                if (end <= start || end > values) return null
                 var previousEntity = -1
-                for (valueIndex in 0 until count) {
-                    val entity = intAt(valuesStart + (start + valueIndex) * 4)
-                    if (entity < 0 || entity >= entityCount || entity <= previousEntity) return null
+                for (index in start until end) {
+                    val entity = u24(bytes, valuesStart + index * 3)
+                    if (entity >= entityCount || entity <= previousEntity) return null
                     previousEntity = entity
                 }
             }
-            return MusicEntityIndex(bytes, entryCount, valuesOffset.toInt())
+            return MusicEntityIndex(bytes, keys, values)
         }
+
+        private const val U24_LIMIT = 1L shl 24
+
+        private fun u24(bytes: ByteArray, offset: Int): Int =
+            (bytes[offset].toInt() and 0xff) or
+                ((bytes[offset + 1].toInt() and 0xff) shl 8) or
+                ((bytes[offset + 2].toInt() and 0xff) shl 16)
+
+        private fun u32(bytes: ByteArray, offset: Int): Long =
+            u24(bytes, offset).toLong() or ((bytes[offset + 3].toLong() and 0xff) shl 24)
 
         internal fun normalize(value: String): String = buildString(value.length) {
             var previousSpace = true

@@ -421,8 +421,8 @@
     <string name="settings_license_text_model_body">O codificador de texto incluído e seu vocabulário foram treinados pelo LatentJam para reproduzir sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) e usam Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">A inferência de modelos no dispositivo usa o Microsoft ONNX Runtime sob a Licença MIT. Copyright © Microsoft Corporation.</string>
-    <string name="settings_license_aliases">Dados do MusicBrainz</string>
-    <string name="settings_license_aliases_body">Os dados incluídos de busca por nomes alternativos de artistas vêm do MusicBrainz e são fornecidos sob CC0.</string>
+    <string name="settings_license_aliases">MusicBrainz e Wikidata</string>
+    <string name="settings_license_aliases_body">Os dados incluídos de busca por nomes alternativos de artistas vêm do MusicBrainz e do Wikidata e são fornecidos sob CC0.</string>
     <string name="settings_license_libraries">Bibliotecas de terceiros</string>
     <string name="settings_license_libraries_body">O LatentJam usa Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin e Coil sob licenças permissivas Apache-2.0 ou MIT. Os avisos completos acompanham a distribuição do código-fonte.</string>
 

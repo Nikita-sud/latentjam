@@ -414,8 +414,8 @@
     <string name="settings_license_text_model_body">साथ दिया गया टेक्स्ट एन्कोडर और उसकी शब्दावली LatentJam ने sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) की नकल करने के लिए प्रशिक्षित की हैं और ये Apache-2.0 के अंतर्गत हैं।</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">डिवाइस पर मॉडल चलाने के लिए Microsoft ONNX Runtime का उपयोग MIT लाइसेंस के अंतर्गत किया जाता है। कॉपीराइट © Microsoft Corporation.</string>
-    <string name="settings_license_aliases">MusicBrainz डेटा</string>
-    <string name="settings_license_aliases_body">साथ दिया गया कलाकार उपनाम खोज डेटा MusicBrainz से लिया गया है और CC0 के अंतर्गत उपलब्ध है।</string>
+    <string name="settings_license_aliases">MusicBrainz और Wikidata</string>
+    <string name="settings_license_aliases_body">साथ दिया गया कलाकार उपनाम खोज डेटा MusicBrainz और Wikidata से लिया गया है और CC0 के अंतर्गत उपलब्ध है।</string>
     <string name="settings_license_libraries">तीसरे पक्ष की लाइब्रेरी</string>
     <string name="settings_license_libraries_body">LatentJam, Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin और Coil का उपयोग उदार Apache-2.0 या MIT लाइसेंस के अंतर्गत करता है। पूरी सूचनाएँ सोर्स वितरण में शामिल हैं।</string>
 
