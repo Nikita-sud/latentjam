@@ -5,11 +5,15 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.ListenEvent
+import io.github.nikitasud.latentjam.history.ListenOrigin
+import io.github.nikitasud.latentjam.history.ListenStart
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
+import io.github.nikitasud.latentjam.playback.PlaybackStart
 import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.ShuffleMode
+import io.github.nikitasud.latentjam.playback.StartCause
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
@@ -64,6 +68,43 @@ internal class PlaybackHistoryRecorderTest {
         val event = gate.onSnapshot(now(b, 0), enabled = true, nowMs = 3)
         assertEquals(a.id, event?.trackId)
         assertEquals(90_000, event?.playedMs)
+    }
+
+    @Test
+    fun `each listen records who chose the track and the collection it came from`() {
+        val gate = PlaybackHistoryGate(initiallyEnabled = true)
+        val pickedA = PlaybackStart(sequence = 1, trackId = a.id, cause = StartCause.USER_PICK)
+        val advancedToB = PlaybackStart(sequence = 2, trackId = b.id, cause = StartCause.AUTO_ADVANCE)
+        val planned = mapOf(b.id to 1)
+
+        gate.onSnapshot(now(a, 0).copy(playbackStart = pickedA), true, nowMs = 1, parentId = "playlist:p")
+        gate.onSnapshot(now(a, 90_000).copy(playbackStart = pickedA), true, nowMs = 2, parentId = "playlist:p")
+        val finishedA = gate.onSnapshot(
+            now(b, 0).copy(playbackStart = advancedToB, smartPlanPositions = planned),
+            true,
+            nowMs = 3,
+            parentId = "playlist:p",
+        )
+        gate.onSnapshot(
+            now(b, 60_000).copy(playbackStart = advancedToB, smartPlanPositions = planned),
+            true,
+            nowMs = 4,
+            parentId = "playlist:p",
+        )
+
+        assertEquals(ListenOrigin(ListenStart.USER_PICK, null, "playlist:p"), finishedA?.origin)
+        assertEquals(ListenOrigin(ListenStart.AUTO_ADVANCE, 1, "playlist:p"), gate.flush()?.origin)
+    }
+
+    @Test
+    fun `every start cause is logged under its own name`() {
+        for (cause in StartCause.entries) {
+            val gate = PlaybackHistoryGate(initiallyEnabled = true)
+            val start = PlaybackStart(sequence = 1, trackId = a.id, cause = cause)
+            gate.onSnapshot(now(a, 0).copy(playbackStart = start), true, nowMs = 1, parentId = null)
+
+            assertEquals(cause.name, gate.flush()?.origin?.start?.name)
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -140,7 +181,11 @@ internal class PlaybackHistoryRecorderTest {
         override suspend fun setSmartLibrary(tracks: List<TrackDescriptor>) = Unit
         override suspend fun setSmartQueueLength(length: Int) = Unit
         override suspend fun invalidateSmartFuture() = Unit
-        override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int) = Unit
+        override suspend fun play(
+            tracks: List<TrackDescriptor>,
+            startIndex: Int,
+            smartPlanPositions: Map<TrackId, Int>,
+        ) = Unit
         override suspend fun togglePlayPause() = Unit
         override suspend fun pause() = Unit
         override suspend fun next() = Unit

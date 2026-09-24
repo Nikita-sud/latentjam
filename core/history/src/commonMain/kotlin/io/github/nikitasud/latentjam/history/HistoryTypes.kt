@@ -151,7 +151,10 @@ public data class ListenOrigin(
 
 /** How playback reached a track. Persisted by name; a name this build does not know reads as null. */
 public enum class ListenStart {
-    /** The listener chose this track: tapped it in a list, search, For You, a menu or the queue. */
+    /**
+     * The listener started playback here: tapped this track in a list, search, For You, a menu or
+     * the queue, or started a collection (Play, Shuffle) that opens with it.
+     */
     USER_PICK,
 
     /** The previous track ended and playback moved on by itself. */

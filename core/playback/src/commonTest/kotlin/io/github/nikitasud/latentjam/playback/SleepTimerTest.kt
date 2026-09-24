@@ -113,7 +113,11 @@ private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackControl
     override suspend fun setSmartLibrary(tracks: List<TrackDescriptor>) = Unit
     override suspend fun setSmartQueueLength(length: Int) = Unit
     override suspend fun invalidateSmartFuture() = Unit
-    override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int) = Unit
+    override suspend fun play(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        smartPlanPositions: Map<TrackId, Int>,
+    ) = Unit
     override suspend fun togglePlayPause() = Unit
     override suspend fun next() = Unit
     override suspend fun previous() = Unit

@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
+import io.github.nikitasud.latentjam.playback.SmartChoice
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.SmartHistoryEvent
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -42,7 +43,8 @@ class EngineNextTrackChooser(
 ) : NextTrackChooser {
 
     private val mutex = Mutex()
-    private var planned = ArrayDeque<TrackId>()
+    /** The unserved rest of the current plan, each id with its index in that plan. */
+    private var planned = ArrayDeque<IndexedValue<TrackId>>()
     private var expectedNext: TrackId? = null
     private var plannedWithGroups: List<Set<TrackId>> = emptyList()
 
@@ -53,7 +55,7 @@ class EngineNextTrackChooser(
         current: TrackDescriptor,
         recentIds: List<TrackId>,
         candidates: List<TrackDescriptor>,
-    ): TrackDescriptor? = mutex.withLock {
+    ): SmartChoice? = mutex.withLock {
         if (expectedNext != null && expectedNext != current.id) {
             // Playback went somewhere the plan did not predict; the current track is the new intent.
             planned.clear()
@@ -65,12 +67,14 @@ class EngineNextTrackChooser(
             plannedWithGroups = groups
             planned.clear()
         }
-        fun nextPlanned(): TrackDescriptor? {
+        fun nextPlanned(): SmartChoice? {
             while (planned.isNotEmpty()) {
-                val id = planned.removeFirst()
+                val (index, id) = planned.removeFirst()
                 val chosen = candidates.firstOrNull { it.id == id } ?: continue
                 expectedNext = chosen.id
-                return chosen
+                // A slot skipped as ineligible still counts: the position says how far from its
+                // seed the plan put this track, which is what drift along a plan is measured by.
+                return SmartChoice(chosen, planPosition = index + 1)
             }
             return null
         }
@@ -86,7 +90,7 @@ class EngineNextTrackChooser(
                     CHAIN_LENGTH,
                     smartHistoryFor(history, current),
                     groups,
-                ),
+                ).withIndex().toList(),
             )
             println(
                 "SMART: planned ${planned.size} tracks from " +
@@ -171,6 +175,14 @@ internal fun smartContinuationTrack(
 /** Null for an unknown artist: those tracks share no artist and must not be spaced as if they did. */
 private fun continuationArtistKey(track: TrackDescriptor): String? =
     track.artist?.trim()?.takeIf(String::isNotEmpty)?.lowercase()
+
+/**
+ * Plan positions for a SMART plan the app plays as an ordinary queue — a For You or Map journey —
+ * numbered as [EngineNextTrackChooser] numbers its own: the first slot after the seed is 1, and a
+ * slot the caller could not resolve to a track still takes its place in the count.
+ */
+internal fun smartPlanPositions(plan: List<TrackId>): Map<TrackId, Int> =
+    plan.withIndex().associate { (index, id) -> id to index + 1 }
 
 /** Projects the private append-only history log into SMART's model-only value type. */
 internal suspend fun smartHistoryFor(

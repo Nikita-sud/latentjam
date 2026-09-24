@@ -6,10 +6,14 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.HistorySessionTracker
 import io.github.nikitasud.latentjam.history.ListenEvent
+import io.github.nikitasud.latentjam.history.ListenStart
+import io.github.nikitasud.latentjam.history.ListenStartSignal
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
+import io.github.nikitasud.latentjam.playback.PlaybackStart
+import io.github.nikitasud.latentjam.playback.StartCause
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -37,18 +41,26 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
     enabled: StateFlow<Boolean>,
     /** Each emission asks the gate to finalize the in-progress session (see [PlaybackHistoryGate.flush]). */
     flushRequests: Flow<Unit> = emptyFlow(),
+    /**
+     * Stable id of the collection the current queue was started from, or null. Sampled with each
+     * snapshot rather than combined into the stream: an extra snapshot for a label change would
+     * look like a stalled playhead and shave listening time off the session.
+     */
+    parentId: () -> String? = { null },
     onRecorded: () -> Unit = {},
 ): Job = launch {
     val gate = PlaybackHistoryGate(initiallyEnabled = enabled.value)
     // One merged stream, one collector: snapshots and flushes are serialized through the same
     // coroutine, so the gate needs no synchronization.
     merge(
-        playback.state.combine(enabled) { now, isEnabled -> HistoryCommand.Snapshot(now, isEnabled) },
+        playback.state.combine(enabled) { now, isEnabled ->
+            HistoryCommand.Snapshot(now, isEnabled, parentId())
+        },
         flushRequests.map { HistoryCommand.Flush(epochMillis()) },
     ).collect { command ->
         val finished = when (command) {
             is HistoryCommand.Snapshot ->
-                gate.onSnapshot(command.now, command.enabled, epochMillis())
+                gate.onSnapshot(command.now, command.enabled, epochMillis(), command.parentId)
             is HistoryCommand.Flush ->
                 // A flush while sound is still playing is premature: the foreground service
                 // keeps the process alive and the eventual transition records the session
@@ -89,7 +101,7 @@ internal class PlaybackHistoryGate(initiallyEnabled: Boolean) {
     private var tracker = HistorySessionTracker()
     private var ignoredTrackAfterEnabling: TrackId? = null
 
-    fun onSnapshot(now: NowPlaying, enabled: Boolean, nowMs: Long) = when {
+    fun onSnapshot(now: NowPlaying, enabled: Boolean, nowMs: Long, parentId: String? = null) = when {
         !enabled -> {
             if (recording) tracker = HistorySessionTracker()
             recording = false
@@ -109,13 +121,17 @@ internal class PlaybackHistoryGate(initiallyEnabled: Boolean) {
 
         else -> {
             ignoredTrackAfterEnabling = null
+            val trackId = now.track?.id
             tracker.onSnapshot(
-                trackId = now.track?.id,
+                trackId = trackId,
                 positionMs = now.positionMs,
                 trackDurationMs = now.durationMs,
                 currentShuffleMode = now.shuffleMode.name,
                 nowMs = nowMs,
                 isPlaying = now.isPlaying,
+                start = now.playbackStart?.toListenStartSignal(),
+                smartPlanPosition = trackId?.let(now.smartPlanPositions::get),
+                parentId = parentId,
             )
         }
     }
@@ -135,8 +151,22 @@ internal class PlaybackHistoryGate(initiallyEnabled: Boolean) {
     }
 }
 
+/** The log's own words for how a play began: history does not depend on playback. */
+private fun PlaybackStart.toListenStartSignal() = ListenStartSignal(
+    sequence = sequence,
+    trackId = trackId,
+    start = when (cause) {
+        StartCause.USER_PICK -> ListenStart.USER_PICK
+        StartCause.AUTO_ADVANCE -> ListenStart.AUTO_ADVANCE
+        StartCause.SKIP_NEXT -> ListenStart.SKIP_NEXT
+        StartCause.SKIP_PREVIOUS -> ListenStart.SKIP_PREVIOUS
+        StartCause.REPEAT -> ListenStart.REPEAT
+        null -> null
+    },
+)
+
 /** The recorder's single-collector input alphabet: a playback snapshot or a flush request. */
 private sealed interface HistoryCommand {
-    data class Snapshot(val now: NowPlaying, val enabled: Boolean) : HistoryCommand
+    data class Snapshot(val now: NowPlaying, val enabled: Boolean, val parentId: String?) : HistoryCommand
     data class Flush(val nowMs: Long) : HistoryCommand
 }

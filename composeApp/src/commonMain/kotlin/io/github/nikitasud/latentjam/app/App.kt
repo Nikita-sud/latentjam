@@ -2614,7 +2614,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     val tail = queue.mapNotNull(byId::get)
                                                     AppGraph.queueSource.value =
                                                         QueueSource(QueueSourceKind.FOR_YOU)
-                                                    playback.play(listOf(hero.track) + tail, 0)
+                                                    playback.play(
+                                                        listOf(hero.track) + tail,
+                                                        0,
+                                                        smartPlanPositions(queue),
+                                                    )
                                                     hero.resumeAtMs?.let { playback.seekTo(it) }
                                                 }
                                             },
@@ -2724,7 +2728,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                             QueueSourceKind.MAP,
                                                             shownRegionNames.getOrNull(region) ?: world.name,
                                                         )
-                                                        playback.play(listOf(seed) + tail, 0)
+                                                        playback.play(
+                                                            listOf(seed) + tail,
+                                                            0,
+                                                            smartPlanPositions(queue),
+                                                        )
                                                     }
                                                 }
                                             },
@@ -4138,7 +4146,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         )
                         val byId = songs.associateBy { it.id }
                         AppGraph.queueSource.value = QueueSource(QueueSourceKind.FOR_YOU)
-                        playback.play(listOf(target.track) + queue.mapNotNull(byId::get), 0)
+                        playback.play(
+                            listOf(target.track) + queue.mapNotNull(byId::get),
+                            0,
+                            smartPlanPositions(queue),
+                        )
                     }
                 },
                 onDismiss = { worldTarget = null },

@@ -22,6 +22,44 @@ public enum class ShuffleMode { OFF, ON, SMART }
 /** Repeat positions: no repeat, repeat the queue, repeat one track. */
 public enum class RepeatMode { OFF, ALL, ONE }
 
+/** Why a track began to play. */
+public enum class StartCause {
+    /**
+     * The listener started playback here: tapped this track in a list, search, a menu or the queue,
+     * or started a collection (Play, Shuffle) that opens with it.
+     */
+    USER_PICK,
+
+    /** The previous track ended and playback moved on by itself. */
+    AUTO_ADVANCE,
+
+    /** The listener pressed Next, from the app or any other controller; the queue chose the track. */
+    SKIP_NEXT,
+
+    /** The listener pressed Previous and playback returned to this track. */
+    SKIP_PREVIOUS,
+
+    /** Repeat-one played the same track again. */
+    REPEAT,
+}
+
+/**
+ * How the playback instance of [trackId] began.
+ *
+ * [sequence] grows with every instance, so the same track playing again (repeat-one) is still told
+ * apart. A player may publish its next track a moment before it has classified how that track
+ * began; such a [NowPlaying] still carries the previous start, which [trackId] and [sequence]
+ * expose as stale to anyone pairing the two.
+ *
+ * @property cause Null when the controller saw the instance begin but cannot say why — a queue
+ *   restored at launch, or a queue another app replaced.
+ */
+public data class PlaybackStart(
+    public val sequence: Long,
+    public val trackId: TrackId,
+    public val cause: StartCause?,
+)
+
 /** Past this position, Previous restarts the current track instead of selecting its predecessor. */
 public const val PREVIOUS_RESTART_THRESHOLD_MS: Long = 3_000L
 
@@ -44,6 +82,10 @@ public const val PREVIOUS_RESTART_THRESHOLD_MS: Long = 3_000L
  * @property smartContinuationIds Queue rows SMART appended to keep playing while it could not
  *   recommend — see [NextTrackChooser.continuation]. The UI labels them, because a track that is
  *   merely unheard must never be presented as something the recommender chose.
+ * @property smartPlanPositions Queue rows SMART recommended, each with its position in the plan it
+ *   was served from ([SmartChoice.planPosition]). Continuations and rows the listener supplied have
+ *   none.
+ * @property playbackStart How the playback instance at the playhead began; see [PlaybackStart].
  */
 public data class NowPlaying(
     public val track: TrackDescriptor? = null,
@@ -57,6 +99,19 @@ public data class NowPlaying(
     public val sourceQueue: List<TrackDescriptor> = emptyList(),
     public val showPauseButton: Boolean = isPlaying,
     public val smartContinuationIds: Set<TrackId> = emptySet(),
+    public val smartPlanPositions: Map<TrackId, Int> = emptyMap(),
+    public val playbackStart: PlaybackStart? = null,
+)
+
+/**
+ * A SMART recommendation and where it sits in the plan it was served from.
+ *
+ * @property planPosition 1 for the first track after the plan's seed, counting every planned slot
+ *   even when an earlier one became ineligible; null when the chooser does not plan ahead.
+ */
+public data class SmartChoice(
+    public val track: TrackDescriptor,
+    public val planPosition: Int? = null,
 )
 
 /**
@@ -72,7 +127,7 @@ public interface NextTrackChooser {
         current: TrackDescriptor,
         recentIds: List<TrackId>,
         candidates: List<TrackDescriptor>,
-    ): TrackDescriptor?
+    ): SmartChoice?
 
     /**
      * What keeps the music going when [choose] abstains — explicitly NOT a recommendation.
@@ -157,8 +212,16 @@ public interface PlaybackController {
      * Replaces the queue with [tracks] and starts playing the one at
      * [startIndex]. The list remains the natural OFF/ON playback source; SMART draws from the
      * complete library supplied by [setSmartLibrary].
+     *
+     * [smartPlanPositions] marks rows a SMART plan put in [tracks], by their position in it — a
+     * journey planned by the caller and played as an ordinary queue — so they are reported in
+     * [NowPlaying.smartPlanPositions] like the rows SMART appends itself.
      */
-    public suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int)
+    public suspend fun play(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        smartPlanPositions: Map<TrackId, Int> = emptyMap(),
+    )
 
     /** Pauses if playing, resumes if paused. No-op with an empty queue. */
     public suspend fun togglePlayPause()

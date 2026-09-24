@@ -184,6 +184,7 @@ object AppGraph {
                 history = history,
                 enabled = settings.saveListeningHistory,
                 flushRequests = historyFlushRequests,
+                parentId = { queueSource.value?.parentCollectionId() },
                 onRecorded = { mutableHistoryRevision.value += 1L },
             )
             // Remembers where listening stood, so the next launch reopens with the same track

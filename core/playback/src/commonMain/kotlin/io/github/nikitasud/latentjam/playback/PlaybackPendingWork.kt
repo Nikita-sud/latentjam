@@ -26,9 +26,9 @@ internal class PendingPlaybackAdvance {
 }
 
 /** Failed inference is an abstention; cancelled inference must never append a fallback row. */
-internal suspend fun awaitPlaybackRecommendation(
-    recommend: suspend () -> TrackDescriptor?,
-): TrackDescriptor? {
+internal suspend fun <T : Any> awaitPlaybackRecommendation(
+    recommend: suspend () -> T?,
+): T? {
     currentCoroutineContext().ensureActive()
     val chosen = try {
         recommend()

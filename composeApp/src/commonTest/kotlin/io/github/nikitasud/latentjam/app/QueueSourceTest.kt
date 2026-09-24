@@ -91,4 +91,24 @@ internal class QueueSourceTest {
         val selection = CollectionSelection("Shared", null, null, emptyList(), playlistId = "saved-id")
         assertEquals(QueueSource(QueueSourceKind.COLLECTION, "Shared", "saved-id"), selection.queueSource())
     }
+
+    @Test
+    fun theListeningLogNamesAParentByKindAndIdentityNeverByTitle() {
+        val playlist = CollectionSelection("Road trip", null, null, emptyList(), playlistId = "saved-id")
+        assertEquals("playlist:saved-id", playlist.queueSource().parentCollectionId())
+        assertEquals("album:second", source("album:second", "Translated label").parentCollectionId())
+        assertEquals("folder:/second/Shared", source("folder:/second/Shared").parentCollectionId())
+        assertEquals("auto:NEVER_PLAYED", source("auto:NEVER_PLAYED", "Never played").parentCollectionId())
+    }
+
+    @Test
+    fun sourcesWithoutAStableIdentityHaveNoParent() {
+        // A journey or map region collection is named, but nothing durable identifies it.
+        assertNull(source("world:track-7", "Around this song").parentCollectionId())
+        assertNull(QueueSource(QueueSourceKind.MAP, "Evening").parentCollectionId())
+        assertNull(QueueSource(QueueSourceKind.SEARCH, "query").parentCollectionId())
+        assertNull(QueueSource(QueueSourceKind.TRACKS).parentCollectionId())
+        assertNull(QueueSource(QueueSourceKind.FOR_YOU).parentCollectionId())
+        assertNull(QueueSource(QueueSourceKind.COLLECTION, "Shared", reference = "").parentCollectionId())
+    }
 }

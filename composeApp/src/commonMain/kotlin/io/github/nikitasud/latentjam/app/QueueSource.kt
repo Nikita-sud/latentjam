@@ -56,6 +56,21 @@ internal fun CollectionSelection.queueSource(): QueueSource = when {
 
 private val LIBRARY_GROUP_PREFIXES = setOf("album", "artist", "genre", "folder", "auto")
 
+/**
+ * The listening log's id for the collection a queue was started from: `playlist:<id>` for a user
+ * playlist, the kind-qualified route (`album:<key>`, `folder:<path>`, `auto:<KIND>`, …) for a
+ * library group. Titles are never used — they are localized and collide — so a source with no
+ * durable identity (a journey, a map region, search, the whole library) has no parent.
+ */
+internal fun QueueSource.parentCollectionId(): String? {
+    val id = reference?.takeIf(String::isNotBlank) ?: return null
+    return when (kind) {
+        QueueSourceKind.COLLECTION -> "playlist:$id"
+        QueueSourceKind.LIBRARY_GROUP -> id
+        QueueSourceKind.TRACKS, QueueSourceKind.SEARCH, QueueSourceKind.MAP, QueueSourceKind.FOR_YOU -> null
+    }
+}
+
 /** An auto playlist is identified by its kind, never by its localized title. */
 internal fun QueueSource.autoPlaylistKind(): AutoPlaylistKind? {
     if (kind != QueueSourceKind.LIBRARY_GROUP) return null

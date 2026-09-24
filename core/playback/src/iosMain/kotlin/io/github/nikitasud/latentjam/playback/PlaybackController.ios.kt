@@ -151,6 +151,19 @@ internal class IosPlaybackController(
      */
     private val smartContinuationIds = mutableSetOf<TrackId>()
     private val continuationSnapshot = PlaybackContinuationSnapshot()
+
+    /**
+     * SMART's plan position for each row it recommended — see [NowPlaying.smartPlanPositions].
+     * Replaced, narrowed and pruned together with [smartContinuationIds].
+     */
+    private val smartPlanPositions = mutableMapOf<TrackId, Int>()
+    private val planPositionSnapshot = PlaybackPlanPositionSnapshot()
+
+    /**
+     * How the instance at the playhead began. Every load is made here, so each caller states its
+     * cause directly through [beginStart]; nothing needs announcing ahead of an asynchronous player.
+     */
+    private val startLedger = PlaybackStartLedger()
     private val pendingAdvance = PendingPlaybackAdvance()
 
     private var mode: ShuffleMode = ShuffleMode.OFF
@@ -251,12 +264,17 @@ internal class IosPlaybackController(
         appendSmartNextIfNeeded()
     }
 
-    override suspend fun play(tracks: List<TrackDescriptor>, startIndex: Int): Unit =
+    override suspend fun play(
+        tracks: List<TrackDescriptor>,
+        startIndex: Int,
+        smartPlanPositions: Map<TrackId, Int>,
+    ): Unit =
         withContext(Dispatchers.Main) {
             if (tracks.isEmpty()) return@withContext
             pendingAdvance.invalidate()
             val previousQueue = queue
             val previousContinuations = smartContinuationIds.toSet()
+            val previousPlanPositions = this@IosPlaybackController.smartPlanPositions.toMap()
             val previousPool = pool
             val previousIndex = queueIndex
             val previousPositionMs = positionMs()
@@ -265,6 +283,10 @@ internal class IosPlaybackController(
             pool = tracks
             // These are new user-selected rows, even if their ids were in the previous queue.
             smartContinuationIds.clear()
+            this@IosPlaybackController.smartPlanPositions.apply {
+                clear()
+                putAll(smartPlanPositions)
+            }
 
             when (mode) {
                 // SMART owns its queue: begin with the tapped track alone and let
@@ -293,6 +315,9 @@ internal class IosPlaybackController(
                 autoPlay = true,
                 wrap = false,
             )
+            // The listener chose the requested row; one reached past it because it would not open
+            // was chosen by nobody.
+            if (loaded) beginStart(StartCause.USER_PICK.takeIf { queueIndex == requestedIndex })
             // A failed replacement must not leave the old backend sounding under the new queue.
             // If there was a valid prior selection, reload it and its position instead of claiming
             // an unreadable row from the requested collection.
@@ -300,6 +325,10 @@ internal class IosPlaybackController(
                 queue = previousQueue
                 smartContinuationIds.clear()
                 smartContinuationIds.addAll(previousContinuations)
+                this@IosPlaybackController.smartPlanPositions.apply {
+                    clear()
+                    putAll(previousPlanPositions)
+                }
                 pool = previousPool
                 queueGeneration++
                 loaded = restorePreviousPlayback(
@@ -392,10 +421,10 @@ internal class IosPlaybackController(
         if (queueIndex in 0 until queue.lastIndex) {
             // Planning may suspend on inference or another append. A known successor can sound
             // immediately; replenish its future after the skip, matching the Android transport.
-            advance()
+            advance(StartCause.SKIP_NEXT)
             mainScope.launch { appendSmartNextIfNeeded() }
         } else {
-            pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) { advance() }
+            pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) { advance(StartCause.SKIP_NEXT) }
         }
     }
 
@@ -418,6 +447,7 @@ internal class IosPlaybackController(
                 autoPlay = wasPlaying,
                 wrap = repeat == RepeatMode.ALL,
             )
+            if (loaded) beginStart(StartCause.SKIP_PREVIOUS.takeIf { queueIndex == targetIndex })
             if (!loaded) {
                 restorePreviousPlayback(previousIndex, previousPositionMs, wasPlaying)
             }
@@ -446,6 +476,9 @@ internal class IosPlaybackController(
             autoPlay = true,
             wrap = false,
         )
+        if (loaded) {
+            beginStart(StartCause.USER_PICK.takeIf { this@IosPlaybackController.queueIndex == queueIndex })
+        }
         if (!loaded && previousIndex in queue.indices) {
             restorePreviousPlayback(previousIndex, previousPositionMs, wasPlaying)
         }
@@ -510,6 +543,8 @@ internal class IosPlaybackController(
                     wrap = false,
                 )
             }
+            // Nobody chose the row that took the deleted one's place.
+            beginStart(cause = null)
         }
         pushState()
     }
@@ -589,6 +624,7 @@ internal class IosPlaybackController(
                         wrap = false,
                     )
                 }
+                beginStart(cause = null)
             }
             index < queueIndex -> queueIndex--
         }
@@ -605,7 +641,9 @@ internal class IosPlaybackController(
      */
     private fun cueIfNothingCurrent() {
         if (queueIndex < 0 && queue.isNotEmpty()) {
-            loadPlayableFrom(startIndex = 0, direction = 1, autoPlay = false, wrap = false)
+            if (loadPlayableFrom(startIndex = 0, direction = 1, autoPlay = false, wrap = false)) {
+                beginStart(cause = null)
+            }
         }
     }
 
@@ -641,6 +679,7 @@ internal class IosPlaybackController(
             clear()
             addAll(restorePlan.smartContinuationIds)
         }
+        smartPlanPositions.clear()
         queueIndex = restorePlan.currentIndex
         queueGeneration++
         val refillAfterPendingInvalidation = mode == ShuffleMode.SMART &&
@@ -660,6 +699,8 @@ internal class IosPlaybackController(
             autoPlay = false,
             wrap = false,
         )
+        // How the saved row first began belongs to the run that played it; resuming is not a cause.
+        if (loaded) beginStart(cause = null)
         // A resume position belongs only to the saved row, never to a later row selected because
         // the saved file disappeared between launches.
         if (loaded && queueIndex == requestedIndex && positionMs > 0) {
@@ -692,11 +733,13 @@ internal class IosPlaybackController(
                 // missing lookup to source index zero while its audio continues.
                 val ordered = sourceOrderKeepingCurrent(source = pool, current = current)
                 smartContinuationIds.retainAll(setOf(current.id))
+                smartPlanPositions.keys.retainAll(setOf(current.id))
                 queue = ordered.tracks
                 queueIndex = ordered.currentIndex
             }
             ShuffleMode.ON -> if (current != null && pool.isNotEmpty()) {
                 smartContinuationIds.retainAll(setOf(current.id))
+                smartPlanPositions.keys.retainAll(setOf(current.id))
                 queue = listOf(current) + (pool.filter { it.id != current.id }).shuffled()
                 queueIndex = 0
             }
@@ -763,7 +806,7 @@ internal class IosPlaybackController(
                 ) -> null
                 else -> awaitPlaybackRecommendation { chooser.continuation(seed, recentIds, candidates) }
             }
-            val chosen = recommended ?: continuation ?: break
+            val chosen = recommended?.track ?: continuation ?: break
             // Inference suspends. Another coroutine may have replaced the queue, switched modes,
             // manually edited its tail, or refreshed eligibility while the chooser was working.
             if (
@@ -779,6 +822,7 @@ internal class IosPlaybackController(
             }
             queue = queue + chosen
             if (continuation != null) smartContinuationIds += chosen.id
+            recordSmartPlanPosition(smartPlanPositions, chosen.id, recommended)
             queueGeneration++
             appended = true
         }
@@ -791,8 +835,10 @@ internal class IosPlaybackController(
      * Entries that will not open are skipped rather than stalled on: a file the
      * user deleted between the scan and now would otherwise leave the transport
      * showing a track the player never loaded, with the audio stopped.
+     *
+     * [cause] is why playback moved on: the track ended, or the listener pressed Next.
      */
-    private fun advance() {
+    private fun advance(cause: StartCause) {
         val wasPlaying = playing
         val previousIndex = queueIndex
         val previousPositionMs = positionMs()
@@ -812,12 +858,21 @@ internal class IosPlaybackController(
             autoPlay = wasPlaying,
             wrap = wrap,
         )
+        if (loaded) beginStart(cause)
         if (!loaded && previousIndex in queue.indices) {
             // Every candidate was unreadable. Keep the last real row parked rather than publishing
             // whichever dead candidate happened to be tried last.
             restorePreviousPlayback(previousIndex, previousPositionMs, wasPlaying = false)
         }
         pushState()
+    }
+
+    /**
+     * Main-thread only. Records how the row just loaded at the playhead began. Restoring the row a
+     * failed replacement displaced does not call this: that play continues with its own start.
+     */
+    private fun beginStart(cause: StartCause?) {
+        queue.getOrNull(queueIndex)?.let { startLedger.begin(it.id, cause) }
     }
 
     /**
@@ -975,6 +1030,7 @@ internal class IosPlaybackController(
         if (repeat == RepeatMode.ONE) {
             seekActiveBackend(0L)
             playing = playActiveBackend()
+            if (playing) beginStart(StartCause.REPEAT)
             if (!playing) deactivateAudioSession()
             updateTicker()
             invalidateNowPlayingInfo()
@@ -988,7 +1044,7 @@ internal class IosPlaybackController(
             // A seek, pause, or newer item chosen during inference also supersedes this end.
             pendingAdvance.afterPlanning(plan = ::appendSmartNextIfNeeded) {
                 if (playing && isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) {
-                    advance()
+                    advance(StartCause.AUTO_ADVANCE)
                 }
             }
         }
@@ -1389,6 +1445,8 @@ internal class IosPlaybackController(
             queueIndex = if (queue.isEmpty()) -1 else queueIndex,
             sourceQueue = pool,
             smartContinuationIds = continuationSnapshot.get(queue, smartContinuationIds),
+            smartPlanPositions = planPositionSnapshot.get(queue, smartPlanPositions),
+            playbackStart = startLedger.current,
         )
         publishNowPlayingInfo(track)
     }
