@@ -1,6 +1,6 @@
 # LatentJam privacy policy
 
-Effective 18 September 2026. Applies to the LatentJam app for Android and iOS, whether
+Effective 24 September 2026. Applies to the LatentJam app for Android and iOS, whether
 installed from Google Play, the App Store, or a build downloaded from this repository.
 
 ## The short version
@@ -16,9 +16,12 @@ leaves it only if you copy it out yourself.
   and cover art embedded in the files — to build the library, the audio index, the
   recommendations, the map, search and the duplicate finder. The audio is analysed on the
   device with bundled models; no audio or metadata is uploaded.
-- **Listening history** — which tracks you played, skipped or finished, and when — used for
-  statistics, "For You" and the recommendations. It is recorded only while *Save listening
-  history* is on in Settings, where it can also be cleared at any time.
+- **Listening history** — which tracks you played, skipped or finished, and when; how each one
+  started (you picked it, the previous track ended, you skipped or repeated, or the
+  recommendations queued it, with its place in that queue); and the playlist, album, artist,
+  genre or folder playback started from — used for statistics, "For You" and the
+  recommendations. It is recorded only while *Save listening history* is on in Settings, where
+  it can also be cleared at any time.
 - **Your playlists, favourites, hidden tracks, duplicate decisions and settings.**
 
 All of this is stored in the app's private storage on the device. Nothing is shared with the
