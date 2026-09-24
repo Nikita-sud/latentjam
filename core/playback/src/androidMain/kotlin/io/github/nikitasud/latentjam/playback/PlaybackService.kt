@@ -286,6 +286,38 @@ public class PlaybackService : MediaLibraryService() {
             }.toMutableList()
         }
 
+        // A queue set from outside the app (Android Auto's browse tree, a voice request, another
+        // app's media browser) starts on the listener's pick, but nothing announces it: the app's
+        // controller announces only its own commands, and leaves a queue it restores at launch
+        // unexplained. So the pick is announced here once resolved. Media3 installs the queue only
+        // after this future completes, so the player's transition finds the announcement waiting.
+        // Resumption and Add to queue take other callbacks and stay unannounced.
+        override fun onSetMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: MutableList<MediaItem>,
+            startIndex: Int,
+            startPositionMs: Long,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val resolved = super.onSetMediaItems(
+                mediaSession, controller, mediaItems, startIndex, startPositionMs,
+            )
+            if (controller.packageName == packageName) return resolved
+            return Futures.transform(
+                resolved,
+                { queue ->
+                    AndroidPlaybackStarts.announceExternalQueue(
+                        queue.mediaItems,
+                        queue.startIndex,
+                        shuffled = playbackPlayer?.shuffleModeEnabled == true,
+                    )
+                    queue
+                },
+                // onAddMediaItems resolves on the main thread, where the ledger and player live.
+                MoreExecutors.directExecutor(),
+            )
+        }
+
         override fun onPlaybackResumption(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,

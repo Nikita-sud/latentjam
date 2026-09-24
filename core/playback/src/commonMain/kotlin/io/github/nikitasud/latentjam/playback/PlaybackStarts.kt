@@ -65,6 +65,20 @@ internal fun seekStartCause(toIndex: Int, nextIndex: Int?, previousIndex: Int?):
 }
 
 /**
+ * The row of [queue] that playback will start on when a controller outside the app installs it —
+ * Android Auto's browse tree, a voice request, another app's media browser — and so the track that
+ * controller picked. [startIndex] null leaves the choice to the player, which begins on the first
+ * row, or on a random one when it shuffles several. That draw cannot be named in advance, so none
+ * is: a wrong guess labels nothing, and if the draw is the track already playing, the guess stays
+ * announced and could label a later start of the guessed track.
+ */
+internal fun <T> externalQueueStart(queue: List<T>, startIndex: Int?, shuffled: Boolean): T? = when {
+    startIndex != null -> queue.getOrNull(startIndex)
+    shuffled && queue.size > 1 -> null
+    else -> queue.firstOrNull()
+}
+
+/**
  * Books the row SMART just appended for [trackId]: [choice]'s plan position when SMART recommended
  * it. A continuation ([choice] null) is no recommendation, so it clears any position the same track
  * left behind in an earlier row.

@@ -15,6 +15,7 @@ internal class PlaybackStartsTest {
 
     private val a = TrackId("a")
     private val b = TrackId("b")
+    private val c = TrackId("c")
 
     @Test
     fun `an announced start labels the track it named`() {
@@ -90,6 +91,34 @@ internal class PlaybackStartsTest {
         assertEquals(StartCause.USER_PICK, seekStartCause(toIndex = 9, nextIndex = 4, previousIndex = 2))
         // The last row with repeat off has no successor; the first row is then a direct choice.
         assertEquals(StartCause.USER_PICK, seekStartCause(toIndex = 0, nextIndex = null, previousIndex = 5))
+    }
+
+    @Test
+    fun `a queue set from outside the app starts on the row its controller asked for`() {
+        assertEquals(b, externalQueueStart(listOf(a, b, c), startIndex = 1, shuffled = false))
+        // A given row wins over shuffle: the player starts there, whatever order follows.
+        assertEquals(b, externalQueueStart(listOf(a, b, c), startIndex = 1, shuffled = true))
+    }
+
+    @Test
+    fun `a queue set from outside without a start row begins on its first`() {
+        assertEquals(a, externalQueueStart(listOf(a, b), startIndex = null, shuffled = false))
+        // One row comes first in any order.
+        assertEquals(a, externalQueueStart(listOf(a), startIndex = null, shuffled = true))
+    }
+
+    @Test
+    fun `a shuffled queue set from outside without a start row names no track`() {
+        // The player draws its first row at random. A guess at row 0 could outlive the change and
+        // label a later start of that track as a pick.
+        assertNull(externalQueueStart(listOf(a, b), startIndex = null, shuffled = true))
+    }
+
+    @Test
+    fun `a queue set from outside that cannot start names no track`() {
+        // The row asked for did not resolve, and the player rejects a start past its end.
+        assertNull(externalQueueStart(listOf(a), startIndex = 1, shuffled = false))
+        assertNull(externalQueueStart(emptyList<TrackId>(), startIndex = null, shuffled = false))
     }
 
     @Test

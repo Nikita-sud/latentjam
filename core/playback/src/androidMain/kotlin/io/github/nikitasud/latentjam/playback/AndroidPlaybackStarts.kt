@@ -40,6 +40,21 @@ internal object AndroidPlaybackStarts {
         ledger.announce(cause, target)
     }
 
+    /**
+     * From the service's session, before it installs [mediaItems]: a controller outside the app set
+     * this queue, so the row it starts on — see [externalQueueStart] — is the listener's pick. The
+     * [startIndex] is Media3's, where [C.INDEX_UNSET] leaves the row to the player; [shuffled] is the
+     * player's own shuffle.
+     */
+    fun announceExternalQueue(mediaItems: List<MediaItem>, startIndex: Int, shuffled: Boolean) {
+        val start = externalQueueStart(
+            mediaItems,
+            startIndex.takeUnless { it == C.INDEX_UNSET },
+            shuffled,
+        ) ?: return
+        ledger.announce(StartCause.USER_PICK, TrackId(start.mediaId))
+    }
+
     /** From the service player's listener. Only a seek between rows says which way it went. */
     fun onPositionDiscontinuity(
         oldPosition: Player.PositionInfo,
