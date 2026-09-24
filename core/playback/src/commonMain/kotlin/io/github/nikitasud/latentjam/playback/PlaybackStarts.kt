@@ -12,8 +12,9 @@ import io.github.nikitasud.latentjam.smart.TrackId
  *
  * A transport command knows why the track it selects will play, but on Android the player reports
  * the resulting transition later, next to transitions no in-app command caused (a track ending, a
- * headset button). Commands therefore [announce] their intent and the controller calls [begin] when
- * the player reports a new instance, passing its own reading of the transition for the rest.
+ * headset button). Commands therefore [announce] their intent, and whatever observes the player —
+ * the playback service on Android, the controller itself on iOS — calls [begin] when a new instance
+ * starts, passing its own reading of the transition for the rest.
  */
 internal class PlaybackStartLedger {
     private var sequence = 0L

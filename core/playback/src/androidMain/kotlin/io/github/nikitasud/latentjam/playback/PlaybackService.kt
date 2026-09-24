@@ -442,6 +442,18 @@ public class PlaybackService : MediaLibraryService() {
             if (!installingResumption) clearStaleActiveResumption()
         }
 
+        // How each play began is read here, from the player itself, for the listening log — see
+        // [AndroidPlaybackStarts] for why the app's own MediaController cannot be trusted with it.
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) = AndroidPlaybackStarts.onPositionDiscontinuity(oldPosition, newPosition, reason)
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            playbackPlayer?.let { AndroidPlaybackStarts.onMediaItemTransition(it, mediaItem, reason) }
+        }
+
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
             val currentMode = AndroidShuffleModeRegistry.mode.value
             // SMART intentionally maps to ExoPlayer shuffle=false. An actual external change to

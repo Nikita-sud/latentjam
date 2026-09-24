@@ -129,14 +129,6 @@ internal class AndroidPlaybackController(
      */
     private val smartPlanPositions = mutableMapOf<TrackId, Int>()
 
-    /** How the instance at the playhead began: commands announce, [playerListener] records. */
-    private val startLedger = PlaybackStartLedger()
-
-    /**
-     * The last jump between rows, as Media3 reports it just before the transition it causes. It is
-     * the only trace of a Next or Previous pressed on a headset, in the notification or in a car.
-     */
-    private var pendingSeekHop: SeekHop? = null
     private var poolById: Map<String, TrackDescriptor> = emptyMap()
     private var smartById: Map<String, TrackDescriptor> = emptyMap()
     private var mode: ShuffleMode = ShuffleMode.OFF
@@ -179,11 +171,15 @@ internal class AndroidPlaybackController(
         mainScope.launch {
             AndroidShuffleModeRegistry.mode.collectLatest(::applyShuffleMode)
         }
+        // The service records how each play began after this controller has already shown the
+        // track (its masked guess comes first); publish the record as soon as it lands.
+        mainScope.launch {
+            AndroidPlaybackStarts.current.collect { pushState() }
+        }
     }
 
     private val playerListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            recordPlaybackStart(mediaItem, reason)
             pendingAdvance.invalidate()
             if (controller?.mediaItemCount != 0) anticipatedResumption = null
             controller?.let(::adoptActiveResumption)
@@ -289,17 +285,6 @@ internal class AndroidPlaybackController(
             newPosition: Player.PositionInfo,
             reason: Int,
         ) {
-            // Media3 reports this before the transition itself, from whichever controller sought.
-            if (
-                reason == Player.DISCONTINUITY_REASON_SEEK &&
-                oldPosition.mediaItemIndex != newPosition.mediaItemIndex
-            ) {
-                pendingSeekHop = SeekHop(
-                    fromIndex = oldPosition.mediaItemIndex,
-                    toIndex = newPosition.mediaItemIndex,
-                    toMediaId = newPosition.mediaItem?.mediaId,
-                )
-            }
             pendingAdvance.invalidate()
             // System UI and Bluetooth controllers can seek while paused, when the ticker is off.
             // Recompute gain too: while paused the fade loop is off, so otherwise resuming after a
@@ -600,7 +585,7 @@ internal class AndroidPlaybackController(
                     putAll(smartPlanPositions)
                 }
                 anticipatedResumption = null
-                startLedger.announce(StartCause.USER_PICK, TrackId(prepared.selectedItem.mediaId))
+                AndroidPlaybackStarts.announce(StartCause.USER_PICK, TrackId(prepared.selectedItem.mediaId))
                 if (currentMode == ShuffleMode.SMART) {
                     // SMART owns its queue: start from the tapped track alone and let the chooser
                     // build the path forward. Do not construct hundreds of unused MediaItems.
@@ -1166,49 +1151,12 @@ internal class AndroidPlaybackController(
     }
 
     /**
-     * Main-thread only. Records how the item Media3 just made current began, before anything
-     * publishes it. Transitions a command announced carry its intent; the rest are read from
-     * Media3's reason — including Next and Previous pressed outside the app, which reach this
-     * controller only as a seek between rows.
+     * Main-thread only. Announces why the row at [mediaItemIndex] is about to become current; the
+     * service's player records the transition itself — see [AndroidPlaybackStarts].
      */
-    private fun recordPlaybackStart(mediaItem: MediaItem?, reason: Int) {
-        val hop = pendingSeekHop
-        pendingSeekHop = null
-        val trackId = mediaItem?.mediaId?.let(::TrackId) ?: return
-        when (reason) {
-            Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ->
-                startLedger.begin(trackId, StartCause.AUTO_ADVANCE)
-            Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT ->
-                startLedger.begin(trackId, StartCause.REPEAT)
-            Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ->
-                startLedger.begin(trackId, hop?.takeIf { it.toMediaId == trackId.value }?.let(::seekCause))
-            // A queue installed, restored, edited around the playhead or re-described (a generated
-            // cover) — only the ledger can tell whether a new play began.
-            else -> startLedger.playlistChanged(trackId)
-        }
-    }
-
-    /** Main-thread only. What a seek between rows amounted to in the transport's own traversal. */
-    private fun seekCause(hop: SeekHop): StartCause? {
-        val player = controller ?: return null
-        val timeline = player.currentTimeline
-        if (hop.fromIndex !in 0 until timeline.windowCount) return null
-        // Media3's Next and Previous treat repeat-one as off; read the hop the way they took it.
-        val repeat = player.repeatMode.takeUnless { it == Player.REPEAT_MODE_ONE } ?: Player.REPEAT_MODE_OFF
-        val shuffle = player.shuffleModeEnabled
-        return seekStartCause(
-            toIndex = hop.toIndex,
-            nextIndex = timeline.getNextWindowIndex(hop.fromIndex, repeat, shuffle)
-                .takeIf { it != C.INDEX_UNSET },
-            previousIndex = timeline.getPreviousWindowIndex(hop.fromIndex, repeat, shuffle)
-                .takeIf { it != C.INDEX_UNSET },
-        )
-    }
-
-    /** Main-thread only. Announces why the row at [mediaItemIndex] is about to become current. */
     private fun announceStart(player: Player, cause: StartCause, mediaItemIndex: Int) {
         if (mediaItemIndex !in 0 until player.mediaItemCount) return
-        startLedger.announce(cause, TrackId(player.getMediaItemAt(mediaItemIndex).mediaId))
+        AndroidPlaybackStarts.announce(cause, TrackId(player.getMediaItemAt(mediaItemIndex).mediaId))
     }
 
     /** Main-thread only. Keeps physical SMART history/current and removes every later row. */
@@ -1477,7 +1425,7 @@ internal class AndroidPlaybackController(
             sourceQueue = pool,
             smartContinuationIds = continuationSnapshot.get(visibleQueue, smartContinuationIds),
             smartPlanPositions = planPositionSnapshot.get(visibleQueue, smartPlanPositions),
-            playbackStart = startLedger.current,
+            playbackStart = AndroidPlaybackStarts.current.value,
         )
     }
 
@@ -1690,9 +1638,6 @@ internal class AndroidPlaybackController(
             fullQueue = fullQueue,
         )
     }
-
-    /** A jump between rows by physical index; [toMediaId] ties it to the transition it caused. */
-    private data class SeekHop(val fromIndex: Int, val toIndex: Int, val toMediaId: String?)
 
     private data class PreparedPlayback(
         val tracks: List<TrackDescriptor>,
