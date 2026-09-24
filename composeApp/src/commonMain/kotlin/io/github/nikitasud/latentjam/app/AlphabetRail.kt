@@ -637,25 +637,31 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
         latestOnScrubbingChange(false)
     }
 
-    AlphabetRail(
-        buckets = buckets,
-        interactive = interactive,
-        gestureKey = catalogKey,
-        activeBucket = previewBucket ?: settlingBucket ?: activeBucket,
-        modifier = Modifier
-            .align(Alignment.CenterEnd)
-            .fillMaxHeight()
-            .padding(bottom = bottomPadding)
-            .padding(vertical = 8.dp)
-            .onGloballyPositioned {
-                railTopPx = it.positionInParent().y
-                railHeightPx = it.size.height
-            },
-        onSelectionStart = ::beginSelection,
-        onSelect = ::select,
-        onSelectionEnd = ::endSelection,
-        onSelectionCancel = ::cancelSelection,
-    )
+    // The rail gets fresh callbacks for each catalog. The compiler memoizes these references to
+    // local functions, so without the key a host that switches catalogs (another page, or back
+    // from a collection) kept the first catalog's `select`: the list still followed the finger,
+    // but the preview state it wrote was the old one, and the letter bubble never appeared.
+    key(catalogKey) {
+        AlphabetRail(
+            buckets = buckets,
+            interactive = interactive,
+            gestureKey = catalogKey,
+            activeBucket = previewBucket ?: settlingBucket ?: activeBucket,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .padding(bottom = bottomPadding)
+                .padding(vertical = 8.dp)
+                .onGloballyPositioned {
+                    railTopPx = it.positionInParent().y
+                    railHeightPx = it.size.height
+                },
+            onSelectionStart = ::beginSelection,
+            onSelect = ::select,
+            onSelectionEnd = ::endSelection,
+            onSelectionCancel = ::cancelSelection,
+        )
+    }
 
     // Finger position remains immediate; all animation lives inside this small overlay.
     key(catalogKey) {
