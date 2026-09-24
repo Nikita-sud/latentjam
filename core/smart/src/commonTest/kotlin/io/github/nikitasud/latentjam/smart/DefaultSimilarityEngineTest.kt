@@ -1210,6 +1210,38 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun `a SMART queue never loads the semantic head just to read energy`() = runTest {
+        val tracks = smartLibrary(57)
+        val backend = FakeEmbeddingBackend(
+            tracks.associateTo(mutableMapOf()) { track ->
+                track.id to FloatArray(PredictorRuntime.EMBEDDING_DIM).also { vector ->
+                    vector[track.id.value.removePrefix("smart-").toInt()] = 1f
+                }
+            },
+        )
+        val engine = DefaultSimilarityEngine(
+            backend = backend,
+            index = InMemoryVectorIndex(PredictorRuntime.EMBEDDING_DIM),
+            store = FakeIndexStore(),
+            config = SmartEngineConfig(
+                embeddingDim = PredictorRuntime.EMBEDDING_DIM,
+                modelVersion = "energy-lazy-test",
+            ),
+            dispatcher = Dispatchers.Default.limitedParallelism(1, "energy-lazy-test"),
+            predictor = CountingPredictor(),
+        )
+        engine.initialize()
+        engine.indexLibrary(tracks)
+
+        assertEquals(5, engine.smartQueue(tracks.first(), tracks.drop(1), length = 5).size)
+        assertEquals(
+            0,
+            backend.loadSemanticModelCalls,
+            "energy only sequences the queue; building one must never wait on loading the head",
+        )
+    }
+
+    @Test
     fun `fully indexed tiny audio corpus uses the zero padded scorer`() = runTest {
         val predictor = CountingPredictor()
         val tracks = smartLibrary(23)

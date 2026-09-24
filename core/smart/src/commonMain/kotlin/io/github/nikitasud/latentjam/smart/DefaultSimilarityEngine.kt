@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.smart.chain.SmartChain
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
 import io.github.nikitasud.latentjam.smart.chain.SmartTrack
 import io.github.nikitasud.latentjam.smart.chain.TrackMeta
+import io.github.nikitasud.latentjam.smart.chain.applyLibraryEnergy
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorCoverage
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorFusion
 import io.github.nikitasud.latentjam.smart.cluster.LibraryVectorSpace
@@ -480,19 +481,7 @@ internal class DefaultSimilarityEngine(
                     (loadMissingSemantics || audioModelLoaded)
                 val semanticsAvailable = semanticModelLoaded ||
                     (shouldLoadSemantics && ensureSemanticModel().isSuccess)
-                if (semanticsAvailable) {
-                    for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
-                        val outputs = backend.classify(batch.map { it.second }).getOrNull()
-                            ?.takeIf { it.size == batch.size }
-                            ?: continue
-                        for (row in batch.indices) {
-                            TrackSemantics.fromModelOutput(outputs[row])?.let { prediction ->
-                                semanticCache[batch[row].first] = prediction
-                            }
-                        }
-                        yield()
-                    }
-                }
+                if (semanticsAvailable) cacheSemantics(missing)
                 LibraryMixFeatures(
                     vectorSpace = vectorSpace,
                     semantics = requested.mapNotNull { id ->
@@ -953,8 +942,9 @@ internal class DefaultSimilarityEngine(
         throw failure
     }
 
-    private fun snapshotFor(history: List<SmartHistoryEvent>): SmartSnapshot? {
-        snapshotCache?.takeIf { it.revision == indexRevision }?.let { return it.snapshot }
+    private suspend fun snapshotFor(history: List<SmartHistoryEvent>): SmartSnapshot? {
+        snapshotCache?.takeIf { it.revision == indexRevision && it.semanticCount == semanticCache.size }
+            ?.let { return it.snapshot }
 
         val rows = knownTracks.values.mapNotNull { track ->
             val audio = index.vector(track.id) ?: return@mapNotNull null
@@ -971,9 +961,37 @@ internal class DefaultSimilarityEngine(
                 meta = TrackMeta(null, null, null, null, null),
             )
         }
-        val snapshot = SmartSnapshot.build(rows) ?: return null
-        snapshotCache = SnapshotCache(indexRevision, snapshot)
+        val snapshot = SmartSnapshot.build(withEnergy(rows)) ?: return null
+        snapshotCache = SnapshotCache(indexRevision, semanticCache.size, snapshot)
         return snapshot
+    }
+
+    /**
+     * Fills the chain's energy-smoothness input, which nothing else supplies: the semantic head's
+     * energy score, ranked within these rows (see [applyLibraryEnergy]). Rows the head has not seen
+     * are classified only when it is already loaded, because a queue must never wait on loading a
+     * model for a sequencing hint. A row without semantics keeps NaN, which the term ignores.
+     */
+    private suspend fun withEnergy(rows: List<SmartTrack>): List<SmartTrack> {
+        if (semanticModelLoaded) {
+            cacheSemantics(rows.mapNotNull { row -> if (row.id in semanticCache) null else row.id to row.audio })
+        }
+        return applyLibraryEnergy(rows, semanticCache)
+    }
+
+    /** Classifies [missing] audio vectors into [semanticCache]; rows the head rejects stay absent. */
+    private suspend fun cacheSemantics(missing: List<Pair<TrackId, FloatArray>>) {
+        for (batch in missing.chunked(SEMANTIC_BATCH_SIZE)) {
+            val outputs = backend.classify(batch.map { it.second }).getOrNull()
+                ?.takeIf { it.size == batch.size }
+                ?: continue
+            for (row in batch.indices) {
+                TrackSemantics.fromModelOutput(outputs[row])?.let { prediction ->
+                    semanticCache[batch[row].first] = prediction
+                }
+            }
+            yield()
+        }
     }
 
     private fun TrackDescriptor.toSmartTrack(audio: FloatArray): SmartTrack = SmartTrack(
@@ -1004,8 +1022,10 @@ internal class DefaultSimilarityEngine(
         companionGroups,
     )
 
+    /** [semanticCount] rebuilds the snapshot once more tracks have semantics, and so energy. */
     private data class SnapshotCache(
         val revision: Long,
+        val semanticCount: Int,
         val snapshot: SmartSnapshot,
     )
 
