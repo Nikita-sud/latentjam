@@ -19,42 +19,59 @@ Full methods, counterfactuals, limitations, teacher research, and mobile results
 
 ## Shipped bundle
 
-Updated 2026-09-13. The two-stage residual chosen on 2026-07-20 was superseded in August by a
+Updated 2026-09-24. The two-stage residual chosen on 2026-07-20 was superseded in August by a
 single scorer that reads audio and text per candidate (the semtext-1344 contract, byte-identical
-across the Kotlin port and the offline harness); this is the shipped state.
+across the Kotlin port and the offline harness). In September the artist knowledge pack joined it,
+and every file was made smaller without changing what SMART picks; this is the shipped state.
 
 | File | Contract | Bytes |
 |---|---:|---:|
-| `mnv4_audio.onnx` | 10 s mono 32 kHz → 960-d | 21,538,547 |
-| `text_encoder_minilm.onnx` | tokens → 384-d | 22,972,370 |
-| `predictor_state.onnx` | recent 960-d history → 960-d state | 11,917,220 |
-| `predictor_scorer_n100.onnx` | state 960 ⊕ 384 text centroid + 100 × (960 audio ⊕ 384 text) → logits | 12,114,045 |
+| `mnv4_audio.onnx` | 10 s mono 32 kHz → 960-d (four-step FFT front end, INT8) | 10,746,975 |
+| `text_encoder.onnx` | tokens → 384-d in MiniLM's space (three-layer student, INT8) | 5,190,836 |
+| `text_vocab.txt` | the student's WordPiece vocabulary | 61,317 |
+| `predictor_state.onnx` | recent 960-d history → 960-d state (dynamic INT8) | 4,223,128 |
+| `predictor_scorer_n100.onnx` | state 960 ⊕ 384 text centroid + 100 × (960 audio ⊕ 384 text) → logits (FP16 weights) | 6,059,712 |
 | `universal_semantic_head.onnx` | 960-d audio → 27 genre-family scores | 2,678,194 |
-| `text_vocab.txt` | WordPiece vocabulary | 231,508 |
+| `music_entities_250k.bin` | artist names, aliases, members → entity ids (LJENT2, 48-bit keys) | 11,918,291 |
+| `artist_knowledge.bin` | entity → PQ-16 descriptor, language, decade, confidence (version 2) | 7,896,585 |
+| `artist_adapter.bin` | 384-d text → descriptor guess for artists outside the pack | 1,181,968 |
 
-Total: **71,451,884 bytes (68.1 MiB)** per platform, plus the 15 MiB CC0 MusicBrainz alias pack
-used by search. Audio and text graphs run while tracks are indexed. Queue construction runs the
-state graph and the scorer; a candidate without a text vector gets a zero text block, the trained
-text-dropout path, so missing metadata degrades to audio-only scoring rather than to noise. The app
-progressively builds the local index on first launch, embeds the selected seed on demand, and keeps
-playback's metadata-only cold-start queue until audio candidates are ready. All inference, history, and stored
-embeddings remain on the device; iOS and Android both persist private history across launches.
-On iOS, Music-library items without a raw asset URL are indexed through the same trusted metadata
-encoder and played by `MPMusicPlayerController`; only waveform-dependent audio embeddings are
-omitted. This is an explicit capability mask, not an empty-library or random-fallback path.
+Total: **49,957,006 bytes (47.6 MiB)** per platform, against 86,761,581 bytes (82.7 MiB) in v0.5.1,
+which had neither the pack nor the adapter. Audio and text graphs run while tracks are indexed.
+Queue construction runs the state graph and the scorer; a candidate without a text vector gets a
+zero text block, the trained text-dropout path, so missing metadata degrades to audio-only scoring
+rather than to noise. The app progressively builds the local index on first launch, embeds the
+selected seed on demand, and keeps playback's metadata-only cold-start queue until audio
+candidates are ready. All inference, history, and stored embeddings remain on the device; iOS and
+Android both persist private history across launches. On iOS, Music-library items without a raw
+asset URL are indexed through the same trusted metadata encoder and played by
+`MPMusicPlayerController`; only waveform-dependent audio embeddings are omitted. This is an
+explicit capability mask, not an empty-library or random-fallback path.
+
+How each file was made smaller, and what it cost: `docs/smart-minimal-stack.md` ("The compact
+build"). MiniLM itself stays in `tools/research/minilm` as the teacher for the pack, the adapter
+and the text student.
 
 ## Metadata contract
 
-Embed `genre; artist; original year; language`, dropping blank fields (text identity `text-v2`,
-2026-09-13). Every genre the file carries, joined by `; `; the credited display artist; the first
+Embed `genre; artist; original year; language`, dropping blank fields (text identity `text-v3`,
+2026-09-24). Every genre the file carries, joined by `; `; the credited display artist; the first
 release year from the tags, else the edition year; a language word from the file's `LANGUAGE`/`TLAN`
-tag, else from the script of the title and artist (Cyrillic → russian, kana/kanji → japanese, Latin
-silent). Never put title or filename text into the trusted channel. Candidate retrieval
-interleaves anchor-audio, state-audio, and seed-text rankings instead of using a hand-tuned
-cross-modal weight.
+tag, else the language the knowledge pack's teacher says the artist mainly sings in (confident
+artists only), else from the script of the title and artist (Cyrillic → russian, kana/kanji →
+japanese, Latin silent). A track with no year at all ends in the artist's decade from the pack
+(`; 1980s`). Never put title or filename text into the trusted channel. A stored vector's identity
+is the string it encodes, so a tag edit or a pack update re-encodes exactly the tracks whose string
+changes. Candidate retrieval interleaves anchor-audio, state-audio, seed-text and artist-descriptor
+rankings instead of using a hand-tuned cross-modal weight.
 
-Measured on the real library (1,084 tracks, 20 listener playlists, leave-one-out retrieval inside
-each playlist) before the change: adding the language word kept playlist R@1 (0.567 → 0.575 macro)
+The pack's language word (2026-09-24, with the student encoder): a "<language> songs" search found
+82 % of its top ten in that language instead of 16 %, SMART queues kept the seed's language more
+often (listener 0.84 → 0.89, MPD +1 to +7 pp) with P@10 within half a point, and the decade raised
+P@10 by 0.3–2.7 pp on the year-less MPD libraries.
+
+The text-v2 string (2026-09-13), measured with MiniLM on the real library (1,084 tracks, 20 listener
+playlists, leave-one-out retrieval inside each playlist): adding the language word kept playlist R@1 (0.567 → 0.575 macro)
 and raised same-language neighbours for Cyrillic tracks from 65 % to 77 %; the original year
 added a further +0.02 macro. Transliterating Cyrillic instead raised R@1 to 0.619 but dropped
 language coherence to 49 %, because for an English WordPiece vocabulary the foreign script is
@@ -111,9 +128,12 @@ References checked on 2026-07-20:
 ## Asset hashes
 
 ```text
-3ccfc0ccd06ced1415a6572a48f71bf165110b14d452251a6df92a4f9ca098a2  mnv4_audio.onnx
-13c5f87437e57b52ceb455f7e75f9ab841aa3ca6fe987507974a30657122b1e7  predictor_state.onnx
-35a27eb06a16ad09aedf98a69dcf15b33151b1f675d24ab9dbb075638a4ff27f  predictor_scorer_n100.onnx
+4eb333e1109a148e8f53c00f5a2ea28513e67bc02f8adac1f0b99e3fe6b513d3  mnv4_audio.onnx
+6437af63f36e8a84a3088d4df70fe2bbad453e6677632e00819088cb25dd5732  text_encoder.onnx
+ee9eb9187486a0398dff497468e37f4179da1fd513a591a91bba74be6b92bfc3  predictor_state.onnx
+7b84f932820802d52129a11cbb0b216e9f621457037022eabf8c5bf6d417dbc9  predictor_scorer_n100.onnx
 5002b2b116621e35265caaf63147c3c0c2877add77ec0d0cc5dcb45ad02cd503  universal_semantic_head.onnx
-afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1  text_encoder_minilm.onnx
+89fc881bced7164413953dc3d63627255973cb8fd9f3fac9313e6f09e75d1111  music_entities_250k.bin
+191ee2ad2d0f7521b7720b99f487ca801389292ac32eaa40b8980ee53fc0687f  artist_knowledge.bin
+8cfe1f444d8d91e230bdf10ed54413ca8c5af1aa7bb97e7726bfe9ec6f03e9a9  artist_adapter.bin
 ```

@@ -117,8 +117,9 @@ your genres as the model hears them, and every track's menu can answer *"where d
 library?"*. The Map page is off by default; enable it in **Settings → Pages**.
 
 🔎 &nbsp;**Search that ranks like you expect** — title matches first, then artist and album, then genre,
-then the lyrics embedded in the files, then meaning, with the matched text highlighted in every result. Folding is script- and
-spelling-aware (фонк finds *phonk*), and a local CC0 MusicBrainz index resolves artist aliases,
+then the lyrics embedded in the files, then meaning — in any of twenty languages — with the matched text highlighted in every
+result. Folding is script- and spelling-aware (фонк finds *phonk*), a year or decade in the query (`80s`, `песни 80-х`,
+`1985`) keeps results to those years, and a local CC0 MusicBrainz and Wikidata index resolves artist aliases,
 transliterations and band-member names entirely on device, so a query and a tag that spell an artist
 differently still match.
 
@@ -156,27 +157,29 @@ forms.
 
 ## How the recommender works
 
-Two signals per track, both computed on the device:
+Three signals per track, all computed on the device:
 
 | Signal | Dimensions | Where it comes from |
 |---|---:|---|
 | **Audio embedding** | 960 | MobileNetV4-Conv-M encoder over the raw waveform |
 | **Metadata embedding** | 384 | A 5 MB multilingual text encoder distilled from MiniLM, over trusted `genre; artist; original year; language` tags |
+| **Artist knowledge** | 384 | What an offline teacher wrote about 350k MusicBrainz and Wikidata artists, stored as 21 bytes per artist; a small adapter guesses it for artists outside the pack |
 
-Retrieval round-robins separate anchor-audio, session-audio and seed-text rankings into a single
-candidate pool, so there is no hand-tuned numeric weight between the embedding spaces. A 960-d GRU
+Retrieval round-robins separate anchor-audio, session-audio, seed-text and artist-knowledge rankings into a
+single candidate pool, so there is no hand-tuned numeric weight between the embedding spaces. A 960-d GRU
 state encoder — reading your last four plays, completion/skip signals, and 30- and 365-day taste
 centroids — feeds a frozen scorer over 100 candidates. The scorer reads each candidate's audio
 embedding next to its metadata vector, with the session's metadata centroid on the state side, and
 was trained with text dropout, so a track without usable tags is scored on audio alone. Track
 *titles* are deliberately excluded from the embedding, so a filename like `Hard Techno Mix` can't
-inject a genre claim; the language word comes from the file's tag or, failing that, from the script
-of the title, never from its words.
+inject a genre claim; the language word comes from the file's tag, then from the language the artist
+pack says they sing in, then from the script of the title, never from its words. A track with no
+year at all carries its artist's decade instead.
 
 Five ONNX graphs ship in-tree: the audio and metadata encoders run once while tracks are indexed;
 the state encoder and the scorer run while a queue is built; a small semantic head turns audio
-embeddings into the genre-family scores the map and the mixes use. The full
-model + vocabulary bundle is **≈68 MiB on both Android and iOS**, plus a 15 MiB MusicBrainz alias pack. There is no precomputed per-track
+embeddings into the genre-family scores the map and the mixes use. The whole bundle — graphs,
+vocabulary, the artist index and the knowledge pack — is **≈48 MiB on both Android and iOS**. There is no precomputed per-track
 catalogue — an imported track gets exactly the same fully-local path as everything else.
 
 On first launch the audio index builds progressively in small persisted batches; until candidates are
@@ -278,7 +281,8 @@ Built on the shoulders of:
 
 - **[ONNX Runtime](https://onnxruntime.ai/)** — on-device inference on both platforms
 - **[MobileNetV4](https://arxiv.org/abs/2404.10518)** and **[MiniLM](https://arxiv.org/abs/2002.10957)** — the encoder architectures behind the audio and text embeddings
-- **[MusicBrainz](https://musicbrainz.org/)** — the CC0 artist-alias data behind smart search
+- **[MusicBrainz](https://musicbrainz.org/)** and **[Wikidata](https://www.wikidata.org/)** — the CC0 artist data behind smart search and the knowledge pack
+- **[DeepSeek](https://www.deepseek.com/)** — the offline teacher whose artist descriptions the knowledge pack distills
 - **[Compose Multiplatform](https://www.jetbrains.com/compose-multiplatform/)**, **[Koin](https://insert-koin.io/)**, **[Coil](https://coil-kt.github.io/coil/)**, **[Media3](https://developer.android.com/media/media3)**
 
 ## Licence

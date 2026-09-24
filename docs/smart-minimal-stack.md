@@ -429,27 +429,54 @@ energy on. Figures are Δ P@10 in pp:
   Куртукова, Нарцисс, Логинов, Меладзе, Шура. Four of those artists are reachable only through the
   Wikidata tail.
 
+## The compact build (2026-09-24, night)
+
+Five changes, each measured before it shipped. The phone configuration is the pack, the adapter,
+energy and the sound gate.
+
+| Change | Size | What it cost or gained |
+|---|---:|---|
+| SMART nets: dynamic INT8 state net, FP16-weight scorer (`compress_predictor_nets.py`) | 24.0 → 10.3 MB | P@10 within ±0.6 pp; chain parity identical on 10 seeds. An INT8 scorer kept only 74–77 % of its top ten and was rejected. |
+| Text encoder: three-layer student of MiniLM (`tools/research/text_student`) | 23.0 → 5.2 MB | Search recall@10 0.739 vs 0.726 (basic), 0.755 vs 0.648 (wide); cross-lingual top-1 0.95 vs 0.38 over 20 languages; SMART ±0; exact years 0.38 vs 0.48. |
+| Entity index LJENT2: 48-bit keys behind a 16-bit bucket directory, 24-bit ids | 21.5 → 11.9 MB | All 889,581 keys resolve to the same ids; no 48-bit collision. |
+| Pack version 2: a decade byte per artist; the trusted string takes the pack's language and, without a year, the decade | 7.5 → 7.9 MB | "<language> songs" 0.16 → 0.82; language coherence listener 0.84 → 0.89, MPD +1…+7 pp; decade +0.3…+2.7 pp P@10 on year-less MPD libraries. |
+| Search reads a year or decade out of the query and filters by the tags | – | Covers the student's weaker exact years. |
+
+The search's semantic gate (top-1 ≥ 0.45, margin ≥ 0.22) was re-checked with the student over
+text-v3 strings: it opens for 67 % of real queries (MiniLM: 47 %) at the same precision@10 (0.58
+vs 0.56), so the thresholds stayed.
+
+**On device.** The release build on the read-only emulator: the nets and the student load
+(`scorer=ready, text=ready`); semantic search answered from the re-encoded index a minute after the
+upgrade; a SMART plan took 175 ms warm, 1.9 s with first model loads; "80s" listed the library's 71
+tracks from the 1980s, "1985" put the song "1985" first and then 1985's tracks, "tsoi" found Кино
+through the new index, and "romanian" and "русский рок" opened the semantic tier (Moldovan estrada;
+КриК, Аквалазы, Кино, Чи-Ли).
+
 ## Size budget
 
 Sizes are in MB.
 
-| Asset | Today | Proposed |
+| Asset | v0.5.1 | Shipped now |
 |---|---:|---:|
-| `mnv4_audio.onnx` | 21.5 | 10.3 (four-step FFT front end + INT8, shipped; a student would be 2.0–2.9) |
-| `text_encoder_minilm.onnx` | 23.0 | 23.0 until a static table passes the search check (then 3.9) |
-| `predictor_state.onnx` | 11.9 | 0 |
-| `predictor_scorer_n100.onnx` | 12.1 | 0 |
+| `mnv4_audio.onnx` | 21.5 | 10.7 (four-step FFT front end + INT8; a student would be 2.0–2.9) |
+| text encoder + vocabulary | 23.2 (MiniLM) | 5.3 (student) |
+| `predictor_state.onnx` | 11.9 | 4.2 |
+| `predictor_scorer_n100.onnx` | 12.1 | 6.1 |
 | `universal_semantic_head.onnx` | 2.7 | 2.7 |
-| `music_entities_250k.bin` | 15.3 | 21.5 (250k MusicBrainz + 100k Wikidata, one native alias each) |
-| `artist_knowledge.bin` | – | 7.5 (PQ-16, 350k entities) |
+| `music_entities_250k.bin` | 15.3 (MusicBrainz 250k) | 11.9 (+ 100k Wikidata artists) |
+| `artist_knowledge.bin` | – | 7.9 |
 | `artist_adapter.bin` | – | 1.2 |
-| **Total** | **86.5** | **≈60** with MiniLM; ≈41 once a static table passes the search check |
+| **Total** | **86.8** | **50.0** |
+
+The release arm64 APK is 72 MB.
 
 ## Licensing and data
 
 - **Artist list.** MusicBrainz core data and Wikidata are CC0.
 - **Teacher outputs.** DeepSeek's terms allow them. Only embedded, quantized codes ship.
-- **Text encoder.** MiniLM is Apache-2.0 and already ships. The static table is derived from it.
+- **Text encoder.** MiniLM is Apache-2.0. The shipped student holds none of its weights: it was trained
+  to reproduce MiniLM's vectors on CC0 artist names, DeepSeek outputs and templates.
 - **Audio student.** EfficientAT is MIT. Its AudioSet-trained checkpoints carry the same kind of
   training-data caveat already recorded in `androidApp/src/main/assets/ml/LICENSE-MODEL.txt`. FMA
   CC BY tracks need attribution, so a credits file listing track, artist and licence ships with any
