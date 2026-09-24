@@ -64,6 +64,15 @@ SCORER_SQUASH, SCORER_TEMP = 1.5, 2.0
 COSINE_BLEND_WEIGHT = 3.0
 CHAIN_SEED_GRAVITY = 2.5
 SEM_CHAIN_SEED_GRAVITY, SEM_CHAIN_PREV_BLEND = 2.0, 1.0
+SEM_SOUND_GATE_LOW, SEM_SOUND_GATE_HIGH = -0.05, 0.2
+
+
+def sound_backed_z(z, audio_cos):
+    """SmartChain.soundBackedZ: a semantic bonus keeps the share its audio cosine earns; penalties stay."""
+    if z <= 0:
+        return z
+    share = (audio_cos - SEM_SOUND_GATE_LOW) / (SEM_SOUND_GATE_HIGH - SEM_SOUND_GATE_LOW)
+    return z * min(max(share, 0.0), 1.0)
 HUB_CHAIN_DAMP, HUB_PENALTY_BETA = 0.6, 1.0
 CHAIN_ARTIST_SPACING, CHAIN_ARTIST_QUEUE_CAP = 3, 3
 ENERGY_DEADBAND, ENERGY_FLOOR = 0.2, 0.7
@@ -584,12 +593,15 @@ def build_chain(lib, seed, length):
                 continue
             r = pool[i]
             s = SCORER_SQUASH * math.tanh(logits[i] / SCORER_TEMP)
-            s += COSINE_BLEND_WEIGHT * lib.centered_cos(anchor, r)
+            anchor_cos = lib.centered_cos(anchor, r)
+            s += COSINE_BLEND_WEIGHT * anchor_cos
             if eff_seed is None:
-                s += CHAIN_SEED_GRAVITY * lib.centered_cos(seed, r)
+                seed_cos = lib.centered_cos(seed, r)
             else:
-                s += CHAIN_SEED_GRAVITY * float(eff_seed @ lib.centered[r])
-            s += SEM_CHAIN_SEED_GRAVITY * z_seed_active[i] + SEM_CHAIN_PREV_BLEND * z_prev[i]
+                seed_cos = float(eff_seed @ lib.centered[r])
+            s += CHAIN_SEED_GRAVITY * seed_cos
+            s += (SEM_CHAIN_SEED_GRAVITY * sound_backed_z(z_seed_active[i], seed_cos)
+                  + SEM_CHAIN_PREV_BLEND * sound_backed_z(z_prev[i], anchor_cos))
             m = min(max(adjust_multiplier(lib, anchor, r), MULT_MIN), MULT_MAX)
             m *= seed_intent_multiplier(seed_genre, support, family_picks, lib.mgenre[r])
             # recency: cold history is empty -> multiplier 1 for every track (no-op)

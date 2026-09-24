@@ -96,6 +96,14 @@ internal object ChainConfig {
     const val SEM_CHAIN_SEED_GRAVITY = 2.0f
     const val SEM_CHAIN_PREV_BLEND = 1.0f
 
+    /**
+     * Audio cosine range over which a semantic bonus earns its weight: none at or below
+     * [SEM_SOUND_GATE_LOW] (about a random pair of tracks), all of it from [SEM_SOUND_GATE_HIGH]
+     * (about the closest tenth). See [soundBackedZ].
+     */
+    const val SEM_SOUND_GATE_LOW = -0.05f
+    const val SEM_SOUND_GATE_HIGH = 0.2f
+
     const val HUB_CHAIN_DAMP = 0.6f
     const val HUB_PENALTY_BETA = 1.0f
 
@@ -366,16 +374,19 @@ internal class SmartChain(
                 val meta = snapshot.tracks[row].meta
 
                 var score = ChainConfig.SCORER_SQUASH * tanh(logits[i] / ChainConfig.SCORER_TEMP)
-                score += ChainConfig.COSINE_BLEND_WEIGHT * snapshot.centeredCosine(anchorRow, row)
+                val anchorCos = snapshot.centeredCosine(anchorRow, row)
+                score += ChainConfig.COSINE_BLEND_WEIGHT * anchorCos
                 // Seed gravity toward the user's actual pick — or, on an exhausted tail hop, toward
                 // the re-anchored effective seed (effSeed).
-                score += ChainConfig.CHAIN_SEED_GRAVITY * seedGravityCos(effSeed, seedRow, row)
+                val seedCos = seedGravityCos(effSeed, seedRow, row)
+                score += ChainConfig.CHAIN_SEED_GRAVITY * seedCos
                 // Semantic gravity/blend: same shape as the audio terms, in the descriptor+text
                 // spaces and pool-normalized (see zSeed/zPrev construction). Zero when the seed or
                 // anchor has no semantic vector or too few pool members do, leaving score unchanged.
-                // zSeedActive == zSeed except on an exhausted tail hop (medoid reference).
-                score += ChainConfig.SEM_CHAIN_SEED_GRAVITY * zSeedActive[i] +
-                    ChainConfig.SEM_CHAIN_PREV_BLEND * zPrev[i]
+                // zSeedActive == zSeed except on an exhausted tail hop (medoid reference). A bonus
+                // needs the candidate to sound like its reference (soundBackedZ).
+                score += ChainConfig.SEM_CHAIN_SEED_GRAVITY * soundBackedZ(zSeedActive[i], seedCos) +
+                    ChainConfig.SEM_CHAIN_PREV_BLEND * soundBackedZ(zPrev[i], anchorCos)
                 // Typicality: the axis centering removes. Off (0f) unless the caller opts in, so
                 // the recorded parity fixtures and every shipped queue are unchanged by default.
                 if (typicalityWeight != 0f) {
@@ -919,4 +930,19 @@ internal class SmartChain(
         const val MILLIS_PER_DAY = 86_400_000.0
         const val LN_2 = 0.6931471805599453
     }
+}
+
+/**
+ * A semantic bonus needs acoustic support. A positive z (close to the reference in the descriptor
+ * and text spaces) keeps only the share its audio cosine earns between [ChainConfig.SEM_SOUND_GATE_LOW]
+ * and [ChainConfig.SEM_SOUND_GATE_HIGH]; a negative z (semantically far) stays whole. Without it,
+ * labels alone outvoted the sound: from an orchestral cover of a Britpop song, whose orchestra the
+ * artist pack knows for film scores, every pick went to film and anime themes that sound nothing
+ * like it, past the rock song that sounds closest.
+ */
+internal fun soundBackedZ(z: Float, audioCosine: Float): Float {
+    if (z <= 0f) return z
+    val support = (audioCosine - ChainConfig.SEM_SOUND_GATE_LOW) /
+        (ChainConfig.SEM_SOUND_GATE_HIGH - ChainConfig.SEM_SOUND_GATE_LOW)
+    return z * support.coerceIn(0f, 1f)
 }
