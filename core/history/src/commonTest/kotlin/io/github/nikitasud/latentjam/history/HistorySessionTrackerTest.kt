@@ -210,4 +210,105 @@ internal class HistorySessionTrackerTest {
         assertEquals(a, ended.trackId)
         assertNull(tracker.onSnapshot(b, 0, 100_000, "OFF", nowMs = 60_000))
     }
+
+    // Origin: who chose the track and from where. The player reports how a playback instance began
+    // through a numbered signal, and it may show the new track a moment before that signal
+    // describes it, so a session binds only to a signal for its own track that no earlier session
+    // already claimed.
+
+    private fun started(sequence: Long, track: TrackId, start: ListenStart?) =
+        ListenStartSignal(sequence = sequence, trackId = track, start = start)
+
+    @Test
+    fun theSessionRecordsHowItsTrackStartedAndWhereItCameFrom() {
+        val tracker = HistorySessionTracker()
+        val autoA = started(1, a, ListenStart.AUTO_ADVANCE)
+        for ((position, now) in listOf(0L to 1_000L, 90_000L to 91_000L)) {
+            tracker.onSnapshot(
+                a, position, 200_000, "SMART", nowMs = now,
+                start = autoA, smartPlanPosition = 3, parentId = "playlist:p",
+            )
+        }
+
+        val event = assertNotNull(tracker.onSnapshot(b, 0, 100_000, "SMART", nowMs = 92_000))
+        assertEquals(
+            ListenOrigin(ListenStart.AUTO_ADVANCE, smartPlanPosition = 3, parentId = "playlist:p"),
+            event.origin,
+        )
+    }
+
+    @Test
+    fun aStartReportedJustAfterTheTrackChangeStillBelongsToTheNewTrack() {
+        val tracker = HistorySessionTracker()
+        val pickedA = started(1, a, ListenStart.USER_PICK)
+        tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 1_000, start = pickedA)
+        tracker.onSnapshot(a, 60_000, 200_000, "OFF", nowMs = 61_000, start = pickedA)
+        // B is already current while the signal still describes A's start.
+        val finishedA = assertNotNull(tracker.onSnapshot(b, 0, 100_000, "OFF", nowMs = 62_000, start = pickedA))
+        tracker.onSnapshot(b, 500, 100_000, "OFF", nowMs = 62_500, start = started(2, b, ListenStart.SKIP_NEXT))
+
+        assertEquals(ListenStart.USER_PICK, finishedA.origin?.start)
+        assertEquals(ListenStart.SKIP_NEXT, tracker.flush()?.origin?.start)
+    }
+
+    @Test
+    fun aRepeatDoesNotInheritTheStartOfThePlayBeforeIt() {
+        val tracker = HistorySessionTracker()
+        val pickedA = started(1, a, ListenStart.USER_PICK)
+        tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 1_000, start = pickedA)
+        tracker.onSnapshot(a, 190_000, 200_000, "OFF", nowMs = 191_000, start = pickedA)
+        // Same track, back at zero: a new listen, still showing the old signal for a moment.
+        val first = assertNotNull(tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 201_000, start = pickedA))
+        tracker.onSnapshot(a, 1_000, 200_000, "OFF", nowMs = 202_000, start = started(2, a, ListenStart.REPEAT))
+
+        assertEquals(ListenStart.USER_PICK, first.origin?.start)
+        assertEquals(ListenStart.REPEAT, tracker.flush()?.origin?.start)
+    }
+
+    @Test
+    fun aSessionKeepsTheFirstStartItBoundTo() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "SMART", nowMs = 1_000, start = started(1, a, ListenStart.USER_PICK))
+        // The player re-installed the same row mid-listen (a mode switch); nothing restarted.
+        tracker.onSnapshot(a, 30_000, 200_000, "OFF", nowMs = 31_000, start = started(2, a, null))
+
+        assertEquals(ListenStart.USER_PICK, tracker.flush()?.origin?.start)
+    }
+
+    @Test
+    fun anUnreportedStartIsUnknownButTheRestOfTheOriginIsKept() {
+        val tracker = HistorySessionTracker()
+        val stale = started(7, b, ListenStart.USER_PICK)
+        for ((position, now) in listOf(0L to 1_000L, 50_000L to 51_000L)) {
+            tracker.onSnapshot(
+                a, position, 200_000, "SMART", nowMs = now,
+                start = stale, smartPlanPosition = 2, parentId = "album:k",
+            )
+        }
+
+        assertEquals(
+            ListenOrigin(start = null, smartPlanPosition = 2, parentId = "album:k"),
+            tracker.flush()?.origin,
+        )
+    }
+
+    @Test
+    fun theParentAndPlanPositionAreThoseOfTheMomentTheTrackStarted() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "SMART", nowMs = 1_000, smartPlanPosition = 2, parentId = "playlist:p")
+        tracker.onSnapshot(a, 50_000, 200_000, "SMART", nowMs = 51_000, smartPlanPosition = null, parentId = "album:q")
+
+        assertEquals(ListenOrigin(smartPlanPosition = 2, parentId = "playlist:p"), tracker.flush()?.origin)
+    }
+
+    @Test
+    fun anOriginTheLogCouldNotReloadIsNeverRecorded() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "SMART", nowMs = 1_000, smartPlanPosition = 0, parentId = "")
+        tracker.onSnapshot(a, 50_000, 200_000, "SMART", nowMs = 51_000, smartPlanPosition = 0, parentId = "")
+
+        val event = assertNotNull(tracker.flush())
+        assertEquals(ListenOrigin(), event.origin)
+        assertEquals(event, ListenEvent.parse(event.serialize()), "the recorded line must reload")
+    }
 }

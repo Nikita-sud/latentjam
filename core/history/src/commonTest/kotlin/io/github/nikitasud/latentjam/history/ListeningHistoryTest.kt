@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 internal class ListeningHistoryTest {
@@ -54,6 +55,74 @@ internal class ListeningHistoryTest {
             ListenEvent(TrackId("42"), 1, 2, null, completed = true, skipped = false, shuffleMode = "SMART"),
             ListenEvent.parse("v1|42|1|2||1|0|SMART"),
         )
+    }
+
+    // Hand-encoded fixtures: hex("42") = 3432, hex("SMART") = 534d415254,
+    // hex("playlist:x") = 706c61796c6973743a78.
+    private fun v4Line(
+        start: String = "SKIP_NEXT",
+        planPosition: String = "4",
+        parent: String = "706c61796c6973743a78",
+    ) = "v4|3432|1|2||1|0|534d415254|2|$start|$planPosition|$parent"
+
+    @Test
+    fun legacyV2AndV3LinesLoadWithAnUnknownOrigin() {
+        assertEquals(
+            ListenEvent(TrackId("42"), 1, 2, 3, completed = false, skipped = true, shuffleMode = "SMART"),
+            ListenEvent.parse("v2|3432|1|2|3|0|1|534d415254"),
+        )
+        val v3 = assertNotNull(ListenEvent.parse("v3|3432|1|2|3|0|1||5"))
+        assertEquals(
+            ListenEvent(TrackId("42"), 1, 2, 3, completed = false, skipped = true, listenedMs = 5),
+            v3,
+        )
+        assertNull(v3.origin, "nothing about how a legacy listen began was ever recorded")
+    }
+
+    @Test
+    fun aV4LineCarriesTheOriginRecordInItsDocumentedLayout() {
+        val event = ListenEvent(
+            TrackId("42"), 1, 2, null, completed = true, skipped = false, shuffleMode = "SMART",
+            listenedMs = 2,
+            origin = ListenOrigin(ListenStart.SKIP_NEXT, smartPlanPosition = 4, parentId = "playlist:x"),
+        )
+        assertEquals(event, ListenEvent.parse(v4Line()))
+        assertEquals(v4Line(), event.serialize())
+    }
+
+    @Test
+    fun originRecordsRoundTrip() {
+        val picked = event("folder/Earth|Wind,曲.mp3", startedAt = 1_234, completed = true).copy(
+            listenedMs = 190_000,
+            origin = ListenOrigin(ListenStart.USER_PICK, parentId = "folder:/Music/Earth|Wind/曲"),
+        )
+        assertEquals(picked, ListenEvent.parse(picked.serialize()))
+        val planned = event("7", startedAt = 9).copy(
+            origin = ListenOrigin(ListenStart.AUTO_ADVANCE, smartPlanPosition = 12),
+        )
+        assertEquals(planned, ListenEvent.parse(planned.serialize()))
+        // Recorded live with nothing known is still distinct from a legacy event (origin == null).
+        val unknown = event("8", startedAt = 10).copy(origin = ListenOrigin())
+        assertEquals(unknown, ListenEvent.parse(unknown.serialize()))
+    }
+
+    @Test
+    fun aStartThisBuildDoesNotKnowReadsAsUnknownWithoutLosingTheListen() {
+        val parsed = assertNotNull(ListenEvent.parse(v4Line(start = "SOMETHING_NEWER")))
+        assertEquals(ListenOrigin(start = null, smartPlanPosition = 4, parentId = "playlist:x"), parsed.origin)
+    }
+
+    @Test
+    fun malformedOriginFieldsMakeAV4LineCorrupt() {
+        assertNotNull(ListenEvent.parse(v4Line()))
+        assertNull(ListenEvent.parse(v4Line(planPosition = "0")), "plan positions count from 1")
+        assertNull(ListenEvent.parse(v4Line(planPosition = "-2")))
+        assertNull(ListenEvent.parse(v4Line(planPosition = "x")))
+        assertNull(ListenEvent.parse(v4Line(parent = "706")), "odd-length hex")
+        assertNull(ListenEvent.parse(v4Line(parent = "zz")))
+        assertNull(ListenEvent.parse(v4Line().substringBeforeLast('|')), "a v4 line has twelve fields")
+        assertNull(ListenEvent.parse(v4Line() + "|"))
+        assertNull(ListenEvent.parse(v4Line().replaceFirst("v4|", "v3|")), "a v3 line has no origin")
     }
 
     @Test

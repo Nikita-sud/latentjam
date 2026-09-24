@@ -14,6 +14,10 @@ import io.github.nikitasud.latentjam.smart.TrackId
  *
  * Classification: completed = furthest position ≥ [completionThreshold] of
  * duration; skipped = not completed and abandoned before [skipThresholdMs].
+ *
+ * Origin: the plan position and parent are those of the snapshot that opened the session, like the
+ * shuffle mode. The start is bound from a [ListenStartSignal] instead, because a player can show a
+ * new track a moment before it has reported how that track began — see [ListenStartSignal].
  */
 public class HistorySessionTracker(
     private val completionThreshold: Double = 0.85,
@@ -30,10 +34,18 @@ public class HistorySessionTracker(
     private var listenedMs: Long = 0
     private var durationMs: Long? = null
     private var shuffleMode: String? = null
+    private var start: ListenStart? = null
+    private var startBound: Boolean = false
+    private var lastBoundStartSequence: Long = Long.MIN_VALUE
+    private var smartPlanPosition: Int? = null
+    private var parentId: String? = null
 
     /**
      * Observes one snapshot. Returns the finished session's event when the
      * track changed (including to nothing), else `null`.
+     *
+     * [start] is the player's latest report of how a playback instance began, [smartPlanPosition]
+     * and [parentId] describe the track in this snapshot; see [ListenOrigin].
      */
     public fun onSnapshot(
         trackId: TrackId?,
@@ -42,6 +54,28 @@ public class HistorySessionTracker(
         currentShuffleMode: String?,
         nowMs: Long,
         isPlaying: Boolean = true,
+        start: ListenStartSignal? = null,
+        smartPlanPosition: Int? = null,
+        parentId: String? = null,
+    ): ListenEvent? {
+        val finished = observe(
+            trackId, positionMs, trackDurationMs, currentShuffleMode, nowMs, isPlaying,
+            smartPlanPosition, parentId,
+        )
+        // After any session change, so a session opened by this snapshot can bind its signal.
+        bindStart(start)
+        return finished
+    }
+
+    private fun observe(
+        trackId: TrackId?,
+        positionMs: Long,
+        trackDurationMs: Long,
+        currentShuffleMode: String?,
+        nowMs: Long,
+        isPlaying: Boolean,
+        smartPlanPosition: Int?,
+        parentId: String?,
     ): ListenEvent? {
         if (trackId == currentTrackId) {
             accumulateListening(positionMs, nowMs)
@@ -54,7 +88,10 @@ public class HistorySessionTracker(
                 accumulateTransitionTail(nowMs)
                 val finished = finishCurrent()
                 if (isPlaying) {
-                    startSession(trackId, positionMs, trackDurationMs, currentShuffleMode, nowMs)
+                    startSession(
+                        trackId, positionMs, trackDurationMs, currentShuffleMode, nowMs,
+                        smartPlanPosition, parentId,
+                    )
                 } else {
                     currentTrackId = null
                 }
@@ -81,7 +118,10 @@ public class HistorySessionTracker(
             return finished
         }
         if (trackId != null) {
-            startSession(trackId, positionMs, trackDurationMs, currentShuffleMode, nowMs)
+            startSession(
+                trackId, positionMs, trackDurationMs, currentShuffleMode, nowMs,
+                smartPlanPosition, parentId,
+            )
         }
         return finished
     }
@@ -113,6 +153,7 @@ public class HistorySessionTracker(
             skipped = skipped,
             shuffleMode = shuffleMode,
             listenedMs = listenedMs,
+            origin = ListenOrigin(start, smartPlanPosition, parentId),
         )
     }
 
@@ -130,6 +171,8 @@ public class HistorySessionTracker(
         trackDurationMs: Long,
         currentShuffleMode: String?,
         nowMs: Long,
+        smartPlanPosition: Int?,
+        parentId: String?,
     ) {
         currentTrackId = trackId
         startedAtMs = nowMs
@@ -141,6 +184,26 @@ public class HistorySessionTracker(
         listenedMs = 0
         durationMs = trackDurationMs.takeIf { it > 0 }
         shuffleMode = currentShuffleMode
+        start = null
+        startBound = false
+        // The log rejects a line whose plan position or parent it could not have written, so a
+        // value it could not reload is dropped here rather than costing the whole listen later.
+        this.smartPlanPosition = smartPlanPosition?.takeIf { it >= 1 }
+        this.parentId = parentId?.takeIf(String::isNotEmpty)
+    }
+
+    /**
+     * Binds the open session to the first signal that describes its own track and that no earlier
+     * session bound. A stale signal — the previous track's, or the previous play of this same track
+     * after a repeat — therefore leaves the start unknown until the right one arrives.
+     */
+    private fun bindStart(signal: ListenStartSignal?) {
+        val trackId = currentTrackId ?: return
+        if (startBound || signal == null) return
+        if (signal.trackId != trackId || signal.sequence <= lastBoundStartSequence) return
+        start = signal.start
+        startBound = true
+        lastBoundStartSequence = signal.sequence
     }
 
     /**
@@ -176,3 +239,19 @@ public class HistorySessionTracker(
         const val MAX_POSITION_DRIFT_MS: Long = 1_000
     }
 }
+
+/**
+ * A player's report of how the playback instance of [trackId] began.
+ *
+ * The player may already show a new track while its latest signal still describes the previous
+ * instance, which can be the same track again after a repeat. [sequence] increases with every
+ * instance the player reports, so [HistorySessionTracker] binds each session only to a signal for
+ * its own track that is newer than any signal an earlier session bound.
+ *
+ * @property start Null when the player saw the instance begin but could not tell how.
+ */
+public data class ListenStartSignal(
+    public val sequence: Long,
+    public val trackId: TrackId,
+    public val start: ListenStart?,
+)

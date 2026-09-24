@@ -18,6 +18,8 @@ import io.github.nikitasud.latentjam.smart.TrackId
  * @property skipped Not completed and abandoned before 30 s.
  * @property shuffleMode Shuffle mode active when the track STARTED
  *   ("OFF"/"ON"/"SMART"), for future SMART-quality evaluation.
+ * @property origin Who chose the track and from where. Null only for legacy events, recorded
+ *   before origins were logged; see [ListenOrigin] for what each null field inside means.
  */
 public data class ListenEvent(
     public val trackId: TrackId,
@@ -28,39 +30,55 @@ public data class ListenEvent(
     public val skipped: Boolean,
     public val shuffleMode: String? = null,
     public val listenedMs: Long? = null,
+    public val origin: ListenOrigin? = null,
 ) {
     /** Honest elapsed duration when recorded by v3, with a legacy playhead approximation. */
     public val effectiveListenedMs: Long get() = listenedMs ?: playedMs
 
-    /** Versioned line format. Arbitrary identifiers are hex-escaped before delimiters are added. */
-    public fun serialize(): String = listOf(
-        FORMAT_V3,
-        trackId.value.encodeHex(),
-        startedAtMs.toString(),
-        playedMs.toString(),
-        trackDurationMs?.toString() ?: "",
-        if (completed) "1" else "0",
-        if (skipped) "1" else "0",
-        shuffleMode?.encodeHex() ?: "",
-        listenedMs?.toString() ?: "",
-    ).joinToString("|")
+    /**
+     * Versioned line format. Arbitrary identifiers are hex-escaped before delimiters are added.
+     *
+     * An event with an [origin] is written as v4; one without stays v3, so a legacy event rewritten
+     * by a restore or merge keeps saying that its origin is unknown rather than acquiring an empty
+     * record that would claim it was observed.
+     */
+    public fun serialize(): String = buildList {
+        add(if (origin == null) FORMAT_V3 else FORMAT_V4)
+        add(trackId.value.encodeHex())
+        add(startedAtMs.toString())
+        add(playedMs.toString())
+        add(trackDurationMs?.toString() ?: "")
+        add(if (completed) "1" else "0")
+        add(if (skipped) "1" else "0")
+        add(shuffleMode?.encodeHex() ?: "")
+        add(listenedMs?.toString() ?: "")
+        origin?.let { origin ->
+            add(origin.start?.name ?: "")
+            add(origin.smartPlanPosition?.toString() ?: "")
+            add(origin.parentId?.encodeHex() ?: "")
+        }
+    }.joinToString("|")
 
     public companion object {
         private const val FORMAT_V1 = "v1"
         private const val FORMAT_V2 = "v2"
         private const val FORMAT_V3 = "v3"
+        private const val FORMAT_V4 = "v4"
 
         /** Returns `null` for corrupt or unknown-version lines (they are skipped). */
         public fun parse(line: String): ListenEvent? {
             val parts = line.split("|")
-            if (parts.size !in 8..9) return null
             val version = parts[0]
-            if (version == FORMAT_V3 && parts.size != 9) return null
-            if (version != FORMAT_V3 && parts.size != 8) return null
-            val id = when (parts[0]) {
-                FORMAT_V1 -> parts[1]
-                FORMAT_V2, FORMAT_V3 -> parts[1].decodeHex() ?: return null
+            val expectedFields = when (version) {
+                FORMAT_V1, FORMAT_V2 -> 8
+                FORMAT_V3 -> 9
+                FORMAT_V4 -> 12
                 else -> return null
+            }
+            if (parts.size != expectedFields) return null
+            val id = when (version) {
+                FORMAT_V1 -> parts[1]
+                else -> parts[1].decodeHex() ?: return null
             }
             val mode = parts[7].takeIf(String::isNotEmpty)?.let { value ->
                 if (parts[0] != FORMAT_V1) value.decodeHex() ?: return null else value
@@ -74,6 +92,16 @@ public data class ListenEvent(
             val listenedMs = parts.getOrNull(8)?.takeIf(String::isNotEmpty)?.let {
                 it.toLongOrNull()?.takeIf { duration -> duration >= 0 } ?: return null
             }
+            val origin = if (version != FORMAT_V4) null else ListenOrigin(
+                // A start this build does not know was written by a newer one: unknown, not corrupt.
+                start = parts[9].takeIf(String::isNotEmpty)?.let { name ->
+                    ListenStart.entries.firstOrNull { it.name == name }
+                },
+                smartPlanPosition = parts[10].takeIf(String::isNotEmpty)?.let {
+                    it.toIntOrNull()?.takeIf { position -> position >= 1 } ?: return null
+                },
+                parentId = parts[11].takeIf(String::isNotEmpty)?.let { it.decodeHex() ?: return null },
+            )
             return ListenEvent(
                 trackId = TrackId(id),
                 startedAtMs = startedAtMs,
@@ -83,6 +111,7 @@ public data class ListenEvent(
                 skipped = parts[6] == "1",
                 shuffleMode = mode,
                 listenedMs = listenedMs,
+                origin = origin,
             )
         }
 
@@ -99,6 +128,43 @@ public data class ListenEvent(
             }.getOrNull()
         }
     }
+}
+
+/**
+ * How a listen came about, as observed when the track started. Without it, a track the listener
+ * tapped and one SMART queued look identical, and SMART-quality evaluation cannot separate new
+ * intents from continuations.
+ *
+ * @property start How playback reached the track; null when the player did not report it (for
+ *   example a queue restored after a restart, or a change made by another app).
+ * @property smartPlanPosition Where the track sat in the SMART plan it was served from — 1 is the
+ *   first track after the plan's seed. Null when SMART did not recommend it: the listener's own
+ *   pick, a source-queue row, or a labelled continuation played while SMART abstained.
+ * @property parentId Stable id of the collection the queue was started from, such as
+ *   `playlist:<id>` or `album:<key>`; null when that source has no stable id.
+ */
+public data class ListenOrigin(
+    public val start: ListenStart? = null,
+    public val smartPlanPosition: Int? = null,
+    public val parentId: String? = null,
+)
+
+/** How playback reached a track. Persisted by name; a name this build does not know reads as null. */
+public enum class ListenStart {
+    /** The listener chose this track: tapped it in a list, search, For You, a menu or the queue. */
+    USER_PICK,
+
+    /** The previous track ended and playback moved on by itself. */
+    AUTO_ADVANCE,
+
+    /** The listener skipped forward and the queue supplied this track. */
+    SKIP_NEXT,
+
+    /** The listener went back to this track. */
+    SKIP_PREVIOUS,
+
+    /** Repeat-one played the same track again. */
+    REPEAT,
 }
 
 /** Adds non-negative listening durations without wrapping a corrupt/extreme total below zero. */
