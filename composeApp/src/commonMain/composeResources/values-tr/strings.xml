@@ -410,8 +410,8 @@
     <string name="settings_licenses_body">LatentJam, paketli modeller ve üçüncü taraf yazılımlara ait bildirimler</string>
     <string name="settings_license_models">Ses ve SMART modelleri</string>
     <string name="settings_license_models_body">LatentJam’in ürettiği MobileNetV4 ses ve SMART tahmin ağırlıkları Apache-2.0 lisanslıdır. Öğrenci model timm (Apache-2.0) kullanır ve EfficientAT’den damıtılmıştır (MIT, telif hakkı © 2022 Florian Schmid).</string>
-    <string name="settings_license_text_model">MiniLM metin modeli</string>
-    <string name="settings_license_text_model_body">Paketli sentence-transformers/all-MiniLM-L6-v2 ONNX dışa aktarımı ve sözlüğü Apache-2.0 lisanslıdır.</string>
+    <string name="settings_license_text_model">Metin modeli</string>
+    <string name="settings_license_text_model_body">Paketli metin kodlayıcı ve sözlüğü, LatentJam tarafından sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) modelini yeniden üretecek şekilde eğitildi ve Apache-2.0 lisanslıdır.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">Cihazdaki model çıkarımı, MIT Lisansı altındaki Microsoft ONNX Runtime’ı kullanır. Telif hakkı © Microsoft Corporation.</string>
     <string name="settings_license_aliases">MusicBrainz verileri</string>

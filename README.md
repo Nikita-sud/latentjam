@@ -161,7 +161,7 @@ Two signals per track, both computed on the device:
 | Signal | Dimensions | Where it comes from |
 |---|---:|---|
 | **Audio embedding** | 960 | MobileNetV4-Conv-M encoder over the raw waveform |
-| **Metadata embedding** | 384 | Int8 MiniLM over trusted `genre; artist; original year; language` tags |
+| **Metadata embedding** | 384 | A 5 MB multilingual text encoder distilled from MiniLM, over trusted `genre; artist; original year; language` tags |
 
 Retrieval round-robins separate anchor-audio, session-audio and seed-text rankings into a single
 candidate pool, so there is no hand-tuned numeric weight between the embedding spaces. A 960-d GRU

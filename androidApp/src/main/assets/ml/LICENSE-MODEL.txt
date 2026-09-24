@@ -9,6 +9,8 @@ Version 2.0, included in the repository root:
   predictor_scorer_n100.onnx
   artist_knowledge.bin
   artist_adapter.bin
+  text_encoder.onnx
+  text_vocab.txt
 
 Copyright (c) 2026 LatentJam Project
 
@@ -65,7 +67,8 @@ Apache-2.0. EfficientAT code and published weights are licensed MIT:
 
 artist_knowledge.bin holds one product-quantized 384-dimensional vector per
 artist of music_entities_250k.bin, so the two files ship together. Each vector
-is the bundled MiniLM text encoder's embedding of a one-line description of
+is the MiniLM text encoder's embedding (sentence-transformers/all-MiniLM-L6-v2,
+Apache-2.0, run offline) of a one-line description of
 the artist that DeepSeek-V4.1-Flash wrote from the artist's name alone; the
 description text is not included. Each record also keeps a 16-bit fingerprint
 of the artist's normalized name, up to two language indices and the model's
@@ -83,12 +86,16 @@ outside that list, ranked by article count. MusicBrainz core data and Wikidata
 are both CC0. The index stores only 64-bit name hashes and integer ids, never
 the names themselves.
 
-The text encoder and vocabulary are an ONNX/int8 export of
-sentence-transformers/all-MiniLM-L6-v2, licensed Apache-2.0:
-
-  text_encoder_minilm.onnx
-  text_vocab.txt
-  https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
+text_encoder.onnx is a three-layer, 256-wide BERT that LatentJam trained to
+reproduce the mean-pooled sentence vectors of
+sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0,
+https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2); it contains
+none of MiniLM's weights. text_vocab.txt is its own WordPiece vocabulary. The
+training strings were artist names and aliases from the entity corpus above
+(CC0), metadata strings synthesized from the DeepSeek artist attributes,
+search-style phrases built from templates, MiniLM's vocabulary words, and
+search phrases DeepSeek-V4.1-Flash translated into twenty languages. No
+listener's library went into it. Its weights are dynamic INT8.
 
 No non-commercial model weights and no offline per-track descriptor table are
 included in the application.

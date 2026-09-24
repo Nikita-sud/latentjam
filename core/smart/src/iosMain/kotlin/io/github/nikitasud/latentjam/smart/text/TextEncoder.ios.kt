@@ -17,7 +17,7 @@ import org.koin.dsl.module
 import platform.Foundation.NSBundle
 import platform.Foundation.NSFileManager
 
-/** iOS MiniLM encoder: common WordPiece tokenizer, native ONNX Runtime transformer. */
+/** iOS text encoder: common WordPiece tokenizer, native ONNX Runtime transformer. */
 @OptIn(ExperimentalForeignApi::class)
 internal class IosTextEncoder : TextEncoder {
 
@@ -30,18 +30,19 @@ internal class IosTextEncoder : TextEncoder {
                 name = "text_vocab", ofType = "txt", inDirectory = "ml",
             ) ?: NSBundle.mainBundle.pathForResource(
                 name = "text_vocab", ofType = "txt",
-            ) ?: return failure("Bundled MiniLM vocabulary is missing")
+            ) ?: return failure("Bundled text vocabulary is missing")
             val data = NSFileManager.defaultManager.contentsAtPath(path)
-                ?: return failure("Bundled MiniLM vocabulary is unreadable")
+                ?: return failure("Bundled text vocabulary is unreadable")
             val pointer = data.bytes?.reinterpret<ByteVar>()
-                ?: return failure("Bundled MiniLM vocabulary is empty")
+                ?: return failure("Bundled text vocabulary is empty")
             val text = pointer.readBytes(data.length.toInt()).decodeToString()
             BertWordPieceTokenizer(
                 BertWordPieceTokenizer.parseVocab(text.lineSequence()),
+                maxLen = TextEncoder.MAX_TOKENS,
             )
         } catch (t: Throwable) {
             tokenizer = null
-            return failure("Failed to load MiniLM: ${t.message}")
+            return failure("Failed to load the text encoder: ${t.message}")
         }
 
         tokenizer = null
@@ -70,7 +71,7 @@ internal class IosTextEncoder : TextEncoder {
         } catch (t: Throwable) {
             tokenizer = null
             if (existingLease == null) activeLease.release()
-            failure("Failed to load MiniLM: ${t.message}")
+            failure("Failed to load the text encoder: ${t.message}")
         }
     }
 

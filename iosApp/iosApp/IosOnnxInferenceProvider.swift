@@ -203,7 +203,7 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
 
     func loadText() -> String? {
         do {
-            if text == nil { text = try runtime.loadModel(named: "text_encoder_minilm") }
+            if text == nil { text = try runtime.loadModel(named: "text_encoder") }
             return nil
         } catch { return error.localizedDescription }
     }
@@ -310,7 +310,7 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                 )
                 let textTokens = try text.run(
                     floats: [], int64s: [
-                        ("input_ids", [101, 102], [1, 2]),
+                        ("input_ids", [2, 3], [1, 2]), // [CLS] [SEP] in text_vocab.txt
                         ("attention_mask", [1, 1], [1, 2]),
                         ("token_type_ids", [0, 0], [1, 2]),
                     ], output: "last_hidden_state", outputCount: 2 * 384

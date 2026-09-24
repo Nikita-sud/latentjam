@@ -403,8 +403,8 @@
     <string name="settings_licenses_body">LatentJam, 번들 모델 및 타사 소프트웨어 고지</string>
     <string name="settings_license_models">오디오 및 SMART 모델</string>
     <string name="settings_license_models_body">LatentJam이 만든 MobileNetV4 오디오 및 SMART 예측기 가중치는 Apache-2.0입니다. 학생 모델은 timm(Apache-2.0)을 사용하며 EfficientAT에서 증류되었습니다(MIT, 저작권 © 2022 Florian Schmid).</string>
-    <string name="settings_license_text_model">MiniLM 텍스트 모델</string>
-    <string name="settings_license_text_model_body">번들 sentence-transformers/all-MiniLM-L6-v2 ONNX 내보내기와 어휘는 Apache-2.0입니다.</string>
+    <string name="settings_license_text_model">텍스트 모델</string>
+    <string name="settings_license_text_model_body">번들 텍스트 인코더와 어휘는 sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0)를 재현하도록 LatentJam이 학습시켰으며 Apache-2.0입니다.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">기기 내 모델 추론은 MIT 라이선스의 Microsoft ONNX Runtime을 사용합니다. 저작권 © Microsoft Corporation.</string>
     <string name="settings_license_aliases">MusicBrainz 데이터</string>

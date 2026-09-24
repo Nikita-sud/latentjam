@@ -8,7 +8,7 @@ describes entity id i of the index that ships beside it:
 2. Describe each entity with the teacher: DeepSeek-V4.1-Flash, prompted with the name alone. Grounding
    the prompt with facts measured worse. Descriptors are cached by normalized name and resumable, and
    only --teacher calls the API (key in LLM_KEY).
-3. Embed descriptors with the shipped MiniLM (384-d, mean-pooled, L2-normalized).
+3. Embed descriptors with MiniLM (tools/research/minilm; 384-d, mean-pooled, L2-normalized).
 4. Fit product quantization on the pack itself and encode: 16 sub-spaces x 256 centroids by default. On
    the full 350k-entity build PQ-16 beat PQ-8 on the listener's library (+1.1 to +1.5 pp P@10) and
    matched it on the MPD libraries, for 21 B per entity instead of 13. (On a 2.9k-artist prototype the
@@ -35,7 +35,9 @@ import numpy as np
 
 from pack_music_entities import fnv1a64, normalize
 
-ML = Path(__file__).resolve().parents[2] / "androidApp/src/main/assets/ml"
+# The descriptor space is MiniLM's. The app ships a student distilled into that space; the teacher
+# itself stays here for building the pack, the adapter and the student.
+MINILM = Path(__file__).resolve().parent / "minilm"
 SYSTEM = ("You describe music artists for a music recommender. Reply with ONE line of 12 to 25 words covering: "
           "main styles, typical mood and energy, active era, cultural scene or country, and the kind of listener "
           "or moment they suit. Do not repeat the artist name. No quotes, no preamble. If you do not know the "
@@ -112,8 +114,8 @@ def embed(texts: list[str], batch: int = 64) -> np.ndarray:
     import onnxruntime as ort
     from tokenizers import BertWordPieceTokenizer
     options = ort.SessionOptions(); options.log_severity_level = 3
-    session = ort.InferenceSession(str(ML / "text_encoder_minilm.onnx"), options, providers=["CPUExecutionProvider"])
-    tokenizer = BertWordPieceTokenizer(str(ML / "text_vocab.txt"), lowercase=True)
+    session = ort.InferenceSession(str(MINILM / "text_encoder_minilm.onnx"), options, providers=["CPUExecutionProvider"])
+    tokenizer = BertWordPieceTokenizer(str(MINILM / "text_vocab.txt"), lowercase=True)
     inputs = {i.name for i in session.get_inputs()}
     out = np.zeros((len(texts), DIM), np.float32)
     for start in range(0, len(texts), batch):

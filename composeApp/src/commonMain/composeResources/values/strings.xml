@@ -472,8 +472,8 @@
     <string name="settings_licenses_body">Notices for LatentJam, bundled models and third-party software</string>
     <string name="settings_license_models">Audio and SMART models</string>
     <string name="settings_license_models_body">LatentJam-produced MobileNetV4 audio and SMART predictor weights are Apache-2.0. The student uses timm (Apache-2.0) and was distilled from EfficientAT (MIT, copyright © 2022 Florian Schmid).</string>
-    <string name="settings_license_text_model">MiniLM text model</string>
-    <string name="settings_license_text_model_body">The bundled sentence-transformers/all-MiniLM-L6-v2 ONNX export and vocabulary are Apache-2.0.</string>
+    <string name="settings_license_text_model">Text model</string>
+    <string name="settings_license_text_model_body">The bundled text encoder and its vocabulary were trained by LatentJam to reproduce sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) and are Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">On-device model inference uses Microsoft ONNX Runtime under the MIT License. Copyright © Microsoft Corporation.</string>
     <string name="settings_license_aliases">MusicBrainz data</string>

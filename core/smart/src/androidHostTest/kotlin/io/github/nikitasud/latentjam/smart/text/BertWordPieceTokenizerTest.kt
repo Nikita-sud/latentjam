@@ -19,11 +19,13 @@ import kotlin.test.assertTrue
  */
 class BertWordPieceTokenizerTest {
 
-    private val tokenizer: BertWordPieceTokenizer by lazy {
-        val vocab = File("../../androidApp/src/main/assets/ml/text_vocab.txt")
-        assertTrue(vocab.isFile, "vocab asset missing at ${vocab.absolutePath}")
-        vocab.useLines { BertWordPieceTokenizer(BertWordPieceTokenizer.parseVocab(it)) }
+    private val vocab: Map<String, Int> by lazy {
+        val file = File("../../androidApp/src/main/assets/ml/text_vocab.txt")
+        assertTrue(file.isFile, "vocab asset missing at ${file.absolutePath}")
+        file.useLines { BertWordPieceTokenizer.parseVocab(it) }
     }
+
+    private val tokenizer: BertWordPieceTokenizer by lazy { BertWordPieceTokenizer(vocab) }
 
     @Test
     fun `matches the reference tokenizer on every fixture`() {
@@ -52,11 +54,14 @@ class BertWordPieceTokenizerTest {
 
     @Test
     fun `blank input is still wrapped in CLS and SEP`() {
-        assertEquals(listOf(101, 102), tokenizer.encode("").toList())
+        assertEquals(listOf(vocab.getValue("[CLS]"), vocab.getValue("[SEP]")), tokenizer.encode("").toList())
     }
 
     @Test
     fun `an over-long word collapses to a single UNK`() {
-        assertEquals(listOf(101, 100, 102), tokenizer.encode("a".repeat(150)).toList())
+        assertEquals(
+            listOf(vocab.getValue("[CLS]"), vocab.getValue("[UNK]"), vocab.getValue("[SEP]")),
+            tokenizer.encode("a".repeat(150)).toList(),
+        )
     }
 }

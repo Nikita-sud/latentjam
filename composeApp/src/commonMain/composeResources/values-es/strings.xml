@@ -417,8 +417,8 @@
     <string name="settings_licenses_body">Avisos de LatentJam, los modelos incluidos y el software de terceros</string>
     <string name="settings_license_models">Modelos de audio y SMART</string>
     <string name="settings_license_models_body">Los pesos de audio MobileNetV4 y del predictor SMART creados por LatentJam tienen licencia Apache-2.0. El modelo alumno usa timm (Apache-2.0) y se destiló de EfficientAT (MIT, copyright © 2022 Florian Schmid).</string>
-    <string name="settings_license_text_model">Modelo de texto MiniLM</string>
-    <string name="settings_license_text_model_body">La exportación ONNX y el vocabulario incluidos de sentence-transformers/all-MiniLM-L6-v2 tienen licencia Apache-2.0.</string>
+    <string name="settings_license_text_model">Modelo de texto</string>
+    <string name="settings_license_text_model_body">El codificador de texto incluido y su vocabulario fueron entrenados por LatentJam para reproducir sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0) y tienen licencia Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">La inferencia de modelos en el dispositivo usa Microsoft ONNX Runtime con licencia MIT. Copyright © Microsoft Corporation.</string>
     <string name="settings_license_aliases">Datos de MusicBrainz</string>

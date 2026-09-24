@@ -12,8 +12,8 @@ import kotlin.math.sqrt
  *
  * The scorer's interface is 1344-wide on both inputs:
  * - `state[1, 1344]` = `[960-d encoder state ⊕ unit-normalized session-text-centroid 384]`
- * - `candidates[1, 100, 1344]` = `[960-d raw (L2-normalized) audio ⊕ unit-normalized MiniLM text
- *   384]`, with the 384 text block ZERO-FILLED wherever the track has no current text vector.
+ * - `candidates[1, 100, 1344]` = `[960-d raw (L2-normalized) audio ⊕ unit-normalized 384-d
+ *   text]`, with the 384 text block ZERO-FILLED wherever the track has no current text vector.
  *
  * The model was trained with text-dropout, so an all-zero text side (no text vectors present, or a
  * null snapshot text matrix) degrades gracefully to ~the old audio-only scorer rather than crashing
@@ -24,7 +24,7 @@ public object ScorerPacking {
     /** Audio half-width — the raw predictor embedding dim ([PredictorRuntime.EMBEDDING_DIM]). */
     public const val AUDIO_DIM: Int = 960
 
-    /** Text half-width — the MiniLM metadata-text dim ([SmartSnapshot.TEXT_DIM]). */
+    /** Text half-width — the metadata-text dim ([SmartSnapshot.TEXT_DIM]). */
     public const val TEXT_DIM: Int = 384
 
     /** Combined per-token width fed to the scorer graph. */

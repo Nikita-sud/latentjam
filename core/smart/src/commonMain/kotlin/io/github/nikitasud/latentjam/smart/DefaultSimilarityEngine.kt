@@ -229,7 +229,7 @@ internal class DefaultSimilarityEngine(
                     yield()
                 }
             }
-            // Text is encoded here rather than at query time: MiniLM costs milliseconds per track,
+            // Text is encoded here rather than at query time: the encoder costs milliseconds per track,
             // but a whole library of it would stall the first SMART press for seconds.
             //
             // Over ALL tracks, not just the ones needing audio: the two indexes fill independently,

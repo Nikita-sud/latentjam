@@ -288,12 +288,12 @@ def main() -> int:
     parser.add_argument(
         "--model",
         type=Path,
-        default=Path("androidApp/src/main/assets/ml/text_encoder_minilm.onnx"),
+        default=Path("tools/research/minilm/text_encoder_minilm.onnx"),
     )
     parser.add_argument(
         "--vocab",
         type=Path,
-        default=Path("androidApp/src/main/assets/ml/text_vocab.txt"),
+        default=Path("tools/research/minilm/text_vocab.txt"),
     )
     parser.add_argument(
         "--max-tracks",

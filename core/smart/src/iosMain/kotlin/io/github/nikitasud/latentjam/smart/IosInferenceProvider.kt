@@ -43,7 +43,7 @@ public interface IosInferenceProvider {
     /** Returns null on success, otherwise a human-readable local error. */
     public fun loadText(): String?
 
-    /** MiniLM token embeddings, mean-pooled and L2-normalized by the native host. */
+    /** Text-encoder token states, mean-pooled and L2-normalized by the native host. */
     public fun encodeText(inputIds: LongArray): FloatArray?
 
     /** Returns null on success, otherwise a human-readable local error. */

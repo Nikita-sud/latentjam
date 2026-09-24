@@ -38,6 +38,16 @@ EDGE_CASES = [
     "ÅÄÖ åäö ß",
     "混ぜるな危険",                          # CJK spacing
     "don't  DO'NT  Don’t",                # ASCII vs curly apostrophe
+    # scripts the multilingual vocabulary covers with character pieces
+    "流行音乐 周杰伦",
+    "เพลงไทย ลูกทุ่ง",
+    "हिंदी गाने",
+    "أغانٍ عربية",
+    "케이팝 노래",
+    "ελληνική μουσική",
+    "שירים בעברית",
+    "музыка 80-х",
+    "Pop; Beyoncé; Café Tacvba; 2003; spanish",
 ]
 
 

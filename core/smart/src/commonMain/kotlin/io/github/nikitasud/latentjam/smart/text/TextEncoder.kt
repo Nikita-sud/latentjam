@@ -7,8 +7,14 @@ package io.github.nikitasud.latentjam.smart.text
 import org.koin.core.module.Module
 
 /**
- * Optional scorer conditioning: `all-MiniLM-L6-v2` over trusted track tags, giving a 384-d
- * sentence vector alongside the 960-d audio embedding.
+ * Optional scorer conditioning: a 384-d sentence vector over trusted track tags, alongside the
+ * 960-d audio embedding.
+ *
+ * The encoder is a three-layer, 256-wide BERT (5.2 MB as INT8) that LatentJam distilled from
+ * `all-MiniLM-L6-v2` on music strings — artist names, trusted tag strings and search phrases,
+ * including phrases translated into twenty languages — so its vectors live in MiniLM's space: the
+ * scorer, the artist adapter and search, all fitted there, read them unchanged. It has its own
+ * WordPiece vocabulary, and it saw at most [MAX_TOKENS] tokens in training.
  *
  * This runs entirely on the phone — no LLM, no network — so an imported track is self-contained the
  * moment it is scanned. Candidate retrieval interleaves audio and text rankings without a numeric
@@ -20,7 +26,7 @@ import org.koin.core.module.Module
  */
 public interface TextEncoder {
 
-    /** Loads the model and vocabulary. Idempotent; ~23 MB of weights. */
+    /** Loads the model and vocabulary. Idempotent; ~5 MB of weights. */
     public suspend fun load(): Result<Unit>
 
     /**
@@ -34,6 +40,9 @@ public interface TextEncoder {
 
     public companion object {
         public const val TEXT_DIM: Int = 384
+
+        /** Input length, `[CLS]` and `[SEP]` included: the longest the encoder was trained on. */
+        public const val MAX_TOKENS: Int = 48
 
         /**
          * The trusted string the encoder embeds: `"genre; artist; year; language"`, blanks dropped.

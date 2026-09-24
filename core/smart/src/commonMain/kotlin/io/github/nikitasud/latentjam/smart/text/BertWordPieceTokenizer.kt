@@ -5,7 +5,7 @@
 package io.github.nikitasud.latentjam.smart.text
 
 /**
- * `bert-base-uncased` tokenization, as the `all-MiniLM-L6-v2` text encoder expects it.
+ * `bert-base-uncased`-style tokenization over the text encoder's own vocabulary.
  *
  * Two stages, mirroring HuggingFace's `BertTokenizer` with `do_lower_case=True`:
  * a basic pass (clean → space out CJK → split on whitespace → lowercase → strip accents → split on

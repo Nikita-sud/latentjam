@@ -17,7 +17,7 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 
 /**
- * Android [TextEncoder]: ONNX Runtime over the int8 MiniLM export, with the tokenizer's vocabulary
+ * Android [TextEncoder]: ONNX Runtime over the INT8 text encoder, with the tokenizer's vocabulary
  * read from assets.
  *
  * The tokenizer and pooling live in common code; this class is the tensor plumbing.
@@ -39,7 +39,7 @@ internal class OnnxTextEncoder(
         if (session != null && tokenizer != null) return Result.success(Unit)
         return try {
             tokenizer = openVocab().bufferedReader(Charsets.UTF_8).useLines {
-                BertWordPieceTokenizer(BertWordPieceTokenizer.parseVocab(it))
+                BertWordPieceTokenizer(BertWordPieceTokenizer.parseVocab(it), maxLen = TextEncoder.MAX_TOKENS)
             }
             session = OrtSession.SessionOptions().use { options ->
                 options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
@@ -120,7 +120,7 @@ internal class OnnxTextEncoder(
     }
 
     companion object {
-        const val MODEL_ASSET = "ml/text_encoder_minilm.onnx"
+        const val MODEL_ASSET = "ml/text_encoder.onnx"
         const val VOCAB_ASSET = "ml/text_vocab.txt"
     }
 }

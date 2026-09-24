@@ -29,7 +29,7 @@ import org.koin.core.module.Module
  *
  * Scorer (semantics-aware fused graph, `scoring-semtext-v1`):
  * - `state` `[1, 1344]` = `[960-d encoder state ⊕ unit-normalized session-text-centroid 384]`
- * - `candidates` `[1, 100, 1344]` = `[960-d raw audio ⊕ unit-normalized MiniLM text 384]`, the
+ * - `candidates` `[1, 100, 1344]` = `[960-d raw audio ⊕ unit-normalized 384-d text]`, the
  *   text half zero-filled where a track has no vector (a trained text-dropout path)
  * - output `[1, 100]` raw logits
  *

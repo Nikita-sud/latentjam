@@ -428,8 +428,8 @@
     <string name="settings_licenses_body">Informacje o LatentJam, dołączonych modelach i oprogramowaniu firm trzecich</string>
     <string name="settings_license_models">Modele dźwięku i SMART</string>
     <string name="settings_license_models_body">Wagi modelu dźwięku MobileNetV4 i predyktorów SMART utworzone przez LatentJam są na licencji Apache-2.0. Model ucznia używa timm (Apache-2.0) i został wydestylowany z EfficientAT (MIT, copyright © 2022 Florian Schmid).</string>
-    <string name="settings_license_text_model">Model tekstowy MiniLM</string>
-    <string name="settings_license_text_model_body">Dołączony eksport ONNX sentence-transformers/all-MiniLM-L6-v2 i słownik są na licencji Apache-2.0.</string>
+    <string name="settings_license_text_model">Model tekstowy</string>
+    <string name="settings_license_text_model_body">Dołączony koder tekstu i jego słownik zostały wytrenowane przez LatentJam tak, by odtwarzały sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0), i są na licencji Apache-2.0.</string>
     <string name="settings_license_runtime">ONNX Runtime</string>
     <string name="settings_license_runtime_body">Uruchamianie modeli na urządzeniu wykorzystuje Microsoft ONNX Runtime na licencji MIT. Copyright © Microsoft Corporation.</string>
     <string name="settings_license_aliases">Dane MusicBrainz</string>
