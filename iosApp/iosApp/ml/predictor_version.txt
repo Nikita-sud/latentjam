@@ -1,1 +1,1 @@
-scoring-semtext-v1
+scoring-semtext-v1-compact
