@@ -591,7 +591,6 @@
     <string name="output_connect_device">Conectar um dispositivo</string>
     <string name="output_selection_failed">Dispositivo indisponível. Verifique a conexão.</string>
     <string name="queue_reorder">Reordenar faixa</string>
-    <string name="queue_reorder_shuffle">Mude para Em ordem para reorganizar a fila</string>
     <string name="playlists_yours">Suas playlists</string>
     <string name="playlists_empty_body">Crie uma playlist ou importe um arquivo M3U para reunir suas músicas.</string>
     <string name="playlists_automatic">Automáticas</string>

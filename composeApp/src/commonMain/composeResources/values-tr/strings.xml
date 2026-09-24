@@ -582,7 +582,6 @@
     <string name="output_connect_device">Cihaz bağla</string>
     <string name="output_selection_failed">Cihaz kullanılamıyor. Bağlantıyı kontrol edin.</string>
     <string name="queue_reorder">Parçayı yeniden sırala</string>
-    <string name="queue_reorder_shuffle">Kuyruğu yeniden sıralamak için Sırayla moduna geçin</string>
     <string name="playlists_yours">Çalma listeleriniz</string>
     <string name="playlists_empty_body">Müziğinizi bir araya getirmek için çalma listesi oluşturun veya M3U dosyası içe aktarın.</string>
     <string name="playlists_automatic">Otomatik</string>

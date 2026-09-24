@@ -583,7 +583,6 @@
     <string name="output_connect_device">Conectează un dispozitiv</string>
     <string name="output_selection_failed">Dispozitiv indisponibil. Verifică conexiunea.</string>
     <string name="queue_reorder">Reordonează piesa</string>
-    <string name="queue_reorder_shuffle">Treci la În ordine pentru a rearanja coada</string>
     <string name="playlists_yours">Listele tale de redare</string>
     <string name="playlists_empty_body">Creează o listă de redare sau importă un fișier M3U pentru a-ți reuni muzica.</string>
     <string name="playlists_automatic">Automate</string>

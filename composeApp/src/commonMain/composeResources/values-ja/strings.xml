@@ -575,7 +575,6 @@
     <string name="output_connect_device">デバイスを接続</string>
     <string name="output_selection_failed">デバイスを利用できません。接続を確認してください。</string>
     <string name="queue_reorder">曲を並べ替え</string>
-    <string name="queue_reorder_shuffle">キューを並べ替えるには順番再生に切り替えてください</string>
     <string name="playlists_yours">マイプレイリスト</string>
     <string name="playlists_empty_body">プレイリストを作成するか、M3Uファイルを読み込んで音楽をまとめましょう。</string>
     <string name="playlists_automatic">自動</string>

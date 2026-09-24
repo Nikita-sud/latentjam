@@ -595,7 +595,6 @@
     <string name="output_connect_device">Подключить устройство</string>
     <string name="output_selection_failed">Устройство недоступно. Проверьте подключение.</string>
     <string name="queue_reorder">Изменить порядок трека</string>
-    <string name="queue_reorder_shuffle">Переключитесь на «По порядку», чтобы изменить очередь</string>
     <string name="playlists_yours">Ваши плейлисты</string>
     <string name="playlists_empty_body">Создайте плейлист или импортируйте файл M3U, чтобы собрать музыку вместе.</string>
     <string name="playlists_automatic">Автоматические</string>

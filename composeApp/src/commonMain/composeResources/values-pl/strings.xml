@@ -602,7 +602,6 @@
     <string name="output_connect_device">Połącz urządzenie</string>
     <string name="output_selection_failed">Urządzenie niedostępne. Sprawdź połączenie.</string>
     <string name="queue_reorder">Zmień kolejność utworu</string>
-    <string name="queue_reorder_shuffle">Przełącz na Po kolei, aby zmienić kolejność kolejki</string>
     <string name="playlists_yours">Twoje playlisty</string>
     <string name="playlists_empty_body">Utwórz playlistę lub zaimportuj plik M3U, aby zebrać swoją muzykę.</string>
     <string name="playlists_automatic">Automatyczne</string>

@@ -575,7 +575,6 @@
     <string name="output_connect_device">连接设备</string>
     <string name="output_selection_failed">设备不可用。请检查连接。</string>
     <string name="queue_reorder">调整曲目顺序</string>
-    <string name="queue_reorder_shuffle">切换到顺序播放以调整队列顺序</string>
     <string name="playlists_yours">你的播放列表</string>
     <string name="playlists_empty_body">创建播放列表或导入 M3U 文件，将音乐整理在一起。</string>
     <string name="playlists_automatic">自动</string>

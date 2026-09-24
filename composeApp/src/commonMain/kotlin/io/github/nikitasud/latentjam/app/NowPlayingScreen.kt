@@ -80,8 +80,6 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -164,7 +162,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.now_playing_source
 import io.github.nikitasud.latentjam.app.generated.resources.queue_row_continuation
 import io.github.nikitasud.latentjam.app.generated.resources.queue_title
 import io.github.nikitasud.latentjam.app.generated.resources.queue_title_count
-import io.github.nikitasud.latentjam.app.generated.resources.queue_reorder_shuffle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_page_move_up
 import io.github.nikitasud.latentjam.app.generated.resources.settings_page_move_down
 import io.github.nikitasud.latentjam.app.generated.resources.sleep_timer
@@ -1452,7 +1449,6 @@ private fun QueueRow(
     modifier: Modifier = Modifier,
     canMoveUp: Boolean = false,
     canMoveDown: Boolean = false,
-    canReorder: Boolean = true,
     onMoveUp: () -> Unit = {},
     onMoveDown: () -> Unit = {},
     /** SMART could not recommend here and kept playing instead. Said plainly, not implied. */
@@ -1470,7 +1466,6 @@ private fun QueueRow(
     val title = track.title ?: stringResource(Res.string.track_untitled)
     val moveUpLabel = stringResource(Res.string.settings_page_move_up, title)
     val moveDownLabel = stringResource(Res.string.settings_page_move_down, title)
-    var reorderMenuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -1522,38 +1517,12 @@ private fun QueueRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Box {
-            IconButton(onClick = { reorderMenuOpen = true }, modifier = Modifier.size(48.dp)) {
-                Icon(
-                    imageVector = Icons.Rounded.MoreVert,
-                    contentDescription = stringResource(Res.string.action_track_options),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            DropdownMenu(expanded = reorderMenuOpen, onDismissRequest = { reorderMenuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.action_track_options)) },
-                    onClick = { reorderMenuOpen = false; onMenu() },
-                )
-                if (canReorder) {
-                    DropdownMenuItem(
-                        text = { Text(moveUpLabel) },
-                        enabled = canMoveUp,
-                        onClick = { reorderMenuOpen = false; onMoveUp() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(moveDownLabel) },
-                        enabled = canMoveDown,
-                        onClick = { reorderMenuOpen = false; onMoveDown() },
-                    )
-                } else {
-                    Text(
-                        text = stringResource(Res.string.queue_reorder_shuffle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.width(240.dp).padding(16.dp),
-                    )
-                }
-            }
+        IconButton(onClick = onMenu, modifier = Modifier.size(48.dp)) {
+            Icon(
+                imageVector = Icons.Rounded.MoreVert,
+                contentDescription = stringResource(Res.string.action_track_options),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -1833,7 +1802,6 @@ private fun QueueSheetContent(
                             isPlaying = isPlaying,
                             onClick = { onPlayAt(index) },
                             onMenu = { onTrackMenu(track) },
-                            canReorder = canReorder,
                             canMoveUp = canReorder && index > 0,
                             canMoveDown = canReorder && index < queue.lastIndex,
                             onMoveUp = {

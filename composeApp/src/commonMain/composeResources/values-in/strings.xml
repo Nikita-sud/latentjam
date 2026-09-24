@@ -581,7 +581,6 @@
     <string name="output_connect_device">Hubungkan perangkat</string>
     <string name="output_selection_failed">Perangkat tidak tersedia. Periksa koneksi.</string>
     <string name="queue_reorder">Ubah urutan lagu</string>
-    <string name="queue_reorder_shuffle">Beralih ke Berurutan untuk mengubah urutan antrean</string>
     <string name="playlists_yours">Playlist Anda</string>
     <string name="playlists_empty_body">Buat playlist atau impor berkas M3U untuk mengumpulkan musik Anda.</string>
     <string name="playlists_automatic">Otomatis</string>

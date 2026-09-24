@@ -604,7 +604,6 @@
     <string name="output_connect_device">Підключити пристрій</string>
     <string name="output_selection_failed">Пристрій недоступний. Перевірте підключення.</string>
     <string name="queue_reorder">Змінити порядок треку</string>
-    <string name="queue_reorder_shuffle">Перемкніться на «За порядком», щоб змінити чергу</string>
     <string name="playlists_yours">Ваші списки відтворення</string>
     <string name="playlists_empty_body">Створіть список відтворення або імпортуйте файл M3U, щоб зібрати музику разом.</string>
     <string name="playlists_automatic">Автоматичні</string>

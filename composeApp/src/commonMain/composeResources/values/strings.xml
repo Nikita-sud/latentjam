@@ -647,7 +647,6 @@
     <string name="output_connect_device">Connect a device</string>
     <string name="output_selection_failed">Device unavailable. Check the connection.</string>
     <string name="queue_reorder">Reorder track</string>
-    <string name="queue_reorder_shuffle">Switch to In order to rearrange the queue</string>
     <string name="playlists_yours">Your playlists</string>
     <string name="playlists_empty_body">Create a playlist or import an M3U file to keep your music together.</string>
     <string name="playlists_automatic">Automatic</string>

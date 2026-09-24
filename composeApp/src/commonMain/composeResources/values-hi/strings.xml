@@ -582,7 +582,6 @@
     <string name="output_connect_device">डिवाइस कनेक्ट करें</string>
     <string name="output_selection_failed">डिवाइस उपलब्ध नहीं है। कनेक्शन जाँचें।</string>
     <string name="queue_reorder">ट्रैक का क्रम बदलें</string>
-    <string name="queue_reorder_shuffle">कतार का क्रम बदलने के लिए क्रम में मोड चुनें</string>
     <string name="playlists_yours">आपकी प्लेलिस्ट</string>
     <string name="playlists_empty_body">अपने संगीत को एक साथ रखने के लिए प्लेलिस्ट बनाएँ या M3U फ़ाइल आयात करें।</string>
     <string name="playlists_automatic">अपने आप बनाई गई</string>

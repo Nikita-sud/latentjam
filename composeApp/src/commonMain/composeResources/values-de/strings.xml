@@ -594,7 +594,6 @@
     <string name="output_connect_device">Gerät verbinden</string>
     <string name="output_selection_failed">Gerät nicht verfügbar. Prüfe die Verbindung.</string>
     <string name="queue_reorder">Titel neu anordnen</string>
-    <string name="queue_reorder_shuffle">Zum Neuordnen der Warteschlange zu „Der Reihe nach“ wechseln</string>
     <string name="playlists_yours">Deine Playlists</string>
     <string name="playlists_empty_body">Erstelle eine Playlist oder importiere eine M3U-Datei, um deine Musik zu sammeln.</string>
     <string name="playlists_automatic">Automatisch</string>

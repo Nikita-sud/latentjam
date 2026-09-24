@@ -615,7 +615,6 @@
     <string name="output_connect_device">توصيل جهاز</string>
     <string name="output_selection_failed">الجهاز غير متاح. تحقق من الاتصال.</string>
     <string name="queue_reorder">إعادة ترتيب المقطع</string>
-    <string name="queue_reorder_shuffle">بدّل إلى التشغيل بالترتيب لإعادة ترتيب قائمة الانتظار</string>
     <string name="playlists_yours">قوائم التشغيل الخاصة بك</string>
     <string name="playlists_empty_body">أنشئ قائمة تشغيل أو استورد ملف M3U لجمع موسيقاك.</string>
     <string name="playlists_automatic">تلقائية</string>

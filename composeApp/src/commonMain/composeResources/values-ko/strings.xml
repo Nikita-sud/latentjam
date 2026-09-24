@@ -575,7 +575,6 @@
     <string name="output_connect_device">기기 연결</string>
     <string name="output_selection_failed">기기를 사용할 수 없습니다. 연결을 확인하세요.</string>
     <string name="queue_reorder">곡 순서 변경</string>
-    <string name="queue_reorder_shuffle">대기열 순서를 변경하려면 순서대로 재생으로 전환하세요</string>
     <string name="playlists_yours">내 재생목록</string>
     <string name="playlists_empty_body">재생목록을 만들거나 M3U 파일을 가져와 음악을 모아 보세요.</string>
     <string name="playlists_automatic">자동</string>
