@@ -68,6 +68,10 @@ internal fun MorphingRailLetters(
     railHeightPx: Int,
     labelHeight: Dp,
 ) {
+    // The first layout is not an alphabet change. Starting a transition with an empty map
+    // faded every letter in again whenever the player released and restored the browse shell.
+    // Subsequent measured layouts still morph normally (page changes, rotation, font size).
+    if (railHeightPx <= 0) return
     val density = LocalDensity.current
     val reduceMotion = rememberReduceMotion()
     val labelPx = with(density) { labelHeight.toPx() }

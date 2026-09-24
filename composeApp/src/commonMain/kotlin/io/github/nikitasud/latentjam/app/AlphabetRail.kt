@@ -280,7 +280,8 @@ internal fun ListWithRail(
             currentRailBucketIndex(
                 itemIndex = listState.firstVisibleItemIndex,
                 startIndexes = rail.startIndexes,
-                atEnd = !listState.canScrollForward && listState.firstVisibleItemIndex > 0,
+                atEnd = listState.layoutInfo.totalItemsCount > 0 &&
+                    !listState.canScrollForward && listState.firstVisibleItemIndex > 0,
             )
                 ?.let(rail.buckets::get)
         }
@@ -419,7 +420,8 @@ internal fun GridListWithRail(
             currentRailBucketIndex(
                 itemIndex = gridState.firstVisibleItemIndex,
                 startIndexes = rail.startIndexes,
-                atEnd = !gridState.canScrollForward && gridState.firstVisibleItemIndex > 0,
+                atEnd = gridState.layoutInfo.totalItemsCount > 0 &&
+                    !gridState.canScrollForward && gridState.firstVisibleItemIndex > 0,
             )
                 ?.let(rail.buckets::get)
         }
@@ -637,31 +639,31 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
         latestOnScrubbingChange(false)
     }
 
-    // The rail gets fresh callbacks for each catalog. The compiler memoizes these references to
-    // local functions, so without the key a host that switches catalogs (another page, or back
-    // from a collection) kept the first catalog's `select`: the list still followed the finger,
-    // but the preview state it wrote was the old one, and the letter bubble never appeared.
-    key(catalogKey) {
-        AlphabetRail(
-            buckets = buckets,
-            interactive = interactive,
-            gestureKey = catalogKey,
-            activeBucket = previewBucket ?: settlingBucket ?: activeBucket,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .padding(bottom = bottomPadding)
-                .padding(vertical = 8.dp)
-                .onGloballyPositioned {
-                    railTopPx = it.positionInParent().y
-                    railHeightPx = it.size.height
-                },
-            onSelectionStart = ::beginSelection,
-            onSelect = ::select,
-            onSelectionEnd = ::endSelection,
-            onSelectionCancel = ::cancelSelection,
-        )
+    // Refresh compiler-memoized local-function references with the catalog, but keep the
+    // visual rail outside that key. Recreating the whole rail also reset its measurements and
+    // letter transition, so changing pages replayed an entrance instead of morphing letters.
+    val gestures = key(catalogKey) {
+        RailSelectionCallbacks(::beginSelection, ::select, ::endSelection, ::cancelSelection)
     }
+    AlphabetRail(
+        buckets = buckets,
+        interactive = interactive,
+        gestureKey = catalogKey,
+        activeBucket = previewBucket ?: settlingBucket ?: activeBucket,
+        modifier = Modifier
+            .align(Alignment.CenterEnd)
+            .fillMaxHeight()
+            .padding(bottom = bottomPadding)
+            .padding(vertical = 8.dp)
+            .onGloballyPositioned {
+                railTopPx = it.positionInParent().y
+                railHeightPx = it.size.height
+            },
+        onSelectionStart = gestures.start,
+        onSelect = gestures.select,
+        onSelectionEnd = gestures.end,
+        onSelectionCancel = gestures.cancel,
+    )
 
     // Finger position remains immediate; all animation lives inside this small overlay.
     key(catalogKey) {
@@ -689,6 +691,13 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
         )
     }
 }
+
+private data class RailSelectionCallbacks(
+    val start: () -> Unit,
+    val select: (Int, Float) -> Unit,
+    val end: () -> Unit,
+    val cancel: () -> Unit,
+)
 
 /** A single live letter: fast scrubs never accumulate a stack of outgoing animated labels. */
 @Composable

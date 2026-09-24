@@ -109,7 +109,10 @@ internal fun SectionedSongsList(
             currentRailBucketIndex(
                 itemIndex = listState.firstVisibleItemIndex,
                 startIndexes = sectionStarts,
-                atEnd = !listState.canScrollForward && listState.firstVisibleItemIndex > 0,
+                // A restored LazyListState cannot scroll until its first measure. That is not
+                // the end of the list: keep the restored section highlighted during this frame.
+                atEnd = listState.layoutInfo.totalItemsCount > 0 &&
+                    !listState.canScrollForward && listState.firstVisibleItemIndex > 0,
             )
                 ?.let { indexed[it].bucket }
         }

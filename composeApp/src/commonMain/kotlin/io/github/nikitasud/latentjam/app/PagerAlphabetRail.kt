@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -97,6 +98,7 @@ internal fun PagerAlphabetRail(
 ) {
     val density = LocalDensity.current
     val reduceMotion = rememberReduceMotion()
+    val initialSlot = remember { slot }
     var hostViewport by remember { mutableStateOf<RailViewport?>(null) }
     val presentation = slot?.presentation
     val viewport = slot?.viewport
@@ -111,32 +113,43 @@ internal fun PagerAlphabetRail(
     }
     val shown = presentation ?: retained
     val shownViewport = viewport.takeIf { visible } ?: retainedViewport
-    val top by animateDpAsState(
-        targetValue = with(density) {
-            ((shownViewport?.top ?: 0f) - (hostViewport?.top ?: 0f)).coerceAtLeast(0f).toDp()
-        },
-        animationSpec = if (reduceMotion) snap() else tween(Motion.NAVIGATION_MS),
-        label = "rail-page-top",
-    )
-    val bottom by animateDpAsState(
-        targetValue = with(density) {
-            ((hostViewport?.bottom ?: 0f) - (shownViewport?.bottom ?: 0f))
-                .coerceAtLeast(0f).toDp()
-        },
-        animationSpec = if (reduceMotion) snap() else tween(Motion.NAVIGATION_MS),
-        label = "rail-page-bottom",
-    )
     Box(modifier.fillMaxSize().onGloballyPositioned {
         val y = it.positionInRoot().y
         hostViewport = RailViewport(y, y + it.size.height)
     }) {
+        val host = hostViewport
+        // The browse shell is disposed behind the player. On return, initialize motion only
+        // after BOTH viewports are measured: zero-to-measured insets made the rail stretch and
+        // replay its entrance over the player transition. Retention keeps this same animation
+        // state alive for subsequent page changes, including pages without a rail.
+        if (shown == null || shownViewport == null || host == null) return@Box
+        val top by animateDpAsState(
+            targetValue = with(density) {
+                (shownViewport.top - host.top).coerceAtLeast(0f).toDp()
+            },
+            animationSpec = if (reduceMotion) snap() else tween(Motion.NAVIGATION_MS),
+            label = "rail-page-top",
+        )
+        val bottom by animateDpAsState(
+            targetValue = with(density) {
+                (host.bottom - shownViewport.bottom).coerceAtLeast(0f).toDp()
+            },
+            animationSpec = if (reduceMotion) snap() else tween(Motion.NAVIGATION_MS),
+            label = "rail-page-bottom",
+        )
+        val visibility = remember {
+            // A restored page already participates in the player crossfade. Only navigating
+            // to another page needs an independent rail entrance.
+            MutableTransitionState(visible && slot === initialSlot)
+        }
+        visibility.targetState = visible
         AnimatedVisibility(
-            visible = visible,
+            visibleState = visibility,
             enter = fadeIn(tween(if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS)),
             exit = fadeOut(tween(if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS)),
         ) {
             Box(Modifier.fillMaxSize().padding(top = top, bottom = bottom)) {
-                shown?.let {
+                shown.let {
                     StandaloneAlphabetRailOverlay(
                         buckets = it.buckets,
                         catalogKey = it.catalogKey,
