@@ -765,6 +765,10 @@ internal class SmartChain(
             }
             .sortedByDescending { textScores[it] }
             .toIntArray()
+        // A fourth channel ranks by the descriptor space (what a teacher knows about the artist),
+        // when the seed has a descriptor. Without one it is empty, so the pool is exactly the
+        // three-channel one.
+        val descriptorOrder = descriptorOrder(seedRow, excluded)
         val pool = ArrayList<Int>(PredictorRuntime.POOL_SIZE)
         val seen = HashSet<Int>()
         var i = 0
@@ -773,6 +777,9 @@ internal class SmartChain(
             if (pool.size < PredictorRuntime.POOL_SIZE && seen.add(stateOrder[i])) pool.add(stateOrder[i])
             if (pool.size < PredictorRuntime.POOL_SIZE && i < textOrder.size && seen.add(textOrder[i])) {
                 pool.add(textOrder[i])
+            }
+            if (pool.size < PredictorRuntime.POOL_SIZE && i < descriptorOrder.size && seen.add(descriptorOrder[i])) {
+                pool.add(descriptorOrder[i])
             }
             i++
         }
@@ -876,6 +883,18 @@ internal class SmartChain(
         if (previous.isNaN() || candidate.isNaN()) return 1f
         val over = abs(previous - candidate) - ChainConfig.ENERGY_DEADBAND
         return if (over <= 0f) 1f else (1f - over).coerceAtLeast(ChainConfig.ENERGY_FLOOR)
+    }
+
+    /** Candidates by centered-descriptor cosine to the seed; empty when the seed has no descriptor. */
+    private fun descriptorOrder(seedRow: Int, excluded: Set<Int>): IntArray {
+        if (snapshot.hasDescriptor?.get(seedRow) != true) return IntArray(0)
+        val scores = FloatArray(snapshot.size) { row ->
+            snapshot.descriptorCosine(seedRow, row) ?: Float.NEGATIVE_INFINITY
+        }
+        return scores.indices
+            .filter { it != seedRow && eligibleRows[it] && it !in excluded && scores[it].isFinite() }
+            .sortedByDescending { scores[it] }
+            .toIntArray()
     }
 
     private fun order(scores: FloatArray, exclude: Int, excluded: Set<Int>): IntArray =

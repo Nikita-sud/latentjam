@@ -420,6 +420,14 @@ def build_pool(lib, seed, state):
     anchor_order = order_desc(anchor, seed)
     state_order = order_desc(state_scores, seed)
     text_order = order_desc(text_scores, seed, eligible_finite=True)
+    # Mirror of SmartChain.descriptorOrder: the fourth channel, empty when the seed has no descriptor.
+    desc_scores = np.full(n, -np.inf, "f")
+    if lib.centeredDesc is not None and lib.hasD[seed]:
+        for r in range(n):
+            c = lib.desc_cos(seed, r)
+            if c is not None:
+                desc_scores[r] = c
+    desc_order = order_desc(desc_scores, seed, eligible_finite=True)
 
     pool, seen = [], set()
     i = 0
@@ -430,6 +438,8 @@ def build_pool(lib, seed, state):
             seen.add(state_order[i]); pool.append(state_order[i])
         if len(pool) < POOL_SIZE and i < len(text_order) and text_order[i] not in seen:
             seen.add(text_order[i]); pool.append(text_order[i])
+        if len(pool) < POOL_SIZE and i < len(desc_order) and desc_order[i] not in seen:
+            seen.add(desc_order[i]); pool.append(desc_order[i])
         i += 1
     return pool[:POOL_SIZE]
 
