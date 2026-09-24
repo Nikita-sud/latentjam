@@ -767,14 +767,7 @@ internal class DefaultSimilarityEngine(
         val encoder = textEncoder ?: return false
         val target = textIndex ?: return false
         if (track.id in target) return false
-        val metadata = TextEncoder.metadataString(
-            genre = track.genre,
-            artist = track.artist,
-            title = track.title,
-            year = track.year,
-            originalYear = track.originalYear,
-            language = track.language,
-        )
+        val metadata = track.textString()
         if (metadata.isBlank()) return false
         val vector = runCatching { encoder.encode(metadata) }.getOrNull() ?: return false
         if (vector.size != TextEncoder.TEXT_DIM) return false
@@ -863,15 +856,23 @@ internal class DefaultSimilarityEngine(
         sourceRevision,
     )
 
-    private fun TrackDescriptor.textVectorIdentity(): String = vectorIdentity(
-        TEXT_IDENTITY_VERSION,
-        title,
-        artist,
-        genre,
-        year?.toString(),
-        originalYear?.toString(),
-        language,
-    )
+    /** The trusted string the text encoder embeds for this track, with the pack's facts about its artist. */
+    private fun TrackDescriptor.textString(): String {
+        val facts = artistKnowledge?.facts(artist, artists.firstOrNull())
+        return TextEncoder.metadataString(
+            genre = genre,
+            artist = artist,
+            title = title,
+            year = year,
+            originalYear = originalYear,
+            language = language,
+            artistLanguage = facts?.language,
+            artistDecade = facts?.decade,
+        )
+    }
+
+    /** The string itself: a vector is current exactly when it encodes what the track would encode now. */
+    private fun TrackDescriptor.textVectorIdentity(): String = vectorIdentity(TEXT_IDENTITY_VERSION, textString())
 
     private fun hasRememberedAudioFailure(track: TrackDescriptor): Boolean =
         audioFailureIdentities[track.id] == track.audioFailureIdentity()
@@ -1064,8 +1065,12 @@ internal class DefaultSimilarityEngine(
         // v2 deliberately invalidates markers written before transient and deterministic audio
         // failures were separated. Existing vectors keep AUDIO_IDENTITY_VERSION and remain warm.
         const val AUDIO_FAILURE_IDENTITY_VERSION = "audio-failure-v2"
-        /** v2: the trusted string gained the original year and a language word; every text vector re-encodes once. */
-        const val TEXT_IDENTITY_VERSION = "text-v2"
+        /**
+         * v2: the trusted string gained the original year and a language word. v3: the identity is the
+         * encoded string, which can now carry the knowledge pack's language and decade, so a pack update
+         * re-encodes exactly the tracks whose string it changes.
+         */
+        const val TEXT_IDENTITY_VERSION = "text-v3"
 
         /** The warm-up floor cannot exceed the remaining library, including its seed. */
         fun requiredAudioCorpus(librarySize: Int): Int {

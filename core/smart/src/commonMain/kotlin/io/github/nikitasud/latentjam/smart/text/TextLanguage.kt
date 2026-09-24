@@ -7,11 +7,18 @@ package io.github.nikitasud.latentjam.smart.text
 /**
  * The language word the trusted text carries.
  *
- * A tag wins (`LANGUAGE` / ID3 `TLAN`: ISO 639 codes or plain names). Without one, the script of
+ * A tag wins (`LANGUAGE` / ID3 `TLAN`: ISO 639 codes or plain names). Without one, the language the
+ * knowledge pack's teacher says the artist mainly sings in decides. Without that, the script of
  * the title and artist decides, exactly as the chain's own rule does: Cyrillic is Russian,
  * kana/kanji Japanese, anything else stays silent. Latin script is deliberately not "english":
  * the Romanian tracks are the ones a language word is meant to keep together, and calling them
  * English would do the opposite.
+ *
+ * The pack's word (2026-09-24, multilingual text encoder): a "<language> songs" search found 82 %
+ * of its top ten in that language instead of 16 %, and SMART queues kept the seed's language more
+ * often (listener 0.84 → 0.89, MPD libraries +1 to +7 pp) with P@10 within half a point. Every
+ * pack language has a word; the ones beyond the first nineteen measured neutral on libraries that
+ * hold few of them.
  *
  * Measured on the real library (1,084 tracks, 20 playlists): same-language neighbours for
  * Cyrillic tracks rose from 65% to 77% with playlist retrieval unchanged; transliterating the
@@ -40,12 +47,38 @@ public object TextLanguage {
         "be" to "belarusian", "bel" to "belarusian", "belarusian" to "belarusian",
         "ar" to "arabic", "ara" to "arabic", "arabic" to "arabic",
         "hi" to "hindi", "hin" to "hindi", "hindi" to "hindi",
+        "sr" to "serbian", "srp" to "serbian", "serbian" to "serbian",
+        "hr" to "croatian", "hrv" to "croatian", "croatian" to "croatian",
+        "bg" to "bulgarian", "bul" to "bulgarian", "bulgarian" to "bulgarian",
+        "el" to "greek", "ell" to "greek", "gre" to "greek", "greek" to "greek",
+        "he" to "hebrew", "heb" to "hebrew", "hebrew" to "hebrew",
+        "fa" to "persian", "fas" to "persian", "per" to "persian", "persian" to "persian",
+        "nl" to "dutch", "nld" to "dutch", "dut" to "dutch", "dutch" to "dutch",
+        "sv" to "swedish", "swe" to "swedish", "swedish" to "swedish",
+        "fi" to "finnish", "fin" to "finnish", "finnish" to "finnish",
+        "no" to "norwegian", "nor" to "norwegian", "nb" to "norwegian", "nob" to "norwegian",
+        "nn" to "norwegian", "nno" to "norwegian", "norwegian" to "norwegian",
+        "da" to "danish", "dan" to "danish", "danish" to "danish",
+        "cs" to "czech", "ces" to "czech", "cze" to "czech", "czech" to "czech",
+        "hu" to "hungarian", "hun" to "hungarian", "hungarian" to "hungarian",
+        "id" to "indonesian", "ind" to "indonesian", "indonesian" to "indonesian",
+        "th" to "thai", "tha" to "thai", "thai" to "thai",
+        "vi" to "vietnamese", "vie" to "vietnamese", "vietnamese" to "vietnamese",
+        "tl" to "tagalog", "tgl" to "tagalog", "fil" to "tagalog", "tagalog" to "tagalog", "filipino" to "tagalog",
+        "ka" to "georgian", "kat" to "georgian", "geo" to "georgian", "georgian" to "georgian",
+        "hy" to "armenian", "hye" to "armenian", "arm" to "armenian", "armenian" to "armenian",
+        "az" to "azerbaijani", "aze" to "azerbaijani", "azerbaijani" to "azerbaijani",
+        "uz" to "uzbek", "uzb" to "uzbek", "uzbek" to "uzbek",
+        "la" to "latin", "lat" to "latin", "latin" to "latin",
         "zxx" to "instrumental", "instrumental" to "instrumental",
         "mul" to "multilingual", "multilingual" to "multilingual",
     )
 
-    /** The word for the trusted string, or null when neither tag nor script says anything. */
-    public fun word(tag: String?, title: String?, artist: String?): String? {
+    /**
+     * The word for the trusted string, or null when neither the tag, the pack's [artistLanguage]
+     * (an ISO 639-1 code) nor the script says anything.
+     */
+    public fun word(tag: String?, title: String?, artist: String?, artistLanguage: String? = null): String? {
         val raw = tag?.trim()?.lowercase().orEmpty()
         if (raw.isNotEmpty()) {
             WORDS[raw]?.let { return it }
@@ -53,6 +86,7 @@ public object TextLanguage {
             val head = raw.split(';', ',', '/', '-', '_', ' ').first().trim()
             WORDS[head]?.let { return it }
         }
+        artistLanguage?.let { WORDS[it.lowercase()] }?.let { return it }
         return scriptWord(title.orEmpty() + artist.orEmpty())
     }
 

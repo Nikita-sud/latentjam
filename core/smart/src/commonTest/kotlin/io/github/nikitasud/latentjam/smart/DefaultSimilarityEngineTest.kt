@@ -5,6 +5,10 @@
 package io.github.nikitasud.latentjam.smart
 
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
+import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
+import io.github.nikitasud.latentjam.smart.text.EntityIndexBytes
+import io.github.nikitasud.latentjam.smart.text.KnowledgePackBytes
+import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
@@ -42,6 +46,7 @@ internal class DefaultSimilarityEngineTest {
         textIndex: VectorIndex? = null,
         textStore: IndexStore? = null,
         modelVersion: String = "test-model",
+        artistKnowledge: ArtistKnowledge? = null,
     ) = DefaultSimilarityEngine(
         backend = backend,
         index = InMemoryVectorIndex(dim = 3),
@@ -51,6 +56,7 @@ internal class DefaultSimilarityEngineTest {
         textEncoder = textEncoder,
         textIndex = textIndex,
         textStore = textStore,
+        artistKnowledge = artistKnowledge,
     )
 
     private fun Harness.registerTriangle() {
@@ -913,6 +919,41 @@ internal class DefaultSimilarityEngineTest {
         changedAfterRestart.synchronizeLibrary(listOf(edited))
         assertEquals(1, changedAfterRestart.ensureMetadataVectors(listOf(edited)))
         assertTrue(changedAfterRestart.semanticSearch("guitars", 1).single().score > 0.99f)
+    }
+
+    @Test
+    fun `the pack's language and decade enter the string and only a changed string re-encodes`() = runTest {
+        val audioStore = FakeIndexStore()
+        val textStore = FakeIndexStore()
+        val knowledge = ArtistKnowledge(MusicEntityResolver { EntityIndexBytes.of("alpha" to intArrayOf(0)) }) {
+            KnowledgePackBytes.tiny()
+        }
+        val track = TrackDescriptor(TrackId("pack|id"), genre = "Pop", artist = "Alpha")
+        fun restart(knowledge: ArtistKnowledge?, encoder: FakeTextEncoder) = engine(
+            backend = FakeEmbeddingBackend(), store = audioStore, textEncoder = encoder,
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM), textStore = textStore, artistKnowledge = knowledge,
+        )
+
+        val firstEncoder = FakeTextEncoder()
+        val first = restart(knowledge, firstEncoder)
+        first.initialize()
+        assertEquals(1, first.ensureMetadataVectors(listOf(track)))
+        assertEquals(listOf("Pop; Alpha; romanian; 1980s"), firstEncoder.encodedMetadata)
+
+        val sameEncoder = FakeTextEncoder()
+        val same = restart(knowledge, sameEncoder)
+        same.initialize()
+        same.synchronizeLibrary(listOf(track))
+        assertEquals(0, same.ensureMetadataVectors(listOf(track)))
+        assertTrue(sameEncoder.encodedMetadata.isEmpty())
+
+        // Without the pack the string is different, so the stored vector no longer describes the track.
+        val packlessEncoder = FakeTextEncoder()
+        val packless = restart(null, packlessEncoder)
+        packless.initialize()
+        packless.synchronizeLibrary(listOf(track))
+        assertEquals(1, packless.ensureMetadataVectors(listOf(track)))
+        assertEquals(listOf("Pop; Alpha"), packlessEncoder.encodedMetadata)
     }
 
     @Test

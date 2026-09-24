@@ -13,11 +13,12 @@ describes entity id i of the index that ships beside it:
    the full 350k-entity build PQ-16 beat PQ-8 on the listener's library (+1.1 to +1.5 pp P@10) and
    matched it on the MPD libraries, for 21 B per entity instead of 13. (On a 2.9k-artist prototype the
    two measured equal; the codebooks fit a small pack much better.)
-5. Write the layout ArtistKnowledgePack.kt reads. With --attributes the teacher also fills structured
-   attributes (languages, country, decades, genres, energy, confidence). The record's confidence byte
-   is then the teacher's own confidence, so entries below 0.5 read as absent, and its two language
-   bytes index LANGUAGES. train_artist_adapter.py reads the same attribute cache. Entities without a
-   descriptor get confidence 0 and read as absent.
+5. Write the layout ArtistKnowledgePack.kt reads (version 2). With --attributes the teacher also fills
+   structured attributes (languages, country, decades, genres, energy, confidence). The record's
+   confidence byte is then the teacher's own confidence, so entries below 0.5 read as absent; its two
+   language bytes index LANGUAGES, and its decade byte holds the middle of the teacher's active
+   decades (see decade_byte). train_artist_adapter.py reads the same attribute cache. Entities
+   without a descriptor get confidence 0 and read as absent.
 
     python3 tools/research/build_artist_knowledge.py entities.jsonl.gz out/artist_knowledge.bin \\
         --cache out/artist_descriptors.json --attributes out/artist_attributes.json --limit 250000 [--teacher]
@@ -56,6 +57,42 @@ ATTRIBUTES_SYSTEM = (
 LANGUAGES = ["en", "ru", "ro", "uk", "ja", "ko", "zh", "es", "pt", "fr", "de", "it", "tr", "pl", "ar", "hi",
              "kk", "be", "sr", "hr", "bg", "el", "he", "fa", "nl", "sv", "fi", "no", "da", "cs", "hu", "id",
              "th", "vi", "tl", "ka", "hy", "az", "uz", "la", "instrumental"]
+
+
+def decade_byte(teacher: dict) -> int:
+    """The middle of the teacher's active decades, the later one of an even count, as 1 + (decade - 1000) / 10.
+
+    0 means unknown. The later middle is the rule the 2026-09-24 measurement used: appended to the metadata
+    string of a track without a year, it raised P@10 on the MPD libraries by 0.3-2.7 pp."""
+    decades = sorted(int(d) - int(d) % 10 for d in teacher.get("decades") or []
+                     if isinstance(d, (int, float)) and not isinstance(d, bool) and 1000 <= d < 3550)
+    return (decades[len(decades) // 2] - 1000) // 10 + 1 if decades else 0
+
+
+def pack_records(names: list[str], described: list[int], codes: np.ndarray, attributes: dict) -> np.ndarray:
+    """One record per entity: M code bytes, a u16 name fingerprint, two language bytes, a decade byte and a
+    confidence byte."""
+    M = codes.shape[1]
+    records = np.zeros((len(names), M + 6), np.uint8)
+    for row, entity in enumerate(described):
+        records[entity, :M] = codes[row]
+        records[entity, M:M + 2] = np.frombuffer(struct.pack("<H", fnv1a64(normalize(names[entity])) & 0xFFFF), np.uint8)
+        teacher = attributes.get(normalize(names[entity])) or {}
+        for slot, code in enumerate((teacher.get("languages") or [])[:2]):
+            records[entity, M + 2 + slot] = LANGUAGES.index(code) + 1 if code in LANGUAGES else 0
+        records[entity, M + 4] = decade_byte(teacher)
+        confidence = teacher.get("confidence")
+        records[entity, M + 5] = CONFIDENT if not isinstance(confidence, (int, float)) else int(round(255 * min(max(confidence, 0.0), 1.0)))
+    return records
+
+
+def write_pack(path: Path, books: np.ndarray, records: np.ndarray) -> None:
+    M = books.shape[0]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as handle:
+        handle.write(struct.pack("<8sIHBHI", b"LJKNOW1\0", 2, DIM, M, K, len(records)))
+        handle.write(books.astype(np.float16).tobytes())
+        handle.write(records.tobytes())
 
 
 def read_entities(path: Path, limit: int | None) -> list[str]:
@@ -175,21 +212,7 @@ def main() -> None:
     codes = np.stack([((vectors[:, j * width:(j + 1) * width, None] - books[j].T[None]) ** 2).sum(1).argmin(1)
                       for j in range(M)], 1).astype(np.uint8)
 
-    record = M + 5
-    records = np.zeros((len(names), record), np.uint8)
-    for row, entity in enumerate(described):
-        records[entity, :M] = codes[row]
-        records[entity, M:M + 2] = np.frombuffer(struct.pack("<H", fnv1a64(normalize(names[entity])) & 0xFFFF), np.uint8)
-        teacher = attributes.get(normalize(names[entity])) or {}
-        confidence = teacher.get("confidence")
-        records[entity, M + 4] = CONFIDENT if not isinstance(confidence, (int, float)) else int(round(255 * min(max(confidence, 0.0), 1.0)))
-        for slot, code in enumerate((teacher.get("languages") or [])[:2]):
-            records[entity, M + 2 + slot] = LANGUAGES.index(code) + 1 if code in LANGUAGES else 0
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    with args.output.open("wb") as handle:
-        handle.write(struct.pack("<8sIHBHI", b"LJKNOW1\0", 1, DIM, M, K, len(names)))
-        handle.write(books.astype(np.float16).tobytes())
-        handle.write(records.tobytes())
+    write_pack(args.output, books, pack_records(names, described, codes, attributes))
 
     decoded = np.concatenate([books[j][codes[:, j]] for j in range(M)], 1)
     decoded /= np.linalg.norm(decoded, axis=1, keepdims=True)

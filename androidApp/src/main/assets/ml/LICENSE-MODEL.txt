@@ -71,8 +71,9 @@ is the MiniLM text encoder's embedding (sentence-transformers/all-MiniLM-L6-v2,
 Apache-2.0, run offline) of a one-line description of
 the artist that DeepSeek-V4.1-Flash wrote from the artist's name alone; the
 description text is not included. Each record also keeps a 16-bit fingerprint
-of the artist's normalized name, up to two language indices and the model's
-own confidence. artist_adapter.bin is a two-layer network trained by LatentJam
+of the artist's normalized name, up to two language indices, the middle of the
+decades the model says the artist was most active in, and the model's own
+confidence. artist_adapter.bin is a two-layer network trained by LatentJam
 that guesses such a vector from a track's metadata vector when the pack does
 not cover the artist. It was trained only on metadata strings synthesized from
 the same model's structured artist attributes (languages, decades, genres),

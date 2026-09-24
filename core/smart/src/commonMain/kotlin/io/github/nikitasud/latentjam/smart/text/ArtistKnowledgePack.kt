@@ -8,13 +8,15 @@ import kotlin.math.sqrt
 
 /**
  * Read-only artist knowledge pack: for each entity of [MusicEntityIndex], a product-quantized
- * descriptor of what a teacher model knows about that artist, generated offline.
+ * descriptor of what a teacher model knows about that artist, generated offline, and two facts.
  *
  * Layout, little endian:
- * - magic `LJKNOW1\0`, u32 version, u16 dimension, u8 sub-spaces M, u16 centroids K, u32 entity count
+ * - magic `LJKNOW1\0`, u32 version (2), u16 dimension, u8 sub-spaces M, u16 centroids K, u32 entity
+ *   count
  * - FP16 codebooks `[M, K, dimension / M]`
  * - one fixed-size record per dense entity id: M code bytes, a u16 fingerprint of the entity's own
- *   normalized name, two language bytes and a confidence byte (1/255 units)
+ *   normalized name, two language bytes (1-based indices into [LANGUAGES]), a decade byte
+ *   (`1 + (decade - 1000) / 10`, 0 when unknown) and a confidence byte (1/255 units)
  *
  * There is no id list: the entity index's dense popularity-ranked ids are the key space.
  */
@@ -37,16 +39,28 @@ public class ArtistKnowledgePack private constructor(
      * belongs to or a token match. Otherwise the most popular confident entity is used. Null when
      * none is confident.
      */
-    public fun descriptor(entityIds: IntArray, artist: String): FloatArray? {
+    public fun descriptor(entityIds: IntArray, artist: String): FloatArray? = entity(entityIds, artist)?.let(::decode)
+
+    /** What the teacher says about the entity [descriptor] picks; null when none is confident. */
+    public fun facts(entityIds: IntArray, artist: String): ArtistFacts? = entity(entityIds, artist)?.let { entity ->
+        val at = record(entity) + subspaces + 2
+        val decade = bytes[at + 2].toInt() and 0xff
+        ArtistFacts(
+            language = LANGUAGES.getOrNull((bytes[at].toInt() and 0xff) - 1),
+            decade = if (decade == 0) null else 1000 + (decade - 1) * 10,
+        )
+    }
+
+    private fun entity(entityIds: IntArray, artist: String): Int? {
         val confident = entityIds.filter { it in 0 until entityCount && confidence(it) >= MIN_CONFIDENCE }
         if (confident.isEmpty()) return null
         val own = fingerprint(artist)
-        return decode(confident.firstOrNull { fingerprintOf(it) == own } ?: confident.first())
+        return confident.firstOrNull { fingerprintOf(it) == own } ?: confident.first()
     }
 
     private fun record(entity: Int): Int = recordsOffset + entity * recordSize
 
-    private fun confidence(entity: Int): Int = bytes[record(entity) + subspaces + 4].toInt() and 0xff
+    private fun confidence(entity: Int): Int = bytes[record(entity) + subspaces + 5].toInt() and 0xff
 
     private fun fingerprintOf(entity: Int): Int {
         val at = record(entity) + subspaces
@@ -70,10 +84,17 @@ public class ArtistKnowledgePack private constructor(
 
     public companion object {
         private val MAGIC = "LJKNOW1\u0000".encodeToByteArray()
-        private const val VERSION = 1
+        private const val VERSION = 2
         private const val HEADER_SIZE = 21
-        private const val RECORD_TAIL = 5 // fingerprint (2), two language bytes, confidence
+        private const val RECORD_TAIL = 6 // fingerprint (2), two language bytes, decade, confidence
         private const val MIN_CONFIDENCE = 128 // 0.5 in 1/255 units
+
+        /** The language bytes' codes, in the order of LANGUAGES in tools/research/build_artist_knowledge.py. */
+        internal val LANGUAGES: List<String> = listOf(
+            "en", "ru", "ro", "uk", "ja", "ko", "zh", "es", "pt", "fr", "de", "it", "tr", "pl", "ar", "hi",
+            "kk", "be", "sr", "hr", "bg", "el", "he", "fa", "nl", "sv", "fi", "no", "da", "cs", "hu", "id",
+            "th", "vi", "tl", "ka", "hy", "az", "uz", "la", "instrumental",
+        )
 
         /** The 16-bit fingerprint of a normalized artist name that each record carries. */
         internal fun fingerprint(artist: String): Int =
@@ -113,3 +134,9 @@ public class ArtistKnowledgePack private constructor(
         }
     }
 }
+
+/**
+ * What the teacher said about an artist: the ISO 639-1 code of the language they mainly sing in, or
+ * `instrumental`, and the middle of the decades they were most active in (the later one of two).
+ */
+public data class ArtistFacts(val language: String?, val decade: Int?)

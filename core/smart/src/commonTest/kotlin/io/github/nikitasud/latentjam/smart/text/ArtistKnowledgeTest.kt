@@ -17,21 +17,21 @@ class ArtistKnowledgeTest {
 
     @Test
     fun `a known artist gets its entity's descriptor`() {
-        val knowledge = ArtistKnowledge(entities) { pack() }
+        val knowledge = ArtistKnowledge(entities) { KnowledgePackBytes.tiny() }
 
         assertVector(floatArrayOf(0f, half, half, 0f), knowledge.descriptor("Beta"))
     }
 
     @Test
     fun `a collaboration tag falls back to its first credited artist`() {
-        val knowledge = ArtistKnowledge(entities) { pack() }
+        val knowledge = ArtistKnowledge(entities) { KnowledgePackBytes.tiny() }
 
         assertVector(floatArrayOf(half, 0f, 0f, half), knowledge.descriptor("Alpha & Beta", primaryArtist = "Alpha"))
     }
 
     @Test
     fun `an artist the pack misses gets the adapter's guess from the track's text vector`() {
-        val knowledge = ArtistKnowledge(entities, loadPack = { pack() }, loadAdapter = { identityAdapter() })
+        val knowledge = ArtistKnowledge(entities, loadPack = { KnowledgePackBytes.tiny() }, loadAdapter = { identityAdapter() })
         val guess = assertNotNull(knowledge.descriptor("Nobody", text = floatArrayOf(1f, 0f, 0f, 0f)))
 
         assertEquals(1f, guess[0], 1e-4f)
@@ -57,7 +57,7 @@ class ArtistKnowledgeTest {
 
     @Test
     fun `unknown or unconfident or blank or pack-less lookups have no descriptor`() {
-        val knowledge = ArtistKnowledge(entities) { pack() }
+        val knowledge = ArtistKnowledge(entities) { KnowledgePackBytes.tiny() }
 
         assertNull(knowledge.descriptor("Nobody"))
         assertNull(knowledge.descriptor("Gamma"))
@@ -66,28 +66,21 @@ class ArtistKnowledgeTest {
         assertNull(ArtistKnowledge(entities) { null }.descriptor("Beta"))
     }
 
+    @Test
+    fun `facts follow the same names the descriptor does`() {
+        val knowledge = ArtistKnowledge(entities) { KnowledgePackBytes.tiny() }
+
+        assertEquals(ArtistFacts("en", null), knowledge.facts("Beta"))
+        assertEquals(ArtistFacts("ro", 1980), knowledge.facts("Alpha & Beta", primaryArtist = "Alpha"))
+        assertNull(knowledge.facts("Gamma"))
+        assertNull(knowledge.facts("Nobody"))
+        assertNull(ArtistKnowledge(entities) { null }.facts("Beta"))
+    }
+
     private fun assertVector(expected: FloatArray, actual: FloatArray?) {
         val values = assertNotNull(actual)
         assertEquals(expected.size, values.size)
         expected.indices.forEach { assertEquals(expected[it], values[it], 1e-6f) }
-    }
-
-    /** Dimension 4, M = 2, K = 2 ([1, 0] and [0, 1]); Alpha (0, 1), Beta (1, 0), Gamma unconfident. */
-    private fun pack(): ByteArray {
-        val out = ArrayList<Byte>()
-        fun u8(value: Int) { out += value.toByte() }
-        fun u16(value: Int) { u8(value and 0xff); u8(value shr 8) }
-        fun u32(value: Int) { u16(value and 0xffff); u16(value ushr 16) }
-        "LJKNOW1\u0000".encodeToByteArray().forEach { out += it }
-        u32(1); u16(4); u8(2); u16(2); u32(3)
-        repeat(2) { u16(0x3C00); u16(0x0000); u16(0x0000); u16(0x3C00) }
-        fun record(first: Int, second: Int, name: String, confidence: Int) {
-            u8(first); u8(second); u16(ArtistKnowledgePack.fingerprint(name)); u8(0); u8(0); u8(confidence)
-        }
-        record(0, 1, "Alpha", 200)
-        record(1, 0, "Beta", 200)
-        record(0, 0, "Gamma", 0)
-        return out.toByteArray()
     }
 
     /** A MusicEntityIndex whose normalized names each resolve to one entity id. */
