@@ -19,13 +19,13 @@ around the Kotlin; agreement between the two is the actual cross-check.
 Scorer note (phase 2). The fixture *records* logits and the chain *replays* them, so which
 scorer produced them does not affect whether parity is reachable — the same numbers drive
 both sides. `--scorer` only decides which behaviour the fixture pins:
-  * twostage  (default) — B's shipped stack: frozen acoustic scorer (predictor_scorer_n100,
-               state 960 / candidates 100x960) + the text residual
-               (predictor_text_residual_n100_960). This is what the device runs today.
-  * semtext1344         — A HEAD's swapped 1344-d semtext scorer (app assets
-               predictor_scorer_n100.onnx: state 1344 / candidates 100x1344). B does not
-               ship this graph yet; recording its logits pins A-HEAD taste on top of B's
-               owned geometry.
+  * twostage  (default) — the stack shipped until 2026-07-24: frozen acoustic scorer
+               (predictor_scorer_n100, state 960 / candidates 100x960) + the text residual
+               (predictor_text_residual_n100_960). This repo's assets no longer carry either
+               graph, so this mode does not run here.
+  * semtext1344         — the 1344-d semtext scorer the app ships (app assets
+               predictor_scorer_n100.onnx: state 1344 / candidates 100x1344). The recorded
+               fixture uses this mode.
   * none                — zero logits (pure geometry + metadata + semantic-z + reanchor).
 
 Cold contract. On the cold-start path both slow-taste encoder inputs (history_medium,
@@ -97,12 +97,14 @@ SESS = np.array([math.log(2), 0, math.log(1.5), 1, 1], "f")
 GENRE_ALIASES = [
     ("hip", "rap"), ("rap", "rap"), ("trap", "rap"), ("phonk", "rap"),
     ("rock", "rock"), ("metal", "rock"), ("punk", "rock"), ("grunge", "rock"),
-    ("pop", "pop"),
+    ("pop", "pop"), ("europop", "pop"),
     ("dance", "dance"), ("electronic", "dance"), ("edm", "dance"),
-    ("house", "dance"), ("techno", "dance"),
+    ("house", "dance"), ("techno", "dance"), ("eurodance", "dance"),
+    ("hi nrg", "dance"), ("trance", "dance"),
     ("classical", "classical"), ("orchestral", "classical"), ("baroque", "classical"),
     ("soundtrack", "soundtrack"), ("score", "soundtrack"),
 ]
+GENRE_SEPARATORS = re.compile(r"[;/,|]")
 HUB_TOKENS = {"ost", "soundtrack", "score", "anime", "cinematic",
               "orchestral", "game", "ambient", "library", "western"}
 TOKEN_SPLIT = re.compile(r"[^a-zа-яё]+")
@@ -256,6 +258,14 @@ class Library:
         self.mtitle = [normalize_title(m[0]) for m in self.lab]
         self.martist = [(m[1] or "") for m in self.lab]
         self.makey = [normalize_artist(m[1]) for m in self.lab]
+        # Mirror of TrackMeta.titleArtistKey: a repeat is the same title by the same artist, and
+        # a blank title or an unknown artist identifies nothing.
+        self.mtakey = [(a, t) if a and t else None for a, t in zip(self.makey, self.mtitle)]
+        # Genres.families splits a joined tag into several families; for a single-genre tag it
+        # is exactly {normalize(tag)}, which is all this mirror implements.
+        joined = [m[3] for m in self.lab if GENRE_SEPARATORS.search(m[3] or "")]
+        if joined:
+            raise NotImplementedError(f"multi-genre tags unused by this fixture: {joined[:3]}")
 
         # ONNX — all graphs come from this repo's own assets; the state and scorer files are
         # byte-identical to the ones the legacy checkout ships, so nothing points across.
@@ -474,6 +484,11 @@ def build_chain(lib, seed, length):
     states.append(state[0].copy())
 
     pool = build_pool(lib, seed, state)
+    seed_key = lib.mtakey[seed]
+    if seed_key is not None and pool and all(lib.mtakey[p] == seed_key for p in pool):
+        # SmartChain re-retrieves past the seed's alternate releases here; a whole pool of one
+        # song's releases cannot occur in this library.
+        raise NotImplementedError("pool of alternate releases unused by this fixture")
     pool_rows = np.array(pool)
 
     cand_audio = np.zeros((POOL_SIZE, AUDIO_DIM), "f")
@@ -494,7 +509,7 @@ def build_chain(lib, seed, length):
     # recentArtists starts EMPTY: SmartChain deliberately lets the seed lead into one closely
     # related track by the same artist before the spacing window engages (see SmartChain.kt).
     recent = deque()
-    seen_titles = {lib.mtitle[seed]} if lib.mtitle[seed] else set()
+    seen_titles = {seed_key} if seed_key is not None else set()
     artist_plays = {}
     family_picks = 0
     z_seed = lib.chain_semantic_z(seed, pool)
@@ -503,11 +518,13 @@ def build_chain(lib, seed, length):
         if i in used:
             return False
         r = pool[i]
-        if lib.makey[r] in recent:
+        # An empty artist key supplies no identity: untagged tracks are neither spaced nor capped
+        # as one artist.
+        if lib.makey[r] and lib.makey[r] in recent:
             return False
-        if lib.mtitle[r] and lib.mtitle[r] in seen_titles:
+        if lib.mtakey[r] is not None and lib.mtakey[r] in seen_titles:
             return False
-        if artist_plays.get(lib.makey[r], 0) >= CHAIN_ARTIST_QUEUE_CAP:
+        if lib.makey[r] and artist_plays.get(lib.makey[r], 0) >= CHAIN_ARTIST_QUEUE_CAP:
             return False
         return True
 
@@ -578,8 +595,8 @@ def build_chain(lib, seed, length):
         used.add(best_i)
         if lib.mgenre[picked] == seed_genre and seed_genre is not None:
             family_picks += 1
-        if lib.mtitle[picked]:
-            seen_titles.add(lib.mtitle[picked])
+        if lib.mtakey[picked] is not None:
+            seen_titles.add(lib.mtakey[picked])
         artist_plays[lib.makey[picked]] = artist_plays.get(lib.makey[picked], 0) + 1
         recent.append(lib.makey[picked])
         while len(recent) > CHAIN_ARTIST_SPACING:
@@ -679,8 +696,8 @@ def main():
     with open(os.path.join(args.out, "seeds.tsv"), "w") as f:
         f.write("\n".join(seed_lines) + "\n")
     print(f"wrote fixture to {args.out}")
-    print("run: SMART_PARITY_FIXTURE=%s ./gradlew :core:smart:testAndroidHostTest "
-          "--tests '*SmartChainParityTest*'" % args.out)
+    print("run: SMART_PARITY_FIXTURE=%s ./gradlew --no-daemon :core:smart:testAndroidHostTest "
+          "--tests '*SmartChainParityTest*' --rerun" % args.out)
 
 
 if __name__ == "__main__":
