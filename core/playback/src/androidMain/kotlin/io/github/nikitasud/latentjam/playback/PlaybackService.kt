@@ -265,25 +265,14 @@ public class PlaybackService : MediaLibraryService() {
             )
         }
 
-        // External browsers (Android Auto) send browse-only items with no URI. In-process items
-        // arrive complete and pass through untouched, so the in-app play path is unchanged.
+        // Add to queue and replace. A replace left with nothing that can play would delete the rows
+        // it names, so it fails instead, like a set that finds nothing: see [playableRequestFrom].
         override fun onAddMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
             mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> = browseFuture {
-            val catalog = MediaBrowseRegistry.catalog?.invoke()
-            mediaItems.mapNotNull { item ->
-                if (item.localConfiguration != null) {
-                    item
-                } else {
-                    catalog?.let { available ->
-                        resolvePlayable(available, item.mediaId)
-                            ?: item.requestMetadata.searchQuery
-                                ?.let { query -> resolveSearchPlayable(available, query) }
-                    }
-                }
-            }.toMutableList()
+            playableRequestFrom(controller, mediaItems).items.toMutableList()
         }
 
         // A queue set from outside the app (Android Auto's browse tree, a voice request, another
@@ -292,6 +281,10 @@ public class PlaybackService : MediaLibraryService() {
         // unexplained. So the pick is announced here once resolved. Media3 installs the queue only
         // after this future completes, so the player's transition finds the announcement waiting.
         // Resumption and Add to queue take other callbacks and stay unannounced.
+        //
+        // The items resolve here, not through Media3's default, which pairs the start it was given
+        // with whatever onAddMediaItems returns: once a row that cannot play drops out, that start
+        // points at another track, or past the end.
         override fun onSetMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -299,9 +292,19 @@ public class PlaybackService : MediaLibraryService() {
             startIndex: Int,
             startPositionMs: Long,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-            val resolved = super.onSetMediaItems(
-                mediaSession, controller, mediaItems, startIndex, startPositionMs,
-            )
+            val resolved = browseFuture {
+                val request = playableRequestFrom(
+                    controller,
+                    mediaItems,
+                    startIndex.takeUnless { it == C.INDEX_UNSET },
+                    startPositionMs.takeUnless { it == C.TIME_UNSET },
+                )
+                MediaSession.MediaItemsWithStartPosition(
+                    request.items,
+                    request.startIndex ?: C.INDEX_UNSET,
+                    request.startPositionMs ?: C.TIME_UNSET,
+                )
+            }
             if (controller.packageName == packageName) return resolved
             return Futures.transform(
                 resolved,
@@ -313,7 +316,7 @@ public class PlaybackService : MediaLibraryService() {
                     )
                     queue
                 },
-                // onAddMediaItems resolves on the main thread, where the ledger and player live.
+                // The request resolves on the main thread, where the ledger and player live.
                 MoreExecutors.directExecutor(),
             )
         }
@@ -383,6 +386,45 @@ public class PlaybackService : MediaLibraryService() {
                 ?.let { folderItem(it.id, it.title) }
                 ?: resolvePlayable(catalog, mediaId)
         }
+
+    /**
+     * What [controller]'s request for [mediaItems] can play; see [playableRequest]. External
+     * browsers (Android Auto) send browse-only items with no URI, resolved here by id or search
+     * query. In-process items arrive complete and pass through untouched, so the in-app play path
+     * is unchanged.
+     *
+     * A request none of whose items can play throws. Media3 returns an error result to a Media3
+     * controller, and the legacy playFrom, prepareFrom and addQueueItem path drops the request, so
+     * the queue that was playing plays on.
+     */
+    private suspend fun playableRequestFrom(
+        controller: MediaSession.ControllerInfo,
+        mediaItems: List<MediaItem>,
+        startIndex: Int? = null,
+        startPositionMs: Long? = null,
+    ): PlayableRequest<MediaItem> {
+        val catalog = MediaBrowseRegistry.catalog?.invoke()
+        val rows = mediaItems.map { item ->
+            if (item.localConfiguration != null) {
+                item
+            } else {
+                catalog?.let { available ->
+                    resolvePlayable(available, item.mediaId)
+                        ?: item.requestMetadata.searchQuery
+                            ?.let { query -> resolveSearchPlayable(available, query) }
+                }
+            }
+        }
+        return playableRequest(rows, startIndex, startPositionMs) ?: run {
+            // Nothing else marks the refusal: the black box would show the request arrive, then
+            // nothing, like a command that went missing.
+            recordExternalMediaEvent(
+                source = controller.packageName,
+                what = "refused: none of ${mediaItems.size} requested items can play",
+            )
+            throw UnsupportedOperationException("None of the requested items can play")
+        }
+    }
 
     private fun resolvePlayable(catalog: MediaBrowseCatalog, mediaId: String): MediaItem? {
         if (mediaId.isBlank()) return null
