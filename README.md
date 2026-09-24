@@ -236,6 +236,7 @@ core/history    listening events, aggregates, For You impressions
 composeApp      all UI, shared verbatim by both platforms
 androidApp      packaging shell — contains no Kotlin
 iosApp          Xcode project + thin Swift host
+build-logic/    the build's own Gradle plugin: the Kotlin/Native name check
 docs/           design notes and validation records
 tools/          one-off scripts and research harnesses, not on any build path
 ```
@@ -249,6 +250,12 @@ library and `androidApp` exists only to package it.
 ```bash
 ./gradlew testAndroidHostTest
 ```
+
+Each module's host tests first run `checkNativeIdentifiers`, which fails on a backticked name that
+Kotlin/Native refuses (a comma or a question mark in a test name, say) in the sources the iOS build
+compiles. The JVM accepts most of those characters, so without it the host tests pass while the iOS test
+compile breaks. It reads the sources instead of compiling them, so it runs on Linux too; its own tests
+are `./gradlew :build-logic:test`.
 
 Beyond the unit suites, a few checks cover what unit tests usually miss. Each skips unless its
 fixture is present, so the default run stays fast and offline:

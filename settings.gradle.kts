@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 pluginManagement {
+    // The repository's own Gradle plugin (checkNativeIdentifiers).
+    includeBuild("build-logic")
     repositories {
         // Content filters keep non-Google artifacts (kotlinx, koin, …) from ever
         // being requested from dl.google.com — resolution stays correct even when

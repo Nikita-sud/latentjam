@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.androidKotlinMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    id("latentjam.native-identifiers")
 }
 
 kotlin {
