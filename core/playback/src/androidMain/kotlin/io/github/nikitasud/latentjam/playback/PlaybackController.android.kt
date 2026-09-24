@@ -742,10 +742,8 @@ internal class AndroidPlaybackController(
         beginFreshRecoveryAttempt()
         resetTransportFade()
         applyEffectiveVolume()
-        // Tapping the playing row restarts it in place; Media3 reports no transition for that.
-        if (mediaItemIndex != player.currentMediaItemIndex) {
-            announceStart(player, StartCause.USER_PICK, mediaItemIndex)
-        }
+        // The service also observes the seek when this tap restarts the current row in place.
+        announceStart(player, StartCause.USER_PICK, mediaItemIndex)
         player.seekTo(mediaItemIndex, 0L)
         if (player.playbackState == Player.STATE_IDLE) player.prepare()
         player.play()

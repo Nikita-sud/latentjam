@@ -60,7 +60,7 @@ public class HistorySessionTracker(
     ): ListenEvent? {
         val finished = observe(
             trackId, positionMs, trackDurationMs, currentShuffleMode, nowMs, isPlaying,
-            smartPlanPosition, parentId,
+            start, smartPlanPosition, parentId,
         )
         // After any session change, so a session opened by this snapshot can bind its signal.
         bindStart(start)
@@ -74,17 +74,15 @@ public class HistorySessionTracker(
         currentShuffleMode: String?,
         nowMs: Long,
         isPlaying: Boolean,
+        startSignal: ListenStartSignal?,
         smartPlanPosition: Int?,
         parentId: String?,
     ): ListenEvent? {
         if (trackId == currentTrackId) {
             accumulateListening(positionMs, nowMs)
-            // Repeat-one and adjacent duplicate queue entries do not necessarily emit a different
-            // TrackId. A near-end -> near-zero wrap is nevertheless a new playback instance and
-            // must close the prior listen before opening another one. Treating every backward seek
-            // as a restart would inflate history, so require both substantial prior progress and a
-            // return to the opening seconds.
-            if (trackId != null && isPlaybackRestart(positionMs)) {
+            // An explicit same-track start can happen at any progress or with unknown duration.
+            // Without a fresh signal, retain the near-end wrap heuristic for older transports.
+            if (trackId != null && isPlaybackRestart(positionMs, startSignal)) {
                 accumulateTransitionTail(nowMs)
                 val finished = finishCurrent()
                 if (isPlaying) {
@@ -157,11 +155,19 @@ public class HistorySessionTracker(
         )
     }
 
-    private fun isPlaybackRestart(positionMs: Long): Boolean {
-        val duration = durationMs ?: return false
+    private fun isPlaybackRestart(positionMs: Long, signal: ListenStartSignal?): Boolean {
         val openingPosition = positionMs.coerceAtLeast(0)
-        return openingPosition <= RESTART_OPENING_WINDOW_MS &&
-            maxPositionMs >= (duration * RESTART_MIN_PROGRESS).toLong() &&
+        if (openingPosition > RESTART_OPENING_WINDOW_MS) return false
+        // Android can publish the service's signal before the controller's playhead resets. Wait
+        // for the opening position; otherwise the subsequent wrap would close a second session.
+        // An unbound session was already opened by a track change or wrap, so a delayed signal
+        // belongs to that session rather than starting yet another one. Unknown causes may just
+        // re-describe a queue after a mode switch and do not prove a restart.
+        if (startBound && signal != null && signal.trackId == currentTrackId && signal.start != null &&
+            signal.sequence > lastBoundStartSequence
+        ) return true
+        val duration = durationMs ?: return false
+        return maxPositionMs >= (duration * RESTART_MIN_PROGRESS).toLong() &&
             maxPositionMs - openingPosition >= RESTART_MIN_REWIND_MS
     }
 
@@ -202,6 +208,9 @@ public class HistorySessionTracker(
         if (startBound || signal == null) return
         if (signal.trackId != trackId || signal.sequence <= lastBoundStartSequence) return
         start = signal.start
+        // A direct choice of a planned queue row is the listener's intent, even if the queue still
+        // carries the position SMART originally assigned it. The delayed signal can clarify this.
+        if (start == ListenStart.USER_PICK) smartPlanPosition = null
         startBound = true
         lastBoundStartSequence = signal.sequence
     }

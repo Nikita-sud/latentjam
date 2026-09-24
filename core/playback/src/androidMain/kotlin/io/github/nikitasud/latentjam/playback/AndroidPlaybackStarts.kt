@@ -55,14 +55,18 @@ internal object AndroidPlaybackStarts {
         ledger.announce(StartCause.USER_PICK, TrackId(start.mediaId))
     }
 
-    /** From the service player's listener. Only a seek between rows says which way it went. */
+    /** From the service player's listener: a skip between rows or an announced in-place replay. */
     fun onPositionDiscontinuity(
         oldPosition: Player.PositionInfo,
         newPosition: Player.PositionInfo,
         reason: Int,
     ) {
-        if (reason == Player.DISCONTINUITY_REASON_SEEK && oldPosition.mediaItemIndex != newPosition.mediaItemIndex) {
+        if (reason != Player.DISCONTINUITY_REASON_SEEK) return
+        if (oldPosition.mediaItemIndex != newPosition.mediaItemIndex) {
             pendingSeek = SeekBetweenRows(oldPosition.mediaItemIndex, newPosition.mediaItemIndex)
+        } else if (newPosition.positionMs == 0L) {
+            val trackId = newPosition.mediaItem?.mediaId?.let(::TrackId) ?: return
+            ledger.restartIfAnnounced(trackId)?.let { mutableCurrent.value = it }
         }
     }
 

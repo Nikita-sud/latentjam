@@ -50,6 +50,13 @@ internal class PlaybackStartLedger {
         begin(trackId, observed = null)
     }
 
+    /** A queue-row tap that seeks within the current item emits no media-item transition. */
+    fun restartIfAnnounced(trackId: TrackId): PlaybackStart? {
+        val pick = announced ?: return null
+        if (pick.target != trackId || pick.cause != StartCause.USER_PICK) return null
+        return begin(trackId, observed = null)
+    }
+
     private data class Announcement(val cause: StartCause, val target: TrackId)
 }
 
