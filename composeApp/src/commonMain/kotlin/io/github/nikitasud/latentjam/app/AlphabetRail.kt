@@ -639,11 +639,13 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
         latestOnScrubbingChange(false)
     }
 
-    // Refresh compiler-memoized local-function references with the catalog, but keep the
-    // visual rail outside that key. Recreating the whole rail also reset its measurements and
-    // letter transition, so changing pages replayed an entrance instead of morphing letters.
+    // Reset gesture captures with the catalog, while retaining the visual rail for its morph.
+    // Wrap local-function references: their equality ignores captured state, so passing them
+    // directly to rememberUpdatedState kept callbacks writing into the previous page's bubble.
     val gestures = key(catalogKey) {
-        RailSelectionCallbacks(::beginSelection, ::select, ::endSelection, ::cancelSelection)
+        remember(reduceMotion) {
+            RailSelectionCallbacks(::beginSelection, ::select, ::endSelection, ::cancelSelection)
+        }
     }
     AlphabetRail(
         buckets = buckets,
@@ -692,12 +694,18 @@ internal fun BoxScope.StandaloneAlphabetRailOverlay(
     }
 }
 
-private data class RailSelectionCallbacks(
-    val start: () -> Unit,
-    val select: (Int, Float) -> Unit,
-    val end: () -> Unit,
-    val cancel: () -> Unit,
-)
+/** Identity-based handlers let a retained rail observe a replacement gesture owner. */
+internal class RailSelectionCallbacks(
+    onStart: () -> Unit,
+    onSelect: (Int, Float) -> Unit,
+    onEnd: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val start: () -> Unit = { onStart() }
+    val select: (Int, Float) -> Unit = { index, y -> onSelect(index, y) }
+    val end: () -> Unit = { onEnd() }
+    val cancel: () -> Unit = { onCancel() }
+}
 
 /** A single live letter: fast scrubs never accumulate a stack of outgoing animated labels. */
 @Composable
