@@ -8,6 +8,8 @@ import io.github.nikitasud.latentjam.history.DefaultListeningHistory
 import io.github.nikitasud.latentjam.history.DefaultRecentSearches
 import io.github.nikitasud.latentjam.history.HistoryStore
 import io.github.nikitasud.latentjam.history.ListenEvent
+import io.github.nikitasud.latentjam.history.ListenOrigin
+import io.github.nikitasud.latentjam.history.ListenStart
 import io.github.nikitasud.latentjam.history.RecentSearchStore
 import io.github.nikitasud.latentjam.history.SmartExclusionStore
 import io.github.nikitasud.latentjam.history.SmartExclusions
@@ -88,7 +90,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t4\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t5\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
     }
 
@@ -154,10 +156,84 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun codecRoundTripsListeningOriginsAndKeepsLegacyEventsUnknown() {
+        val track = LocalBackupTrackReference("t", "Title", "Artist", null, 200_000)
+        fun listen(startedAtMs: Long, origin: ListenOrigin?) = LocalBackupListenEvent(
+            trackReferenceId = "t",
+            startedAtMs = startedAtMs,
+            playedMs = 1,
+            trackDurationMs = 200_000,
+            completed = false,
+            skipped = true,
+            shuffleMode = "SMART",
+            listenedMs = 1,
+            origin = origin,
+        )
+        val snapshot = emptySnapshot().copy(
+            tracks = listOf(track),
+            listeningHistory = listOf(
+                listen(1, ListenOrigin(ListenStart.AUTO_ADVANCE, 3, "folder:/Music/Кино\tLive")),
+                listen(2, ListenOrigin()),
+                listen(3, origin = null),
+            ),
+        )
+
+        val encoded = LocalBackupCodec.encode(snapshot)
+
+        assertEquals(snapshot, LocalBackupCodec.decode(encoded))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t5\n"))
+    }
+
+    @Test
+    fun codecReadsFrozenHistoryRecordsWithAndWithoutAnOrigin() {
+        val header = "C\t1\nS\tSYSTEM\ttracks\tdynamic\t20\t1\t1\t0\t0\t0\nT\ts74\tn\tn\tn\tn\n"
+        val v4 = LocalBackupCodec.decode(
+            "LATENTJAM-LOCAL-BACKUP\t4\n" + header + "H\ts74\t10\t20\tn\t0\t0\tn\t15\n",
+        )
+        assertNull(v4.listeningHistory.single().origin)
+
+        // hex("SKIP_NEXT") = 534b49505f4e455854, hex("album:k") = 616c62756d3a6b.
+        val v5 = LocalBackupCodec.decode(
+            "LATENTJAM-LOCAL-BACKUP\t5\n" + header +
+                "H\ts74\t10\t20\tn\t0\t0\tn\t15\t1\ts534b49505f4e455854\t2\ts616c62756d3a6b\n" +
+                "H\ts74\t30\t20\tn\t0\t0\tn\t15\t0\tn\tn\tn\n" +
+                // A start named by a newer build reads as unknown instead of failing the restore.
+                "H\ts74\t50\t20\tn\t0\t0\tn\t15\t1\ts4c41544552\tn\tn\n",
+        )
+        assertEquals(
+            listOf(ListenOrigin(ListenStart.SKIP_NEXT, 2, "album:k"), null, ListenOrigin()),
+            v5.listeningHistory.map { it.origin },
+        )
+    }
+
+    @Test
+    fun codecRejectsMalformedListeningOrigins() {
+        val prefix = "LATENTJAM-LOCAL-BACKUP\t5\nC\t1\n" +
+            "S\tSYSTEM\ttracks\tdynamic\t20\t1\t1\t0\t0\t0\nT\ts74\tn\tn\tn\tn\n" +
+            "H\ts74\t10\t20\tn\t0\t0\tn\t15\t"
+        for (origin in listOf("0\tn\t2\tn", "1\tn\t0\tn", "1\tn\tx\tn", "1\tn\tn\ts", "2\tn\tn\tn", "1\tn\tn")) {
+            assertFailsWith<LocalBackupFormatException>(origin) {
+                LocalBackupCodec.decode(prefix + origin + "\n")
+            }
+        }
+        assertFailsWith<LocalBackupFormatException> {
+            LocalBackupCodec.validate(
+                emptySnapshot().copy(
+                    formatVersion = 4,
+                    tracks = listOf(LocalBackupTrackReference("t", null, null, null, null)),
+                    listeningHistory = listOf(
+                        LocalBackupListenEvent("t", 1, 1, null, false, false, null, origin = ListenOrigin()),
+                    ),
+                ),
+            )
+        }
+    }
+
+    @Test
     fun codecRejectsFutureVersionsCorruptionAndDanglingReferences() {
         val valid = LocalBackupCodec.encode(emptySnapshot())
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t4", "LOCAL-BACKUP\t9"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t5", "LOCAL-BACKUP\t9"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
@@ -252,7 +328,7 @@ internal class LocalBackupTest {
         val encoded = source.service.exportEncoded()
         destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
 
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t4\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t5\n"))
         assertEquals(layout, destination.settings.pageLayout.value)
         assertEquals(StartPage.STATISTICS, destination.settings.startPage.value)
     }
@@ -410,6 +486,20 @@ internal class LocalBackupTest {
             listOf(existingEvent, event(imported.id, 200)),
             fixture.history.recentEvents(Int.MAX_VALUE).asReversed(),
         )
+    }
+
+    @Test
+    fun mergingABackupBackInKeepsOneCopyOfEachListenWithItsOrigin() = runTest {
+        val song = track("song", "Song", "Artist", "Album", 120_000)
+        val fixture = fixture(listOf(song))
+        val listen = event(song.id, 100).copy(
+            origin = ListenOrigin(ListenStart.USER_PICK, parentId = "playlist:p"),
+        )
+        fixture.history.record(listen)
+
+        fixture.service.importEncoded(fixture.service.exportEncoded(), LocalBackupRestoreMode.MERGE)
+
+        assertContentEquals(listOf(listen), fixture.history.recentEvents(Int.MAX_VALUE))
     }
 
     @Test

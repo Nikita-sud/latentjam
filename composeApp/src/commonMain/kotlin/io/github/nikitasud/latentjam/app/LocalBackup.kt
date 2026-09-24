@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.ListenEvent
+import io.github.nikitasud.latentjam.history.ListenOrigin
+import io.github.nikitasud.latentjam.history.ListenStart
 import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.RecentSearches
 import io.github.nikitasud.latentjam.history.SmartExclusionState
@@ -84,6 +86,8 @@ internal data class LocalBackupListenEvent(
     val shuffleMode: String?,
     /** Added in backup v3; null means the legacy playhead approximation must be used. */
     val listenedMs: Long? = null,
+    /** Added in backup v5; null for listens recorded before origins were logged. */
+    val origin: ListenOrigin? = null,
 )
 
 /** Versioned, platform-neutral state. It contains no music files and implies no cloud storage. */
@@ -139,7 +143,7 @@ internal class LocalBackupFormatException(message: String) : IllegalArgumentExce
  * validation make an arbitrary document-picker input safe to reject before any app state changes.
  */
 internal object LocalBackupCodec {
-    const val FORMAT_VERSION: Int = 4
+    const val FORMAT_VERSION: Int = 5
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -212,6 +216,15 @@ internal object LocalBackupCodec {
                         add(event.skipped.toBit())
                         add(event.shuffleMode.encodeNullableField())
                         if (snapshot.formatVersion >= 3) add(event.listenedMs.encodeNullableLong())
+                        if (snapshot.formatVersion >= 5) {
+                            // A presence bit first: a legacy listen (no origin) must stay distinct
+                            // from one observed with every origin field unknown.
+                            val origin = event.origin
+                            add((origin != null).toBit())
+                            add(origin?.start?.name.encodeNullableField())
+                            add(origin?.smartPlanPosition?.toLong().encodeNullableLong())
+                            add(origin?.parentId.encodeNullableField())
+                        }
                     },
                 )
             }
@@ -339,7 +352,13 @@ internal object LocalBackupCodec {
                     )
                 }
                 "H" -> {
-                    record.requireFieldCount(if (version >= 3) 9 else 8)
+                    record.requireFieldCount(
+                        when {
+                            version >= 5 -> 13
+                            version >= 3 -> 9
+                            else -> 8
+                        },
+                    )
                     if (history.size >= MAX_HISTORY_EVENTS) formatError("Too many history events")
                     history += LocalBackupListenEvent(
                         trackReferenceId = record.nextField().decodeField("history track id"),
@@ -354,6 +373,7 @@ internal object LocalBackupCodec {
                         } else {
                             null
                         },
+                        origin = if (version >= 5) record.decodeListenOrigin() else null,
                     )
                 }
                 "Q" -> {
@@ -465,10 +485,16 @@ internal object LocalBackupCodec {
         snapshot.listeningHistory.forEach { event ->
             if (event.trackReferenceId !in knownTracks || event.startedAtMs < 0 || event.playedMs < 0 ||
                 (event.trackDurationMs != null && event.trackDurationMs < 0) ||
-                (event.listenedMs != null && event.listenedMs < 0)
+                (event.listenedMs != null && event.listenedMs < 0) ||
+                // The same bounds the listening log enforces, so a restored event always reloads.
+                (event.origin?.smartPlanPosition?.let { it < 1 } == true) ||
+                event.origin?.parentId?.isEmpty() == true
             ) {
                 formatError("Invalid listening event")
             }
+        }
+        if (snapshot.formatVersion < 5 && snapshot.listeningHistory.any { it.origin != null }) {
+            formatError("Legacy backups cannot encode listening origins")
         }
         if (snapshot.recentSearches.any(String::isBlank)) formatError("Recent searches cannot be blank")
         if (snapshot.hiddenTrackReferenceIds.any { it !in knownTracks } ||
@@ -529,6 +555,27 @@ internal object LocalBackupCodec {
 
     private fun String.decodeNullableField(label: String): String? =
         if (this == "n") null else decodeField(label)
+
+    /** The four origin fields of a v5 history record; see [encode]. */
+    private fun FieldCursor.decodeListenOrigin(): ListenOrigin? {
+        val present = nextField().parseBit("history origin flag")
+        val start = nextField().decodeNullableField("history start")
+        val planPosition = nextField().decodeNullableLong("history plan position")
+        val parentId = nextField().decodeNullableField("history parent")
+        if (!present) {
+            if (start != null || planPosition != null || parentId != null) invalid()
+            return null
+        }
+        return ListenOrigin(
+            // A start named by a newer build is unknown here, as in the listening log itself.
+            start = start?.let { name -> ListenStart.entries.firstOrNull { it.name == name } },
+            smartPlanPosition = planPosition?.let {
+                if (it !in 1..Int.MAX_VALUE) invalid()
+                it.toInt()
+            },
+            parentId = parentId,
+        )
+    }
 
     private fun String.decodeField(label: String): String {
         if (!startsWith('s')) formatError("Invalid $label")
@@ -977,6 +1024,7 @@ internal class LocalBackupService(
         skipped = skipped,
         shuffleMode = shuffleMode,
         listenedMs = listenedMs,
+        origin = origin,
     )
 
     private fun LocalBackupListenEvent.toListenEvent(trackId: TrackId): ListenEvent = ListenEvent(
@@ -988,6 +1036,7 @@ internal class LocalBackupService(
         skipped = skipped,
         shuffleMode = shuffleMode,
         listenedMs = listenedMs,
+        origin = origin,
     )
 
     private companion object {
