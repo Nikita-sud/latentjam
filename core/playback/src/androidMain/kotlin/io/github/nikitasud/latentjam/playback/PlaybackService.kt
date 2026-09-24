@@ -280,7 +280,8 @@ public class PlaybackService : MediaLibraryService() {
         // controller announces only its own commands, and leaves a queue it restores at launch
         // unexplained. So the pick is announced here once resolved. Media3 installs the queue only
         // after this future completes, so the player's transition finds the announcement waiting.
-        // Resumption and Add to queue take other callbacks and stay unannounced.
+        // Resumption and Add to queue take other callbacks and stay unannounced, and so does a
+        // request that leaves the music to the app, which picks no track: see [playAnything].
         //
         // The items resolve here, not through Media3's default, which pairs the start it was given
         // with whatever onAddMediaItems returns: once a row that cannot play drops out, that start
@@ -292,6 +293,7 @@ public class PlaybackService : MediaLibraryService() {
             startIndex: Int,
             startPositionMs: Long,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            if (asksForAnything(mediaItems.map(::requestedRow))) return playAnything(controller)
             val resolved = browseFuture {
                 val request = playableRequestFrom(
                     controller,
@@ -423,6 +425,55 @@ public class PlaybackService : MediaLibraryService() {
                 what = "refused: none of ${mediaItems.size} requested items can play",
             )
             throw UnsupportedOperationException("None of the requested items can play")
+        }
+    }
+
+    private fun requestedRow(item: MediaItem): RequestedRow = RequestedRow(
+        mediaId = item.mediaId,
+        searchQuery = item.requestMetadata.searchQuery,
+        carriesAudio = item.localConfiguration != null,
+    )
+
+    /**
+     * Answers a request that leaves the music to the app, such as a voice "play music on LatentJam"
+     * (see [asksForAnything]): the queue already loaded, or else the one saved for the next launch,
+     * installed the way playback resumption installs it. With neither, the request is refused like
+     * one that cannot play.
+     *
+     * The loaded queue is answered with [KeepLoadedQueue], which [LoadedQueueKeeper] leaves
+     * uninstalled, so its track carries on from where it stands and its shuffle order stays. Media3
+     * then prepares the player if it must, restarts a track that ended, and plays only for a
+     * controller that asked to play rather than prepare. The listener asked for music, not for the
+     * track either queue starts on, so neither is announced as their pick.
+     */
+    private fun playAnything(
+        controller: MediaSession.ControllerInfo,
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        if ((playbackPlayer?.mediaItemCount ?: 0) > 0) {
+            recordExternalMediaEvent(controller.packageName, "play anything: the loaded queue")
+            return Futures.immediateFuture(
+                MediaSession.MediaItemsWithStartPosition(
+                    listOf(KeepLoadedQueue),
+                    C.INDEX_UNSET,
+                    C.TIME_UNSET,
+                ),
+            )
+        }
+        return browseFuture {
+            val resume = MediaBrowseRegistry.resumption?.invoke() ?: run {
+                recordExternalMediaEvent(
+                    source = controller.packageName,
+                    what = "refused: no queue loaded or saved",
+                )
+                throw UnsupportedOperationException("No queue loaded or saved")
+            }
+            recordExternalMediaEvent(controller.packageName, "play anything: the saved queue")
+            pendingResumptionMode = resume.shuffleMode
+            MediaSession.MediaItemsWithStartPosition(
+                resume.tracks.map(::playableItem),
+                resume.startIndex,
+                resume.positionMs,
+            )
         }
     }
 
@@ -646,7 +697,7 @@ public class PlaybackService : MediaLibraryService() {
         // Announced rather than injected: this service is built by the system and cannot see
         // the app's scoped Koin graph. Whoever owns the equalizer picks the session up from here.
         AudioSessionRegistry.publish(audioSessionId)
-        val sessionPlayer = object : androidx.media3.common.ForwardingPlayer(player) {
+        val sessionPlayer = object : LoadedQueueKeeper(player) {
             override fun setPlaylistMetadata(playlistMetadata: MediaMetadata) {
                 val marker = playlistMetadata.extras?.getBundle(AndroidQueueCommand.KEY)
                 if (marker == null) {

@@ -47,3 +47,26 @@ internal fun <T : Any> playableRequest(
         startPositionMs = startPositionMs.takeIf { rows.getOrNull(startIndex) != null },
     )
 }
+
+/**
+ * One row of a controller's request as it arrived. A row that [carriesAudio] is complete and plays
+ * as it came. Any other names a library track by [mediaId], empty for none, or searches for the
+ * words of [searchQuery], null when it does not search.
+ */
+internal class RequestedRow(
+    val mediaId: String,
+    val searchQuery: String?,
+    val carriesAudio: Boolean = false,
+)
+
+/**
+ * Whether a controller's request leaves the music to the app: it asks for rows, and every one of
+ * them is a search with no words that names no track. A voice assistant sends "play music on
+ * LatentJam" that way, and Android's media apps take it to mean "play anything", usually what
+ * played last. Read as a search, no words find nothing, and the request would be refused like one
+ * that cannot play.
+ */
+internal fun asksForAnything(rows: List<RequestedRow>): Boolean =
+    rows.isNotEmpty() && rows.all { row ->
+        !row.carriesAudio && row.mediaId.isBlank() && row.searchQuery?.isBlank() == true
+    }

@@ -7,7 +7,9 @@ package io.github.nikitasud.latentjam.playback
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 internal class PlayableRequestTest {
 
@@ -80,5 +82,51 @@ internal class PlayableRequestTest {
             PlayableRequest(listOf(a, b), startIndex = null, startPositionMs = null),
             playableRequest(listOf(a, null, b)),
         )
+    }
+
+    @Test
+    fun `a search with no words asks for anything`() {
+        // How a voice assistant sends "play music on LatentJam".
+        assertTrue(asksForAnything(listOf(RequestedRow(mediaId = "", searchQuery = ""))))
+    }
+
+    @Test
+    fun `a search of nothing but spaces asks for anything too`() {
+        assertTrue(asksForAnything(listOf(RequestedRow(mediaId = "", searchQuery = " \t "))))
+    }
+
+    @Test
+    fun `a search with words asks for what they find`() {
+        assertFalse(asksForAnything(listOf(RequestedRow(mediaId = "", searchQuery = "holy diver"))))
+    }
+
+    @Test
+    fun `a row that names a track asks for that track whatever it searches for`() {
+        assertFalse(asksForAnything(listOf(RequestedRow(mediaId = "22", searchQuery = ""))))
+    }
+
+    @Test
+    fun `a row that does not search asks for the track it names even when it names none`() {
+        assertFalse(asksForAnything(listOf(RequestedRow(mediaId = "", searchQuery = null))))
+    }
+
+    @Test
+    fun `a row that carries its own audio plays that audio`() {
+        val complete = RequestedRow(mediaId = "", searchQuery = "", carriesAudio = true)
+        assertFalse(asksForAnything(listOf(complete)))
+    }
+
+    @Test
+    fun `a request for no rows asks for an empty queue and not for anything`() {
+        assertFalse(asksForAnything(emptyList()))
+    }
+
+    @Test
+    fun `a request asks for anything only when every row does`() {
+        val anything = RequestedRow(mediaId = "", searchQuery = "")
+        val track = RequestedRow(mediaId = "22", searchQuery = null)
+        val blank = RequestedRow(mediaId = " ", searchQuery = " ")
+        assertFalse(asksForAnything(listOf(anything, track)))
+        assertTrue(asksForAnything(listOf(anything, blank)))
     }
 }
