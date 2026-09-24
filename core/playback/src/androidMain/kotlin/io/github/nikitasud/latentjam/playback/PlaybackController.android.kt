@@ -921,6 +921,7 @@ internal class AndroidPlaybackController(
         positionMs: Long,
         sourceTracks: List<TrackDescriptor>?,
         smartContinuationIds: Set<TrackId>,
+        smartPlanPositions: Map<TrackId, Int>,
     ) {
         if (tracks.isEmpty()) return
         // Same generation contract as play(): a user tap that lands during a slow restore must
@@ -928,7 +929,9 @@ internal class AndroidPlaybackController(
         val requestGeneration = playRequestGeneration.incrementAndGet()
         withContext(Dispatchers.Main.immediate) { pendingAdvance.invalidate() }
         val prepared = withContext(Dispatchers.Default) {
-            val restorePlan = playbackResumePlan(tracks, startIndex, sourceTracks, smartContinuationIds)
+            val restorePlan = playbackResumePlan(
+                tracks, startIndex, sourceTracks, smartContinuationIds, smartPlanPositions,
+            )
             val live = preparePlayback(
                 tracks = restorePlan.liveQueue,
                 startIndex = restorePlan.currentIndex,
@@ -954,7 +957,10 @@ internal class AndroidPlaybackController(
                 clear()
                 addAll(prepared.second.smartContinuationIds)
             }
-            smartPlanPositions.clear()
+            this@AndroidPlaybackController.smartPlanPositions.apply {
+                clear()
+                putAll(prepared.second.smartPlanPositions)
+            }
             anticipatedResumption = null
             val startPositionMs = positionMs.coerceAtLeast(0L)
             player.setMediaItems(live.fullQueue!!, live.startIndex, startPositionMs)
@@ -1411,10 +1417,10 @@ internal class AndroidPlaybackController(
         poolById = (source + resume.tracks).associateBy { it.id.value }
         mode = resume.shuffleMode
         smartContinuationIds.clear()
-        smartContinuationIds.addAll(
-            resume.smartContinuationIds.intersect(resume.tracks.mapTo(HashSet()) { it.id }),
-        )
+        val resumedIds = resume.tracks.mapTo(HashSet()) { it.id }
+        smartContinuationIds.addAll(resume.smartContinuationIds.intersect(resumedIds))
         smartPlanPositions.clear()
+        smartPlanPositions.putAll(resume.smartPlanPositions.filterKeys { it in resumedIds })
         anticipatedResumption = resume.takeIf { actualIds.isEmpty() }
         // Ownership has moved into this controller's pool/pending state; release the global URI
         // graph even when Media3 has not installed the timeline yet.

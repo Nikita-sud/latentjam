@@ -183,6 +183,17 @@ internal class PlaybackQueueTransitionsTest {
     }
 
     @Test
+    fun `resume keeps SMART's plan positions only for rows still in the live queue`() {
+        val resumed = playbackResumePlan(
+            liveQueue = listOf(a, b),
+            currentIndex = 0,
+            sourceQueue = listOf(a),
+            smartPlanPositions = mapOf(b.id to 2, c.id to 3),
+        )
+        assertEquals(mapOf(b.id to 2), resumed.smartPlanPositions)
+    }
+
+    @Test
     fun `resume preserves a known source that became empty after deletion`() {
         assertEquals(
             PlaybackResumePlan(

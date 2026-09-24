@@ -36,6 +36,8 @@ public class MediaPlaybackResume(
     /** Canonical natural order used when leaving SMART; null means the live queue is the source. */
     public val sourceTracks: List<TrackDescriptor>?,
     public val smartContinuationIds: Set<TrackId> = emptySet(),
+    /** SMART's plan position for rows of [tracks] it recommended; see [NowPlaying.smartPlanPositions]. */
+    public val smartPlanPositions: Map<TrackId, Int> = emptyMap(),
 )
 
 /**

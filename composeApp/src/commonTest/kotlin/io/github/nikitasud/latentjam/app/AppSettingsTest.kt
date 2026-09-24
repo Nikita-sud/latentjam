@@ -132,9 +132,45 @@ class AppSettingsTest {
     }
 
     @Test
+    fun `resume queues keep SMART's plan positions for their own rows`() {
+        val state = ResumeQueueState(
+            queueTrackIds = listOf("seed", "imported,file|with:delimiters=1;", "音楽/曲"),
+            sourceQueueTrackIds = listOf("seed"),
+            queueIndex = 0,
+            smartPlanPositions = mapOf("imported,file|with:delimiters=1;" to 1, "音楽/曲" to 12, "gone" to 2),
+        )
+
+        assertEquals(
+            state.copy(smartPlanPositions = mapOf("imported,file|with:delimiters=1;" to 1, "音楽/曲" to 12)),
+            decodeResumeQueueState(encodeResumeQueueState(state)),
+        )
+    }
+
+    @Test
+    fun `v3 resume queues migrate with no invented plan positions`() {
+        val decoded = decodeResumeQueueState("LJQ3|0|2|1:a1:b|1|0||1|1:b")
+        val expected = ResumeQueueState(listOf("a", "b"), emptyList(), 0, smartContinuationIds = setOf("b"))
+        assertEquals(expected, decoded)
+        assertEquals(expected, decodeResumeQueueState(encodeResumeQueueState(decoded!!)))
+        assertEquals(
+            mapOf("b" to 3),
+            decodeResumeQueueState("LJQ4|0|2|1:a1:b|1|0||0||1|1:b=3;")?.smartPlanPositions,
+        )
+    }
+
+    @Test
+    fun `resume queue codec rejects malformed plan positions`() {
+        assertNull(decodeResumeQueueState("LJQ4|0|1|1:a|1|0||0|"))
+        assertNull(decodeResumeQueueState("LJQ4|0|1|1:a|1|0||0||1|1:a=0;"))
+        assertNull(decodeResumeQueueState("LJQ4|0|1|1:a|1|0||0||1|1:a=x;"))
+        assertNull(decodeResumeQueueState("LJQ4|0|1|1:a|1|0||0||1|1:a=2"))
+        assertNull(decodeResumeQueueState("LJQ4|0|1|1:a|1|0||0||2|1:a=2;"))
+    }
+
+    @Test
     fun `resume queue codec rejects unknown versions and truncated payloads`() {
         assertNull(decodeResumeQueueState("a,b,c"))
-        assertNull(decodeResumeQueueState("LJQ4|0|0||0|0|"))
+        assertNull(decodeResumeQueueState("LJQ5|0|0||0|0|"))
         assertNull(decodeResumeQueueState("LJQ2|0|1|4:abc"))
         assertNull(decodeResumeQueueState("LJQ2|0|10001||1|0|"))
         assertNull(decodeResumeQueueState("LJQ2|0|0||0|1|1:a"))
@@ -169,6 +205,9 @@ class AppSettingsTest {
         assertEquals(false, saved.sameSessionExceptPosition(labelled))
         assertEquals(false, labelled.sameSessionExceptPosition(saved))
         assertEquals(true, labelled.sameSessionExceptPosition(labelled.copy(positionMs = 20_000)))
+        val planned = saved.copy(smartPlanPositions = mapOf("next" to 1))
+        assertEquals(false, saved.sameSessionExceptPosition(planned))
+        assertEquals(true, planned.sameSessionExceptPosition(planned.copy(positionMs = 20_000)))
     }
 
     @Test

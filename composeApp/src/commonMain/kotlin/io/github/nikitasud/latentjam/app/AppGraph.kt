@@ -260,6 +260,9 @@ object AppGraph {
                             smartContinuationIds = if (persistableLiveQueue == null) emptySet() else {
                                 now.smartContinuationIds.mapTo(HashSet()) { it.value }
                             },
+                            smartPlanPositions = if (persistableLiveQueue == null) emptyMap() else {
+                                now.smartPlanPositions.mapKeys { (id, _) -> id.value }
+                            },
                         )
                     }
                 }

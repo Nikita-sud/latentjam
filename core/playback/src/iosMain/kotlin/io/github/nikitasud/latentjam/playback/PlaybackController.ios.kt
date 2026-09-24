@@ -667,10 +667,13 @@ internal class IosPlaybackController(
         positionMs: Long,
         sourceTracks: List<TrackDescriptor>?,
         smartContinuationIds: Set<TrackId>,
+        smartPlanPositions: Map<TrackId, Int>,
     ): Unit = withContext(Dispatchers.Main) {
         if (tracks.isEmpty()) return@withContext
         pendingAdvance.invalidate()
-        val restorePlan = playbackResumePlan(tracks, startIndex, sourceTracks, smartContinuationIds)
+        val restorePlan = playbackResumePlan(
+            tracks, startIndex, sourceTracks, smartContinuationIds, smartPlanPositions,
+        )
         // The live queue and canonical source are independent on resume: SMART's saved future is
         // restored exactly, while leaving SMART can still reconstruct the originating playlist.
         pool = restorePlan.sourceQueue
@@ -679,7 +682,10 @@ internal class IosPlaybackController(
             clear()
             addAll(restorePlan.smartContinuationIds)
         }
-        smartPlanPositions.clear()
+        this@IosPlaybackController.smartPlanPositions.apply {
+            clear()
+            putAll(restorePlan.smartPlanPositions)
+        }
         queueIndex = restorePlan.currentIndex
         queueGeneration++
         val refillAfterPendingInvalidation = mode == ShuffleMode.SMART &&

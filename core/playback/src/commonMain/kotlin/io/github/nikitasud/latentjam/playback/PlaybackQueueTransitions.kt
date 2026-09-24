@@ -58,6 +58,7 @@ internal data class PlaybackResumePlan(
     val sourceQueue: List<TrackDescriptor>,
     val currentIndex: Int,
     val smartContinuationIds: Set<TrackId> = emptySet(),
+    val smartPlanPositions: Map<TrackId, Int> = emptyMap(),
 )
 
 /**
@@ -73,14 +74,18 @@ internal fun playbackResumePlan(
     currentIndex: Int,
     sourceQueue: List<TrackDescriptor>?,
     smartContinuationIds: Set<TrackId> = emptySet(),
+    smartPlanPositions: Map<TrackId, Int> = emptyMap(),
 ): PlaybackResumePlan {
     val stableLive = liveQueue.toList()
     val stableSource = sourceQueue?.toList() ?: stableLive
+    // Row labels describe the saved live queue only: a deleted or source-only row keeps none.
+    val liveIds = stableLive.mapTo(HashSet()) { it.id }
     return PlaybackResumePlan(
         liveQueue = stableLive,
         sourceQueue = stableSource,
         currentIndex = if (stableLive.isEmpty()) -1 else currentIndex.coerceIn(stableLive.indices),
-        smartContinuationIds = smartContinuationIds.intersect(stableLive.mapTo(HashSet()) { it.id }),
+        smartContinuationIds = smartContinuationIds.intersect(liveIds),
+        smartPlanPositions = smartPlanPositions.filterKeys { it in liveIds },
     )
 }
 

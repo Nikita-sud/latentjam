@@ -1341,6 +1341,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     // generated SMART current row survived.
                     sourceTracks = savedSourceQueue,
                     smartContinuationIds = saved.smartContinuationIds.mapTo(HashSet(), ::TrackId),
+                    smartPlanPositions = saved.smartPlanPositions.mapKeys { (id, _) -> TrackId(id) },
                 )
             }
             val index = loaded.indexOfFirst { it.id.value == saved.trackId }

@@ -196,6 +196,7 @@ internal class LoudnessNormalizationTest {
             positionMs: Long,
             sourceTracks: List<TrackDescriptor>?,
             smartContinuationIds: Set<TrackId>,
+            smartPlanPositions: Map<TrackId, Int>,
         ) = Unit
         override suspend fun cycleRepeatMode(): RepeatMode = RepeatMode.OFF
         override suspend fun retainQueue(trackIds: Set<TrackId>) = Unit

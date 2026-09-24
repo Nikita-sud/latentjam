@@ -97,6 +97,7 @@ private suspend fun buildMediaPlaybackResume(): MediaPlaybackResume? {
             shuffleMode = mode,
             sourceTracks = source,
             smartContinuationIds = saved.smartContinuationIds.mapTo(HashSet(), ::TrackId),
+            smartPlanPositions = saved.smartPlanPositions.mapKeys { (id, _) -> TrackId(id) },
         )
     }
 

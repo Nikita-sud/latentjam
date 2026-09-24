@@ -142,6 +142,7 @@ internal data class ResumeQueueState(
     val queueIndex: Int,
     val sourceQueuePersisted: Boolean = true,
     val smartContinuationIds: Set<String> = emptySet(),
+    val smartPlanPositions: Map<String, Int> = emptyMap(),
 )
 
 /**
@@ -183,12 +184,33 @@ internal fun encodeResumeQueueState(state: ResumeQueueState): String = buildStri
         append(':')
         append(id)
     }
+    // SMART's plan positions survive a restart like the continuation labels do; otherwise every
+    // saved recommendation would reach the listening log as if SMART had not chosen it.
+    val queued = state.queueTrackIds.toSet()
+    val planPositions = state.smartPlanPositions.entries
+        .filter { (id, position) -> id in queued && position >= 1 }
+        .sortedBy { it.key }
+    append('|')
+    append(planPositions.size)
+    append('|')
+    planPositions.forEach { (id, position) ->
+        append(id.length)
+        append(':')
+        append(id)
+        append('=')
+        append(position)
+        append(';')
+    }
 }
 
-/** Reads current and v2 queues; older queues have no saved continuation labels. */
+/**
+ * Reads current, v3 and v2 queues. v2 queues have no saved continuation labels, and v2/v3 queues no
+ * SMART plan positions.
+ */
 internal fun decodeResumeQueueState(value: String): ResumeQueueState? {
     val prefix = when {
         value.startsWith(RESUME_QUEUE_STATE_PREFIX) -> RESUME_QUEUE_STATE_PREFIX
+        value.startsWith(V3_RESUME_QUEUE_STATE_PREFIX) -> V3_RESUME_QUEUE_STATE_PREFIX
         value.startsWith(LEGACY_RESUME_QUEUE_STATE_PREFIX) -> LEGACY_RESUME_QUEUE_STATE_PREFIX
         else -> return null
     }
@@ -220,6 +242,23 @@ internal fun decodeResumeQueueState(value: String): ResumeQueueState? {
         return ids
     }
 
+    /** `len:id=position;` entries, the id length-prefixed like every other id here. */
+    fun readPlanPositions(count: Int): Map<String, Int>? {
+        if (count !in 0..MAX_DECODED_RESUME_QUEUE_IDS) return null
+        val positions = LinkedHashMap<String, Int>(count)
+        repeat(count) {
+            val id = readIds(1)?.single() ?: return null
+            if (value.getOrNull(offset) != '=') return null
+            val end = value.indexOf(';', startIndex = offset + 1)
+            if (end < 0) return null
+            positions[id] = value.substring(offset + 1, end).toIntOrNull()
+                ?.takeIf { it >= 1 }
+                ?: return null
+            offset = end + 1
+        }
+        return positions
+    }
+
     val queueIndex = readIntToken() ?: return null
     val queueCount = readIntToken() ?: return null
     val queueIds = readIds(queueCount) ?: return null
@@ -233,7 +272,7 @@ internal fun decodeResumeQueueState(value: String): ResumeQueueState? {
     val sourceCount = readIntToken() ?: return null
     val sourceIds = readIds(sourceCount) ?: return null
     if (!sourcePersisted && sourceIds.isNotEmpty()) return null
-    val continuationIds = if (prefix == RESUME_QUEUE_STATE_PREFIX) {
+    val continuationIds = if (prefix != LEGACY_RESUME_QUEUE_STATE_PREFIX) {
         if (value.getOrNull(offset) != '|') return null
         offset++
         val count = readIntToken() ?: return null
@@ -241,17 +280,28 @@ internal fun decodeResumeQueueState(value: String): ResumeQueueState? {
     } else {
         emptySet()
     }
+    val planPositions = if (prefix == RESUME_QUEUE_STATE_PREFIX) {
+        if (value.getOrNull(offset) != '|') return null
+        offset++
+        val count = readIntToken() ?: return null
+        readPlanPositions(count) ?: return null
+    } else {
+        emptyMap()
+    }
     if (offset != value.length) return null
+    val queued = queueIds.toSet()
     return ResumeQueueState(
         queueTrackIds = queueIds,
         sourceQueueTrackIds = sourceIds,
         queueIndex = queueIndex,
         sourceQueuePersisted = sourcePersisted,
-        smartContinuationIds = continuationIds.intersect(queueIds.toSet()),
+        smartContinuationIds = continuationIds.intersect(queued),
+        smartPlanPositions = planPositions.filterKeys { it in queued },
     )
 }
 
-private const val RESUME_QUEUE_STATE_PREFIX = "LJQ3|"
+private const val RESUME_QUEUE_STATE_PREFIX = "LJQ4|"
+private const val V3_RESUME_QUEUE_STATE_PREFIX = "LJQ3|"
 private const val LEGACY_RESUME_QUEUE_STATE_PREFIX = "LJQ2|"
 private const val MAX_DECODED_RESUME_QUEUE_IDS = 10_000
 
@@ -370,6 +420,8 @@ data class ResumePlayback(
     val sourceQueuePersisted: Boolean = false,
     /** Saved provenance for rows in [queueTrackIds]; absent from older sessions. */
     val smartContinuationIds: Set<String> = emptySet(),
+    /** SMART's plan position for rows in [queueTrackIds] it recommended; absent from older sessions. */
+    val smartPlanPositions: Map<String, Int> = emptyMap(),
 )
 
 /** True when persistence can update only the small position field and retain queue metadata. */
@@ -383,6 +435,7 @@ internal fun ResumePlayback.sameSessionExceptPosition(other: ResumePlayback): Bo
         queueIndex == other.queueIndex &&
         sourceQueueTrackIds == other.sourceQueueTrackIds &&
         sourceQueuePersisted == other.sourceQueuePersisted &&
-        smartContinuationIds == other.smartContinuationIds
+        smartContinuationIds == other.smartContinuationIds &&
+        smartPlanPositions == other.smartPlanPositions
 
 expect fun appSettingsModule(): Module

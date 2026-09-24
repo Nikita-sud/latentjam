@@ -178,6 +178,7 @@ internal class IosAppSettings : AppSettings {
             sourceQueueTrackIds = queueState?.sourceQueueTrackIds.orEmpty(),
             sourceQueuePersisted = queueState?.sourceQueuePersisted ?: false,
             smartContinuationIds = queueState?.smartContinuationIds.orEmpty(),
+            smartPlanPositions = queueState?.smartPlanPositions.orEmpty(),
         )
     }
 
@@ -230,6 +231,7 @@ internal class IosAppSettings : AppSettings {
                             queueIndex = state.queueIndex,
                             sourceQueuePersisted = state.sourceQueuePersisted,
                             smartContinuationIds = state.smartContinuationIds,
+                            smartPlanPositions = state.smartPlanPositions,
                         ),
                     ),
                     KEY_RESUME_QUEUE_STATE,

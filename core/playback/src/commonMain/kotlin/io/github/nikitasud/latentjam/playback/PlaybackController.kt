@@ -259,6 +259,8 @@ public interface PlaybackController {
      * using [tracks]. An explicitly empty list is meaningful: the saved source existed but every
      * row was deleted while a generated SMART current row survived.
      * [smartContinuationIds] restores the saved labels and continuation budget before any top-up.
+     * [smartPlanPositions] restores [NowPlaying.smartPlanPositions], so the saved recommendations
+     * still count as SMART's after a restart.
      */
     public suspend fun restoreQueue(
         tracks: List<TrackDescriptor>,
@@ -266,6 +268,7 @@ public interface PlaybackController {
         positionMs: Long,
         sourceTracks: List<TrackDescriptor>? = null,
         smartContinuationIds: Set<TrackId> = emptySet(),
+        smartPlanPositions: Map<TrackId, Int> = emptyMap(),
     )
 
     /** Advances OFF → ALL → ONE → OFF and returns the new mode. */
