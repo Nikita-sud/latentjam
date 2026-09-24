@@ -313,7 +313,7 @@ class HybridSearchTest {
     }
 
     @Test
-    fun `Cyrillic phonk finds the Phonk genre exactly, above funk and folk fuzz`() {
+    fun `Cyrillic phonk finds the Phonk genre exactly and ranks it above funk and folk fuzz`() {
         // «фонк» folds to "fonk", one edit from Funk AND Folk alike — the reported failure had
         // a polka and a sea shanty above the actual phonk. The ph collapse makes the named
         // genre an EXACT genre match, which outranks any same-field fuzz.

@@ -96,13 +96,13 @@ internal class SmartContinuationBudgetTest {
     }
 
     @Test
-    fun `continuations already heard do not count, so a long session never runs out of budget`() {
+    fun `continuations already heard do not count so a long session never runs out of budget`() {
         // Three continuations behind the playhead; nothing queued ahead of it.
         assertEquals(true, mayContinue("cccr", currentIndex = 3))
     }
 
     @Test
-    fun `the row being played is behind the playhead, not ahead of it`() {
+    fun `the row being played is behind the playhead rather than ahead of it`() {
         assertEquals(true, mayContinue("ccc", currentIndex = 2))
         assertEquals(false, mayContinue("cccc", currentIndex = 0))
     }

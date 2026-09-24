@@ -44,7 +44,7 @@ class SmartContinuationTest {
     }
 
     @Test
-    fun `an artist just continued with is skipped, so an album cannot dump itself`() {
+    fun `an artist just continued with is skipped so an album cannot dump itself`() {
         val sameArtist = track("a2", artist = "Aphex Twin")
         val other = track("b1", artist = "Boards of Canada")
         assertEquals(
@@ -97,7 +97,7 @@ class SmartContinuationTest {
     }
 
     @Test
-    fun `equally unheard candidates keep library order, so the pick is reproducible`() {
+    fun `equally unheard candidates keep library order so the pick is reproducible`() {
         val first = track("1", artist = "One")
         val second = track("2", artist = "Two")
         val pick = {

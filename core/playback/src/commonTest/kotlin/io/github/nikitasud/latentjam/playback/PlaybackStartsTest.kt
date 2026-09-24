@@ -44,7 +44,7 @@ internal class PlaybackStartsTest {
     }
 
     @Test
-    fun `every start is newer than the last, even a repeat of the same track`() {
+    fun `every start is newer than the last even when the same track repeats`() {
         val ledger = PlaybackStartLedger()
         val first = ledger.begin(a, StartCause.USER_PICK)
         val repeat = ledger.begin(a, StartCause.REPEAT)
@@ -85,7 +85,7 @@ internal class PlaybackStartsTest {
     }
 
     @Test
-    fun `an unannounced jump reads as the skip it matches, anywhere else as a direct pick`() {
+    fun `an unannounced jump reads as the skip it matches and anywhere else as a direct pick`() {
         assertEquals(StartCause.SKIP_NEXT, seekStartCause(toIndex = 4, nextIndex = 4, previousIndex = 2))
         assertEquals(StartCause.SKIP_PREVIOUS, seekStartCause(toIndex = 2, nextIndex = 4, previousIndex = 2))
         assertEquals(StartCause.USER_PICK, seekStartCause(toIndex = 9, nextIndex = 4, previousIndex = 2))
