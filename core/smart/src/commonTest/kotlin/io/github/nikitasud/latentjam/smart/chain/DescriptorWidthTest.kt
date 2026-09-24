@@ -29,7 +29,7 @@ class DescriptorWidthTest {
     }
 
     @Test
-    fun `rows of another width count as absent, not truncated`() {
+    fun `rows of another width count as absent rather than truncated`() {
         val snapshot = assertNotNull(
             SmartSnapshot.build(
                 listOf(

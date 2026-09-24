@@ -15,7 +15,7 @@ class ArtistKnowledgePackTest {
     private val half = 1f / sqrt(2f)
 
     @Test
-    fun `the entity whose own name matches wins, else the most popular confident one`() {
+    fun `the entity whose own name matches wins and otherwise the most popular confident one does`() {
         val pack = assertNotNull(ArtistKnowledgePack.parse(tinyPack()))
 
         // Ids 0 and 1 both answer the query; 1 is the one actually named "Beta".
@@ -35,7 +35,7 @@ class ArtistKnowledgePackTest {
     }
 
     @Test
-    fun `corrupt, truncated or newer assets are rejected`() {
+    fun `corrupt or truncated or newer assets are rejected`() {
         val good = tinyPack()
         assertNull(ArtistKnowledgePack.parse(good.copyOf(good.size - 1)))
         assertNull(ArtistKnowledgePack.parse(good.copyOf().also { it[0] = 'X'.code.toByte() }))

@@ -27,7 +27,7 @@ class LibraryEnergyTest {
     }
 
     @Test
-    fun `equal scores are ordered by track id, not by map order`() {
+    fun `equal scores are ordered by track id rather than by map order`() {
         assertEquals(mapOf(a to 0f, b to 0.5f, c to 1f), libraryEnergyRanks(mapOf(c to 0.3f, b to 0.3f, a to 0.3f)))
     }
 
@@ -46,7 +46,7 @@ class LibraryEnergyTest {
     }
 
     @Test
-    fun `rows get their library percentile, keep a known energy, and stay unknown without semantics`() {
+    fun `rows get their library percentile and keep a known energy but stay unknown without semantics`() {
         val rows = listOf(track(a), track(b), track(c, energy = 0.42f), track(TrackId("d")))
         val semantics = mapOf(a to semantics(high = 0.9f, low = 0.1f), b to semantics(high = 0.2f, low = 0.6f),
                               c to semantics(high = 0.5f, low = 0.5f))

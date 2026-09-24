@@ -56,7 +56,7 @@ class ArtistKnowledgeTest {
     }
 
     @Test
-    fun `unknown, unconfident, blank and pack-less lookups have no descriptor`() {
+    fun `unknown or unconfident or blank or pack-less lookups have no descriptor`() {
         val knowledge = ArtistKnowledge(entities) { pack() }
 
         assertNull(knowledge.descriptor("Nobody"))

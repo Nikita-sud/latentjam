@@ -33,7 +33,7 @@ class ArtistAdapterTest {
     }
 
     @Test
-    fun `corrupt, truncated or newer assets are rejected`() {
+    fun `corrupt or truncated or newer assets are rejected`() {
         val good = identityAdapter()
         assertNull(ArtistAdapter.parse(good.copyOf(good.size - 1)))
         assertNull(ArtistAdapter.parse(good.copyOf().also { it[0] = 'X'.code.toByte() }))
