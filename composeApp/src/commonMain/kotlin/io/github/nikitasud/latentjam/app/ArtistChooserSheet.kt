@@ -42,7 +42,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.library.ArtistGroup
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -66,10 +65,10 @@ internal fun ArtistChooserSheet(
             onDismiss()
             action()
         } else {
-            scope.launch {
-                sheetState.hide()
+            // Back during the animation still closes the sheet, but cancels the choice.
+            scope.hideSheetThen(sheetState::hide) { completed ->
                 onDismiss()
-                action()
+                if (completed) action()
             }
         }
     }

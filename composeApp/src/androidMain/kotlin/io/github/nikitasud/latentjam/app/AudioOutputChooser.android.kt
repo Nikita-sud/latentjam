@@ -60,7 +60,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.output_headphones
 import io.github.nikitasud.latentjam.app.generated.resources.output_phone_speaker
 import io.github.nikitasud.latentjam.app.generated.resources.output_selection_failed
 import io.github.nikitasud.latentjam.app.generated.resources.output_title
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 /** Device selection only: media volume remains owned by Android's hardware/system controls. */
@@ -134,10 +133,7 @@ private fun AudioOutputChooserSheet(onDismiss: () -> Unit) {
         if (reduceMotion) {
             onDismiss()
         } else {
-            scope.launch {
-                sheetState.hide()
-                onDismiss()
-            }
+            scope.hideSheetThen(sheetState::hide) { onDismiss() }
         }
     }
 

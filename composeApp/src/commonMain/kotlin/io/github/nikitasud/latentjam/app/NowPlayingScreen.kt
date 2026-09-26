@@ -925,10 +925,7 @@ private fun PlayerLyricsSheet(
             // Reduced motion deliberately removes the surface in one state change.
             onDismiss()
         } else {
-            scope.launch {
-                sheetState.hide()
-                onDismiss()
-            }
+            scope.hideSheetThen(sheetState::hide) { onDismiss() }
         }
     }
 
