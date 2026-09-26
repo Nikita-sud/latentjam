@@ -116,6 +116,15 @@ public class ArtistKnowledgePack private constructor(
             val recordsOffset = HEADER_SIZE + bookValues * 2
             if (recordsOffset + entities * (subspaces + RECORD_TAIL) != bytes.size.toLong()) return null
             val books = FloatArray(bookValues.toInt()) { index -> halfToFloat(u16(HEADER_SIZE + 2 * index)) }
+            if (books.any { !it.isFinite() }) return null
+            // A valid file length does not prove its codes index the declared codebooks. Reject
+            // damaged records here, before a lookup can read another subspace or past the array.
+            if (centroids < 256) {
+                for (entity in 0 until entities.toInt()) {
+                    val at = recordsOffset.toInt() + entity * (subspaces + RECORD_TAIL)
+                    for (space in 0 until subspaces) if (u8(at + space) >= centroids) return null
+                }
+            }
             return ArtistKnowledgePack(
                 bytes, dimension, subspaces, centroids, entities.toInt(), books, recordsOffset.toInt(),
             )

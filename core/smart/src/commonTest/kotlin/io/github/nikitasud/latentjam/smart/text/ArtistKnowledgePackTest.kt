@@ -45,6 +45,22 @@ class ArtistKnowledgePackTest {
     }
 
     @Test
+    fun `a record cannot reference a centroid outside its codebook`() {
+        // Header (21 bytes), then eight FP16 codebook values (16 bytes).
+        val corrupt = KnowledgePackBytes.tiny().also { it[37] = 2 }
+        assertNull(ArtistKnowledgePack.parse(corrupt))
+    }
+
+    @Test
+    fun `nonfinite codebook values are rejected before reaching recommendations`() {
+        val corrupt = KnowledgePackBytes.tiny().also {
+            it[21] = 0
+            it[22] = 0x7c // positive infinity in FP16
+        }
+        assertNull(ArtistKnowledgePack.parse(corrupt))
+    }
+
+    @Test
     fun `facts come from the entity the descriptor reads`() {
         val pack = assertNotNull(ArtistKnowledgePack.parse(KnowledgePackBytes.tiny()))
 
