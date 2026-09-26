@@ -61,7 +61,10 @@ public data class LibraryCatalog(
 ) {
     public companion object {
 
-        public fun build(tracks: List<TrackDescriptor>): LibraryCatalog {
+        public fun build(
+            tracks: List<TrackDescriptor>,
+            isKnownArtist: ((String) -> Boolean)? = null,
+        ): LibraryCatalog {
             // Every grouping below orders its tracks by title, and each `sortedBy` used to
             // lowercase inside the comparator — so one title was rebuilt four times over, then
             // again on each of the O(n log n) comparisons. Keying once up front leaves the
@@ -99,17 +102,24 @@ public data class LibraryCatalog(
                 .eachCount()
 
             // A collaboration belongs to EVERY credited artist: the tags' ARTISTS list is
-            // authoritative when read; a semicolon-joined display string is a list by
-            // convention; anything else stays whole — "feat."-guessing display strings apart
-            // is how band names get ruined. Casing differences collapse to one group.
+            // authoritative when read. Otherwise the display credit is split where an artist
+            // list confirms it ([ArtistCredits]); without one, only at semicolons, the list
+            // separator by convention, because guessing "feat." or "&" apart blind ruins band
+            // names. Casing differences collapse to one group.
+            val displayCredits = HashMap<String, List<String>>()
             val artists = tracks
                 .flatMap { track ->
                     val credits: List<String?> = track.artists.ifEmpty {
-                        track.artist?.split(';')
-                            ?.map { it.trim() }
-                            ?.filter { it.isNotEmpty() }
-                            ?.takeIf { it.size > 1 }
-                            ?: listOf(track.artist)
+                        val artist = track.artist ?: return@ifEmpty listOf(null)
+                        if (isKnownArtist != null) {
+                            displayCredits.getOrPut(artist) { ArtistCredits.split(artist, isKnownArtist) }
+                        } else {
+                            artist.split(';')
+                                .map { it.trim() }
+                                .filter { it.isNotEmpty() }
+                                .takeIf { it.size > 1 }
+                                ?: listOf(artist)
+                        }
                     }
                     credits.map { it to track }
                 }

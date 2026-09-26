@@ -95,4 +95,11 @@ class MusicEntityIndexTest {
         assertNull(MusicEntityIndex.parse(EntityIndexBytes.of("name" to intArrayOf(1, 1))))
         assertNull(MusicEntityIndex.parse(EntityIndexBytes.of("name" to intArrayOf(100))))
     }
+
+    @Test
+    fun `a resolver says whether it has an index to answer from`() {
+        assertTrue(MusicEntityResolver { EntityIndexBytes.of("name" to intArrayOf(1)) }.isAvailable)
+        assertFalse(MusicEntityResolver { null }.isAvailable)
+        assertFalse(MusicEntityResolver { byteArrayOf(1, 2, 3) }.isAvailable)
+    }
 }

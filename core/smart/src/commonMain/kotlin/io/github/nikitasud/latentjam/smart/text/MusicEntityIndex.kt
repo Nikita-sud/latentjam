@@ -181,6 +181,12 @@ public class MusicEntityResolver(
     public fun matches(query: String, libraryArtist: String?): Boolean =
         index?.matches(query, libraryArtist) == true
 
+    /**
+     * Whether an index loaded to answer from; reading it loads the index. A caller that treats
+     * "not found" as "unknown artist" must check this first, since without an index nothing is known.
+     */
+    public val isAvailable: Boolean get() = index != null
+
     /** The entity ids [name] resolves to, most popular first; empty when the pack is absent. */
     public fun resolve(name: String): IntArray = index?.resolve(name) ?: IntArray(0)
 }

@@ -1662,7 +1662,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // just-deleted row resolves to a harmless no-op — a far better trade than the jump.
             if (loaded != null) {
                 val derived = withContext(Dispatchers.Default) {
-                    val builtCatalog = LibraryCatalog.build(loaded)
+                    // Collaborations split only where the MusicBrainz list can tell a band named
+                    // "Earth, Wind & Fire" from two artists; without it, only at semicolons.
+                    val entities = AppGraph.musicEntities
+                    val builtCatalog = LibraryCatalog.build(
+                        loaded,
+                        isKnownArtist = if (entities.isAvailable) { name -> entities.resolve(name).isNotEmpty() } else null,
+                    )
                     val sections = albumRailSections(builtCatalog.albums)
                     val orderedAlbums = sections.flatMap { it.albums }
                     LibraryBrowseDerivation(

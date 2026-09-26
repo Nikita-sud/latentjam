@@ -183,6 +183,28 @@ internal class LibraryCatalogTest {
     }
 
     @Test
+    fun aCollaborationCreditIsListedUnderEveryArtistItNames() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", title = "The Pink Phantom", artist = "Gorillaz, Elton John"),
+                track("2", title = "Feel Good Inc", artist = "Gorillaz"),
+            ),
+            isKnownArtist = { false },
+        )
+        assertEquals(listOf("Elton John", "Gorillaz"), catalog.artists.map { it.name })
+        assertEquals(2, catalog.artists.first { it.name == "Gorillaz" }.tracks.size)
+    }
+
+    @Test
+    fun aBandTheArtistListKnowsKeepsItsComma() {
+        val catalog = LibraryCatalog.build(
+            listOf(track("1", title = "Song", artist = "Crosby, Stills & Nash")),
+            isKnownArtist = { it == "Crosby, Stills & Nash" },
+        )
+        assertEquals(listOf("Crosby, Stills & Nash"), catalog.artists.map { it.name })
+    }
+
+    @Test
     fun aLoneDisplayStringStaysWholeWithoutTagFacts() {
         val catalog = LibraryCatalog.build(
             listOf(track("1", title = "Song", artist = "Crosby, Stills & Nash")),
