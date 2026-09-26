@@ -12,6 +12,8 @@ import io.github.nikitasud.latentjam.smart.chain.OnnxPredictorRuntime
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.chain.ScorerPacking
 import io.github.nikitasud.latentjam.smart.text.OnnxTextEncoder
+import io.github.nikitasud.latentjam.smart.text.ArtistKnowledge
+import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
 import java.io.DataOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -61,6 +63,17 @@ class SmartInferenceDeviceTest {
         assertTrue(embedding.all(Float::isFinite))
         assertTrue(norm(embedding) in 0.99f..1.01f)
 
+        // The map and energy-aware sequencing use the fifth graph, which used to be omitted
+        // from this "all graphs" smoke test. Exercise its batched path with real audio output.
+        audio.loadSemanticModel().getOrThrow()
+        val semantics = audio.classify(listOf(embedding, embedding)).getOrThrow()
+        assertEquals(2, semantics.size)
+        semantics.forEach { scores ->
+            assertEquals(TrackSemantics.OUTPUT_SIZE, scores.size)
+            assertTrue(scores.all { it.isFinite() && it in 0f..1f })
+            requireNotNull(TrackSemantics.fromModelOutput(scores))
+        }
+
         val text = OnnxTextEncoder(context)
         val textLoadStarted = System.nanoTime()
         text.load().getOrThrow()
@@ -71,6 +84,25 @@ class SmartInferenceDeviceTest {
         assertEquals(384, textEmbedding.size)
         assertTrue(textEmbedding.all(Float::isFinite))
         assertTrue(norm(textEmbedding) in 0.99f..1.01f)
+
+        listOf("русский рок", "日本のポップ", "música tranquila").forEach { query ->
+            val vector = requireNotNull(text.encode(query))
+            assertEquals(384, vector.size)
+            assertTrue(vector.all(Float::isFinite))
+            assertTrue(norm(vector) in 0.99f..1.01f)
+        }
+        fun asset(name: String) = context.assets.open("ml/$name.bin").use { it.readBytes() }
+        val knowledge = ArtistKnowledge(
+            MusicEntityResolver { asset("music_entities_250k") },
+            loadPack = { asset("artist_knowledge") },
+            loadAdapter = { asset("artist_adapter") },
+        )
+        listOf("The Beatles", "LatentJam nonexistent smoke artist 91d02").forEach { artist ->
+            val descriptor = requireNotNull(knowledge.descriptor(artist, text = textEmbedding))
+            assertEquals(384, descriptor.size)
+            assertTrue(descriptor.all(Float::isFinite))
+            assertTrue(norm(descriptor) in 0.99f..1.01f)
+        }
 
         val predictor = OnnxPredictorRuntime(context)
         val predictorLoadStarted = System.nanoTime()
@@ -118,7 +150,8 @@ class SmartInferenceDeviceTest {
             WARM_STATE_SCORE_REPEATS / 1_000
         println(
             "SMART_DEVICE_SMOKE ok audio=960 text=384 state=960 scores=100 " +
-                "missing_text_exact=true elapsed_ms=$elapsedMs",
+                "semantics=${TrackSemantics.OUTPUT_SIZE} knowledge=384 multilingual=true " +
+                "missing_text_finite=true elapsed_ms=$elapsedMs",
         )
         println(
             "SMART_DEVICE_TIMING audio_load_ms=$audioLoadMs audio_embed_ms=$audioEmbedMs " +
