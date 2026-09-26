@@ -47,6 +47,8 @@ internal object AndroidPlaybackStarts {
      * player's own shuffle.
      */
     fun announceExternalQueue(mediaItems: List<MediaItem>, startIndex: Int, shuffled: Boolean) {
+        // Even when no start can be named, the queue now belongs to whoever sent it.
+        MediaBrowseRegistry.onExternalQueue?.invoke()
         val start = externalQueueStart(
             mediaItems,
             startIndex.takeUnless { it == C.INDEX_UNSET },

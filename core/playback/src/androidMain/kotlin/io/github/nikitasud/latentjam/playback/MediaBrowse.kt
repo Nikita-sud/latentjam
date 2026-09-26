@@ -56,6 +56,13 @@ public object MediaBrowseRegistry {
     @Volatile
     public var resumption: (suspend () -> MediaPlaybackResume?)? = null
 
+    /**
+     * Told on the main thread when a controller outside the app (Android Auto, a voice request,
+     * another app) installed a queue. Whatever the app said that queue came from no longer holds.
+     */
+    @Volatile
+    public var onExternalQueue: (() -> Unit)? = null
+
     /** Queue currently being installed by Media3, consumed by the in-app controller on connect. */
     @Volatile
     private var activeResumption: ActiveResumption? = null

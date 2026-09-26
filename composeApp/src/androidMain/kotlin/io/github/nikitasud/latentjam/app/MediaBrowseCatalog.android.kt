@@ -48,6 +48,9 @@ internal fun installMediaBrowseCatalog(context: Context) {
             null
         }
     }
+    // A queue from Android Auto, a voice request or another app did not come from what the app last
+    // started: keeping that source would label the player and the listening log with it.
+    MediaBrowseRegistry.onExternalQueue = { AppGraph.queueSource.value = null }
     MediaBrowseRegistry.resumption = {
         try {
             buildMediaPlaybackResume()?.also { resume ->

@@ -41,6 +41,21 @@ internal class AndroidPlaybackStartsTest {
     }
 
     @Test
+    fun aQueueSetFromOutsideTheAppTellsTheAppItsOwnSourceNoLongerApplies() {
+        var told = 0
+        MediaBrowseRegistry.onExternalQueue = { told++ }
+        try {
+            // Shuffle drew the start row, so no start can be named; the queue is still not the app's.
+            val rows = listOf("outside-a", "outside-b").map { MediaItem.Builder().setMediaId(it).build() }
+            AndroidPlaybackStarts.announceExternalQueue(rows, C.INDEX_UNSET, shuffled = true)
+
+            assertEquals(1, told)
+        } finally {
+            MediaBrowseRegistry.onExternalQueue = null
+        }
+    }
+
+    @Test
     fun tappingThePlayingRowRecordsItsReplayWithoutAMediaItemTransition() {
         val item = MediaItem.Builder().setMediaId("replayed-queue-row").build()
         AndroidPlaybackStarts.onMediaItemTransition(untouchedPlayer, item, Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
