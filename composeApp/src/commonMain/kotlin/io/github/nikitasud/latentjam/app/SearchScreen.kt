@@ -713,6 +713,7 @@ private fun hybridSearch(
     nowMs: Long = 0L,
     lyricMatches: Set<TrackId> = emptySet(),
     readYears: Boolean = true,
+    yearFilter: SearchYears? = null,
     checkCancelled: () -> Unit = {},
 ): List<TrackDescriptor> {
     val needle = query.trim()
@@ -739,8 +740,9 @@ private fun hybridSearch(
         } else {
             hybridSearch(
                 index, years.subject, semantic, aliasMatches, stats, nowMs, lyricMatches, readYears = false,
+                yearFilter = years,
                 checkCancelled = checkCancelled,
-            ).filter(years::admits)
+            )
         }
         // Nothing from those years: the number was a name after all ("Taylor Swift 1989").
         if (within.isNotEmpty()) {
@@ -751,7 +753,10 @@ private fun hybridSearch(
     val entities = index.songs.asSequence()
         .onEach { checkCancelled() }
         .filter { aliasMatches(needle, it.artist) }
-    val expanded = SemanticGate.gate(semantic).asSequence()
+    val expanded = SemanticGate.gate(semantic) { candidate ->
+        checkCancelled()
+        yearFilter == null || index.byId[candidate.trackId]?.let(yearFilter::admits) == true
+    }.asSequence()
         .onEach { checkCancelled() }
         .mapNotNull { index.byId[it.trackId] }
         .take(SEMANTIC_RESULT_LIMIT)
@@ -767,6 +772,9 @@ private fun hybridSearch(
             weak.asSequence().map { it.track } +
             expanded
         )
+        // Constrain candidates before the cap: newer matches must not crowd out older songs
+        // when the subject is common (e.g. "rock 80s" in a large library).
+        .filter { yearFilter?.admits(it) != false }
         .distinctBy { it.id }
         .take(SEARCH_RESULT_LIMIT)
         .toList()
@@ -813,7 +821,10 @@ private fun lexicalRanking(
  * diffuse "blob" false positives (a diffuse match has a high background mean; a real cluster sits
  * far above its tail). With fewer than [BG_HI] scored candidates the band can't be measured, so the
  * section declines rather than guess. [ranked] must be sorted by score descending (as the engine
- * returns it); when the gate fires the top [TOP_K] rows are shown.
+ * returns it); when the gate fires the top [TOP_K] eligible rows are shown. A year restriction
+ * filters before that cap, and its own best match must clear the confidence gate against the
+ * original background. Strong matches from other years cannot lend it false confidence. Eligible
+ * rows come only from above the background band: below it they are the noise the gate measures.
  */
 internal object SemanticGate {
     const val MIN_TOP1 = 0.45f
@@ -822,14 +833,18 @@ internal object SemanticGate {
     const val BG_HI = 150
     const val TOP_K = 10
 
-    fun gate(ranked: List<ScoredTrack>): List<ScoredTrack> {
+    fun gate(
+        ranked: List<ScoredTrack>,
+        eligible: (ScoredTrack) -> Boolean = { true },
+    ): List<ScoredTrack> {
         if (ranked.size < BG_HI) return emptyList()
-        val top1 = ranked[0].score
+        val candidates = ranked.asSequence().take(BG_LO).filter(eligible).take(TOP_K).toList()
+        val top1 = candidates.firstOrNull()?.score ?: return emptyList()
         var bgSum = 0.0
         for (i in BG_LO until BG_HI) bgSum += ranked[i].score
         val bgMean = (bgSum / (BG_HI - BG_LO)).toFloat()
         if (top1 < MIN_TOP1 || top1 - bgMean < MIN_MARGIN) return emptyList()
-        return ranked.take(TOP_K)
+        return candidates
     }
 }
 

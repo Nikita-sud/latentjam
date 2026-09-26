@@ -225,6 +225,60 @@ class HybridSearchTest {
     }
 
     @Test
+    fun `year filtering happens before the result limit`() {
+        val modern = (1..100).map { track("modern-$it", "Rock $it", year = 2020) }
+        val eighties = track("eighties", "Rock Yesterday", year = 1985)
+
+        assertEquals(
+            listOf(eighties.id),
+            hybridSearch(modern + eighties, "rock 80s", emptyList()).map { it.id },
+        )
+    }
+
+    @Test
+    fun `year filtering happens before the semantic top ten limit`() {
+        val modern = (1..10).map { track("modern-$it", "New $it", year = 2020) }
+        val eighties = track("eighties", "Yesterday", year = 1985)
+        val result = hybridSearch(
+            songs = modern + eighties,
+            query = "energetic guitars 80s",
+            semantic = ranked(modern.map { ScoredTrack(it.id, 0.8f) } + ScoredTrack(eighties.id, 0.7f)),
+        )
+
+        assertEquals(listOf(eighties.id), result.map { it.id })
+    }
+
+    @Test
+    fun `a year shows its confident semantic matches but not rows from the background`() {
+        val modern = (1..10).map { track("modern-$it", "New $it", year = 2020) }
+        val strong = track("strong", "Yesterday", year = 1985)
+        val faint = (1..9).map { track("faint-$it", "Faint $it", year = 1986) }
+        val result = hybridSearch(
+            songs = modern + strong + faint,
+            query = "energetic guitars 80s",
+            semantic = ranked(
+                modern.map { ScoredTrack(it.id, 0.8f) } + ScoredTrack(strong.id, 0.7f) +
+                    faint.map { ScoredTrack(it.id, 0.02f) },
+            ),
+        )
+
+        assertEquals(listOf(strong.id), result.map { it.id })
+    }
+
+    @Test
+    fun `a confident modern match cannot make a weak eighties match confident`() {
+        val modern = (1..10).map { track("modern-$it", "New $it", year = 2020) }
+        val unrelated = track("unrelated", "Yesterday", year = 1985)
+        val result = hybridSearch(
+            songs = modern + unrelated,
+            query = "energetic guitars 80s",
+            semantic = ranked(modern.map { ScoredTrack(it.id, 0.8f) } + ScoredTrack(unrelated.id, 0.02f)),
+        )
+
+        assertFalse(result.any { it.id == unrelated.id })
+    }
+
+    @Test
     fun `in a time-only search the most played tracks of those years come first`() {
         val quiet = track("quiet", "A Song", year = 1983)
         val loved = track("loved", "B Song", year = 1981)
