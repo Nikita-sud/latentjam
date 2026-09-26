@@ -12,10 +12,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.minutes
 
 internal class SmartQueueAvailabilityTest {
     @Test
-    fun `fully indexed library keeps refilling through its last remaining track`() = runTest {
+    fun `fully indexed library keeps refilling through its last remaining track`() = runTest(timeout = 3.minutes) {
+        // This exhausts a real 3,000-track corpus through 250 queue plans on Dispatchers.Default;
+        // virtual time cannot accelerate it. Native debug builds can exceed runTest's one-minute
+        // default, so retain the full workload and assertions with a bounded stress-test timeout.
         val library = tracks(3_000)
         val harness = harness(library, includeText = false)
         val byId = library.associateBy { it.id }
