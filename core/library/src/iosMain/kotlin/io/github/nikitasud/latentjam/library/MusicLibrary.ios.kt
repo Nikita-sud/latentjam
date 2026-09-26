@@ -38,6 +38,8 @@ import platform.AVFoundation.metadata
 import platform.AVFoundation.metadataItemsFromArray
 import platform.AVFoundation.stringValue
 import platform.CoreMedia.CMTimeGetSeconds
+import platform.Foundation.NSCalendar
+import platform.Foundation.NSCalendarUnitYear
 import platform.Foundation.NSData
 import platform.Foundation.NSDate
 import platform.Foundation.NSFileCreationDate
@@ -353,7 +355,7 @@ internal class IosMusicLibrary : MusicLibrary {
                     artworkUri = null,
                     addedAtMs = null,
                     folderPath = "Music",
-                    year = null,
+                    year = releaseYear(item.releaseDate),
                     trackNumber = item.albumTrackNumber.toInt().takeIf { it in 1..MAX_TRACK_NUMBER },
                     discNumber = item.discNumber.toInt().takeIf { it in 1..MAX_TRACK_NUMBER },
                 )
@@ -668,3 +670,15 @@ public actual fun musicLibraryModule(): Module = module {
 }
 
 public actual fun nowMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()
+
+/**
+ * The year Music.app files a song under — its release date, as the device's calendar reads it.
+ * Without it, a year search could never match a Music.app song and SMART lost the era signal.
+ */
+internal fun releaseYear(date: NSDate?): Int? {
+    val year = date?.let { NSCalendar.currentCalendar.component(NSCalendarUnitYear, fromDate = it).toInt() } ?: return null
+    return year.takeIf { it in RELEASE_YEARS }
+}
+
+/** The tag readers' bounds: a placeholder date ("year one") is no release year. */
+private val RELEASE_YEARS = 1000..2999
