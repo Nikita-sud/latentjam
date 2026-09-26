@@ -73,6 +73,19 @@ internal class LibraryCatalogAlbumOrderTest {
     }
 
     @Test
+    fun unnumberedAlbumTracksUseTheSameTitleOrderAsTheAlphabetRail() {
+        val tracks = listOf(
+            track("1", "The Beginning", album = "Record"),
+            track("2", "End", album = "Record"),
+            track("3", "A Middle", album = "Record"),
+            track("4", "(Opening)", album = "Record"),
+        )
+        val expected = listOf("The Beginning", "End", "A Middle", "(Opening)")
+        assertContentEquals(expected, LibraryCatalog.build(tracks).albums.single().tracks.map { it.title })
+        assertContentEquals(expected, LibraryCatalog.inAlbumOrder(tracks).map { it.title })
+    }
+
+    @Test
     fun albumsShelveLeadingArticlesUnderTheNextWord() {
         val catalog = LibraryCatalog.build(
             listOf(

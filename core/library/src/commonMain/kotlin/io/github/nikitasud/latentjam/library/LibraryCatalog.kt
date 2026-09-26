@@ -184,7 +184,9 @@ public data class LibraryCatalog(
                         unnumbered = track.trackNumber == null,
                         disc = track.discNumber ?: 1,
                         number = track.trackNumber ?: 0,
-                        title = track.title?.lowercase() ?: UNKNOWN_LAST,
+                        // The title rail uses this same article/punctuation folding when an
+                        // album has no track numbers and falls back to alphabetical order.
+                        title = SongSorting.sortKey(track.title),
                     )
                 }
                 .sortedWith(ALBUM_PLACE_ORDER)
