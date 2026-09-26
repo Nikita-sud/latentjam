@@ -40,6 +40,17 @@ public class HistorySessionTracker(
     private var smartPlanPosition: Int? = null
     private var parentId: String? = null
 
+    /** How the playback instance this session belongs to began, even when this session did not. */
+    private var instanceStart: ListenStart? = null
+
+    /** The flushed listen whose playback may still resume; see [flush]. */
+    private var flushed: FlushedListen? = null
+
+    /** A possible continuation of the flushed playback, confirmed when its old signal is bound. */
+    private var resumedFrom: FlushedListen? = null
+
+    private class FlushedListen(val trackId: TrackId, val positionMs: Long, val instanceStart: ListenStart?)
+
     /**
      * Observes one snapshot. Returns the finished session's event when the
      * track changed (including to nothing), else `null`.
@@ -79,10 +90,11 @@ public class HistorySessionTracker(
         parentId: String?,
     ): ListenEvent? {
         if (trackId == currentTrackId) {
-            accumulateListening(positionMs, nowMs)
             // An explicit same-track start can happen at any progress or with unknown duration.
             // Without a fresh signal, retain the near-end wrap heuristic for older transports.
             if (trackId != null && isPlaybackRestart(positionMs, startSignal)) {
+                // As with a different-track transition, the position may already belong to the
+                // new listen. Count this interval only as a tail, never also as forward progress.
                 accumulateTransitionTail(nowMs)
                 val finished = finishCurrent()
                 if (isPlaying) {
@@ -95,6 +107,7 @@ public class HistorySessionTracker(
                 }
                 return finished
             }
+            accumulateListening(positionMs, nowMs)
             if (positionMs > maxPositionMs) maxPositionMs = positionMs
             if (trackDurationMs > 0) durationMs = trackDurationMs
             lastPositionMs = positionMs.coerceAtLeast(0)
@@ -126,7 +139,13 @@ public class HistorySessionTracker(
 
     /** Flushes the in-progress session (call on shutdown). */
     public fun flush(nowMs: Long? = null): ListenEvent? {
+        // Leaving again while still paused has nothing to finish and must retain the last
+        // playback's identity for when it actually resumes.
+        val trackId = currentTrackId ?: return null
         if (nowMs != null) accumulateTransitionTail(nowMs)
+        // The player may resume this same playback later without reporting a new start, since
+        // nothing new began. Remember where it stopped, so that resumption is recognized.
+        flushed = if (startBound) FlushedListen(trackId, lastPositionMs, instanceStart) else null
         val finished = finishCurrent()
         currentTrackId = null
         return finished
@@ -192,6 +211,11 @@ public class HistorySessionTracker(
         shuffleMode = currentShuffleMode
         start = null
         startBound = false
+        instanceStart = null
+        // A rewind may be a new selection whose start signal has not arrived yet. Even a small
+        // rewind counts here: tolerating drift would mistake a restart after 500 ms for a resume.
+        resumedFrom = flushed?.takeIf { it.trackId == trackId && lastPositionMs >= it.positionMs }
+        flushed = null
         // The log rejects a line whose plan position or parent it could not have written, so a
         // value it could not reload is dropped here rather than costing the whole listen later.
         this.smartPlanPosition = smartPlanPosition?.takeIf { it >= 1 }
@@ -205,9 +229,22 @@ public class HistorySessionTracker(
      */
     private fun bindStart(signal: ListenStartSignal?) {
         val trackId = currentTrackId ?: return
-        if (startBound || signal == null) return
-        if (signal.trackId != trackId || signal.sequence <= lastBoundStartSequence) return
+        if (startBound || signal == null || signal.trackId != trackId) return
+        if (signal.sequence <= lastBoundStartSequence) {
+            // The flushed half already claimed this signal. The resumed half began no new playback:
+            // its start stays unknown, yet it is bound, so the next explicit restart still counts.
+            val resumed = resumedFrom ?: return
+            if (signal.sequence != lastBoundStartSequence) return
+            // At zero, a resume and a fresh selection look identical. Wait for either a new
+            // signal or forward progress still carrying the old one before claiming that signal.
+            if (lastPositionMs == 0L) return
+            instanceStart = resumed.instanceStart
+            if (instanceStart == ListenStart.USER_PICK) smartPlanPosition = null
+            startBound = true
+            return
+        }
         start = signal.start
+        instanceStart = signal.start
         // A direct choice of a planned queue row is the listener's intent, even if the queue still
         // carries the position SMART originally assigned it. The delayed signal can clarify this.
         if (start == ListenStart.USER_PICK) smartPlanPosition = null

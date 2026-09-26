@@ -327,6 +327,19 @@ internal class HistorySessionTrackerTest {
     }
 
     @Test
+    fun aReplaySignalDuringTheOpeningSecondsDoesNotCountTheSameIntervalTwice() {
+        val tracker = HistorySessionTracker()
+        val firstStart = started(1, a, ListenStart.USER_PICK)
+        tracker.onSnapshot(a, 0, 240_000, "OFF", 0, start = firstStart)
+        tracker.onSnapshot(a, 1_000, 240_000, "OFF", 1_000, start = firstStart)
+        // The service has announced the restart, but the controller still shows its old position.
+        val replay = started(2, a, ListenStart.USER_PICK)
+        val first = assertNotNull(tracker.onSnapshot(a, 2_000, 240_000, "OFF", 2_000, start = replay))
+
+        assertEquals(2_000, first.listenedMs)
+    }
+
+    @Test
     fun anExplicitReplayWithUnknownDurationStartsANewListen() {
         val tracker = HistorySessionTracker()
         val pick = started(1, a, ListenStart.USER_PICK)
@@ -345,6 +358,128 @@ internal class HistorySessionTrackerTest {
         tracker.onSnapshot(a, 40_000, 240_000, "OFF", 41_000, start = pick)
         assertNull(tracker.onSnapshot(a, 0, 240_000, "OFF", 42_000, start = pick))
         assertEquals(1_000, tracker.flush()?.startedAtMs)
+    }
+
+    @Test
+    fun aListenResumedAfterAFlushStillSplitsOnTheNextSelectionOfThePlayingTrack() {
+        val tracker = HistorySessionTracker()
+        val pick = started(1, a, ListenStart.USER_PICK)
+        tracker.onSnapshot(a, 0, 240_000, "SMART", 1_000, start = pick, smartPlanPosition = 3)
+        tracker.onSnapshot(a, 4_000, 240_000, "SMART", 5_000, isPlaying = false, start = pick, smartPlanPosition = 3)
+        // The app was left while paused.
+        val firstHalf = assertNotNull(tracker.flush(6_000))
+        assertEquals(ListenOrigin(ListenStart.USER_PICK), firstHalf.origin)
+
+        // Back in the app, the same playback resumes where it stopped: no new start is reported.
+        assertNull(tracker.onSnapshot(a, 4_000, 240_000, "SMART", 60_000, start = pick, smartPlanPosition = 3))
+        tracker.onSnapshot(a, 10_000, 240_000, "SMART", 66_000, start = pick, smartPlanPosition = 3)
+        // Then the listener taps the playing row.
+        val tap = started(2, a, ListenStart.USER_PICK)
+        val resumed = assertNotNull(
+            tracker.onSnapshot(a, 0, 240_000, "SMART", 67_000, start = tap, smartPlanPosition = 3),
+            "selecting the playing track starts a new listen after a resume too",
+        )
+        assertEquals(60_000, resumed.startedAtMs)
+        // The resumed half began nobody knows how, and SMART still did not pick it.
+        assertEquals(ListenOrigin(), resumed.origin)
+
+        tracker.onSnapshot(a, 5_000, 240_000, "SMART", 72_000, start = tap, smartPlanPosition = 3)
+        val replay = assertNotNull(tracker.flush())
+        assertEquals(67_000, replay.startedAtMs)
+        assertEquals(ListenOrigin(ListenStart.USER_PICK), replay.origin)
+    }
+
+    @Test
+    fun theSameTrackPickedAgainAfterAFlushIsOneListenEvenBeforeItsStartIsReported() {
+        val tracker = HistorySessionTracker()
+        val pick = started(1, a, ListenStart.USER_PICK)
+        tracker.onSnapshot(a, 0, 240_000, "OFF", 1_000, start = pick)
+        tracker.onSnapshot(a, 30_000, 240_000, "OFF", 31_000, isPlaying = false, start = pick)
+        assertNotNull(tracker.flush(32_000))
+
+        // Picked again later: the player shows it from zero a moment before it reports the new start.
+        assertNull(tracker.onSnapshot(a, 0, 240_000, "OFF", 90_000, start = pick))
+        val again = started(2, a, ListenStart.USER_PICK)
+        assertNull(tracker.onSnapshot(a, 500, 240_000, "OFF", 90_500, start = again))
+        tracker.onSnapshot(a, 20_000, 240_000, "OFF", 110_000, start = again)
+
+        val listen = assertNotNull(tracker.flush())
+        assertEquals(90_000, listen.startedAtMs)
+        assertEquals(ListenStart.USER_PICK, listen.origin?.start)
+    }
+
+    @Test
+    fun restartingAnEarlyFlushedListenDoesNotInventAnExtraListen() {
+        for (pausedAt in listOf(0L, 500L, 1_000L)) {
+            val tracker = HistorySessionTracker()
+            val pick = started(1, a, ListenStart.USER_PICK)
+            tracker.onSnapshot(a, 0, 240_000, "OFF", 1_000, start = pick)
+            tracker.onSnapshot(a, pausedAt, 240_000, "OFF", 1_000 + pausedAt,
+                isPlaying = false, start = pick)
+            assertNotNull(tracker.flush(3_000))
+
+            // A new selection starts at zero before its new start signal reaches the controller.
+            assertNull(tracker.onSnapshot(a, 0, 240_000, "OFF", 60_000, start = pick))
+            val again = started(2, a, ListenStart.USER_PICK)
+            assertNull(tracker.onSnapshot(a, 500, 240_000, "OFF", 60_500, start = again),
+                "a delayed start after pausing at $pausedAt must bind the already-open listen")
+            tracker.onSnapshot(a, 20_000, 240_000, "OFF", 80_000, start = again)
+
+            val replay = assertNotNull(tracker.flush())
+            assertEquals(60_000, replay.startedAtMs)
+            assertEquals(20_000, replay.listenedMs)
+            assertEquals(ListenStart.USER_PICK, replay.origin?.start)
+        }
+    }
+
+    @Test
+    fun aGenuineEarlyResumeStillRecognizesTheNextExplicitReplay() {
+        for (pausedAt in listOf(0L, 500L, 1_000L)) {
+            val tracker = HistorySessionTracker()
+            val pick = started(1, a, ListenStart.USER_PICK)
+            tracker.onSnapshot(a, 0, 240_000, "SMART", 1_000, start = pick, smartPlanPosition = 3)
+            tracker.onSnapshot(a, pausedAt, 240_000, "SMART", 1_000 + pausedAt,
+                isPlaying = false, start = pick, smartPlanPosition = 3)
+            assertNotNull(tracker.flush(3_000))
+
+            assertNull(tracker.onSnapshot(a, pausedAt, 240_000, "SMART", 60_000,
+                start = pick, smartPlanPosition = 3))
+            assertNull(tracker.onSnapshot(a, pausedAt + 2_000, 240_000, "SMART", 62_000,
+                start = pick, smartPlanPosition = 3))
+            val again = started(2, a, ListenStart.USER_PICK)
+            val resumed = assertNotNull(tracker.onSnapshot(a, 0, 240_000, "SMART", 63_000,
+                start = again, smartPlanPosition = 3))
+            assertEquals(60_000, resumed.startedAtMs)
+            assertEquals(ListenOrigin(), resumed.origin)
+            assertEquals(ListenOrigin(ListenStart.USER_PICK), tracker.flush()?.origin)
+        }
+    }
+
+    @Test
+    fun leavingTwiceWhilePausedPreservesTheFlushedPlaybackIdentity() {
+        val tracker = HistorySessionTracker()
+        val pick = started(1, a, ListenStart.USER_PICK)
+        tracker.onSnapshot(a, 0, 240_000, "SMART", 1_000, start = pick, smartPlanPosition = 3)
+        tracker.onSnapshot(a, 4_000, 240_000, "SMART", 5_000,
+            isPlaying = false, start = pick, smartPlanPosition = 3)
+        assertNotNull(tracker.flush(6_000))
+
+        // Reopen without playing, then leave again. There is no new listen to flush.
+        assertNull(tracker.onSnapshot(a, 4_000, 240_000, "SMART", 10_000,
+            isPlaying = false, start = pick, smartPlanPosition = 3))
+        assertNull(tracker.flush(11_000))
+        assertNull(tracker.flush(12_000))
+        tracker.onSnapshot(a, 4_000, 240_000, "SMART", 60_000, start = pick, smartPlanPosition = 3)
+        tracker.onSnapshot(a, 10_000, 240_000, "SMART", 66_000, start = pick, smartPlanPosition = 3)
+
+        val again = started(2, a, ListenStart.USER_PICK)
+        val resumed = assertNotNull(tracker.onSnapshot(a, 0, 240_000, "SMART", 67_000,
+            start = again, smartPlanPosition = 3))
+        assertEquals(60_000, resumed.startedAtMs)
+        assertEquals(ListenOrigin(), resumed.origin)
+        val replay = assertNotNull(tracker.flush())
+        assertEquals(67_000, replay.startedAtMs)
+        assertEquals(ListenOrigin(ListenStart.USER_PICK), replay.origin)
     }
 
     @Test
