@@ -42,7 +42,9 @@ public data class SongSection(
  * shared by the list, its sticky headers, and its A–Z rail.
  *
  * Leading punctuation is ignored when sorting and bucketing, so
- * "(I Just) Died in Your Arms" files under I rather than "(".
+ * "(I Just) Died in Your Arms" files under I rather than "(". So is a leading English article:
+ * "The Battle of Los Angeles" files under B and "A Perfect Circle" under P, the way record shops
+ * and most players shelve them.
  */
 public object SongSorting {
 
@@ -151,18 +153,37 @@ public object SongSorting {
             .map { (bucket, grouped) -> SongSection(bucket, grouped) }
     }
 
-    /** Case-folded key with leading punctuation stripped; blanks sort last. */
+    /** Case-folded key with leading punctuation and article stripped; blanks sort last. */
     public fun sortKey(value: String?): String =
-        (value ?: "")
-            .trimStart { !it.isLetterOrDigit() }
+        shelvedName(value)
             .lowercase()
             .ifEmpty { LAST_SORT_KEY }
 
     /** Index bucket: uppercase initial, "#" for digits, or "?" when no indexable name exists. */
     public fun bucket(value: String?): String {
-        val first = value?.firstOrNull { it.isLetterOrDigit() } ?: return "?"
+        val first = shelvedName(value).firstOrNull() ?: return "?"
         return if (first.isLetter()) first.uppercaseChar().toString() else "#"
     }
+
+    /**
+     * The part of a name it is shelved under: leading punctuation and one leading article
+     * removed. The article must be a whole word followed by more name — "The The" still files
+     * under T, "A-ha" under A, and a title that IS an article keeps it.
+     */
+    internal fun shelvedName(value: String?): String {
+        val name = (value ?: "").trimStart { !it.isLetterOrDigit() }
+        for (article in ARTICLES) {
+            if (name.length <= article.length) continue
+            if (!name.startsWith(article, ignoreCase = true)) continue
+            if (!name[article.length].isWhitespace()) continue
+            val rest = name.substring(article.length).trimStart { !it.isLetterOrDigit() }
+            if (rest.isNotEmpty()) return rest
+        }
+        return name
+    }
+
+    /** English only: other languages' articles double as ordinary words too often to strip. */
+    private val ARTICLES = listOf("the", "an", "a")
 
     private const val LAST_SORT_KEY: String = "￿"
 }

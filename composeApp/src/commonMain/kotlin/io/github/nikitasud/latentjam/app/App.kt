@@ -4607,15 +4607,15 @@ private val SELECTION_ACTION_BAR_HEIGHT = 72.dp
 // keeping English in the model and translating it on the way out, is what this pass exists to undo.
 
 private suspend fun AlbumGroup.toSelection(): CollectionSelection {
-    val ordered = withContext(Dispatchers.Default) {
-        SongSorting.sort(tracks, SongSort.TITLE, SongSortDirection.ASCENDING)
-    }
+    // The catalog already holds the album in release order; re-sorting by title here is what
+    // used to play every album alphabetically.
+    val ordered = tracks
     return CollectionSelection(
         title = title ?: getString(Res.string.track_unknown_album),
         subtitle = artist,
         artworkUri = artworkUri,
         tracks = ordered,
-        railMode = CollectionRailMode.TRACK_TITLES,
+        railMode = trackRailModeFor(ordered),
         allowsTrackSelection = true,
         routeId = "album:$key",
     )
@@ -4633,11 +4633,7 @@ private suspend fun ArtistGroup.toSelection(): CollectionSelection {
             .map { (album, grouped) ->
                 CollectionSection(
                     title = album ?: unknownAlbum,
-                    tracks = SongSorting.sort(
-                        grouped,
-                        SongSort.TITLE,
-                        SongSortDirection.ASCENDING,
-                    ),
+                    tracks = LibraryCatalog.inAlbumOrder(grouped),
                     railTitle = album,
                 )
             }
@@ -4655,7 +4651,7 @@ private suspend fun ArtistGroup.toSelection(): CollectionSelection {
         railMode = if (sections.size > 1) {
             CollectionRailMode.SECTION_TITLES
         } else {
-            CollectionRailMode.TRACK_TITLES
+            trackRailModeFor(ordered)
         },
         allowsTrackSelection = true,
         routeId = "artist:${name.orEmpty()}",
@@ -4691,6 +4687,13 @@ private suspend fun FolderGroup.toSelection(): CollectionSelection {
         routeId = "folder:$path",
     )
 }
+
+/**
+ * A letter rail over track titles only helps while the titles are alphabetical. In release order
+ * the letters jump about, and a rail that sends "M" to track 2 and "B" to track 9 misleads.
+ */
+private fun trackRailModeFor(tracks: List<TrackDescriptor>): CollectionRailMode =
+    if (tracks.any { it.trackNumber != null }) CollectionRailMode.NONE else CollectionRailMode.TRACK_TITLES
 
 private suspend fun trackCountLabel(count: Int): String =
     getPluralString(Res.plurals.count_tracks, count, count)

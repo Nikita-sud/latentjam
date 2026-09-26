@@ -49,8 +49,8 @@ public data class FolderGroup(
  * track list — no platform types, trivially testable.
  *
  * Sorting: albums by title, artists/genres/folders by name (case-insensitive),
- * unknown (null) buckets last; an album's tracks by title until real track
- * numbers arrive with the own scanner.
+ * unknown (null) buckets last; an album's tracks in release order (see [inAlbumOrder]),
+ * every other group's tracks by title.
  */
 public data class LibraryCatalog(
     public val songs: List<TrackDescriptor>,
@@ -87,10 +87,10 @@ public data class LibraryCatalog(
                         title = grouped.firstNotNullOfOrNull { it.album },
                         artist = grouped.firstNotNullOfOrNull { it.artist },
                         artworkUri = grouped.firstNotNullOfOrNull { it.artworkUri },
-                        tracks = grouped.byTitle(),
+                        tracks = inAlbumOrder(grouped),
                     )
                 }
-                .map { Triple(it, it.tracks.size < 2, it.title?.lowercase() ?: UNKNOWN_LAST) }
+                .map { Triple(it, it.tracks.size < 2, SongSorting.sortKey(it.title)) }
                 .sortedWith(compareBy({ it.second }, { it.third }))
                 .map { it.first }
 
@@ -169,6 +169,37 @@ public data class LibraryCatalog(
                 folders = folders,
             )
         }
+
+        /**
+         * Release order: disc, then track number, as the tags state them. A disc number is
+         * assumed to be 1 when only the track is tagged, so a half-tagged set still interleaves
+         * correctly. Tracks without a number follow the numbered ones by title, which is also the
+         * whole order of an album nobody numbered.
+         */
+        public fun inAlbumOrder(tracks: List<TrackDescriptor>): List<TrackDescriptor> =
+            tracks
+                .map { track ->
+                    AlbumPlace(
+                        track = track,
+                        unnumbered = track.trackNumber == null,
+                        disc = track.discNumber ?: 1,
+                        number = track.trackNumber ?: 0,
+                        title = track.title?.lowercase() ?: UNKNOWN_LAST,
+                    )
+                }
+                .sortedWith(ALBUM_PLACE_ORDER)
+                .map { it.track }
+
+        private class AlbumPlace(
+            val track: TrackDescriptor,
+            val unnumbered: Boolean,
+            val disc: Int,
+            val number: Int,
+            val title: String,
+        )
+
+        private val ALBUM_PLACE_ORDER: Comparator<AlbumPlace> =
+            compareBy({ it.unnumbered }, { it.disc }, { it.number }, { it.title })
 
         /** Sorts by a key computed once per element instead of once per comparison. */
         private inline fun <T> List<T>.sortedByKey(key: (T) -> String): List<T> =

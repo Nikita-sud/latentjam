@@ -81,6 +81,10 @@ public data class TrackDescriptor(
      * script detection but must not invent a language from silence.
      */
     public val language: String? = null,
+    /** Position on its disc as the tags number it (`TRCK`, `TRACKNUMBER`); null when untagged. */
+    public val trackNumber: Int? = null,
+    /** Disc of a multi-disc release (`TPOS`, `DISCNUMBER`); null when untagged. */
+    public val discNumber: Int? = null,
 )
 
 /**

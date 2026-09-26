@@ -41,11 +41,59 @@ internal class SongSortingTest {
     }
 
     @Test
+    fun titleSortShelvesLeadingArticlesUnderTheNextWord() {
+        val sorted = SongSorting.sort(
+            listOf(
+                track("1", title = "The Battle of Los Angeles"),
+                track("2", title = "Angel"),
+                track("3", title = "A Day in the Life"),
+                track("4", title = "Cocoon"),
+                track("5", title = "An Ending"),
+            ),
+            SongSort.TITLE,
+        )
+        assertContentEquals(
+            listOf("Angel", "The Battle of Los Angeles", "Cocoon", "A Day in the Life", "An Ending"),
+            sorted.map { it.title },
+        )
+    }
+
+    @Test
+    fun articleIsStrippedOnlyAsAWholeWordBeforeMoreName() {
+        assertEquals("T", SongSorting.bucket("The The"))
+        assertEquals("A", SongSorting.bucket("A-ha"))
+        assertEquals("A", SongSorting.bucket("A"))
+        assertEquals("T", SongSorting.bucket("Theatre of Tragedy"))
+        assertEquals("A", SongSorting.bucket("Another Brick"))
+        assertEquals("B", SongSorting.bucket("the beatles"))
+        assertEquals("P", SongSorting.bucket("A Perfect Circle"))
+        assertEquals("#", SongSorting.bucket("The 1975"))
+        assertEquals("the", SongSorting.sortKey("The"))
+    }
+
+    @Test
+    fun artistSortShelvesTheBandUnderItsName() {
+        val sorted = SongSorting.sort(
+            listOf(
+                track("1", title = "Help", artist = "The Beatles"),
+                track("2", title = "Dancing Queen", artist = "ABBA"),
+                track("3", title = "Heroes", artist = "David Bowie"),
+            ),
+            SongSort.ARTIST,
+        )
+        assertContentEquals(listOf("2", "1", "3"), sorted.map { it.id.value })
+        assertEquals(
+            listOf("A", "B", "D"),
+            SongSorting.sections(sorted, SongSort.ARTIST).map { it.bucket },
+        )
+    }
+
+    @Test
     fun artistSortIsCaseInsensitiveThenByTitle() {
         val sorted = SongSorting.sort(
             listOf(
-                track("1", title = "B side", artist = "queen"),
-                track("2", title = "A side", artist = "Queen"),
+                track("1", title = "Beta side", artist = "queen"),
+                track("2", title = "Alpha side", artist = "Queen"),
                 track("3", title = "Only", artist = "ABBA"),
             ),
             SongSort.ARTIST,
@@ -89,10 +137,10 @@ internal class SongSortingTest {
     fun artistSortCanRunDescendingWithDescendingTitleTieBreaks() {
         val sorted = SongSorting.sort(
             listOf(
-                track("queen-a", title = "A side", artist = "Queen"),
+                track("queen-a", title = "Alpha side", artist = "Queen"),
                 track("unknown", title = "Tagged title"),
                 track("abba", title = "Only", artist = "ABBA"),
-                track("queen-b", title = "B side", artist = "queen"),
+                track("queen-b", title = "Beta side", artist = "queen"),
             ),
             SongSort.ARTIST,
             SongSortDirection.DESCENDING,

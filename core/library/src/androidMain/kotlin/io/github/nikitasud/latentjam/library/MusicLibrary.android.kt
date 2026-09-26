@@ -68,6 +68,7 @@ internal class MediaStoreMusicLibrary(
             add(MediaStore.Audio.Media.SIZE)
             add(MediaStore.Audio.Media.DISPLAY_NAME)
             add(MediaStore.Audio.Media.YEAR)
+            add(MediaStore.Audio.Media.TRACK)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                 add(MediaStore.Audio.Media.GENERATION_MODIFIED)
             }
@@ -98,6 +99,7 @@ internal class MediaStoreMusicLibrary(
             val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
             val nameColumn = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME)
             val yearColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+            val trackColumn = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK)
             val generationColumn = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                 cursor.getColumnIndex(MediaStore.Audio.Media.GENERATION_MODIFIED)
             } else {
@@ -113,6 +115,11 @@ internal class MediaStoreMusicLibrary(
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val albumId = cursor.getLong(albumIdColumn)
+                val position = if (trackColumn >= 0 && !cursor.isNull(trackColumn)) {
+                    TrackNumbers.fromMediaStore(cursor.getInt(trackColumn))
+                } else {
+                    TrackPosition()
+                }
                 tracks += TrackDescriptor(
                     id = TrackId(id.toString()),
                     title = cursor.getString(titleColumn).knownOrNull(),
@@ -135,6 +142,8 @@ internal class MediaStoreMusicLibrary(
                     year = cursor.getInt(yearColumn).takeIf { it > 0 },
                     sizeBytes = cursor.getLong(sizeColumn).takeIf { it > 0 },
                     fileName = if (nameColumn >= 0) cursor.getString(nameColumn).knownOrNull() else null,
+                    trackNumber = position.trackNumber,
+                    discNumber = position.discNumber,
                     sourceRevision = androidMediaSourceRevision(
                         sizeBytes = cursor.getLong(sizeColumn).takeIf { it >= 0 },
                         modifiedAtSeconds = cursor.getLong(modifiedColumn).takeIf { it > 0 },

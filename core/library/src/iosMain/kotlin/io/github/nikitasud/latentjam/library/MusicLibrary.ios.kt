@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.library.tags.parseYear
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.readBytes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
@@ -353,6 +354,8 @@ internal class IosMusicLibrary : MusicLibrary {
                     addedAtMs = null,
                     folderPath = "Music",
                     year = null,
+                    trackNumber = item.albumTrackNumber.toInt().takeIf { it in 1..MAX_TRACK_NUMBER },
+                    discNumber = item.discNumber.toInt().takeIf { it in 1..MAX_TRACK_NUMBER },
                 )
             }
     }
@@ -473,6 +476,10 @@ internal class IosMusicLibrary : MusicLibrary {
             sizeBytes = sizeBytes.takeIf { it > 0 },
             fileName = relativePath.substringAfterLast('/'),
             sourceRevision = "ios-import-v1:$sizeBytes:$modifiedAtMs",
+            trackNumber = TrackNumbers.parse(asset.rawString("TRACKNUMBER", "TRCK"))
+                ?: asset.iTunesPairNumber("trkn"),
+            discNumber = TrackNumbers.parse(asset.rawString("DISCNUMBER", "TPOS"))
+                ?: asset.iTunesPairNumber("disk"),
         )
     }
 
@@ -496,6 +503,25 @@ internal class IosMusicLibrary : MusicLibrary {
             if (names.any { it.equals(name, ignoreCase = true) }) {
                 item.stringValue.knownOrNull()?.let { return it }
             }
+        }
+        return null
+    }
+
+    /**
+     * The first half of an iTunes `trkn`/`disk` atom. MP4 stores these as binary pairs rather than
+     * text (two reserved bytes, the number, then the total, big-endian), so AVFoundation has no
+     * string for them and [rawString] cannot see them.
+     */
+    @OptIn(ExperimentalForeignApi::class)
+    private fun AVURLAsset.iTunesPairNumber(atom: String): Int? {
+        metadata.forEach { raw ->
+            val item = raw as? AVMetadataItem ?: return@forEach
+            if (item.identifier?.substringAfterLast('/') != atom) return@forEach
+            val data = item.dataValue ?: return@forEach
+            if (data.length < 4u) return@forEach
+            val bytes = data.bytes?.readBytes(4) ?: return@forEach
+            val value = ((bytes[2].toInt() and 0xFF) shl 8) or (bytes[3].toInt() and 0xFF)
+            return value.takeIf { it in 1..MAX_TRACK_NUMBER }
         }
         return null
     }
@@ -571,6 +597,9 @@ internal class IosMusicLibrary : MusicLibrary {
             AVMetadataIdentifieriTunesMetadataUserGenre,
             AVMetadataIdentifieriTunesMetadataPredefinedGenre,
         )
+
+        /** Matches [TrackNumbers]: anything larger is a placeholder, not a position. */
+        const val MAX_TRACK_NUMBER = 999
 
         val YEAR_IDENTIFIERS = listOf(
             AVMetadataIdentifierID3MetadataRecordingTime,
