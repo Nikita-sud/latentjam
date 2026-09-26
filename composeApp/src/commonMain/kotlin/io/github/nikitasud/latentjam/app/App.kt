@@ -1362,9 +1362,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             if (savedQueueIndex >= 0 || index >= 0) {
                 // The restored player keeps saying where its queue came from. An unknown kind
                 // from another build degrades to no label, same as the mode above.
-                AppGraph.queueSource.value = saved.sourceKind
-                    ?.let { kind -> QueueSourceKind.entries.firstOrNull { it.name == kind } }
-                    ?.let { QueueSource(it, saved.sourceName, saved.sourceReference) }
+                AppGraph.queueSource.value = saved.savedQueueSource()
             }
         }
 

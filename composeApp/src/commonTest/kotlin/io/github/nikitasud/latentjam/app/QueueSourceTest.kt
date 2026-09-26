@@ -111,4 +111,17 @@ internal class QueueSourceTest {
         assertNull(QueueSource(QueueSourceKind.FOR_YOU).parentCollectionId())
         assertNull(QueueSource(QueueSourceKind.COLLECTION, "Shared", reference = "").parentCollectionId())
     }
+
+    @Test
+    fun aResumedSessionSaysWhatItsQueueWasStartedFrom() {
+        fun saved(kind: String?) = ResumePlayback(
+            trackId = "7", shuffleMode = "OFF", positionMs = 0,
+            sourceKind = kind, sourceName = "Road trip", sourceReference = "pl-1",
+        )
+
+        assertEquals(QueueSource(QueueSourceKind.COLLECTION, "Road trip", "pl-1"), saved("COLLECTION").savedQueueSource())
+        // A kind from another build, or none saved at all, is simply unknown.
+        assertNull(saved("RADIO").savedQueueSource())
+        assertNull(saved(null).savedQueueSource())
+    }
 }

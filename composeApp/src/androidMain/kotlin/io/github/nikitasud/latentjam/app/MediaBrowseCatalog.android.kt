@@ -54,6 +54,13 @@ internal fun installMediaBrowseCatalog(context: Context) {
     MediaBrowseRegistry.resumption = {
         try {
             buildMediaPlaybackResume()?.also { resume ->
+                // A headset, the widget or a voice request resumes the saved queue without the UI,
+                // whose launch restore then finds it playing and leaves it be. The saved source
+                // still describes this queue; without it the player, the listening log and the
+                // next save would all lose where it came from.
+                if (AppGraph.queueSource.value == null) {
+                    AppGraph.queueSource.value = AppGraph.settings.resumePlayback.value?.savedQueueSource()
+                }
                 MediaBrowseRegistry.announceActiveResumption(resume)
                 // A widget/tile/Auto controller can start playback without ever opening the UI.
                 // Connect the app controller too, so it owns queue/source transitions and its

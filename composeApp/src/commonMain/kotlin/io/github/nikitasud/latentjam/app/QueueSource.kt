@@ -46,6 +46,11 @@ internal fun QueueSourceKind.fallbackLabelRes(): StringResource? = when (this) {
     QueueSourceKind.COLLECTION, QueueSourceKind.SEARCH, QueueSourceKind.LIBRARY_GROUP -> null
 }
 
+/** What a saved session's queue was started from; a kind from another build reads as unknown. */
+internal fun ResumePlayback.savedQueueSource(): QueueSource? = sourceKind
+    ?.let { kind -> QueueSourceKind.entries.firstOrNull { it.name == kind } }
+    ?.let { QueueSource(it, sourceName, sourceReference) }
+
 /** Persist the collection's identity at playback time, before the browsing surface disappears. */
 internal fun CollectionSelection.queueSource(): QueueSource = when {
     playlistId != null -> QueueSource(QueueSourceKind.COLLECTION, title, playlistId)
