@@ -35,9 +35,12 @@ public class ArtistKnowledgePack private constructor(
      * The unit-length descriptor for a library [artist] whose name resolved to [entityIds].
      *
      * The ids come sorted, as [MusicEntityIndex.resolve] returns them, so the first is the most
-     * popular. Among confident entities, the one whose own name matches [artist] wins over a group it
-     * belongs to or a token match. Otherwise the most popular confident entity is used. Null when
-     * none is confident.
+     * popular. A confident entity whose own name matches [artist] wins. Otherwise a name of several
+     * words takes the most popular confident entity — its key holds only names and aliases, like a
+     * member listed with the band. A single word does so only when its key names at most
+     * [SPECIFIC_KEY_SIZE] entities: a word that many names contain ("Silver", "Unknown", "Traditional")
+     * says nothing about this artist, and borrowing the most popular such name gave tracks a
+     * stranger's language and decade. Null leaves the artist to the adapter.
      */
     public fun descriptor(entityIds: IntArray, artist: String): FloatArray? = entity(entityIds, artist)?.let(::decode)
 
@@ -55,7 +58,9 @@ public class ArtistKnowledgePack private constructor(
         val confident = entityIds.filter { it in 0 until entityCount && confidence(it) >= MIN_CONFIDENCE }
         if (confident.isEmpty()) return null
         val own = fingerprint(artist)
-        return confident.firstOrNull { fingerprintOf(it) == own } ?: confident.first()
+        confident.firstOrNull { fingerprintOf(it) == own }?.let { return it }
+        val severalWords = ' ' in MusicEntityIndex.normalize(artist)
+        return if (severalWords || entityIds.size <= SPECIFIC_KEY_SIZE) confident.first() else null
     }
 
     private fun record(entity: Int): Int = recordsOffset + entity * recordSize
@@ -88,6 +93,12 @@ public class ArtistKnowledgePack private constructor(
         private const val HEADER_SIZE = 21
         private const val RECORD_TAIL = 6 // fingerprint (2), two language bytes, decade, confidence
         private const val MIN_CONFIDENCE = 128 // 0.5 in 1/255 units
+
+        /**
+         * The most entities a one-word key may name and still identify the artist. Measured on two
+         * real libraries: member and alias keys named 1–2 entities, the misleading words 4 to 2,206.
+         */
+        private const val SPECIFIC_KEY_SIZE = 3
 
         /** The language bytes' codes, in the order of LANGUAGES in tools/research/build_artist_knowledge.py. */
         internal val LANGUAGES: List<String> = listOf(

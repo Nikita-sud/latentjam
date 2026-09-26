@@ -26,6 +26,30 @@ class ArtistKnowledgePackTest {
     }
 
     @Test
+    fun `a single word shared by many names borrows nothing`() {
+        val pack = assertNotNull(ArtistKnowledgePack.parse(KnowledgePackBytes.tiny(fillers = 3)))
+        // "Silver" occurs inside many names; the most popular of them is not this artist.
+        assertNull(pack.descriptor(intArrayOf(0, 3, 4, 5), "Silver"))
+        assertNull(pack.facts(intArrayOf(0, 3, 4, 5), "Silver"))
+        // Nor does an unconfident entry of its own make a stranger's knowledge its own.
+        assertNull(pack.descriptor(intArrayOf(0, 2, 3, 4), "Gamma"))
+    }
+
+    @Test
+    fun `a single word that names few entities keeps the one it names`() {
+        val pack = assertNotNull(ArtistKnowledgePack.parse(KnowledgePackBytes.tiny(fillers = 3)))
+        // A member listed with the band ("タニウチヒデキ" and Shocking Lemon), a romanized alias.
+        assertVector(floatArrayOf(half, 0f, 0f, half), pack.descriptor(intArrayOf(0, 2), "Gamma"), 1e-6f)
+        assertVector(floatArrayOf(0f, half, half, 0f), pack.descriptor(intArrayOf(1), "Ikimonogakari"), 1e-6f)
+    }
+
+    @Test
+    fun `a name of several words still finds its band through an alias`() {
+        val pack = assertNotNull(ArtistKnowledgePack.parse(KnowledgePackBytes.tiny(fillers = 3)))
+        assertVector(floatArrayOf(half, 0f, 0f, half), pack.descriptor(intArrayOf(0, 3, 4, 5), "Connect R"), 1e-6f)
+    }
+
+    @Test
     fun `an unconfident or unknown entity has no descriptor`() {
         val pack = assertNotNull(ArtistKnowledgePack.parse(KnowledgePackBytes.tiny()))
 
