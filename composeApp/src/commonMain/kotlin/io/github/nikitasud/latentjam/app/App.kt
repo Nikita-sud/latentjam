@@ -4634,12 +4634,15 @@ private suspend fun ArtistGroup.toSelection(): CollectionSelection {
             .groupBy { it.album }
             .entries
             .sortedBy { (album, _) -> SongSorting.sortKey(album) }
-            .map { (album, grouped) ->
-                CollectionSection(
-                    title = album ?: unknownAlbum,
-                    tracks = LibraryCatalog.inAlbumOrder(grouped),
-                    railTitle = album,
-                )
+            .flatMap { (album, grouped) ->
+                // Two releases sharing a title ("Weezer" and "Weezer") are two chapters, not one.
+                LibraryCatalog.separateReleases(grouped).map { release ->
+                    CollectionSection(
+                        title = album ?: unknownAlbum,
+                        tracks = LibraryCatalog.inAlbumOrder(release),
+                        railTitle = album,
+                    )
+                }
             }
     }
     val ordered = sections.flatMap { it.tracks }

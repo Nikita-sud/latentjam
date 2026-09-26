@@ -249,7 +249,15 @@ public data class LibraryCatalog(
                 val artwork = sameTitle.mapNotNull { it.artworkUri }.toSet()
                 when {
                     artists.size <= 1 -> {
-                        result[AlbumIdentity(albumTitle, AlbumDiscriminator.Artist(artists.firstOrNull()))] = sameTitle
+                        val artist = artists.firstOrNull()
+                        val releases = sameTitle.releases()
+                        if (releases == null) {
+                            result[AlbumIdentity(albumTitle, AlbumDiscriminator.Artist(artist))] = sameTitle
+                        } else {
+                            for ((release, grouped) in releases) {
+                                result[AlbumIdentity(albumTitle, AlbumDiscriminator.Release(artist, release))] = grouped
+                            }
+                        }
                     }
                     artwork.size == 1 -> {
                         result[AlbumIdentity(albumTitle, AlbumDiscriminator.Artwork(artwork.first()))] = sameTitle
@@ -263,6 +271,35 @@ public data class LibraryCatalog(
             }
             return result
         }
+
+        /** One album title's [tracks] as the separate releases the album list shows them as. */
+        public fun separateReleases(tracks: List<TrackDescriptor>): List<List<TrackDescriptor>> =
+            tracks.releases()?.values?.toList() ?: listOf(tracks)
+
+        /**
+         * One artist's releases that share a title — Weezer's two "Weezer" albums, two "Greatest Hits" —
+         * both number their tracks from one, so a disc and track number taken twice gives them away.
+         * They separate by folder, else by year, whichever leaves every place taken once; a two-disc
+         * set stored disc by disc takes no place twice and stays whole. Null keeps them one album.
+         */
+        private fun List<TrackDescriptor>.releases(): Map<String, List<TrackDescriptor>>? {
+            if (!takesAPlaceTwice()) return null
+            for ((kind, release) in RELEASE_KEYS) {
+                val parts = groupBy { track -> "$kind:${release(track).stableComponent()}" }
+                if (parts.size > 1 && parts.values.none { it.takesAPlaceTwice() }) return parts
+            }
+            return null
+        }
+
+        private fun List<TrackDescriptor>.takesAPlaceTwice(): Boolean {
+            val places = HashSet<Pair<Int, Int>>()
+            return any { track -> track.trackNumber?.let { !places.add((track.discNumber ?: 1) to it) } == true }
+        }
+
+        private val RELEASE_KEYS: List<Pair<String, (TrackDescriptor) -> String?>> = listOf(
+            "folder" to { it.folderPath },
+            "year" to { it.year?.toString() },
+        )
 
         /** Artwork and artist are different identity domains even when their strings happen to match. */
         private fun TrackDescriptor.albumDiscriminator(): AlbumDiscriminator =
@@ -284,12 +321,16 @@ public data class LibraryCatalog(
                     "album:v2:${normalizedTitle.stableComponent()}:artist:${part.normalizedName.stableComponent()}"
                 is AlbumDiscriminator.Artwork ->
                     "album:v2:${normalizedTitle.stableComponent()}:artwork:${part.uri.stableComponent()}"
+                is AlbumDiscriminator.Release ->
+                    "album:v2:${normalizedTitle.stableComponent()}:artist:${part.normalizedName.stableComponent()}" +
+                        ":release:${part.release.stableComponent()}"
             }
         }
 
         private sealed interface AlbumDiscriminator {
             data class Artist(val normalizedName: String?) : AlbumDiscriminator
             data class Artwork(val uri: String) : AlbumDiscriminator
+            data class Release(val normalizedName: String?, val release: String) : AlbumDiscriminator
         }
 
         /** Length-prefixing makes arbitrary punctuation in metadata unambiguous. */

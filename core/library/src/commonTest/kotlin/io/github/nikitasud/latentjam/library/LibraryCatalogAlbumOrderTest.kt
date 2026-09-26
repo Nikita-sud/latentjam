@@ -8,6 +8,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 
 internal class LibraryCatalogAlbumOrderTest {
 
@@ -17,6 +18,8 @@ internal class LibraryCatalogAlbumOrderTest {
         album: String?,
         trackNumber: Int? = null,
         discNumber: Int? = null,
+        folderPath: String? = null,
+        year: Int? = null,
     ) = TrackDescriptor(
         id = TrackId(id),
         title = title,
@@ -24,7 +27,82 @@ internal class LibraryCatalogAlbumOrderTest {
         album = album,
         trackNumber = trackNumber,
         discNumber = discNumber,
+        folderPath = folderPath,
+        year = year,
     )
+
+    private fun LibraryCatalog.albumTitles(): List<List<String?>> = albums.map { album -> album.tracks.map { it.title } }
+
+    @Test
+    fun twoReleasesWithOneTitleAndArtistStayTwoAlbums() {
+        // Weezer's Blue and Green albums are both called "Weezer" and both start at track one.
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", "My Name Is Jonas", album = "Weezer", trackNumber = 1, folderPath = "Music/Weezer/Blue"),
+                track("2", "Don't Let Go", album = "Weezer", trackNumber = 1, folderPath = "Music/Weezer/Green"),
+                track("3", "No One Else", album = "Weezer", trackNumber = 2, folderPath = "Music/Weezer/Blue"),
+                track("4", "Photograph", album = "Weezer", trackNumber = 2, folderPath = "Music/Weezer/Green"),
+            ),
+        )
+        assertEquals(
+            setOf(listOf("My Name Is Jonas", "No One Else"), listOf("Don't Let Go", "Photograph")),
+            catalog.albumTitles().toSet(),
+        )
+        assertEquals(2, catalog.albums.map { it.key }.toSet().size)
+    }
+
+    @Test
+    fun releasesSharingAFolderSeparateByYear() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", "My Name Is Jonas", album = "Weezer", trackNumber = 1, folderPath = "Music", year = 1994),
+                track("2", "Don't Let Go", album = "Weezer", trackNumber = 1, folderPath = "Music", year = 2001),
+                track("3", "No One Else", album = "Weezer", trackNumber = 2, folderPath = "Music", year = 1994),
+                track("4", "Photograph", album = "Weezer", trackNumber = 2, folderPath = "Music", year = 2001),
+            ),
+        )
+        assertEquals(
+            setOf(listOf("My Name Is Jonas", "No One Else"), listOf("Don't Let Go", "Photograph")),
+            catalog.albumTitles().toSet(),
+        )
+    }
+
+    @Test
+    fun aTwoDiscSetStoredPerDiscStaysOneAlbum() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", "Disc two opener", album = "Set", trackNumber = 1, discNumber = 2, folderPath = "Set/CD2"),
+                track("2", "Disc one opener", album = "Set", trackNumber = 1, discNumber = 1, folderPath = "Set/CD1"),
+                track("3", "Disc one closer", album = "Set", trackNumber = 2, discNumber = 1, folderPath = "Set/CD1"),
+            ),
+        )
+        assertEquals(
+            listOf(listOf("Disc one opener", "Disc one closer", "Disc two opener")),
+            catalog.albumTitles(),
+        )
+    }
+
+    @Test
+    fun anArtistPageSeparatesTheReleasesTheAlbumListSeparates() {
+        val weezer = listOf(
+            track("1", "My Name Is Jonas", album = "Weezer", trackNumber = 1, folderPath = "Blue"),
+            track("2", "Don't Let Go", album = "Weezer", trackNumber = 1, folderPath = "Green"),
+        )
+        assertEquals(2, LibraryCatalog.separateReleases(weezer).size)
+        val oneRecord = listOf(track("1", "A", album = "Record", trackNumber = 1), track("2", "B", album = "Record", trackNumber = 2))
+        assertEquals(listOf(oneRecord), LibraryCatalog.separateReleases(oneRecord))
+    }
+
+    @Test
+    fun copiesThatNothingTellsApartStayOneAlbum() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", "Song", album = "Record", trackNumber = 1, folderPath = "Music", year = 2001),
+                track("2", "Song", album = "Record", trackNumber = 1, folderPath = "Music", year = 2001),
+            ),
+        )
+        assertEquals(1, catalog.albums.size)
+    }
 
     @Test
     fun albumTracksFollowTheirTrackNumbersNotTheirTitles() {
