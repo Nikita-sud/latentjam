@@ -117,7 +117,7 @@ internal class PlaybackHistoryGate(initiallyEnabled: Boolean) {
             null
         }
 
-        ignoredTrackAfterEnabling == now.track?.id -> null
+        ignoredTrackAfterEnabling != null && ignoredTrackAfterEnabling == now.track?.id -> null
 
         else -> {
             ignoredTrackAfterEnabling = null

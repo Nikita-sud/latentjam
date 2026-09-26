@@ -71,6 +71,33 @@ internal class PlaybackHistoryRecorderTest {
     }
 
     @Test
+    fun `clearing the queue records the final listen exactly once`() {
+        val gate = PlaybackHistoryGate(initiallyEnabled = true)
+        gate.onSnapshot(now(a, 0), enabled = true, nowMs = 1_000)
+        gate.onSnapshot(now(a, 20_000), enabled = true, nowMs = 21_000)
+
+        val event = gate.onSnapshot(NowPlaying(), enabled = true, nowMs = 21_500)
+        assertEquals(a.id, event?.trackId)
+        assertEquals(20_500, event?.listenedMs)
+        assertNull(gate.onSnapshot(NowPlaying(), enabled = true, nowMs = 22_000))
+        assertNull(gate.flush())
+    }
+
+    @Test
+    fun `playing the same track after an empty queue starts a separate listen`() {
+        val gate = PlaybackHistoryGate(initiallyEnabled = true)
+        gate.onSnapshot(now(a, 0), enabled = true, nowMs = 1_000)
+        gate.onSnapshot(now(a, 20_000), enabled = true, nowMs = 21_000)
+        gate.onSnapshot(NowPlaying(), enabled = true, nowMs = 21_500)
+        gate.onSnapshot(now(a, 0), enabled = true, nowMs = 100_000)
+        gate.onSnapshot(now(a, 5_000), enabled = true, nowMs = 105_000)
+
+        val second = gate.flush()
+        assertEquals(100_000, second?.startedAtMs)
+        assertEquals(5_000, second?.listenedMs)
+    }
+
+    @Test
     fun `each listen records who chose the track and the collection it came from`() {
         val gate = PlaybackHistoryGate(initiallyEnabled = true)
         val pickedA = PlaybackStart(sequence = 1, trackId = a.id, cause = StartCause.USER_PICK)
