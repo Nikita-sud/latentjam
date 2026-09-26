@@ -115,6 +115,56 @@ internal class CollectionRailTest {
     }
 
     @Test
+    fun anArtistPageLeftWithOneNumberedAlbumGetsNoTitleRail() {
+        fun numbered(id: String, title: String, number: Int) =
+            TrackDescriptor(id = TrackId(id), title = title, artworkUri = "cover:$id", trackNumber = number)
+        // Release order, as the artist page lays an album out: P, B, V is no alphabet.
+        val album = CollectionSection(
+            "Evil Empire",
+            listOf(numbered("p", "People of the Sun", 1), numbered("b", "Bulls on Parade", 2), numbered("v", "Vietnow", 3)),
+        )
+        val single = CollectionSection("Singles", listOf(track("s", "Sleep Now in the Fire")))
+        val selection = CollectionSelection(
+            title = "Rage Against the Machine",
+            subtitle = null,
+            artworkUri = null,
+            tracks = album.tracks + single.tracks,
+            sections = listOf(album, single),
+            railMode = CollectionRailMode.SECTION_TITLES,
+            routeId = "artist:ratm",
+        )
+
+        val collapsed = selection.filterTracksForCollection { it.id.value != "s" }!!
+
+        assertEquals(CollectionRailMode.NONE, collapsed.railMode)
+    }
+
+    @Test
+    fun anArtistPageLeftWithAnUnnumberedTwoDiscAlbumGetsNoTitleRail() {
+        fun onDisc(id: String, title: String, disc: Int) =
+            TrackDescriptor(id = TrackId(id), title = title, artworkUri = "cover:$id", discNumber = disc)
+        // Disc by disc, each alphabetical: Y, Z, then A again.
+        val album = CollectionSection(
+            "Double",
+            listOf(onDisc("y", "Yellow", 1), onDisc("z", "Zero", 1), onDisc("a", "Amber", 2)),
+        )
+        val single = CollectionSection("Singles", listOf(track("s", "Solo")))
+        val selection = CollectionSelection(
+            title = "Artist",
+            subtitle = null,
+            artworkUri = null,
+            tracks = album.tracks + single.tracks,
+            sections = listOf(album, single),
+            railMode = CollectionRailMode.SECTION_TITLES,
+            routeId = "artist:double",
+        )
+
+        val collapsed = selection.filterTracksForCollection { it.id.value != "s" }!!
+
+        assertEquals(CollectionRailMode.NONE, collapsed.railMode)
+    }
+
+    @Test
     fun manualCollectionOrderNeverGetsAnImplicitAlphabetRail() {
         val presentation = collectionRailPresentation(
             CollectionSelection(

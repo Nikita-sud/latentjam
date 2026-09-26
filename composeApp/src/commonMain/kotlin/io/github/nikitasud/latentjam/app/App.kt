@@ -4686,13 +4686,6 @@ private suspend fun FolderGroup.toSelection(): CollectionSelection {
     )
 }
 
-/**
- * A letter rail over track titles only helps while the titles are alphabetical. In release order
- * the letters jump about, and a rail that sends "M" to track 2 and "B" to track 9 misleads.
- */
-private fun trackRailModeFor(tracks: List<TrackDescriptor>): CollectionRailMode =
-    if (tracks.any { it.trackNumber != null }) CollectionRailMode.NONE else CollectionRailMode.TRACK_TITLES
-
 private suspend fun trackCountLabel(count: Int): String =
     getPluralString(Res.plurals.count_tracks, count, count)
 

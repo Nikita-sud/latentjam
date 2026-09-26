@@ -91,6 +91,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_shuffle
 import io.github.nikitasud.latentjam.app.generated.resources.selection_count
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
+import io.github.nikitasud.latentjam.library.SongSorting
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import org.jetbrains.compose.resources.pluralStringResource
@@ -163,7 +164,7 @@ internal fun CollectionSelection.filterTracksForCollection(
         ?: tracks.filter(retain)
     if (retainedTracks.isEmpty()) return null
 
-    // A single section no longer needs a header; its tracks become the ordinary title rail.
+    // A single section no longer needs a header; its tracks keep the rail a lone album would get.
     val shownSections = retainedSections?.takeIf { it.size > 1 }
     return copy(
         tracks = retainedTracks,
@@ -171,11 +172,21 @@ internal fun CollectionSelection.filterTracksForCollection(
         railMode = if (
             railMode == CollectionRailMode.SECTION_TITLES && shownSections == null
         ) {
-            CollectionRailMode.TRACK_TITLES
+            trackRailModeFor(retainedTracks)
         } else {
             railMode
         },
     )
+}
+
+/**
+ * A letter rail over track titles only helps while the titles are alphabetical. In release order
+ * the letters jump about, and a rail that sends "M" to track 2 and "B" to track 9 misleads.
+ */
+internal fun trackRailModeFor(tracks: List<TrackDescriptor>): CollectionRailMode {
+    val keys = tracks.map { SongSorting.sortKey(it.title) }
+    val alphabetical = keys.zipWithNext().all { (previous, next) -> previous <= next }
+    return if (alphabetical) CollectionRailMode.TRACK_TITLES else CollectionRailMode.NONE
 }
 
 internal data class CollectionRailPresentation(
