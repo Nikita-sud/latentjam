@@ -1,14 +1,17 @@
 LatentJam is a music player for the files on your phone that understands what your library sounds like. A small neural model runs on the device, listens to your tracks in the background and learns what follows what, so SMART mode can queue the next song from your own collection. There is no account, no catalogue and no network permission: nothing about your listening leaves the phone.
 
 <ul>
-<li><b>SMART queue</b>: the next track picked from your library by sound and by how you actually listen.</li>
+<li><b>SMART queue</b>: the next track picked from your library by sound, by how you actually listen and by what a compact offline pack knows about 350,000 artists — their language, era and style. The queue avoids big jumps in energy.</li>
 <li><b>For You</b>: rows for this time of day, the phase you are in, one wildcard, and a sonic journey across the library.</li>
+<li><b>Search that ranks like you expect</b>: title, artist, album and genre first, then the lyrics in your files, then meaning, in any of twenty languages. A year or decade in the query ("80s", "1985") keeps results to those years.</li>
 <li><b>A map of your library</b>: clusters are your genres as the model hears them.</li>
 <li><b>A player built for touch</b>: the cover flips to the track's facts, holds for actions and swipes between tracks; a live seek bar with fine scrubbing and the lyric line under the handle; pause and resume fade instead of cutting.</li>
-<li><b>Lyrics</b>: timed lyrics follow the song, and search finds tracks by the words embedded in their files.</li>
-<li><b>Every tag the file carries</b>: all genres, credited artists and the original release year, read from FLAC, Opus and mp3.</li>
+<li><b>Lyrics</b>: timed lyrics follow the song, and a tap on a line seeks there.</li>
+<li><b>Every tag the file carries</b>: all genres, credited artists and the original release year, read from FLAC, Opus and mp3. Albums play in disc and track order, and a collaboration is listed under every artist it names.</li>
 <li><b>A real player underneath</b>: playlists with M3U import and export, album, artist, genre and folder browsing behind an A–Z rail, crossfade and volume normalization, a duplicate finder that says which copy to keep, statistics, tag editing, local backup and restore.</li>
-<li><b>Your pages, your order</b>: show, hide and reorder the browsing pages.</li>
+<li><b>On the home screen and in the car</b>: three widgets, a Quick Settings tile and an Android Auto browse tree.</li>
+<li><b>Your pages, your order</b>: show, hide and reorder the browsing pages, and choose the one it opens on.</li>
+<li><b>17 languages</b>, including Russian, Romanian, Arabic and Chinese, Japanese and Korean.</li>
 </ul>
 
 SMART gets good once a chunk of your library has been analysed in the background; leaving the phone charging overnight speeds that up.
