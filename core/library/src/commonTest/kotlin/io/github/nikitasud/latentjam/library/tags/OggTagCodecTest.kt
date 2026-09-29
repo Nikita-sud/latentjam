@@ -243,6 +243,66 @@ internal class OggTagCodecTest {
         assertEquals(TagRefusal.OGG_UNKNOWN_CODEC, codec.read(ByteArraySource(file)).refusal)
     }
 
+    /** Page offsets of [file], in order. */
+    private fun pageOffsets(file: ByteArray): List<Int> {
+        val out = ArrayList<Int>()
+        var offset = 0
+        while (offset < file.size) {
+            out += offset
+            offset += assertNotNull(OggPages.readAt(ByteArraySource(file), offset.toLong())).size
+        }
+        return out
+    }
+
+    /** Sets the sequence number of the page at [at] and gives it a correct checksum again. */
+    private fun renumber(file: ByteArray, at: Int, sequence: Int) {
+        val size = assertNotNull(OggPages.readAt(ByteArraySource(file), at.toLong())).size
+        OggPages.putLe32(file, at + 18, sequence)
+        OggPages.putLe32(file, at + 22, 0)
+        OggPages.putLe32(file, at + 22, OggCrc.compute(file.copyOfRange(at, at + size)))
+    }
+
+    @Test
+    fun theAudioDigestSeesABrokenChecksumAndASequenceGap() {
+        val file = OggFixtures.opus("TITLE" to "t")
+        val digest = codec.audioDigest(ByteArraySource(file))
+        val lastPage = pageOffsets(file).last()
+
+        val badCrc = file.copyOf().also { it[lastPage + 22] = (it[lastPage + 22].toInt() xor 1).toByte() }
+        assertTrue(codec.audioDigest(ByteArraySource(badCrc)) != digest, "checksum")
+
+        val gap = file.copyOf().also { renumber(it, lastPage, 40) }
+        assertTrue(codec.audioDigest(ByteArraySource(gap)) != digest, "sequence")
+    }
+
+    @Test
+    fun headerPagesWithASequenceGapAreRefused() {
+        // Two header pages; a rewrite would renumber them from the first and move the gap.
+        val file = OggFixtures.opus("TITLE" to "t", padding = 70_000)
+        val offsets = pageOffsets(file)
+        assertEquals(null, codec.read(ByteArraySource(file)).refusal)
+        renumber(file, offsets[2], 5)
+        assertEquals(TagRefusal.OGG_MALFORMED_PAGES, codec.read(ByteArraySource(file)).refusal)
+    }
+
+    @Test
+    fun bytesAfterTheLastPageAreDigestedNotIgnored() {
+        val trailer = "TAG".encodeToByteArray() + ByteArray(125) { 'x'.code.toByte() }
+        val file = OggFixtures.opus("TITLE" to "t") + trailer
+        val digest = assertNotNull(codec.audioDigest(ByteArraySource(file)))
+        val changed = file.copyOf().also { it[it.size - 1] = 'y'.code.toByte() }
+        assertTrue(codec.audioDigest(ByteArraySource(changed)) != digest)
+        CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(title = "Named"))
+    }
+
+    @Test
+    fun restatingAJoinedArtistWritesNothing() {
+        val file = OggFixtures.opus("ARTIST" to "A", "ARTIST" to "B", "ARTISTS" to "A", "ARTISTS" to "B", "GENRE" to "Rock", "GENRE" to "Pop")
+        val snapshot = codec.read(ByteArraySource(file))
+        assertEquals("A; B", snapshot.artist)
+        assertIs<WritePlan.NoChange>(codec.plan(ByteArraySource(file), TagEdits(artist = "A; B", genre = "Rock; Pop")))
+    }
+
     @Test
     fun aChainedStreamIsRefusedDuringARewriteBeforeAnythingIsReplaced() {
         val chained = OggFixtures.opus("TITLE" to "a") +

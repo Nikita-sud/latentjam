@@ -155,18 +155,34 @@ internal object VorbisFields {
         var out = entries
         out = set(out, TITLE, edits.title)
         val hadArtists = out.any { it.key == ARTISTS }
-        out = set(out, ARTIST, edits.artist)
+        out = setJoined(out, ARTIST, edits.artist)
         if (edits.artist != null && hadArtists) {
             out = setMany(out, ARTISTS, CreditedArtists.fromDisplay(edits.artist))
         }
         out = set(out, ALBUM, edits.album)
         out = set(out, ALBUM_ARTIST, edits.albumArtist)
-        out = set(out, GENRE, edits.genre)
+        out = setJoined(out, GENRE, edits.genre)
         out = set(out, DATE, edits.year)
         out = numbers(out, TRACK_NUMBER, TRACK_TOTAL, edits.trackNumber, edits.trackTotal)
         out = numbers(out, DISC_NUMBER, DISC_TOTAL, edits.discNumber, edits.discTotal)
-        out = set(out, LYRICS, edits.lyrics?.trim())
+        out = setLyrics(out, edits.lyrics?.trim())
         return out
+    }
+
+    /** [set] for a field read as its values joined with "; ": restating that joined text keeps every entry. */
+    private fun setJoined(entries: List<VorbisEntry>, key: String, value: String?): List<VorbisEntry> {
+        val current = entries.filter { it.key == key }.map { it.value }.filter { it.isNotEmpty() }.joinToString("; ")
+        if (!value.isNullOrEmpty() && current == value) return entries
+        return set(entries, key, value)
+    }
+
+    /** [set] for the lyrics, which read trimmed: a lone entry that reads as [value] is kept as stored. */
+    private fun setLyrics(entries: List<VorbisEntry>, value: String?): List<VorbisEntry> {
+        val stored = entries.filter { it.key in names(LYRICS) }
+        if (!value.isNullOrEmpty() && stored.size == 1 && stored[0].key == LYRICS && stored[0].value.trim() == value) {
+            return entries
+        }
+        return set(entries, LYRICS, value)
     }
 
     private fun embeddedTotal(pair: String?): Int? =
@@ -182,6 +198,11 @@ internal object VorbisFields {
     /** Replaces every entry of [key] (and its aliases) with [values], at the first one's position. */
     private fun setMany(entries: List<VorbisEntry>, key: String, values: List<String>): List<VorbisEntry> {
         val doomed = names(key).toSet()
+        // Entries that already are exactly these values, in this order, stay where they are.
+        val existing = entries.filter { it.key in doomed }
+        if (existing.size == values.size && existing.indices.all { existing[it].key == key && existing[it].value == values[it] }) {
+            return entries
+        }
         val out = ArrayList<VorbisEntry>(entries.size + values.size)
         var placed = false
         for (entry in entries) {
@@ -203,6 +224,31 @@ internal object VorbisFields {
         entries.firstOrNull { it.key == key && it.value == value } ?: VorbisEntry.of(key, value)
 
     private fun numbers(
+        entries: List<VorbisEntry>,
+        numberKey: String,
+        totalKey: String,
+        number: String?,
+        total: String?,
+    ): List<VorbisEntry> {
+        if (number == null && total == null) return entries
+        val currentRaw = entries.firstOrNull { it.key == numberKey }?.value
+        val embedded = embeddedTotal(currentRaw)
+        val totals = entries.filter { it.key in names(totalKey) }
+        val hasTotalField = totals.isNotEmpty()
+        // A half that already reads as the requested number ("03" for 3) is left as written.
+        val sameNumber = !number.isNullOrEmpty() && entries.count { it.key == numberKey } == 1 &&
+            TrackNumbers.parse(currentRaw) == TagNumbers.strict(number)
+        val sameTotal = !total.isNullOrEmpty() && TagNumbers.strict(total).let { wanted ->
+            if (hasTotalField) {
+                totals.size == 1 && totals[0].key == totalKey && TrackNumbers.parse(totals[0].value) == wanted
+            } else {
+                embedded == wanted
+            }
+        }
+        return numbersChanged(entries, numberKey, totalKey, if (sameNumber) null else number, if (sameTotal) null else total)
+    }
+
+    private fun numbersChanged(
         entries: List<VorbisEntry>,
         numberKey: String,
         totalKey: String,

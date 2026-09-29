@@ -11,6 +11,10 @@ package io.github.nikitasud.latentjam.library.tags
  * The comment packet is rebuilt and laced into the same pages with the same byte total whenever its
  * discardable padding allows — only those pages are rewritten and every audio page keeps its
  * sequence number. Otherwise the header is laid out anew and every later page is renumbered.
+ *
+ * Accepted deviation from spec §4.3: a chained stream (another logical stream after this one ends)
+ * is not refused by [read] or [plan]. An in-place edit changes only the first link's comments; a
+ * rewrite stops mid-stream on the next link (OGG_MULTIPLE_STREAMS) before anything is replaced.
  */
 internal object OggTagCodec : TagCodec {
     private val MAGIC = "OggS".encodeToByteArray()
@@ -19,6 +23,9 @@ internal object OggTagCodec : TagCodec {
     private const val PICTURE_KEY = "METADATA_BLOCK_PICTURE"
     private const val MAX_HEADER_PAGES = 4096
     private const val MAX_HEADER_BYTES = 64L shl 20
+
+    /** Separates the digest of bytes that are no page from the pages before them. */
+    private val NOT_A_PAGE = "not a page".encodeToByteArray()
 
     private enum class Kind(val format: TagFormat, val label: String, val prefix: ByteArray, val headerPackets: Int) {
         OPUS(TagFormat.OPUS, "Opus", "OpusTags".encodeToByteArray(), 1),
@@ -78,6 +85,10 @@ internal object OggTagCodec : TagCodec {
             if (packets.size == kind.headerPackets) {
                 // Audio must start on a fresh page; a header page that runs into audio is malformed.
                 if (!pagesClosed) return Parsed.Bad(TagRefusal.OGG_MALFORMED_PAGES)
+                // A rewrite numbers header pages on from the first one; a gap among them would move.
+                if (pages.zipWithNext().any { (a, b) -> b.sequence != a.sequence + 1 }) {
+                    return Parsed.Bad(TagRefusal.OGG_MALFORMED_PAGES)
+                }
                 return Parsed.Ok(Layout(kind, first, pages, packets[0], packets.getOrNull(1), offset))
             }
             if (pages.size > MAX_HEADER_PAGES || offset > MAX_HEADER_BYTES) {
@@ -252,17 +263,31 @@ internal object OggTagCodec : TagCodec {
         }
     }
 
+    /**
+     * Every audio page as a renumbering rewrite must leave it: its fields and data, whether its
+     * checksum holds, and its step from the previous page's sequence number (not the number itself,
+     * which the rewrite shifts). Bytes after the last whole page (a cut-off page, an appended
+     * trailer) are digested as they are, so an editable stream always has a digest.
+     */
     override fun audioDigest(source: RandomAccessSource): Long? {
         val layout = (parse(source) as? Parsed.Ok)?.layout ?: return null
         val crc = Crc32()
-        val fields = ByteArray(13)
+        val fields = ByteArray(18)
+        var previous = layout.headerPages.last().sequence
         var offset = layout.audioStart
         while (offset < source.length) {
-            val page = OggPages.readAt(source, offset) ?: return null
-            // Everything but the sequence number and the checksum, which a renumbering rewrite changes.
+            val page = OggPages.readAt(source, offset)
+            if (page == null) {
+                crc.update(NOT_A_PAGE)
+                crc.update(Digests.crc32(source, offset, source.length - offset)?.let { longBytes(it) } ?: return null)
+                break
+            }
             fields[0] = page.headerType.toByte()
             OggPages.putLe64(fields, 1, page.granule)
             OggPages.putLe32(fields, 9, page.serial)
+            OggPages.putLe32(fields, 13, page.sequence - previous)
+            fields[17] = if (page.crcValid) 1 else 0
+            previous = page.sequence
             crc.update(fields)
             crc.update(ByteArray(page.lacing.size) { page.lacing[it].toByte() })
             crc.update(page.payload)
@@ -270,6 +295,8 @@ internal object OggTagCodec : TagCodec {
         }
         return crc.value
     }
+
+    private fun longBytes(value: Long): ByteArray = ByteArray(8) { (value ushr (8 * it)).toByte() }
 
     override fun inventory(source: RandomAccessSource): List<String> {
         val layout = (parse(source) as? Parsed.Ok)?.layout ?: return emptyList()

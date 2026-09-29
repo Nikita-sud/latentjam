@@ -125,6 +125,25 @@ internal class VorbisCommentsTest {
     }
 
     @Test
+    fun restatingWhatAFieldReadsAsKeepsEveryEntry() {
+        val before = entries(
+            "ARTIST" to "A", "TITLE" to "t", "ARTIST" to "B", "ARTISTS" to "A", "ARTISTS" to "B",
+            "GENRE" to "Rock", "GENRE" to "Pop", "LYRICS" to "  la la \n", "TRACKNUMBER" to "03", "TRACKTOTAL" to "09",
+            "DISCNUMBER" to "1/02",
+        )
+        val after = VorbisFields.apply(
+            before,
+            TagEdits(artist = "A; B", genre = "Rock; Pop", lyrics = "la la", trackNumber = "3", trackTotal = "9", discTotal = "2"),
+        )
+        assertEquals(keys(before), keys(after))
+        // A real change still collapses the values into one.
+        assertEquals(
+            listOf("ARTIST=C", "TITLE=t"),
+            keys(VorbisFields.apply(before, TagEdits(artist = "C"))).filter { it.startsWith("ARTIST=") || it.startsWith("TITLE") },
+        )
+    }
+
+    @Test
     fun longNonLatinLyricsRoundTrip() {
         val lyrics = ("Ночь, улица, фонарь, аптека. 夜の街を歩く。\n").repeat(400).trim()
         val after = VorbisFields.apply(emptyList(), TagEdits(lyrics = lyrics))
