@@ -15,6 +15,9 @@ public object TagVerification {
     /** Inventory entries that belong to the lyrics: removing the lyrics removes every one of them. */
     internal const val LYRICS_ENTRY: String = "lyrics:"
 
+    /** Inventory entries that repeat the genre (ID3 `TXXX:GENRE`): any genre edit removes every one of them. */
+    internal const val GENRE_ENTRY: String = "genre:"
+
     public enum class Check {
         /** The file was not editable to begin with; nothing written to it can verify. */
         EDITABLE,
@@ -73,6 +76,11 @@ public object TagVerification {
     public fun audioMatches(before: Long?, after: Long?): Boolean = before != null && before == after
 
     /** The inventory a correct write of [edits] leaves behind a file whose inventory was [before]. */
-    public fun expectedInventory(before: List<String>, edits: TagEdits): List<String> =
-        if (edits.normalized().lyrics == "") before.filterNot { it.startsWith(LYRICS_ENTRY) } else before
+    public fun expectedInventory(before: List<String>, edits: TagEdits): List<String> {
+        val normalized = edits.normalized()
+        return before.filterNot {
+            (normalized.lyrics == "" && it.startsWith(LYRICS_ENTRY)) ||
+                (normalized.genre != null && it.startsWith(GENRE_ENTRY))
+        }
+    }
 }

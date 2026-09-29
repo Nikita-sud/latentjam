@@ -64,6 +64,8 @@ public object Id3Tags {
     private const val FRAME_DISC = "TPOS"
     private const val FRAME_PICTURE = "APIC"
     private const val ARTISTS_DESCRIPTION = "ARTISTS"
+    private const val ARTIST_DESCRIPTION = "ARTIST"
+    private const val GENRE_DESCRIPTION = "GENRE"
 
     /**
      * Slack left at the end of a tag this codec creates or grows, so the next
@@ -145,13 +147,19 @@ public object Id3Tags {
         val unmanaged: List<String>,
     )
 
+    /**
+     * The fields of the tag in [prefix], with what only the ID3v1 trailer at the end of [tail]
+     * holds filled in (see [withLegacy]). Null only for the tag itself: one [refusalOf] refuses, or
+     * no tag in front of data that may not be given one. A trailer that cannot be migrated is
+     * each caller's to refuse ([Id3v1.canMigrate]), so that refusal keeps its own name.
+     */
     internal fun readFields(prefix: ByteArray, tail: ByteArray = byteArrayOf()): Id3Fields? {
         val parsed = Id3Codec.parse(prefix)
         if (parsed is Id3Parse.Refused) return null
         val tag = (parsed as? Id3Parse.Parsed)?.tag
         if (tag == null && !canPrependTag(prefix)) return null
         val version = tag?.version ?: Id3Version.V2_3
-        val frames = Id3v1.migrate(tail, version, tag?.frames.orEmpty()) ?: return null
+        val frames = withLegacy(tail, version, tag?.frames.orEmpty())
         val cover = coverTarget(version, frames)
         val lyricsTarget = frames.withIndex()
             .filter { it.value.id == FRAME_LYRICS }
@@ -163,12 +171,17 @@ public object Id3Tags {
         val unmanaged = frames.withIndex()
             .filterNot { (index, frame) ->
                 frame.id in managedIds || frame.id == FRAME_PICTURE || index == lyricsTarget?.index ||
-                    isArtistsFrame(version, frame) || isGenreFrame(version, frame)
+                    isArtistsFrame(version, frame)
             }
-            // Lyrics frames besides the one the editor shows go when the lyrics are removed.
+            // Lyrics frames besides the one the editor shows go when the lyrics are removed, and
+            // TXXX:GENRE copies when the genre is edited; both stay visible to verification.
             .map { (_, frame) ->
                 val entry = "${frame.id}:${Crc32.of(frame.body)}"
-                if (frame.id == FRAME_LYRICS) TagVerification.LYRICS_ENTRY + entry else entry
+                when {
+                    frame.id == FRAME_LYRICS -> TagVerification.LYRICS_ENTRY + entry
+                    isGenreFrame(version, frame) -> TagVerification.GENRE_ENTRY + entry
+                    else -> entry
+                }
             }
         val year = when (version) {
             Id3Version.V2_4 -> textIn(version, frames, FRAME_YEAR_V24) ?: textIn(version, frames, FRAME_YEAR_V23)
@@ -195,19 +208,21 @@ public object Id3Tags {
                 .filter { it.value.id == FRAME_PICTURE }
                 .map { (index, frame) -> parsePicture(version, index, frame)?.let { Crc32.of(it.data) } ?: Crc32.of(frame.body) }
                 .sorted(),
-            artists = frames.filter { isArtistsFrame(version, it) }
-                .flatMap { frame -> userTextParts(version, frame)?.second?.let(TagFacts::splitArtists).orEmpty() },
+            artists = creditedNames(version, frames),
             unmanaged = unmanaged,
         )
     }
 
-    /** False when [edits] would leave every frame exactly as it is (a "same values" save). */
+    /**
+     * False when [edits] would leave every frame exactly as it is (a "same values" save), the
+     * fields only the ID3v1 trailer in [tail] holds included (see [withLegacy]).
+     */
     internal fun wouldChange(prefix: ByteArray, edits: TagEdits, tail: ByteArray = byteArrayOf()): Boolean {
         val parsed = Id3Codec.parse(prefix)
         if (parsed is Id3Parse.Refused) return true
         val tag = (parsed as? Id3Parse.Parsed)?.tag
         val version = tag?.version ?: Id3Version.V2_3
-        val before = Id3v1.migrate(tail, version, tag?.frames.orEmpty()) ?: return true
+        val before = withLegacy(tail, version, tag?.frames.orEmpty())
         val after = applyEdits(version, before, edits)
         return before.size != after.size || before.indices.any { i ->
             before[i].id != after[i].id ||
@@ -215,6 +230,15 @@ public object Id3Tags {
                 !before[i].body.contentEquals(after[i].body)
         }
     }
+
+    /**
+     * [frames] with the fields only the ID3v1 trailer in [tail] holds, as a rewrite would write
+     * them before dropping the trailer. A trailer [Id3v1.canMigrate] rejects adds nothing: no
+     * rewrite can happen over it ([buildUpdate] refuses), so the file reads as its ID3v2 tag says
+     * and a save that leaves that tag as it is still changes nothing.
+     */
+    private fun withLegacy(tail: ByteArray, version: Id3Version, frames: List<Id3RawFrame>): List<Id3RawFrame> =
+        Id3v1.migrate(tail, version, frames) ?: frames
 
     /**
      * Embedded unsynchronised lyrics (the `USLT` frame): the first non-empty one, or null.
@@ -278,7 +302,7 @@ public object Id3Tags {
         tail: ByteArray = byteArrayOf(),
     ): Id3TagUpdate? {
         // Legacy fields must be migrated before the caller removes the trailer.
-        if (!edits.isEmpty && Id3v1.migrate(tail, newTagVersion, emptyList()) == null) return null
+        if (!edits.isEmpty && !Id3v1.canMigrate(tail)) return null
         return when (val parsed = Id3Codec.parse(prefix)) {
             is Id3Parse.Refused -> null
 
@@ -437,10 +461,15 @@ public object Id3Tags {
         return TagRefusal.UNREADABLE_NUMBER.takeIf { erasesUnreadableNumber(tag.version, tag.frames, edits) }
     }
 
-    /** Rewrites `TXXX:ARTISTS` from a new display credit — only when the file already has one. */
+    /**
+     * Rewrites `TXXX:ARTISTS` from a new display credit — only when the file already credits names
+     * in one (or in a `TXXX:ARTIST`, which it replaces), exactly when [TagSnapshot.artists] is not
+     * empty. A single name removes every such frame. Frames that credit no name are left as they
+     * are, as [TagSnapshot.expectedAfter] predicts for a file whose list reads empty.
+     */
     private fun setCreditedArtists(version: Id3Version, frames: List<Id3RawFrame>, artist: String): List<Id3RawFrame> {
+        if (creditedNames(version, frames).isEmpty()) return frames
         val first = frames.indexOfFirst { isArtistsFrame(version, it) }
-        if (first < 0) return frames
         val names = CreditedArtists.fromDisplay(artist)
         val out = ArrayList<Id3RawFrame>(frames.size)
         for ((index, frame) in frames.withIndex()) {
@@ -457,12 +486,21 @@ public object Id3Tags {
         return out
     }
 
-    private fun isArtistsFrame(version: Id3Version, frame: Id3RawFrame): Boolean =
-        frame.id == FRAME_USER_TEXT &&
-            userTextParts(version, frame)?.first?.uppercase() in setOf("ARTIST", ARTISTS_DESCRIPTION)
+    /** Every name the `TXXX:ARTISTS` / `TXXX:ARTIST` frames credit, in file order: [TagSnapshot.artists]. */
+    private fun creditedNames(version: Id3Version, frames: List<Id3RawFrame>): List<String> =
+        frames.filter { isArtistsFrame(version, it) }
+            .flatMap { frame -> userTextParts(version, frame)?.second?.let(TagFacts::splitArtists).orEmpty() }
 
+    /** `TXXX:ARTISTS`, or `TXXX:ARTIST`, which the library reads as another credit for the same names. */
+    private fun isArtistsFrame(version: Id3Version, frame: Id3RawFrame): Boolean =
+        frame.id == FRAME_USER_TEXT && userTextParts(version, frame)?.first?.uppercase().let {
+            it == ARTISTS_DESCRIPTION || it == ARTIST_DESCRIPTION
+        }
+
+    /** `TXXX:GENRE`, which the library reads alongside `TCON`; a genre edit removes it. */
     private fun isGenreFrame(version: Id3Version, frame: Id3RawFrame): Boolean =
-        frame.id == FRAME_USER_TEXT && userTextParts(version, frame)?.first?.equals("GENRE", ignoreCase = true) == true
+        frame.id == FRAME_USER_TEXT &&
+            userTextParts(version, frame)?.first?.equals(GENRE_DESCRIPTION, ignoreCase = true) == true
 
     /** (description, value) of a TXXX frame, or null when its body is unreadable. */
     private fun userTextParts(version: Id3Version, frame: Id3RawFrame): Pair<String, String>? {

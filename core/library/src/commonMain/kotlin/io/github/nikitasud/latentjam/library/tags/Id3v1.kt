@@ -100,14 +100,26 @@ public object Id3v1 {
         return data.size - start
     }
 
-    /** Migrate the active (last) v1 tag before deleting it. Existing v2 frames take precedence. */
-    internal fun migrate(tail: ByteArray, version: Id3Version, frames: List<Id3RawFrame>): List<Id3RawFrame>? {
+    /**
+     * False when the trailer at the end of [tail] cannot be carried over whole before a rewrite
+     * drops it: a `TAG+` block, whose longer fields and timing an ID3v2 tag has no place for, or
+     * more stacked `TAG` blocks than [trailerLength] removes, which would leave the oldest one
+     * standing as the file's ID3v1. True when there is no trailer.
+     */
+    internal fun canMigrate(tail: ByteArray): Boolean {
         val length = trailerLength(tail)
-        if (length == 0) return frames
-        // TAG+ has additional timing/speed fields; refusing is safer than silently losing them.
-        if (startsWith(tail, tail.size - length, "TAG+")) return null
-        // Do not leave an older trailer active when more than the supported stack is present.
-        if (startsWith(tail, tail.size - length - TRAILER_SIZE, "TAG")) return null
+        if (length == 0) return true
+        return !startsWith(tail, tail.size - length, "TAG+") &&
+            !startsWith(tail, tail.size - length - TRAILER_SIZE, "TAG")
+    }
+
+    /**
+     * [frames] plus a frame for every field of the active (last) `TAG` block that [frames] lack;
+     * existing ID3v2 frames always win. Null when [canMigrate] is false.
+     */
+    internal fun migrate(tail: ByteArray, version: Id3Version, frames: List<Id3RawFrame>): List<Id3RawFrame>? {
+        if (!canMigrate(tail)) return null
+        if (trailerLength(tail) == 0) return frames
         val start = tail.size - TRAILER_SIZE
         fun field(offset: Int, size: Int): String = buildString {
             for (i in start + offset until start + offset + size) {

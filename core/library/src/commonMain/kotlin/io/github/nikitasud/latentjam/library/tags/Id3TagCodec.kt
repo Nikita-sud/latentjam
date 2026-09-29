@@ -52,8 +52,15 @@ internal object Id3TagCodec : TagCodec {
         val head = head(source) ?: return TagSnapshot(TagFormat.MP3, "none", refusal = TagRefusal.TRUNCATED)
         refusal(head)?.let { return TagSnapshot(TagFormat.MP3, "ID3", refusal = it) }
         val tail = tail(source, head) ?: return TagSnapshot(TagFormat.MP3, "ID3", refusal = TagRefusal.TRUNCATED)
+        // Only once the tag itself is known good: a bad tag keeps its own refusal whatever the trailer.
+        if (!Id3v1.canMigrate(tail)) return TagSnapshot(TagFormat.MP3, "ID3", refusal = TagRefusal.ID3_UNSUPPORTED_LEGACY_TAG)
+        // [refusal] has already turned away everything readFields fails on; these are its old answers.
         val fields = Id3Tags.readFields(head.prefix, tail)
-            ?: return TagSnapshot(TagFormat.MP3, "ID3", refusal = TagRefusal.ID3_UNSUPPORTED_LEGACY_TAG)
+            ?: return if (head.tagLength == 0) {
+                TagSnapshot(TagFormat.MP3, "none")
+            } else {
+                TagSnapshot(TagFormat.MP3, "ID3", refusal = TagRefusal.ID3_MALFORMED_FRAMES)
+            }
         return TagSnapshot(
             format = TagFormat.MP3,
             version = if (head.tagLength == 0) "none" else if (fields.version == Id3Version.V2_4) "ID3v2.4" else "ID3v2.3",
@@ -93,10 +100,10 @@ internal object Id3TagCodec : TagCodec {
         refusal(head)?.let { return WritePlan.Refused(it) }
         val prefix = if (head.tagLength > 0) head.prefix.copyOf(head.tagLength) else head.prefix
         val tail = tail(source, head) ?: return WritePlan.Refused(TagRefusal.TRUNCATED)
-        if (Id3v1.migrate(tail, Id3Version.V2_3, emptyList()) == null) {
-            return WritePlan.Refused(TagRefusal.ID3_UNSUPPORTED_LEGACY_TAG)
-        }
         if (!Id3Tags.wouldChange(prefix, normalized, tail)) return WritePlan.NoChange
+        // A write drops the trailer, so one whose fields cannot all be carried over first is
+        // refused; a save that changes nothing never touches it and is not.
+        if (!Id3v1.canMigrate(tail)) return WritePlan.Refused(TagRefusal.ID3_UNSUPPORTED_LEGACY_TAG)
         Id3Tags.editRefusal(prefix, normalized)?.let { return WritePlan.Refused(it) }
         val update = Id3Tags.buildUpdate(prefix, normalized, tail = tail)
             ?: return WritePlan.Refused(Id3Tags.refusalOf(prefix)?.let { TagRefusal.of(it) } ?: TagRefusal.ID3_TAG_TOO_LARGE)
