@@ -403,13 +403,13 @@
     <string name="settings_duplicates_scanning">सभी ट्रैक की तुलना हो रही है…</string>
     <string name="settings_duplicates_empty">कोई डुप्लिकेट नहीं — हर ट्रैक अलग है</string>
     <string name="settings_restore">वापस लाएँ</string>
+    <string name="settings_restore_all">सभी वापस लाएँ</string>
+    <string name="settings_library_manage_failed">लाइब्रेरी अपडेट नहीं की जा सकी। फिर से कोशिश करें।</string>
     <string name="settings_lyrics_folders">.lrc फ़ाइलों वाले फ़ोल्डर</string>
     <string name="settings_lyrics_folders_body">Android पूछता है कि किस फ़ोल्डर की अनुमति देनी है। फिर गाने के नाम वाली .lrc फ़ाइल उसके बोल के लिए इस्तेमाल होती है।</string>
     <string name="settings_lyrics_folders_add">फ़ोल्डर जोड़ें</string>
     <string name="settings_lyrics_folders_remove">हटाएँ</string>
     <string name="settings_lyrics_folders_failed">यह फ़ोल्डर इस्तेमाल नहीं किया जा सकता। इस डिवाइस के स्टोरेज से कोई फ़ोल्डर चुनें।</string>
-    <string name="settings_restore_all">सभी वापस लाएँ</string>
-    <string name="settings_library_manage_failed">लाइब्रेरी अपडेट नहीं की जा सकी। फिर से कोशिश करें।</string>
 
     <string name="settings_licenses">ओपन-सोर्स लाइसेंस</string>
     <string name="settings_licenses_body">LatentJam, साथ दिए गए मॉडल और तीसरे पक्ष के सॉफ़्टवेयर की सूचनाएँ</string>

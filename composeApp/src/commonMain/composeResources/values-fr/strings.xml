@@ -415,13 +415,13 @@
     <string name="settings_duplicates_scanning">Comparaison de toutes les paires de pistes…</string>
     <string name="settings_duplicates_empty">Aucun doublon — chaque piste a un son unique</string>
     <string name="settings_restore">Restaurer</string>
+    <string name="settings_restore_all">Tout restaurer</string>
+    <string name="settings_library_manage_failed">Impossible de mettre à jour la bibliothèque. Réessayez.</string>
     <string name="settings_lyrics_folders">Dossiers de fichiers .lrc</string>
     <string name="settings_lyrics_folders_body">Android demande quel dossier autoriser. Un fichier .lrc portant le nom du titre sert alors de paroles.</string>
     <string name="settings_lyrics_folders_add">Ajouter un dossier</string>
     <string name="settings_lyrics_folders_remove">Retirer</string>
     <string name="settings_lyrics_folders_failed">Ce dossier ne peut pas être utilisé. Choisissez-en un dans le stockage de cet appareil.</string>
-    <string name="settings_restore_all">Tout restaurer</string>
-    <string name="settings_library_manage_failed">Impossible de mettre à jour la bibliothèque. Réessayez.</string>
 
     <string name="settings_licenses">Licences open source</string>
     <string name="settings_licenses_body">Mentions concernant LatentJam, les modèles intégrés et les logiciels tiers</string>

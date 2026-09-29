@@ -412,13 +412,13 @@
     <string name="settings_duplicates_scanning">Сравниваю треки между собой…</string>
     <string name="settings_duplicates_empty">Дубликатов нет — все треки звучат по-разному</string>
     <string name="settings_restore">Восстановить</string>
+    <string name="settings_restore_all">Восстановить все</string>
+    <string name="settings_library_manage_failed">Не удалось обновить медиатеку. Повторите попытку.</string>
     <string name="settings_lyrics_folders">Папки с файлами .lrc</string>
     <string name="settings_lyrics_folders_body">Android спросит, к какой папке дать доступ. Файл .lrc с тем же именем, что и трек, станет его текстом.</string>
     <string name="settings_lyrics_folders_add">Добавить папку</string>
     <string name="settings_lyrics_folders_remove">Убрать</string>
     <string name="settings_lyrics_folders_failed">Эту папку нельзя использовать. Выберите папку в памяти этого устройства.</string>
-    <string name="settings_restore_all">Восстановить все</string>
-    <string name="settings_library_manage_failed">Не удалось обновить медиатеку. Повторите попытку.</string>
 
     <string name="settings_licenses">Лицензии открытого ПО</string>
     <string name="settings_licenses_body">Сведения о LatentJam, встроенных моделях и стороннем ПО</string>

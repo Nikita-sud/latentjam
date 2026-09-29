@@ -436,13 +436,13 @@
     <string name="settings_duplicates_scanning">تتم مقارنة جميع المقاطع…</string>
     <string name="settings_duplicates_empty">لا تكرارات — كل مقطع فريد بصوته</string>
     <string name="settings_restore">استعادة</string>
+    <string name="settings_restore_all">استعادة الكل</string>
+    <string name="settings_library_manage_failed">تعذر تحديث المكتبة. حاول مرة أخرى.</string>
     <string name="settings_lyrics_folders">مجلدات ملفات LRC</string>
     <string name="settings_lyrics_folders_body">يسألك Android عن المجلد المسموح به. بعدها يُستخدم ملف LRC الذي يحمل اسم الأغنية لعرض كلماتها.</string>
     <string name="settings_lyrics_folders_add">إضافة مجلد</string>
     <string name="settings_lyrics_folders_remove">إزالة</string>
     <string name="settings_lyrics_folders_failed">لا يمكن استخدام هذا المجلد. اختر مجلدًا في مساحة تخزين هذا الجهاز.</string>
-    <string name="settings_restore_all">استعادة الكل</string>
-    <string name="settings_library_manage_failed">تعذر تحديث المكتبة. حاول مرة أخرى.</string>
 
     <string name="settings_licenses">تراخيص المصادر المفتوحة</string>
     <string name="settings_licenses_body">إشعارات LatentJam والنماذج المضمّنة وبرامج الجهات الخارجية</string>

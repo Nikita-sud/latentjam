@@ -465,13 +465,13 @@
     <string name="settings_duplicates_scanning">Comparing every pair of tracks…</string>
     <string name="settings_duplicates_empty">No duplicates — every track sounds unique</string>
     <string name="settings_restore">Restore</string>
+    <string name="settings_restore_all">Restore all</string>
+    <string name="settings_library_manage_failed">Could not update the library. Try again.</string>
     <string name="settings_lyrics_folders">Folders with .lrc files</string>
     <string name="settings_lyrics_folders_body">Android asks which folder to allow. A .lrc file named like the song is then used for its lyrics.</string>
     <string name="settings_lyrics_folders_add">Add folder</string>
     <string name="settings_lyrics_folders_remove">Remove</string>
     <string name="settings_lyrics_folders_failed">This folder can’t be used. Choose one on this device’s storage.</string>
-    <string name="settings_restore_all">Restore all</string>
-    <string name="settings_library_manage_failed">Could not update the library. Try again.</string>
 
     <string name="settings_licenses">Open-source licenses</string>
     <string name="settings_licenses_body">Notices for LatentJam, bundled models and third-party software</string>

@@ -70,6 +70,15 @@ class SidecarLyricsTest {
     }
 
     @Test
+    fun textWithNulCharactersIsDeclined() {
+        // UTF-16 saved without a BOM: ASCII halves are valid UTF-8, but every other byte is NUL.
+        val withBom = utf16("[00:01.00]Hello\n[00:05.50]World", bigEndian = false)
+        val bomless = withBom.copyOfRange(2, withBom.size)
+        assertNull(SidecarLyrics.decode(bomless))
+        assertNull(SidecarLyrics.decode("[00:01.00]la\u0000la".encodeToByteArray()))
+    }
+
+    @Test
     fun emptyOrTagOnlyFilesHaveNoLyrics() {
         assertNull(SidecarLyrics.decode(ByteArray(0)))
         assertNull(SidecarLyrics.decode("[ar:Artist]\r\n[ti:Title]\r\n".encodeToByteArray()))

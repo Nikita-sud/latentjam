@@ -410,13 +410,13 @@
     <string name="settings_duplicates_scanning">Comparando todos os pares de faixas…</string>
     <string name="settings_duplicates_empty">Sem duplicatas — cada faixa soa única</string>
     <string name="settings_restore">Restaurar</string>
+    <string name="settings_restore_all">Restaurar tudo</string>
+    <string name="settings_library_manage_failed">Não foi possível atualizar a biblioteca. Tente novamente.</string>
     <string name="settings_lyrics_folders">Pastas com arquivos .lrc</string>
     <string name="settings_lyrics_folders_body">O Android pergunta qual pasta permitir. Um arquivo .lrc com o mesmo nome da música passa a ser usado como letra.</string>
     <string name="settings_lyrics_folders_add">Adicionar pasta</string>
     <string name="settings_lyrics_folders_remove">Remover</string>
     <string name="settings_lyrics_folders_failed">Não é possível usar esta pasta. Escolha uma no armazenamento deste dispositivo.</string>
-    <string name="settings_restore_all">Restaurar tudo</string>
-    <string name="settings_library_manage_failed">Não foi possível atualizar a biblioteca. Tente novamente.</string>
 
     <string name="settings_licenses">Licenças de código aberto</string>
     <string name="settings_licenses_body">Avisos do LatentJam, modelos incluídos e software de terceiros</string>

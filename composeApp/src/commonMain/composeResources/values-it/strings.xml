@@ -410,13 +410,13 @@
     <string name="settings_duplicates_scanning">Confronto di tutte le coppie di brani…</string>
     <string name="settings_duplicates_empty">Nessun duplicato: ogni brano suona unico</string>
     <string name="settings_restore">Ripristina</string>
+    <string name="settings_restore_all">Ripristina tutto</string>
+    <string name="settings_library_manage_failed">Impossibile aggiornare la libreria. Riprova.</string>
     <string name="settings_lyrics_folders">Cartelle con file .lrc</string>
     <string name="settings_lyrics_folders_body">Android chiede quale cartella consentire. Un file .lrc con lo stesso nome del brano ne fornisce poi il testo.</string>
     <string name="settings_lyrics_folders_add">Aggiungi cartella</string>
     <string name="settings_lyrics_folders_remove">Rimuovi</string>
     <string name="settings_lyrics_folders_failed">Questa cartella non può essere usata. Scegline una nella memoria di questo dispositivo.</string>
-    <string name="settings_restore_all">Ripristina tutto</string>
-    <string name="settings_library_manage_failed">Impossibile aggiornare la libreria. Riprova.</string>
 
     <string name="settings_licenses">Licenze open source</string>
     <string name="settings_licenses_body">Avvisi per LatentJam, modelli inclusi e software di terze parti</string>

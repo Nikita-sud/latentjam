@@ -421,13 +421,13 @@
     <string name="settings_duplicates_scanning">Порівнюю треки між собою…</string>
     <string name="settings_duplicates_empty">Дублікатів немає — усі треки звучать по-різному</string>
     <string name="settings_restore">Відновити</string>
+    <string name="settings_restore_all">Відновити всі</string>
+    <string name="settings_library_manage_failed">Не вдалося оновити медіатеку. Спробуйте ще раз.</string>
     <string name="settings_lyrics_folders">Теки з файлами .lrc</string>
     <string name="settings_lyrics_folders_body">Android запитає, до якої теки надати доступ. Файл .lrc з такою ж назвою, як у треку, стане його текстом.</string>
     <string name="settings_lyrics_folders_add">Додати теку</string>
     <string name="settings_lyrics_folders_remove">Прибрати</string>
     <string name="settings_lyrics_folders_failed">Цю теку не можна використати. Виберіть теку в пам’яті цього пристрою.</string>
-    <string name="settings_restore_all">Відновити всі</string>
-    <string name="settings_library_manage_failed">Не вдалося оновити медіатеку. Спробуйте ще раз.</string>
 
     <string name="settings_licenses">Ліцензії відкритого ПЗ</string>
     <string name="settings_licenses_body">Відомості про LatentJam, вбудовані моделі та стороннє ПЗ</string>

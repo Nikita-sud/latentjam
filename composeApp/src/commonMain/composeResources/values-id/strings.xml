@@ -402,13 +402,13 @@
     <string name="settings_duplicates_scanning">Membandingkan semua pasangan trek…</string>
     <string name="settings_duplicates_empty">Tidak ada duplikat — setiap trek terdengar unik</string>
     <string name="settings_restore">Pulihkan</string>
+    <string name="settings_restore_all">Pulihkan semua</string>
+    <string name="settings_library_manage_failed">Tidak dapat memperbarui pustaka. Coba lagi.</string>
     <string name="settings_lyrics_folders">Folder berisi file .lrc</string>
     <string name="settings_lyrics_folders_body">Android akan menanyakan folder mana yang diizinkan. File .lrc bernama sama dengan lagu lalu dipakai sebagai liriknya.</string>
     <string name="settings_lyrics_folders_add">Tambah folder</string>
     <string name="settings_lyrics_folders_remove">Hapus</string>
     <string name="settings_lyrics_folders_failed">Folder ini tidak dapat digunakan. Pilih folder di penyimpanan perangkat ini.</string>
-    <string name="settings_restore_all">Pulihkan semua</string>
-    <string name="settings_library_manage_failed">Tidak dapat memperbarui pustaka. Coba lagi.</string>
 
     <string name="settings_licenses">Lisensi sumber terbuka</string>
     <string name="settings_licenses_body">Pemberitahuan untuk LatentJam, model bawaan, dan perangkat lunak pihak ketiga</string>

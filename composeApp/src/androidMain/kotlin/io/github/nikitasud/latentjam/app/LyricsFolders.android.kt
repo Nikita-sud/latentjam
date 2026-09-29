@@ -55,6 +55,9 @@ internal actual fun rememberLyricsSourcesRevision(): String {
     if (!lyricsFoldersNeedGrants) return LYRICS_SOURCES_VERSION
     val context = LocalContext.current.applicationContext
     val trees by remember(context) { LyricsFolderStore.get(context) }.trees.collectAsState()
+    // Without a granted folder no sidecar is reachable here, so the lyrics search index keeps
+    // what it cached before sidecars existed instead of re-reading the whole library for nothing.
+    if (trees.isEmpty()) return ""
     return (listOf(LYRICS_SOURCES_VERSION) + trees.sorted()).joinToString("\n")
 }
 

@@ -76,9 +76,9 @@ class LyricsSearchTest {
             if (it.id.value == "with") lyrics("silver moon") else null
         }
         val cache = LyricsSearchCache()
-        repeat(2) { cache.load(songs, storage, reader) {} }
+        repeat(2) { cache.load(songs, storage, reader, sourcesRevision = "") {} }
         var restored = emptyMap<TrackId, LyricSearchDocument>()
-        LyricsSearchCache().load(songs, storage, reader) { restored = it }
+        LyricsSearchCache().load(songs, storage, reader, sourcesRevision = "") { restored = it }
         assertEquals(2, reads)
         assertEquals(setOf(songs.first().id), restored.keys)
         assertNotNull(restored[songs.first().id]?.snippet("silver moon"))
@@ -90,15 +90,15 @@ class LyricsSearchTest {
         val first = track("one")
         var reads = 0
         val reader: suspend (TrackDescriptor) -> Lyrics? = { reads++; lyrics("version $reads") }
-        cache.load(listOf(first, track("removed")), storage, reader) {}
+        cache.load(listOf(first, track("removed")), storage, reader, sourcesRevision = "") {}
         val changed = first.copy(sourceRevision = "2")
         var result = emptyMap<TrackId, LyricSearchDocument>()
         val snapshots = mutableListOf<Map<TrackId, LyricSearchDocument>>()
-        cache.load(listOf(changed), storage, reader) { snapshots += it; result = it }
+        cache.load(listOf(changed), storage, reader, sourcesRevision = "") { snapshots += it; result = it }
         assertTrue(snapshots.first().isEmpty())
         assertEquals(setOf(first.id), result.keys)
         assertNotNull(result[first.id]?.snippet("version 3"))
-        cache.load(listOf(changed.copy(audioUri = "file:///new.mp3")), storage, reader) {}
+        cache.load(listOf(changed.copy(audioUri = "file:///new.mp3")), storage, reader, sourcesRevision = "") {}
         assertEquals(4, reads)
     }
 
@@ -125,9 +125,9 @@ class LyricsSearchTest {
         val cache = LyricsSearchCache()
         val storage = MemoryStorage()
         val song = track("one")
-        cache.load(listOf(song), storage, { error("temporarily unreadable") }) {}
+        cache.load(listOf(song), storage, { error("temporarily unreadable") }, sourcesRevision = "") {}
         var result = emptyMap<TrackId, LyricSearchDocument>()
-        cache.load(listOf(song), storage, { lyrics("silver moon") }) { result = it }
+        cache.load(listOf(song), storage, { lyrics("silver moon") }, sourcesRevision = "") { result = it }
         assertNotNull(result[song.id]?.snippet("silver moon"))
     }
 
@@ -139,11 +139,11 @@ class LyricsSearchTest {
             cache.load(songs, storage, {
                 if (it.id == songs.last().id) throw CancellationException()
                 lyrics("first words")
-            }) {}
+            }, sourcesRevision = "") {}
             error("Expected cancellation")
         } catch (_: CancellationException) { }
         val read = mutableListOf<TrackId>()
-        cache.load(songs, storage, { read += it.id; lyrics("second words") }) {}
+        cache.load(songs, storage, { read += it.id; lyrics("second words") }, sourcesRevision = "") {}
         assertEquals(listOf(songs.last().id), read)
     }
 
@@ -152,10 +152,10 @@ class LyricsSearchTest {
         val storage = MemoryStorage().apply { failWrite = true }
         var reads = 0
         val reader: suspend (TrackDescriptor) -> Lyrics? = { reads++; lyrics("silver moon") }
-        cache.load(listOf(track("one")), storage, reader) {}
+        cache.load(listOf(track("one")), storage, reader, sourcesRevision = "") {}
         assertNull(storage.payload)
         storage.failWrite = false
-        cache.load(listOf(track("one")), storage, reader) {}
+        cache.load(listOf(track("one")), storage, reader, sourcesRevision = "") {}
         assertNotNull(storage.payload)
         assertEquals(1, reads)
     }
@@ -163,7 +163,7 @@ class LyricsSearchTest {
     @Test fun corruptedCacheIsRebuilt() = runTest {
         val storage = MemoryStorage().apply { payload = "lyrics-v1\ninvalid\t!!!\tbroken\n" }
         var result = emptyMap<TrackId, LyricSearchDocument>()
-        LyricsSearchCache().load(listOf(track("one")), storage, { lyrics("silver moon") }) { result = it }
+        LyricsSearchCache().load(listOf(track("one")), storage, { lyrics("silver moon") }, sourcesRevision = "") { result = it }
         assertEquals(1, result.size)
         assertFalse(storage.payload!!.contains("!!!"))
     }

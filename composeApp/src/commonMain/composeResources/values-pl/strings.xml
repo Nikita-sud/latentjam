@@ -421,13 +421,13 @@
     <string name="settings_duplicates_scanning">Porównywanie wszystkich par utworów…</string>
     <string name="settings_duplicates_empty">Brak duplikatów — każdy utwór brzmi wyjątkowo</string>
     <string name="settings_restore">Przywróć</string>
+    <string name="settings_restore_all">Przywróć wszystkie</string>
+    <string name="settings_library_manage_failed">Nie udało się zaktualizować biblioteki. Spróbuj ponownie.</string>
     <string name="settings_lyrics_folders">Foldery z plikami .lrc</string>
     <string name="settings_lyrics_folders_body">Android zapyta, na który folder zezwolić. Plik .lrc nazwany tak jak utwór posłuży wtedy jako jego tekst.</string>
     <string name="settings_lyrics_folders_add">Dodaj folder</string>
     <string name="settings_lyrics_folders_remove">Usuń</string>
     <string name="settings_lyrics_folders_failed">Nie można użyć tego folderu. Wybierz folder w pamięci tego urządzenia.</string>
-    <string name="settings_restore_all">Przywróć wszystkie</string>
-    <string name="settings_library_manage_failed">Nie udało się zaktualizować biblioteki. Spróbuj ponownie.</string>
 
     <string name="settings_licenses">Licencje open source</string>
     <string name="settings_licenses_body">Informacje o LatentJam, dołączonych modelach i oprogramowaniu firm trzecich</string>

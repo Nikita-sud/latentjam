@@ -34,7 +34,8 @@ internal expect fun rememberLyricsFolderControls(onRefused: () -> Unit): LyricsF
 
 /**
  * Everything outside a track's own file that decides its lyrics, as one opaque token: the
- * sidecar lookup's version and, on Android 10+, the granted folders. The lyrics search index
+ * sidecar lookup's version and, on Android 10+, the granted folders — or empty on Android 10+
+ * with no folder granted, where nothing beyond the file itself can be read. The lyrics search index
  * folds it into each entry's revision, so a newly granted folder re-reads the songs it had
  * cached as having no lyrics.
  */

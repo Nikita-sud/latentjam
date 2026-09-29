@@ -44,7 +44,7 @@ internal class LyricsSearchCache {
         songs: List<TrackDescriptor>,
         storage: LyricsSearchStorage,
         readLyrics: suspend (TrackDescriptor) -> Lyrics?,
-        sourcesRevision: String = "",
+        sourcesRevision: String,
         publish: (Map<TrackId, LyricSearchDocument>) -> Unit,
     ) = mutex.withLock {
         val cache = entries ?: try {
@@ -133,9 +133,10 @@ internal class LyricsSearchCache {
     }
 }
 
+/** An empty [sourcesRevision] leaves the key exactly as it was before sidecar lyrics existed. */
 private fun TrackDescriptor.lyricsRevision(sourcesRevision: String): String =
     "${audioUri.orEmpty()}\u0000${sourceRevision ?: "${sizeBytes.orEmptyRevision()}:${durationMs.orEmptyRevision()}"}" +
-        "\u0000$sourcesRevision"
+        (if (sourcesRevision.isEmpty()) "" else "\u0000$sourcesRevision")
 
 private fun Long?.orEmptyRevision(): String = this?.toString().orEmpty()
 

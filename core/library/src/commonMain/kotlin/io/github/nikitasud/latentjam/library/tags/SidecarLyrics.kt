@@ -38,7 +38,7 @@ public object SidecarLyrics {
      * way round); without one only strict UTF-8 is accepted. A file saved in a legacy code page
      * such as Windows-1251 cannot be told apart from its neighbours with any confidence, and a
      * wrong guess shows the listener garbage in place of their lyrics — so it is declined, and the
-     * song's embedded lyrics, if any, stay on screen.
+     * song's embedded lyrics, if any, stay on screen. Text holding NUL is declined the same way.
      */
     public fun decode(bytes: ByteArray): Lyrics? {
         if (bytes.size > MAX_BYTES) return null
@@ -50,6 +50,9 @@ public object SidecarLyrics {
                 Id3Text.decode(Id3Text.UTF_16_WITH_BOM, bytes, 0, bytes.size)
             else -> TextRepair.decodeUtf8Strict(bytes)
         } ?: return null
+        // No lyrics file holds NUL. UTF-16 saved without a BOM passes as UTF-8 — every ASCII
+        // byte is valid — with a NUL between each letter, which would show as garbage.
+        if ('\u0000' in text) return null
         return EmbeddedLyrics.parse(text.replace("\r\n", "\n").replace('\r', '\n'))
     }
 

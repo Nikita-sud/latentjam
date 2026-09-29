@@ -100,15 +100,21 @@ private fun readFromGrantedFolders(context: Context, store: LyricsFolderStore, a
     for (tree in store.trees.value) {
         val treeUri = Uri.parse(tree)
         if (treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) continue
-        val treeDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
+        // One malformed stored entry must not end the lookup for every other folder.
+        val treeDocumentId = runCatching { DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull() ?: continue
         for (documentId in sidecarDocumentIds(treeDocumentId, audioDocumentId)) {
             val document = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
             try {
                 context.contentResolver.openInputStream(document)?.use { return decodeCapped(it) }
             } catch (_: SecurityException) {
-                // The grant was revoked outside the app; it can never answer again, so it leaves
-                // the list instead of costing a binder call per song.
-                store.forget(tree)
+                // A grant revoked outside the app can never answer again, so it leaves the list
+                // instead of costing a binder call per song. A refusal while the grant is still
+                // held (the provider judging this file outside the tree) only skips this lookup:
+                // forgetting it would leave a live grant the listener can no longer see or remove.
+                val stillHeld = context.contentResolver.persistedUriPermissions.any {
+                    it.uri == treeUri && it.isReadPermission
+                }
+                if (!stillHeld) store.forget(tree)
                 break
             } catch (_: Exception) {
                 // Not there. The provider says so with FileNotFoundException, or — when its tree

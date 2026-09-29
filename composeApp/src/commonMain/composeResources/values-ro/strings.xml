@@ -401,13 +401,13 @@
     <string name="settings_duplicates_scanning">Se compară toate perechile de piese…</string>
     <string name="settings_duplicates_empty">Fără dubluri — fiecare piesă sună unic</string>
     <string name="settings_restore">Restabilește</string>
+    <string name="settings_restore_all">Restabilește tot</string>
+    <string name="settings_library_manage_failed">Biblioteca nu a putut fi actualizată. Încearcă din nou.</string>
     <string name="settings_lyrics_folders">Dosare cu fișiere .lrc</string>
     <string name="settings_lyrics_folders_body">Android întreabă ce dosar să permită. Un fișier .lrc cu același nume ca piesa este apoi folosit pentru versurile ei.</string>
     <string name="settings_lyrics_folders_add">Adaugă dosar</string>
     <string name="settings_lyrics_folders_remove">Elimină</string>
     <string name="settings_lyrics_folders_failed">Acest dosar nu poate fi folosit. Alege unul din spațiul de stocare al acestui dispozitiv.</string>
-    <string name="settings_restore_all">Restabilește tot</string>
-    <string name="settings_library_manage_failed">Biblioteca nu a putut fi actualizată. Încearcă din nou.</string>
 
     <string name="settings_licenses">Licențe open-source</string>
     <string name="settings_licenses_body">Notificări pentru LatentJam, modelele incluse și software-ul terț</string>

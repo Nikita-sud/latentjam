@@ -403,13 +403,13 @@
     <string name="settings_duplicates_scanning">Tüm parça çiftleri karşılaştırılıyor…</string>
     <string name="settings_duplicates_empty">Kopya yok — her parça benzersiz</string>
     <string name="settings_restore">Geri yükle</string>
+    <string name="settings_restore_all">Tümünü geri yükle</string>
+    <string name="settings_library_manage_failed">Arşiv güncellenemedi. Yeniden deneyin.</string>
     <string name="settings_lyrics_folders">.lrc dosyası olan klasörler</string>
     <string name="settings_lyrics_folders_body">Android hangi klasöre izin verileceğini sorar. Şarkıyla aynı adı taşıyan .lrc dosyası o şarkının sözleri olarak kullanılır.</string>
     <string name="settings_lyrics_folders_add">Klasör ekle</string>
     <string name="settings_lyrics_folders_remove">Kaldır</string>
     <string name="settings_lyrics_folders_failed">Bu klasör kullanılamaz. Bu cihazın depolama alanından bir klasör seçin.</string>
-    <string name="settings_restore_all">Tümünü geri yükle</string>
-    <string name="settings_library_manage_failed">Arşiv güncellenemedi. Yeniden deneyin.</string>
 
     <string name="settings_licenses">Açık kaynak lisansları</string>
     <string name="settings_licenses_body">LatentJam, paketli modeller ve üçüncü taraf yazılımlara ait bildirimler</string>
