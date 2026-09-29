@@ -43,4 +43,9 @@ public class ByteArraySink : ByteSink {
     }
 
     public fun toByteArray(): ByteArray = buffer.copyOf(size)
+
+    /** Forgets everything written, keeping the buffer. */
+    public fun reset() {
+        size = 0
+    }
 }
