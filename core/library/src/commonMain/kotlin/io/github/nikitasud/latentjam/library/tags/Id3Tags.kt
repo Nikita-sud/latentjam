@@ -163,7 +163,7 @@ public object Id3Tags {
         val unmanaged = frames.withIndex()
             .filterNot { (index, frame) ->
                 frame.id in managedIds || frame.id == FRAME_PICTURE || index == lyricsTarget?.index ||
-                    isArtistsFrame(version, frame)
+                    isArtistsFrame(version, frame) || isGenreFrame(version, frame)
             }
             // Lyrics frames besides the one the editor shows go when the lyrics are removed.
             .map { (_, frame) ->
@@ -365,6 +365,7 @@ public object Id3Tags {
         result = setText(version, result, FRAME_ALBUM, edits.album)
         result = setText(version, result, FRAME_ALBUM_ARTIST, edits.albumArtist)
         result = setText(version, result, FRAME_GENRE, edits.genre)
+        if (edits.genre != null) result = result.filterNot { isGenreFrame(version, it) }
 
         val yearFrame = if (version == Id3Version.V2_4) FRAME_YEAR_V24 else FRAME_YEAR_V23
         val staleYear = if (version == Id3Version.V2_4) FRAME_YEAR_V23 else FRAME_YEAR_V24
@@ -458,7 +459,10 @@ public object Id3Tags {
 
     private fun isArtistsFrame(version: Id3Version, frame: Id3RawFrame): Boolean =
         frame.id == FRAME_USER_TEXT &&
-            userTextParts(version, frame)?.first?.equals(ARTISTS_DESCRIPTION, ignoreCase = true) == true
+            userTextParts(version, frame)?.first?.uppercase() in setOf("ARTIST", ARTISTS_DESCRIPTION)
+
+    private fun isGenreFrame(version: Id3Version, frame: Id3RawFrame): Boolean =
+        frame.id == FRAME_USER_TEXT && userTextParts(version, frame)?.first?.equals("GENRE", ignoreCase = true) == true
 
     /** (description, value) of a TXXX frame, or null when its body is unreadable. */
     private fun userTextParts(version: Id3Version, frame: Id3RawFrame): Pair<String, String>? {
