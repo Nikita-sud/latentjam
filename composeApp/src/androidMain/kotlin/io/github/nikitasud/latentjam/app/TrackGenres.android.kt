@@ -75,7 +75,7 @@ internal class InputStreamByteSource(private val input: InputStream) : GenreTags
 
 /** Adapts a positional [FileChannel] read over a `ParcelFileDescriptor` to [RandomAccessSource]. */
 internal class FileChannelSource(private val channel: FileChannel) : RandomAccessSource {
-    override val length: Long get() = channel.size()
+    override val length: Long = channel.size()
 
     override fun read(offset: Long, count: Int): ByteArray? {
         if (offset < 0 || count < 0 || offset + count > length) return null

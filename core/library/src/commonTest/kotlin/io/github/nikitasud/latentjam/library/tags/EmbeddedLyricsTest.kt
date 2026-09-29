@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.library.tags
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -248,5 +249,26 @@ class EmbeddedLyricsTest {
         val badMoov = Mp4Fixtures.leaf("moov", Mp4Fixtures.be32(100) + Mp4Fixtures.type("trak") + ByteArray(10))
         val file = Mp4Fixtures.ftyp() + badMoov
         assertNull(EmbeddedLyrics.read(ByteArraySource(file)))
+    }
+
+    /** Answers the initial 8-byte `ftyp` sniff, then fails every later read — an I/O error, not a
+     *  malformed file. */
+    private class ThrowingAfterSniffSource(private val bytes: ByteArray) : RandomAccessSource {
+        override val length: Long get() = bytes.size.toLong()
+
+        override fun read(offset: Long, count: Int): ByteArray? {
+            if (offset == 0L && count == 8) return bytes.copyOfRange(0, 8)
+            throw IllegalStateException("simulated read failure")
+        }
+    }
+
+    @Test
+    fun aReadFailureOnAnMp4SourcePropagatesRatherThanBeingSwallowed() {
+        // The lyrics search index relies on this: reportReadFailures = true must see a genuine
+        // I/O failure so an unreadable file is retried, never cached as "no lyrics".
+        val file = Mp4Fixtures.file(listOf(Mp4Fixtures.text("©lyr", "text")))
+        assertFailsWith<IllegalStateException> {
+            EmbeddedLyrics.read(ThrowingAfterSniffSource(file))
+        }
     }
 }

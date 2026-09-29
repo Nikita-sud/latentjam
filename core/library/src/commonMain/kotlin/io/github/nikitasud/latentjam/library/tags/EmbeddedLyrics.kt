@@ -38,17 +38,16 @@ public object EmbeddedLyrics {
      * The lyrics, or null when the container is unknown or carries none. Sniffs the first bytes
      * and handles all four containers: `ftyp` at offset 4 means MP4, read through the same
      * `moov`-only codec the tag editor uses (the audio is never streamed); FLAC, Ogg and ID3 reuse
-     * the sequential parsers below through [SequentialSource], a one-pass view over [source].
-     * A malformed MP4 yields null rather than throwing, like every other container here.
+     * the sequential parsers below through [SequentialSource], a one-pass view over [source]. A
+     * malformed MP4 already yields null without throwing — the codec answers with a refusal
+     * snapshot rather than raising — so nothing here catches exceptions; a genuine I/O failure
+     * from the platform source propagates just like it does for the other three containers, which
+     * is what lets callers such as the lyrics search index tell "unreadable" apart from "no lyrics".
      */
     public fun read(source: RandomAccessSource): Lyrics? {
         val head = source.read(0, 8)
-        if (head != null && Mp4Boxes.typeOf(head, 4) == "ftyp") {
-            return try {
-                Mp4TagCodec.read(source).lyrics?.let(::parse)
-            } catch (_: Exception) {
-                null
-            }
+        if (head != null && Mp4TagCodec.recognizes(head)) {
+            return Mp4TagCodec.read(source).lyrics?.let(::parse)
         }
         return readSequential(SequentialSource(source))
     }
