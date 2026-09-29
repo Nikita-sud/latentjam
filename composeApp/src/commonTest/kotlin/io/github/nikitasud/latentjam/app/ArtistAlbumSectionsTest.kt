@@ -78,6 +78,37 @@ internal class ArtistAlbumSectionsTest {
     }
 
     @Test
+    fun datedLooseTracksStayLastInEveryOrder() {
+        val tracks = listOf(
+            track("old-1", album = "Debut", year = 1999, trackNumber = 1),
+            track("new-1", album = "Comeback", year = 2021, trackNumber = 1),
+            // Dated between the two albums: by year alone this chapter would sit mid-discography.
+            track("loose-1", album = null, year = 2010),
+            track("loose-2", album = null, year = 2010),
+        )
+        val orders = listOf(
+            SortChoice(AlbumSort.YEAR, SongSortDirection.DESCENDING),
+            SortChoice(AlbumSort.YEAR, SongSortDirection.ASCENDING),
+            SortChoice(AlbumSort.TITLE, SongSortDirection.ASCENDING),
+            SortChoice(AlbumSort.TITLE, SongSortDirection.DESCENDING),
+        )
+        for (order in orders) {
+            val sections = artistAlbumSections(tracks, order, "Unknown album")
+            assertEquals("Unknown album", sections.last().title, order.toString())
+            assertEquals(null, sections.last().railTitle, order.toString())
+        }
+        assertContentEquals(
+            listOf("Comeback", "Debut", "Unknown album"),
+            artistAlbumSections(tracks, DEFAULT_ARTIST_ALBUM_SORT, "Unknown album").map { it.title },
+        )
+        assertContentEquals(
+            listOf("Debut", "Comeback", "Unknown album"),
+            artistAlbumSections(tracks, SortChoice(AlbumSort.YEAR, SongSortDirection.ASCENDING), "Unknown album")
+                .map { it.title },
+        )
+    }
+
+    @Test
     fun twoReleasesSharingATitleAreDatedSeparately() {
         val tracks = listOf(
             track("blue-1", album = "Weezer", year = 1994, trackNumber = 1, folderPath = "Weezer/Blue"),

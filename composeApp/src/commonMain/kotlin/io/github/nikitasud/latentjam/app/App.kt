@@ -779,12 +779,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             collectionOpenJob = null
             applySelectedCollection(value)
         }
-        // A new album order re-sorts an open artist page in place. Opening one later builds it in
-        // the current order directly, so only the page on screen needs this.
-        LaunchedEffect(artistAlbumSortChoice) {
+        // A new album order re-sorts an open artist page in place. Keyed on the collection revision
+        // too: a rescan that replaces the page mid-sort restarts this against the replacement, so the
+        // shown order always converges on the chosen one. A page already in that order sorts to
+        // itself and is left alone, which is also how this settles after its own update.
+        LaunchedEffect(artistAlbumSortChoice, collectionRevision) {
             val open = selectedCollection?.takeIf { it.routeId.startsWith("artist:") } ?: return@LaunchedEffect
             val resorted = open.withArtistAlbumOrder(artistAlbumSortChoice)
-            // The page may have closed, or a rescan reconciled it, while this was sorting.
             if (selectedCollection === open && resorted != open) applySelectedCollection(resorted)
         }
         fun openCollection(
@@ -4703,13 +4704,17 @@ internal fun artistAlbumSections(
             tracks = release,
         )
     }
-    return AlbumSorting.sort(albums, albumOrder.sort, albumOrder.direction).map { album ->
-        CollectionSection(
-            title = album.title ?: unknownAlbum,
-            tracks = album.tracks,
-            railTitle = album.title,
-        )
-    }
+    // Loose tracks are not an album of the artist's, so they close the page whatever the order:
+    // dated by their own tags, they would otherwise land mid-discography under Year.
+    return AlbumSorting.sort(albums, albumOrder.sort, albumOrder.direction)
+        .sortedBy { it.title == null }
+        .map { album ->
+            CollectionSection(
+                title = album.title ?: unknownAlbum,
+                tracks = album.tracks,
+                railTitle = album.title,
+            )
+        }
 }
 
 /** Album titles index an alphabetical discography; release years are not letters. */
