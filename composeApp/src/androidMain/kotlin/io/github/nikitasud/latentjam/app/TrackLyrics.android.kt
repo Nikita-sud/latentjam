@@ -139,92 +139,109 @@ internal actual fun rememberSidecarFingerprints(): suspend (List<TrackDescriptor
 }
 
 /**
- * What one pass of the lyrics search index costs, by where [readSidecarLyrics] looks:
+ * What one pass costs, by where [readSidecarLyrics] looks:
  *
- * - Android 10+ with no folder granted: nothing. No sidecar is reachable, so there is nothing to
- *   fingerprint, and no query runs.
+ * - Android 10+ with no folder of the device's storage granted: nothing. No sidecar is
+ *   reachable, every song is known to have none, and no query runs.
  * - Android 9 and older: one MediaStore query for every song's path, then two `stat`s per song
  *   ([siblingFingerprint]) — microseconds each, no file opened.
  * - Android 10+ with folders granted: the same MediaStore query, then one children query per
- *   folder that holds songs inside a granted tree — not per song, and not per candidate name,
- *   which for a few thousand songs would be thousands of binder calls on every pass.
+ *   folder that holds songs inside a granted tree — once per folder even when nested grants both
+ *   cover it, and never per song or per candidate name, which for a few thousand songs would be
+ *   thousands of binder calls.
  *
- * Any failure leaves the songs it concerns without a fingerprint rather than failing the pass.
+ * A song is left out of the answer — "unknown", which keeps its cached entry — when its folder
+ * cannot be listed; the whole call throws when the paths cannot be queried. Neither may read as
+ * "no sidecar", which would re-read every song that has one.
  */
 private suspend fun sidecarFingerprints(context: Context, tracks: List<TrackDescriptor>): Map<TrackId, String> {
-    val needsGrants = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-    val trees = if (needsGrants) LyricsFolderStore.get(context).trees.value else emptyList()
-    if (needsGrants && trees.isEmpty()) return emptyMap()
-    val paths = mediaStorePaths(context)
-    val fingerprints = HashMap<TrackId, String>()
-    if (!needsGrants) {
-        for (track in tracks) {
-            val path = track.audioUri?.let(paths::get) ?: continue
-            siblingFingerprint(path).takeIf { it.isNotEmpty() }?.let { fingerprints[track.id] = it }
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        val paths = mediaStorePaths(context)
+        val fingerprints = HashMap<TrackId, String>(tracks.size)
+        for ((index, track) in tracks.withIndex()) {
+            if (index % CANCELLATION_STRIDE == 0) currentCoroutineContext().ensureActive()
+            // A song MediaStore has no path for has no sidecar the reader could find either.
+            fingerprints[track.id] = track.audioUri?.let(paths::get)?.let(::siblingFingerprint).orEmpty()
         }
         return fingerprints
     }
-    val grants = trees.mapNotNull { tree ->
+    val store = LyricsFolderStore.get(context)
+    val grants = store.trees.value.mapNotNull { tree ->
         val treeUri = Uri.parse(tree)
         if (treeUri.authority != EXTERNAL_STORAGE_AUTHORITY) return@mapNotNull null
-        runCatching { DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull()?.let { treeUri to it }
+        runCatching { DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull()?.let { Triple(tree, treeUri, it) }
     }
-    // (tree, folder) → the songs in it with their candidate ids, so each folder is listed once.
-    val folders = LinkedHashMap<Pair<Uri, String>, MutableList<Pair<TrackId, List<String>>>>()
+    if (grants.isEmpty()) return tracks.associate { it.id to "" }
+    val paths = mediaStorePaths(context)
+    // Folder → the tree it is listed through and the songs in it with their candidate ids. A song
+    // lies in one folder, and nested grants name the same document ids, so the first covering
+    // tree is enough.
+    val folders = LinkedHashMap<String, Pair<Triple<String, Uri, String>, MutableList<Pair<TrackId, List<String>>>>>()
+    val fingerprints = HashMap<TrackId, String>(tracks.size)
     for (track in tracks) {
+        fingerprints[track.id] = ""
         val audioDocumentId = track.audioUri?.let(paths::get)?.let(::externalStorageDocumentId) ?: continue
-        for ((treeUri, treeDocumentId) in grants) {
-            val candidates = sidecarDocumentIds(treeDocumentId, audioDocumentId)
+        for (grant in grants) {
+            val candidates = sidecarDocumentIds(grant.third, audioDocumentId)
             if (candidates.isEmpty()) continue
-            folders.getOrPut(treeUri to parentDocumentId(candidates.first())) { mutableListOf() } +=
+            folders.getOrPut(parentDocumentId(candidates.first())) { grant to mutableListOf() }.second +=
                 track.id to candidates
+            break
         }
     }
-    val parts = HashMap<TrackId, MutableList<String>>()
-    for ((folder, songs) in folders) {
+    for ((folder, entry) in folders) {
         currentCoroutineContext().ensureActive()
-        val listing = listSidecars(context, folder.first, folder.second) ?: continue
+        val (grant, songs) = entry
+        val listing = listSidecars(context, store, grant, folder)
         for ((id, candidates) in songs) {
-            listingFingerprint(candidates, listing).takeIf { it.isNotEmpty() }?.let {
-                parts.getOrPut(id) { mutableListOf() } += it
-            }
+            if (listing == null) fingerprints.remove(id) else fingerprints[id] = listingFingerprint(candidates, listing)
         }
     }
-    parts.forEach { (id, fingerprint) -> fingerprints[id] = fingerprint.joinToString("|") }
     return fingerprints
 }
 
+/** How many songs a per-song loop handles between cancellation checks. */
+private const val CANCELLATION_STRIDE = 256
+
 /**
  * Every song's file path by its content URI, from one query. DATA is deprecated, and it is what
- * [filePathOf] reads per song for the same purpose.
+ * [filePathOf] reads per song for the same purpose. Throws when the query cannot run: an empty
+ * answer would say that no song has a path, and so no sidecar.
  */
 @Suppress("DEPRECATION")
 private fun mediaStorePaths(context: Context): Map<String, String> {
-    val paths = HashMap<String, String>()
-    runCatching {
+    val cursor = checkNotNull(
         context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DATA),
             "${MediaStore.Audio.Media.IS_MUSIC} != 0",
             null,
             null,
-        )?.use { cursor ->
-            while (cursor.moveToNext()) {
-                val path = cursor.getString(1) ?: continue
-                paths[ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, cursor.getLong(0)).toString()] = path
-            }
+        ),
+    ) { "MediaStore did not answer" }
+    val paths = HashMap<String, String>()
+    cursor.use {
+        while (it.moveToNext()) {
+            val path = it.getString(1) ?: continue
+            paths[ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, it.getLong(0)).toString()] = path
         }
     }
     return paths
 }
 
 /**
- * The `.lrc` files in [folderDocumentId], from one children query through the granted
- * [treeUri]; null when the folder cannot be listed (gone, or the grant revoked — which the next
- * read notices and handles, see [readFromGrantedFolders]).
+ * The `.lrc` files in [folderDocumentId], from one children query through [grant]'s tree; null
+ * when the folder cannot be listed. A grant revoked outside the app is forgotten here as the
+ * reader forgets it ([readFromGrantedFolders]); that changes the lyrics sources, and the index
+ * re-reads what the folder used to supply.
  */
-private fun listSidecars(context: Context, treeUri: Uri, folderDocumentId: String): Map<String, List<String>>? = try {
-    val children = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, folderDocumentId)
+private fun listSidecars(
+    context: Context,
+    store: LyricsFolderStore,
+    grant: Triple<String, Uri, String>,
+    folderDocumentId: String,
+): Map<String, List<String>>? = try {
+    val children = DocumentsContract.buildChildDocumentsUriUsingTree(grant.second, folderDocumentId)
     val projection = arrayOf(
         DocumentsContract.Document.COLUMN_DOCUMENT_ID,
         DocumentsContract.Document.COLUMN_SIZE,
@@ -238,6 +255,12 @@ private fun listSidecars(context: Context, treeUri: Uri, folderDocumentId: Strin
         }
         sidecarListing(rows)
     }
+} catch (_: SecurityException) {
+    val stillHeld = context.contentResolver.persistedUriPermissions.any {
+        it.uri == grant.second && it.isReadPermission
+    }
+    if (!stillHeld) store.forget(grant.first)
+    null
 } catch (_: Exception) {
     null
 }

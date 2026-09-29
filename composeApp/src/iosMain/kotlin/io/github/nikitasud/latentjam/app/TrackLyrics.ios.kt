@@ -14,6 +14,7 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSDate
 import platform.Foundation.NSFileHandle
@@ -97,22 +98,25 @@ private fun readSiblingFile(audioPath: String): Lyrics? {
 /**
  * The attributes of each `.lrc` candidate beside an imported file — two `stat`s per song through
  * NSFileManager, no file opened, on a background thread. Music library items have no file path,
- * so they cost nothing and never have a fingerprint.
+ * so they cost nothing and are known to have no sidecar.
  */
 @Composable
 internal actual fun rememberSidecarFingerprints(): suspend (List<TrackDescriptor>) -> Map<TrackId, String> = remember {
     { tracks ->
         withContext(Dispatchers.Default) {
             val manager = NSFileManager.defaultManager
-            buildMap {
-                for (track in tracks) {
-                    val path = filePathOf(track) ?: continue
-                    siblingFingerprint(manager, path).takeIf { it.isNotEmpty() }?.let { put(track.id, it) }
-                }
+            val fingerprints = HashMap<TrackId, String>(tracks.size)
+            for ((index, track) in tracks.withIndex()) {
+                if (index % CANCELLATION_STRIDE == 0) ensureActive()
+                fingerprints[track.id] = filePathOf(track)?.let { siblingFingerprint(manager, it) }.orEmpty()
             }
+            fingerprints
         }
     }
 }
+
+/** How many songs the loop above handles between cancellation checks. */
+private const val CANCELLATION_STRIDE = 256
 
 /** Each present candidate's name, size and modification time; "" when there is none. */
 @OptIn(ExperimentalForeignApi::class)
