@@ -501,7 +501,7 @@
     <string name="duplicates_keep_this">Manter esta</string>
     <string name="snack_duplicates_merged">Duplicatas mescladas: as playlists agora apontam para a cópia mantida</string>
     <string name="info_lyrics">Letra</string>
-    <string name="lyrics_not_found">Nenhuma letra foi encontrada no arquivo desta faixa nem ao lado dele.</string>
+    <string name="lyrics_not_found">Nenhuma letra foi encontrada para esta faixa.</string>
     <string name="cd_scroll_to_top">Voltar ao topo</string>
     <string name="foryou_section_daypart_morning">Suas manhãs</string>
     <string name="foryou_section_daypart_day">Suas tardes</string>

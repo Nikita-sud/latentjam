@@ -401,7 +401,7 @@
     <string name="settings_lyrics_folders">.lrc ファイルのフォルダ</string>
     <string name="settings_lyrics_folders_body">許可するフォルダを Android が尋ねます。曲と同じ名前の .lrc ファイルがその曲の歌詞として使われます。</string>
     <string name="settings_lyrics_folders_add">フォルダを追加</string>
-    <string name="settings_lyrics_folders_remove">削除</string>
+    <string name="settings_lyrics_folders_remove">解除</string>
     <string name="settings_lyrics_folders_failed">このフォルダは使用できません。このデバイスのストレージ内のフォルダを選んでください。</string>
 
     <string name="settings_licenses">オープンソースライセンス</string>
@@ -487,7 +487,7 @@
     <string name="duplicates_keep_this">これを残す</string>
     <string name="snack_duplicates_merged">重複を統合しました。プレイリストは残したコピーを指します</string>
     <string name="info_lyrics">歌詞</string>
-    <string name="lyrics_not_found">この曲のファイルにもその隣にも歌詞が見つかりませんでした。</string>
+    <string name="lyrics_not_found">この曲の歌詞が見つかりませんでした。</string>
     <string name="cd_scroll_to_top">先頭に戻る</string>
     <string name="foryou_section_daypart_morning">あなたの朝</string>
     <string name="foryou_section_daypart_day">あなたの昼</string>

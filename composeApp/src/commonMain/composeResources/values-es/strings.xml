@@ -501,7 +501,7 @@
     <string name="duplicates_keep_this">Conservar esta</string>
     <string name="snack_duplicates_merged">Duplicados combinados: las listas ahora apuntan a la copia conservada</string>
     <string name="info_lyrics">Letra</string>
-    <string name="lyrics_not_found">No se encontró letra en el archivo de esta pista ni junto a él.</string>
+    <string name="lyrics_not_found">No se encontró letra para esta pista.</string>
     <string name="cd_scroll_to_top">Volver arriba</string>
     <string name="foryou_section_daypart_morning">Tus mañanas</string>
     <string name="foryou_section_daypart_day">Tus tardes</string>

@@ -504,7 +504,7 @@
     <string name="duplicates_keep_this">Diesen behalten</string>
     <string name="snack_duplicates_merged">Duplikate zusammengeführt: Playlists zeigen jetzt auf die behaltene Kopie</string>
     <string name="info_lyrics">Songtext</string>
-    <string name="lyrics_not_found">Weder in der Datei dieses Titels noch daneben wurde ein Songtext gefunden.</string>
+    <string name="lyrics_not_found">Für diesen Titel wurde kein Songtext gefunden.</string>
     <string name="cd_scroll_to_top">Zurück nach oben</string>
     <string name="foryou_section_daypart_morning">Dein Morgen</string>
     <string name="foryou_section_daypart_day">Dein Nachmittag</string>

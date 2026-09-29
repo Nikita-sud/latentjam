@@ -487,7 +487,7 @@
     <string name="duplicates_keep_this">保留此曲</string>
     <string name="snack_duplicates_merged">已合并重复项：播放列表现在指向保留的副本</string>
     <string name="info_lyrics">歌词</string>
-    <string name="lyrics_not_found">在此曲目的文件中及其旁边均未找到歌词。</string>
+    <string name="lyrics_not_found">未找到此曲目的歌词。</string>
     <string name="cd_scroll_to_top">回到顶部</string>
     <string name="foryou_section_daypart_morning">你的早晨</string>
     <string name="foryou_section_daypart_day">你的午后</string>

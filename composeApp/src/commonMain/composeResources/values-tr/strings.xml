@@ -494,7 +494,7 @@
     <string name="duplicates_keep_this">Bunu tut</string>
     <string name="snack_duplicates_merged">Kopyalar birleştirildi: çalma listeleri artık tutulan kopyayı gösteriyor</string>
     <string name="info_lyrics">Şarkı sözleri</string>
-    <string name="lyrics_not_found">Bu parçanın dosyasında ya da yanında şarkı sözü bulunamadı.</string>
+    <string name="lyrics_not_found">Bu parça için şarkı sözü bulunamadı.</string>
     <string name="cd_scroll_to_top">Başa dön</string>
     <string name="foryou_section_daypart_morning">Sabahların</string>
     <string name="foryou_section_daypart_day">Öğleden sonraların</string>

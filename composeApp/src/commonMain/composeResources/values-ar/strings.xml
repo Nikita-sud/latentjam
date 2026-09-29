@@ -527,7 +527,7 @@
     <string name="duplicates_keep_this">احتفظ بهذه</string>
     <string name="snack_duplicates_merged">تم دمج التكرارات: تشير قوائم التشغيل الآن إلى النسخة المحتفَظ بها</string>
     <string name="info_lyrics">كلمات الأغنية</string>
-    <string name="lyrics_not_found">لم يتم العثور على كلمات في ملف هذه الأغنية ولا بجانبه.</string>
+    <string name="lyrics_not_found">لم يتم العثور على كلمات لهذه الأغنية.</string>
     <string name="cd_scroll_to_top">العودة إلى الأعلى</string>
     <string name="foryou_section_daypart_morning">صباحاتك</string>
     <string name="foryou_section_daypart_day">فترات ظهيرتك</string>
