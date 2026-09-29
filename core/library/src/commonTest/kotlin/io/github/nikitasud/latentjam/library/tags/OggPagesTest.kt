@@ -121,6 +121,18 @@ internal class OggPagesTest {
     }
 
     @Test
+    fun renumbererRefusesAPageWithAnUnknownVersion() {
+        val input = page(5, ByteArray(10))
+        input[4] = 1
+        OggPages.putLe32(input, 22, 0)
+        OggPages.putLe32(input, 22, OggCrc.compute(input))
+        val error = assertFailsWith<StreamRefusedException> {
+            OggRenumberer(9, 1).start().process(input, ByteArraySink())
+        }
+        assertEquals(TagRefusal.OGG_MALFORMED_PAGES, error.reason)
+    }
+
+    @Test
     fun renumbererRefusesInputThatEndsMidPage() {
         val input = page(5, ByteArray(10)).copyOf(20)
         val pass = OggRenumberer(9, 1).start()

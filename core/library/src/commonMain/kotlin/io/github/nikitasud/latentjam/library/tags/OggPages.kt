@@ -107,8 +107,9 @@ internal object OggPages {
     )
 
     /**
-     * [packets] laced into exactly [pageCount] pages of 1–255 segments each, earlier pages filled
-     * first; null when that many pages cannot hold them.
+     * [packets] laced into exactly [pageCount] pages of 1–255 segments each, split as evenly as
+     * possible with any extra segment going to the earlier pages; null when that many pages
+     * cannot hold them.
      */
     fun layout(packets: List<ByteArray>, pageCount: Int): List<PageContent>? {
         // Each segment: which packet, where in it, how long, and whether it closes the packet.
@@ -206,7 +207,8 @@ internal class OggRenumberer(private val serial: Int, private val sequenceDelta:
             var start = 0
             while (size - start >= OggPages.HEADER_SIZE) {
                 if (buffer[start] != 'O'.code.toByte() || buffer[start + 1] != 'g'.code.toByte() ||
-                    buffer[start + 2] != 'g'.code.toByte() || buffer[start + 3] != 'S'.code.toByte()
+                    buffer[start + 2] != 'g'.code.toByte() || buffer[start + 3] != 'S'.code.toByte() ||
+                    buffer[start + 4] != 0.toByte()
                 ) {
                     throw StreamRefusedException(TagRefusal.OGG_MALFORMED_PAGES)
                 }
