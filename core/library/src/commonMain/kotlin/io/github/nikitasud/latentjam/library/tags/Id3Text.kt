@@ -52,7 +52,10 @@ internal object Id3Text {
      * this file exists:
      *
      * - Text that fits ISO-8859-1 goes out as encoding 0 in both versions. It is
-     *   the most compact form and the one every decoder ever written handles.
+     *   the most compact form and the one every decoder ever written handles —
+     *   unless its Latin-1 bytes also happen to be well-formed UTF-8 ("É" and a
+     *   no-break space are C9 A0, UTF-8 for "ɠ"). The reader takes such bytes as
+     *   UTF-8 (see [decodeIso8859_1]), so that text is treated as non-Latin.
      * - Otherwise, **2.4 gets UTF-8 and 2.3 gets UTF-16 with a BOM**. UTF-8 is
      *   not a legal ID3v2.3 encoding; writing it anyway is the single most
      *   common way a tagger destroys a Cyrillic or Japanese title, because
@@ -67,7 +70,7 @@ internal object Id3Text {
         // would silently split the field into two values on the next read.
         val clean = if (text.indexOf('\u0000') >= 0) text.replace("\u0000", "") else text
 
-        if (isLatin1(clean)) {
+        if (isUnambiguousLatin1(clean)) {
             val out = ByteArray(1 + clean.length)
             out[0] = ISO_8859_1.toByte()
             for (i in clean.indices) out[i + 1] = clean[i].code.toByte()
@@ -102,6 +105,18 @@ internal object Id3Text {
 
     /** True when every character has a single-byte ISO-8859-1 representation. */
     fun isLatin1(text: String): Boolean = text.all { it.code <= 0xFF }
+
+    /**
+     * True when [text] can go out as encoding 0 and read back as itself: it fits
+     * ISO-8859-1, and its bytes are not also well-formed UTF-8, which the reader
+     * would prefer (see [decodeIso8859_1]). Pure ASCII always qualifies.
+     */
+    fun isUnambiguousLatin1(text: String): Boolean {
+        if (!isLatin1(text)) return false
+        if (text.none { it.code >= 0x80 }) return true
+        val bytes = ByteArray(text.length) { text[it].code.toByte() }
+        return TextRepair.decodeUtf8Strict(bytes) == null
+    }
 
     /**
      * Reverses ID3 unsynchronisation: every `$FF $00` pair becomes a lone `$FF`.

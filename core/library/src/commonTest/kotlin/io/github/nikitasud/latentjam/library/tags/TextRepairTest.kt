@@ -91,6 +91,19 @@ internal class TextRepairTest {
     }
 
     @Test
+    fun id3EncodingZeroTakesAdjacentLatin1LettersThatFormUtf8AsUtf8() {
+        // The accepted trade-off of the heuristic: genuine Latin-1 "É" followed by a no-break
+        // space is the bytes C9 A0, which are also well-formed UTF-8 for "ɠ", so an existing
+        // frame like this now reads as UTF-8. LatentJam's own writer never produces such a frame
+        // (see Id3TagsTest.latin1TextWhoseBytesAlsoReadAsUtf8GoesOutAsUnicode).
+        val bytes = byteArrayOf(0x4C, 0xC9.toByte(), 0xA0.toByte(), 0x21)
+        assertEquals("L\u0260!", Id3Text.decode(Id3Text.ISO_8859_1, bytes, 0, bytes.size))
+        // One accented letter followed by an ASCII one is not UTF-8 and stays Latin-1.
+        val cafe = byteArrayOf(0x43, 0x61, 0x66, 0xE9.toByte(), 0x21)
+        assertEquals("Café!", Id3Text.decode(Id3Text.ISO_8859_1, cafe, 0, cafe.size))
+    }
+
+    @Test
     fun id3EncodingZeroStillDecodesGenuineLatin1Bytes() {
         val text = "Grüße"
         val latin1Bytes = ByteArray(text.length) { i -> text[i].code.toByte() }

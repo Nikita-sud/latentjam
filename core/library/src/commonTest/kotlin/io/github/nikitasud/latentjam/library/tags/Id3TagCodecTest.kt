@@ -111,6 +111,20 @@ internal class Id3TagCodecTest {
     }
 
     @Test
+    fun aLatin1ValueThatAlsoReadsAsUtf8IsSavedAndVerified() {
+        // "É" + no-break space: as Latin-1 bytes (C9 A0) it would read back as "ɠ" and the save
+        // would be refused by verification.
+        val value = "LIBERTÉ\u00A0!"
+        for (major in listOf(3, 4)) {
+            CodecAssertions.assertWriteMatchesExpectation(
+                codec,
+                tagged(major = major),
+                TagEdits(title = value, artist = "$value; NOËL\u00A0!", album = value, genre = value, lyrics = value),
+            )
+        }
+    }
+
+    @Test
     fun untaggedMpegGetsANewTag() {
         CodecAssertions.assertWriteMatchesExpectation(codec, mp3Payload(), TagEdits(title = "First"))
     }

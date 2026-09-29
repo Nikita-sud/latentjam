@@ -637,9 +637,12 @@ public object Id3Tags {
         }
     }
 
-    /** Latin-1 when every character fits; otherwise UTF-8 on 2.4 and UTF-16 with BOM on 2.3. */
+    /**
+     * Latin-1 when every text fits and reads back as itself (see [Id3Text.isUnambiguousLatin1]);
+     * otherwise UTF-8 on 2.4 and UTF-16 with BOM on 2.3.
+     */
     private fun chooseEncoding(version: Id3Version, vararg texts: String): Int = when {
-        texts.all(Id3Text::isLatin1) -> 0
+        texts.all(Id3Text::isUnambiguousLatin1) -> 0
         version == Id3Version.V2_4 -> 3
         else -> 1
     }

@@ -172,6 +172,30 @@ internal class Id3TagsTest {
     }
 
     @Test
+    fun latin1TextWhoseBytesAlsoReadAsUtf8GoesOutAsUnicode() {
+        // "É" and a no-break space are the Latin-1 bytes C9 A0, which are also well-formed UTF-8
+        // for "ɠ". The reader takes such encoding-0 bytes as UTF-8, so the writer must not
+        // produce them: the save would read back as "LIBERTɠ!" and fail verification.
+        val title = "LIBERTÉ\u00A0!"
+        for ((major, encoding) in listOf(3 to Id3Text.UTF_16_WITH_BOM, 4 to Id3Text.UTF_8)) {
+            val out = assertNotNull(
+                updateId3Tag(
+                    Id3TestTags.build(major, emptyList()) + mp3Payload(),
+                    TagEdits(title = title, lyrics = title),
+                ),
+            )
+            assertEquals(encoding, assertNotNull(Id3TestTags.frameBody(out, "TIT2"))[0].toInt(), "TIT2 v2.$major")
+            assertEquals(encoding, assertNotNull(Id3TestTags.frameBody(out, "USLT"))[0].toInt(), "USLT v2.$major")
+            assertEquals(title, assertNotNull(Id3Tags.read(out)).title, "v2.$major")
+        }
+        // Latin-1 accents that cannot pass for UTF-8 keep the compact encoding.
+        val cafe = assertNotNull(
+            updateId3Tag(Id3TestTags.build(3, emptyList()) + mp3Payload(), TagEdits(title = "Café Müller")),
+        )
+        assertEquals(Id3Text.ISO_8859_1, assertNotNull(Id3TestTags.frameBody(cafe, "TIT2"))[0].toInt())
+    }
+
+    @Test
     fun existingUtf16AndUtf8FramesAreReadCorrectly() {
         val title = "Всё идёт по плану"
         assertEquals(
