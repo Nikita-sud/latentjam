@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
+import io.github.nikitasud.latentjam.library.tags.TextRepair
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -173,12 +174,16 @@ internal class GenreEnrichment(
                 val genres = parts[3].unhex() ?: return@forEach
                 val artistsJoined = parts[4].unhex() ?: return@forEach
                 val language = parts[6].unhex() ?: return@forEach
+                // Entries written before the ID3 reader learned to read UTF-8 in Latin-1 frames
+                // hold "HÃ¶rspiel" for an unchanged file. TextRepair recovers the names a re-read
+                // would find without opening the file, and leaves a sound name as it is.
                 result[id] = Stored(
                     revision = revision,
-                    joinedGenres = genres,
-                    artists = artistsJoined.split(ARTIST_JOIN).filter { it.isNotEmpty() },
+                    joinedGenres = genres.split(GenreTags.SEPARATOR)
+                        .joinToString(GenreTags.SEPARATOR, transform = TextRepair::repair),
+                    artists = artistsJoined.split(ARTIST_JOIN).filter { it.isNotEmpty() }.map(TextRepair::repair),
                     originalYear = parts[5].toIntOrNull(),
-                    language = language.takeIf { it.isNotEmpty() },
+                    language = language.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
                 )
             }
             return result

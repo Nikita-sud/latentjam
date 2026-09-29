@@ -126,6 +126,26 @@ internal class GenreEnrichmentTest {
     }
 
     @Test
+    fun namesGarbledByTheOldTagReaderAreRepairedFromTheCacheWithoutReadingFiles() = runTest {
+        // 0.6.0 decoded UTF-8 in Latin-1 ID3 frames as Latin-1 and cached what it got.
+        val settings = MemorySettings()
+        GenreEnrichment(settings) {
+            EmbeddedTagFacts(
+                genres = listOf("HÃ¶rspiel", "Rock"),
+                artists = listOf("MÃ¶tley CrÃ¼e", "Plain"),
+                language = "FranÃ§ais",
+            )
+        }.backfill(listOf(track))
+        val scanned = track.copy(genre = "Hörspiel")
+        val restarted = GenreEnrichment(settings) { error("the cache must be repaired, not re-read") }
+        assertEquals(
+            listOf(scanned.copy(genre = "Hörspiel; Rock", artists = listOf("Mötley Crüe", "Plain"), language = "Français")),
+            restarted.apply(listOf(scanned)),
+        )
+        assertFalse(restarted.backfill(listOf(scanned)))
+    }
+
+    @Test
     fun unreadableFilesAreRetriedWhileSuccessfullyReadEmptyTagsAreCached() = runTest {
         val settings = MemorySettings()
         var result: EmbeddedTagFacts? = null
