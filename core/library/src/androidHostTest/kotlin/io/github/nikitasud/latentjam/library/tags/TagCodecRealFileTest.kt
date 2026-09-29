@@ -26,6 +26,9 @@ class TagCodecRealFileTest {
 
     private val fullEdit = TagEdits(
         title = "Проверка テスト",
+        artist = "Первый; Second",
+        genre = "Rock",
+        year = "2001-05-03",
         albumArtist = "Various Artists",
         trackNumber = "7",
         trackTotal = "12",
@@ -33,8 +36,6 @@ class TagCodecRealFileTest {
         lyrics = "Первая строка\nSecond line\n三行目",
         cover = cover,
     )
-
-    private class Outcome(val file: File, val scenario: String, val result: String)
 
     @Test
     fun everyFileSurvivesEveryScenario() {
@@ -48,6 +49,10 @@ class TagCodecRealFileTest {
         val paths = HashMap<String, Int>()
         // Reported, not failed: an Opus header with binary data to preserve can never gain padding.
         val secondNotInPlace = ArrayList<String>()
+        // Reported, not failed: saving every field exactly as it reads should write nothing.
+        val restateNotNoOp = ArrayList<String>()
+        // Where the first MPEG/ADTS frame sits after an ID3v2 tag: at its end, after zeros, or nowhere near.
+        val afterTag = HashMap<String, Int>()
 
         files.forEachIndexed { index, file ->
             val original = file.readBytes()
@@ -105,15 +110,24 @@ class TagCodecRealFileTest {
                 return result
             }
 
+            if (codec === Id3TagCodec) afterTag.merge(audioAfterTag(original), 1, Int::plus)
             if (codec.plan(source, TagEdits()) !is WritePlan.NoChange) failures += "${file.name}: empty edit is not a no-op"
             before.title?.let {
                 if (codec.plan(source, TagEdits(title = it)) !is WritePlan.NoChange) {
                     failures += "${file.name}: restating the title is not a no-op"
                 }
             }
+            val restated = TagEdits(
+                title = before.title, artist = before.artist, album = before.album, genre = before.genre,
+                year = before.year, albumArtist = before.albumArtist, lyrics = before.lyrics,
+                trackNumber = before.trackNumber?.toString(), trackTotal = before.trackTotal?.toString(),
+                discNumber = before.discNumber?.toString(), discTotal = before.discTotal?.toString(),
+            )
+            if (codec.plan(source, restated) !is WritePlan.NoChange) restateNotNoOp += "${file.name} (${before.format})"
             val edited = check("full", original, fullEdit)
             check("remove-cover", original, TagEdits(cover = CoverEdit.Remove))
             check("clear-fields", original, TagEdits(album = "", genre = "", year = ""))
+            check("totals-only", original, TagEdits(trackTotal = "12", discTotal = "2"))
             if (edited != null) {
                 val second = check("second", edited, TagEdits(title = "Second"))
                 if (second != null && codec.plan(ByteArraySource(edited), TagEdits(title = "Second")) !is WritePlan.InPlacePatch) {
@@ -129,11 +143,26 @@ class TagCodecRealFileTest {
         println("CORPUS: ${files.size} files")
         println("  second edit not in place: ${secondNotInPlace.size}")
         secondNotInPlace.take(20).forEach { println("    $it") }
+        println("  restating every field is not a no-op: ${restateNotNoOp.size}")
+        restateNotNoOp.take(20).forEach { println("    $it") }
+        afterTag.toSortedMap().forEach { (where, count) -> println("  ID3 audio after tag: $where: $count") }
         paths.toSortedMap().forEach { (path, count) -> println("  $path: $count") }
         refusals.toSortedMap().forEach { (reason, names) ->
             println("  REFUSED $reason: ${names.size}")
             names.take(20).forEach { println("    $it") }
         }
         if (failures.isNotEmpty()) fail("${failures.size} failures:\n" + failures.joinToString("\n"))
+    }
+
+    private fun audioAfterTag(file: ByteArray): String {
+        val tag = Id3Tags.tagLength(file) ?: return "unreadable tag"
+        if (tag == 0) return "untagged"
+        val first = (tag until minOf(file.size, tag + 4096)).firstOrNull { file[it] != 0.toByte() } ?: return "only zeros within 4 KiB"
+        val sync = Id3Tags.canPrependTag(file.copyOfRange(first, minOf(file.size, first + 7)))
+        return when {
+            !sync -> "no MPEG/ADTS frame"
+            first == tag -> "directly"
+            else -> "after zeros"
+        }
     }
 }
