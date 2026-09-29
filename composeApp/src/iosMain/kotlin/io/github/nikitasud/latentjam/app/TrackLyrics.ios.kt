@@ -72,7 +72,7 @@ private fun readSiblingFile(audioPath: String): Lyrics? {
     for (name in SidecarLyrics.candidateNames(audioPath.substring(slash + 1))) {
         // A null handle is the file not being there.
         val handle = NSFileHandle.fileHandleForReadingAtPath(folder + name) ?: continue
-        return try {
+        val lyrics = try {
             val source = FileHandleSource(handle)
             if (source.length > SidecarLyrics.MAX_BYTES) {
                 null
@@ -82,6 +82,7 @@ private fun readSiblingFile(audioPath: String): Lyrics? {
         } finally {
             handle.closeFile()
         }
+        if (lyrics != null) return lyrics
     }
     return null
 }

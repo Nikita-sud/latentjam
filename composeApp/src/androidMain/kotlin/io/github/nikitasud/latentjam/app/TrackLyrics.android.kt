@@ -89,8 +89,8 @@ private fun readSiblingFile(audioPath: String): Lyrics? {
     for (name in SidecarLyrics.candidateNames(audio.name)) {
         val sidecar = File(audio.parentFile, name)
         if (!sidecar.isFile) continue
-        if (sidecar.length() > SidecarLyrics.MAX_BYTES) return null
-        return sidecar.inputStream().use(::decodeCapped)
+        if (sidecar.length() > SidecarLyrics.MAX_BYTES) continue
+        sidecar.inputStream().use(::decodeCapped)?.let { return it }
     }
     return null
 }
@@ -105,7 +105,7 @@ private fun readFromGrantedFolders(context: Context, store: LyricsFolderStore, a
         for (documentId in sidecarDocumentIds(treeDocumentId, audioDocumentId)) {
             val document = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
             try {
-                context.contentResolver.openInputStream(document)?.use { return decodeCapped(it) }
+                context.contentResolver.openInputStream(document)?.use(::decodeCapped)?.let { return it }
             } catch (_: SecurityException) {
                 // A grant revoked outside the app can never answer again, so it leaves the list
                 // instead of costing a binder call per song. A refusal while the grant is still
