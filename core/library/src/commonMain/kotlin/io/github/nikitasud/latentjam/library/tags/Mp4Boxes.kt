@@ -53,6 +53,7 @@ internal class Mp4Box(
 internal object Mp4Boxes {
     private val CONTAINERS = setOf("moov", "trak", "mdia", "minf", "stbl", "udta", "edts", "dinf", "meta", "ilst")
     private const val MAX_TOP_LEVEL = 100_000
+    private const val MAX_DEPTH = 32
 
     fun typeOf(b: ByteArray, at: Int): String = CharArray(4) { (b[at + it].toInt() and 0xFF).toChar() }.concatToString()
 
@@ -93,7 +94,9 @@ internal object Mp4Boxes {
                 1L -> 16 to be64(source.read(offset + 8, 8) ?: return null, 0)
                 else -> 8 to size32
             }
-            if (size < headerSize || offset + size > source.length) return null
+            // Compare without adding offset + size: a huge largesize would overflow a Long and wrap
+            // negative, making the bogus box look small enough to accept.
+            if (size < headerSize || size > source.length - offset) return null
             atoms += Mp4Atom(typeOf(header, 4), offset, headerSize, size)
             offset += size
             if (atoms.size > MAX_TOP_LEVEL) return null
@@ -112,7 +115,8 @@ internal object Mp4Boxes {
         box.children?.forEach { yieldAll(walk(it)) }
     }
 
-    private fun parseAt(bytes: ByteArray, offset: Int, end: Int, parentType: String): Pair<Mp4Box, Int>? {
+    private fun parseAt(bytes: ByteArray, offset: Int, end: Int, parentType: String, depth: Int = 0): Pair<Mp4Box, Int>? {
+        if (depth > MAX_DEPTH) return null
         if (offset + 8 > end) return null
         val size32 = be32(bytes, offset)
         val type = typeOf(bytes, offset + 4)
@@ -124,7 +128,10 @@ internal object Mp4Boxes {
             }
             else -> 8 to size32
         }
-        if (size < header || offset + size > end) return null
+        // Compare without adding offset + size: a huge largesize would overflow a Long and wrap
+        // negative, making the bogus box look small enough to accept, then (offset + size).toInt()
+        // below would hand copyOfRange garbage bounds.
+        if (size < header || size > end - offset) return null
         val bodyStart = offset + header
         val boxEnd = (offset + size).toInt()
         if (type !in CONTAINERS && parentType != "ilst") {
@@ -139,7 +146,7 @@ internal object Mp4Boxes {
         val children = ArrayList<Mp4Box>()
         var p = childStart
         while (p < boxEnd) {
-            val (child, next) = parseAt(bytes, p, boxEnd, type) ?: return null
+            val (child, next) = parseAt(bytes, p, boxEnd, type, depth + 1) ?: return null
             children += child
             p = next
         }

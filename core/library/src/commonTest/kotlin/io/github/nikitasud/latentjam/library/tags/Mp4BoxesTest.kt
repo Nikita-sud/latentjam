@@ -124,6 +124,15 @@ internal object Mp4Fixtures {
     }
 }
 
+/** A box header using the 64-bit extended-size form (size32 == 1), with no payload following. */
+private fun extendedSizeHeader(type: String, largesize: Long): ByteArray {
+    val header = ByteArray(16)
+    Mp4Boxes.putBe32(header, 0, 1L)
+    Mp4Fixtures.type(type).copyInto(header, 4)
+    Mp4Boxes.putBe64(header, 8, largesize)
+    return header
+}
+
 internal class Mp4BoxesTest {
 
     private val items = listOf(
@@ -186,5 +195,42 @@ internal class Mp4BoxesTest {
             assertEquals(Mp4Fixtures.samples[0], file[offsets[0].toInt()])
             assertEquals(Mp4Fixtures.samples[1000], file[offsets[1].toInt()])
         }
+    }
+
+    @Test
+    fun topLevelRejectsAnOverflowingLargesize() {
+        // Padding pushes the evil box's offset past 15, so adding either magic largesize to that
+        // offset overflows a signed 64-bit Long and wraps negative.
+        val padding = Mp4Fixtures.leaf("free", ByteArray(8))
+        for (largesize in listOf(Long.MAX_VALUE, 0x7FFF_FFFF_FFFF_FFF0L)) {
+            val file = padding + extendedSizeHeader("evil", largesize)
+            assertNull(Mp4Boxes.topLevel(ByteArraySource(file)))
+        }
+    }
+
+    @Test
+    fun topLevelAcceptsAValidLargesizeBox() {
+        val box = extendedSizeHeader("free", 16L)
+        val atoms = assertNotNull(Mp4Boxes.topLevel(ByteArraySource(box)))
+        assertEquals(1, atoms.size)
+        assertEquals("free", atoms[0].type)
+        assertEquals(16, atoms[0].headerSize)
+        assertEquals(16L, atoms[0].size)
+    }
+
+    @Test
+    fun parseRejectsAnOverflowingLargesizeInsideAMoov() {
+        val padding = Mp4Fixtures.leaf("free", ByteArray(8))
+        for (largesize in listOf(Long.MAX_VALUE, 0x7FFF_FFFF_FFFF_FFF0L)) {
+            val moov = Mp4Fixtures.leaf("moov", padding + extendedSizeHeader("trak", largesize))
+            assertNull(Mp4Boxes.parse(moov))
+        }
+    }
+
+    @Test
+    fun parseRejectsANestingChainDeeperThanTheCap() {
+        var box = Mp4Fixtures.leaf("free", ByteArray(0))
+        repeat(40) { box = Mp4Fixtures.box("trak", box) }
+        assertNull(Mp4Boxes.parse(box))
     }
 }
