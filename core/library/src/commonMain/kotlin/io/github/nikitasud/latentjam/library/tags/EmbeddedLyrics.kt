@@ -34,8 +34,27 @@ public data class Lyrics(
  */
 public object EmbeddedLyrics {
 
-    /** The lyrics, or null when the container is unknown or carries none. */
-    public fun read(source: GenreTags.ByteSource): Lyrics? {
+    /**
+     * The lyrics, or null when the container is unknown or carries none. Sniffs the first bytes
+     * and handles all four containers: `ftyp` at offset 4 means MP4, read through the same
+     * `moov`-only codec the tag editor uses (the audio is never streamed); FLAC, Ogg and ID3 reuse
+     * the sequential parsers below through [SequentialSource], a one-pass view over [source].
+     * A malformed MP4 yields null rather than throwing, like every other container here.
+     */
+    public fun read(source: RandomAccessSource): Lyrics? {
+        val head = source.read(0, 8)
+        if (head != null && Mp4Boxes.typeOf(head, 4) == "ftyp") {
+            return try {
+                Mp4TagCodec.read(source).lyrics?.let(::parse)
+            } catch (_: Exception) {
+                null
+            }
+        }
+        return readSequential(SequentialSource(source))
+    }
+
+    /** FLAC, Ogg/Opus and ID3 (MP3) all read this way, one pass over the stream. */
+    private fun readSequential(source: GenreTags.ByteSource): Lyrics? {
         val magic = source.read(4) ?: return null
         return when {
             magic.contentEquals(FLAC_MAGIC) ->
@@ -52,6 +71,30 @@ public object EmbeddedLyrics {
                 Id3Tags.lyrics(header + body)?.let(::parse)
             }
             else -> null
+        }
+    }
+
+    /** Adapts random access to the one-pass [GenreTags.ByteSource] the sequential parsers expect. */
+    private class SequentialSource(private val source: RandomAccessSource) : GenreTags.ByteSource {
+        private var position = 0L
+
+        override fun read(count: Int): ByteArray? {
+            val bytes = source.read(position, count) ?: return null
+            position += count
+            return bytes
+        }
+
+        override fun readUpTo(count: Int): ByteArray {
+            val available = (source.length - position).coerceIn(0L, count.toLong()).toInt()
+            val bytes = source.read(position, available) ?: return ByteArray(0)
+            position += bytes.size
+            return bytes
+        }
+
+        override fun skip(count: Long): Boolean {
+            if (position + count > source.length) return false
+            position += count
+            return true
         }
     }
 
