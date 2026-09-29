@@ -146,11 +146,18 @@ internal fun SearchScreen(
     val lyricsReader = rememberLyricsReader(reportReadFailures = true)
     val lyricsStorage = rememberLyricsSearchStorage()
     val lyricsSources = rememberLyricsSourcesRevision()
+    val sidecarFingerprints = rememberSidecarFingerprints()
     LaunchedEffect(songs, readyForInput, active, lyricsSources) {
         if (!active || !readyForInput) return@LaunchedEffect
         indexingLyrics = true
         withContext(Dispatchers.Default) {
-            AppGraph.lyricsSearchCache.load(songs, lyricsStorage, lyricsReader, lyricsSources) { snapshot ->
+            AppGraph.lyricsSearchCache.load(
+                songs,
+                lyricsStorage,
+                lyricsReader,
+                lyricsSources,
+                sidecarFingerprints,
+            ) { snapshot ->
                 lyricDocuments = snapshot
             }
         }

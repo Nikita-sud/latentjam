@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.tags.SidecarLyrics
+import java.io.File
 
 /**
  * The only provider whose document ids are file paths, which is what lets a track's MediaStore
@@ -53,6 +54,53 @@ internal fun sidecarDocumentIds(treeDocumentId: String, audioDocumentId: String)
     if (!covered) return emptyList()
     val prefix = if (folder.endsWith(':')) folder else "$folder/"
     return SidecarLyrics.candidateNames(fileName).map { prefix + it }
+}
+
+/**
+ * The folder holding the document [documentId] — what a children query lists to see every
+ * candidate [sidecarDocumentIds] returns for one song at once: `primary:Music/Song.lrc` is in
+ * `primary:Music`, and a file at the root of a volume is in the volume itself (`primary:`).
+ */
+internal fun parentDocumentId(documentId: String): String {
+    val colon = documentId.indexOf(':')
+    val slash = documentId.lastIndexOf('/')
+    return if (slash > colon) documentId.substring(0, slash) else documentId.substring(0, colon + 1)
+}
+
+/**
+ * A folder's `.lrc` files from one children query, as (document id, size, last modified) rows,
+ * keyed by lower-cased document id. Everything else in the folder — the songs themselves — is
+ * dropped, so a pass over a large library keeps only the handful of rows it can use.
+ */
+internal fun sidecarListing(rows: List<Triple<String, Long, Long>>): Map<String, List<String>> {
+    val listing = HashMap<String, MutableList<String>>()
+    for ((documentId, size, modified) in rows) {
+        if (!documentId.endsWith(".lrc", ignoreCase = true)) continue
+        listing.getOrPut(documentId.lowercase()) { mutableListOf() } += "$documentId:$size:$modified"
+    }
+    return listing
+}
+
+/**
+ * The fingerprint of the files among [candidates] that [listing] holds, "" when none. Matched
+ * ignoring case: shared storage and SD cards are case-insensitive, so the reader's
+ * `Song.lrc` opens a `Song.Lrc` too, and the fingerprint must follow the file it opens.
+ */
+internal fun listingFingerprint(candidates: List<String>, listing: Map<String, List<String>>): String =
+    candidates.map { it.lowercase() }.distinct().flatMap { listing[it].orEmpty() }.joinToString("|")
+
+/**
+ * The fingerprint of the `.lrc` candidates beside the file at [audioPath] (Android 9 and older,
+ * which read them directly): each present one's name, size and modification time, "" when there
+ * is none. Two stats per song and no read of either file.
+ */
+internal fun siblingFingerprint(audioPath: String): String {
+    val audio = File(audioPath)
+    val folder = audio.parentFile ?: return ""
+    return SidecarLyrics.candidateNames(audio.name).mapNotNull { name ->
+        val sidecar = File(folder, name)
+        if (sidecar.isFile) "$name:${sidecar.length()}:${sidecar.lastModified()}" else null
+    }.joinToString("|")
 }
 
 private const val STORAGE_PREFIX = "/storage/"

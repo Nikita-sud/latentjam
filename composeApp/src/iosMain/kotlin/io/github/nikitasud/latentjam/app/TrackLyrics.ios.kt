@@ -10,14 +10,21 @@ import io.github.nikitasud.latentjam.library.tags.EmbeddedLyrics
 import io.github.nikitasud.latentjam.library.tags.Lyrics
 import io.github.nikitasud.latentjam.library.tags.SidecarLyrics
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import platform.Foundation.NSDate
 import platform.Foundation.NSFileHandle
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileModificationDate
+import platform.Foundation.NSFileSize
+import platform.Foundation.NSNumber
 import platform.Foundation.NSURL
 import platform.Foundation.closeFile
 import platform.Foundation.fileHandleForReadingAtPath
+import platform.Foundation.timeIntervalSince1970
 
 @Composable
 internal actual fun rememberLyricsReader(reportReadFailures: Boolean): suspend (TrackDescriptor) -> Lyrics? = remember(reportReadFailures) {
@@ -85,6 +92,41 @@ private fun readSiblingFile(audioPath: String): Lyrics? {
         if (lyrics != null) return lyrics
     }
     return null
+}
+
+/**
+ * The attributes of each `.lrc` candidate beside an imported file — two `stat`s per song through
+ * NSFileManager, no file opened, on a background thread. Music library items have no file path,
+ * so they cost nothing and never have a fingerprint.
+ */
+@Composable
+internal actual fun rememberSidecarFingerprints(): suspend (List<TrackDescriptor>) -> Map<TrackId, String> = remember {
+    { tracks ->
+        withContext(Dispatchers.Default) {
+            val manager = NSFileManager.defaultManager
+            buildMap {
+                for (track in tracks) {
+                    val path = filePathOf(track) ?: continue
+                    siblingFingerprint(manager, path).takeIf { it.isNotEmpty() }?.let { put(track.id, it) }
+                }
+            }
+        }
+    }
+}
+
+/** Each present candidate's name, size and modification time; "" when there is none. */
+@OptIn(ExperimentalForeignApi::class)
+private fun siblingFingerprint(manager: NSFileManager, audioPath: String): String {
+    val slash = audioPath.lastIndexOf('/')
+    if (slash < 0) return ""
+    val folder = audioPath.substring(0, slash + 1)
+    return SidecarLyrics.candidateNames(audioPath.substring(slash + 1)).mapNotNull { name ->
+        // Null is the file not being there.
+        val attributes = manager.attributesOfItemAtPath(folder + name, null) ?: return@mapNotNull null
+        val size = (attributes[NSFileSize] as? NSNumber)?.longLongValue ?: 0L
+        val modifiedMs = (attributes[NSFileModificationDate] as? NSDate)?.timeIntervalSince1970?.times(1000)?.toLong() ?: 0L
+        "$name:$size:$modifiedMs"
+    }.joinToString("|")
 }
 
 private fun filePathOf(track: TrackDescriptor): String? {

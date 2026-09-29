@@ -27,7 +27,8 @@ internal expect fun rememberLyricsSearchStorage(): LyricsSearchStorage
 
 /** Lives for the process; reopening Search neither reopens files nor renormalizes known lyrics. */
 internal class LyricsSearchCache {
-    private data class Entry(val revision: String, val document: LyricSearchDocument?)
+    /** [sidecar] is the fingerprint the song's `.lrc` files had when [document] was read. */
+    private data class Entry(val revision: String, val sidecar: String, val document: LyricSearchDocument?)
     private val mutex = Mutex()
     private var entries: MutableMap<String, Entry>? = null
     private var dirty = false
@@ -39,12 +40,20 @@ internal class LyricsSearchCache {
      * come from outside the song's file, and granting a folder must re-read the songs cached as
      * having none. Batches publish useful results while a large library is being scanned for the
      * first time.
+     *
+     * A `.lrc` added, edited or deleted beside a song changes none of that, so each entry also
+     * keeps the song's [sidecarFingerprints] value from when it was read, and a song whose
+     * fingerprint differs now is read again — that song alone. The fingerprints come in one batch
+     * per pass, after the cached results are published: they are metadata lookups (see
+     * [rememberSidecarFingerprints]), never a read of the audio. When they cannot be taken at all,
+     * the pass keeps every entry as it is: a failed lookup is not a changed file.
      */
     suspend fun load(
         songs: List<TrackDescriptor>,
         storage: LyricsSearchStorage,
         readLyrics: suspend (TrackDescriptor) -> Lyrics?,
         sourcesRevision: String,
+        sidecarFingerprints: suspend (List<TrackDescriptor>) -> Map<TrackId, String> = { emptyMap() },
         publish: (Map<TrackId, LyricSearchDocument>) -> Unit,
     ) = mutex.withLock {
         val cache = entries ?: try {
@@ -66,6 +75,24 @@ internal class LyricsSearchCache {
             cache[track.id.value]?.document?.let { track.id to it }
         }.toMap()
         publish(snapshot())
+        val sidecars = try {
+            sidecarFingerprints(songs)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+        if (sidecars != null) {
+            val before = cache.size
+            songs.forEach { track ->
+                val entry = cache[track.id.value] ?: return@forEach
+                if (entry.sidecar != sidecars[track.id].orEmpty()) cache.remove(track.id.value)
+            }
+            if (cache.size != before) {
+                dirty = true
+                publish(snapshot())
+            }
+        }
         var scanned = 0
         for (track in songs) {
             currentCoroutineContext().ensureActive()
@@ -74,6 +101,9 @@ internal class LyricsSearchCache {
                 val lyrics = readLyrics(track)
                 cache[track.id.value] = Entry(
                     track.lyricsRevision(sourcesRevision),
+                    // Without fingerprints this pass, the entry records no sidecar; a later pass
+                    // that sees one reads the song once more.
+                    sidecars?.get(track.id).orEmpty(),
                     lyrics?.let { LyricSearchDocument.build(it.text) },
                 )
                 dirty = true
@@ -106,25 +136,33 @@ internal class LyricsSearchCache {
     }
 
     private fun encode(cache: Map<String, Entry>): String = buildString {
-        append("lyrics-v1\n")
+        append("lyrics-v2\n")
         cache.forEach { (id, entry) ->
             append(Base64.encode(id.encodeToByteArray())).append('\t')
             append(Base64.encode(entry.revision.encodeToByteArray())).append('\t')
-            append(Base64.encode(entry.document?.text.orEmpty().encodeToByteArray())).append('\n')
+            append(Base64.encode(entry.document?.text.orEmpty().encodeToByteArray())).append('\t')
+            append(Base64.encode(entry.sidecar.encodeToByteArray())).append('\n')
         }
     }
 
     private fun decode(payload: String?): MutableMap<String, Entry> {
         val result = mutableMapOf<String, Entry>()
-        if (payload == null || !payload.startsWith("lyrics-v1\n")) return result
+        // v1 predates sidecar fingerprints: its entries read as having seen no `.lrc`.
+        val columns = when {
+            payload == null -> return result
+            payload.startsWith("lyrics-v2\n") -> 4
+            payload.startsWith("lyrics-v1\n") -> 3
+            else -> return result
+        }
         payload.lineSequence().drop(1).forEach { line ->
             val fields = line.split('\t')
-            if (fields.size != 3) return@forEach
+            if (fields.size != columns) return@forEach
             try {
                 val id = Base64.decode(fields[0]).decodeToString()
                 val revision = Base64.decode(fields[1]).decodeToString()
                 val text = Base64.decode(fields[2]).decodeToString()
-                result[id] = Entry(revision, LyricSearchDocument.build(text))
+                val sidecar = if (columns == 4) Base64.decode(fields[3]).decodeToString() else ""
+                result[id] = Entry(revision, sidecar, LyricSearchDocument.build(text))
             } catch (_: IllegalArgumentException) {
                 // An individual corrupt entry is rebuilt without discarding the whole library.
             }
