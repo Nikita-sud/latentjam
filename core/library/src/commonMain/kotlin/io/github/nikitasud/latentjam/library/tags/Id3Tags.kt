@@ -46,6 +46,7 @@ public object Id3Tags {
 
     /** Unsynchronised lyrics — the frame [setLyrics] rewrites. */
     private const val FRAME_LYRICS = "USLT"
+    private const val FRAME_COMMENT = "COMM"
 
     private const val FRAME_USER_TEXT = "TXXX"
 
@@ -524,6 +525,14 @@ public object Id3Tags {
             encodeText(encoding, value)
         return Id3RawFrame(FRAME_USER_TEXT, byteArrayOf(0, 0), body)
     }
+
+    /**
+     * The text of every readable `COMM` frame in [frames]. A comment has the lyrics frame's layout
+     * (encoding, language, descriptor, text), so it is read the same way; a compressed or
+     * encrypted one is skipped.
+     */
+    internal fun commentTexts(version: Id3Version, frames: List<Id3RawFrame>): List<String> =
+        frames.filter { it.id == FRAME_COMMENT }.mapNotNull { lyricsParts(version, it)?.text }
 
     private class LyricsParts(val language: String, val descriptor: String, val text: String)
 

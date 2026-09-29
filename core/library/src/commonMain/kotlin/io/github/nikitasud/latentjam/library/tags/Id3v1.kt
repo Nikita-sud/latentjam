@@ -115,7 +115,9 @@ public object Id3v1 {
 
     /**
      * [frames] plus a frame for every field of the active (last) `TAG` block that [frames] lack;
-     * existing ID3v2 frames always win. Null when [canMigrate] is false.
+     * existing ID3v2 frames always win. The comment is the one field [frames] may hold more than
+     * once, so it is added unless some `COMM` frame already starts with it. Null when
+     * [canMigrate] is false.
      */
     internal fun migrate(tail: ByteArray, version: Id3Version, frames: List<Id3RawFrame>): List<Id3RawFrame>? {
         if (!canMigrate(tail)) return null
@@ -142,7 +144,14 @@ public object Id3v1 {
         val hasTrack = tail[start + 125] == 0.toByte() && tail[start + 126] != 0.toByte()
         if (hasTrack) text("TRCK", (tail[start + 126].toInt() and 0xff).toString())
         val comment = field(97, if (hasTrack) 28 else 30)
-        if (comment.isNotEmpty()) {
+        // Taggers that write both tags copy the comment into each, and the v1 copy is the v2 one
+        // cut to 28 or 30 characters. Measured on a real library, every trailer comment a rewrite
+        // would have carried over was such a copy, so adding it made a second, shorter comment
+        // appear beside the one the file already had. [field] has already trimmed the trailing
+        // spaces and NULs that pad the fixed-width field.
+        val alreadyHeld = comment.isNotEmpty() &&
+            Id3Tags.commentTexts(version, frames).any { it.trimEnd(' ', '\u0000').startsWith(comment) }
+        if (comment.isNotEmpty() && !alreadyHeld) {
             // All v1 bytes are Latin-1. A separate description preserves a legacy comment
             // alongside any existing v2 comment without replacing it.
             val description = if (frames.any { it.id == "COMM" }) "ID3v1" else ""

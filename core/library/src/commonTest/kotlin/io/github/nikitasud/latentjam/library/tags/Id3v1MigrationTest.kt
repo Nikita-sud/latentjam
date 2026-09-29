@@ -52,6 +52,51 @@ internal class Id3v1MigrationTest {
         assertEquals(0, Id3v1.trailerLength(edited))
     }
 
+    /** A v2 tag holding [comment] as its only COMM, beside a v1 trailer whose comment is [legacy]. */
+    private fun commented(major: Int, comment: TestFrame, legacy: String, track: Int = 0): ByteArray {
+        val trailer = Id3TestTags.v1Trailer(comment = legacy).also { if (track > 0) { it[125] = 0; it[126] = track.toByte() } }
+        return Id3TestTags.build(major, listOf(TestFrame("TIT2", latin1Body("Old")), comment), padding = 256) +
+            mp3Payload() + trailer
+    }
+
+    /** A UTF-16 COMM frame with an empty descriptor, as most Windows taggers write it. */
+    private fun utf16Comment(text: String): TestFrame {
+        val text16 = Id3TestTags.utf16Body(text)
+        val body = byteArrayOf(1) + "eng".encodeToByteArray() + byteArrayOf(0xFF.toByte(), 0xFE.toByte(), 0, 0) +
+            text16.copyOfRange(1, text16.size)
+        return TestFrame("COMM", body)
+    }
+
+    private fun comments(file: ByteArray) = assertNotNull(Id3Tags.readFields(file)).unmanaged.count { it.startsWith("COMM:") }
+
+    @Test
+    fun aV1CommentTheV2TagAlreadyHoldsIsNotAddedTwice() {
+        val long = "Ripped from the original vinyl pressing, 1987"
+        for (major in listOf(3, 4)) {
+            // Equal, truncated to 30 (no track) and to 28 (track byte set), and space-padded.
+            val cases = listOf(
+                commented(major, Id3TestTags.commentFrame("Great album"), "Great album"),
+                commented(major, Id3TestTags.commentFrame(long), long.take(30)),
+                commented(major, Id3TestTags.commentFrame(long), long.take(28), track = 5),
+                commented(major, Id3TestTags.commentFrame("1"), "1                             "),
+                commented(major, utf16Comment("Caf\u00e9 del Mar, the long mix"), "Caf\u00e9 del Mar, the long mix"),
+            )
+            for ((i, original) in cases.withIndex()) {
+                assertEquals(1, comments(original), "case $i starts with one comment (v2.$major)")
+                val edited = CodecAssertions.assertWriteMatchesExpectation(Id3TagCodec, original, TagEdits(title = "New"))
+                assertEquals(1, comments(edited), "case $i keeps one comment (v2.$major)")
+                assertEquals(0, Id3v1.trailerLength(edited))
+            }
+        }
+    }
+
+    @Test
+    fun aV1CommentTheV2TagDoesNotHoldIsStillCarriedBesideIt() {
+        val original = commented(3, Id3TestTags.commentFrame("Great album"), "Bought at the flea market")
+        val edited = CodecAssertions.assertWriteMatchesExpectation(Id3TagCodec, original, TagEdits(title = "New"))
+        assertEquals(2, comments(edited))
+    }
+
     @Test
     fun clearingALegacyOnlyFieldIsNotMistakenForANoOp() {
         val original = Id3TestTags.mp3Payload() + Id3TestTags.v1Trailer()
