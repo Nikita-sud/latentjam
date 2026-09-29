@@ -145,6 +145,16 @@ internal class Id3v1MigrationTest {
     }
 
     @Test
+    fun aFullLatin1V1FieldEndingInWhatCouldStartAUtf8LetterStaysLatin1() {
+        // 0xE9 is "é" in Latin-1 and would lead a three-byte UTF-8 sequence. Nothing before it is
+        // UTF-8, so the field is not a cut UTF-8 one.
+        val title = "a".repeat(29) + "\u00e9"
+        val original = mp3Payload() + Id3TestTags.v1Trailer(title = title)
+        val edited = CodecAssertions.assertWriteMatchesExpectation(Id3TagCodec, original, TagEdits(artist = "New"))
+        assertEquals(title, assertNotNull(Id3Tags.readFields(edited)).title)
+    }
+
+    @Test
     fun clearingALegacyOnlyFieldIsNotMistakenForANoOp() {
         val original = Id3TestTags.mp3Payload() + Id3TestTags.v1Trailer()
         val edited = CodecAssertions.assertWriteMatchesExpectation(Id3TagCodec, original, TagEdits(artist = ""))
