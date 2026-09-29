@@ -53,6 +53,9 @@ class TagCodecRealFileTest {
         val restateNotNoOp = ArrayList<String>()
         // Where the first MPEG/ADTS frame sits after an ID3v2 tag: at its end, after zeros, or nowhere near.
         val afterTag = HashMap<String, Int>()
+        // Reported, not failed: the ID3v1 fields a real edit carries into the ID3v2 tag before dropping the trailer.
+        val legacy = HashMap<String, Int>()
+        val migratedFiles = ArrayList<String>()
 
         files.forEachIndexed { index, file ->
             val original = file.readBytes()
@@ -110,7 +113,12 @@ class TagCodecRealFileTest {
                 return result
             }
 
-            if (codec === Id3TagCodec) afterTag.merge(audioAfterTag(original), 1, Int::plus)
+            if (codec === Id3TagCodec) {
+                afterTag.merge(audioAfterTag(original), 1, Int::plus)
+                val migrated = migratedFrames(original)
+                migrated.forEach { legacy.merge(it, 1, Int::plus) }
+                if (migrated.isNotEmpty()) migratedFiles += "${file.name}: ${migrated.joinToString()}"
+            }
             if (codec.plan(source, TagEdits()) !is WritePlan.NoChange) failures += "${file.name}: empty edit is not a no-op"
             before.title?.let {
                 if (codec.plan(source, TagEdits(title = it)) !is WritePlan.NoChange) {
@@ -146,12 +154,25 @@ class TagCodecRealFileTest {
         println("  restating every field is not a no-op: ${restateNotNoOp.size}")
         restateNotNoOp.take(20).forEach { println("    $it") }
         afterTag.toSortedMap().forEach { (where, count) -> println("  ID3 audio after tag: $where: $count") }
+        println("  ID3v1 fields migrated: ${migratedFiles.size} files")
+        legacy.toSortedMap().forEach { (id, count) -> println("    $id: $count") }
+        migratedFiles.take(20).forEach { println("    $it") }
         paths.toSortedMap().forEach { (path, count) -> println("  $path: $count") }
         refusals.toSortedMap().forEach { (reason, names) ->
             println("  REFUSED $reason: ${names.size}")
             names.take(20).forEach { println("    $it") }
         }
         if (failures.isNotEmpty()) fail("${failures.size} failures:\n" + failures.joinToString("\n"))
+    }
+
+    /** The frames [Id3v1.migrate] adds to the file's own ID3v2 frames (none when it has no usable trailer). */
+    private fun migratedFrames(file: ByteArray): List<String> {
+        val tagLength = Id3Tags.tagLength(file) ?: return emptyList()
+        val tag = (Id3Codec.parse(file) as? Id3Parse.Parsed)?.tag
+        val frames = tag?.frames.orEmpty()
+        val tail = file.copyOfRange(maxOf(tagLength, file.size - Id3v1.MAX_TRAILER_SIZE).coerceAtMost(file.size), file.size)
+        val migrated = Id3v1.migrate(tail, tag?.version ?: Id3Version.V2_3, frames) ?: return emptyList()
+        return migrated.drop(frames.size).map { it.id }
     }
 
     private fun audioAfterTag(file: ByteArray): String {
