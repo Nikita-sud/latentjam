@@ -8,6 +8,7 @@ import io.github.nikitasud.latentjam.library.tags.LyricLine
 import io.github.nikitasud.latentjam.library.tags.Lyrics
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlin.io.encoding.Base64
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -119,6 +120,24 @@ class LyricsSearchTest {
         assertNotNull(result[song.id]?.snippet("silver moon"))
         LyricsSearchCache().load(listOf(song), storage, reader, sourcesRevision = "lrc1\ntree") {}
         assertEquals(2, reads)
+    }
+
+    @Test fun anEntryCachedByTheOldLyricsReaderIsReadAgain() = runTest {
+        val song = track("one")
+        // 0.6.0 could not read M4A lyrics and garbled some MP3 ones; its index keyed each entry by
+        // the URI and revision alone and stored this song as having no lyrics.
+        fun b64(text: String) = Base64.encode(text.encodeToByteArray())
+        val oldPayload = "lyrics-v1\n${b64(song.id.value)}\t${b64("${song.audioUri}\u0000${song.sourceRevision}")}\t\n"
+        for (sourcesRevision in listOf("", "lrc1")) {
+            var reads = 0
+            var result = emptyMap<TrackId, LyricSearchDocument>()
+            val storage = MemoryStorage().apply { payload = oldPayload }
+            LyricsSearchCache().load(listOf(song), storage, { reads++; lyrics("silver moon") }, sourcesRevision) {
+                result = it
+            }
+            assertEquals(1, reads, "sources '$sourcesRevision'")
+            assertNotNull(result[song.id]?.snippet("silver moon"), "sources '$sourcesRevision'")
+        }
     }
 
     @Test fun failedReadIsRetriedInsteadOfCachedAsMissing() = runTest {

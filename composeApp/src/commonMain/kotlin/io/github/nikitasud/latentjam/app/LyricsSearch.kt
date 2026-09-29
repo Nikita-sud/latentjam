@@ -133,9 +133,20 @@ internal class LyricsSearchCache {
     }
 }
 
-/** An empty [sourcesRevision] leaves the key exactly as it was before sidecar lyrics existed. */
+/**
+ * Bumped when reading a file's own lyrics changes what it finds, so every entry cached by the
+ * older reader is read again once. "read2": M4A lyrics, and UTF-8 text in Latin-1 ID3 frames
+ * decoded as such — 0.6.0 cached those songs as having no lyrics, or with garbled ones.
+ */
+private const val LYRICS_READER_VERSION = "read2"
+
+/**
+ * The file's identity, [LYRICS_READER_VERSION], and [sourcesRevision] when anything beyond the
+ * file can supply lyrics.
+ */
 private fun TrackDescriptor.lyricsRevision(sourcesRevision: String): String =
     "${audioUri.orEmpty()}\u0000${sourceRevision ?: "${sizeBytes.orEmptyRevision()}:${durationMs.orEmptyRevision()}"}" +
+        "\u0000$LYRICS_READER_VERSION" +
         (if (sourcesRevision.isEmpty()) "" else "\u0000$sourcesRevision")
 
 private fun Long?.orEmptyRevision(): String = this?.toString().orEmpty()
