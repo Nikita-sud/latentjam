@@ -413,6 +413,11 @@
     <string name="settings_duplicates_scanning">Alle Titelpaare werden verglichen…</string>
     <string name="settings_duplicates_empty">Keine Duplikate — jeder Titel klingt einzigartig</string>
     <string name="settings_restore">Wiederherstellen</string>
+    <string name="settings_lyrics_folders">Ordner mit .lrc-Dateien</string>
+    <string name="settings_lyrics_folders_body">Android fragt, welcher Ordner freigegeben werden soll. Eine .lrc-Datei mit dem Namen des Titels liefert dann seinen Songtext.</string>
+    <string name="settings_lyrics_folders_add">Ordner hinzufügen</string>
+    <string name="settings_lyrics_folders_remove">Entfernen</string>
+    <string name="settings_lyrics_folders_failed">Dieser Ordner kann nicht verwendet werden. Wähle einen Ordner im Speicher dieses Geräts.</string>
     <string name="settings_restore_all">Alle wiederherstellen</string>
     <string name="settings_library_manage_failed">Die Mediathek konnte nicht aktualisiert werden. Versuche es erneut.</string>
 
@@ -499,7 +504,7 @@
     <string name="duplicates_keep_this">Diesen behalten</string>
     <string name="snack_duplicates_merged">Duplikate zusammengeführt: Playlists zeigen jetzt auf die behaltene Kopie</string>
     <string name="info_lyrics">Songtext</string>
-    <string name="lyrics_not_found">Für diesen Titel wurde kein eingebetteter Songtext gefunden.</string>
+    <string name="lyrics_not_found">Weder in der Datei dieses Titels noch daneben wurde ein Songtext gefunden.</string>
     <string name="cd_scroll_to_top">Zurück nach oben</string>
     <string name="foryou_section_daypart_morning">Dein Morgen</string>
     <string name="foryou_section_daypart_day">Dein Nachmittag</string>

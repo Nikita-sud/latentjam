@@ -396,6 +396,11 @@
     <string name="settings_duplicates_scanning">正在比较所有曲目…</string>
     <string name="settings_duplicates_empty">没有重复 — 每首曲目都独一无二</string>
     <string name="settings_restore">恢复</string>
+    <string name="settings_lyrics_folders">含 .lrc 文件的文件夹</string>
+    <string name="settings_lyrics_folders_body">Android 会询问要允许哪个文件夹。之后与歌曲同名的 .lrc 文件会用作其歌词。</string>
+    <string name="settings_lyrics_folders_add">添加文件夹</string>
+    <string name="settings_lyrics_folders_remove">移除</string>
+    <string name="settings_lyrics_folders_failed">无法使用此文件夹。请选择此设备存储空间中的文件夹。</string>
     <string name="settings_restore_all">全部恢复</string>
     <string name="settings_library_manage_failed">无法更新音乐库。请重试。</string>
 
@@ -482,7 +487,7 @@
     <string name="duplicates_keep_this">保留此曲</string>
     <string name="snack_duplicates_merged">已合并重复项：播放列表现在指向保留的副本</string>
     <string name="info_lyrics">歌词</string>
-    <string name="lyrics_not_found">此曲目中未找到内嵌歌词。</string>
+    <string name="lyrics_not_found">在此曲目的文件中及其旁边均未找到歌词。</string>
     <string name="cd_scroll_to_top">回到顶部</string>
     <string name="foryou_section_daypart_morning">你的早晨</string>
     <string name="foryou_section_daypart_day">你的午后</string>

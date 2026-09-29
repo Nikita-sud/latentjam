@@ -292,9 +292,12 @@ private suspend fun rescan(context: Context, uri: Uri) {
     }
 }
 
-/** DATA is deprecated and still the only way to name a file to the scanner. */
+/**
+ * DATA is deprecated and still the only way to name a file to the scanner — and the only way to
+ * find the `.lrc` beside it.
+ */
 @Suppress("DEPRECATION")
-private fun filePathOf(context: Context, uri: Uri): String? = runCatching {
+internal fun filePathOf(context: Context, uri: Uri): String? = runCatching {
     context.contentResolver
         .query(uri, arrayOf(MediaStore.Audio.Media.DATA), null, null, null)
         ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }

@@ -415,6 +415,11 @@
     <string name="settings_duplicates_scanning">Comparaison de toutes les paires de pistes…</string>
     <string name="settings_duplicates_empty">Aucun doublon — chaque piste a un son unique</string>
     <string name="settings_restore">Restaurer</string>
+    <string name="settings_lyrics_folders">Dossiers de fichiers .lrc</string>
+    <string name="settings_lyrics_folders_body">Android demande quel dossier autoriser. Un fichier .lrc portant le nom du titre sert alors de paroles.</string>
+    <string name="settings_lyrics_folders_add">Ajouter un dossier</string>
+    <string name="settings_lyrics_folders_remove">Retirer</string>
+    <string name="settings_lyrics_folders_failed">Ce dossier ne peut pas être utilisé. Choisissez-en un dans le stockage de cet appareil.</string>
     <string name="settings_restore_all">Tout restaurer</string>
     <string name="settings_library_manage_failed">Impossible de mettre à jour la bibliothèque. Réessayez.</string>
 
@@ -501,7 +506,7 @@
     <string name="duplicates_keep_this">Garder celui-ci</string>
     <string name="snack_duplicates_merged">Doublons fusionnés : les playlists pointent vers la copie conservée</string>
     <string name="info_lyrics">Paroles</string>
-    <string name="lyrics_not_found">Aucune parole intégrée n’a été trouvée pour ce titre.</string>
+    <string name="lyrics_not_found">Aucune parole n’a été trouvée dans le fichier de ce titre ni à côté.</string>
     <string name="cd_scroll_to_top">Revenir en haut</string>
     <string name="foryou_section_daypart_morning">Vos matins</string>
     <string name="foryou_section_daypart_day">Vos après-midis</string>

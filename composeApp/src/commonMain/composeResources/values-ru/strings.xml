@@ -412,6 +412,11 @@
     <string name="settings_duplicates_scanning">Сравниваю треки между собой…</string>
     <string name="settings_duplicates_empty">Дубликатов нет — все треки звучат по-разному</string>
     <string name="settings_restore">Восстановить</string>
+    <string name="settings_lyrics_folders">Папки с файлами .lrc</string>
+    <string name="settings_lyrics_folders_body">Android спросит, к какой папке дать доступ. Файл .lrc с тем же именем, что и трек, станет его текстом.</string>
+    <string name="settings_lyrics_folders_add">Добавить папку</string>
+    <string name="settings_lyrics_folders_remove">Убрать</string>
+    <string name="settings_lyrics_folders_failed">Эту папку нельзя использовать. Выберите папку в памяти этого устройства.</string>
     <string name="settings_restore_all">Восстановить все</string>
     <string name="settings_library_manage_failed">Не удалось обновить медиатеку. Повторите попытку.</string>
 
@@ -500,7 +505,7 @@
     <string name="duplicates_keep_this">Оставить этот</string>
     <string name="snack_duplicates_merged">Дубликаты объединены: плейлисты теперь указывают на оставленную копию</string>
     <string name="info_lyrics">Текст песни</string>
-    <string name="lyrics_not_found">В этом треке нет встроенного текста песни.</string>
+    <string name="lyrics_not_found">Текст песни не найден ни в файле трека, ни рядом с ним.</string>
     <string name="cd_scroll_to_top">Наверх списка</string>
     <string name="foryou_section_daypart_morning">Ваше утро</string>
     <string name="foryou_section_daypart_day">Ваш день</string>

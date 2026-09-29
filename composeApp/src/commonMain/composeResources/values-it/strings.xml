@@ -410,6 +410,11 @@
     <string name="settings_duplicates_scanning">Confronto di tutte le coppie di brani…</string>
     <string name="settings_duplicates_empty">Nessun duplicato: ogni brano suona unico</string>
     <string name="settings_restore">Ripristina</string>
+    <string name="settings_lyrics_folders">Cartelle con file .lrc</string>
+    <string name="settings_lyrics_folders_body">Android chiede quale cartella consentire. Un file .lrc con lo stesso nome del brano ne fornisce poi il testo.</string>
+    <string name="settings_lyrics_folders_add">Aggiungi cartella</string>
+    <string name="settings_lyrics_folders_remove">Rimuovi</string>
+    <string name="settings_lyrics_folders_failed">Questa cartella non può essere usata. Scegline una nella memoria di questo dispositivo.</string>
     <string name="settings_restore_all">Ripristina tutto</string>
     <string name="settings_library_manage_failed">Impossibile aggiornare la libreria. Riprova.</string>
 
@@ -496,7 +501,7 @@
     <string name="duplicates_keep_this">Tieni questo</string>
     <string name="snack_duplicates_merged">Duplicati uniti: le playlist ora puntano alla copia conservata</string>
     <string name="info_lyrics">Testo</string>
-    <string name="lyrics_not_found">Nessun testo incorporato trovato per questo brano.</string>
+    <string name="lyrics_not_found">Nessun testo trovato nel file di questo brano né accanto a esso.</string>
     <string name="cd_scroll_to_top">Torna all'inizio</string>
     <string name="foryou_section_daypart_morning">Le tue mattine</string>
     <string name="foryou_section_daypart_day">I tuoi pomeriggi</string>

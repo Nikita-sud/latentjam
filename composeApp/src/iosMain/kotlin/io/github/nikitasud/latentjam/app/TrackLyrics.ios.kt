@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import io.github.nikitasud.latentjam.library.tags.EmbeddedLyrics
 import io.github.nikitasud.latentjam.library.tags.Lyrics
+import io.github.nikitasud.latentjam.library.tags.SidecarLyrics
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
@@ -22,7 +23,7 @@ import platform.Foundation.fileHandleForReadingAtPath
 internal actual fun rememberLyricsReader(reportReadFailures: Boolean): suspend (TrackDescriptor) -> Lyrics? = remember(reportReadFailures) {
     { track ->
         withContext(Dispatchers.Default) {
-            try {
+            val embedded = try {
                 readEmbeddedLyrics(track)
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -30,6 +31,7 @@ internal actual fun rememberLyricsReader(reportReadFailures: Boolean): suspend (
                 if (reportReadFailures) throw failure
                 null
             }
+            SidecarLyrics.choose(embedded, readSidecarLyrics(track))
         }
     }
 }
@@ -38,9 +40,7 @@ internal actual fun rememberLyricsReader(reportReadFailures: Boolean): suspend (
  *  M4A, the ID3 prefix for MP3 — never the audio itself, which can run to gigabytes. */
 @OptIn(ExperimentalForeignApi::class)
 private fun readEmbeddedLyrics(track: TrackDescriptor): Lyrics? {
-    val url = track.audioUri?.takeIf(String::isNotBlank)?.let(NSURL::URLWithString) ?: return null
-    if (!url.isFileURL()) return null
-    val path = url.path ?: return null
+    val path = filePathOf(track) ?: return null
     val handle = checkNotNull(NSFileHandle.fileHandleForReadingAtPath(path)) { "Cannot open lyrics source" }
     return try {
         // Container-agnostic: ID3 USLT for mp3, Vorbis comments for FLAC and Ogg/Opus, the ©lyr
@@ -49,4 +49,44 @@ private fun readEmbeddedLyrics(track: TrackDescriptor): Lyrics? {
     } finally {
         handle.closeFile()
     }
+}
+
+/**
+ * The `.lrc` beside an imported file in the app's Documents, or null — never a failure: a missing,
+ * oversized or undecodable sidecar leaves the embedded lyrics in charge. The app owns that folder,
+ * so no permission is involved. Music library items have no file path and never have one.
+ */
+private fun readSidecarLyrics(track: TrackDescriptor): Lyrics? = try {
+    filePathOf(track)?.let(::readSiblingFile)
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: Exception) {
+    null
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun readSiblingFile(audioPath: String): Lyrics? {
+    val slash = audioPath.lastIndexOf('/')
+    if (slash < 0) return null
+    val folder = audioPath.substring(0, slash + 1)
+    for (name in SidecarLyrics.candidateNames(audioPath.substring(slash + 1))) {
+        // A null handle is the file not being there.
+        val handle = NSFileHandle.fileHandleForReadingAtPath(folder + name) ?: continue
+        return try {
+            val source = FileHandleSource(handle)
+            if (source.length > SidecarLyrics.MAX_BYTES) {
+                null
+            } else {
+                source.read(0, source.length.toInt())?.let(SidecarLyrics::decode)
+            }
+        } finally {
+            handle.closeFile()
+        }
+    }
+    return null
+}
+
+private fun filePathOf(track: TrackDescriptor): String? {
+    val url = track.audioUri?.takeIf(String::isNotBlank)?.let(NSURL::URLWithString) ?: return null
+    return if (url.isFileURL()) url.path else null
 }

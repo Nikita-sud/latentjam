@@ -396,6 +396,11 @@
     <string name="settings_duplicates_scanning">全トラックを比較中…</string>
     <string name="settings_duplicates_empty">重複はありません — どのトラックも固有の音です</string>
     <string name="settings_restore">復元</string>
+    <string name="settings_lyrics_folders">.lrc ファイルのフォルダ</string>
+    <string name="settings_lyrics_folders_body">許可するフォルダを Android が尋ねます。曲と同じ名前の .lrc ファイルがその曲の歌詞として使われます。</string>
+    <string name="settings_lyrics_folders_add">フォルダを追加</string>
+    <string name="settings_lyrics_folders_remove">削除</string>
+    <string name="settings_lyrics_folders_failed">このフォルダは使用できません。このデバイスのストレージ内のフォルダを選んでください。</string>
     <string name="settings_restore_all">すべて復元</string>
     <string name="settings_library_manage_failed">ライブラリを更新できませんでした。もう一度お試しください。</string>
 
@@ -482,7 +487,7 @@
     <string name="duplicates_keep_this">これを残す</string>
     <string name="snack_duplicates_merged">重複を統合しました。プレイリストは残したコピーを指します</string>
     <string name="info_lyrics">歌詞</string>
-    <string name="lyrics_not_found">この曲には埋め込み歌詞がありません。</string>
+    <string name="lyrics_not_found">この曲のファイルにもその隣にも歌詞が見つかりませんでした。</string>
     <string name="cd_scroll_to_top">先頭に戻る</string>
     <string name="foryou_section_daypart_morning">あなたの朝</string>
     <string name="foryou_section_daypart_day">あなたの昼</string>

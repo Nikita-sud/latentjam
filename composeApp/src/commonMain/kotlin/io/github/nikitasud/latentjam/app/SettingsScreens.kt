@@ -284,6 +284,11 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_license_te
 import io.github.nikitasud.latentjam.app.generated.resources.settings_license_text_model_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_licenses
 import io.github.nikitasud.latentjam.app.generated.resources.settings_licenses_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lyrics_folders
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lyrics_folders_add
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lyrics_folders_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lyrics_folders_failed
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lyrics_folders_remove
 import io.github.nikitasud.latentjam.app.generated.resources.settings_audio_access
 import io.github.nikitasud.latentjam.app.generated.resources.settings_audio_access_allowed
 import io.github.nikitasud.latentjam.app.generated.resources.settings_audio_access_blocked
@@ -372,6 +377,7 @@ private enum class SettingsPage {
     PAGES,
     LIBRARY,
     SOURCES,
+    LYRICS_FOLDERS,
     HIDDEN_TRACKS,
     DUPLICATES,
     STATS,
@@ -560,6 +566,7 @@ fun SettingsScreen(
                         onRefreshLibrary = onRefreshLibrary,
                         snackbarHostState = snackbarHostState,
                     )
+                    SettingsPage.LYRICS_FOLDERS -> LyricsFoldersSettings(snackbarHostState)
                     SettingsPage.HIDDEN_TRACKS -> HiddenTracksSettings(
                         library = library,
                         onRefreshLibrary = onRefreshLibrary,
@@ -638,6 +645,7 @@ private fun SettingsPage.titleResource(): StringResource = when (this) {
     SettingsPage.PAGES -> Res.string.settings_pages
     SettingsPage.LIBRARY -> Res.string.settings_library
     SettingsPage.SOURCES -> Res.string.settings_sources
+    SettingsPage.LYRICS_FOLDERS -> Res.string.settings_lyrics_folders
     SettingsPage.HIDDEN_TRACKS -> Res.string.settings_hidden_tracks
     SettingsPage.DUPLICATES -> Res.string.settings_duplicates
     SettingsPage.STATS -> Res.string.settings_stats
@@ -1128,6 +1136,13 @@ private fun LibrarySettings(
                     subtitle = stringResource(Res.string.settings_sources_body),
                     onClick = { onOpen(SettingsPage.SOURCES) },
                 )
+                if (lyricsFoldersNeedGrants) {
+                    SettingsRow(
+                        title = stringResource(Res.string.settings_lyrics_folders),
+                        subtitle = stringResource(Res.string.settings_lyrics_folders_body),
+                        onClick = { onOpen(SettingsPage.LYRICS_FOLDERS) },
+                    )
+                }
                 SettingsRow(
                     title = stringResource(Res.string.settings_hidden_tracks),
                     subtitle = stringResource(
@@ -1282,6 +1297,55 @@ private fun SourceSwitchRow(
             enabled = enabled,
             onCheckedChange = null,
         )
+    }
+}
+
+/**
+ * Android 10+ only: the folders whose `.lrc` files the lyrics reader may open. Each is granted
+ * once through the system folder picker; removing one gives its access back to the system.
+ */
+@Composable
+private fun LyricsFoldersSettings(snackbarHostState: SnackbarHostState) {
+    val scope = rememberCoroutineScope()
+    val refusedMessage = stringResource(Res.string.settings_lyrics_folders_failed)
+    val controls = rememberLyricsFolderControls(
+        onRefused = { scope.launch { snackbarHostState.showSnackbar(refusedMessage) } },
+    )
+
+    FadingLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
+        item {
+            SettingsSection(stringResource(Res.string.settings_lyrics_folders)) {
+                SettingsBody(stringResource(Res.string.settings_lyrics_folders_body))
+                SettingsActionRow(
+                    title = stringResource(Res.string.settings_lyrics_folders_add),
+                    subtitle = null,
+                    onClick = controls.add,
+                )
+            }
+        }
+        items(items = controls.folders, key = LyricsFolder::id) { folder ->
+            LyricsFolderRow(folder = folder, onRemove = { controls.remove(folder) })
+        }
+    }
+}
+
+@Composable
+private fun LyricsFolderRow(folder: LyricsFolder, onRemove: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = folder.label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f).padding(end = 12.dp),
+        )
+        TextButton(onClick = onRemove) {
+            Text(stringResource(Res.string.settings_lyrics_folders_remove))
+        }
     }
 }
 

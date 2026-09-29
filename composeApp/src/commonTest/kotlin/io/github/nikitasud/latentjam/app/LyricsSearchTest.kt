@@ -102,6 +102,25 @@ class LyricsSearchTest {
         assertEquals(4, reads)
     }
 
+    @Test fun changedLyricsSourcesRereadSongsCachedWithoutLyrics() = runTest {
+        val storage = MemoryStorage()
+        val song = track("one")
+        var sidecarVisible = false
+        var reads = 0
+        val reader: suspend (TrackDescriptor) -> Lyrics? = {
+            reads++
+            if (sidecarVisible) lyrics("silver moon") else null
+        }
+        LyricsSearchCache().load(listOf(song), storage, reader, sourcesRevision = "lrc1") {}
+        // A folder is granted: the .lrc beside the song becomes readable, even after a restart.
+        sidecarVisible = true
+        var result = emptyMap<TrackId, LyricSearchDocument>()
+        LyricsSearchCache().load(listOf(song), storage, reader, sourcesRevision = "lrc1\ntree") { result = it }
+        assertNotNull(result[song.id]?.snippet("silver moon"))
+        LyricsSearchCache().load(listOf(song), storage, reader, sourcesRevision = "lrc1\ntree") {}
+        assertEquals(2, reads)
+    }
+
     @Test fun failedReadIsRetriedInsteadOfCachedAsMissing() = runTest {
         val cache = LyricsSearchCache()
         val storage = MemoryStorage()

@@ -34,13 +34,17 @@ internal class LyricsSearchCache {
 
     /**
      * Cancellation stops between files, retaining completed work in memory. Missing lyrics are
-     * cached; failed reads are retried next time. A revision/URI change invalidates either result.
-     * Batches publish useful results while a large library is being scanned for the first time.
+     * cached; failed reads are retried next time. A revision/URI change invalidates either result,
+     * and so does a change of [sourcesRevision] (see [rememberLyricsSourcesRevision]): lyrics can
+     * come from outside the song's file, and granting a folder must re-read the songs cached as
+     * having none. Batches publish useful results while a large library is being scanned for the
+     * first time.
      */
     suspend fun load(
         songs: List<TrackDescriptor>,
         storage: LyricsSearchStorage,
         readLyrics: suspend (TrackDescriptor) -> Lyrics?,
+        sourcesRevision: String = "",
         publish: (Map<TrackId, LyricSearchDocument>) -> Unit,
     ) = mutex.withLock {
         val cache = entries ?: try {
@@ -54,7 +58,7 @@ internal class LyricsSearchCache {
         if (cache.keys.retainAll(ids)) dirty = true
         // Don't publish a stale lyric match while the replacement file is being read.
         songs.forEach { track ->
-            if (cache[track.id.value]?.revision != track.lyricsRevision()) {
+            if (cache[track.id.value]?.revision != track.lyricsRevision(sourcesRevision)) {
                 if (cache.remove(track.id.value) != null) dirty = true
             }
         }
@@ -69,7 +73,7 @@ internal class LyricsSearchCache {
             try {
                 val lyrics = readLyrics(track)
                 cache[track.id.value] = Entry(
-                    track.lyricsRevision(),
+                    track.lyricsRevision(sourcesRevision),
                     lyrics?.let { LyricSearchDocument.build(it.text) },
                 )
                 dirty = true
@@ -129,8 +133,9 @@ internal class LyricsSearchCache {
     }
 }
 
-private fun TrackDescriptor.lyricsRevision(): String =
-    "${audioUri.orEmpty()}\u0000${sourceRevision ?: "${sizeBytes.orEmptyRevision()}:${durationMs.orEmptyRevision()}"}"
+private fun TrackDescriptor.lyricsRevision(sourcesRevision: String): String =
+    "${audioUri.orEmpty()}\u0000${sourceRevision ?: "${sizeBytes.orEmptyRevision()}:${durationMs.orEmptyRevision()}"}" +
+        "\u0000$sourcesRevision"
 
 private fun Long?.orEmptyRevision(): String = this?.toString().orEmpty()
 

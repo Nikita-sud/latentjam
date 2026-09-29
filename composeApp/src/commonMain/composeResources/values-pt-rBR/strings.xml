@@ -410,6 +410,11 @@
     <string name="settings_duplicates_scanning">Comparando todos os pares de faixas…</string>
     <string name="settings_duplicates_empty">Sem duplicatas — cada faixa soa única</string>
     <string name="settings_restore">Restaurar</string>
+    <string name="settings_lyrics_folders">Pastas com arquivos .lrc</string>
+    <string name="settings_lyrics_folders_body">O Android pergunta qual pasta permitir. Um arquivo .lrc com o mesmo nome da música passa a ser usado como letra.</string>
+    <string name="settings_lyrics_folders_add">Adicionar pasta</string>
+    <string name="settings_lyrics_folders_remove">Remover</string>
+    <string name="settings_lyrics_folders_failed">Não é possível usar esta pasta. Escolha uma no armazenamento deste dispositivo.</string>
     <string name="settings_restore_all">Restaurar tudo</string>
     <string name="settings_library_manage_failed">Não foi possível atualizar a biblioteca. Tente novamente.</string>
 
@@ -496,7 +501,7 @@
     <string name="duplicates_keep_this">Manter esta</string>
     <string name="snack_duplicates_merged">Duplicatas mescladas: as playlists agora apontam para a cópia mantida</string>
     <string name="info_lyrics">Letra</string>
-    <string name="lyrics_not_found">Nenhuma letra incorporada foi encontrada nesta faixa.</string>
+    <string name="lyrics_not_found">Nenhuma letra foi encontrada no arquivo desta faixa nem ao lado dele.</string>
     <string name="cd_scroll_to_top">Voltar ao topo</string>
     <string name="foryou_section_daypart_morning">Suas manhãs</string>
     <string name="foryou_section_daypart_day">Suas tardes</string>

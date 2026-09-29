@@ -410,6 +410,11 @@
     <string name="settings_duplicates_scanning">Comparando todos los pares de pistas…</string>
     <string name="settings_duplicates_empty">Sin duplicados: cada pista suena única</string>
     <string name="settings_restore">Restaurar</string>
+    <string name="settings_lyrics_folders">Carpetas con archivos .lrc</string>
+    <string name="settings_lyrics_folders_body">Android te pregunta qué carpeta permitir. Después se usa como letra el archivo .lrc con el mismo nombre que la canción.</string>
+    <string name="settings_lyrics_folders_add">Añadir carpeta</string>
+    <string name="settings_lyrics_folders_remove">Quitar</string>
+    <string name="settings_lyrics_folders_failed">No se puede usar esta carpeta. Elige una del almacenamiento de este dispositivo.</string>
     <string name="settings_restore_all">Restaurar todo</string>
     <string name="settings_library_manage_failed">No se pudo actualizar la biblioteca. Inténtalo de nuevo.</string>
 
@@ -496,7 +501,7 @@
     <string name="duplicates_keep_this">Conservar esta</string>
     <string name="snack_duplicates_merged">Duplicados combinados: las listas ahora apuntan a la copia conservada</string>
     <string name="info_lyrics">Letra</string>
-    <string name="lyrics_not_found">No se encontró letra incrustada para esta pista.</string>
+    <string name="lyrics_not_found">No se encontró letra en el archivo de esta pista ni junto a él.</string>
     <string name="cd_scroll_to_top">Volver arriba</string>
     <string name="foryou_section_daypart_morning">Tus mañanas</string>
     <string name="foryou_section_daypart_day">Tus tardes</string>

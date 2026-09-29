@@ -403,6 +403,11 @@
     <string name="settings_duplicates_scanning">Tüm parça çiftleri karşılaştırılıyor…</string>
     <string name="settings_duplicates_empty">Kopya yok — her parça benzersiz</string>
     <string name="settings_restore">Geri yükle</string>
+    <string name="settings_lyrics_folders">.lrc dosyası olan klasörler</string>
+    <string name="settings_lyrics_folders_body">Android hangi klasöre izin verileceğini sorar. Şarkıyla aynı adı taşıyan .lrc dosyası o şarkının sözleri olarak kullanılır.</string>
+    <string name="settings_lyrics_folders_add">Klasör ekle</string>
+    <string name="settings_lyrics_folders_remove">Kaldır</string>
+    <string name="settings_lyrics_folders_failed">Bu klasör kullanılamaz. Bu cihazın depolama alanından bir klasör seçin.</string>
     <string name="settings_restore_all">Tümünü geri yükle</string>
     <string name="settings_library_manage_failed">Arşiv güncellenemedi. Yeniden deneyin.</string>
 
@@ -489,7 +494,7 @@
     <string name="duplicates_keep_this">Bunu tut</string>
     <string name="snack_duplicates_merged">Kopyalar birleştirildi: çalma listeleri artık tutulan kopyayı gösteriyor</string>
     <string name="info_lyrics">Şarkı sözleri</string>
-    <string name="lyrics_not_found">Bu parça için gömülü şarkı sözü bulunamadı.</string>
+    <string name="lyrics_not_found">Bu parçanın dosyasında ya da yanında şarkı sözü bulunamadı.</string>
     <string name="cd_scroll_to_top">Başa dön</string>
     <string name="foryou_section_daypart_morning">Sabahların</string>
     <string name="foryou_section_daypart_day">Öğleden sonraların</string>
