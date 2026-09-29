@@ -208,12 +208,151 @@ internal class Mp4TagCodecTest {
     }
 
     @Test
-    fun aSampleEntryWithAHugeSizeIsReadWithoutCrashing() {
+    fun aSampleEntryWithAHugeSizeIsRefusedWithoutCrashing() {
         val file = Mp4Fixtures.file(items)
         val entry = (0 until file.size - 4).first { file.copyOfRange(it, it + 4).decodeToString() == "mp4a" }
         Mp4Boxes.putBe32(file, entry - 8, 2) // two sample entries...
         Mp4Boxes.putBe32(file, entry - 4, 0x8000_0000L) // ...the first claiming 2 GiB
-        assertEquals("Song", codec.read(ByteArraySource(file)).title)
+        assertEquals(TagRefusal.MP4_MALFORMED_ATOMS, codec.read(ByteArraySource(file)).refusal)
+    }
+
+    @Test
+    fun sampleEntriesThatDoNotTileTheirBoxAreRefused() {
+        // A second, unreadable entry could be the "enca" that marks the file protected.
+        val file = Mp4Fixtures.file(items)
+        val entry = (0 until file.size - 4).first { file.copyOfRange(it, it + 4).decodeToString() == "mp4a" }
+        Mp4Boxes.putBe32(file, entry - 8, 2) // two entries claimed, one present
+        assertEquals(TagRefusal.MP4_MALFORMED_ATOMS, codec.read(ByteArraySource(file)).refusal)
+        Mp4Boxes.putBe32(file, entry - 8, 65) // more entries than are ever looked at
+        assertEquals(TagRefusal.MP4_MALFORMED_ATOMS, codec.read(ByteArraySource(file)).refusal)
+    }
+
+    @Test
+    fun aCompressedMoovIsRefused() {
+        // cmov hides every chunk offset inside zlib data: none of them could be moved.
+        val cmov = Mp4Fixtures.box("cmov", Mp4Fixtures.leaf("dcom", "zlib".encodeToByteArray()), Mp4Fixtures.leaf("cmvd", ByteArray(12)))
+        val file = Mp4Fixtures.ftyp() + Mp4Fixtures.box("moov", cmov) + Mp4Fixtures.leaf("mdat", Mp4Fixtures.samples)
+        assertEquals(TagRefusal.MP4_UNKNOWN_OFFSET_BOX, codec.read(ByteArraySource(file)).refusal)
+    }
+
+    @Test
+    fun aTopLevelMetaIsRefused() {
+        val meta = Mp4Fixtures.leaf("meta", ByteArray(4) + Mp4Fixtures.leaf("iloc", ByteArray(16)))
+        val file = Mp4Fixtures.file(items, freeAfterIlst = 2000) + meta
+        assertEquals(TagRefusal.MP4_UNKNOWN_OFFSET_BOX, codec.read(ByteArraySource(file)).refusal)
+    }
+
+    @Test
+    fun anUnknownTopLevelAtomRefusesOnlyTheRewriteThatWouldMoveIt() {
+        val unknown = Mp4Fixtures.leaf("xyzw", ByteArray(40))
+        val file = Mp4Fixtures.file(items, freeAfterIlst = 2000, extraTopLevel = unknown)
+        // Nothing moves: allowed.
+        CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(title = "Short"))
+        // The audio would move, and the unknown atom might address it.
+        val plan = codec.plan(ByteArraySource(file), TagEdits(lyrics = "x".repeat(5000)))
+        assertEquals(TagRefusal.MP4_UNKNOWN_OFFSET_BOX, (plan as WritePlan.Refused).reason)
+    }
+
+    @Test
+    fun knownTopLevelAtomsDoNotStopTheRewrite() {
+        val known = Mp4Fixtures.leaf("wide", ByteArray(0)) + Mp4Fixtures.leaf("pdin", ByteArray(12)) +
+            Mp4Fixtures.leaf("uuid", ByteArray(24)) + Mp4Fixtures.leaf("skip", ByteArray(8))
+        val file = Mp4Fixtures.file(items, extraTopLevel = known)
+        val edits = TagEdits(lyrics = "x".repeat(1000))
+        assertIs<WritePlan.StreamingRewrite>(codec.plan(ByteArraySource(file), edits))
+        assertSamplesStillAddressed(CodecAssertions.assertWriteMatchesExpectation(codec, file, edits))
+    }
+
+    @Test
+    fun aChunkOffsetInsideTheFreeSpaceMoovGrowsIntoRefusesTheEdit() {
+        val ftyp = Mp4Fixtures.ftyp()
+        val free = Mp4Fixtures.free(20_000)
+        val mdat = Mp4Fixtures.leaf("mdat", Mp4Fixtures.samples)
+        fun moov(freeStart: Int, mdatStart: Int) = Mp4Fixtures.moov(listOf(freeStart + 100, mdatStart + 8), items)
+        val moovSize = moov(0, 0).size
+        val freeStart = ftyp.size + moovSize
+        val file = ftyp + moov(freeStart, freeStart + free.size) + free + mdat
+        val plan = codec.plan(ByteArraySource(file), TagEdits(lyrics = "x".repeat(1000)))
+        assertEquals(TagRefusal.MP4_OFFSET_INSIDE_REWRITE, (plan as WritePlan.Refused).reason)
+    }
+
+    @Test
+    fun moovGrowingOverSeveralFreeAtomsStillVerifies() {
+        val ftyp = Mp4Fixtures.ftyp()
+        val frees = Mp4Fixtures.free(9_000) + Mp4Fixtures.leaf("skip", ByteArray(9_000))
+        val mdat = Mp4Fixtures.leaf("mdat", Mp4Fixtures.samples)
+        fun moov(mdatStart: Int) = Mp4Fixtures.moov(listOf(mdatStart + 8, mdatStart + 1008), items)
+        val file = ftyp + moov(ftyp.size + moov(0).size + frees.size) + frees + mdat
+        val edits = TagEdits(lyrics = "x".repeat(1000))
+        assertIs<WritePlan.InPlacePatch>(codec.plan(ByteArraySource(file), edits))
+        assertSamplesStillAddressed(CodecAssertions.assertWriteMatchesExpectation(codec, file, edits))
+    }
+
+    @Test
+    fun theInventoryPinsWhereEveryChunkOffsetPoints() {
+        val file = Mp4Fixtures.file(items)
+        val edits = TagEdits(lyrics = "x".repeat(1000))
+        val out = WritePlans.applyInMemory(file, codec.plan(ByteArraySource(file), edits))!!
+        val atom = Mp4Boxes.topLevel(ByteArraySource(out))!!.first { it.type == "moov" }
+        val stco = (atom.offset.toInt() until atom.end.toInt()).first { out.copyOfRange(it, it + 4).decodeToString() == "stco" }
+        // One entry left unshifted, as a buggy rewrite would leave it.
+        val entry = stco + 4 + 8
+        Mp4Boxes.putBe32(out, entry, Mp4Boxes.be32(out, entry) - 1)
+        val failures = TagVerification.verify(codec, ByteArraySource(file), ByteArraySource(out), edits)
+        assertEquals(listOf(TagVerification.Check.INVENTORY), failures.map { it.check })
+    }
+
+    @Test
+    fun co64OffsetsFollowTheAudioToo() {
+        val file = Mp4Fixtures.file(items, co64 = true)
+        val edits = TagEdits(lyrics = "x".repeat(1000))
+        assertIs<WritePlan.StreamingRewrite>(codec.plan(ByteArraySource(file), edits))
+        val out = CodecAssertions.assertWriteMatchesExpectation(codec, file, edits)
+        assertSamplesStillAddressed(out)
+        assertTrue(Mp4Fixtures.chunkOffsets(out)[0] > Mp4Fixtures.chunkOffsets(file)[0])
+    }
+
+    @Test
+    fun aChunkOffsetThatWouldPassFourGibibytesRefusesTheRewrite() {
+        val ftyp = Mp4Fixtures.ftyp()
+        val mdat = Mp4Fixtures.leaf("mdat", Mp4Fixtures.samples)
+        fun moov(mdatStart: Int) = Mp4Fixtures.moov(listOf(mdatStart + 8, 0xFFFF_FF00.toInt()), items)
+        val file = ftyp + moov(ftyp.size + moov(0).size) + mdat
+        val plan = codec.plan(ByteArraySource(file), TagEdits(lyrics = "x".repeat(1000)))
+        assertEquals(TagRefusal.MP4_OFFSET_OVERFLOW, (plan as WritePlan.Refused).reason)
+    }
+
+    @Test
+    fun userDataInsideATrackIsPinnedLikeEverythingElse() {
+        fun file(name: String) = Mp4Fixtures.file(
+            items,
+            trakExtra = Mp4Fixtures.box("udta", Mp4Fixtures.leaf("name", name.encodeToByteArray())),
+        )
+        assertTrue(codec.inventory(ByteArraySource(file("Left"))) != codec.inventory(ByteArraySource(file("Rght"))))
+    }
+
+    @Test
+    fun imagesInASecondCovrItemAreCountedAndPromoted() {
+        val jpeg = TestImages.jpeg(4, 4)
+        val png = TestImages.png(2, 2)
+        val file = Mp4Fixtures.file(
+            listOf(Mp4Fixtures.text("©nam", "Song"), Mp4Fixtures.covers(13 to jpeg), Mp4Fixtures.covers(14 to png)),
+            freeAfterIlst = 2000,
+        )
+        val snapshot = codec.read(ByteArraySource(file))
+        assertEquals(CoverInfo.of(png, ImageProbe.PNG), snapshot.nextCover)
+        assertEquals(1, snapshot.otherPictures)
+        assertEquals(listOf(Crc32.of(jpeg), Crc32.of(png)).sorted(), snapshot.pictures)
+        val removed = CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(cover = CoverEdit.Remove))
+        assertEquals(CoverInfo.of(png, ImageProbe.PNG), codec.read(ByteArraySource(removed)).cover)
+        CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(cover = CoverEdit.Replace(TestImages.png(6, 6), ImageProbe.PNG)))
+    }
+
+    @Test
+    fun restatingLyricsStoredWithSurroundingWhitespaceWritesNothing() {
+        val file = Mp4Fixtures.file(listOf(Mp4Fixtures.text("©lyr", "\n  la la  \n")), freeAfterIlst = 500)
+        assertEquals("la la", codec.read(ByteArraySource(file)).lyrics)
+        assertIs<WritePlan.NoChange>(codec.plan(ByteArraySource(file), TagEdits(lyrics = "la la")))
     }
 
     @Test

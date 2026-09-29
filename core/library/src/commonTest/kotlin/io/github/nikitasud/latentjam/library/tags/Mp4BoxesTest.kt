@@ -59,7 +59,15 @@ internal object Mp4Fixtures {
 
     val samples = ByteArray(2000) { (it * 3 + 1).toByte() }
 
-    fun trak(offsets: List<Int>, sampleEntry: String = "mp4a", extraStbl: ByteArray = ByteArray(0)): ByteArray = box(
+    fun be64(value: Long): ByteArray = be32((value ushr 32).toInt()) + be32(value.toInt())
+
+    fun trak(
+        offsets: List<Int>,
+        sampleEntry: String = "mp4a",
+        extraStbl: ByteArray = ByteArray(0),
+        co64: Boolean = false,
+        trakExtra: ByteArray = ByteArray(0),
+    ): ByteArray = box(
         "trak",
         leaf("tkhd", ByteArray(84)),
         box(
@@ -72,18 +80,32 @@ internal object Mp4Fixtures {
                     leaf("stsd", ByteArray(4) + be32(1) + leaf(sampleEntry, ByteArray(28))),
                     leaf("stts", ByteArray(8)),
                     leaf("stsz", ByteArray(12)),
-                    leaf("stco", ByteArray(4) + be32(offsets.size) + offsets.fold(ByteArray(0)) { all, o -> all + be32(o) }),
+                    if (co64) {
+                        leaf("co64", ByteArray(4) + be32(offsets.size) + offsets.fold(ByteArray(0)) { all, o -> all + be64(o.toLong()) })
+                    } else {
+                        leaf("stco", ByteArray(4) + be32(offsets.size) + offsets.fold(ByteArray(0)) { all, o -> all + be32(o) })
+                    },
                     extraStbl,
                 ),
             ),
         ),
+        trakExtra,
     )
 
-    fun moov(offsets: List<Int>, items: List<ByteArray>?, freeAfterIlst: Int = 0, iso: Boolean = true, sampleEntry: String = "mp4a", extraStbl: ByteArray = ByteArray(0)): ByteArray =
+    fun moov(
+        offsets: List<Int>,
+        items: List<ByteArray>?,
+        freeAfterIlst: Int = 0,
+        iso: Boolean = true,
+        sampleEntry: String = "mp4a",
+        extraStbl: ByteArray = ByteArray(0),
+        co64: Boolean = false,
+        trakExtra: ByteArray = ByteArray(0),
+    ): ByteArray =
         box(
             "moov",
             leaf("mvhd", ByteArray(100)),
-            trak(offsets, sampleEntry, extraStbl),
+            trak(offsets, sampleEntry, extraStbl, co64, trakExtra),
             if (items == null) ByteArray(0) else box("udta", meta(items, freeAfterIlst, iso)),
         )
 
@@ -99,28 +121,36 @@ internal object Mp4Fixtures {
         iso: Boolean = true,
         sampleEntry: String = "mp4a",
         extraStbl: ByteArray = ByteArray(0),
+        co64: Boolean = false,
+        trakExtra: ByteArray = ByteArray(0),
+        /** Top-level boxes placed between ftyp and moov (moov first) or after the mdat (moov last). */
+        extraTopLevel: ByteArray = ByteArray(0),
     ): ByteArray {
         val ftyp = ftyp()
         val mdat = leaf("mdat", samples)
         val free = if (freeAfterMoov > 0) free(freeAfterMoov) else ByteArray(0)
         fun moovAt(mdatStart: Int) =
-            moov(listOf(mdatStart + 8, mdatStart + 8 + 1000), items, freeAfterIlst, iso, sampleEntry, extraStbl)
+            moov(listOf(mdatStart + 8, mdatStart + 8 + 1000), items, freeAfterIlst, iso, sampleEntry, extraStbl, co64, trakExtra)
         val moovSize = moovAt(0).size
         return if (moovFirst) {
-            ftyp + moovAt(ftyp.size + moovSize + free.size) + free + mdat
+            ftyp + extraTopLevel + moovAt(ftyp.size + extraTopLevel.size + moovSize + free.size) + free + mdat
         } else {
-            ftyp + mdat + moovAt(ftyp.size) + free
+            ftyp + mdat + extraTopLevel + moovAt(ftyp.size) + free
         }
     }
 
-    /** The chunk offsets of the first stco in [file]. */
+    /** The chunk offsets of the first stco (or co64) in [file]. */
     fun chunkOffsets(file: ByteArray): List<Long> {
         val source = ByteArraySource(file)
         val atom = Mp4Boxes.topLevel(source)!!.first { it.type == "moov" }
         val moov = Mp4Boxes.parse(source.read(atom.offset, atom.size.toInt())!!)!!
-        val stco = Mp4Boxes.walk(moov).first { it.type == "stco" }
-        val count = Mp4Boxes.be32(stco.payload, 4).toInt()
-        return (0 until count).map { Mp4Boxes.be32(stco.payload, 8 + 4 * it) }
+        val table = Mp4Boxes.walk(moov).first { it.type == "stco" || it.type == "co64" }
+        val count = Mp4Boxes.be32(table.payload, 4).toInt()
+        return if (table.type == "co64") {
+            (0 until count).map { Mp4Boxes.be64(table.payload, 8 + 8 * it) }
+        } else {
+            (0 until count).map { Mp4Boxes.be32(table.payload, 8 + 4 * it) }
+        }
     }
 }
 
