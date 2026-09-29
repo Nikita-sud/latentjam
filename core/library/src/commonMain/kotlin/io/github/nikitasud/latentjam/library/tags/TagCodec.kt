@@ -57,3 +57,20 @@ internal object Digests {
         return crc.value
     }
 }
+
+/** Picks a file's codec from its first bytes. The single entry point for everything outside `tags`. */
+public object TagCodecs {
+    // ID3 last: an ID3v2 tag in front of FLAC, Ogg or MP4 must reach the ID3 codec, which refuses it.
+    private val ALL: List<TagCodec> = listOf(FlacTagCodec, OggTagCodec, Mp4TagCodec, Id3TagCodec)
+
+    public fun forSource(source: RandomAccessSource): TagCodec? {
+        if (source.length <= 0) return null
+        val head = source.read(0, minOf(source.length, TagCodec.HEAD_BYTES.toLong()).toInt()) ?: return null
+        return ALL.firstOrNull { it.recognizes(head) }
+    }
+
+    public fun read(source: RandomAccessSource): TagSnapshot? = forSource(source)?.read(source)
+
+    public fun plan(source: RandomAccessSource, edits: TagEdits): WritePlan =
+        forSource(source)?.plan(source, edits) ?: WritePlan.Refused(TagRefusal.UNSUPPORTED_FORMAT)
+}
