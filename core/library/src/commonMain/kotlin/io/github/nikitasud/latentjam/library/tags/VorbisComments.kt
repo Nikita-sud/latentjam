@@ -226,3 +226,31 @@ internal object VorbisFields {
         return out
     }
 }
+
+internal fun VorbisFieldValues.toSnapshot(
+    format: TagFormat,
+    version: String,
+    cover: CoverInfo?,
+    otherPictures: Int,
+    nextCover: CoverInfo?,
+    pictures: List<Long>,
+): TagSnapshot = TagSnapshot(
+    format = format,
+    version = version,
+    title = title,
+    artist = artist,
+    album = album,
+    albumArtist = albumArtist,
+    genre = genre,
+    year = year,
+    trackNumber = trackNumber,
+    trackTotal = trackTotal,
+    discNumber = discNumber,
+    discTotal = discTotal,
+    lyrics = lyrics,
+    cover = cover,
+    otherPictures = otherPictures,
+    nextCover = nextCover,
+    pictures = pictures,
+    artists = artists,
+)
