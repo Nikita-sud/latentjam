@@ -16,9 +16,12 @@ public object WritePlans {
                 is OutputSegment.Bytes -> sink.write(segment.bytes)
                 is OutputSegment.Copy -> copy(source, segment.sourceOffset, segment.length) { sink.write(it) }
                 is OutputSegment.Transformed -> {
+                    // A transform must emit exactly what it reads; anything else breaks every later offset.
+                    val counted = CountingSink(sink)
                     val pass = segment.transform.start()
-                    copy(source, segment.sourceOffset, segment.length) { pass.process(it, sink) }
-                    pass.finish(sink)
+                    copy(source, segment.sourceOffset, segment.length) { pass.process(it, counted) }
+                    pass.finish(counted)
+                    if (counted.count != segment.length) throw StreamRefusedException(TagRefusal.PLAN_INCONSISTENT)
                 }
             }
         }
@@ -37,6 +40,15 @@ public object WritePlans {
             val sink = ByteArraySink()
             stream(ByteArraySource(original), plan, sink)
             sink.toByteArray()
+        }
+    }
+
+    private class CountingSink(private val sink: ByteSink) : ByteSink {
+        var count = 0L
+
+        override fun write(bytes: ByteArray, offset: Int, count: Int) {
+            this.count += count
+            sink.write(bytes, offset, count)
         }
     }
 

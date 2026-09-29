@@ -58,7 +58,17 @@ public sealed interface WritePlan {
     public data object NoChange : WritePlan
 
     /** Overwrite [writes] and set the length to [newLength]. The audio is never read or written. */
-    public class InPlacePatch(public val writes: List<ByteWrite>, public val newLength: Long) : WritePlan
+    public class InPlacePatch(public val writes: List<ByteWrite>, public val newLength: Long) : WritePlan {
+        init {
+            // A write past the end the file is cut to, or before its start, is a codec bug: fail it here.
+            require(newLength >= 0) { "negative length $newLength" }
+            for (write in writes) {
+                require(write.offset >= 0 && write.bytes.size <= newLength - write.offset) {
+                    "write of ${write.bytes.size} bytes at ${write.offset} outside a $newLength-byte file"
+                }
+            }
+        }
+    }
 
     /** Build a new file from [segments]; used only when spare space ran out. */
     public class StreamingRewrite(public val segments: List<OutputSegment>) : WritePlan {

@@ -102,6 +102,39 @@ internal class TagModelTest {
     }
 
     @Test
+    fun anUntaggedMp3NarrowsAFullDateLikeId3v23() {
+        // The first tag an untagged MP3 gets is ID3v2.3, whose TYER holds four characters.
+        val none = TagSnapshot(TagFormat.MP3, "none")
+        assertEquals("2004", none.expectedAfter(TagEdits(year = "2004-01-02")).year)
+    }
+
+    @Test
+    fun normalizedStripsNulFromEveryTextFieldAndTrimsLyrics() {
+        val edits = TagEdits(
+            title = "Ti\u0000tle", artist = "A\u0000", album = "\u0000Al", genre = "Ro\u0000ck", year = "20\u000001",
+            albumArtist = "V\u0000A", lyrics = "  la\u0000 la \n", trackNumber = "3",
+        )
+        assertEquals(
+            TagEdits(
+                title = "Title", artist = "A", album = "Al", genre = "Rock", year = "2001",
+                albumArtist = "VA", lyrics = "la la", trackNumber = "3",
+            ),
+            edits.normalized(),
+        )
+        // A value that was nothing but NUL becomes a removal, exactly as a writer treats it.
+        assertEquals("", TagEdits(title = "\u0000").normalized().title)
+    }
+
+    @Test
+    fun expectedAfterNormalizesTheEditsItself() {
+        val after = base.expectedAfter(TagEdits(title = "Ne\u0000w", artist = "X;\u0000 Y"))
+        assertEquals("New", after.title)
+        assertEquals("X; Y", after.artist)
+        assertEquals(listOf("X", "Y"), after.artists)
+        assertNull(base.expectedAfter(TagEdits(album = "\u0000")).album)
+    }
+
+    @Test
     fun expectedAfterRewritesCreditedArtistsOnlyWhenTheFileHasThem() {
         assertEquals(listOf("X", "Y"), base.expectedAfter(TagEdits(artist = "X; Y")).artists)
         assertEquals(emptyList(), base.expectedAfter(TagEdits(artist = "Solo")).artists)

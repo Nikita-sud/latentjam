@@ -79,18 +79,8 @@ class TagCodecRealFileTest {
                     return null
                 }
                 val resultSource = ByteArraySource(result)
-                val after = codec.read(resultSource)
-                val expected = start.expectedAfter(edits)
-                val nextCover = if (edits.cover == CoverEdit.Remove) null else after.nextCover
-                val versionOk = after.version == start.version || (start.version == "none" && after.version == "ID3v2.3")
-                if (!versionOk || after.copy(version = expected.version, nextCover = nextCover) != expected) {
-                    failures += "${file.name} [$scenario]: read-back\n  expected $expected\n  actual   $after"
-                }
-                if (codec.audioDigest(inputSource) != codec.audioDigest(resultSource)) {
-                    failures += "${file.name} [$scenario]: AUDIO CHANGED"
-                }
-                if (codec.inventory(inputSource) != codec.inventory(resultSource)) {
-                    failures += "${file.name} [$scenario]: unmanaged data changed\n  ${codec.inventory(inputSource)}\n  ${codec.inventory(resultSource)}"
+                TagVerification.verify(codec, inputSource, resultSource, edits).forEach {
+                    failures += "${file.name} [$scenario]: ${it.check}\n  ${it.detail}"
                 }
                 if (codec.plan(resultSource, edits) !is WritePlan.NoChange) {
                     failures += "${file.name} [$scenario]: repeating the same edit is not a no-op"

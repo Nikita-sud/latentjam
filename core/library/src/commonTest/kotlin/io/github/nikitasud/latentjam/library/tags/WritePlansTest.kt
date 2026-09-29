@@ -140,4 +140,27 @@ internal class WritePlansTest {
         kotlin.test.assertNotNull(value)
         return value
     }
+
+    @Test
+    fun aTransformThatChangesTheLengthIsRefusedBeforeTheOutputIsTrusted() {
+        val grows = object : StreamTransform {
+            override fun start() = object : StreamTransform.Pass {
+                override fun process(chunk: ByteArray, sink: ByteSink) = sink.write(chunk + 0)
+                override fun finish(sink: ByteSink) = Unit
+            }
+        }
+        val plan = WritePlan.StreamingRewrite(listOf(OutputSegment.Transformed(0, 4, grows)))
+        val refused = assertFailsWith<StreamRefusedException> {
+            WritePlans.stream(ByteArraySource(bytes(1, 2, 3, 4)), plan, ByteArraySink())
+        }
+        assertEquals(TagRefusal.PLAN_INCONSISTENT, refused.reason)
+    }
+
+    @Test
+    fun anInPlacePatchCannotWriteOutsideTheFileItLeaves() {
+        assertFailsWith<IllegalArgumentException> { WritePlan.InPlacePatch(listOf(ByteWrite(10, bytes(1, 2, 3))), 12) }
+        assertFailsWith<IllegalArgumentException> { WritePlan.InPlacePatch(listOf(ByteWrite(-1, bytes(1))), 12) }
+        assertFailsWith<IllegalArgumentException> { WritePlan.InPlacePatch(emptyList(), -1) }
+        WritePlan.InPlacePatch(listOf(ByteWrite(9, bytes(1, 2, 3))), 12)
+    }
 }

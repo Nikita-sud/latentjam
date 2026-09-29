@@ -52,8 +52,22 @@ public data class TagEdits(
         get() = listOf(trackNumber, trackTotal, discNumber, discTotal)
             .all { it == null || it.isEmpty() || TagNumbers.strict(it) != null }
 
-    /** Lyrics are stored without surrounding whitespace in every format; codecs write these. */
-    internal fun normalized(): TagEdits = copy(lyrics = lyrics?.trim())
+    /**
+     * The edits every codec writes and [TagSnapshot.expectedAfter] predicts: NUL removed from every
+     * text field (ID3 cannot store one inside a value — it is the separator there), and lyrics
+     * without surrounding whitespace, which is how every format stores them.
+     */
+    internal fun normalized(): TagEdits = copy(
+        title = title?.withoutNul(),
+        artist = artist?.withoutNul(),
+        album = album?.withoutNul(),
+        genre = genre?.withoutNul(),
+        year = year?.withoutNul(),
+        albumArtist = albumArtist?.withoutNul(),
+        lyrics = lyrics?.withoutNul()?.trim(),
+    )
+
+    private fun String.withoutNul(): String = if (indexOf('\u0000') >= 0) replace("\u0000", "") else this
 }
 
 /** The containers the codecs handle. Opus and Vorbis share Ogg but are told apart for display. */
@@ -98,6 +112,12 @@ public enum class TagRefusal {
 
     /** A number field was not plain digits 1–9999. */
     INVALID_NUMBER,
+
+    /**
+     * A write plan broke its own invariants (a transform changed its segment's length). A codec
+     * bug, caught before the output is trusted; nothing is written over.
+     */
+    PLAN_INCONSISTENT,
 
     /** A new cover was not a readable JPEG or PNG. */
     UNSUPPORTED_IMAGE,
@@ -168,8 +188,14 @@ public data class TagSnapshot(
 ) {
     val editable: Boolean get() = refusal == null
 
-    /** What a correct write of [edits] reads back as — the verifier's expectation. */
-    public fun expectedAfter(edits: TagEdits): TagSnapshot {
+    /**
+     * What a correct write of [edits] reads back as — the verifier's expectation. The edits are
+     * normalized here exactly as the codecs normalize them before writing. Number edits must be
+     * valid ([TagEdits.numbersAreValid]); every codec refuses the write otherwise.
+     */
+    public fun expectedAfter(edits: TagEdits): TagSnapshot = expect(edits.normalized())
+
+    private fun expect(edits: TagEdits): TagSnapshot {
         var newTrackTotal = number(trackTotal, edits.trackTotal)
         var newDiscTotal = number(discTotal, edits.discTotal)
         val newTrackNumber = number(trackNumber, edits.trackNumber)
@@ -205,7 +231,7 @@ public data class TagSnapshot(
             discNumber = newDiscNumber,
             discTotal = newDiscTotal,
             // Readers return lyrics trimmed in every format, and writers store them trimmed.
-            lyrics = text(lyrics, edits.lyrics?.trim()),
+            lyrics = text(lyrics, edits.lyrics),
             cover = newCover,
             otherPictures = newOtherPictures,
             // Which picture comes next after a removal is not predicted; after other edits it stays.
@@ -226,7 +252,8 @@ public data class TagSnapshot(
     private fun expectedYear(edit: String?): String? = when {
         edit == null -> year
         edit.isEmpty() -> null
-        format == TagFormat.MP3 && version == "ID3v2.3" && edit.length > 4 &&
+        // An untagged MP3 ("none") gets its first tag as ID3v2.3, so it narrows the same way.
+        format == TagFormat.MP3 && (version == "ID3v2.3" || version == "none") && edit.length > 4 &&
             edit.take(4).all { it in '0'..'9' } -> edit.take(4)
         else -> edit
     }

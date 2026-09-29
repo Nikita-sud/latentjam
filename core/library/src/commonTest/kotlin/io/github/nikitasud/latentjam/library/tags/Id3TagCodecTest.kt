@@ -116,6 +116,20 @@ internal class Id3TagCodecTest {
     }
 
     @Test
+    fun aNulPastedIntoAnyFieldIsDroppedByTheWriterAndTheExpectationAlike() {
+        CodecAssertions.assertWriteMatchesExpectation(
+            codec,
+            tagged(),
+            TagEdits(title = "Ti\u0000tle", album = "A\u0000B", albumArtist = "\u0000VA", lyrics = "x\u0000y"),
+        )
+    }
+
+    @Test
+    fun anUntaggedMpegGivenAFullDateKeepsItsYear() {
+        CodecAssertions.assertWriteMatchesExpectation(codec, mp3Payload(), TagEdits(year = "2001-05-03"))
+    }
+
+    @Test
     fun id3InFrontOfFlacIsRefused() {
         val file = Id3TestTags.build(3, listOf(TestFrame("TIT2", latin1Body("t")))) + "fLaC".encodeToByteArray() + ByteArray(100)
         assertEquals(TagRefusal.ID3_BEFORE_OTHER_CONTAINER, codec.read(ByteArraySource(file)).refusal)
