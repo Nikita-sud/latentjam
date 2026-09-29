@@ -431,8 +431,12 @@ public object Id3Tags {
     }
 
     private fun userTextFrame(version: Id3Version, description: String, value: String): Id3RawFrame {
-        val encoding = chooseEncoding(version, description, value)
-        val body = byteArrayOf(encoding.toByte()) + encodeText(encoding, description) + terminator(encoding) +
+        // A NUL in the description would be read back as its own terminator, splitting the frame
+        // on the next parse. The value is left alone: TXXX:ARTISTS deliberately NUL-joins its
+        // names on ID3v2.4, and that separator must survive.
+        val cleanDescription = description.replace("\u0000", "")
+        val encoding = chooseEncoding(version, cleanDescription, value)
+        val body = byteArrayOf(encoding.toByte()) + encodeText(encoding, cleanDescription) + terminator(encoding) +
             encodeText(encoding, value)
         return Id3RawFrame(FRAME_USER_TEXT, byteArrayOf(0, 0), body)
     }
@@ -454,6 +458,9 @@ public object Id3Tags {
     /**
      * Replaces the lyrics frame [lyrics] reads (the first non-blank USLT, else the first USLT),
      * keeping its language and descriptor. Other-language frames stay. "" removes that one frame.
+     *
+     * A target that already holds exactly [lyrics] is left byte for byte as it is — a UTF-16
+     * frame is not rewritten as Latin-1 just because the user saved without changing the words.
      */
     private fun setLyrics(version: Id3Version, frames: List<Id3RawFrame>, lyrics: String): List<Id3RawFrame> {
         val candidates = frames.withIndex().filter { it.value.id == FRAME_LYRICS }
@@ -463,11 +470,15 @@ public object Id3Tags {
             return if (target == null) frames else frames.filterIndexed { index, _ -> index != target.index }
         }
         val parts = target?.let { lyricsParts(version, it.value) }
+        if (parts != null && parts.text.trim() == lyrics) return frames
         val language = parts?.language ?: "XXX"
-        val descriptor = parts?.descriptor ?: ""
-        val encoding = chooseEncoding(version, descriptor, lyrics)
+        // An embedded NUL in either string would be read back as its own terminator, splitting
+        // the frame on the next parse.
+        val descriptor = (parts?.descriptor ?: "").replace("\u0000", "")
+        val cleanLyrics = lyrics.replace("\u0000", "")
+        val encoding = chooseEncoding(version, descriptor, cleanLyrics)
         val body = byteArrayOf(encoding.toByte()) + ByteArray(3) { language[it].code.toByte() } +
-            encodeText(encoding, descriptor) + terminator(encoding) + encodeText(encoding, lyrics)
+            encodeText(encoding, descriptor) + terminator(encoding) + encodeText(encoding, cleanLyrics)
         val frame = Id3RawFrame(FRAME_LYRICS, byteArrayOf(0, 0), body)
         return if (target == null) frames + frame else frames.toMutableList().also { it[target.index] = frame }
     }

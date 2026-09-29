@@ -197,4 +197,34 @@ internal class Id3FieldsTest {
         assertFalse(Id3Tags.wouldChange(mp3Payload(), TagEdits(title = "")))
         assertTrue(Id3Tags.wouldChange(mp3Payload(), TagEdits(title = "new")))
     }
+
+    /** UTF-16, BOM-prefixed encoding of one string field, matching how USLT stores each field. */
+    private fun utf16(text: String): ByteArray {
+        val out = ArrayList<Byte>()
+        out.add(0xFF.toByte())
+        out.add(0xFE.toByte())
+        for (c in text) {
+            out.add((c.code and 0xFF).toByte())
+            out.add(((c.code shr 8) and 0xFF).toByte())
+        }
+        return out.toByteArray()
+    }
+
+    @Test
+    fun restatingUtf16LyricsKeepsTheFrame() {
+        val lyrics = TestFrame(
+            "USLT",
+            byteArrayOf(1) + latin1("eng") + utf16("") + byteArrayOf(0, 0) + utf16("Words"),
+        )
+        val base = file(3, lyrics)
+        assertFalse(Id3Tags.wouldChange(base, TagEdits(lyrics = "Words")))
+        val out = edit(base, TagEdits(album = "Record"))
+        assertContentEquals(lyrics.body, Id3TestTags.frameBody(out, "USLT"))
+    }
+
+    @Test
+    fun lyricsWithAnEmbeddedNulLoseItAndStillParse() {
+        val out = edit(file(3), TagEdits(lyrics = "Line one\u0000Line two"))
+        assertEquals("Line oneLine two", fields(out).lyrics)
+    }
 }
