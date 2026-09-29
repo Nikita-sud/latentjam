@@ -26,7 +26,8 @@ internal expect fun rememberLyricsReader(reportReadFailures: Boolean = false): s
  * could read for it appears, changes or goes away — the candidates' sizes and modification
  * times, never their contents, and never anything read from the audio file. A track with no
  * such file, or none that can be seen (Android 10+ with no folder granted, songs from the iOS
- * Music library), is left out, which reads as "".
+ * Music library), maps to "". A track whose files could not be looked up this time is left out:
+ * unknown, which is not the same as "none". A failure of the whole lookup throws.
  *
  * The lyrics search index takes these for the whole library once per pass, so it is one batch
  * call rather than a per-track one: implementations answer from as few system queries as the

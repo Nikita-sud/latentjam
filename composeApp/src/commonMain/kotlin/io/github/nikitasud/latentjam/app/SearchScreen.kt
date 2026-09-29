@@ -157,6 +157,9 @@ internal fun SearchScreen(
                 lyricsReader,
                 lyricsSources,
                 sidecarFingerprints,
+                // Pending only while songs are read: the cached index answers at once, and the
+                // sidecar check behind it must not hold a query at "Loading".
+                reading = { indexingLyrics = it },
             ) { snapshot ->
                 lyricDocuments = snapshot
             }
