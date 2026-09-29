@@ -784,21 +784,11 @@ internal class Id3TagsTest {
     }
 
     @Test
-    fun theExtendedTagPlusBlockIsRemovedTogetherWithItsTrailer() {
-        val audio = mp3Payload()
+    fun anEnhancedTrailerIsRefusedUntilItsExtraFieldsCanBePreserved() {
         val file = Id3TestTags.build(3, listOf(TestFrame("TIT2", latin1Body("Old")))) +
-            audio + Id3TestTags.v1ExtendedTrailer() + Id3TestTags.v1Trailer()
-
-        assertEquals(Id3v1.EXTENDED_SIZE + Id3v1.TRAILER_SIZE, Id3v1.trailerLength(file))
-
-        val out = assertNotNull(updateId3Tag(file, TagEdits(artist = "New")))
-        val info = assertNotNull(Id3Tags.read(out))
-        assertEquals(0, Id3v1.trailerLength(out))
-        assertContentEquals(
-            audio,
-            out.copyOfRange(info.totalLength, out.size),
-            "leaving TAG+ behind would strand 227 bytes nothing can reach",
-        )
+            mp3Payload() + Id3TestTags.v1ExtendedTrailer() + Id3TestTags.v1Trailer()
+        assertNull(updateId3Tag(file, TagEdits(artist = "New")))
+        assertContentEquals(file, updateId3Tag(file, TagEdits()))
     }
 
     @Test
@@ -898,8 +888,8 @@ internal class Id3TagsTest {
         // What a streaming caller does at both ends: header, then exactly the
         // tag, then just enough of the tail to know where to stop.
         val tagLength = assertNotNull(Id3Tags.tagLength(file.copyOfRange(0, Id3Tags.HEADER_SIZE)))
-        val update = assertNotNull(Id3Tags.buildUpdate(file.copyOfRange(0, tagLength), edits))
         val tail = file.copyOfRange(file.size - Id3v1.MAX_TRAILER_SIZE, file.size)
+        val update = assertNotNull(Id3Tags.buildUpdate(file.copyOfRange(0, tagLength), edits, tail = tail))
 
         assertEquals(Id3v1.TRAILER_SIZE, Id3Tags.droppedTrailerLength(tail, edits))
         assertEquals(0, Id3Tags.droppedTrailerLength(tail, TagEdits()), "nothing changed, nothing went stale")

@@ -31,8 +31,10 @@ package io.github.nikitasud.latentjam.library.tags
  * trailer alone would make that worse: the two copies would then disagree by
  * exactly the edit the user just made.
  *
- * So a rewrite drops it, and the file keeps one place where its metadata lives
- * — the one that can hold every script the library actually contains. The cost
+ * A rewrite first migrates fields absent from ID3v2 (including comments and track
+ * numbers), then drops the standard trailer. Enhanced TAG+ trailers are refused until
+ * their extra fields can be migrated faithfully. Supported files keep their active
+ * metadata in the tag that can hold every script the library actually contains. The cost
  * is honest and worth naming: a player that reads only ID3v1 will show nothing
  * for these files instead of showing mojibake.
  *
@@ -96,6 +98,47 @@ public object Id3v1 {
         // mistaken one for the other — their starts do not coincide.
         if (startsWith(data, start - EXTENDED_SIZE, "TAG+")) start -= EXTENDED_SIZE
         return data.size - start
+    }
+
+    /** Migrate the active (last) v1 tag before deleting it. Existing v2 frames take precedence. */
+    internal fun migrate(tail: ByteArray, version: Id3Version, frames: List<Id3RawFrame>): List<Id3RawFrame>? {
+        val length = trailerLength(tail)
+        if (length == 0) return frames
+        // TAG+ has additional timing/speed fields; refusing is safer than silently losing them.
+        if (startsWith(tail, tail.size - length, "TAG+")) return null
+        // Do not leave an older trailer active when more than the supported stack is present.
+        if (startsWith(tail, tail.size - length - TRAILER_SIZE, "TAG")) return null
+        val start = tail.size - TRAILER_SIZE
+        fun field(offset: Int, size: Int): String = buildString {
+            for (i in start + offset until start + offset + size) {
+                if (tail[i] == 0.toByte()) break
+                append((tail[i].toInt() and 0xff).toChar())
+            }
+        }.trimEnd()
+        val result = frames.toMutableList()
+        fun text(id: String, value: String, aliases: Set<String> = setOf(id)) {
+            if (value.isNotEmpty() && frames.none { it.id in aliases }) {
+                result += Id3RawFrame(id, byteArrayOf(0, 0), Id3Text.encodeTextFrameBody(value, version))
+            }
+        }
+        text("TIT2", field(3, 30))
+        text("TPE1", field(33, 30))
+        text("TALB", field(63, 30))
+        text(if (version == Id3Version.V2_3) "TYER" else "TDRC", field(93, 4), setOf("TYER", "TDRC"))
+        val genre = tail[start + 127].toInt() and 0xff
+        if (genre != 255) text("TCON", GenreTags.split("($genre)").joinToString("; ").ifEmpty { "($genre)" })
+        val hasTrack = tail[start + 125] == 0.toByte() && tail[start + 126] != 0.toByte()
+        if (hasTrack) text("TRCK", (tail[start + 126].toInt() and 0xff).toString())
+        val comment = field(97, if (hasTrack) 28 else 30)
+        if (comment.isNotEmpty()) {
+            // All v1 bytes are Latin-1. A separate description preserves a legacy comment
+            // alongside any existing v2 comment without replacing it.
+            val description = if (frames.any { it.id == "COMM" }) "ID3v1" else ""
+            val body = byteArrayOf(0) + "und".encodeToByteArray() + description.encodeToByteArray() + byteArrayOf(0) +
+                ByteArray(comment.length) { comment[it].code.toByte() }
+            result += Id3RawFrame("COMM", byteArrayOf(0, 0), body)
+        }
+        return result
     }
 
     private fun startsWith(data: ByteArray, at: Int, text: String): Boolean {

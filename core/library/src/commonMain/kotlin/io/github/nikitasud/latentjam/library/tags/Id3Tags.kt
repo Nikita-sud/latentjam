@@ -145,10 +145,13 @@ public object Id3Tags {
         val unmanaged: List<String>,
     )
 
-    internal fun readFields(prefix: ByteArray): Id3Fields? {
-        val tag = (Id3Codec.parse(prefix) as? Id3Parse.Parsed)?.tag ?: return null
-        val version = tag.version
-        val frames = tag.frames
+    internal fun readFields(prefix: ByteArray, tail: ByteArray = byteArrayOf()): Id3Fields? {
+        val parsed = Id3Codec.parse(prefix)
+        if (parsed is Id3Parse.Refused) return null
+        val tag = (parsed as? Id3Parse.Parsed)?.tag
+        if (tag == null && !canPrependTag(prefix)) return null
+        val version = tag?.version ?: Id3Version.V2_3
+        val frames = Id3v1.migrate(tail, version, tag?.frames.orEmpty()) ?: return null
         val cover = coverTarget(version, frames)
         val lyricsTarget = frames.withIndex()
             .filter { it.value.id == FRAME_LYRICS }
@@ -173,7 +176,7 @@ public object Id3Tags {
         }
         return Id3Fields(
             version = version,
-            totalLength = tag.totalLength,
+            totalLength = tag?.totalLength ?: 0,
             title = textIn(version, frames, FRAME_TITLE),
             artist = textIn(version, frames, FRAME_ARTIST),
             album = textIn(version, frames, FRAME_ALBUM),
@@ -199,17 +202,17 @@ public object Id3Tags {
     }
 
     /** False when [edits] would leave every frame exactly as it is (a "same values" save). */
-    internal fun wouldChange(prefix: ByteArray, edits: TagEdits): Boolean = when (val parsed = Id3Codec.parse(prefix)) {
-        is Id3Parse.Refused -> true
-        Id3Parse.Absent -> applyEdits(Id3Version.V2_3, emptyList(), edits).isNotEmpty()
-        is Id3Parse.Parsed -> {
-            val before = parsed.tag.frames
-            val after = applyEdits(parsed.tag.version, before, edits)
-            before.size != after.size || before.indices.any { i ->
-                before[i].id != after[i].id ||
-                    !before[i].flags.contentEquals(after[i].flags) ||
-                    !before[i].body.contentEquals(after[i].body)
-            }
+    internal fun wouldChange(prefix: ByteArray, edits: TagEdits, tail: ByteArray = byteArrayOf()): Boolean {
+        val parsed = Id3Codec.parse(prefix)
+        if (parsed is Id3Parse.Refused) return true
+        val tag = (parsed as? Id3Parse.Parsed)?.tag
+        val version = tag?.version ?: Id3Version.V2_3
+        val before = Id3v1.migrate(tail, version, tag?.frames.orEmpty()) ?: return true
+        val after = applyEdits(version, before, edits)
+        return before.size != after.size || before.indices.any { i ->
+            before[i].id != after[i].id ||
+                !before[i].flags.contentEquals(after[i].flags) ||
+                !before[i].body.contentEquals(after[i].body)
         }
     }
 
@@ -260,7 +263,8 @@ public object Id3Tags {
      *
      * [prefix] must contain at least the whole existing tag — ask [tagLength]
      * how long that is. Returns null when the tag cannot be rewritten safely;
-     * [refusalOf] says why.
+     * [refusalOf] says why. Streaming callers also pass the bounded [tail] so legacy
+     * fields are migrated before removing the ID3v1 trailer.
      *
      * When there is no tag yet, one is created at [newTagVersion] only when the
      * data starts with a valid MPEG-audio or ADTS frame header. An allowlist is
@@ -271,37 +275,42 @@ public object Id3Tags {
         prefix: ByteArray,
         edits: TagEdits,
         newTagVersion: Id3Version = Id3Version.V2_3,
-    ): Id3TagUpdate? = when (val parsed = Id3Codec.parse(prefix)) {
-        is Id3Parse.Refused -> null
+        tail: ByteArray = byteArrayOf(),
+    ): Id3TagUpdate? {
+        // Legacy fields must be migrated before the caller removes the trailer.
+        if (!edits.isEmpty && Id3v1.migrate(tail, newTagVersion, emptyList()) == null) return null
+        return when (val parsed = Id3Codec.parse(prefix)) {
+            is Id3Parse.Refused -> null
 
-        is Id3Parse.Parsed -> {
-            val tag = parsed.tag
-            if (edits.isEmpty) {
-                // Besides being cheaper, this preserves optional extended headers,
-                // footers, non-canonical frame-size encodings, and every padding byte.
-                Id3TagUpdate(prefix.copyOfRange(0, tag.totalLength), tag.totalLength)
-            } else if (erasesUnreadableNumber(tag.version, tag.frames, edits)) {
-                null
-            } else {
-                val frames = applyEdits(tag.version, tag.frames, edits)
-                val needed = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames)
-                // Keep the original footprint whenever the new frames still fit:
-                // the surplus becomes padding, the audio never moves, and the caller
-                // may patch just the head of the file instead of rewriting it.
-                val total = if (needed <= tag.totalLength) tag.totalLength else needed + PADDING
-                Id3Codec.serialize(tag.version, tag.isExperimental, frames, total)
-                    ?.let { Id3TagUpdate(it, tag.totalLength) }
+            is Id3Parse.Parsed -> {
+                val tag = parsed.tag
+                if (edits.isEmpty) {
+                    // Besides being cheaper, this preserves optional extended headers,
+                    // footers, non-canonical frame-size encodings, and every padding byte.
+                    Id3TagUpdate(prefix.copyOfRange(0, tag.totalLength), tag.totalLength)
+                } else if (erasesUnreadableNumber(tag.version, tag.frames, edits)) {
+                    null
+                } else {
+                    val frames = applyEdits(tag.version, Id3v1.migrate(tail, tag.version, tag.frames) ?: return null, edits)
+                    val needed = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames)
+                    // Keep the original footprint whenever the new frames still fit:
+                    // the surplus becomes padding, the audio never moves, and the caller
+                    // may patch just the head of the file instead of rewriting it.
+                    val total = if (needed <= tag.totalLength) tag.totalLength else needed + PADDING
+                    Id3Codec.serialize(tag.version, tag.isExperimental, frames, total)
+                        ?.let { Id3TagUpdate(it, tag.totalLength) }
+                }
             }
-        }
 
-        Id3Parse.Absent -> when {
-            !canPrependTag(prefix) -> null
-            edits.isEmpty -> Id3TagUpdate(prefix.copyOf(), prefix.size)
-            else -> {
-                val frames = applyEdits(newTagVersion, emptyList(), edits)
-                val total = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames) + PADDING
-                Id3Codec.serialize(newTagVersion, experimental = false, frames = frames, totalLength = total)
-                    ?.let { Id3TagUpdate(it, 0) }
+            Id3Parse.Absent -> when {
+                !canPrependTag(prefix) -> null
+                edits.isEmpty -> Id3TagUpdate(prefix.copyOf(), prefix.size)
+                else -> {
+                    val frames = applyEdits(newTagVersion, Id3v1.migrate(tail, newTagVersion, emptyList()) ?: return null, edits)
+                    val total = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames) + PADDING
+                    Id3Codec.serialize(newTagVersion, experimental = false, frames = frames, totalLength = total)
+                        ?.let { Id3TagUpdate(it, 0) }
+                }
             }
         }
     }
@@ -318,7 +327,9 @@ public object Id3Tags {
         edits: TagEdits,
         newTagVersion: Id3Version = Id3Version.V2_3,
     ): ByteArray? {
-        val update = buildUpdate(original, edits, newTagVersion) ?: return null
+        val oldLength = tagLength(original) ?: return null
+        val tail = original.copyOfRange(maxOf(oldLength.coerceAtMost(original.size), original.size - Id3v1.MAX_TRAILER_SIZE), original.size)
+        val update = buildUpdate(original, edits, newTagVersion, tail) ?: return null
         // A trailer that would reach back into the tag just rebuilt is a false
         // positive — `TAG` happening to fall 128 bytes from the end of a file
         // that is almost entirely tag. Keep every byte rather than cut audio on

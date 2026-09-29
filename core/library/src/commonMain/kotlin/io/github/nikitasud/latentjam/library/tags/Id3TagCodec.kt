@@ -51,12 +51,12 @@ internal object Id3TagCodec : TagCodec {
     override fun read(source: RandomAccessSource): TagSnapshot {
         val head = head(source) ?: return TagSnapshot(TagFormat.MP3, "none", refusal = TagRefusal.TRUNCATED)
         refusal(head)?.let { return TagSnapshot(TagFormat.MP3, "ID3", refusal = it) }
-        if (head.tagLength == 0) return TagSnapshot(TagFormat.MP3, "none")
-        val fields = Id3Tags.readFields(head.prefix)
-            ?: return TagSnapshot(TagFormat.MP3, "ID3", refusal = TagRefusal.ID3_MALFORMED_FRAMES)
+        val tail = tail(source, head) ?: return TagSnapshot(TagFormat.MP3, "ID3", refusal = TagRefusal.TRUNCATED)
+        val fields = Id3Tags.readFields(head.prefix, tail)
+            ?: return TagSnapshot(TagFormat.MP3, "ID3", refusal = TagRefusal.ID3_UNSUPPORTED_LEGACY_TAG)
         return TagSnapshot(
             format = TagFormat.MP3,
-            version = if (fields.version == Id3Version.V2_4) "ID3v2.4" else "ID3v2.3",
+            version = if (head.tagLength == 0) "none" else if (fields.version == Id3Version.V2_4) "ID3v2.4" else "ID3v2.3",
             title = fields.title,
             artist = fields.artist,
             album = fields.album,
@@ -76,6 +76,12 @@ internal object Id3TagCodec : TagCodec {
         )
     }
 
+    /** Never mistake bytes inside the v2 tag for a legacy trailer. */
+    private fun tail(source: RandomAccessSource, head: Head): ByteArray? {
+        val count = minOf(maxOf(0L, source.length - maxOf(head.tagLength, 0)), Id3v1.MAX_TRAILER_SIZE.toLong()).toInt()
+        return source.read(source.length - count, count)
+    }
+
     private fun total(pair: String?): Int? =
         pair?.substringAfter('/', "")?.takeIf { it.isNotEmpty() }?.let(TrackNumbers::parse)
 
@@ -86,14 +92,16 @@ internal object Id3TagCodec : TagCodec {
         val head = head(source) ?: return WritePlan.Refused(TagRefusal.TRUNCATED)
         refusal(head)?.let { return WritePlan.Refused(it) }
         val prefix = if (head.tagLength > 0) head.prefix.copyOf(head.tagLength) else head.prefix
-        if (!Id3Tags.wouldChange(prefix, normalized)) return WritePlan.NoChange
+        val tail = tail(source, head) ?: return WritePlan.Refused(TagRefusal.TRUNCATED)
+        if (Id3v1.migrate(tail, Id3Version.V2_3, emptyList()) == null) {
+            return WritePlan.Refused(TagRefusal.ID3_UNSUPPORTED_LEGACY_TAG)
+        }
+        if (!Id3Tags.wouldChange(prefix, normalized, tail)) return WritePlan.NoChange
         Id3Tags.editRefusal(prefix, normalized)?.let { return WritePlan.Refused(it) }
-        val update = Id3Tags.buildUpdate(prefix, normalized)
+        val update = Id3Tags.buildUpdate(prefix, normalized, tail = tail)
             ?: return WritePlan.Refused(Id3Tags.refusalOf(prefix)?.let { TagRefusal.of(it) } ?: TagRefusal.ID3_TAG_TOO_LARGE)
 
         val length = source.length
-        val tailSize = minOf(length, Id3v1.MAX_TRAILER_SIZE.toLong()).toInt()
-        val tail = source.read(length - tailSize, tailSize) ?: return WritePlan.Refused(TagRefusal.TRUNCATED)
         var trailer = Id3Tags.droppedTrailerLength(tail, normalized).toLong()
         // "TAG" 128 bytes from the end of a file that is almost all tag is a coincidence, not a trailer.
         if (length - trailer < update.replacedLength) trailer = 0
@@ -135,7 +143,7 @@ internal object Id3TagCodec : TagCodec {
 
     override fun inventory(source: RandomAccessSource): List<String> {
         val head = head(source) ?: return emptyList()
-        if (head.tagLength <= 0) return emptyList()
-        return Id3Tags.readFields(head.prefix)?.unmanaged.orEmpty()
+        val tail = tail(source, head) ?: return emptyList()
+        return Id3Tags.readFields(head.prefix, tail)?.unmanaged.orEmpty()
     }
 }

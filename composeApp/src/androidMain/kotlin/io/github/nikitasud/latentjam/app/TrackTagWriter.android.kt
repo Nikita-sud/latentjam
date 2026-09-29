@@ -187,11 +187,10 @@ private fun planRewrite(channel: FileChannel, edits: TagEdits): Plan {
     val prefixLength = minOf(size, maxOf(tagLength, CONTAINER_PROBE_BYTES).toLong()).toInt()
     val prefix = readAt(channel, 0, prefixLength)
 
-    val update = Id3Tags.buildUpdate(prefix, edits)
-        ?: return Plan.Refused(Id3Tags.refusalOf(prefix))
-
-    val tailLength = minOf(size, Id3v1.MAX_TRAILER_SIZE.toLong()).toInt()
+    val tailLength = minOf(maxOf(0, size - tagLength), Id3v1.MAX_TRAILER_SIZE.toLong()).toInt()
     val tail = readAt(channel, size - tailLength, tailLength)
+    val update = Id3Tags.buildUpdate(prefix, edits, tail = tail)
+        ?: return Plan.Refused(Id3Tags.refusalOf(prefix))
     val trailer = Id3Tags.droppedTrailerLength(tail, edits).toLong()
         // A trailer reaching back into the tag just built is a coincidence, not
         // a trailer. Matches what the whole-file path does with the same case.

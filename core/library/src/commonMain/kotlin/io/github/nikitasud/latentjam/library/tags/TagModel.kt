@@ -90,6 +90,9 @@ public enum class TagRefusal {
     ID3_NOT_TAGGABLE,
     ID3_TAG_TOO_LARGE,
 
+    /** TAG+ fields or an oversized trailer stack cannot yet be migrated without data loss. */
+    ID3_UNSUPPORTED_LEGACY_TAG,
+
     /** An ID3v2 tag in front of FLAC, Ogg or MP4: two disagreeing tags would result. */
     ID3_BEFORE_OTHER_CONTAINER,
 
