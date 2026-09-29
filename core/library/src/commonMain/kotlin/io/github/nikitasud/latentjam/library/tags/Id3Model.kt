@@ -71,37 +71,6 @@ public enum class Id3Refusal {
     TAG_TOO_LARGE,
 }
 
-/**
- * The fields this writer understands, and what to do with each.
- *
- * `null` leaves the corresponding frame exactly as it is. A non-null value
- * replaces it, and the **empty string removes it** — that distinction is what
- * lets a UI tell "user did not touch this box" apart from "user cleared it".
- */
-public data class TagEdits(
-    /** TIT2. */
-    public val title: String? = null,
-    /** TPE1. */
-    public val artist: String? = null,
-    /** TALB. */
-    public val album: String? = null,
-    /** TCON, written as free text — no ID3v1 numeric genre references. */
-    public val genre: String? = null,
-    /**
-     * TDRC on ID3v2.4, TYER on ID3v2.3. Whichever of the two is not the target
-     * version's frame is removed, so a file never carries two disagreeing years.
-     *
-     * TYER is defined as exactly four characters, so on 2.3 a longer timestamp
-     * such as `2001-05-03` is narrowed to its leading `2001`. On 2.4 it is
-     * written whole.
-     */
-    public val year: String? = null,
-) {
-    /** True when applying these edits would change nothing. */
-    public val isEmpty: Boolean
-        get() = title == null && artist == null && album == null && genre == null && year == null
-}
-
 /** A read-only view of the tag at the head of a file. */
 public class Id3TagInfo internal constructor(
     public val version: Id3Version,
