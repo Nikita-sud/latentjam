@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.library.tags.TextRepair
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
@@ -59,6 +60,24 @@ internal class LibraryCatalogTest {
             ),
         )
         assertEquals(2, catalog.albums.size)
+    }
+
+    @Test
+    fun mojibakeRepairedArtistNamesDoNotSplitAnAlbumInTwo() {
+        // MediaStore delivers these verbatim: one row's artist tag was UTF-8
+        // read correctly, the other's identical UTF-8 bytes were decoded as
+        // Latin-1. Unrepaired, that is two different artist strings and the
+        // album splits in two (issue #7); repaired through the same helper
+        // the Android path uses, both read "Grüße" and the album is one.
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", title = "A", artist = TextRepair.repair("Grüße"), album = "Live"),
+                track("2", title = "B", artist = TextRepair.repair("GrÃ¼ÃŸe"), album = "Live"),
+            ),
+        )
+
+        assertEquals(1, catalog.albums.size)
+        assertContentEquals(listOf("A", "B"), catalog.albums.single().tracks.map { it.title })
     }
 
     @Test

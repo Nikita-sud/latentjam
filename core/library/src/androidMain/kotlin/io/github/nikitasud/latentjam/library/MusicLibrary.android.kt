@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.library
 import android.content.ContentUris
 import android.content.Context
 import android.provider.MediaStore
+import io.github.nikitasud.latentjam.library.tags.TextRepair
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.Dispatchers
@@ -122,10 +123,10 @@ internal class MediaStoreMusicLibrary(
                 }
                 tracks += TrackDescriptor(
                     id = TrackId(id.toString()),
-                    title = cursor.getString(titleColumn).knownOrNull(),
-                    artist = cursor.getString(artistColumn).knownOrNull(),
-                    album = cursor.getString(albumColumn).knownOrNull(),
-                    genre = if (genreColumn >= 0) cursor.getString(genreColumn).knownOrNull() else null,
+                    title = cursor.getString(titleColumn).knownTagOrNull(),
+                    artist = cursor.getString(artistColumn).knownTagOrNull(),
+                    album = cursor.getString(albumColumn).knownTagOrNull(),
+                    genre = if (genreColumn >= 0) cursor.getString(genreColumn).knownTagOrNull() else null,
                     durationMs = cursor.getLong(durationColumn).takeIf { it > 0 },
                     audioUri = ContentUris
                         .withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
@@ -295,6 +296,17 @@ internal class MediaStoreMusicLibrary(
     /** MediaStore reports missing tags as the literal string "<unknown>". */
     private fun String?.knownOrNull(): String? =
         this?.takeIf { it.isNotBlank() && it != MediaStore.UNKNOWN_STRING }
+
+    /**
+     * As [knownOrNull], plus mojibake repair.
+     *
+     * MediaStore's title/artist/album/genre columns are UTF-8 bytes read back
+     * as if they were Latin-1 whenever the underlying tag reader on the
+     * device made that mistake, so "üß" comes back as "Ã¼ÃŸ". File names are
+     * deliberately left to [knownOrNull] alone: they are not tag text, and
+     * "repairing" one could point at the wrong file.
+     */
+    private fun String?.knownTagOrNull(): String? = knownOrNull()?.let(TextRepair::repair)
 
     private companion object {
         /** Base of the classic per-album artwork content URIs. */

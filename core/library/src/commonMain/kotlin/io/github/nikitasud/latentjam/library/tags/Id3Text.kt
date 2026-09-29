@@ -35,7 +35,7 @@ internal object Id3Text {
     fun decode(encoding: Int, bytes: ByteArray, from: Int, to: Int): String? {
         if (from >= to) return ""
         return when (encoding) {
-            ISO_8859_1 -> decodeLatin1(bytes, from, to)
+            ISO_8859_1 -> decodeIso8859_1(bytes, from, to)
             UTF_16_WITH_BOM -> decodeUtf16WithBom(bytes, from, to)
             UTF_16BE -> decodeUtf16(bytes, from, to, bigEndian = true)
             // throwOnInvalidSequence = false: a mangled byte becomes U+FFFD.
@@ -121,6 +121,30 @@ internal object Id3Text {
             if (b == 0xFF.toByte() && i < to && bytes[i] == 0.toByte()) i++
         }
         return if (n == out.size) out else out.copyOf(n)
+    }
+
+    /**
+     * Decodes an encoding-0 frame body.
+     *
+     * ID3v2 defines encoding 0 as ISO-8859-1, but plenty of writers (and
+     * MediaStore, for the same tags read a second way) store UTF-8 bytes
+     * under that encoding byte instead. A byte ≥ 0x80 that also decodes as
+     * strict UTF-8 almost certainly is UTF-8 — genuine Latin-1 text with a
+     * high byte practically never also happens to be well-formed UTF-8 — so
+     * that reading wins; otherwise the bytes are decoded as Latin-1 as usual.
+     */
+    private fun decodeIso8859_1(bytes: ByteArray, from: Int, to: Int): String {
+        var hasHighByte = false
+        for (i in from until to) {
+            if (bytes[i].toInt() and 0xFF >= 0x80) {
+                hasHighByte = true
+                break
+            }
+        }
+        if (hasHighByte) {
+            TextRepair.decodeUtf8Strict(bytes, from, to)?.let { return it }
+        }
+        return decodeLatin1(bytes, from, to)
     }
 
     private fun decodeLatin1(bytes: ByteArray, from: Int, to: Int): String {

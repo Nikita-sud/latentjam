@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.library.tags.TextRepair
 import io.github.nikitasud.latentjam.library.tags.cleanGenre
 import io.github.nikitasud.latentjam.library.tags.parseYear
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -563,7 +564,17 @@ internal class IosMusicLibrary : MusicLibrary {
         return fileUrl(target).absoluteString
     }
 
-    private fun String?.knownOrNull(): String? = this?.takeIf { it.isNotBlank() }
+    /**
+     * A tag-derived string, or null when it is missing.
+     *
+     * Also repairs mojibake: AVFoundation and MPMediaItem hand back whatever
+     * bytes the container declared, and a UTF-8 tag mislabelled as Latin-1
+     * reads back with "üß" turned into "Ã¼ÃŸ". Every call site here is text
+     * read from a tag (title, artist, album, genre, and the raw fallbacks in
+     * [rawString]/[firstString]) — never a file name or path — so repairing
+     * unconditionally is safe, and a no-op for text that was never mangled.
+     */
+    private fun String?.knownOrNull(): String? = this?.takeIf { it.isNotBlank() }?.let(TextRepair::repair)
 
     /**
      * Files.app exposes every audio-shaped download, including notification clips and effects.
