@@ -12,6 +12,12 @@ internal object Id3TagCodec : TagCodec {
     /** Bytes read past the tag, enough to see which container it fronts. */
     private const val AFTER_TAG = 16
 
+    /** How far past the tag the first audio frame may start; zero padding past a tag's end is common. */
+    private const val AUDIO_WINDOW = 4096
+
+    /** An ADTS header's fixed part, the longest header [Id3Tags.canPrependTag] looks at. */
+    private const val FRAME_HEADER = 7
+
     private class Head(val prefix: ByteArray, val tagLength: Int)
 
     override fun recognizes(head: ByteArray): Boolean =
@@ -81,6 +87,7 @@ internal object Id3TagCodec : TagCodec {
         refusal(head)?.let { return WritePlan.Refused(it) }
         val prefix = if (head.tagLength > 0) head.prefix.copyOf(head.tagLength) else head.prefix
         if (!Id3Tags.wouldChange(prefix, normalized)) return WritePlan.NoChange
+        Id3Tags.editRefusal(prefix, normalized)?.let { return WritePlan.Refused(it) }
         val update = Id3Tags.buildUpdate(prefix, normalized)
             ?: return WritePlan.Refused(Id3Tags.refusalOf(prefix)?.let { TagRefusal.of(it) } ?: TagRefusal.ID3_TAG_TOO_LARGE)
 
@@ -95,6 +102,9 @@ internal object Id3TagCodec : TagCodec {
             val old = source.read(0, update.replacedLength) ?: return WritePlan.Refused(TagRefusal.TRUNCATED)
             ByteDiff.patchOrNoChange(0, old, update.tag, update.tag.size + audioLength, length)
         } else {
+            // Moving what follows the tag is only safe for a raw MPEG or ADTS stream, which holds no
+            // absolute offsets; a container behind the tag (QuickTime, say) might.
+            if (!audioFollows(source, update.replacedLength.toLong())) return WritePlan.Refused(TagRefusal.ID3_UNKNOWN_AUDIO)
             WritePlan.StreamingRewrite(
                 listOf(
                     OutputSegment.Bytes(update.tag),
@@ -102,6 +112,15 @@ internal object Id3TagCodec : TagCodec {
                 ),
             )
         }
+    }
+
+    /** An MPEG audio or ADTS frame header at the first non-zero byte within [AUDIO_WINDOW] of [offset]. */
+    private fun audioFollows(source: RandomAccessSource, offset: Long): Boolean {
+        val count = minOf(source.length - offset, (AUDIO_WINDOW + FRAME_HEADER).toLong()).toInt()
+        if (count <= 0) return false
+        val window = source.read(offset, count) ?: return false
+        val first = window.indexOfFirst { it != 0.toByte() }
+        return first in 0 until AUDIO_WINDOW && Id3Tags.canPrependTag(window.copyOfRange(first, window.size))
     }
 
     override fun audioDigest(source: RandomAccessSource): Long? {

@@ -47,7 +47,7 @@ public data class TagEdits(
             albumArtist == null && trackNumber == null && trackTotal == null &&
             discNumber == null && discTotal == null && lyrics == null && cover == CoverEdit.Keep
 
-    /** Every number field is absent, empty (remove), or plain digits from 1 to 9999. */
+    /** Every number field is absent, empty (remove), or plain digits from 1 to 999. */
     public val numbersAreValid: Boolean
         get() = listOf(trackNumber, trackTotal, discNumber, discTotal)
             .all { it == null || it.isEmpty() || TagNumbers.strict(it) != null }
@@ -110,8 +110,21 @@ public enum class TagRefusal {
     MP4_MALFORMED_ATOMS,
     MP4_TAGS_TOO_LARGE,
 
-    /** A number field was not plain digits 1–9999. */
+    /** A number field was not plain digits 1–999. */
     INVALID_NUMBER,
+
+    /**
+     * Only a total was edited, but the file's number beside it is one no reader takes as a number
+     * (a vinyl side such as "A1", or one past 999). ID3 keeps both in one frame, so writing the
+     * total would erase that position.
+     */
+    UNREADABLE_NUMBER,
+
+    /**
+     * What follows the ID3v2 tag is not recognisably MPEG audio or ADTS, and the edit would move
+     * it: a container behind the tag may hold absolute offsets that moving would break.
+     */
+    ID3_UNKNOWN_AUDIO,
 
     /**
      * A write plan broke its own invariants (a transform changed its segment's length). A codec
@@ -272,9 +285,13 @@ public data class TagSnapshot(
 }
 
 internal object TagNumbers {
-    /** Plain digits from 1 to 9999; anything else is not a number a tag should hold. */
+    /**
+     * Plain digits from 1 to 999; anything else is not a number a tag should hold. The cap is the
+     * readers' ([io.github.nikitasud.latentjam.library.TrackNumbers]) and MediaStore's disc×1000+track:
+     * a larger number would be written and then read back as none.
+     */
     fun strict(value: String): Int? =
-        value.takeIf { it.length in 1..4 && it.all { c -> c in '0'..'9' } }?.toInt()?.takeIf { it > 0 }
+        value.takeIf { it.length in 1..3 && it.all { c -> c in '0'..'9' } }?.toInt()?.takeIf { it > 0 }
 }
 
 internal object CreditedArtists {

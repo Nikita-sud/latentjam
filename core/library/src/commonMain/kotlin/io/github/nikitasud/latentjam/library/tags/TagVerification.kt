@@ -12,6 +12,9 @@ package io.github.nikitasud.latentjam.library.tags
  */
 public object TagVerification {
 
+    /** Inventory entries that belong to the lyrics: removing the lyrics removes every one of them. */
+    internal const val LYRICS_ENTRY: String = "lyrics:"
+
     public enum class Check {
         /** The file was not editable to begin with; nothing written to it can verify. */
         EDITABLE,
@@ -70,6 +73,6 @@ public object TagVerification {
     public fun audioMatches(before: Long?, after: Long?): Boolean = before != null && before == after
 
     /** The inventory a correct write of [edits] leaves behind a file whose inventory was [before]. */
-    @Suppress("UNUSED_PARAMETER")
-    public fun expectedInventory(before: List<String>, edits: TagEdits): List<String> = before
+    public fun expectedInventory(before: List<String>, edits: TagEdits): List<String> =
+        if (edits.normalized().lyrics == "") before.filterNot { it.startsWith(LYRICS_ENTRY) } else before
 }

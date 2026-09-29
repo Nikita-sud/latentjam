@@ -47,7 +47,10 @@ internal class TagModelTest {
 
     @Test
     fun numbersMustBePlainPositiveDigits() {
-        assertTrue(TagEdits(trackNumber = "3", trackTotal = "", discNumber = "9999").numbersAreValid)
+        assertTrue(TagEdits(trackNumber = "3", trackTotal = "", discNumber = "999").numbersAreValid)
+        // Readers take nothing past 999 as a number (TrackNumbers), so writing it could never verify.
+        assertFalse(TagEdits(trackNumber = "1000").numbersAreValid)
+        assertFalse(TagEdits(discTotal = "9999").numbersAreValid)
         assertFalse(TagEdits(trackNumber = "0").numbersAreValid)
         assertFalse(TagEdits(trackNumber = "3/12").numbersAreValid)
         assertFalse(TagEdits(discTotal = "12345").numbersAreValid)

@@ -162,7 +162,11 @@ public object Id3Tags {
                 frame.id in managedIds || frame.id == FRAME_PICTURE || index == lyricsTarget?.index ||
                     isArtistsFrame(version, frame)
             }
-            .map { (_, frame) -> "${frame.id}:${Crc32.of(frame.body)}" }
+            // Lyrics frames besides the one the editor shows go when the lyrics are removed.
+            .map { (_, frame) ->
+                val entry = "${frame.id}:${Crc32.of(frame.body)}"
+                if (frame.id == FRAME_LYRICS) TagVerification.LYRICS_ENTRY + entry else entry
+            }
         val year = when (version) {
             Id3Version.V2_4 -> textIn(version, frames, FRAME_YEAR_V24) ?: textIn(version, frames, FRAME_YEAR_V23)
             Id3Version.V2_3 -> textIn(version, frames, FRAME_YEAR_V23) ?: textIn(version, frames, FRAME_YEAR_V24)
@@ -276,6 +280,8 @@ public object Id3Tags {
                 // Besides being cheaper, this preserves optional extended headers,
                 // footers, non-canonical frame-size encodings, and every padding byte.
                 Id3TagUpdate(prefix.copyOfRange(0, tag.totalLength), tag.totalLength)
+            } else if (erasesUnreadableNumber(tag.version, tag.frames, edits)) {
+                null
             } else {
                 val frames = applyEdits(tag.version, tag.frames, edits)
                 val needed = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames)
@@ -380,6 +386,9 @@ public object Id3Tags {
     /**
      * The "n/total" text for TRCK/TPOS: null leaves the frame alone, "" removes it. Each half can
      * change alone; without a number there is nothing for a total to belong to, so the frame goes.
+     * A pair that already reads as the requested numbers ("03/09" for 3 and 9) is kept as written.
+     * Callers refuse first when a total alone would erase an unreadable number (see
+     * [erasesUnreadableNumber]).
      */
     internal fun composeNumber(current: String?, number: String?, total: String?): String? {
         if (number == null && total == null) return null
@@ -388,10 +397,32 @@ public object Id3Tags {
         val n = if (number == null) currentNumber else TagNumbers.strict(number)
         val t = if (total == null) currentTotal else TagNumbers.strict(total)
         return when {
+            current != null && n != null && n == currentNumber && t == currentTotal -> current
             n == null -> ""
             t == null -> "$n"
             else -> "$n/$t"
         }
+    }
+
+    /**
+     * True when [edits] change a total but not its number, and the number in the same TRCK/TPOS frame
+     * is text no reader takes as one ("A1", or past 999): [composeNumber] would erase it.
+     */
+    private fun erasesUnreadableNumber(version: Id3Version, frames: List<Id3RawFrame>, edits: TagEdits): Boolean =
+        erasesUnreadableNumber(textIn(version, frames, FRAME_TRACK), edits.trackNumber, edits.trackTotal) ||
+            erasesUnreadableNumber(textIn(version, frames, FRAME_DISC), edits.discNumber, edits.discTotal)
+
+    private fun erasesUnreadableNumber(current: String?, number: String?, total: String?): Boolean {
+        if (number != null || total == null || current == null) return false
+        val written = current.substringBefore('/').trim()
+        // Blank and zero are no number at all; there is nothing to lose.
+        return written.any { it != '0' } && TrackNumbers.parse(current) == null
+    }
+
+    /** Why [edits] cannot be applied to the tag in [prefix] although the tag itself is fine; null when they can. */
+    internal fun editRefusal(prefix: ByteArray, edits: TagEdits): TagRefusal? {
+        val tag = (Id3Codec.parse(prefix) as? Id3Parse.Parsed)?.tag ?: return null
+        return TagRefusal.UNREADABLE_NUMBER.takeIf { erasesUnreadableNumber(tag.version, tag.frames, edits) }
     }
 
     /** Rewrites `TXXX:ARTISTS` from a new display credit — only when the file already has one. */
@@ -457,7 +488,8 @@ public object Id3Tags {
 
     /**
      * Replaces the lyrics frame [lyrics] reads (the first non-blank USLT, else the first USLT),
-     * keeping its language and descriptor. Other-language frames stay. "" removes that one frame.
+     * keeping its language and descriptor. Other-language frames stay. "" removes every USLT: "no
+     * lyrics" means none, not another language's frame taking the removed one's place.
      *
      * A target that already holds exactly [lyrics] is left byte for byte as it is — a UTF-16
      * frame is not rewritten as Latin-1 just because the user saved without changing the words.
@@ -466,9 +498,7 @@ public object Id3Tags {
         val candidates = frames.withIndex().filter { it.value.id == FRAME_LYRICS }
         val target = candidates.firstOrNull { lyricsParts(version, it.value)?.text?.isNotBlank() == true }
             ?: candidates.firstOrNull()
-        if (lyrics.isEmpty()) {
-            return if (target == null) frames else frames.filterIndexed { index, _ -> index != target.index }
-        }
+        if (lyrics.isEmpty()) return frames.filter { it.id != FRAME_LYRICS }
         val parts = target?.let { lyricsParts(version, it.value) }
         if (parts != null && parts.text.trim() == lyrics) return frames
         val language = parts?.language ?: "XXX"

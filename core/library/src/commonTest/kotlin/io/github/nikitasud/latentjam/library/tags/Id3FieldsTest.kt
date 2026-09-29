@@ -88,11 +88,32 @@ internal class Id3FieldsTest {
     }
 
     @Test
-    fun removingLyricsRemovesOnlyTheReadableFrame() {
+    fun removingLyricsRemovesEveryLyricsFrame() {
+        // "No lyrics" means none: another language's frame must not take the removed one's place.
         val out = edit(file(3, uslt("eng", "", "Words"), uslt("deu", "", "Wörter")), TagEdits(lyrics = ""))
-        val frames = Id3TestTags.framesOf(out).filter { it.id == "USLT" }
-        assertEquals(1, frames.size)
-        assertEquals("Wörter", fields(out).lyrics)
+        assertEquals(0, Id3TestTags.framesOf(out).count { it.id == "USLT" })
+        assertNull(fields(out).lyrics)
+    }
+
+    @Test
+    fun aTotalAloneIsNotWrittenOverANumberThatCannotBeRead() {
+        for (position in listOf("A1", "B2/12", "1200/1300")) {
+            val base = file(3, TestFrame("TRCK", latin1Body(position)), TestFrame("TPOS", latin1Body(position)))
+            assertNull(updateId3Tag(base, TagEdits(trackTotal = "12")), position)
+            assertNull(updateId3Tag(base, TagEdits(discTotal = "")), position)
+            // Replacing the number itself is a deliberate choice, and allowed.
+            assertEquals("5/12", fields(edit(base, TagEdits(trackNumber = "5", trackTotal = "12"))).track)
+        }
+        // Zero is no number at all: a total may join it.
+        assertEquals(null, fields(edit(file(3, TestFrame("TRCK", latin1Body("0"))), TagEdits(trackTotal = "12"))).track)
+    }
+
+    @Test
+    fun restatingAZeroPaddedNumberWritesNothing() {
+        val base = file(3, TestFrame("TRCK", latin1Body("03/09")))
+        assertContentEquals(base, edit(base, TagEdits(trackNumber = "3")))
+        assertContentEquals(base, edit(base, TagEdits(trackNumber = "3", trackTotal = "9")))
+        assertEquals("4/9", fields(edit(base, TagEdits(trackNumber = "4"))).track)
     }
 
     @Test

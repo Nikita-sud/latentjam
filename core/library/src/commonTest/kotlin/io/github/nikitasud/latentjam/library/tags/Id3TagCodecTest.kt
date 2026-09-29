@@ -130,6 +130,56 @@ internal class Id3TagCodecTest {
     }
 
     @Test
+    fun aTotalAloneOverAnUnreadableNumberIsRefusedNotErased() {
+        val vinyl = Id3TestTags.build(3, listOf(TestFrame("TRCK", latin1Body("A1"))), padding = 512) + mp3Payload()
+        assertEquals(
+            TagRefusal.UNREADABLE_NUMBER,
+            (codec.plan(ByteArraySource(vinyl), TagEdits(trackTotal = "12")) as WritePlan.Refused).reason,
+        )
+        assertEquals(
+            TagRefusal.INVALID_NUMBER,
+            (codec.plan(ByteArraySource(tagged()), TagEdits(trackTotal = "1000")) as WritePlan.Refused).reason,
+        )
+        CodecAssertions.assertWriteMatchesExpectation(codec, vinyl, TagEdits(trackNumber = "1", trackTotal = "12"))
+    }
+
+    @Test
+    fun removingLyricsLeavesNoOtherLanguageBehind() {
+        fun uslt(language: String, text: String) =
+            TestFrame("USLT", byteArrayOf(0) + language.encodeToByteArray() + byteArrayOf(0) + text.encodeToByteArray())
+        val file = Id3TestTags.build(3, listOf(uslt("eng", "Words"), commentFrame("keep"), uslt("deu", "Worte")), padding = 256) +
+            mp3Payload()
+        val out = CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(lyrics = ""))
+        assertEquals(null, codec.read(ByteArraySource(out)).lyrics)
+        // Another edit keeps the other language's frame, and verification still pins it.
+        CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(lyrics = "New words"))
+    }
+
+    @Test
+    fun restatingAZeroPaddedTrackWritesNothing() {
+        val file = Id3TestTags.build(3, listOf(TestFrame("TRCK", latin1Body("03/12")))) + mp3Payload()
+        assertIs<WritePlan.NoChange>(codec.plan(ByteArraySource(file), TagEdits(trackNumber = "3", trackTotal = "12")))
+    }
+
+    @Test
+    fun aGrowingTagIsNotWrittenInFrontOfAnUnknownContainer() {
+        val quickTime = Id3TestTags.build(3, listOf(TestFrame("TIT2", latin1Body("t"))), padding = 64) +
+            Mp4Fixtures.leaf("wide", ByteArray(0)) + Mp4Fixtures.leaf("mdat", ByteArray(2000) { 7 })
+        // A small edit stays inside the tag: the bytes after it are never touched.
+        CodecAssertions.assertWriteMatchesExpectation(codec, quickTime, TagEdits(title = "x"))
+        val plan = codec.plan(ByteArraySource(quickTime), TagEdits(lyrics = "x".repeat(5000)))
+        assertEquals(TagRefusal.ID3_UNKNOWN_AUDIO, (plan as WritePlan.Refused).reason)
+    }
+
+    @Test
+    fun zerosPastTheTagBeforeTheFirstFrameStillCountAsMpeg() {
+        val file = Id3TestTags.build(3, listOf(TestFrame("TIT2", latin1Body("t")))) + ByteArray(700) + mp3Payload()
+        val edits = TagEdits(lyrics = "x".repeat(5000))
+        assertIs<WritePlan.StreamingRewrite>(codec.plan(ByteArraySource(file), edits))
+        CodecAssertions.assertWriteMatchesExpectation(codec, file, edits)
+    }
+
+    @Test
     fun id3InFrontOfFlacIsRefused() {
         val file = Id3TestTags.build(3, listOf(TestFrame("TIT2", latin1Body("t")))) + "fLaC".encodeToByteArray() + ByteArray(100)
         assertEquals(TagRefusal.ID3_BEFORE_OTHER_CONTAINER, codec.read(ByteArraySource(file)).refusal)
