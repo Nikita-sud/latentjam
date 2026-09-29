@@ -143,14 +143,22 @@ public object Id3v1 {
         if (genre != 255) text("TCON", GenreTags.split("($genre)").joinToString("; ").ifEmpty { "($genre)" })
         val hasTrack = tail[start + 125] == 0.toByte() && tail[start + 126] != 0.toByte()
         if (hasTrack) text("TRCK", (tail[start + 126].toInt() and 0xff).toString())
-        val comment = field(97, if (hasTrack) 28 else 30)
+        val commentWidth = if (hasTrack) 28 else 30
+        val comment = field(97, commentWidth)
         // Taggers that write both tags copy the comment into each, and the v1 copy is the v2 one
         // cut to 28 or 30 characters. Measured on a real library, every trailer comment a rewrite
         // would have carried over was such a copy, so adding it made a second, shorter comment
         // appear beside the one the file already had. [field] has already trimmed the trailing
         // spaces and NULs that pad the fixed-width field.
-        val alreadyHeld = comment.isNotEmpty() &&
-            Id3Tags.commentTexts(version, frames).any { it.trimEnd(' ', '\u0000').startsWith(comment) }
+        //
+        // Only a comment that reaches the field's width can have been cut, though. A shorter one
+        // that merely begins the v2 comment ("Great" beside "Great album") is a comment of its
+        // own, and the trailer holding it is about to be removed: it must be carried over.
+        val cut = reachesWidth(tail, start + 97, commentWidth)
+        val alreadyHeld = comment.isNotEmpty() && Id3Tags.commentTexts(version, frames).any {
+            val held = it.trimEnd(' ', '\u0000')
+            held == comment || (cut && held.startsWith(comment))
+        }
         if (comment.isNotEmpty() && !alreadyHeld) {
             // All v1 bytes are Latin-1. A separate description preserves a legacy comment
             // alongside any existing v2 comment without replacing it.
@@ -160,6 +168,18 @@ public object Id3v1 {
             result += Id3RawFrame("COMM", byteArrayOf(0, 0), body)
         }
         return result
+    }
+
+    /**
+     * True when the field `bytes[from, from + width)` holds text up to its last byte — or up to
+     * the one before it, since a cut that lands on a space leaves a space that trimming removes.
+     * The text ends at the first NUL, as [migrate] reads it, and trailing spaces are padding.
+     */
+    private fun reachesWidth(bytes: ByteArray, from: Int, width: Int): Boolean {
+        var end = from
+        while (end < from + width && bytes[end] != 0.toByte()) end++
+        while (end > from && bytes[end - 1] == ' '.code.toByte()) end--
+        return end - from >= width - 1
     }
 
     private fun startsWith(data: ByteArray, at: Int, text: String): Boolean {

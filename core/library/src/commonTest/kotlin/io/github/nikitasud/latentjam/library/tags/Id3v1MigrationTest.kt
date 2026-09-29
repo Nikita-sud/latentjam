@@ -72,6 +72,7 @@ internal class Id3v1MigrationTest {
     @Test
     fun aV1CommentTheV2TagAlreadyHoldsIsNotAddedTwice() {
         val long = "Ripped from the original vinyl pressing, 1987"
+        val spaced = "abcdefghij abcdefghij abcdefg and more"
         for (major in listOf(3, 4)) {
             // Equal, truncated to 30 (no track) and to 28 (track byte set), and space-padded.
             val cases = listOf(
@@ -79,6 +80,8 @@ internal class Id3v1MigrationTest {
                 commented(major, Id3TestTags.commentFrame(long), long.take(30)),
                 commented(major, Id3TestTags.commentFrame(long), long.take(28), track = 5),
                 commented(major, Id3TestTags.commentFrame("1"), "1                             "),
+                // The cut lands on a space, which trimming takes off: 29 characters, still a cut.
+                commented(major, Id3TestTags.commentFrame(spaced), spaced.take(30)),
                 commented(major, utf16Comment("Caf\u00e9 del Mar, the long mix"), "Caf\u00e9 del Mar, the long mix"),
             )
             for ((i, original) in cases.withIndex()) {
@@ -87,6 +90,17 @@ internal class Id3v1MigrationTest {
                 assertEquals(1, comments(edited), "case $i keeps one comment (v2.$major)")
                 assertEquals(0, Id3v1.trailerLength(edited))
             }
+        }
+    }
+
+    @Test
+    fun aShortV1CommentThatOnlyBeginsTheV2OneIsADifferentCommentAndSurvives() {
+        // "Great" was not cut from "Great album": it ends well before the field's width, so it is
+        // its own comment, and the trailer holding it is about to be removed.
+        for (legacy in listOf("Great", "Ripped from the original")) {
+            val original = commented(3, Id3TestTags.commentFrame("$legacy album, remastered"), legacy)
+            val edited = CodecAssertions.assertWriteMatchesExpectation(Id3TagCodec, original, TagEdits(title = "New"))
+            assertEquals(2, comments(edited), legacy)
         }
     }
 
