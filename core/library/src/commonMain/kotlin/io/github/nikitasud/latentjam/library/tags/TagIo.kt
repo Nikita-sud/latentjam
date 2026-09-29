@@ -19,7 +19,7 @@ public class ByteArraySource(private val bytes: ByteArray) : RandomAccessSource 
     override val length: Long get() = bytes.size.toLong()
 
     override fun read(offset: Long, count: Int): ByteArray? {
-        if (offset < 0 || count < 0 || offset + count > bytes.size) return null
+        if (offset < 0 || offset > bytes.size || count < 0 || count > bytes.size - offset) return null
         return bytes.copyOfRange(offset.toInt(), offset.toInt() + count)
     }
 }

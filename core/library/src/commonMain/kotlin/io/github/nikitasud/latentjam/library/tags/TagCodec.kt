@@ -45,6 +45,7 @@ internal object EditChecks {
 internal object Digests {
     /** CRC-32 of [length] bytes at [offset], read in chunks; null when the range is not readable. */
     fun crc32(source: RandomAccessSource, offset: Long, length: Long): Long? {
+        if (offset < 0 || length < 0 || offset > source.length || length > source.length - offset) return null
         val crc = Crc32()
         var position = offset
         val end = offset + length

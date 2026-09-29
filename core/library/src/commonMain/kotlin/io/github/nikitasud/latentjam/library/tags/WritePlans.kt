@@ -53,6 +53,9 @@ public object WritePlans {
     }
 
     private inline fun copy(source: RandomAccessSource, offset: Long, length: Long, emit: (ByteArray) -> Unit) {
+        if (offset < 0 || length < 0 || offset > source.length || length > source.length - offset) {
+            throw StreamRefusedException(TagRefusal.TRUNCATED)
+        }
         var position = offset
         val end = offset + length
         while (position < end) {
