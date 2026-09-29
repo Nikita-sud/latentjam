@@ -86,7 +86,9 @@ internal class LyricsSearchCache(private val clock: TimeSource = TimeSource.Mono
             cache[track.id.value]?.document?.let { track.id to it }
         }.toMap()
         publish(snapshot())
-        reading(false)
+        // Songs already known to need a read keep "Loading" on through the sidecar check before it,
+        // rather than flashing "No matches" for its length.
+        reading(songs.any { it.id.value !in cache })
         suspend fun fingerprints(of: List<TrackDescriptor>): Map<TrackId, String>? = try {
             sidecarFingerprints(of)
         } catch (cancelled: CancellationException) {

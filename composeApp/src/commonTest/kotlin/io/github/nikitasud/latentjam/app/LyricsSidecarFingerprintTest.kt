@@ -177,6 +177,15 @@ internal class LyricsSidecarFingerprintTest {
     }
 
     @Test
+    fun songsNotYetReadKeepIndexingOnThroughTheFingerprintPass() = runTest {
+        val disk = Disk(songs())
+        disk.open()
+        // A cold index never reports "not reading" before its first read: that would flash "No matches".
+        assertEquals(listOf("reading true", "fingerprints 4"), disk.events.drop(1).take(2))
+        assertEquals(disk.events.indexOf("reading false"), disk.events.lastIndex)
+    }
+
+    @Test
     fun aRecentFingerprintPassIsNotRepeatedOnTheNextOpen() = runTest {
         val disk = Disk(songs())
         val cache = disk.newLaunch()
