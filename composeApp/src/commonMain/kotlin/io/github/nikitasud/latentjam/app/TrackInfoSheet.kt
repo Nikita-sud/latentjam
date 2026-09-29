@@ -114,7 +114,8 @@ internal fun TrackInfoSheet(
     var failure by remember(track.id) { mutableStateOf<TagWriteOutcome?>(null) }
     var lyrics by remember(lyricsSource) { mutableStateOf<String?>(null) }
     val readLyrics = rememberLyricsReader()
-    LaunchedEffect(lyricsSource) {
+    val lyricsSources = rememberLyricsSourcesRevision()
+    LaunchedEffect(lyricsSource, lyricsSources) {
         lyrics = null
         lyrics = readLyrics(track)?.text
     }

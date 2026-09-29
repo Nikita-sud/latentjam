@@ -298,6 +298,8 @@ fun NowPlayingScreen(
     var showSleepTimer by remember { mutableStateOf(false) }
     val currentTrack = now.track
     val lyricsSource = currentTrack?.lyricsSourceIdentity()
+    // A folder granted for .lrc files while the player stays open can give this song lyrics.
+    val lyricsSources = rememberLyricsSourcesRevision()
     val readLyrics = rememberLyricsReader()
     var lyrics by remember(lyricsSource) { mutableStateOf<Lyrics?>(null) }
     var lyricsReadComplete by remember(lyricsSource) { mutableStateOf(false) }
@@ -345,7 +347,7 @@ fun NowPlayingScreen(
     // them once it has settled: a bounded off-main read, delayed past rapid skipping so a run
     // through the queue does not read a tag for every stop on the way. Until the probe answers
     // the button is simply absent, and a song without lyrics never shows it at all.
-    LaunchedEffect(lyricsSource) {
+    LaunchedEffect(lyricsSource, lyricsSources) {
         val track = currentTrack ?: return@LaunchedEffect
         delay(LYRICS_PROBE_DELAY_MS)
         lyrics = readLyrics(track)?.takeIf { read -> read.lines.any { it.text.isNotBlank() } }
