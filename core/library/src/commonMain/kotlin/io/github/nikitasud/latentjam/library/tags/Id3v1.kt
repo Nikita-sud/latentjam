@@ -123,12 +123,12 @@ public object Id3v1 {
         if (!canMigrate(tail)) return null
         if (trailerLength(tail) == 0) return frames
         val start = tail.size - TRAILER_SIZE
-        fun field(offset: Int, size: Int): String = buildString {
-            for (i in start + offset until start + offset + size) {
-                if (tail[i] == 0.toByte()) break
-                append((tail[i].toInt() and 0xff).toChar())
-            }
-        }.trimEnd()
+        fun field(offset: Int, size: Int): String {
+            val from = start + offset
+            var end = from
+            while (end < from + size && tail[end] != 0.toByte()) end++
+            return decodeField(tail, from, end, filled = end == from + size).trimEnd()
+        }
         val result = frames.toMutableList()
         fun text(id: String, value: String, aliases: Set<String> = setOf(id)) {
             if (value.isNotEmpty() && frames.none { it.id in aliases }) {
@@ -160,12 +160,10 @@ public object Id3v1 {
             held == comment || (cut && held.startsWith(comment))
         }
         if (comment.isNotEmpty() && !alreadyHeld) {
-            // All v1 bytes are Latin-1. A separate description preserves a legacy comment
-            // alongside any existing v2 comment without replacing it.
+            // A separate description preserves a legacy comment alongside any existing v2 comment
+            // without replacing it.
             val description = if (frames.any { it.id == "COMM" }) "ID3v1" else ""
-            val body = byteArrayOf(0) + "und".encodeToByteArray() + description.encodeToByteArray() + byteArrayOf(0) +
-                ByteArray(comment.length) { comment[it].code.toByte() }
-            result += Id3RawFrame("COMM", byteArrayOf(0, 0), body)
+            result += Id3Tags.commentFrame(version, "und", description, comment)
         }
         return result
     }
@@ -180,6 +178,52 @@ public object Id3v1 {
         while (end < from + width && bytes[end] != 0.toByte()) end++
         while (end > from && bytes[end - 1] == ' '.code.toByte()) end--
         return end - from >= width - 1
+    }
+
+    /**
+     * One fixed-width field, `bytes[from, to)` with its NUL padding already cut off.
+     *
+     * The format says ISO-8859-1, but taggers that wrote UTF-8 into the v2 tag's encoding-0
+     * frames wrote it here too, so a field is read by the same rule as those frames (see
+     * [Id3Text.decode]): strict UTF-8 when its high bytes form it, else Latin-1. Reading
+     * "Grüße" stored as UTF-8 as Latin-1 would carry the mojibake "GrÃ¼ÃŸe" into the v2 tag,
+     * and since that string does not fit Latin-1 cleanly, it would be written out as Unicode:
+     * permanent, and no longer repairable by the encoding-0 reader.
+     *
+     * One case differs from a v2 frame, which has no width limit. UTF-8 spends two to four
+     * bytes per non-ASCII letter, so a field [filled] to its width is often cut inside the
+     * last letter, and strict decoding rejects the whole field for that one broken sequence.
+     * When dropping just that incomplete sequence leaves well-formed UTF-8 with a high byte,
+     * the letters before the cut are kept; the field was UTF-8, and the cut letter is lost
+     * either way.
+     */
+    private fun decodeField(bytes: ByteArray, from: Int, to: Int, filled: Boolean): String {
+        val whole = Id3Text.decode(Id3Text.ISO_8859_1, bytes, from, to) ?: ""
+        if (!filled) return whole
+        // A field ending inside a sequence cannot have decoded as UTF-8 whole, so [whole] is its
+        // Latin-1 reading here. Pure ASCII before the cut is no evidence of UTF-8: keep that.
+        val cut = incompleteUtf8Tail(bytes, from, to)
+        if (cut == to || (from until cut).none { bytes[it].toInt() and 0xFF >= 0x80 }) return whole
+        return TextRepair.decodeUtf8Strict(bytes, from, cut) ?: whole
+    }
+
+    /**
+     * Where a UTF-8 sequence that `bytes[from, to)` ends in the middle of begins, or [to] when
+     * the range does not end inside one.
+     */
+    private fun incompleteUtf8Tail(bytes: ByteArray, from: Int, to: Int): Int {
+        var lead = to - 1
+        // A sequence is at most four bytes, so at most three continuation bytes precede the cut.
+        while (lead >= from && lead > to - 4 && bytes[lead].toInt() and 0xC0 == 0x80) lead--
+        if (lead < from) return to
+        val b = bytes[lead].toInt() and 0xFF
+        val length = when (b) {
+            in 0xC2..0xDF -> 2
+            in 0xE0..0xEF -> 3
+            in 0xF0..0xF4 -> 4
+            else -> return to
+        }
+        return if (to - lead < length) lead else to
     }
 
     private fun startsWith(data: ByteArray, at: Int, text: String): Boolean {

@@ -534,6 +534,17 @@ public object Id3Tags {
     internal fun commentTexts(version: Id3Version, frames: List<Id3RawFrame>): List<String> =
         frames.filter { it.id == FRAME_COMMENT }.mapNotNull { lyricsParts(version, it)?.text }
 
+    /**
+     * A `COMM` frame holding [text], encoded as [chooseEncoding] picks for any other text, so a
+     * comment that is not plain Latin-1 reads back as itself.
+     */
+    internal fun commentFrame(version: Id3Version, language: String, description: String, text: String): Id3RawFrame {
+        val encoding = chooseEncoding(version, description, text)
+        val body = byteArrayOf(encoding.toByte()) + ByteArray(3) { language[it].code.toByte() } +
+            encodeText(encoding, description) + terminator(encoding) + encodeText(encoding, text)
+        return Id3RawFrame(FRAME_COMMENT, byteArrayOf(0, 0), body)
+    }
+
     private class LyricsParts(val language: String, val descriptor: String, val text: String)
 
     private fun lyricsParts(version: Id3Version, frame: Id3RawFrame): LyricsParts? {

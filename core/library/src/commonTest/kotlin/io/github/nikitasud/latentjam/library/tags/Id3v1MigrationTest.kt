@@ -111,6 +111,39 @@ internal class Id3v1MigrationTest {
         assertEquals(2, comments(edited))
     }
 
+    /** [text]'s UTF-8 bytes as one char per byte, which is how [Id3TestTags.v1Trailer] takes raw bytes. */
+    private fun utf8Bytes(text: String) = text.encodeToByteArray().joinToString("") { (it.toInt() and 0xFF).toChar().toString() }
+
+    @Test
+    fun aV1FieldStoredAsUtf8IsCarriedOverAsTheTextItSpells() {
+        for (major in listOf(3, 4)) {
+            val original = Id3TestTags.build(major, listOf(TestFrame("TIT2", latin1Body("Old"))), padding = 256) + mp3Payload() + Id3TestTags.v1Trailer(
+                artist = "Caf\u00e9 Tacvba",
+                album = utf8Bytes("Gr\u00fc\u00dfe"),
+                comment = utf8Bytes("\u0421\u043f\u043b\u0438\u043d"),
+            )
+            assertEquals("Gr\u00fc\u00dfe", read(original).album, "read before the edit (v2.$major)")
+            val edited = CodecAssertions.assertWriteMatchesExpectation(Id3TagCodec, original, TagEdits(title = "New"))
+            val fields = assertNotNull(Id3Tags.readFields(edited))
+            assertEquals("Gr\u00fc\u00dfe", fields.album, "v2.$major")
+            // A genuine Latin-1 field beside it keeps reading as Latin-1.
+            assertEquals("Caf\u00e9 Tacvba", fields.artist, "v2.$major")
+            val version = if (major == 3) Id3Version.V2_3 else Id3Version.V2_4
+            val tag = assertIs<Id3Parse.Parsed>(Id3Codec.parse(edited)).tag
+            assertEquals(listOf("\u0421\u043f\u043b\u0438\u043d"), Id3Tags.commentTexts(version, tag.frames), "v2.$major")
+        }
+    }
+
+    @Test
+    fun aUtf8V1FieldCutMidCharacterByTheThirtyByteWidthKeepsTheCharactersBeforeTheCut() {
+        // 15 two-byte letters fill 30 bytes exactly; 16 overflow, and the cut lands inside the last.
+        val cyrillic = "\u0410\u0431\u0432\u0433\u0434\u0435\u0436\u0437\u0438\u0439\u043a\u043b\u043c\u043d\u043e"
+        val truncatedBytes = utf8Bytes("x" + cyrillic).take(30)
+        val original = mp3Payload() + Id3TestTags.v1Trailer(title = truncatedBytes)
+        val edited = CodecAssertions.assertWriteMatchesExpectation(Id3TagCodec, original, TagEdits(artist = "New"))
+        assertEquals("x" + cyrillic.dropLast(1), assertNotNull(Id3Tags.readFields(edited)).title)
+    }
+
     @Test
     fun clearingALegacyOnlyFieldIsNotMistakenForANoOp() {
         val original = Id3TestTags.mp3Payload() + Id3TestTags.v1Trailer()
