@@ -33,3 +33,20 @@ public class Crc32 {
             Crc32().apply { update(bytes, offset, count) }.value
     }
 }
+
+/** The Ogg page checksum: polynomial 0x04C11DB7, initial value 0, no reflection, no final XOR. */
+internal object OggCrc {
+    private val TABLE = IntArray(256) { n ->
+        var r = n shl 24
+        repeat(8) { r = if (r and 0x80000000.toInt() != 0) (r shl 1) xor 0x04C11DB7 else r shl 1 }
+        r
+    }
+
+    fun compute(bytes: ByteArray, offset: Int = 0, count: Int = bytes.size - offset): Int {
+        var crc = 0
+        for (i in offset until offset + count) {
+            crc = (crc shl 8) xor TABLE[((crc ushr 24) xor (bytes[i].toInt() and 0xFF)) and 0xFF]
+        }
+        return crc
+    }
+}
