@@ -202,6 +202,23 @@ public data class LibraryCatalog(
                 .sortedWith(ALBUM_PLACE_ORDER)
                 .map { it.track }
 
+        /**
+         * The year an album came out: the year most of its [tracks] state, the earliest on a tie,
+         * null when none states one. A track's original year wins over its edition year, so a 2011
+         * remaster of a 1973 album sits in 1973 in a discography. A majority rather than the minimum
+         * keeps one bonus track tagged with its reissue year from moving the whole album.
+         *
+         * Sorting only: album cards still show a year solely when every track agrees on it.
+         */
+        public fun releaseYear(tracks: List<TrackDescriptor>): Int? =
+            tracks
+                .mapNotNull { it.originalYear ?: it.year }
+                .groupingBy { it }
+                .eachCount()
+                .entries
+                .minWithOrNull(compareByDescending<Map.Entry<Int, Int>> { it.value }.thenBy { it.key })
+                ?.key
+
         private class AlbumPlace(
             val track: TrackDescriptor,
             val unnumbered: Boolean,

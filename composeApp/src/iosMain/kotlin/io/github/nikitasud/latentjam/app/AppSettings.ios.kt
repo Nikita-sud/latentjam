@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.playback.sanitizeCrossfadeSeconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,6 +54,18 @@ internal class IosAppSettings : AppSettings {
         ),
     )
     override val crossfadeSeconds: StateFlow<Int> = mutableCrossfadeSeconds.asStateFlow()
+    private val mutableSongSort = MutableStateFlow(
+        songSortFromPersisted(defaults.objectForKey(KEY_SONG_SORT) as? String),
+    )
+    override val songSort: StateFlow<SortChoice<SongSort>> = mutableSongSort.asStateFlow()
+    private val mutableAlbumSort = MutableStateFlow(
+        albumSortFromPersisted(defaults.objectForKey(KEY_ALBUM_SORT) as? String),
+    )
+    override val albumSort: StateFlow<SortChoice<AlbumSort>> = mutableAlbumSort.asStateFlow()
+    private val mutableArtistAlbumSort = MutableStateFlow(
+        artistAlbumSortFromPersisted(defaults.objectForKey(KEY_ARTIST_ALBUM_SORT) as? String),
+    )
+    override val artistAlbumSort: StateFlow<SortChoice<AlbumSort>> = mutableArtistAlbumSort.asStateFlow()
     private val mutableSaveListeningHistory = MutableStateFlow(readRecordingPreference(KEY_SAVE_HISTORY))
     override val saveListeningHistory: StateFlow<Boolean> = mutableSaveListeningHistory.asStateFlow()
     private val mutableRememberSearches = MutableStateFlow(readRecordingPreference(KEY_REMEMBER_SEARCHES))
@@ -104,6 +118,22 @@ internal class IosAppSettings : AppSettings {
         val sanitized = sanitizeCrossfadeSeconds(seconds)
         defaults.setInteger(sanitized.toLong(), KEY_CROSSFADE_SECONDS)
         mutableCrossfadeSeconds.value = sanitized
+    }
+
+    override fun setSongSort(choice: SortChoice<SongSort>) {
+        defaults.setObject(encodeSortChoice(choice), KEY_SONG_SORT)
+        mutableSongSort.value = choice
+    }
+
+    override fun setAlbumSort(choice: SortChoice<AlbumSort>) {
+        defaults.setObject(encodeSortChoice(choice), KEY_ALBUM_SORT)
+        mutableAlbumSort.value = choice
+    }
+
+    override fun setArtistAlbumSort(choice: SortChoice<AlbumSort>) {
+        if (choice.sort !in ARTIST_ALBUM_SORTS) return
+        defaults.setObject(encodeSortChoice(choice), KEY_ARTIST_ALBUM_SORT)
+        mutableArtistAlbumSort.value = choice
     }
 
     override fun readTrackLoudnessPayload(): String? =
@@ -274,6 +304,9 @@ internal class IosAppSettings : AppSettings {
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
         const val KEY_NORMALIZE_VOLUME = "normalize_volume"
         const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
+        const val KEY_SONG_SORT = "song_sort"
+        const val KEY_ALBUM_SORT = "album_sort"
+        const val KEY_ARTIST_ALBUM_SORT = "artist_album_sort"
         const val KEY_TRACK_LOUDNESS = "track_loudness_v1"
         const val KEY_TRACK_GENRES = "track_genres_v1"
         const val KEY_DUPLICATE_DISMISSALS = "duplicate_dismissals_v1"

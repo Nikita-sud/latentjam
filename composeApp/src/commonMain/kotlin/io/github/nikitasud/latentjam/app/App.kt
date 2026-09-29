@@ -77,11 +77,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowDownward
-import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -103,7 +100,6 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -119,7 +115,6 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -203,8 +198,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_instrume
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_meme_viral
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_sound_effects
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_spoken_audio
-import io.github.nikitasud.latentjam.app.generated.resources.info_artist
-import io.github.nikitasud.latentjam.app.generated.resources.info_title
 import io.github.nikitasud.latentjam.app.generated.resources.library_empty
 import io.github.nikitasud.latentjam.app.generated.resources.library_import_action
 import io.github.nikitasud.latentjam.app.generated.resources.library_import_hint
@@ -237,9 +230,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.snack_track_include
 import io.github.nikitasud.latentjam.app.generated.resources.snack_removed_from_latentjam
 import io.github.nikitasud.latentjam.app.generated.resources.snack_hidden_tracks_restored
 import io.github.nikitasud.latentjam.app.generated.resources.snack_library_refreshed
-import io.github.nikitasud.latentjam.app.generated.resources.sort_direction_ascending
-import io.github.nikitasud.latentjam.app.generated.resources.sort_direction_descending
-import io.github.nikitasud.latentjam.app.generated.resources.sort_recently_added
 import io.github.nikitasud.latentjam.app.generated.resources.tab_albums
 import io.github.nikitasud.latentjam.app.generated.resources.tab_artists
 import io.github.nikitasud.latentjam.app.generated.resources.tab_for_you
@@ -259,6 +249,8 @@ import io.github.nikitasud.latentjam.history.epochMillis
 import io.github.nikitasud.latentjam.history.excludes
 import io.github.nikitasud.latentjam.history.excludesArtist
 import io.github.nikitasud.latentjam.library.AlbumGroup
+import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.AlbumSorting
 import io.github.nikitasud.latentjam.library.ArtistGroup
 import io.github.nikitasud.latentjam.library.AutoPlaylist
 import io.github.nikitasud.latentjam.library.AutoPlaylists
@@ -759,14 +751,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 selectionRevision++
             }
         }
-        var savedSongSort by rememberSaveable { mutableStateOf(SongSort.TITLE.name) }
-        val songSort = SongSort.entries.firstOrNull { it.name == savedSongSort } ?: SongSort.TITLE
-        var savedSongSortDirection by rememberSaveable {
-            mutableStateOf(songSort.defaultDirection.name)
-        }
-        val songSortDirection = SongSortDirection.entries
-            .firstOrNull { it.name == savedSongSortDirection }
-            ?: songSort.defaultDirection
+        // Sort choices live in settings, not saved instance state: a listener who sorted by year
+        // expects the list sorted by year after a cold start too.
+        val songSortChoice by settings.songSort.collectAsState()
+        val songSort = songSortChoice.sort
+        val songSortDirection = songSortChoice.direction
+        val albumSortChoice by settings.albumSort.collectAsState()
+        val artistAlbumSortChoice by settings.artistAlbumSort.collectAsState()
         var showSettings by rememberSaveable { mutableStateOf(false) }
         var infoTargetId by rememberSaveable { mutableStateOf<String?>(null) }
         var artistChoices by remember { mutableStateOf<List<ArtistGroup>>(emptyList()) }
@@ -787,6 +778,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             collectionOpenJob?.cancel()
             collectionOpenJob = null
             applySelectedCollection(value)
+        }
+        // A new album order re-sorts an open artist page in place. Opening one later builds it in
+        // the current order directly, so only the page on screen needs this.
+        LaunchedEffect(artistAlbumSortChoice) {
+            val open = selectedCollection?.takeIf { it.routeId.startsWith("artist:") } ?: return@LaunchedEffect
+            val resorted = open.withArtistAlbumOrder(artistAlbumSortChoice)
+            // The page may have closed, or a rescan reconciled it, while this was sorting.
+            if (selectedCollection === open && resorted != open) applySelectedCollection(resorted)
         }
         fun openCollection(
             build: suspend () -> CollectionSelection,
@@ -1648,10 +1647,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
 
         var catalog by remember { mutableStateOf<LibraryCatalog?>(null) }
-        var albumSections by remember { mutableStateOf<List<AlbumRailSection>>(emptyList()) }
-        var alphabeticAlbumTracks by remember {
-            mutableStateOf<List<TrackDescriptor>>(emptyList())
-        }
+        var albumBrowse by remember { mutableStateOf<AlbumBrowseDerivation?>(null) }
+        val albumSections = albumBrowse?.albumSections.orEmpty()
+        val albumTabTracks = albumBrowse?.albumTabTracks.orEmpty()
         LaunchedEffect(tracks) {
             val loaded = tracks
             // Rebuild in place — assign the finished catalog rather than clearing it first. Nulling
@@ -1669,26 +1667,27 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         loaded,
                         isKnownArtist = if (entities.isAvailable) { name -> entities.resolve(name).isNotEmpty() } else null,
                     )
-                    val sections = albumRailSections(builtCatalog.albums)
-                    val orderedAlbums = sections.flatMap { it.albums }
-                    LibraryBrowseDerivation(
-                        catalog = builtCatalog,
-                        albumSections = sections,
-                        alphabeticAlbumTracks = orderedAlbums.flatMap { it.tracks },
-                    )
+                    AlbumBrowseDerivation.of(builtCatalog, settings.albumSort.value)
                 }
                 catalog = derived.catalog
-                albumSections = derived.albumSections
-                alphabeticAlbumTracks = derived.alphabeticAlbumTracks
+                albumBrowse = derived
             } else {
                 catalog = null
-                albumSections = emptyList()
-                alphabeticAlbumTracks = emptyList()
+                albumBrowse = null
             }
+        }
+        // A new album sort re-derives the Albums tab from the catalog in hand, never rebuilding the
+        // catalog. A sort chosen while a rebuild was running is caught here too: the rebuild derived
+        // its albums in the order current when it read it.
+        LaunchedEffect(catalog, albumSortChoice) {
+            val current = catalog ?: return@LaunchedEffect
+            val shown = albumBrowse
+            if (shown != null && shown.catalog === current && shown.choice == albumSortChoice) return@LaunchedEffect
+            albumBrowse = withContext(Dispatchers.Default) { AlbumBrowseDerivation.of(current, albumSortChoice) }
         }
         val tracksById = remember(catalog) { catalog?.songs?.associateBy { it.id }.orEmpty() }
         val selectedTracks = remember(
-            catalog, alphabeticAlbumTracks, songSort, songSortDirection, selectedTrackIds,
+            catalog, albumTabTracks, songSort, songSortDirection, selectedTrackIds,
             selectedCollection, selectedTab,
         ) {
             // Selection is empty during ordinary browsing. Avoid duplicating the Songs list's
@@ -1701,7 +1700,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 ?.takeIf { it.allowsTrackSelection }
                 ?.tracks
                 ?: when (selectedTab) {
-                    StartPage.ALBUMS -> alphabeticAlbumTracks
+                    StartPage.ALBUMS -> albumTabTracks
                     StartPage.ARTISTS -> catalog?.artists?.flatMap { it.tracks }
                     StartPage.GENRES -> catalog?.genres?.flatMap { it.tracks }
                     StartPage.FOLDERS -> catalog?.folders?.flatMap { it.tracks }
@@ -2144,7 +2143,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 }
                             } else when (val target = source.resolveGroup(catalog)) {
                                 is QueueSourceGroup.Album -> { { target.group.toSelection() } }
-                                is QueueSourceGroup.Artist -> { { target.group.toSelection() } }
+                                is QueueSourceGroup.Artist -> { { target.group.toSelection(settings.artistAlbumSort.value) } }
                                 is QueueSourceGroup.Genre -> { { target.group.toSelection() } }
                                 is QueueSourceGroup.Folder -> { { target.group.toSelection() } }
                                 null -> return false
@@ -2181,7 +2180,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         fun showArtist(artist: ArtistGroup) {
             openCollection(
-                build = { artist.toSelection() },
+                build = { artist.toSelection(settings.artistAlbumSort.value) },
                 afterOpen = {
                 // Same as showAlbumOf: navigation closes the surfaces above the destination.
                 showNowPlaying = false
@@ -2854,25 +2853,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         )
 
                                         StartPage.TRACKS -> Column {
-                                            SongsHeader(
-                                                sort = songSort,
-                                                direction = songSortDirection,
-                                                count = visibleCatalog.songs.size,
-                                                onReverse = {
-                                                    savedSongSortDirection = if (songSortDirection == SongSortDirection.ASCENDING) {
-                                                        SongSortDirection.DESCENDING.name
-                                                    } else SongSortDirection.ASCENDING.name
-                                                },
+                                            SortHeader(
+                                                options = SongSort.entries,
+                                                choice = songSortChoice,
+                                                label = { it.label() },
+                                                defaultDirection = { it.defaultDirection },
+                                                countText = pluralStringResource(
+                                                    Res.plurals.count_tracks,
+                                                    visibleCatalog.songs.size,
+                                                    visibleCatalog.songs.size,
+                                                ),
                                                 enabled = !selectionMode,
-                                                onSortChange = { selectedSort ->
-                                                    val selectedDirection = directionAfterSongSortSelection(
-                                                        currentSort = songSort,
-                                                        currentDirection = songSortDirection,
-                                                        selectedSort = selectedSort,
-                                                    )
-                                                    savedSongSort = selectedSort.name
-                                                    savedSongSortDirection = selectedDirection.name
-                                                },
+                                                onChoiceChange = settings::setSongSort,
                                             )
                                             SectionedSongsList(
                                                 onRailScrubbingChange = { railScrubbing = it },
@@ -2905,7 +2897,20 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             )
                                         }
 
-                                        StartPage.ALBUMS -> {
+                                        StartPage.ALBUMS -> Column {
+                                            SortHeader(
+                                                options = AlbumSort.entries,
+                                                choice = albumSortChoice,
+                                                label = { it.label() },
+                                                defaultDirection = { it.defaultDirection },
+                                                countText = pluralStringResource(
+                                                    Res.plurals.count_albums,
+                                                    visibleCatalog.albums.size,
+                                                    visibleCatalog.albums.size,
+                                                ),
+                                                enabled = !selectionMode,
+                                                onChoiceChange = settings::setAlbumSort,
+                                            )
                                             val albumPadding = PaddingValues(
                                                 start = 12.dp, end = 12.dp, top = 8.dp,
                                                 bottom = listPadding.calculateBottomPadding(),
@@ -3106,7 +3111,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                         )
                                                     } else {
                                                         openCollection(
-                                                            build = { artist.toSelection() },
+                                                            build = { artist.toSelection(settings.artistAlbumSort.value) },
                                                         )
                                                     }
                                                 }
@@ -3368,6 +3373,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             },
                             currentAccent = browseAccentInk(accent),
                             selection = selection,
+                            // Only a page with albums to order offers the choice.
+                            albumSort = artistAlbumSortChoice.takeIf {
+                                selection.routeId.startsWith("artist:") && selection.sections != null
+                            },
+                            onAlbumSortChange = settings::setArtistAlbumSort,
                             currentTrackId = currentTrack?.id,
                             currentTrackPlaying = currentTrackPlaying,
                             selectedTrackIds = selectedTrackIds,
@@ -4625,25 +4635,12 @@ private suspend fun AlbumGroup.toSelection(): CollectionSelection {
     )
 }
 
-private suspend fun ArtistGroup.toSelection(): CollectionSelection {
+private suspend fun ArtistGroup.toSelection(albumOrder: SortChoice<AlbumSort>): CollectionSelection {
     // Albums are an artist's natural chapters. The flat list stays exactly the sections'
     // concatenation, so playback and selection keep working in flat indices.
     val unknownAlbum = getString(Res.string.track_unknown_album)
     val sections = withContext(Dispatchers.Default) {
-        tracks
-            .groupBy { it.album }
-            .entries
-            .sortedBy { (album, _) -> SongSorting.sortKey(album) }
-            .flatMap { (album, grouped) ->
-                // Two releases sharing a title ("Weezer" and "Weezer") are two chapters, not one.
-                LibraryCatalog.separateReleases(grouped).map { release ->
-                    CollectionSection(
-                        title = album ?: unknownAlbum,
-                        tracks = LibraryCatalog.inAlbumOrder(release),
-                        railTitle = album,
-                    )
-                }
-            }
+        artistAlbumSections(tracks, albumOrder, unknownAlbum)
     }
     val ordered = sections.flatMap { it.tracks }
     return CollectionSelection(
@@ -4655,14 +4652,75 @@ private suspend fun ArtistGroup.toSelection(): CollectionSelection {
         tracks = ordered,
         // A single bucket is a flat list wearing a pointless header.
         sections = sections.takeIf { it.size > 1 },
-        railMode = if (sections.size > 1) {
-            CollectionRailMode.SECTION_TITLES
-        } else {
-            trackRailModeFor(ordered)
-        },
+        railMode = artistRailMode(sections, albumOrder, ordered),
         allowsTrackSelection = true,
         routeId = "artist:${name.orEmpty()}",
     )
+}
+
+/**
+ * An open artist page re-sorted to [albumOrder]; everything else about it — its cover, its title,
+ * its route — stays, so the page neither replays its entrance nor swaps its artwork.
+ */
+private suspend fun CollectionSelection.withArtistAlbumOrder(
+    albumOrder: SortChoice<AlbumSort>,
+): CollectionSelection {
+    val unknownAlbum = getString(Res.string.track_unknown_album)
+    val sections = withContext(Dispatchers.Default) {
+        artistAlbumSections(tracks, albumOrder, unknownAlbum)
+    }
+    val ordered = sections.flatMap { it.tracks }
+    return copy(
+        tracks = ordered,
+        sections = sections.takeIf { it.size > 1 },
+        railMode = artistRailMode(sections, albumOrder, ordered),
+    )
+}
+
+/**
+ * An artist's [tracks] as one chapter per album, the chapters in [albumOrder] and each album's
+ * tracks in disc and track order. Two releases sharing a title ("Weezer" and "Weezer") are two
+ * chapters, each dated by its own tracks.
+ */
+internal fun artistAlbumSections(
+    tracks: List<TrackDescriptor>,
+    albumOrder: SortChoice<AlbumSort>,
+    unknownAlbum: String,
+): List<CollectionSection> {
+    val chapters = tracks
+        .groupBy { it.album }
+        .flatMap { (album, grouped) ->
+            LibraryCatalog.separateReleases(grouped).map { release -> album to LibraryCatalog.inAlbumOrder(release) }
+        }
+    // Every chapter is this artist's, so the album sort's artist tie-break is moot; its final
+    // tie-break, the key, keeps chapters that tie on everything in the order they were found.
+    val albums = chapters.mapIndexed { index, (album, release) ->
+        AlbumGroup(
+            key = index.toString().padStart(10, '0'),
+            title = album,
+            artist = null,
+            artworkUri = null,
+            tracks = release,
+        )
+    }
+    return AlbumSorting.sort(albums, albumOrder.sort, albumOrder.direction).map { album ->
+        CollectionSection(
+            title = album.title ?: unknownAlbum,
+            tracks = album.tracks,
+            railTitle = album.title,
+        )
+    }
+}
+
+/** Album titles index an alphabetical discography; release years are not letters. */
+private fun artistRailMode(
+    sections: List<CollectionSection>,
+    albumOrder: SortChoice<AlbumSort>,
+    ordered: List<TrackDescriptor>,
+): CollectionRailMode = when {
+    sections.size <= 1 -> trackRailModeFor(ordered)
+    albumOrder.sort == AlbumSort.TITLE -> CollectionRailMode.SECTION_TITLES
+    else -> CollectionRailMode.NONE
 }
 
 private suspend fun GenreGroup.toSelection(): CollectionSelection {
@@ -4973,101 +5031,39 @@ private fun SharedSettingsButton(
     }
 }
 
-/** Sort selector plus shuffle-all / play-all, above the songs list. */
+/** A list's sort pill, with its item count at the far end — above the songs and albums lists. */
 @Composable
-private fun SongsHeader(
-    sort: SongSort,
-    direction: SongSortDirection,
-    count: Int,
-    onReverse: () -> Unit,
+private fun <S : Enum<S>> SortHeader(
+    options: List<S>,
+    choice: SortChoice<S>,
+    label: @Composable (S) -> String,
+    defaultDirection: (S) -> SongSortDirection,
+    countText: String,
     enabled: Boolean = true,
-    onSortChange: (SongSort) -> Unit,
+    onChoiceChange: (SortChoice<S>) -> Unit,
 ) {
-    var sortMenuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
             .padding(horizontal = 20.dp)
             .graphicsLayer { alpha = if (enabled) 1f else 0.38f },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box {
-            Row(
-                modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = { sortMenuOpen = true }, enabled = enabled,
-                    contentPadding = PaddingValues(start = 14.dp, end = 12.dp),
-                    modifier = Modifier.heightIn(min = 48.dp),
-                ) {
-                    Icon(Icons.AutoMirrored.Rounded.Sort, null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                    Text(sort.label(), style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(start = 8.dp))
-                }
-                Box(Modifier.width(1.dp).height(20.dp).background(MaterialTheme.colorScheme.outlineVariant))
-                IconButton(onClick = onReverse, enabled = enabled) { SortDirectionIcon(direction) }
-            }
-            DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
-                SongSort.entries.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option.label()) },
-                        onClick = { sortMenuOpen = false; onSortChange(option) },
-                        trailingIcon = if (option == sort) { { SortDirectionIcon(direction) } } else null,
-                    )
-                }
-            }
-        }
+        SortPill(
+            options = options,
+            choice = choice,
+            label = label,
+            defaultDirection = defaultDirection,
+            enabled = enabled,
+            onChoiceChange = onChoiceChange,
+        )
         Spacer(Modifier.weight(1f))
-        Text(pluralStringResource(Res.plurals.count_tracks, count, count),
+        Text(countText,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 12.dp))
     }
 }
-
-@Composable
-private fun SortDirectionIcon(direction: SongSortDirection) {
-    Icon(
-        imageVector = when (direction) {
-            SongSortDirection.ASCENDING -> Icons.Rounded.ArrowUpward
-            SongSortDirection.DESCENDING -> Icons.Rounded.ArrowDownward
-        },
-        contentDescription = stringResource(
-            when (direction) {
-                SongSortDirection.ASCENDING -> Res.string.sort_direction_ascending
-                SongSortDirection.DESCENDING -> Res.string.sort_direction_descending
-            },
-        ),
-        modifier = Modifier
-            .padding(start = 4.dp)
-            .size(16.dp),
-    )
-}
-
-/**
- * A second tap on the active option reverses it. Moving to another option restores the useful
- * default for that field (A–Z for text, newest first for recently added).
- */
-internal fun directionAfterSongSortSelection(
-    currentSort: SongSort,
-    currentDirection: SongSortDirection,
-    selectedSort: SongSort,
-): SongSortDirection = if (selectedSort == currentSort) {
-    currentDirection.toggled()
-} else {
-    selectedSort.defaultDirection
-}
-
-@Composable
-private fun SongSort.label(): String = stringResource(
-    when (this) {
-        SongSort.TITLE -> Res.string.info_title
-        SongSort.ARTIST -> Res.string.info_artist
-        SongSort.RECENT -> Res.string.sort_recently_added
-    },
-)
 
 /** The shared browse-group gesture: tap, plus [TrackRow]'s long-press haptic when selectable. */
 @OptIn(ExperimentalFoundationApi::class)
@@ -5100,33 +5096,29 @@ private fun GroupSelectionMark(selectionState: Boolean?) {
     )
 }
 
-private data class KeyedAlbum(
-    val album: AlbumGroup,
-    val titleKey: String,
-    val artistKey: String,
-)
-
 /** Stable, saveable Lazy item identity; null and an actual empty name never alias. */
 private fun stableGroupKey(kind: String, name: String?): String =
     if (name == null) "$kind:null" else "$kind:value:$name"
 
-private data class LibraryBrowseDerivation(
+/** The Albums tab derived from one catalog in one order; tracks in the grid's order, for selection. */
+private class AlbumBrowseDerivation(
     val catalog: LibraryCatalog,
+    val choice: SortChoice<AlbumSort>,
     val albumSections: List<AlbumRailSection>,
-    val alphabeticAlbumTracks: List<TrackDescriptor>,
-)
-
-/** Albums use one global A–Z presentation order so one rail letter always has one anchor. */
-internal fun albumsInRailOrder(albums: List<AlbumGroup>): List<AlbumGroup> = albums
-    .map { album ->
-        KeyedAlbum(
-            album = album,
-            titleKey = SongSorting.sortKey(album.title),
-            artistKey = SongSorting.sortKey(album.artist),
-        )
+    val albumTabTracks: List<TrackDescriptor>,
+) {
+    companion object {
+        fun of(catalog: LibraryCatalog, choice: SortChoice<AlbumSort>): AlbumBrowseDerivation {
+            val sections = albumRailSections(catalog.albums, choice)
+            return AlbumBrowseDerivation(
+                catalog = catalog,
+                choice = choice,
+                albumSections = sections,
+                albumTabTracks = sections.flatMap { section -> section.albums.flatMap { it.tracks } },
+            )
+        }
     }
-    .sortedWith(compareBy<KeyedAlbum>({ it.titleKey }, { it.artistKey }, { it.album.key }))
-    .map { it.album }
+}
 
 internal data class AlbumRailSection(
     val bucket: String,
@@ -5135,17 +5127,24 @@ internal data class AlbumRailSection(
     val emitStartIndex: Int,
 )
 
-internal fun albumRailSections(albums: List<AlbumGroup>): List<AlbumRailSection> {
+/**
+ * The Albums tab in [choice]'s order, one global order so one rail letter always has one anchor.
+ * Title and artist sorts get letter sections; year and recency one unlabeled section, which the
+ * grid shows without headers or a rail.
+ */
+internal fun albumRailSections(
+    albums: List<AlbumGroup>,
+    choice: SortChoice<AlbumSort> = DEFAULT_ALBUM_SORT,
+): List<AlbumRailSection> {
     var emitIndex = 0
-    return albumsInRailOrder(albums)
-        .groupBy { album -> SongSorting.bucket(album.title) }
-        .map { (bucket, grouped) ->
+    return AlbumSorting.sections(albums, choice.sort, choice.direction)
+        .map { section ->
             AlbumRailSection(
-                bucket = bucket,
-                albums = grouped,
+                bucket = section.bucket,
+                albums = section.albums,
                 emitStartIndex = emitIndex,
             ).also {
-                emitIndex += 1 + grouped.size
+                emitIndex += 1 + section.albums.size
             }
         }
 }
