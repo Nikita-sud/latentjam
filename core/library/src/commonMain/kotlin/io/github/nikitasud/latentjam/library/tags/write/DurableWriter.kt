@@ -138,8 +138,8 @@ public class DurableWriter(
                 WriteResult.RecoveryPending(record.writeId)
             }
         }
-        // Journaled before the first byte is put back: a crash from here on leaves a track that only a
-        // restore can explain, which a PATCH_PREPARED recovery would take for someone else's change.
+        // Journaled before the first byte is put back: after a crash from here on, recovery finishes
+        // the roll-back the writer began without asking whose change the track shows.
         val rollingBack = record.copy(state = JournalState.ROLLING_BACK)
         try {
             journal.append(rollingBack)

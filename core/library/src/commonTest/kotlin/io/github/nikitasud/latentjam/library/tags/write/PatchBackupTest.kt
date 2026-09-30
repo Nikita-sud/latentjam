@@ -70,12 +70,15 @@ internal class PatchBackupTest {
     }
 
     @Test
-    fun aForeignChangeInsideAWrittenRangeIsNotExplained() {
+    fun aChangeInsideAWrittenRangeIsExplainedAndRestored() {
         val plan = WritePlan.InPlacePatch(listOf(ByteWrite(4, byteArrayOf(70, 71, 72))), newLength = 20)
         val files = files()
         val backup = assertNotNull(PatchBackup.capture(files.track("t"), plan))
-        files.track("t").write(5, byteArrayOf(33)) // neither the old 5 nor our 71
-        assertFalse(backup.explains(files.track("t")))
+        // Neither the old 5 nor our 71: a write of ours that storage mangled, and ours to undo.
+        files.track("t").write(5, byteArrayOf(33))
+        assertTrue(backup.explains(files.track("t")))
+        backup.restore(files.track("t"))
+        assertContentEquals(original, files.trackBytes("t"))
     }
 
     @Test

@@ -39,22 +39,22 @@ internal class PatchBackup(
             (tail == null || target.read(tail.offset, tail.bytes.size)?.contentEquals(tail.bytes) == true) &&
             restCrc(target, writes, minOf(originalLength, newLength)) == restCrc
 
+    /**
+     * Whether [target] can be the file this patch left behind after a crash, so that restoring it
+     * undoes only our own writes.
+     *
+     * - Every byte inside a written range counts as ours, whatever its value: a torn, reordered or
+     *   storage-mangled write of ours (one that did not read back) is still ours to undo.
+     * - Someone else's change shows elsewhere: a length outside the two lengths, a byte of the cut
+     *   tail that is neither the original nor zero, or a change in the head and tail windows outside
+     *   the written ranges ([restCrc]).
+     *
+     * The accepted cost: another app's edit confined to exactly our written bytes, made after the
+     * crash and before recovery, is taken for ours and rolled back.
+     */
     fun explains(target: RandomAccessSource): Boolean {
         val low = minOf(originalLength, newLength)
         if (target.length !in low..maxOf(originalLength, newLength)) return false
-        for (write in writes) {
-            val old = ranges.firstOrNull { it.offset == write.offset }?.bytes ?: ByteArray(0)
-            val count = minOf(write.bytes.size.toLong(), maxOf(0L, target.length - write.offset)).toInt()
-            // A write starting past the current end has not landed at all (an untouched original, or a
-            // growth whose length change was lost): nothing to compare, and read() refuses such offsets.
-            if (count == 0) continue
-            val now = target.read(write.offset, count) ?: return false
-            for (i in 0 until count) {
-                // Past the original end a torn extension reads as zeros.
-                val before = if (i < old.size) old[i] else 0
-                if (now[i] != before && now[i] != write.bytes[i]) return false
-            }
-        }
         tail?.let { t ->
             val count = minOf(t.bytes.size.toLong(), maxOf(0L, target.length - t.offset)).toInt()
             if (count == 0) return@let

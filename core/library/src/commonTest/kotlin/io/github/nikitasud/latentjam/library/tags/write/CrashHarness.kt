@@ -4,7 +4,6 @@
  */
 package io.github.nikitasud.latentjam.library.tags.write
 
-import io.github.nikitasud.latentjam.library.tags.WritePlan
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -80,8 +79,7 @@ internal object CrashHarness {
 
     /**
      * Runs [case] with power lost everywhere. With [flip] every save's patch fails its read-back,
-     * so the save rolls itself back: then the only whole outcome is the original, bar the one
-     * window [unattributable] names.
+     * so the save rolls itself back: then the only whole outcome is the original.
      */
     fun everywhere(case: WriteFixtures.Case, atomic: Boolean, flip: Boolean = false) {
         val edited = if (flip) case.original else WriteFixtures.expected(case)
@@ -106,7 +104,6 @@ internal object CrashHarness {
                     for (again in lossesDuringRecovery(seed)) {
                         val (files, _) = save(case, crashAt, atomic, flip)
                         survival.apply(files)
-                        val found = files.trackBytes(TRACK).takeIf { flip && unattributable(files, case) }
                         files.crashAt = recoveryCrash
                         val first = try {
                             recoverAll(files, atomic)
@@ -119,12 +116,8 @@ internal object CrashHarness {
                             again.apply(files)
                             recoverAll(files, atomic)
                         }
-                        if (found == null) {
-                            assertRecovered(outcomes, label)
-                            assertWhole(files, case.original, edited, label)
-                        } else {
-                            assertLeftAsFound(files, outcomes, found, label)
-                        }
+                        assertRecovered(outcomes, label)
+                        assertWhole(files, case.original, edited, label)
                         if (!crashed) break
                     }
                     if (!crashed) break
@@ -133,25 +126,6 @@ internal object CrashHarness {
             }
             crashAt++
         }
-    }
-
-    /**
-     * The double fault no protocol can undo: storage kept a byte the save never meant to write
-     * (the flip) before the save could read it back, and power was lost before its roll-back was
-     * journaled. Under the open PATCH_PREPARED record that byte is indistinguishable from another
-     * app's edit, so recovery must leave the file exactly as found ([assertLeftAsFound]).
-     */
-    private fun unattributable(files: FaultFiles, case: WriteFixtures.Case): Boolean {
-        val first = (WriteFixtures.plan(case) as WritePlan.InPlacePatch).writes.first()
-        val flipped = (first.bytes[0].toInt() xor FlippingFile.MASK).toByte()
-        val onStorage = files.trackBytes(TRACK).getOrNull(first.offset.toInt()) == flipped
-        return onStorage && Journal(files.directory).open().singleOrNull()?.state == JournalState.PATCH_PREPARED
-    }
-
-    private fun assertLeftAsFound(files: FaultFiles, outcomes: List<TagRecovery.Outcome>, found: ByteArray, where: String) {
-        assertTrue(TagRecovery.Outcome.STUCK !in outcomes, "$where → $outcomes")
-        assertTrue(files.trackBytes(TRACK).contentEquals(found), "$where: an unattributable track was changed")
-        assertEquals(emptySet(), files.storeNames(), "$where: the store kept files")
     }
 
     /** Our own crash never leaves a file for another try, nor mistakes it for someone else's. */
