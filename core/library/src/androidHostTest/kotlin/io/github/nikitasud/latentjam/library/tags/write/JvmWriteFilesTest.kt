@@ -140,6 +140,53 @@ internal class JvmWriteFilesTest {
     }
 
     @Test
+    fun aStoreThatCannotBeListedFailsInsteadOfReadingAsEmpty() {
+        val store = File(root, "store")
+        val directory = FileRecoveryDirectory(store) {}
+        // No store yet: nothing was ever saved, so nothing is open.
+        assertEquals(emptyList(), directory.names())
+        directory.create("w1.patch").close()
+        assertTrue(store.setReadable(false))
+        try {
+            assertFailsWith<IOException> { directory.names() }
+        } finally {
+            store.setReadable(true)
+        }
+    }
+
+    @Test
+    fun aSaveOverAnInterruptedOneFailsWhenTheStoreCannotBeListed() {
+        val case = WriteFixtures.inPlace.first()
+        val store = File(root, "store")
+        val directory = FileRecoveryDirectory(store) {}
+        val file = File(root, "track").apply { writeBytes(case.original) }
+        val cut = ChannelTargetFile.open(file).use { opened ->
+            val dying = object : TargetFile by opened {
+                override fun force() = throw IOException("process died")
+            }
+            DurableWriter(directory, { "w1" }).write(file.path, dying, case.edits, null)
+        }
+        assertTrue(cut is WriteResult.RecoveryPending, "$cut")
+        val half = file.readBytes()
+        val kept = directory.names()
+        // Unreadable but still writable: a listing read as empty would let the save patch the half-written file.
+        assertTrue(store.setReadable(false))
+        try {
+            val result = ChannelTargetFile.open(file).use { DurableWriter(directory, { "w2" }).write(file.path, it, case.edits, null) }
+            assertTrue(result is WriteResult.Failed, "$result")
+            TagRecovery(directory).sweep()
+        } finally {
+            store.setReadable(true)
+        }
+        assertContentEquals(half, file.readBytes())
+        assertEquals(kept, directory.names())
+        val recovery = TagRecovery(directory)
+        val outcome = ChannelTargetFile.open(file).use { recovery.recover(recovery.pending().single(), it) }
+        assertEquals(TagRecovery.Outcome.ROLLED_BACK, outcome)
+        assertContentEquals(case.original, file.readBytes())
+    }
+
+    @Test
     fun aSweepGoesOnPastAFileThatWillNotBeDeletedAndStillSyncs() {
         val real = FileRecoveryDirectory(File(root, "store")) {}
         var syncs = 0

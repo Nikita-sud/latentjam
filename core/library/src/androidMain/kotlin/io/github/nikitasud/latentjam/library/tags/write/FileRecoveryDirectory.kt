@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.library.tags.write
 
 import java.io.File
+import java.io.IOException
 import java.io.RandomAccessFile
 
 /**
@@ -38,8 +39,16 @@ public class FileRecoveryDirectory(
         file(name).delete()
     }
 
-    /** Only files this store could have made; anything else in the directory (`.nfs*`, `.DS_Store`) is not ours. */
-    override fun names(): List<String> = root.list()?.filter(NAME::matches)?.sorted().orEmpty()
+    /**
+     * Only files this store could have made; anything else in the directory (`.nfs*`, `.DS_Store`)
+     * is not ours. Empty only when there is no store yet. `File.list()` answers null for any error
+     * (EMFILE, ENOMEM, EIO), and a failed listing read as empty would make every open save look
+     * finished: a sweep would delete its only way back.
+     */
+    override fun names(): List<String> {
+        val names = root.list() ?: if (root.exists()) throw IOException("cannot list $root") else return emptyList()
+        return names.filter(NAME::matches).sorted()
+    }
 
     override fun sync() {
         root.mkdirs()

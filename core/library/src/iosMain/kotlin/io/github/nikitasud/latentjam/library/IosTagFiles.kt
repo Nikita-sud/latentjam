@@ -154,12 +154,17 @@ private fun childOf(root: String, name: String): String {
     return "$root/$name"
 }
 
-@Suppress("UNCHECKED_CAST")
-private fun namesIn(root: String): List<String> =
-    NSFileManager.defaultManager.contentsOfDirectoryAtPath(root, null).orEmpty()
-        .filterIsInstance<String>()
-        .filter(NAME::matches)
-        .sorted()
+/**
+ * The names this app could have given files in [root]. Empty only when [root] does not exist: a
+ * listing that fails (EMFILE, ENOMEM, EIO) throws, since read as empty it would make every open
+ * save look finished, and a sweep would delete its only way back.
+ */
+private fun namesIn(root: String): List<String> {
+    val manager = NSFileManager.defaultManager
+    val names = manager.contentsOfDirectoryAtPath(root, null)
+        ?: if (manager.fileExistsAtPath(root)) throw IllegalStateException("cannot list $root") else return emptyList()
+    return names.filterIsInstance<String>().filter(NAME::matches).sorted()
+}
 
 private fun deleteFile(path: String) {
     if (unlink(path) != 0 && errno != ENOENT) throw IllegalStateException("unlink failed: errno $errno")

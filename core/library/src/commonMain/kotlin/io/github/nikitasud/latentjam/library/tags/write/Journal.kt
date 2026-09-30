@@ -104,8 +104,11 @@ public class Journal(private val directory: RecoveryDirectory) {
         return latest
     }
 
-    /** Every save that has not reached a finished state, in name order. */
-    public fun open(): List<JournalRecord> = directory.names()
+    /** Every save that has not reached a finished state, in name order. Throws when the store cannot be listed. */
+    public fun open(): List<JournalRecord> = openAmong(directory.names())
+
+    /** Like [open], over a listing the caller already holds ([names] of the store). */
+    internal fun openAmong(names: List<String>): List<JournalRecord> = names
         .filter { it.endsWith(SUFFIX) }
         .sorted()
         .mapNotNull { latest(it.removeSuffix(SUFFIX)) }

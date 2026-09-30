@@ -39,6 +39,11 @@ public interface RecoveryDirectory {
 
     public fun delete(name: String)
 
+    /**
+     * Every file in the store. Throws when the store cannot be listed; empty only when there truly is
+     * nothing (or no store yet). A failed listing must never read as empty: every open save would
+     * then look finished.
+     */
     public fun names(): List<String>
 
     /** Makes every create and delete so far durable (an fsync of the directory itself). */

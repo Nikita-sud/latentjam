@@ -16,6 +16,7 @@ import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUUID
 import platform.Foundation.dateWithTimeIntervalSince1970
 import platform.Foundation.timeIntervalSince1970
+import platform.posix.chmod
 import platform.posix.symlink
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -82,6 +83,22 @@ class IosTagFilesTest {
         assertEquals(listOf("b.staged"), directory.names())
         assertNull(directory.open("a.patch"))
         assertTrue(directory.freeBytes() > 0)
+    }
+
+    @Test
+    fun aStoreThatCannotBeListedFailsInsteadOfReadingAsEmpty() {
+        val directory = IosRecoveryDirectory(storeRoot)
+        // No store yet: nothing was ever saved, so nothing is open.
+        assertEquals(emptyList(), directory.names())
+        directory.create("w1.patch").close()
+        assertEquals(0, chmod(storeRoot, 0u))
+        try {
+            assertFailsWith<IllegalStateException> { directory.names() }
+            assertFailsWith<IllegalStateException> { IosPrivateFiles(storeRoot).names() }
+        } finally {
+            chmod(storeRoot, 0x1C0u) // 0700
+        }
+        assertEquals(listOf("w1.patch"), directory.names())
     }
 
     @Test

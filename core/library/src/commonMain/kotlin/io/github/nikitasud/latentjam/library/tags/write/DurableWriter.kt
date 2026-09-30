@@ -66,6 +66,8 @@ public class DurableWriter(
         val baseline: TagVerification.Baseline
         val plan: WritePlan
         try {
+            // A store that cannot be listed throws here, and the save fails: a record it could not
+            // rule out may be an interrupted save of this very file, whose bytes are half-written.
             journal.open().firstOrNull { it.target == key }?.let { return WriteResult.RecoveryPending(it.writeId) }
             // Read before the codec looks at the file: a file that changes length after this was
             // planned from a view that no longer holds.

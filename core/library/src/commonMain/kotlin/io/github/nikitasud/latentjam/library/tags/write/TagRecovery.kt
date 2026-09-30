@@ -98,11 +98,17 @@ public class TagRecovery(
      * Deletes every store file that no open save needs. Safe after any crash and between
      * recoveries, but never while any save is in flight on this store: a save's patch file exists
      * before its record does (see the class notes).
+     *
+     * The store is listed once, and both what is open and what to delete come from that one
+     * listing. Two listings could disagree: one that flickered empty would make every open save
+     * look finished, and the other would then delete its only way back. A listing that fails
+     * deletes nothing.
      */
     public fun sweep() {
         try {
-            val open = journal.open().mapTo(HashSet()) { it.writeId }
-            for (name in directory.names()) {
+            val names = directory.names()
+            val open = journal.openAmong(names).mapTo(HashSet()) { it.writeId }
+            for (name in names) {
                 if (name.substringBefore('.') in open) continue
                 try {
                     directory.delete(name)
