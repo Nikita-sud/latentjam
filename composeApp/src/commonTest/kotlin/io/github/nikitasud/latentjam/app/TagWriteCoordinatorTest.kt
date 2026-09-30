@@ -167,7 +167,7 @@ internal class TagWriteCoordinatorTest {
         harness.deliver()
         assertEquals(FileWriteStatus.DENIED, harness.reports.single().results.single().status)
         // Unlike a dismissed dialog, a denial is shown: Save would otherwise do nothing, every time.
-        assertEquals(TagWriteOutcome.Failed, tagWriteOutcome(harness.reports.single()))
+        assertEquals(TagProblem.NOT_ALLOWED, TagSaveResult.of(harness.reports.single(), readOnlyIsMusicLibrary = false).entries.single().problem)
         assertContentEquals(testMp3(), backend.files.bytes("a"))
     }
 
@@ -182,7 +182,7 @@ internal class TagWriteCoordinatorTest {
         harness.coordinator.answer(WriteAnswer.CANCELLED)
         runCurrent()
         harness.deliver()
-        assertEquals(TagWriteOutcome.Cancelled, tagWriteOutcome(harness.reports.single()))
+        assertEquals(TagProblem.CANCELLED, TagSaveResult.of(harness.reports.single(), readOnlyIsMusicLibrary = false).entries.single().problem)
         assertContentEquals(testMp3(), backend.files.bytes("a"))
     }
 
@@ -653,7 +653,7 @@ internal class TagWriteCoordinatorTest {
         assertEquals(listOf(coverName(id)), backend.stashNames())
         harness.deliver()
         runCurrent()
-        assertEquals(TagWriteOutcome.Refused(TagRefusal.UNSUPPORTED_IMAGE), tagWriteOutcome(harness.reports.single()))
+        assertEquals(TagProblem.BAD_IMAGE, TagSaveResult.of(harness.reports.single(), readOnlyIsMusicLibrary = false).entries.single().problem)
         assertEquals(emptyList(), backend.stashNames())
         assertEquals(emptyList(), backend.savedKeyIds())
     }

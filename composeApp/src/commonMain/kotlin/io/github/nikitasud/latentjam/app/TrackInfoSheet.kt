@@ -58,12 +58,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.info_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.info_duration
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit
 import io.github.nikitasud.latentjam.app.generated.resources.info_lyrics
-import io.github.nikitasud.latentjam.app.generated.resources.info_edit_failed
-import io.github.nikitasud.latentjam.app.generated.resources.info_edit_no_space
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit_note
-import io.github.nikitasud.latentjam.app.generated.resources.info_edit_recovery_pending
-import io.github.nikitasud.latentjam.app.generated.resources.info_edit_refused
-import io.github.nikitasud.latentjam.app.generated.resources.info_edit_unavailable
 import io.github.nikitasud.latentjam.app.generated.resources.info_genre
 import io.github.nikitasud.latentjam.app.generated.resources.info_not_set
 import io.github.nikitasud.latentjam.app.generated.resources.info_save
@@ -86,7 +81,7 @@ import org.jetbrains.compose.resources.stringResource
  *
  * ### What a save actually does
  * It rewrites the ID3v2 tag inside the audio FILE, then has the media index re-read it — see
- * [rememberTagWriter], which also records why the obvious shortcut of writing MediaStore's columns
+ * [FileWriteStatus], which also records why the obvious shortcut of writing MediaStore's columns
  * does not work. A correction therefore travels with the file and is visible to every other app.
  *
  * A save can legitimately fail: the writer refuses any file whose existing tag it cannot reproduce
@@ -112,8 +107,7 @@ internal fun TrackInfoSheet(
     var album by rememberSaveable(track.id.value) { mutableStateOf(track.album.orEmpty()) }
     var genre by rememberSaveable(track.id.value) { mutableStateOf(track.genre.orEmpty()) }
     var year by rememberSaveable(track.id.value) { mutableStateOf(track.year?.toString().orEmpty()) }
-    var saving by remember(track.id) { mutableStateOf(false) }
-    var failure by remember(track.id) { mutableStateOf<TagWriteOutcome?>(null) }
+    var failure by remember(track.id) { mutableStateOf<TagProblem?>(null) }
     var lyrics by remember(lyricsSource) { mutableStateOf<String?>(null) }
     val readLyrics = rememberLyricsReader()
     val lyricsSources = rememberLyricsSourcesRevision()
@@ -122,18 +116,20 @@ internal fun TrackInfoSheet(
         lyrics = readLyrics(track)?.text
     }
 
-    val saveTags = rememberTagWriter { outcome ->
-        saving = false
-        when (outcome) {
-            TagWriteOutcome.Saved -> {
+    val saver = rememberTagSaver { result ->
+        val entry = result.entries.singleOrNull()
+        when {
+            entry == null -> failure = TagProblem.FAILED
+            entry.saved -> {
                 onSaved()
                 onDismiss()
             }
             // The user closed the system's permission dialog. They know they did.
-            TagWriteOutcome.Cancelled -> Unit
-            else -> failure = outcome
+            result.cancelled -> Unit
+            else -> failure = entry.problem
         }
     }
+    val saving = saver?.busy == true
 
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -254,10 +250,10 @@ internal fun TrackInfoSheet(
                         targetState = failure,
                         transitionSpec = { motionFadeThrough(reduceMotion) },
                         label = "track-info-failure",
-                    ) { outcome ->
-                        outcome?.let {
+                    ) { problem ->
+                        problem?.let {
                             Text(
-                                text = failureMessage(it),
+                                text = tagProblemText(it),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.padding(top = 12.dp),
@@ -328,9 +324,8 @@ internal fun TrackInfoSheet(
                             focus.clearFocus()
                             keyboard?.hide()
                             failure = null
-                            saving = true
-                            // Null leaves an untouched frame intact; an empty string removes it.
-                            saveTags(track, edits)
+                            // Null leaves an untouched field intact; an empty string removes it.
+                            if (saver == null) failure = TagProblem.FAILED else saver.start(listOf(track), edits)
                         }
                     },
                 )
@@ -342,21 +337,6 @@ internal fun TrackInfoSheet(
 /** Changes whenever the bytes/location capable of supplying embedded lyrics may have changed. */
 internal fun TrackDescriptor.lyricsSourceIdentity(): List<String?> =
     listOf(id.value, audioUri, sourceRevision)
-
-/**
- * Says what went wrong in the user's terms.
- *
- * A refusal is deliberately worded as a property of the file rather than as a malfunction, because
- * that is what it is — the writer declining to risk the file's other frames.
- */
-@Composable
-private fun failureMessage(outcome: TagWriteOutcome): String = when (outcome) {
-    is TagWriteOutcome.Refused -> stringResource(Res.string.info_edit_refused)
-    TagWriteOutcome.Unavailable -> stringResource(Res.string.info_edit_unavailable)
-    TagWriteOutcome.NotEnoughSpace -> stringResource(Res.string.info_edit_no_space)
-    TagWriteOutcome.RecoveryPending -> stringResource(Res.string.info_edit_recovery_pending)
-    else -> stringResource(Res.string.info_edit_failed)
-}
 
 @Composable
 private fun InfoRow(label: String, value: String?, showDivider: Boolean = true) {

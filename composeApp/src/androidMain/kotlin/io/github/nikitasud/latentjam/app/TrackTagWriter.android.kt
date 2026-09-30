@@ -28,15 +28,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.listSaver
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.toMutableStateList
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -46,12 +41,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import io.github.nikitasud.latentjam.library.tags.TagEdits
 import io.github.nikitasud.latentjam.library.tags.write.ChannelTargetFile
 import io.github.nikitasud.latentjam.library.tags.write.DurableWriter
 import io.github.nikitasud.latentjam.library.tags.write.FileRecoveryDirectory
 import io.github.nikitasud.latentjam.library.tags.write.TagRecovery
-import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -147,37 +140,6 @@ internal actual fun rememberTagWriteAccess(): TagWriteAccess? {
     return remember(coordinator) {
         TagWriteAccess(coordinator, readOnlyIsMusicLibrary = false) { track ->
             track.audioUri?.takeIf(String::isNotBlank)
-        }
-    }
-}
-
-@Composable
-actual fun rememberTagWriter(onOutcome: (TagWriteOutcome) -> Unit): (TrackDescriptor, TagEdits) -> Unit {
-    val coordinator = tagWriteCoordinator() ?: return { _, _ -> onOutcome(TagWriteOutcome.Unavailable) }
-    val currentOnOutcome by rememberUpdatedState(onOutcome)
-    // The requests this editor made, kept across recreation so a restored sheet still hears back.
-    val mine = rememberSaveable(saver = listSaver(save = { it.toList() }, restore = { it.toMutableStateList() })) {
-        mutableStateListOf<Long>()
-    }
-    DisposableEffect(coordinator) {
-        mine.toList().forEach { id -> coordinator.listen(id) { report -> mine.remove(id); currentOnOutcome(tagWriteOutcome(report)) } }
-        // Every request this sheet made, including those made after it appeared.
-        onDispose { mine.toList().forEach(coordinator::unlisten) }
-    }
-    return { track, edits ->
-        val uri = track.audioUri
-        when {
-            uri == null -> currentOnOutcome(TagWriteOutcome.Unavailable)
-            edits.isEmpty -> currentOnOutcome(TagWriteOutcome.Saved)
-            else -> {
-                val id = coordinator.enqueue(listOf(uri), edits)
-                if (id == null) {
-                    currentOnOutcome(TagWriteOutcome.Failed)
-                } else {
-                    mine += id
-                    coordinator.listen(id) { report -> mine.remove(id); currentOnOutcome(tagWriteOutcome(report)) }
-                }
-            }
         }
     }
 }

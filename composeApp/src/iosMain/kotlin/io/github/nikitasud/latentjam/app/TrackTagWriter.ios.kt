@@ -5,25 +5,17 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.listSaver
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.toMutableStateList
 import io.github.nikitasud.latentjam.library.IosPrivateFiles
 import io.github.nikitasud.latentjam.library.IosTagFiles
-import io.github.nikitasud.latentjam.library.tags.TagEdits
 import io.github.nikitasud.latentjam.library.tags.write.DurableWriter
 import io.github.nikitasud.latentjam.library.tags.write.RecoveryDirectory
 import io.github.nikitasud.latentjam.library.tags.write.TagRecovery
 import io.github.nikitasud.latentjam.library.tags.write.TargetFile
-import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -201,38 +193,6 @@ internal actual fun rememberTagWriteAccess(): TagWriteAccess? {
         // Imported tracks are written by their path under Documents; a Music-library item has no file to write.
         TagWriteAccess(coordinator, readOnlyIsMusicLibrary = true) { track ->
             track.id.value.takeUnless(IosTagFiles::isMusicLibraryTrack)
-        }
-    }
-}
-
-@Composable
-actual fun rememberTagWriter(onOutcome: (TagWriteOutcome) -> Unit): (TrackDescriptor, TagEdits) -> Unit {
-    val coordinator = IosTagWrites.coordinator ?: return { _, _ -> onOutcome(TagWriteOutcome.Unavailable) }
-    val currentOnOutcome by rememberUpdatedState(onOutcome)
-    // The requests this editor made, kept across recreation so a restored sheet still hears back.
-    val mine = rememberSaveable(saver = listSaver(save = { it.toList() }, restore = { it.toMutableStateList() })) {
-        mutableStateListOf<Long>()
-    }
-    DisposableEffect(coordinator) {
-        mine.toList().forEach { id -> coordinator.listen(id) { report -> mine.remove(id); currentOnOutcome(tagWriteOutcome(report)) } }
-        // Every request this sheet made, including those made after it appeared.
-        onDispose { mine.toList().forEach(coordinator::unlisten) }
-    }
-    return { track, edits ->
-        // Imported tracks are identified by their path under Documents, Music-library items by their prefix.
-        val key = track.id.value
-        when {
-            IosTagFiles.isMusicLibraryTrack(key) -> currentOnOutcome(TagWriteOutcome.Unavailable)
-            edits.isEmpty -> currentOnOutcome(TagWriteOutcome.Saved)
-            else -> {
-                val id = coordinator.enqueue(listOf(key), edits)
-                if (id == null) {
-                    currentOnOutcome(TagWriteOutcome.Failed)
-                } else {
-                    mine += id
-                    coordinator.listen(id) { report -> mine.remove(id); currentOnOutcome(tagWriteOutcome(report)) }
-                }
-            }
         }
     }
 }

@@ -299,6 +299,22 @@
     </plurals>
     <string name="tag_recovery_finish">Finish</string>
     <string name="tag_recovery_later">Later</string>
+    <string name="tag_problem_unsupported_format">LatentJam can't edit this kind of file.</string>
+    <string name="tag_problem_damaged">This file looks damaged, so it is left as it is.</string>
+    <string name="tag_problem_protected">This file is copy-protected and can't be changed.</string>
+    <string name="tag_problem_tags_too_large">The tags would be too large for this file.</string>
+    <string name="tag_problem_bad_number">Track and disc numbers must be whole numbers from 1 to 999.</string>
+    <string name="tag_problem_number_unreadable">The file's own track or disc number is not a plain number, so its total can't be changed on its own.</string>
+    <string name="tag_problem_bad_image">The picture is not a JPEG or PNG image.</string>
+    <string name="tag_problem_read_only_storage">This file is on storage that can't be written to.</string>
+    <string name="tag_problem_music_library">Songs from the Music library can't be edited, only songs imported into LatentJam.</string>
+    <string name="tag_problem_unreadable">This file could not be read.</string>
+    <string name="tag_problem_not_allowed">Permission to change the file was not given.</string>
+    <string name="tag_problem_missing">The file is no longer there.</string>
+    <string name="tag_problem_stopped">Stopped before this file.</string>
+    <string name="tag_problem_cancelled">The permission request was closed.</string>
+    <string name="tag_problem_undone">An interrupted save was undone: the file is as it was before.</string>
+    <string name="tag_problem_changed_elsewhere">Another app changed the file after the save was interrupted, so it was left as it is.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Settings</string>
