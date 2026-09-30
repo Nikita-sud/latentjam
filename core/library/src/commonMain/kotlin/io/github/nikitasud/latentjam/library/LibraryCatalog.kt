@@ -208,7 +208,8 @@ public data class LibraryCatalog(
          * remaster of a 1973 album sits in 1973 in a discography. A majority rather than the minimum
          * keeps one bonus track tagged with its reissue year from moving the whole album.
          *
-         * Sorting only: album cards still show a year solely when every track agrees on it.
+         * The Year sort orders albums by it, and album cards and the album page show it, so an
+         * album always reads the year it is filed under.
          */
         public fun releaseYear(tracks: List<TrackDescriptor>): Int? =
             tracks

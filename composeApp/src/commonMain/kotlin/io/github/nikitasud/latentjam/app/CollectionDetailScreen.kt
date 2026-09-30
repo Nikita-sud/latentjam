@@ -532,9 +532,7 @@ private fun CollectionHero(
     albumSort: SortChoice<AlbumSort>?,
     onAlbumSortChange: (SortChoice<AlbumSort>) -> Unit,
 ) {
-    val albumYear = remember(selection.tracks) {
-        selection.tracks.mapNotNull { it.year }.distinct().singleOrNull()?.toString()
-    }
+    val albumYear = remember(selection.tracks) { albumYearLabel(selection.tracks) }
     val metadata = if (selection.routeId.startsWith("album:")) {
         listOfNotNull(selection.subtitle, albumYear,
             pluralStringResource(Res.plurals.count_tracks, selection.tracks.size, selection.tracks.size))

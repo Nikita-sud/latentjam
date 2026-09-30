@@ -5184,9 +5184,7 @@ private fun AlbumCard(
     onClick: () -> Unit,
 ) {
     val platformContext = LocalPlatformContext.current
-    val year = remember(album.tracks) {
-        album.tracks.mapNotNull { it.year }.distinct().singleOrNull()?.toString()
-    }
+    val year = remember(album.tracks) { albumYearLabel(album.tracks) }
     Column(
         modifier = Modifier
             .then(
