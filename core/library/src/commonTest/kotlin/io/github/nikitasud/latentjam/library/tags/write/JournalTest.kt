@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.library.tags.write
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -58,13 +59,60 @@ internal class JournalTest {
         assertNull(journal.latest("w1"))
     }
 
-    @Test
-    fun aJournalWhoseCreationWasNotSyncedIsGoneAfterPowerLoss() {
+    /** The mutating operations a first append performs: create, write, force, then the directory sync. */
+    private fun firstAppendOperations(): Int {
         val files = FaultFiles()
-        files.crashAt = 3 // create, write, force — then the directory sync never happens
-        runCatching { Journal(files.directory).append(record(JournalState.PATCH_PREPARED)) }
+        Journal(files.directory).append(record(JournalState.PATCH_PREPARED))
+        return files.operations
+    }
+
+    @Test
+    fun aCompleteAppendSurvivesPowerLoss() {
+        val files = FaultFiles()
+        Journal(files.directory).append(record(JournalState.PATCH_PREPARED))
+        files.powerLoss()
+        assertEquals(JournalState.PATCH_PREPARED, Journal(files.directory).latest("w1")?.state)
+    }
+
+    @Test
+    fun aSecondRecordSurvivesPowerLossOnceAppendReturns() {
+        val files = FaultFiles()
+        val journal = Journal(files.directory)
+        journal.append(record(JournalState.PATCH_PREPARED))
+        journal.append(record(JournalState.REPLACING))
+        files.powerLoss()
+        assertEquals(JournalState.REPLACING, Journal(files.directory).latest("w1")?.state)
+    }
+
+    @Test
+    fun aCrashAtTheDirectorySyncLosesTheNewJournal() {
+        val operations = firstAppendOperations()
+        assertEquals(4, operations)
+        val files = FaultFiles()
+        files.crashAt = operations // the directory sync itself
+        assertFailsWith<PowerLoss> { Journal(files.directory).append(record(JournalState.PATCH_PREPARED)) }
         files.powerLoss()
         assertTrue(Journal(files.directory).open().isEmpty())
+        assertTrue("w1.journal" !in files.storeNames())
+    }
+
+    @Test
+    fun aCrashAtTheForceLosesTheRecord() {
+        val files = FaultFiles()
+        files.crashAt = firstAppendOperations() - 1 // the force, before the directory is synced
+        assertFailsWith<PowerLoss> { Journal(files.directory).append(record(JournalState.PATCH_PREPARED)) }
+        files.powerLoss()
+        assertNull(Journal(files.directory).latest("w1"))
+    }
+
+    @Test
+    fun aRetriedFirstAppendStillSyncsItsDirectoryEntry() {
+        val files = FaultFiles(storeCapacity = 0)
+        assertFailsWith<StorageFullException> { Journal(files.directory).append(record(JournalState.PATCH_PREPARED)) }
+        files.storeCapacity = Long.MAX_VALUE
+        Journal(files.directory).append(record(JournalState.PATCH_PREPARED))
+        files.powerLoss()
+        assertEquals(JournalState.PATCH_PREPARED, Journal(files.directory).latest("w1")?.state)
     }
 
     @Test

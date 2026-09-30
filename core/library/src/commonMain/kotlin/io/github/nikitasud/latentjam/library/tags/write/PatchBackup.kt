@@ -45,6 +45,9 @@ internal class PatchBackup(
         for (write in writes) {
             val old = ranges.firstOrNull { it.offset == write.offset }?.bytes ?: ByteArray(0)
             val count = minOf(write.bytes.size.toLong(), maxOf(0L, target.length - write.offset)).toInt()
+            // A write starting past the current end has not landed at all (an untouched original, or a
+            // growth whose length change was lost): nothing to compare, and read() refuses such offsets.
+            if (count == 0) continue
             val now = target.read(write.offset, count) ?: return false
             for (i in 0 until count) {
                 // Past the original end a torn extension reads as zeros.
@@ -54,6 +57,7 @@ internal class PatchBackup(
         }
         tail?.let { t ->
             val count = minOf(t.bytes.size.toLong(), maxOf(0L, target.length - t.offset)).toInt()
+            if (count == 0) return@let
             val now = target.read(t.offset, count) ?: return false
             for (i in 0 until count) if (now[i] != t.bytes[i] && now[i] != 0.toByte()) return false
         }
@@ -86,6 +90,8 @@ internal class PatchBackup(
                 if (write.offset >= end) null
                 else ByteWrite(write.offset, target.read(write.offset, (end - write.offset).toInt()) ?: return null)
             }
+            // A tail that cannot be held in one array is a file this backup does not cover.
+            if (length - plan.newLength > Int.MAX_VALUE) return null
             val tail = if (plan.newLength < length) {
                 ByteWrite(plan.newLength, target.read(plan.newLength, (length - plan.newLength).toInt()) ?: return null)
             } else null
@@ -97,7 +103,8 @@ internal class PatchBackup(
          * CRC of the bytes below [limit] that no write covers, within the first [HEAD_WINDOW] and
          * the last [TAIL_WINDOW] bytes. Every format keeps its tags there (ID3, FLAC metadata and Ogg
          * headers at the head; an MP4 `moov` at either end), so another tagger's edit shows up —
-         * without an in-place save ever reading the audio in between.
+         * without an in-place save ever reading the audio in between. A change in the middle of a
+         * larger file is not seen, by design: that is the audio, which this check never reads.
          */
         private fun restCrc(source: RandomAccessSource, writes: List<ByteWrite>, limit: Long): Long? {
             val headEnd = minOf(limit, HEAD_WINDOW)
@@ -133,7 +140,11 @@ internal class PatchBackup(
             val restCrc = r.long()
             val ranges = r.ranges()
             val writes = r.ranges()
-            val tail = if (r.int() == 1) r.range() else null
+            val tail = when (r.int()) {
+                0 -> null
+                1 -> r.range()
+                else -> error("bad tail flag")
+            }
             check(r.atEnd)
             PatchBackup(originalLength, newLength, ranges, writes, tail, restCrc)
         } catch (_: Exception) {

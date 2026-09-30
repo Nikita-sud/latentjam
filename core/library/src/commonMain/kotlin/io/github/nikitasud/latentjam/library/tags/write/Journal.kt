@@ -67,6 +67,8 @@ public class Journal(private val directory: RecoveryDirectory) {
     public fun append(record: JournalRecord) {
         val existing = directory.open(record.journalName)
         val file = existing ?: directory.create(record.journalName)
+        // An empty file may be the leftover of a first append that failed before its entry was synced.
+        val firstRecord = existing == null || existing.length == 0L
         file.use {
             var at = it.length
             // A fragment torn mid-record must end its own line, or it would swallow this record.
@@ -77,7 +79,7 @@ public class Journal(private val directory: RecoveryDirectory) {
             it.write(at, encode(record))
             it.force()
         }
-        if (existing == null) directory.sync()
+        if (firstRecord) directory.sync()
     }
 
     public fun latest(writeId: String): JournalRecord? {

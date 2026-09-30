@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.library.tags.write
 
+import kotlin.random.Random
+
 /** A simulated power loss. An Error, so production `catch (e: Exception)` never swallows it. */
 internal class PowerLoss : Error("simulated power loss")
 
@@ -15,8 +17,9 @@ internal class PowerLoss : Error("simulated power loss")
  * - `force()` makes current durable.
  * - Directory entries created or deleted since the last `sync()` are not durable.
  * - [crashAt] throws [PowerLoss] at the Nth mutating operation.
- * - [powerLoss] then rebuilds what storage would hold. Every file keeps its durable bytes plus the
- *   first `keep` bytes of its unforced writes, in order: a torn write at any byte.
+ * - [powerLoss] then rebuilds what storage would hold: `powerLoss(keep)` keeps, per file, the first
+ *   `keep` bytes of its unforced writes in order (a torn write at any byte); `powerLoss(select)` and
+ *   `powerLossSubset(seed)` keep an arbitrary subset of the unforced changes, in or out of order.
  * - Track files (made with [put]) are always durable entries; store files live in [directory].
  */
 internal class FaultFiles(var storeCapacity: Long = Long.MAX_VALUE) {
@@ -59,28 +62,90 @@ internal class FaultFiles(var storeCapacity: Long = Long.MAX_VALUE) {
         if (operations == crashAt) throw PowerLoss()
     }
 
-    fun powerLoss(keep: Long = 0) {
+    /**
+     * Rebuilds what storage holds after a power loss. [landed] gives, per file, the bytes that
+     * survived; the store falls back to its last synced directory listing.
+     */
+    private fun lose(landed: (name: String, node: Node) -> ByteArray) {
         store = LinkedHashMap(syncedStore)
-        for (node in tracks.values + store.values) {
-            var budget = keep
-            var data = node.durable
-            for (change in node.pending) {
-                if (budget <= 0) break
-                data = when (change) {
-                    is Change.Write -> {
-                        val n = minOf(budget, change.bytes.size.toLong()).toInt()
-                        budget -= n
-                        splice(data, change.offset, change.bytes.copyOf(n))
-                    }
-                    is Change.Length -> data.copyOf(change.length.toInt())
-                }
-            }
+        val files = tracks.map { it.key to it.value } + store.map { it.key to it.value }
+        for ((name, node) in files) {
+            val data = landed(name, node)
             node.durable = data
             node.current = data.copyOf()
             node.pending.clear()
         }
         crashAt = 0
         operations = 0
+    }
+
+    /**
+     * A power loss where each file keeps its durable bytes plus, in order, the unforced changes
+     * that fit in the first [keep] bytes of its pending writes: a torn write at any byte.
+     *
+     * A length change lands when every write before it landed whole, so `keep >= pendingBytes()`
+     * lands everything, a trailing or standalone `setLength` included (a file with no pending
+     * writes has all its length changes land, whatever [keep] is). Nothing after a torn write lands.
+     */
+    fun powerLoss(keep: Long = 0) = lose { _, node ->
+        var budget = keep
+        var data = node.durable
+        for (change in node.pending) {
+            when (change) {
+                is Change.Write -> {
+                    val n = minOf(budget, change.bytes.size.toLong()).toInt()
+                    if (n > 0) data = splice(data, change.offset, change.bytes.copyOf(n))
+                    budget -= n
+                    if (n < change.bytes.size) break
+                }
+                is Change.Length -> data = data.copyOf(change.length.toInt())
+            }
+        }
+        data
+    }
+
+    /**
+     * A power loss where storage keeps an arbitrary subset of each file's unforced changes, which
+     * real storage may do: a later write persisted without an earlier one, a size extension
+     * persisted without its data (the new bytes read as zeros: select the `setLength`, not the writes).
+     *
+     * [select] is asked once per pending change, with the file's name and the change's index among
+     * that file's changes since its last force (in the order they were made).
+     */
+    fun powerLoss(select: (fileName: String, changeIndex: Int) -> Boolean) = lose { name, node ->
+        var data = node.durable
+        node.pending.forEachIndexed { index, change ->
+            if (!select(name, index)) return@forEachIndexed
+            data = when (change) {
+                is Change.Write -> splice(data, change.offset, change.bytes)
+                is Change.Length -> data.copyOf(change.length.toInt())
+            }
+        }
+        data
+    }
+
+    /**
+     * [powerLoss] with a [seed]-determined subset, for looping over many crash outcomes:
+     * `for (seed in 0L until 200) { fresh files; run the scenario; files.powerLossSubset(seed); check }`.
+     * Each pending change lands with probability 1/2, and a landed write is torn to a random prefix
+     * one time in four. The same seed always gives the same outcome.
+     */
+    fun powerLossSubset(seed: Long) {
+        val random = Random(seed)
+        lose { _, node ->
+            var data = node.durable
+            for (change in node.pending) {
+                if (random.nextBoolean()) continue
+                data = when (change) {
+                    is Change.Write -> {
+                        val n = if (random.nextInt(4) == 0) random.nextInt(change.bytes.size + 1) else change.bytes.size
+                        splice(data, change.offset, change.bytes.copyOf(n))
+                    }
+                    is Change.Length -> data.copyOf(change.length.toInt())
+                }
+            }
+            data
+        }
     }
 
     private fun storeSize(): Long = store.values.sumOf { it.current.size.toLong() }
