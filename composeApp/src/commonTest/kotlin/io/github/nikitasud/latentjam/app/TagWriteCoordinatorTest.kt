@@ -476,6 +476,8 @@ internal class TagWriteCoordinatorTest {
         // Keys that were lost drop the request rather than guess at them.
         assertEquals(emptyList(), decodeTagWriteRequests(saved, { null }, { null }))
         assertEquals(emptyList(), decodeTagWriteRequests(saved, { null }, { keys.drop(1) }))
+        // So do other keys of the same count: the key file is not this request's.
+        assertEquals(emptyList(), decodeTagWriteRequests(saved, { null }, { keys.reversed() }))
     }
 
     @Test
@@ -735,6 +737,46 @@ internal class TagWriteCoordinatorTest {
         assertEquals(TagWriteOutcome.Refused(TagRefusal.UNSUPPORTED_IMAGE), tagWriteOutcome(harness.reports.single()))
         assertEquals(emptyList(), backend.stashNames())
         assertEquals(emptyList(), backend.savedKeyIds())
+    }
+
+    @Test
+    fun aRestoredRequestWhoseKeyFileNamesOtherFilesIsNotRun() = runTest {
+        val backend = Backend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        listOf("a", "b").forEach { backend.files.put(it, mp3()) }
+        val first = Harness(backend, this)
+        val id = first.enqueue(listOf("a"), TagEdits(title = "New"))
+        runCurrent()
+        assertNotNull(first.coordinator.prompt.value)
+        // Another request's keys, as many of them, now sit under this request's name.
+        backend.savedKeys[id] = listOf("b")
+        val restored = first.recreate()
+        runCurrent()
+        restored.coordinator.onHostResumed()
+        runCurrent()
+        assertNull(restored.coordinator.prompt.value)
+        assertNull(restored.coordinator.completed.value)
+        assertFalse(restored.coordinator.active.value)
+        assertEquals(listOf(listOf("a")), backend.consentBatches)
+        assertContentEquals(mp3(), backend.files.bytes("b"))
+    }
+
+    @Test
+    fun requestIdsAreNeverReusedByAnotherCoordinatorOrAfterARestart() = runTest {
+        val backend = Backend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", mp3())
+        val one = Harness(backend, this)
+        val other = Harness(Backend(TagWriteStrategy.NO_CONSENT).apply { files.put("a", mp3()) }, this)
+        runCurrent()
+        val first = one.enqueue(listOf("a"), TagEdits(title = "New"))
+        val second = other.enqueue(listOf("a"), TagEdits(title = "New"))
+        runCurrent()
+        one.deliver()
+        other.deliver()
+        val restarted = one.recreate()
+        runCurrent()
+        val third = assertNotNull(restarted.coordinator.enqueue(listOf("a"), TagEdits(title = "Newer")))
+        assertEquals(3, setOf(first, second, third).size)
+        assertTrue(listOf(first, second, third).all { it > 0 })
     }
 
     private companion object {

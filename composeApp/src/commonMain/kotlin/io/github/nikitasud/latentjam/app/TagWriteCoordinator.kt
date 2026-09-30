@@ -26,6 +26,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
+import kotlin.random.Random
 
 internal enum class TagWriteStrategy { SYSTEM_WRITE_REQUEST, RECOVERABLE_CONSENT, WRITE_PERMISSION, NO_CONSENT }
 internal enum class TagWriteKind { EDIT, RECOVER }
@@ -97,6 +98,8 @@ internal data class TagWriteRequest(
      * its files is written: after a restart nothing could name them.
      */
     val persisted: Boolean = true,
+    /** Computed once, when the keys are first named; a copy carries it. The checkpoint checks the key file against it. */
+    val keysCrc: Long = tagWriteKeysCrc(keys),
 ) {
     val remaining: List<String>
         get() {
@@ -124,6 +127,11 @@ internal data class TagWriteProgress(val requestId: Long, val done: Int, val tot
  * live coordinator per store, which the platform owner keeps: a second one would delete the first
  * one's files.
  *
+ * Request ids are random, never counted: an id is a key file's name and a listener's address, and
+ * one reused by another coordinator or after a restart could hand a restored request someone
+ * else's keys, or an editor someone else's report. The checkpoint also keeps a CRC of each
+ * request's keys, and a key file that does not match drops the request instead of running it.
+ *
  * It enforces [TagRecovery]'s preconditions. A file's interrupted save is recovered only by the
  * worker that is about to save that file, so never under a live save of it. The store is swept only
  * under [TagWriteStoreLock] with nothing written or recovered: once per request after all its files
@@ -138,6 +146,7 @@ internal class TagWriteCoordinator<C>(
     restored: List<String>? = null,
     private val save: (List<String>) -> Unit = {},
     private val concurrency: Int = 3,
+    private val newId: () -> Long = { Random.nextLong(1, Long.MAX_VALUE) },
 ) {
     /** The restored checkpoint; its keys and covers are read on [io] before anything runs. */
     private val saved = parseTagWriteCheckpoint(restored)
@@ -151,7 +160,6 @@ internal class TagWriteCoordinator<C>(
     private val keyFiles = Mutex()
 
     private var requests: List<TagWriteRequest> = emptyList()
-    private var nextId = (saved.maxOfOrNull { it.id } ?: 0L) + 1L
     private var worker: Job? = null
     private val listeners = HashMap<Long, (TagWriteReport) -> Unit>()
     private val encodedResults = EncodedResults()
@@ -181,7 +189,7 @@ internal class TagWriteCoordinator<C>(
         val queued = requests.flatMapTo(HashSet()) { it.keys }
         val distinct = keys.filter { it.isNotBlank() && it !in queued }.distinct()
         if (distinct.isEmpty()) return null
-        val id = nextId++
+        val id = freshId()
         requests = requests + TagWriteRequest(id, TagWriteKind.EDIT, distinct, edits, persisted = false)
         checkpoint()
         persist(id, distinct, edits.cover as? CoverEdit.Replace)
@@ -193,7 +201,7 @@ internal class TagWriteCoordinator<C>(
         val queued = requests.flatMapTo(HashSet()) { it.keys }
         val targets = mutablePending.value.map { it.target }.distinct().filter { it !in queued }
         if (targets.isEmpty()) return null
-        val id = nextId++
+        val id = freshId()
         requests = requests + TagWriteRequest(id, TagWriteKind.RECOVER, targets, TagEdits(), persisted = false)
         checkpoint()
         persist(id, targets, cover = null)
@@ -359,6 +367,15 @@ internal class TagWriteCoordinator<C>(
         deferred.clear()
         replay.forEach { it() }
         resume()
+    }
+
+    /** A random id no request in memory or in the restored checkpoint holds. */
+    private fun freshId(): Long {
+        val taken = requests.mapTo(HashSet()) { it.id }.apply { saved.mapTo(this) { it.id } }
+        while (true) {
+            val id = newId()
+            if (id > 0 && id !in taken) return id
+        }
     }
 
     /** Saves the keys (and cover) on [io] before any checkpoint names the request; then it may run. */
@@ -788,6 +805,7 @@ internal fun encodeTagWriteRequests(
             is CoverEdit.Replace -> "c${cover.mime}"
         })
         add(r.keys.size.toString())
+        add(r.keysCrc.toString())
         add(r.batch.size.toString())
         add(results.of(r))
     }
@@ -805,14 +823,18 @@ internal class SavedTagWrite(
     private val fields: List<String?>,
     private val coverCode: String,
     private val keyCount: Int,
+    private val keysCrc: Long,
     private val batchSize: Int,
     private val results: String,
 ) {
     val replacesCover: Boolean get() = coverCode.startsWith("c")
 
-    /** The request, or null when its keys were lost or are not the ones saved: its files cannot be named. */
+    /**
+     * The request, or null when its keys were lost or are not the ones saved: its files cannot be
+     * named, and running it against another request's files would save the edit into the wrong ones.
+     */
     fun toRequest(keys: List<String>?, coverBytes: ByteArray?): TagWriteRequest? {
-        if (keys == null || keys.size != keyCount) return null
+        if (keys == null || keys.size != keyCount || tagWriteKeysCrc(keys) != keysCrc) return null
         return try {
             val results = if (results.isEmpty()) emptyList() else results.split(',').map { decodeResult(it, keys) }
             check(results.mapTo(HashSet()) { it.key }.size == results.size)
@@ -825,7 +847,7 @@ internal class SavedTagWrite(
             val edits = TagEdits(fields[0], fields[1], fields[2], fields[3], fields[4], fields[5], fields[6],
                 fields[7], fields[8], fields[9], fields[10], cover ?: CoverEdit.Keep)
             val request = TagWriteRequest(id, kind, keys, edits, stage, consented, permissionRequested,
-                batch = emptyList(), results = results, stopRequested = stopRequested, interrupted = interrupted)
+                batch = emptyList(), results = results, stopRequested = stopRequested, interrupted = interrupted, keysCrc = keysCrc)
                 .let { it.copy(batch = it.remaining.take(batchSize)) }
             // A cover whose bytes were lost must not be saved as "keep": finish the rest as failed.
             if (cover == null) {
@@ -856,6 +878,7 @@ internal fun parseTagWriteCheckpoint(saved: List<String>?): List<SavedTagWrite> 
                 fields = List(11) { values.next().let { v -> if (v == "0") null else v.removePrefix("1") } },
                 coverCode = values.next(),
                 keyCount = values.next().toInt(),
+                keysCrc = values.next().toLong(),
                 batchSize = values.next().toInt(),
                 results = values.next(),
             )
@@ -874,4 +897,4 @@ internal fun decodeTagWriteRequests(
     it.toRequest(loadKeys(it.id), if (it.replacesCover) unstash(coverName(it.id)) else null)
 }
 
-private const val CHECKPOINT_VERSION = "3"
+private const val CHECKPOINT_VERSION = "4"

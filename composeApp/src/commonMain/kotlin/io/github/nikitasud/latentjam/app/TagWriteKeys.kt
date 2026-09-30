@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.library.tags.Crc32
+
 /**
  * A request's keys as bytes: a count, then each key's length and UTF-16 code units, all
  * big-endian — the format Android's `writeTagWriteKeys` streams — so a key survives exactly, lone
@@ -50,3 +52,9 @@ internal fun decodeTagWriteKeys(bytes: ByteArray): List<String> {
     check(at == bytes.size) { "${bytes.size - at} trailing bytes" }
     return keys
 }
+
+/**
+ * The CRC-32 of [keys] as [encodeTagWriteKeys] writes them. A checkpoint keeps it, so a restore can
+ * tell its own key file from one that has since been written for another request.
+ */
+internal fun tagWriteKeysCrc(keys: List<String>): Long = Crc32.of(encodeTagWriteKeys(keys))
