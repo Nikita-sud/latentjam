@@ -10,12 +10,13 @@ import kotlin.test.assertEquals
 /**
  * Pins [TextRepair] to the rule it was measured as: every pair is an input and the output
  * of the Python model the rule was designed and measured on (audit 2026-09-29,
- * `cp1250-sim/sim2.py`, `final_repair` with `lone=True`). The groups are the genuine all-caps
+ * `cp1250-sim/sim2.py`, `final_repair` with `lone=True, latin_leads=True`). The groups are the genuine all-caps
  * and mixed-case Central-European and Turkish names a review found garbled; the nine MusicBrainz names that
  * are themselves mojibake (true repairs); each genuine name mangled once through cp1252,
  * Windows-1250 and Windows-1251; and names from the measured recall loss, mangled through the
  * table they were lost in, which the rule deliberately leaves as read; and the standalone
- * short words the fallback tables must not touch ("Ні 2"), next to what they still repair.
+ * short words the fallback tables must not touch ("Ні 2"), next to what they still repair; and
+ * uppercase cp1252 mojibake of Latin letters ("FÃŠTE"), next to genuine "PĂŞUNE".
  */
 internal class TextRepairVectorsTest {
 
@@ -164,9 +165,9 @@ internal class TextRepairVectorsTest {
             "B\u00CE\u00A3retta X' Rain" to "B\u00CE\u00A3retta X' Rain", // lost-cp1252
             "\u00E3\u201A\u00AB\u00E3\u201A\u00B0\u00E3\u0192\u00A9\u00E3\u0192\u0160\u00E3\u0192\u0160channel\u00EF\u00BC\u008F\u00E3\u0081\u00AA\u00E3\u0081\u00AA\u00E3\u0081\u2039\u00E3\u0081\u0090\u00E3\u201A\u2030" to "\u00E3\u201A\u00AB\u00E3\u201A\u00B0\u00E3\u0192\u00A9\u00E3\u0192\u0160\u00E3\u0192\u0160channel\u00EF\u00BC\u008F\u00E3\u0081\u00AA\u00E3\u0081\u00AA\u00E3\u0081\u2039\u00E3\u0081\u0090\u00E3\u201A\u2030", // lost-cp1252
             "FLORA\u00E3\u0192\u0160\u00E3\u0192\u0081\u00E3\u0192\u00A5\u00E3\u0192\u00A9\u00E3\u0192\u00AB" to "FLORA\u00E3\u0192\u0160\u00E3\u0192\u0081\u00E3\u0192\u00A5\u00E3\u0192\u00A9\u00E3\u0192\u00AB", // lost-cp1252
-            "Maria L\u00C3\u0160 Thanh Lan" to "Maria L\u00C3\u0160 Thanh Lan", // lost-cp1252
-            "\u00C5\u0152TOMO Yoshihide" to "\u00C5\u0152TOMO Yoshihide", // lost-cp1252
-            "END\u00C5\u0152 Ky\u00C5\u008Dko ." to "END\u00C5\u0152 Ky\u00C5\u008Dko .", // lost-cp1252
+            "Maria L\u00C3\u0160 Thanh Lan" to "Maria L\u00CA Thanh Lan", // lost-cp1252 (repaired)
+            "\u00C5\u0152TOMO Yoshihide" to "\u014CTOMO Yoshihide", // lost-cp1252 (repaired)
+            "END\u00C5\u0152 Ky\u00C5\u008Dko ." to "END\u014C Ky\u014Dko .", // lost-cp1252 (repaired)
             "\u00CE\u201D\u00CE\u00B9\u00CE\u00BC\u00CE\u00B9\u00CF\u201E\u00CF\u0081\u00CE\u00B1 \u00CE\u02DC\u00CE\u00B5\u00CE\u00BF\u00CE\u00B4o\u00CF\u0192\u00CE\u00B9\u00CE\u00BF\u00CF\u2026" to "\u00CE\u201D\u00CE\u00B9\u00CE\u00BC\u00CE\u00B9\u00CF\u201E\u00CF\u0081\u00CE\u00B1 \u00CE\u02DC\u00CE\u00B5\u00CE\u00BF\u00CE\u00B4o\u00CF\u0192\u00CE\u00B9\u00CE\u00BF\u00CF\u2026", // lost-cp1252
             "a\u00CF\u2030c" to "a\u00CF\u2030c", // lost-cp1252
             "DJ \u00D0\u00A6\u00D0\u00B2\u00D0\u00B5\u00D1\u201A\u00D0\u00BA\u00D0\u00BEff" to "DJ \u00D0\u00A6\u00D0\u00B2\u00D0\u00B5\u00D1\u201A\u00D0\u00BA\u00D0\u00BEff", // lost-cp1252
@@ -199,6 +200,17 @@ internal class TextRepairVectorsTest {
             "\u0435\u045C\u0409" to "\u0435\u045C\u0409", // lost-lone-cp1251
             "\u0436\u0407\u2026" to "\u0436\u0407\u2026", // lost-lone-cp1251
             "\u0437\u0457\u00A0" to "\u0437\u0457\u00A0", // lost-lone-cp1251
+            "F\u00C3\u0160TE" to "F\u00CATE", // cp1252-caps (repaired)
+            "T\u00C3\u0160TES" to "T\u00CATES", // cp1252-caps (repaired)
+            "\u00C3\u017DLE" to "\u00CELE", // cp1252-caps (repaired)
+            "\u00C3\u017DN" to "\u00CEN", // cp1252-caps (repaired)
+            "STRA\u00C3\u0178E" to "STRA\u00DFE", // cp1252-caps (repaired)
+            "\u00C4\u0152ESK\u00C3\u0081" to "\u010CESK\u00C1", // cp1252-caps (repaired)
+            "KR\u00C4\u2019SLA" to "KR\u0112SLA", // cp1252-caps (repaired)
+            "END\u00C5\u0152" to "END\u014C", // cp1252-caps (repaired)
+            "F\u00C3\u0160TE DE LA MUSIQUE" to "F\u00CATE DE LA MUSIQUE", // cp1252-caps (repaired)
+            "P\u0102\u015EUNE" to "P\u0102\u015EUNE", // cp1252-caps
+            "P\u0103\u015Fune" to "P\u0103\u015Fune", // cp1252-caps
         )
     }
 }

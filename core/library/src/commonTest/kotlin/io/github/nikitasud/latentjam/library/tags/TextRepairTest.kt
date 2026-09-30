@@ -170,6 +170,24 @@ internal class TextRepairTest {
     }
 
     @Test
+    fun repairsUppercaseCp1252MojibakeOfLatinLetters() {
+        // "Ê" is C3 8A, read through cp1252 as "Ã" + "Š": two capitals, but led by Ã, Ä or Å,
+        // which is how cp1252 spells the lead byte of every Latin-1 and Latin Extended-A letter.
+        assertEquals("FÊTE", TextRepair.repair("F\u00C3\u0160TE"))
+        assertEquals("ÎLE", TextRepair.repair("\u00C3\u017DLE"))
+        assertEquals("STRAßE", TextRepair.repair("STRA\u00C3\u0178E"))
+        assertEquals("ČESKÁ", TextRepair.repair("\u00C4\u0152ESK\u00C3\u0081"))
+        assertEquals("KRĒSLA", TextRepair.repair("KR\u00C4\u2019SLA"))
+        assertEquals("ENDŌ", TextRepair.repair("END\u00C5\u0152"))
+    }
+
+    @Test
+    fun theLatinLeadExemptionIsCp1252Only() {
+        // Through Windows-1250 "ĂŞ" is C3 AA, "ê": genuine Romanian "PĂŞUNE" must not read "PêUNE".
+        for (text in listOf("PĂŞUNE", "Păşune")) assertEquals(text, TextRepair.repair(text))
+    }
+
+    @Test
     fun aSecondPassUsesOnlyTheCodepageOfTheFirst() {
         // cp1252 repairs these; a second pass through another codepage would garble the result
         // again ("PӣNOC", "RӯNI WYKONAWCY", and the known short-word shape "ͳ (Live)").

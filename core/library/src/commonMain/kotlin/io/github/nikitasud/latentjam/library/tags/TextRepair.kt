@@ -26,7 +26,7 @@ package io.github.nikitasud.latentjam.library.tags
  * rule was measured on 111,069 non-ASCII MusicBrainz artist names and aliases,
  * as written and uppercased: it changes none of the genuine ones (the only
  * names it changes are nine that MusicBrainz itself stores as mojibake), and
- * of the same names mangled once it gives up 537 (cp1252), 1,141 (Windows-1250)
+ * of the same names mangled once it gives up 497 (cp1252), 1,139 (Windows-1250)
  * and 1,622 (Windows-1251) that a bare decode would have repaired — mostly
  * single CJK characters and one-letter words such as "à", which read the same
  * as genuine short Cyrillic words to the fallbacks' guards.
@@ -133,7 +133,7 @@ public object TextRepair {
     private fun repairWith(codepage: Codepage, text: String): String? {
         val bytes = codepage.encode(text) ?: return null
         val repaired = decodeUtf8Strict(bytes) ?: return null
-        if (isImplausible(text, bytes, repaired)) return null
+        if (isImplausible(codepage, text, bytes, repaired)) return null
         if (codepage.isFallback && (!isPlausibleFallback(text, repaired) || isStandaloneSequence(text, bytes))) {
             return null
         }
@@ -154,14 +154,18 @@ public object TextRepair {
      *   single quote, inside an all-caps word ([isCapsWord]): "ÉŠ" in
      *   "SEPÉŠI". Mojibake of a capital is usually a capital followed by a
      *   symbol ("Ó" reads "Ã“", "Ă“" or "Г“"), so two capitals are far more
-     *   likely the genuine word;
+     *   likely the genuine word. Exempt through cp1252 are pairs led by C3, C4
+     *   or C5 ("Ã", "Ä", "Å"): those lead every Latin-1 and Latin Extended-A
+     *   letter, and "Ã"/"Ä"/"Å" plus "Š", "Œ", "Ž", "Ÿ" or "’" is uppercase
+     *   mojibake ("FÃŠTE" for "FÊTE", "ÄŒESKÃ" for "ČESKÁ") far more often than
+     *   a genuine word. Not through Windows-1250, where "ĂŞ" is Romanian "PĂŞUNE";
      * - a three-byte sequence spelled by three letters with an ASCII letter
      *   directly beside them in the input: Czech "Déšť" through Windows-1250
      *   is the bytes of "D隝". Exempt are sequences that decode to Latin
      *   Extended Additional (U+1E00-U+1EFF, Vietnamese) or to punctuation and
      *   symbols (U+2000-U+2BFF), which do sit inside Latin words.
      */
-    private fun isImplausible(text: String, bytes: ByteArray, repaired: String): Boolean {
+    private fun isImplausible(codepage: Codepage, text: String, bytes: ByteArray, repaired: String): Boolean {
         if (repaired.any { it.code in 0x80..0x9F }) return true
         for (index in repaired.indices) {
             val code = repaired[index].code
@@ -172,6 +176,7 @@ public object TextRepair {
             val b0 = bytes[index].toInt() and 0xFF
             val b1 = bytes[index + 1].toInt() and 0xFF
             if (b0 !in 0xC2..0xDF || b1 !in 0x80..0xBF) continue
+            if (codepage === CP1252 && b0 in 0xC3..0xC5) continue
             val first = text[index]
             val second = text[index + 1]
             if (first.isUpperCase() && (second.isUpperCase() || second == RIGHT_QUOTE) &&
