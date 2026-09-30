@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.EOFException
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
@@ -28,6 +29,13 @@ class TagWriteKeyFileTest {
         )
         assertEquals(keys, read(bytesOf(keys)))
         assertEquals(emptyList(), read(bytesOf(emptyList())))
+    }
+
+    @Test
+    fun theCommonEncodingIsThisFileFormat() {
+        val keys = listOf("content://media/external/audio/media/42", "", "lone \uD800 surrogate", "🎵 note")
+        assertContentEquals(bytesOf(keys), encodeTagWriteKeys(keys))
+        assertEquals(keys, decodeTagWriteKeys(bytesOf(keys)))
     }
 
     @Test
