@@ -22,6 +22,9 @@ internal class MemoryWriteFiles {
     }
 
     fun has(key: String) = key in tracks
+    fun remove(key: String) {
+        tracks.remove(key)
+    }
     fun bytes(key: String): ByteArray = tracks.getValue(key).bytes.copyOf()
     fun track(key: String): TargetFile = BoxFile(tracks.getValue(key))
 

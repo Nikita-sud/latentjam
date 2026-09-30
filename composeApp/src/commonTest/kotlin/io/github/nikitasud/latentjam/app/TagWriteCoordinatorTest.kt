@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.library.tags.CoverEdit
 import io.github.nikitasud.latentjam.library.tags.Id3Tags
 import io.github.nikitasud.latentjam.library.tags.TagEdits
+import io.github.nikitasud.latentjam.library.tags.TagRefusal
 import io.github.nikitasud.latentjam.library.tags.write.DurableWriter
 import io.github.nikitasud.latentjam.library.tags.write.JournalState
 import io.github.nikitasud.latentjam.library.tags.write.TagRecovery
@@ -45,9 +46,14 @@ internal class TagWriteCoordinatorTest {
         val consentBatches = ArrayList<List<String>>()
         val rescans = ArrayList<List<String>>()
         val stashed = HashMap<String, ByteArray>()
+        val savedKeys = HashMap<Long, List<String>>()
+        var permissionError = false
 
         /** Runs as a file's open begins; a test suspends here to hold that save in flight. */
         var gate: suspend (String) -> Unit = {}
+
+        /** Runs before a batch consent is built; a test suspends here to act while it is asked for. */
+        var consentGate: suspend () -> Unit = {}
 
         /** Files whose open has begun and whose handle is not yet closed. */
         var inFlight = 0
@@ -55,8 +61,12 @@ internal class TagWriteCoordinatorTest {
         override val writer = DurableWriter(files.directory, { "w${++ids}" })
         override val recovery = TagRecovery(files.directory)
 
-        override fun hasWritePermission() = permission
+        override fun hasWritePermission(): Boolean {
+            if (permissionError) throw IllegalStateException("the permission service is gone")
+            return permission
+        }
         override suspend fun batchConsent(keys: List<String>): String {
+            consentGate()
             consentBatches += keys
             return "batch:${keys.size}"
         }
@@ -97,6 +107,15 @@ internal class TagWriteCoordinatorTest {
         override fun drop(name: String) {
             stashed.remove(name)
         }
+        override fun stashNames(): List<String> = stashed.keys.toList()
+        override fun saveKeys(id: Long, keys: List<String>) {
+            savedKeys[id] = keys.toList()
+        }
+        override fun loadKeys(id: Long): List<String>? = savedKeys[id]
+        override fun dropKeys(id: Long) {
+            savedKeys.remove(id)
+        }
+        override fun savedKeyIds(): List<Long> = savedKeys.keys.toList()
     }
 
     private class Harness(val backend: Backend, val test: TestScope, restored: List<String>? = null) {
@@ -187,7 +206,7 @@ internal class TagWriteCoordinatorTest {
         }
         runCurrent()
         harness.deliver()
-        assertEquals(listOf(2_000, 2_000, 500), backend.consentBatches.map { it.size })
+        assertEquals(listOf(keys.subList(0, 2_000), keys.subList(2_000, 4_000), keys.subList(4_000, 4_500)), backend.consentBatches)
         assertEquals(4_500, harness.reports.single().results.count { it.status == FileWriteStatus.UNCHANGED })
         assertEquals(emptyList(), backend.rescans)
     }
@@ -362,10 +381,245 @@ internal class TagWriteCoordinatorTest {
         first.enqueue(listOf("a"), TagEdits(cover = CoverEdit.Replace(png, "image/png")))
         runCurrent()
         val restored = first.recreate()
-        val edits = decodeTagWriteRequests(restored.saved) { backend.unstash(it) }.single().edits
+        val edits = decodeTagWriteRequests(restored.saved, backend::unstash, backend::loadKeys).single().edits
         val cover = edits.cover as CoverEdit.Replace
         assertContentEquals(png, cover.bytes)
         assertEquals("image/png", cover.mime)
+    }
+
+    @Test
+    fun aStopWhileTheBatchConsentIsBuiltOffersNothing() = runTest {
+        val backend = Backend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        listOf("a", "b").forEach { backend.files.put(it, mp3()) }
+        val release = CompletableDeferred<Unit>()
+        backend.consentGate = { release.await() }
+        val harness = Harness(backend, this)
+        harness.enqueue(listOf("a", "b"), TagEdits(title = "New"))
+        runCurrent()
+        harness.coordinator.stop()
+        release.complete(Unit)
+        runCurrent()
+        assertNull(harness.coordinator.prompt.value)
+        harness.deliver()
+        assertEquals(List(2) { FileWriteStatus.STOPPED }, harness.reports.single().results.map { it.status })
+        assertContentEquals(mp3(), backend.files.bytes("a"))
+    }
+
+    @Test
+    fun aStopWhileAFileIsOpenedOffersNoConsentForIt() = runTest {
+        val backend = Backend(TagWriteStrategy.RECOVERABLE_CONSENT)
+        listOf("a", "b").forEach { backend.files.put(it, mp3()) }
+        val release = CompletableDeferred<Unit>()
+        backend.gate = { if (it == "a") release.await() }
+        val harness = Harness(backend, this)
+        harness.enqueue(listOf("a", "b"), TagEdits(title = "New"))
+        runCurrent()
+        harness.coordinator.stop()
+        release.complete(Unit)
+        runCurrent()
+        assertNull(harness.coordinator.prompt.value)
+        harness.deliver()
+        assertEquals(List(2) { FileWriteStatus.STOPPED }, harness.reports.single().results.map { it.status })
+    }
+
+    @Test
+    fun aCheckpointOf10000FilesKeepsTheirKeysOutOfTheSavedState() = runTest {
+        val backend = Backend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        val keys = List(10_000) { "content://media/external/audio/media/${1_000_000 + it}" }
+        val harness = Harness(backend, this)
+        harness.enqueue(keys, TagEdits(title = "New"))
+        runCurrent()
+        assertNotNull(harness.coordinator.prompt.value)
+        assertTrue(harness.saved.sumOf { it.length } < 64 * 1024, "checkpoint of ${harness.saved.sumOf { it.length }} chars")
+        assertEquals(keys, backend.savedKeys.values.single())
+        val restored = decodeTagWriteRequests(harness.saved, backend::unstash, backend::loadKeys).single()
+        assertEquals(keys, restored.keys)
+        assertEquals(keys.take(2_000), restored.batch)
+    }
+
+    @Test
+    fun aCheckpointRoundTripsEveryField() {
+        val keys = listOf("a", "b", "c", "d")
+        val request = TagWriteRequest(
+            id = 7,
+            kind = TagWriteKind.EDIT,
+            keys = keys,
+            edits = TagEdits(title = "T:itle", year = "", lyrics = "line\nline", cover = CoverEdit.Remove),
+            stage = TagWriteStage.WAIT_BATCH,
+            consented = false,
+            permissionRequested = true,
+            batch = listOf("c", "d"),
+            results = listOf(
+                FileWriteResult("b", FileWriteStatus.SAVED, newLength = 1_234_567_890_123),
+                FileWriteResult("a", FileWriteStatus.REFUSED, refusal = TagRefusal.TRUNCATED),
+            ),
+            stopRequested = true,
+            interrupted = true,
+        )
+        val saved = encodeTagWriteRequests(listOf(request))
+        assertEquals(listOf(request), decodeTagWriteRequests(saved, { null }, { if (it == 7L) keys else null }))
+        // Keys that were lost drop the request rather than guess at them.
+        assertEquals(emptyList(), decodeTagWriteRequests(saved, { null }, { null }))
+        assertEquals(emptyList(), decodeTagWriteRequests(saved, { null }, { keys.drop(1) }))
+    }
+
+    @Test
+    fun keysAndCoversNoRequestNeedsArePrunedAtStart() = runTest {
+        val backend = Backend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        backend.files.put("a", mp3())
+        val first = Harness(backend, this)
+        val id = first.enqueue(listOf("a"), TagEdits(cover = CoverEdit.Replace(byteArrayOf(1), "image/png")))
+        runCurrent()
+        backend.savedKeys[99] = listOf("stale")
+        backend.stashed[coverName(99)] = byteArrayOf(2)
+        val restored = first.recreate()
+        assertEquals(listOf(id), backend.savedKeyIds())
+        assertEquals(listOf(coverName(id)), backend.stashNames())
+        // A new request never takes the id of keys that were there.
+        assertTrue(assertNotNull(restored.coordinator.enqueue(listOf("b"), TagEdits(title = "x"))) > 99)
+    }
+
+    @Test
+    fun aLeftoverCoordinatorsSaveBlocksAnotherCoordinatorsSweep() = runTest {
+        val backend = Backend(TagWriteStrategy.NO_CONSENT)
+        listOf("a", "b").forEach { backend.files.put(it, mp3()) }
+        val release = CompletableDeferred<Unit>()
+        backend.gate = { if (it == "b") release.await() }
+        val leftover = Harness(backend, this)
+        leftover.enqueue(listOf("a", "b"), TagEdits(title = "New"))
+        runCurrent()
+        assertEquals(1, backend.inFlight)
+
+        val inFlightAtSweep = ArrayList<Int>()
+        backend.files.onDelete = { if (it == "stray.patch") inFlightAtSweep += backend.inFlight }
+        backend.files.directory.create("stray.patch").close()
+        val fresh = Harness(backend, this)
+        val refresh = launch { fresh.coordinator.refreshRecovery() }
+        runCurrent()
+        assertEquals(emptyList(), inFlightAtSweep)
+        assertTrue(refresh.isActive)
+
+        release.complete(Unit)
+        runCurrent()
+        refresh.join()
+        assertEquals(listOf(0), inFlightAtSweep)
+    }
+
+    @Test
+    fun aRestartMidBatchAsksOnlyForTheRestAndFinishesTheInterruptedFile() = runTest {
+        val backend = Backend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        val keys = listOf("a", "b", "c", "d")
+        keys.forEach { backend.files.put(it, mp3()) }
+        backend.gate = { if (it == "c" || it == "d") CompletableDeferred<Unit>().await() }
+        val first = Harness(backend, this)
+        first.enqueue(keys, TagEdits(title = "New"))
+        runCurrent()
+        first.approvePrompt()
+        runCurrent()
+        assertEquals(TagWriteStage.WRITING, decodeTagWriteRequests(first.saved, backend::unstash, backend::loadKeys).single().stage)
+        // The process dies: "c" mid-patch, "d" saved before its result was checkpointed.
+        backend.gate = {}
+        interruptSave(backend, "c")
+        backend.files.put("d", mp3("New"))
+        val restored = first.recreate()
+        runCurrent()
+        assertEquals(listOf("c", "d"), backend.consentBatches.last())
+        restored.approvePrompt()
+        runCurrent()
+        val results = assertNotNull(restored.coordinator.completed.value).results
+        assertEquals(keys, results.map { it.key }.sorted())
+        assertEquals(
+            mapOf("a" to FileWriteStatus.SAVED, "b" to FileWriteStatus.SAVED, "c" to FileWriteStatus.SAVED, "d" to FileWriteStatus.UNCHANGED),
+            results.associate { it.key to it.status },
+        )
+        keys.forEach { assertContentEquals(mp3("New"), backend.files.bytes(it), it) }
+        assertTrue(backend.recovery.pending().isEmpty())
+        // "d" is rescanned too: its save may have landed after the index last read it.
+        assertEquals(keys, backend.rescans.single().sorted())
+    }
+
+    @Test
+    fun aGrantRevokedBetweenBatchesDeniesTheTail() = runTest {
+        val backend = Backend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        val keys = List(2_002) { "k$it" }
+        val file = mp3()
+        keys.forEach { backend.files.put(it, file) }
+        val harness = Harness(backend, this)
+        harness.enqueue(keys, TagEdits(title = "Old"))
+        runCurrent()
+        harness.approvePrompt()
+        runCurrent()
+        // Approved, but the grant is gone by the time the files are opened.
+        harness.coordinator.promptLaunched(assertNotNull(harness.coordinator.prompt.value).requestId)
+        harness.coordinator.answer(WriteAnswer.APPROVED)
+        runCurrent()
+        harness.deliver()
+        val statuses = harness.reports.single().results.associate { it.key to it.status }
+        assertEquals(2_000, keys.take(2_000).count { statuses[it] == FileWriteStatus.UNCHANGED })
+        assertEquals(listOf(FileWriteStatus.DENIED, FileWriteStatus.DENIED), keys.drop(2_000).map { statuses[it] })
+    }
+
+    @Test
+    fun aRecoveryOfAFileThatIsGoneClosesItsRecord() = runTest {
+        val backend = Backend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", mp3())
+        interruptSave(backend, "a")
+        backend.files.remove("a")
+        val harness = Harness(backend, this)
+        harness.coordinator.refreshRecovery()
+        assertNotNull(harness.coordinator.enqueueRecovery())
+        runCurrent()
+        val completed = assertNotNull(harness.coordinator.completed.value)
+        assertEquals(FileWriteStatus.MISSING, completed.results.single().status)
+        harness.coordinator.deliver(completed.id)
+        harness.coordinator.refreshRecovery()
+        assertEquals(emptyList(), harness.coordinator.pendingRecovery.value)
+        assertEquals(emptyList(), backend.files.directory.names())
+    }
+
+    @Test
+    fun aBackendErrorFinishesTheRequestAsFailed() = runTest {
+        val backend = Backend(TagWriteStrategy.WRITE_PERMISSION)
+        listOf("a", "b").forEach { backend.files.put(it, mp3()) }
+        backend.permissionError = true
+        val harness = Harness(backend, this)
+        harness.enqueue(listOf("a", "b"), TagEdits(title = "New"))
+        runCurrent()
+        harness.deliver()
+        assertEquals(List(2) { FileWriteStatus.FAILED }, harness.reports.single().results.map { it.status })
+        assertNull(harness.coordinator.completed.value)
+    }
+
+    @Test
+    fun aCoverLostWithTheProcessFailsTheRequest() = runTest {
+        val backend = Backend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        backend.files.put("a", mp3())
+        val first = Harness(backend, this)
+        first.enqueue(listOf("a"), TagEdits(title = "New", cover = CoverEdit.Replace(byteArrayOf(1), "image/png")))
+        runCurrent()
+        backend.stashed.clear()
+        val restored = first.recreate()
+        runCurrent()
+        assertNull(restored.coordinator.prompt.value)
+        val completed = assertNotNull(restored.coordinator.completed.value)
+        assertEquals(FileWriteStatus.FAILED, completed.results.single().status)
+        restored.coordinator.deliver(completed.id)
+        assertContentEquals(mp3(), backend.files.bytes("a"))
+        assertEquals(emptyList(), backend.savedKeyIds())
+    }
+
+    @Test
+    fun aDeliveredRequestDropsItsCoverAndKeys() = runTest {
+        val backend = Backend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", mp3())
+        val harness = Harness(backend, this)
+        val id = harness.enqueue(listOf("a"), TagEdits(cover = CoverEdit.Replace(byteArrayOf(1), "image/png")))
+        assertEquals(listOf(coverName(id)), backend.stashNames())
+        runCurrent()
+        harness.deliver()
+        assertEquals(TagWriteOutcome.Refused(TagRefusal.UNSUPPORTED_IMAGE), tagWriteOutcome(harness.reports.single()))
+        assertEquals(emptyList(), backend.stashNames())
+        assertEquals(emptyList(), backend.savedKeyIds())
     }
 
     private companion object {
