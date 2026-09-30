@@ -42,6 +42,13 @@ internal class FaultFiles(var storeCapacity: Long = Long.MAX_VALUE) {
     var operations: Int = 0
         private set
 
+    /** When set, the store reports this much free space whatever it holds (a store that lies). */
+    var reportedFree: Long? = null
+
+    /** 0 = never. Power is lost right after the Nth write to any track (that write done, unforced). */
+    var crashAtTrackWrite: Int = 0
+    private var trackWrites = 0
+
     fun put(name: String, bytes: ByteArray) {
         tracks[name] = Node(bytes.copyOf())
     }
@@ -77,6 +84,8 @@ internal class FaultFiles(var storeCapacity: Long = Long.MAX_VALUE) {
         }
         crashAt = 0
         operations = 0
+        crashAtTrackWrite = 0
+        trackWrites = 0
     }
 
     /**
@@ -148,6 +157,17 @@ internal class FaultFiles(var storeCapacity: Long = Long.MAX_VALUE) {
         }
     }
 
+    /** An [AtomicReplacer] renaming a store file over a track in one durable step, as iOS does. */
+    fun replacer(): AtomicReplacer = AtomicReplacer { key, stagedName ->
+        tick()
+        val node = store.remove(stagedName) ?: throw IllegalStateException("no $stagedName")
+        syncedStore = syncedStore - stagedName
+        node.durable = node.current.copyOf()
+        node.pending.clear()
+        tracks[key] = node
+        NodeFile(node, store = false)
+    }
+
     private fun storeSize(): Long = store.values.sumOf { it.current.size.toLong() }
 
     val directory: RecoveryDirectory = object : RecoveryDirectory {
@@ -172,7 +192,7 @@ internal class FaultFiles(var storeCapacity: Long = Long.MAX_VALUE) {
             syncedStore = LinkedHashMap(store)
         }
 
-        override fun freeBytes(): Long = storeCapacity - storeSize()
+        override fun freeBytes(): Long = reportedFree ?: (storeCapacity - storeSize())
     }
 
     private inner class NodeFile(private val node: Node, private val store: Boolean) : TargetFile {
@@ -190,6 +210,7 @@ internal class FaultFiles(var storeCapacity: Long = Long.MAX_VALUE) {
             if (store && grows > 0 && storeSize() + grows > storeCapacity) throw StorageFullException("store full")
             node.current = splice(node.current, offset, chunk)
             node.pending += Change.Write(offset, chunk)
+            if (!store && ++trackWrites == crashAtTrackWrite) throw PowerLoss()
         }
 
         override fun setLength(length: Long) {
