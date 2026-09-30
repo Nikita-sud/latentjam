@@ -16,10 +16,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * `ParcelFileDescriptor`, whose descriptor yields a read channel and a write channel; a file in the
  * store is opened directly.
  *
- * [onClose] owns closing both channels and the descriptor behind them: [close] calls it exactly
- * once, however often [close] itself is called, and it should be idempotent all the same. Closing a
- * channel closes its descriptor, so an Android caller with a `ParcelFileDescriptor` closes the
- * channels and the descriptor there and nowhere else.
+ * [onClose] owns closing what is behind the channels: [close] calls it exactly once, however often
+ * [close] itself is called, and it should be idempotent all the same. What that takes differs. On a
+ * JVM, closing a channel from a stream over a descriptor closes the descriptor too. On Android, a
+ * stream built over a descriptor it did not open never closes it, so a caller with a
+ * `ParcelFileDescriptor` closes the `ParcelFileDescriptor` there, once, and nothing else closes it.
  *
  * Saves must not run under thread interruption (`runInterruptible`, `shutdownNow`): a [FileChannel]
  * closes itself when its thread is interrupted, which would cut a save off mid-write.
