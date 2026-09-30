@@ -78,6 +78,20 @@ public class TagRecovery(
     }
 
     /**
+     * Gives up on [record] because its file is gone for good (deleted, not merely unreachable):
+     * journals [JournalState.ABANDONED] and deletes the save's files, so the file no longer shows as
+     * interrupted. The same precondition as [recover] applies. A failure leaves the record open for
+     * another try.
+     */
+    public fun abandon(record: JournalRecord) {
+        try {
+            close(record, JournalState.ABANDONED, Outcome.FOREIGN)
+        } catch (_: Exception) {
+            // Still open: the next recovery asks again.
+        }
+    }
+
+    /**
      * Deletes every store file that no open save needs. Safe after any crash and between
      * recoveries, but never while any save is in flight on this store: a save's patch file exists
      * before its record does (see the class notes).
