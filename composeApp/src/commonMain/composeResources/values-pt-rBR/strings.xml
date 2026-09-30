@@ -232,7 +232,7 @@
     <string name="info_save">Salvar</string>
     <string name="info_cancel">Cancelar</string>
     <string name="info_saving">Salvando…</string>
-    <string name="info_edit_note">Salvo no próprio arquivo, então todos os aplicativos veem a correção. Pode ser que seja pedida permissão para modificar o arquivo.</string>
+    <string name="info_edit_note">Salvo no próprio arquivo, então todos os aplicativos veem a correção. Talvez seja solicitada permissão para modificar o arquivo.</string>
     <string name="info_edit_refused">As tags deste arquivo estão em um formato que não pode ser reescrito com segurança, então nada foi alterado.</string>
     <string name="info_edit_failed">Não foi possível gravar neste arquivo. Ele foi mantido como estava.</string>
     <string name="info_edit_unavailable">A edição de tags não está disponível neste dispositivo.</string>
