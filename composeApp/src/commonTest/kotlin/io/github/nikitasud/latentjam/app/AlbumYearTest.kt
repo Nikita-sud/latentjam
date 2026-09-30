@@ -41,6 +41,22 @@ internal class AlbumYearTest {
     }
 
     @Test
+    fun aCompilationWhoseTracksComeFromManyYearsShowsNone() {
+        // A 2005 best-of: the earliest single vote would read 1971, which the album is not.
+        val tracks = listOf(1971, 1975, 1980, 1985, 1991).map { track(year = 2005, originalYear = it) }
+        assertNull(albumYearLabel(tracks))
+        // The Year sort still files it somewhere.
+        assertEquals(1971, LibraryCatalog.releaseYear(tracks))
+    }
+
+    @Test
+    fun aYearHalfTheDatedTracksAgreeOnIsShown() {
+        val tracks = listOf(track(year = 1994), track(year = 1994), track(year = 1996), track(year = 1999), track())
+        assertEquals("1994", albumYearLabel(tracks))
+        assertNull(albumYearLabel(listOf(track(year = 1994), track(year = 1996), track(year = 1999))))
+    }
+
+    @Test
     fun theShownYearIsTheYearSortYear() {
         val albums = listOf(
             listOf(track(year = 2011, originalYear = 1973), track(year = 2011)),
@@ -48,7 +64,8 @@ internal class AlbumYearTest {
             listOf(track(), track(year = 1985)),
         )
         for (tracks in albums) {
-            assertEquals(LibraryCatalog.releaseYear(tracks)?.toString(), albumYearLabel(tracks))
+            val shown = albumYearLabel(tracks) ?: continue
+            assertEquals(LibraryCatalog.releaseYear(tracks)?.toString(), shown)
         }
     }
 }
