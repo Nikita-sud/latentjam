@@ -21,7 +21,8 @@ import kotlin.test.fail
  * reports as skipped. Each file is copied to `<index>.<ext>` (with the original kept as
  * `<index>.orig.<ext>` for the external PCM check), saved with the full edit of
  * [io.github.nikitasud.latentjam.library.tags.TagCodecRealFileTest], and verified. A file that is
- * refused or unchanged leaves no copy behind.
+ * refused or unchanged leaves no copy behind. Refusals beyond `TAG_REAL_MAX_REFUSALS` (default 4,
+ * the plan-1 corpus's count) fail the run, and the store must be empty after every outcome.
  */
 class DurableWriteRealFileTest {
 
@@ -57,6 +58,7 @@ class DurableWriteRealFileTest {
             println("SKIP: set TAG_REAL_FILES_OUT to a scratch directory")
             return
         }
+        val maxRefusals = System.getenv("TAG_REAL_MAX_REFUSALS")?.toIntOrNull() ?: 4
         val store = FileRecoveryDirectory(File(out, "store")) {}
         var writes = 0
         val writer = DurableWriter(store, { "w${++writes}" })
@@ -70,47 +72,55 @@ class DurableWriteRealFileTest {
         files.forEachIndexed { index, file ->
             val original = file.readBytes()
             val copy = File(out, "$index.${file.extension}").apply { writeBytes(original) }
-            val start = System.nanoTime()
-            val result = try {
-                ChannelTargetFile.open(copy).use { writer.write(copy.path, it, fullEdit, out.usableSpace) }
-            } catch (e: Exception) {
-                failures += "${file.name}: the writer threw $e"
-                return@forEachIndexed
-            }
-            val nanos = System.nanoTime() - start
             var keep = false
-            when (result) {
-                is WriteResult.Saved -> {
-                    counts.merge(if (result.rewritten) "Saved (rewrite)" else "Saved (in place)", 1, Int::plus)
-                    (if (result.rewritten) rewriteNanos else inPlaceNanos) += nanos
-                    val codec = TagCodecs.forSource(ByteArraySource(original))
-                    if (codec == null) {
-                        failures += "${file.name}: saved, yet no codec reads the original"
-                    } else {
-                        ChannelTargetFile.open(copy).use { after ->
-                            TagVerification.verify(codec, ByteArraySource(original), after, fullEdit).forEach {
-                                failures += "${file.name}: ${it.check}\n  ${it.detail}"
+            try {
+                val start = System.nanoTime()
+                val result = ChannelTargetFile.open(copy).use { writer.write(copy.path, it, fullEdit, out.usableSpace) }
+                val nanos = System.nanoTime() - start
+                when (result) {
+                    is WriteResult.Saved -> {
+                        counts.merge(if (result.rewritten) "Saved (rewrite)" else "Saved (in place)", 1, Int::plus)
+                        (if (result.rewritten) rewriteNanos else inPlaceNanos) += nanos
+                        val codec = TagCodecs.forSource(ByteArraySource(original))
+                        if (codec == null) {
+                            failures += "${file.name}: saved, yet no codec reads the original"
+                        } else {
+                            ChannelTargetFile.open(copy).use { after ->
+                                TagVerification.verify(codec, ByteArraySource(original), after, fullEdit).forEach {
+                                    failures += "${file.name}: ${it.check}\n  ${it.detail}"
+                                }
+                                if (after.length != result.newLength) failures += "${file.name}: newLength ${result.newLength} but the file is ${after.length}"
                             }
-                            if (after.length != result.newLength) failures += "${file.name}: newLength ${result.newLength} but the file is ${after.length}"
+                            keep = true
                         }
-                        keep = true
                     }
-                    if (store.names().isNotEmpty()) failures += "${file.name}: the store is not empty after a save: ${store.names()}"
+                    is WriteResult.Refused -> {
+                        counts.merge("Refused", 1, Int::plus)
+                        refusals.getOrPut(result.reason.name) { ArrayList() } += file.name
+                        if (!copy.readBytes().contentEquals(original)) failures += "${file.name}: refused, yet the file changed"
+                    }
+                    WriteResult.NoChange -> {
+                        counts.merge("NoChange", 1, Int::plus)
+                        if (!copy.readBytes().contentEquals(original)) failures += "${file.name}: no change, yet the file changed"
+                    }
+                    else -> failures += "${file.name}: $result"
                 }
-                is WriteResult.Refused -> {
-                    counts.merge("Refused", 1, Int::plus)
-                    refusals.getOrPut(result.reason.name) { ArrayList() } += file.name
-                    if (!copy.readBytes().contentEquals(original)) failures += "${file.name}: refused, yet the file changed"
+            } catch (e: Exception) {
+                failures += "${file.name}: threw $e"
+            } finally {
+                // Whatever the outcome, nothing may be left in the store; clear leftovers so one failure is reported once.
+                val left = store.names()
+                if (left.isNotEmpty()) {
+                    failures += "${file.name}: the store is not empty afterwards: $left"
+                    left.forEach(store::delete)
                 }
-                WriteResult.NoChange -> {
-                    counts.merge("NoChange", 1, Int::plus)
-                    if (!copy.readBytes().contentEquals(original)) failures += "${file.name}: no change, yet the file changed"
-                }
-                else -> failures += "${file.name}: $result"
+                if (keep) File(out, "$index.orig.${file.extension}").writeBytes(original) else copy.delete()
             }
-            if (keep) File(out, "$index.orig.${file.extension}").writeBytes(original) else copy.delete()
         }
         if (store.names().isEmpty()) File(out, "store").delete()
+
+        val refused = refusals.values.sumOf { it.size }
+        if (refused > maxRefusals) failures += "$refused refusals exceed the bound of $maxRefusals: ${refusals.mapValues { it.value.size }}"
 
         println("DURABLE CORPUS: ${files.size} files")
         counts.forEach { (outcome, count) -> println("  $outcome: $count") }

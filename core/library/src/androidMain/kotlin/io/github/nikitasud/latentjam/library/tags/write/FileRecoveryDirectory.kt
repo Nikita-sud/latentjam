@@ -11,6 +11,9 @@ import java.io.RandomAccessFile
  * The recovery store as a plain directory. [syncDirectory] makes entries durable: Android passes an
  * `Os.open` + `Os.fsync` of the directory (java.nio.file is not available below API 26); host tests
  * pass a no-op.
+ *
+ * Files are opened through [ChannelTargetFile], so saves must not run under thread interruption
+ * (`runInterruptible`, `shutdownNow`): a `FileChannel` closes itself when its thread is interrupted.
  */
 public class FileRecoveryDirectory(
     private val root: File,
@@ -48,6 +51,6 @@ public class FileRecoveryDirectory(
     }
 
     private companion object {
-        val NAME = Regex("[A-Za-z0-9._-]+")
+        val NAME = Regex("[A-Za-z0-9_-][A-Za-z0-9._-]*")
     }
 }
