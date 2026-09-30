@@ -1680,7 +1680,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
         // A new album sort re-derives the Albums tab from the catalog in hand, never rebuilding the
         // catalog. A sort chosen while a rebuild was running is caught here too: the rebuild derived
-        // its albums in the order current when it read it.
+        // its albums in the order current when it read it. A small library was already re-sorted by
+        // the sort control itself (see albumResortRunsInline), so only a large one gets here.
         LaunchedEffect(catalog, albumSortChoice) {
             val current = catalog ?: return@LaunchedEffect
             val shown = albumBrowse
@@ -2858,7 +2859,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             val songsListState = rememberLazyListState()
                                             val scrollSongsToTopOnSort = rememberScrollToTopOnSort(
                                                 shown = songSortChoice,
-                                            ) { songsListState.scrollToItem(0) }
+                                            ) { songsListState.requestScrollToItem(0) }
                                             SortHeader(
                                                 options = SongSort.entries,
                                                 choice = songSortChoice,
@@ -2909,10 +2910,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
                                         StartPage.ALBUMS -> Column {
                                             val albumsGridState = rememberLazyGridState()
-                                            // The grid shows the derived order, which lags the setting.
+                                            // The grid shows the derived order, which can lag the setting.
                                             val scrollAlbumsToTopOnSort = rememberScrollToTopOnSort(
                                                 shown = albumBrowse?.choice,
-                                            ) { albumsGridState.scrollToItem(0) }
+                                            ) { albumsGridState.requestScrollToItem(0) }
                                             SortHeader(
                                                 options = AlbumSort.entries,
                                                 choice = albumSortChoice,
@@ -2926,6 +2927,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 enabled = !selectionMode,
                                                 onChoiceChange = { choice ->
                                                     scrollAlbumsToTopOnSort(choice)
+                                                    // A small library re-sorts in the tap's own frame; the
+                                                    // effect below skips a choice already derived.
+                                                    catalog?.takeIf { albumResortRunsInline(it.albums.size) }?.let {
+                                                        albumBrowse = AlbumBrowseDerivation.of(it, choice)
+                                                    }
                                                     settings.setAlbumSort(choice)
                                                 },
                                             )
@@ -5122,6 +5128,19 @@ private fun GroupSelectionMark(selectionState: Boolean?) {
 /** Stable, saveable Lazy item identity; null and an actual empty name never alias. */
 private fun stableGroupKey(kind: String, name: String?): String =
     if (name == null) "$kind:null" else "$kind:value:$name"
+
+/**
+ * Whether the Albums tab re-sorts [albumCount] albums on the main thread, in the frame of the tap.
+ *
+ * Off the main thread the new order waits for a frame to start the derivation, a hop to a
+ * background thread and back, and a frame to show it: 110-350 ms on an emulator, for a sort of 678
+ * albums that takes 4-8 ms inline there (debug build). Up to this many albums the sort fits in a
+ * frame, so it runs inline and the new order shows in the next frame; above it the background
+ * keeps a big library's re-sort from dropping frames.
+ */
+internal fun albumResortRunsInline(albumCount: Int): Boolean = albumCount <= INLINE_ALBUM_RESORT_LIMIT
+
+internal const val INLINE_ALBUM_RESORT_LIMIT = 1000
 
 /** The Albums tab derived from one catalog in one order; tracks in the grid's order, for selection. */
 private class AlbumBrowseDerivation(
