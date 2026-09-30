@@ -66,6 +66,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -2854,6 +2855,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         )
 
                                         StartPage.TRACKS -> Column {
+                                            val songsListState = rememberLazyListState()
+                                            val scrollSongsToTopOnSort = rememberScrollToTopOnSort(
+                                                shown = songSortChoice,
+                                            ) { songsListState.scrollToItem(0) }
                                             SortHeader(
                                                 options = SongSort.entries,
                                                 choice = songSortChoice,
@@ -2865,9 +2870,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     visibleCatalog.songs.size,
                                                 ),
                                                 enabled = !selectionMode,
-                                                onChoiceChange = settings::setSongSort,
+                                                onChoiceChange = { choice ->
+                                                    scrollSongsToTopOnSort(choice)
+                                                    settings.setSongSort(choice)
+                                                },
                                             )
                                             SectionedSongsList(
+                                                listState = songsListState,
                                                 onRailScrubbingChange = { railScrubbing = it },
                                                 currentAccent = browseAccentInk(accent),
                                                 songs = visibleCatalog.songs,
@@ -2899,6 +2908,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
 
                                         StartPage.ALBUMS -> Column {
+                                            val albumsGridState = rememberLazyGridState()
+                                            // The grid shows the derived order, which lags the setting.
+                                            val scrollAlbumsToTopOnSort = rememberScrollToTopOnSort(
+                                                shown = albumBrowse?.choice,
+                                            ) { albumsGridState.scrollToItem(0) }
                                             SortHeader(
                                                 options = AlbumSort.entries,
                                                 choice = albumSortChoice,
@@ -2910,7 +2924,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     visibleCatalog.albums.size,
                                                 ),
                                                 enabled = !selectionMode,
-                                                onChoiceChange = settings::setAlbumSort,
+                                                onChoiceChange = { choice ->
+                                                    scrollAlbumsToTopOnSort(choice)
+                                                    settings.setAlbumSort(choice)
+                                                },
                                             )
                                             val albumPadding = PaddingValues(
                                                 start = 12.dp, end = 12.dp, top = 8.dp,
@@ -2946,6 +2963,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                 }
                                             }
                                             GridListWithRail(
+                                                gridState = albumsGridState,
                                                 onScrubbingChange = { railScrubbing = it },
                                                 rail = albumRail,
                                                 catalogKey = albumSections to indexed,

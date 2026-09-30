@@ -20,10 +20,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
@@ -103,3 +107,30 @@ private const val SCROLL_TO_TOP_THRESHOLD = 12
 
 /** Beyond this the return snaps close first, then settles — animation, not a journey. */
 private const val SCROLL_TO_TOP_SNAP_FROM = 30
+
+/**
+ * What a sort control calls with the listener's new order, so the list then starts at its top.
+ *
+ * A lazy list follows its first visible item's key through a re-sort, so without this the row
+ * the listener was looking at stays on screen and the new order looks as if nothing happened.
+ * [shown] is the order the list displays right now: the scroll waits until it is the chosen one,
+ * because a scroll made while the old order is still on screen is undone by that same key
+ * following once the new order arrives (the Albums tab derives its order off the main thread).
+ * Only a listener's choice scrolls; a restored setting, a rescan or a return to the tab keeps
+ * the position.
+ */
+@Composable
+internal fun <T : Any> rememberScrollToTopOnSort(
+    shown: T?,
+    scrollToTop: suspend () -> Unit,
+): (T) -> Unit {
+    var pending by remember { mutableStateOf<T?>(null) }
+    val currentScrollToTop by rememberUpdatedState(scrollToTop)
+    LaunchedEffect(shown, pending) {
+        if (pending != null && pending == shown) {
+            currentScrollToTop()
+            pending = null
+        }
+    }
+    return remember { { choice -> pending = choice } }
+}
