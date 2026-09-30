@@ -6,20 +6,22 @@ package io.github.nikitasud.latentjam.library.tags
 
 /**
  * Repairs text that was UTF-8 but got decoded once (or twice) as a single-byte
- * ISO-8859-1/cp1252 codec — the classic mojibake produced when a MediaStore
- * column, an ID3 encoding-0 frame, or a lossy re-tag assumes Latin-1 for bytes
- * that were actually UTF-8. "üß" mangled this way reads back as "Ã¼ÃŸ".
+ * Windows codepage — the classic mojibake produced when a MediaStore column, an
+ * ID3 encoding-0 frame, or a lossy re-tag assumes a legacy charset for bytes
+ * that were actually UTF-8. "üß" mangled this way reads back as "Ã¼ÃŸ" through
+ * ISO-8859-1/cp1252, "ĂĽĂź" through Windows-1250 and "ГјГџ" through
+ * Windows-1251; Android picks among these by device locale.
  *
  * The repair is speculative: every character of the input is mapped back to
- * the single byte a Latin-1/cp1252 decoder would have produced it from, and
- * those bytes are re-decoded as strict UTF-8. If either step is impossible —
- * a character outside that byte range, or bytes that are not valid UTF-8 —
- * the input almost certainly was not mangled this way and is returned as is.
+ * the single byte that codepage would have produced it from, and those bytes
+ * are re-decoded as strict UTF-8. If either step is impossible — a character
+ * the codepage has no byte for, or bytes that are not valid UTF-8 — the input
+ * almost certainly was not mangled that way and is returned as is.
  */
 public object TextRepair {
 
     /**
-     * Undoes up to two rounds of UTF-8-decoded-as-Latin-1/cp1252 mojibake.
+     * Undoes up to two rounds of UTF-8-decoded-as-a-Windows-codepage mojibake.
      *
      * A character below U+0080 can never come from this kind of mistake (a
      * UTF-8 continuation or lead byte is always ≥ 0x80), so text made only of
@@ -110,18 +112,117 @@ public object TextRepair {
         return sb.toString()
     }
 
-    /** One round of the repair: every char to a byte, then strict UTF-8. */
+    /**
+     * One round of the repair. cp1252 (with Latin-1) goes first, exactly as before
+     * the other codepages were added; Windows-1250 and Windows-1251 are fallbacks
+     * for the characters cp1252 has no byte for, and each must also pass
+     * [isPlausibleFallback].
+     */
     private fun repairOnce(text: String): String {
+        cp1252Bytes(text)?.let(::decodeUtf8Strict)?.let { return it }
+        for (codepage in FALLBACK_CODEPAGES) {
+            val repaired = codepage.encode(text)?.let(::decodeUtf8Strict) ?: continue
+            if (isPlausibleFallback(text, repaired)) return repaired
+        }
+        return text
+    }
+
+    /** Every char to its Latin-1/cp1252 byte, or null if one has none. */
+    private fun cp1252Bytes(text: String): ByteArray? {
         val bytes = ByteArray(text.length)
         for (index in text.indices) {
             val code = text[index].code
             bytes[index] = when {
                 code <= 0xFF -> code.toByte()
-                else -> CP1252_SPECIALS[code]?.toByte() ?: return text
+                else -> CP1252_SPECIALS[code]?.toByte() ?: return null
             }
         }
-        return decodeUtf8Strict(bytes) ?: text
+        return bytes
     }
+
+    /**
+     * Guards the Windows-1250/1251 fallbacks against correctly spelled text.
+     * Cyrillic is almost entirely Windows-1251 bytes C0-FF (UTF-8 lead bytes) and
+     * Ukrainian, Belarusian and Serbian letters such as і, ї, ё, ў, ђ sit in 80-BF
+     * (UTF-8 continuation bytes), so a genuine short word can map to one valid
+     * pair: "Ні" would become "ͳ", "Ві" "³", "Её" "Ÿ". Longer genuine names never
+     * pair up all the way (none of 111,000 non-ASCII MusicBrainz artist names and
+     * aliases does), so the fallback is refused only when the whole repair is a
+     * single two-byte pair with no ASCII letter or digit anywhere in the text —
+     * "BjĂ¶rk" still repairs, a bare "Я" read as "РЇ" is the price. A result
+     * holding a C1 control (U+0080-U+009F) is refused too: no real name has one.
+     */
+    private fun isPlausibleFallback(text: String, repaired: String): Boolean {
+        if (repaired.any { it.code in 0x80..0x9F }) return false
+        return text.length - repaired.length >= 2 ||
+            text.any { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }
+    }
+
+    /**
+     * A single-byte codepage given as its upper half: the 128 characters that
+     * bytes 80-FF decode to, in byte order (bytes below 80 are ASCII). A byte the
+     * codepage leaves undefined is listed as the C1 control of the same value,
+     * which is what a lenient decoder — including Android's — emits for it.
+     */
+    private class Codepage(upperHalf: String) {
+        private val byteOf: Map<Char, Byte> = HashMap<Char, Byte>(upperHalf.length * 2).apply {
+            require(upperHalf.length == 128)
+            upperHalf.forEachIndexed { index, char -> put(char, (0x80 + index).toByte()) }
+        }
+
+        /** Every char to its byte in this codepage, or null if one has none. */
+        fun encode(text: String): ByteArray? {
+            val bytes = ByteArray(text.length)
+            for (index in text.indices) {
+                val char = text[index]
+                bytes[index] = if (char.code < 0x80) char.code.toByte() else byteOf[char] ?: return null
+            }
+            return bytes
+        }
+    }
+
+    /** Windows-1250 (Central European); 81, 83, 88, 90 and 98 are undefined. */
+    private val WINDOWS_1250 = Codepage(
+        "\u20AC\u0081\u201A\u0083\u201E\u2026\u2020\u2021" + // 80: € · ‚ · „ … † ‡
+            "\u0088\u2030\u0160\u2039\u015A\u0164\u017D\u0179" + // 88: · ‰ Š ‹ Ś Ť Ž Ź
+            "\u0090\u2018\u2019\u201C\u201D\u2022\u2013\u2014" + // 90: · ‘ ’ “ ” • – —
+            "\u0098\u2122\u0161\u203A\u015B\u0165\u017E\u017A" + // 98: · ™ š › ś ť ž ź
+            "\u00A0\u02C7\u02D8\u0141\u00A4\u0104\u00A6\u00A7" + // A0: nbsp ˇ ˘ Ł ¤ Ą ¦ §
+            "\u00A8\u00A9\u015E\u00AB\u00AC\u00AD\u00AE\u017B" + // A8: ¨ © Ş « ¬ shy ® Ż
+            "\u00B0\u00B1\u02DB\u0142\u00B4\u00B5\u00B6\u00B7" + // B0: ° ± ˛ ł ´ µ ¶ ·
+            "\u00B8\u0105\u015F\u00BB\u013D\u02DD\u013E\u017C" + // B8: ¸ ą ş » Ľ ˝ ľ ż
+            "\u0154\u00C1\u00C2\u0102\u00C4\u0139\u0106\u00C7" + // C0: Ŕ Á Â Ă Ä Ĺ Ć Ç
+            "\u010C\u00C9\u0118\u00CB\u011A\u00CD\u00CE\u010E" + // C8: Č É Ę Ë Ě Í Î Ď
+            "\u0110\u0143\u0147\u00D3\u00D4\u0150\u00D6\u00D7" + // D0: Đ Ń Ň Ó Ô Ő Ö ×
+            "\u0158\u016E\u00DA\u0170\u00DC\u00DD\u0162\u00DF" + // D8: Ř Ů Ú Ű Ü Ý Ţ ß
+            "\u0155\u00E1\u00E2\u0103\u00E4\u013A\u0107\u00E7" + // E0: ŕ á â ă ä ĺ ć ç
+            "\u010D\u00E9\u0119\u00EB\u011B\u00ED\u00EE\u010F" + // E8: č é ę ë ě í î ď
+            "\u0111\u0144\u0148\u00F3\u00F4\u0151\u00F6\u00F7" + // F0: đ ń ň ó ô ő ö ÷
+            "\u0159\u016F\u00FA\u0171\u00FC\u00FD\u0163\u02D9", // F8: ř ů ú ű ü ý ţ ˙
+    )
+
+    /** Windows-1251 (Cyrillic); only 98 is undefined. */
+    private val WINDOWS_1251 = Codepage(
+        "\u0402\u0403\u201A\u0453\u201E\u2026\u2020\u2021" + // 80: Ђ Ѓ ‚ ѓ „ … † ‡
+            "\u20AC\u2030\u0409\u2039\u040A\u040C\u040B\u040F" + // 88: € ‰ Љ ‹ Њ Ќ Ћ Џ
+            "\u0452\u2018\u2019\u201C\u201D\u2022\u2013\u2014" + // 90: ђ ‘ ’ “ ” • – —
+            "\u0098\u2122\u0459\u203A\u045A\u045C\u045B\u045F" + // 98: · ™ љ › њ ќ ћ џ
+            "\u00A0\u040E\u045E\u0408\u00A4\u0490\u00A6\u00A7" + // A0: nbsp Ў ў Ј ¤ Ґ ¦ §
+            "\u0401\u00A9\u0404\u00AB\u00AC\u00AD\u00AE\u0407" + // A8: Ё © Є « ¬ shy ® Ї
+            "\u00B0\u00B1\u0406\u0456\u0491\u00B5\u00B6\u00B7" + // B0: ° ± І і ґ µ ¶ ·
+            "\u0451\u2116\u0454\u00BB\u0458\u0405\u0455\u0457" + // B8: ё № є » ј Ѕ ѕ ї
+            "\u0410\u0411\u0412\u0413\u0414\u0415\u0416\u0417" + // C0: А Б В Г Д Е Ж З
+            "\u0418\u0419\u041A\u041B\u041C\u041D\u041E\u041F" + // C8: И Й К Л М Н О П
+            "\u0420\u0421\u0422\u0423\u0424\u0425\u0426\u0427" + // D0: Р С Т У Ф Х Ц Ч
+            "\u0428\u0429\u042A\u042B\u042C\u042D\u042E\u042F" + // D8: Ш Щ Ъ Ы Ь Э Ю Я
+            "\u0430\u0431\u0432\u0433\u0434\u0435\u0436\u0437" + // E0: а б в г д е ж з
+            "\u0438\u0439\u043A\u043B\u043C\u043D\u043E\u043F" + // E8: и й к л м н о п
+            "\u0440\u0441\u0442\u0443\u0444\u0445\u0446\u0447" + // F0: р с т у ф х ц ч
+            "\u0448\u0449\u044A\u044B\u044C\u044D\u044E\u044F", // F8: ш щ ъ ы ь э ю я
+    )
+
+    /** Tried in this order after cp1252. */
+    private val FALLBACK_CODEPAGES = listOf(WINDOWS_1250, WINDOWS_1251)
 
     /**
      * cp1252's 27 characters above U+00FF, keyed by code point and valued by

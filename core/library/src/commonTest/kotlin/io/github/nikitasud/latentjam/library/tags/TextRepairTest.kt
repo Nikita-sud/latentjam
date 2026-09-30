@@ -56,6 +56,73 @@ internal class TextRepairTest {
         assertEquals("🎵", TextRepair.repair("ðŸŽµ"))
     }
 
+    @Test
+    fun repairsWindows1250DecodedMojibake() {
+        // Android 16's MediaStore read these UTF-8 bytes as Windows-1250 (issue #7).
+        assertEquals("Grüße", TextRepair.repair("GrĂĽĂźe"))
+        assertEquals("Mötley Crüe", TextRepair.repair("MĂ¶tley CrĂĽe"))
+        assertEquals("Björk", TextRepair.repair("BjĂ¶rk"))
+        assertEquals("Сплин", TextRepair.repair("ĐˇĐżĐ»Đ¸Đ˝"))
+        assertEquals("東京", TextRepair.repair("ćť±äş¬"))
+    }
+
+    @Test
+    fun repairsWindows1251DecodedMojibake() {
+        assertEquals("Grüße", TextRepair.repair("GrГјГџe"))
+        assertEquals("Mötley Crüe", TextRepair.repair("MГ¶tley CrГјe"))
+        assertEquals("Сплин", TextRepair.repair("РЎРїР»РёРЅ"))
+        assertEquals("東京", TextRepair.repair("жќ±дє¬"))
+    }
+
+    @Test
+    fun leavesCentralEuropeanNamesUnchanged() {
+        val names = listOf(
+            "Dvořák", "Łódź", "Žluťoučký kůň", "Kővári", "Cărăbuș", "Ștefan", "Ştefan",
+            "Grüße", "Mötley Crüe", "Ábel Ősz", "Čeněk", "Źdźbło",
+        )
+        for (text in names) assertEquals(text, TextRepair.repair(text))
+    }
+
+    @Test
+    fun leavesCyrillicNamesUnchanged() {
+        val names = listOf(
+            "Сплин", "Земфира", "Віктор Павлік", "Ляпис Трубецкой", "Бі-2", "Ђорђе", "Љубав",
+            "Їжак", "Ў лесе", "Ґалаґан", "Ёлка",
+        )
+        for (text in names) assertEquals(text, TextRepair.repair(text))
+    }
+
+    @Test
+    fun leavesShortCyrillicWordsUnchanged() {
+        // Each of these is, byte for byte, a valid UTF-8 pair once mapped back through
+        // Windows-1251 ("Ні" would become "ͳ", "Ві" "³", "Её" "Ÿ"); none is mojibake.
+        for (text in listOf("Ві", "Ні", "Ті", "Её", "Ёж", "ВЁ", "ВІ", "Я…", "Т»")) {
+            assertEquals(text, TextRepair.repair(text))
+        }
+    }
+
+    @Test
+    fun aRepairedShortWordIsNotRepairedAgain() {
+        // "Ні" read as Windows-1251 is repaired; the second pass must not then turn the
+        // genuine "Ні" into "ͳ".
+        assertEquals("Ні", TextRepair.repair("РќС–"))
+    }
+
+    @Test
+    fun aLoneTwoByteLetterWithoutLatinContextStaysAsRead() {
+        // The accepted trade-off of the short-word guard: "Я" read as Windows-1251 is only
+        // one two-byte pair with no ASCII letter or digit beside it, the same shape as the
+        // genuine words above, so it is left alone. With context it repairs.
+        assertEquals("РЇ", TextRepair.repair("РЇ"))
+        assertEquals("Я 2", TextRepair.repair("РЇ 2"))
+    }
+
+    @Test
+    fun leavesFallbackRepairsThatWouldYieldControlCharactersUnchanged() {
+        // Maps back through Windows-1251 to C2 80 C2 80: valid UTF-8, but two C1 controls.
+        assertEquals("ВЂВЂ", TextRepair.repair("ВЂВЂ"))
+    }
+
     // ---------------------------------------------------------- decodeUtf8Strict()
 
     @Test
