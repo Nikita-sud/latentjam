@@ -31,12 +31,14 @@ internal class GenreEnrichmentTest {
         artists = listOf("First artist", "Second artist"),
         originalYear = 1987,
         language = "русский",
+        albumArtist = "Various Artists",
     )
     private val enriched = track.copy(
         genre = "Rock; Pop",
         artists = facts.artists,
         originalYear = facts.originalYear,
         language = facts.language,
+        albumArtist = facts.albumArtist,
     )
 
     @Test
@@ -94,7 +96,7 @@ internal class GenreEnrichmentTest {
         val settings = MemorySettings()
         GenreEnrichment(settings) { facts }.backfill(listOf(track))
         settings.trackGenresPayload = settings.trackGenresPayload!!
-            .replaceFirst("v3|", "v2|").substringBeforeLast('|')
+            .replaceFirst("v4|", "v2|").substringBeforeLast('|').substringBeforeLast('|')
         var reads = 0
         val upgraded = GenreEnrichment(settings) { reads++; facts }
         assertEquals(listOf(track), upgraded.apply(listOf(track)))
@@ -106,6 +108,19 @@ internal class GenreEnrichmentTest {
     }
 
     @Test
+    fun aV3CacheIsReadAgainOnceToLearnTheAlbumArtist() = runTest {
+        val settings = MemorySettings()
+        GenreEnrichment(settings) { facts }.backfill(listOf(track))
+        settings.trackGenresPayload = settings.trackGenresPayload!!
+            .replaceFirst("v4|", "v3|").substringBeforeLast('|')
+        var reads = 0
+        val upgraded = GenreEnrichment(settings) { reads++; facts }
+        assertTrue(upgraded.backfill(listOf(track)))
+        assertEquals(listOf(enriched), upgraded.apply(listOf(track)))
+        assertEquals(1, reads)
+    }
+
+    @Test
     fun corruptLanguageFieldRetriesOnlyTheDamagedCacheEntry() = runTest {
         for (corrupt in listOf("zz", "a", "ff")) {
             val settings = MemorySettings()
@@ -114,8 +129,9 @@ internal class GenreEnrichmentTest {
             val lines = settings.trackGenresPayload!!.lines()
             // Keep the second entry intact, so corruption cannot flush unrelated cached facts.
             val damagedId = lines.first().split('|')[1]
-            settings.trackGenresPayload =
-                lines.first().substringBeforeLast('|') + "|" + corrupt + "\n" + lines.last()
+            val fields = lines.first().split('|').toMutableList()
+            fields[6] = corrupt
+            settings.trackGenresPayload = fields.joinToString("|") + "\n" + lines.last()
             val reads = mutableListOf<TrackDescriptor>()
             val restarted = GenreEnrichment(settings) { reads += it; facts }
             assertTrue(restarted.backfill(listOf(track, other)))

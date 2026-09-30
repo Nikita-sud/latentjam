@@ -404,6 +404,7 @@ internal fun TrackInfoSheet(
                         modifier = Modifier.inactiveForMotion(isEditing != editing),
                     ) {
                     InfoRow(stringResource(Res.string.info_album), track.album)
+                    InfoRow(stringResource(Res.string.info_album_artist), track.albumArtist)
                     InfoRow(stringResource(Res.string.info_genre), track.genre)
                     InfoRow(stringResource(Res.string.info_year), track.year?.toString())
                     InfoRow(

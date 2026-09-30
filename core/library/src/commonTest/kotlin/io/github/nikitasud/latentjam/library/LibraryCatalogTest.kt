@@ -24,6 +24,7 @@ internal class LibraryCatalogTest {
         artworkUri: String? = null,
         folderPath: String? = null,
         artists: List<String> = emptyList(),
+        albumArtist: String? = null,
     ) = TrackDescriptor(
         id = TrackId(id),
         title = title,
@@ -33,7 +34,47 @@ internal class LibraryCatalogTest {
         genre = genre,
         artworkUri = artworkUri,
         folderPath = folderPath,
+        albumArtist = albumArtist,
     )
+
+    @Test
+    fun aCompilationTaggedWithAnAlbumArtistIsOneAlbum() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", title = "a", artist = "Queen", album = "Hits 1985", artworkUri = "art://1", albumArtist = "Various Artists"),
+                track("2", title = "b", artist = "ABBA", album = "Hits 1985", artworkUri = "art://2", albumArtist = "Various Artists"),
+                track("3", title = "c", artist = "Sade", album = "Hits 1985", albumArtist = "Various Artists"),
+            ),
+        )
+        val album = catalog.albums.single()
+        assertEquals("Various Artists", album.artist)
+        assertEquals(3, album.tracks.size)
+    }
+
+    @Test
+    fun theAlbumArtistIsTheAlbumsSubtitleOverAFeaturedCredit() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", title = "a", artist = "Singer feat. Guest", album = "Record", albumArtist = "Singer"),
+                track("2", title = "b", artist = "Singer", album = "Record", albumArtist = "Singer"),
+            ),
+        )
+        assertEquals("Singer", catalog.albums.single().artist)
+    }
+
+    @Test
+    fun withoutAlbumArtistsGroupingAndKeysAreUnchanged() {
+        val tracks = listOf(
+            track("1", title = "b", artist = "Queen", album = "Greatest Hits", artworkUri = "art://1"),
+            track("2", title = "c", artist = "ABBA", album = "Greatest Hits", artworkUri = "art://2"),
+            track("3", title = "d", artist = "X", album = "Demo"),
+        )
+        val plain = LibraryCatalog.build(tracks)
+        // An album artist equal to the artist is the same identity: tagging it changes nothing.
+        val tagged = LibraryCatalog.build(tracks.map { it.copy(albumArtist = it.artist) })
+        assertEquals(plain.albums.map { it.key }, tagged.albums.map { it.key })
+        assertEquals(3, plain.albums.size)
+    }
 
     @Test
     fun groupsAlbumsByArtworkUriKeepingSameNamedAlbumsApart() {

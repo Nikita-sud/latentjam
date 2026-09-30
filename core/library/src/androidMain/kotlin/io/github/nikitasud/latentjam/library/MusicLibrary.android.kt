@@ -34,6 +34,19 @@ internal class MediaStoreMusicLibrary(
 ) : MusicLibrary {
 
     private val visibilityMutex = Mutex()
+
+    /**
+     * Whether MediaStore has an album-artist column. It is public from API 30, but the scanner filled
+     * `album_artist` long before. Below 30 it is used only when the provider actually has it;
+     * otherwise tag enrichment reads the file (spec §3.5). A query naming a missing column throws.
+     */
+    private val albumArtistColumn: Boolean by lazy {
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R || runCatching {
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, arrayOf(ALBUM_ARTIST), "0", null, null,
+            )?.use { true } == true
+        }.getOrDefault(false)
+    }
     private val hiddenFile = java.io.File(context.filesDir, HIDDEN_FILE_NAME)
     private val excludedSourcesFile = java.io.File(context.filesDir, EXCLUDED_SOURCES_FILE_NAME)
 
@@ -80,6 +93,7 @@ internal class MediaStoreMusicLibrary(
                 add(MediaStore.Audio.Media.DATA)
             }
             if (genreSupported) add(MediaStore.Audio.Media.GENRE)
+            if (albumArtistColumn) add(ALBUM_ARTIST)
         }.toTypedArray()
         val cursor = context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -113,6 +127,7 @@ internal class MediaStoreMusicLibrary(
                 cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
             }
             val genreColumn = if (genreSupported) cursor.getColumnIndex(MediaStore.Audio.Media.GENRE) else -1
+            val albumArtistIndex = cursor.getColumnIndex(ALBUM_ARTIST)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val albumId = cursor.getLong(albumIdColumn)
@@ -127,6 +142,7 @@ internal class MediaStoreMusicLibrary(
                     artist = cursor.getString(artistColumn).knownTagOrNull(),
                     album = cursor.getString(albumColumn).knownTagOrNull(),
                     genre = if (genreColumn >= 0) cursor.getString(genreColumn).knownTagOrNull() else null,
+                    albumArtist = if (albumArtistIndex >= 0) cursor.getString(albumArtistIndex).knownTagOrNull() else null,
                     durationMs = cursor.getLong(durationColumn).takeIf { it > 0 },
                     audioUri = ContentUris
                         .withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
@@ -311,6 +327,9 @@ internal class MediaStoreMusicLibrary(
     private companion object {
         /** Base of the classic per-album artwork content URIs. */
         val ALBUM_ART_URI: android.net.Uri = android.net.Uri.parse("content://media/external/audio/albumart")
+
+        /** MediaStore.Audio.AudioColumns.ALBUM_ARTIST, whose constant is hidden below API 30. */
+        const val ALBUM_ARTIST = "album_artist"
         const val HIDDEN_FILE_NAME = "hidden_tracks.txt"
         const val EXCLUDED_SOURCES_FILE_NAME = "excluded_music_sources.txt"
         const val SOURCE_PREFIX = "folder:"

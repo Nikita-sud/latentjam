@@ -15,7 +15,7 @@ import kotlinx.coroutines.yield
 
 /**
  * Upgrades descriptors with the tag facts the system scanner loses: the FULL genre list, the
- * credited-artists list, the original release year, and the language.
+ * credited-artists list, the original release year, the language, and the album artist.
  *
  * Android's media scanner keeps one genre and one display-artist string per track, and reports
  * the edition year. The files themselves know more — five separate `GENRE` fields, a Picard
@@ -41,6 +41,7 @@ internal class GenreEnrichment(
         val artists: List<String>,
         val originalYear: Int?,
         val language: String?,
+        val albumArtist: String?,
     )
 
     private val mutex = Mutex()
@@ -57,8 +58,10 @@ internal class GenreEnrichment(
             val artists = stored.artists.ifEmpty { track.artists }
             val originalYear = stored.originalYear ?: track.originalYear
             val language = stored.language ?: track.language
+            val albumArtist = stored.albumArtist ?: track.albumArtist
             if (genre == track.genre && artists == track.artists &&
-                originalYear == track.originalYear && language == track.language
+                originalYear == track.originalYear && language == track.language &&
+                albumArtist == track.albumArtist
             ) {
                 track
             } else {
@@ -67,6 +70,7 @@ internal class GenreEnrichment(
                     artists = artists,
                     originalYear = originalYear,
                     language = language,
+                    albumArtist = albumArtist,
                 )
             }
         }
@@ -92,6 +96,7 @@ internal class GenreEnrichment(
                 artists = facts.artists,
                 originalYear = facts.originalYear,
                 language = facts.language,
+                albumArtist = facts.albumArtist,
             )
             updates[track.id.value] = stored
             if (stored.changes(track)) learnedSomething = true
@@ -123,7 +128,8 @@ internal class GenreEnrichment(
         (joinedGenres.isNotEmpty() && joinedGenres != track.genre) ||
             (artists.isNotEmpty() && artists != track.artists) ||
             (originalYear != null && originalYear != track.originalYear) ||
-            (language != null && language != track.language)
+            (language != null && language != track.language) ||
+            (albumArtist != null && albumArtist != track.albumArtist)
 
     private fun ensureLoaded(): MutableMap<String, Stored> {
         cache?.let { return it }
@@ -134,11 +140,11 @@ internal class GenreEnrichment(
 
     private companion object {
         /**
-         * v2 added artists and the original year, v3 the language tag. Older lines are
+         * v2 added artists and the original year, v3 the language tag, v4 the album artist. Older lines are
          * deliberately dropped on decode: those files must be re-read once anyway to learn the
          * new facts.
          */
-        const val FORMAT = "v3"
+        const val FORMAT = "v4"
 
         /** Joins the artist list inside one hex field; NUL never appears in a real name. */
         const val ARTIST_JOIN = "\u0000"
@@ -161,6 +167,7 @@ internal class GenreEnrichment(
                     stored.artists.joinToString(ARTIST_JOIN).hex(),
                     stored.originalYear?.toString() ?: "",
                     stored.language.orEmpty().hex(),
+                    stored.albumArtist.orEmpty().hex(),
                 ).joinToString("|")
             }
 
@@ -168,12 +175,13 @@ internal class GenreEnrichment(
             val result = HashMap<String, Stored>()
             payload?.lineSequence()?.forEach { line ->
                 val parts = line.split('|')
-                if (parts.size != 7 || parts[0] != FORMAT) return@forEach
+                if (parts.size != 8 || parts[0] != FORMAT) return@forEach
                 val id = parts[1].unhex() ?: return@forEach
                 val revision = parts[2].unhex() ?: return@forEach
                 val genres = parts[3].unhex() ?: return@forEach
                 val artistsJoined = parts[4].unhex() ?: return@forEach
                 val language = parts[6].unhex() ?: return@forEach
+                val albumArtist = parts[7].unhex() ?: return@forEach
                 // Entries written before the ID3 reader learned to read UTF-8 in Latin-1 frames
                 // hold "HÃ¶rspiel" for an unchanged file. TextRepair recovers the names a re-read
                 // would find without opening the file, and leaves a sound name as it is.
@@ -184,6 +192,7 @@ internal class GenreEnrichment(
                     artists = artistsJoined.split(ARTIST_JOIN).filter { it.isNotEmpty() }.map(TextRepair::repair),
                     originalYear = parts[5].toIntOrNull(),
                     language = language.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
+                    albumArtist = albumArtist.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
                 )
             }
             return result

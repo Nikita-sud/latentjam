@@ -85,6 +85,11 @@ public data class TrackDescriptor(
     public val trackNumber: Int? = null,
     /** Disc of a multi-disc release (`TPOS`, `DISCNUMBER`); null when untagged. */
     public val discNumber: Int? = null,
+    /**
+     * The album's own artist (`TPE2`, `ALBUMARTIST`, `aART`): "Various Artists" on a compilation.
+     * Albums group by it when present, so a compilation's tracks stay one album. Null when untagged.
+     */
+    public val albumArtist: String? = null,
 )
 
 /**

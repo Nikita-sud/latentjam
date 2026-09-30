@@ -133,6 +133,23 @@ class TagFactsTest {
         assertEquals(listOf("Gorillaz", "Bootie Brown"), facts.artists)
     }
 
+    @Test
+    fun theAlbumArtistComesFromAnySpellingOfTheField() {
+        assertEquals("Various Artists", TagFacts.fromComments(listOf("ALBUMARTIST" to " Various Artists ")).albumArtist)
+        assertEquals("VA", TagFacts.fromComments(listOf("ALBUM ARTIST" to "VA")).albumArtist)
+        assertEquals("VA", TagFacts.fromComments(listOf("ALBUM_ARTIST" to "VA", "ALBUMARTIST" to "Other")).albumArtist)
+        assertNull(TagFacts.fromComments(listOf("ALBUMARTIST" to "  ")).albumArtist)
+    }
+
+    @Test
+    fun theAlbumArtistIsReadFromAnId3Tpe2Frame() {
+        val tagged = Id3Tags.updateTag(
+            byteArrayOf(0xFF.toByte(), 0xFB.toByte(), 0x90.toByte(), 0x64) + ByteArray(1024),
+            TagEdits(albumArtist = "Various Artists"),
+        )!!
+        assertEquals("Various Artists", TagFacts.embedded(ArraySource(tagged))?.albumArtist)
+    }
+
     private fun littleEndian(value: Int): ByteArray = ByteArray(4) { (value ushr (it * 8)).toByte() }
 
     private class ArraySource(private val bytes: ByteArray) : GenreTags.ByteSource {

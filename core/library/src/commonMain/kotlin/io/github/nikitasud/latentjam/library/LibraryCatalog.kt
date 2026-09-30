@@ -88,7 +88,8 @@ public data class LibraryCatalog(
                     AlbumGroup(
                         key = identity.stableKey(),
                         title = grouped.firstNotNullOfOrNull { it.album },
-                        artist = grouped.firstNotNullOfOrNull { it.artist },
+                        artist = grouped.firstNotNullOfOrNull { it.albumArtist?.takeIf(String::isNotBlank) }
+                            ?: grouped.firstNotNullOfOrNull { it.artist },
                         artworkUri = grouped.firstNotNullOfOrNull { it.artworkUri },
                         tracks = inAlbumOrder(grouped),
                     )
@@ -249,8 +250,8 @@ public data class LibraryCatalog(
         /**
          * Builds album groups without treating a cache-file URI as album identity.
          *
-         * One artist + one normalized title is unambiguously one album even if
-         * each file exposes a different extracted-art URI. If the same title is
+         * One album artist (or, untagged, one artist) + one normalized title is unambiguously one
+         * album even if each file exposes a different extracted-art URI. If the same title is
          * owned by multiple artists, shared artwork still joins compilations;
          * otherwise artwork/artist separates genuinely different releases.
          */
@@ -264,7 +265,7 @@ public data class LibraryCatalog(
                     continue
                 }
 
-                val artists = sameTitle.mapNotNull { it.artist.normalizedKey() }.toSet()
+                val artists = sameTitle.mapNotNull { it.albumOwner().normalizedKey() }.toSet()
                 val artwork = sameTitle.mapNotNull { it.artworkUri }.toSet()
                 when {
                     artists.size <= 1 -> {
@@ -320,10 +321,17 @@ public data class LibraryCatalog(
             "year" to { it.year?.toString() },
         )
 
+        /**
+         * Whose album a track belongs to: its album artist when tagged ("Various Artists" on a
+         * compilation), otherwise its artist. Same-named albums are told apart by this, so a
+         * compilation's per-track artists no longer split it.
+         */
+        private fun TrackDescriptor.albumOwner(): String? = albumArtist?.takeIf { it.isNotBlank() } ?: artist
+
         /** Artwork and artist are different identity domains even when their strings happen to match. */
         private fun TrackDescriptor.albumDiscriminator(): AlbumDiscriminator =
             artworkUri?.let(AlbumDiscriminator::Artwork)
-                ?: AlbumDiscriminator.Artist(artist.normalizedKey())
+                ?: AlbumDiscriminator.Artist(albumOwner().normalizedKey())
 
         /**
          * Album grouping is deliberately structural. Concatenating title, artist and artwork with
