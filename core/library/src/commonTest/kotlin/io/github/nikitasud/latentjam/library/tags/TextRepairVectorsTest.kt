@@ -10,11 +10,12 @@ import kotlin.test.assertEquals
 /**
  * Pins [TextRepair] to the rule it was measured as: every pair is an input and the output
  * of the Python model the rule was designed and measured on (audit 2026-09-29,
- * `cp1250-sim/sim2.py`, `final_repair`). The groups are the genuine all-caps and mixed-case
- * Central-European and Turkish names a review found garbled; the nine MusicBrainz names that
+ * `cp1250-sim/sim2.py`, `final_repair` with `lone=True`). The groups are the genuine all-caps
+ * and mixed-case Central-European and Turkish names a review found garbled; the nine MusicBrainz names that
  * are themselves mojibake (true repairs); each genuine name mangled once through cp1252,
  * Windows-1250 and Windows-1251; and names from the measured recall loss, mangled through the
- * table they were lost in, which the rule deliberately leaves as read.
+ * table they were lost in, which the rule deliberately leaves as read; and the standalone
+ * short words the fallback tables must not touch ("Ні 2"), next to what they still repair.
  */
 internal class TextRepairVectorsTest {
 
@@ -134,6 +135,12 @@ internal class TextRepairVectorsTest {
             "Petr Sep\u00C3\u00A9\u00C5\u00A1i" to "Petr Sep\u00E9\u0161i", // moj-cp1252 (repaired)
             "Petr Sep\u0102\u00A9\u0139\u02C7i" to "Petr Sep\u00E9\u0161i", // moj-cp1250 (repaired)
             "Petr Sep\u0413\u00A9\u0415\u040Ei" to "Petr Sep\u00E9\u0161i", // moj-cp1251 (repaired)
+            "D\u00C3\u00A9\u00C5\u00A1\u00C5\u00A5" to "D\u00E9\u0161\u0165", // moj-cp1252 (repaired)
+            "D\u0102\u00A9\u0139\u02C7\u0139\u0104" to "D\u00E9\u0161\u0165", // moj-cp1250 (repaired)
+            "D\u0413\u00A9\u0415\u040E\u0415\u0490" to "D\u00E9\u0161\u0165", // moj-cp1251 (repaired)
+            "d\u00C3\u00A9\u00C5\u00A1\u00C5\u00A5" to "d\u00E9\u0161\u0165", // moj-cp1252 (repaired)
+            "d\u0102\u00A9\u0139\u02C7\u0139\u0104" to "d\u00E9\u0161\u0165", // moj-cp1250 (repaired)
+            "d\u0413\u00A9\u0415\u040E\u0415\u0490" to "d\u00E9\u0161\u0165", // moj-cp1251 (repaired)
             "\u00C9\u0090\u00C9\u0105\u0118\u2021s\u00C7\u0165\u00C9\u0104\u00C9\u201D\u0118\u015Ao\u00C9\u0105d\u00C9\u017BI \u0118\u017Duxn\u00C9\u0090\u00C9\u017A\u00C9\u017B\u0118\u017DS s,\u00C9\u017A\u00C7\u0165\u00C4\u00B1\u00C9\u0104\u0118\u2021\u00C9\u017B\u00C9\u0090\u00C7\u0165\u00C9\u0105\u00E1\u2014\u02C7 \u00C7\u0165\u00C9\u0104\u00E2\u0160\u0104 \u00C7\u0165uoO" to "\u00C9\u0090\u00C9\u0105\u0118\u2021s\u00C7\u0165\u00C9\u0104\u00C9\u201D\u0118\u015Ao\u00C9\u0105d\u00C9\u017BI \u0118\u017Duxn\u00C9\u0090\u00C9\u017A\u00C9\u017B\u0118\u017DS s,\u00C9\u017A\u00C7\u0165\u00C4\u00B1\u00C9\u0104\u0118\u2021\u00C9\u017B\u00C9\u0090\u00C7\u0165\u00C9\u0105\u00E1\u2014\u02C7 \u00C7\u0165\u00C9\u0104\u00E2\u0160\u0104 \u00C7\u0165uoO", // lost-cp1250
             "Ya\u011A\u00A7nomam\u0102\u00B6" to "Ya\u011A\u00A7nomam\u0102\u00B6", // lost-cp1250
             "\u00E9\u0160\u20AC\u0107\u0165\u0179BOYZ" to "\u00E9\u0160\u20AC\u0107\u0165\u0179BOYZ", // lost-cp1250
@@ -164,6 +171,34 @@ internal class TextRepairVectorsTest {
             "a\u00CF\u2030c" to "a\u00CF\u2030c", // lost-cp1252
             "DJ \u00D0\u00A6\u00D0\u00B2\u00D0\u00B5\u00D1\u201A\u00D0\u00BA\u00D0\u00BEff" to "DJ \u00D0\u00A6\u00D0\u00B2\u00D0\u00B5\u00D1\u201A\u00D0\u00BA\u00D0\u00BEff", // lost-cp1252
             "\u00D0\u2018ALKANSKY" to "\u00D0\u2018ALKANSKY", // lost-cp1252
+            "\u041D\u0456" to "\u041D\u0456", // lone-word
+            "\u041D\u0456 2" to "\u041D\u0456 2", // lone-word
+            "\u041D\u0456 (Live)" to "\u041D\u0456 (Live)", // lone-word
+            "\u0422\u0456" to "\u0422\u0456", // lone-word
+            "\u0412\u0456" to "\u0412\u0456", // lone-word
+            "\u0407\u0457" to "\u0407\u0457", // lone-word
+            "\u041D\u0456 \u041D\u0456" to "\u0373 \u0373", // lone-word (repaired)
+            "\u0411\u0456-2" to "\u0411\u0456-2", // lone-word
+            "M\u0413\u0458ller" to "M\u00FCller", // lone-word (repaired)
+            "M\u0102\u013Dller" to "M\u00FCller", // lone-word (repaired)
+            "Gr\u0102\u013D\u0102\u017Ae" to "Gr\u00FC\u00DFe", // lone-word (repaired)
+            "Gr\u0413\u0458\u0413\u045Fe" to "Gr\u00FC\u00DFe", // lone-word (repaired)
+            "\u0420\u0407 2" to "\u0420\u0407 2", // lone-word
+            "\u0420\u0407" to "\u0420\u0407", // lone-word
+            "\u0107\u0165\u00B1" to "\u0107\u0165\u00B1", // lone-word
+            "\u0436\u045C\u00B1" to "\u0436\u045C\u00B1", // lone-word
+            "\u0107\u0165\u00B1\u00E4\u015F\u00AC" to "\u6771\u4EAC", // lone-word (repaired)
+            "\u0420\u045C\u0421\u2013" to "\u041D\u0456", // lone-word (repaired)
+            "\u011B\u017C\u00A4" to "\u011B\u017C\u00A4", // lost-lone-cp1250
+            "98\u00C2\u015F" to "98\u00C2\u015F", // lost-lone-cp1250
+            "Mads \u0102\u0098" to "Mads \u0102\u0098", // lost-lone-cp1250
+            "\u0111\u017A\u0090\u015F" to "\u0111\u017A\u0090\u015F", // lost-lone-cp1250
+            "08\u00E9\u02D8\u00A8" to "08\u00E9\u02D8\u00A8", // lost-lone-cp1250
+            "\u0436\u0490\u00AD-karma-" to "\u0436\u0490\u00AD-karma-", // lost-lone-cp1251
+            "The Show \u0432\u0402\u201C A Tribute to ABBA" to "The Show \u0432\u0402\u201C A Tribute to ABBA", // lost-lone-cp1251
+            "\u0435\u045C\u0409" to "\u0435\u045C\u0409", // lost-lone-cp1251
+            "\u0436\u0407\u2026" to "\u0436\u0407\u2026", // lost-lone-cp1251
+            "\u0437\u0457\u00A0" to "\u0437\u0457\u00A0", // lost-lone-cp1251
         )
     }
 }

@@ -110,11 +110,26 @@ internal class TextRepairTest {
 
     @Test
     fun aLoneTwoByteLetterWithoutLatinContextStaysAsRead() {
-        // The accepted trade-off of the short-word guard: "Я" read as Windows-1251 is only
-        // one two-byte pair with no ASCII letter or digit beside it, the same shape as the
-        // genuine words above, so it is left alone. With context it repairs.
+        // The accepted trade-off of the short-word guards: "Я" read as Windows-1251 is one
+        // two-byte pair standing as a word of its own, the same shape as the genuine words
+        // above, so it is left alone, with or without a number beside it.
         assertEquals("РЇ", TextRepair.repair("РЇ"))
-        assertEquals("Я 2", TextRepair.repair("РЇ 2"))
+        assertEquals("РЇ 2", TextRepair.repair("РЇ 2"))
+    }
+
+    @Test
+    fun leavesStandaloneShortWordsUnchangedWhateverSurroundsThem() {
+        // "Ні 2" maps back through Windows-1251 to "ͳ 2": one pair, but a word of its own.
+        val words = listOf("Ні", "Ні 2", "Ні (Live)", "Ті", "Ві", "Її", "Бі-2", "Ві 2", "Ті (Remix)")
+        for (text in words) assertEquals(text, TextRepair.repair(text))
+    }
+
+    @Test
+    fun aSinglePairInsideALatinWordStillRepairs() {
+        assertEquals("Müller", TextRepair.repair("MГјller"))
+        assertEquals("Müller", TextRepair.repair("MĂĽller"))
+        assertEquals("Grüße", TextRepair.repair("GrĂĽĂźe"))
+        assertEquals("Grüße", TextRepair.repair("GrГјГџe"))
     }
 
     @Test

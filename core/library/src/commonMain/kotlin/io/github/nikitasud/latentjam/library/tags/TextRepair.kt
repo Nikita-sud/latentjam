@@ -26,8 +26,10 @@ package io.github.nikitasud.latentjam.library.tags
  * rule was measured on 111,069 non-ASCII MusicBrainz artist names and aliases,
  * as written and uppercased: it changes none of the genuine ones (the only
  * names it changes are nine that MusicBrainz itself stores as mojibake), and
- * of the same names mangled once it gives up 537 (cp1252), 657 (Windows-1250)
- * and 918 (Windows-1251) that a bare decode would have repaired.
+ * of the same names mangled once it gives up 537 (cp1252), 1,141 (Windows-1250)
+ * and 1,622 (Windows-1251) that a bare decode would have repaired — mostly
+ * single CJK characters and one-letter words such as "à", which read the same
+ * as genuine short Cyrillic words to the fallbacks' guards.
  */
 public object TextRepair {
 
@@ -132,7 +134,9 @@ public object TextRepair {
         val bytes = codepage.encode(text) ?: return null
         val repaired = decodeUtf8Strict(bytes) ?: return null
         if (isImplausible(text, bytes, repaired)) return null
-        if (codepage.isFallback && !isPlausibleFallback(text, repaired)) return null
+        if (codepage.isFallback && (!isPlausibleFallback(text, repaired) || isStandaloneSequence(text, bytes))) {
+            return null
+        }
         return repaired
     }
 
@@ -214,7 +218,8 @@ public object TextRepair {
         index in indices && this[index].let { it in 'a'..'z' || it in 'A'..'Z' }
 
     /**
-     * Guards the Windows-1250/1251 fallbacks against correctly spelled short words.
+     * Guards the Windows-1250/1251 fallbacks against correctly spelled short words
+     * (with [isStandaloneSequence]).
      * Cyrillic is almost entirely Windows-1251 bytes C0-FF (UTF-8 lead bytes) and
      * Ukrainian, Belarusian and Serbian letters such as і, ї, ё, ў, ђ sit in 80-BF
      * (UTF-8 continuation bytes), so a genuine short word can map to one valid
@@ -226,6 +231,40 @@ public object TextRepair {
     private fun isPlausibleFallback(text: String, repaired: String): Boolean =
         text.length - repaired.length >= 2 ||
             text.any { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }
+
+    /**
+     * The other half of the short-word guard for the Windows-1250/1251 fallbacks:
+     * whether [bytes] hold exactly one multi-byte UTF-8 sequence and the characters of
+     * [text] it was read from stand as a word of their own, with no letter of any script
+     * directly before or after them. Genuine "Ні" beside a number or a bracket ("Ні 2",
+     * "Ні (Live)") is that shape and would read "ͳ 2"; mojibake of a single accented
+     * letter inside a Latin word ("MГјller") has letters beside it and still repairs, and
+     * so does anything holding two or more sequences ("GrĂĽĂźe").
+     */
+    private fun isStandaloneSequence(text: String, bytes: ByteArray): Boolean {
+        var start = -1
+        var end = -1
+        var index = 0
+        while (index < bytes.size) {
+            val lead = bytes[index].toInt() and 0xFF
+            val length = when {
+                lead < 0x80 -> 1
+                lead < 0xE0 -> 2
+                lead < 0xF0 -> 3
+                else -> 4
+            }
+            if (length > 1) {
+                if (start >= 0) return false
+                start = index
+                end = index + length
+            }
+            index += length
+        }
+        if (start < 0) return false
+        val letterBefore = start > 0 && text[start - 1].isLetter()
+        val letterAfter = end < text.length && text[end].isLetter()
+        return !letterBefore && !letterAfter
+    }
 
     /**
      * A single-byte codepage: [byteOf] gives the byte (80-FF) a non-ASCII char
