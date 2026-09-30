@@ -85,7 +85,14 @@ public class TagRecovery(
     public fun sweep() {
         try {
             val open = journal.open().mapTo(HashSet()) { it.writeId }
-            directory.names().filter { it.substringBefore('.') !in open }.forEach(directory::delete)
+            for (name in directory.names()) {
+                if (name.substringBefore('.') in open) continue
+                try {
+                    directory.delete(name)
+                } catch (_: Exception) {
+                    // One file that will not go must not keep the others, or the sync, from happening.
+                }
+            }
             // Even with nothing to delete: a killed process may have left a delete that is not durable.
             directory.sync()
         } catch (_: Exception) {

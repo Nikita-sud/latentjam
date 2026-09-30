@@ -125,4 +125,38 @@ internal class JvmWriteFilesTest {
         assertFalse(writer.isOpen)
         assertContentEquals(byteArrayOf(1, 2, 9, 0, 0, 0), file.readBytes())
     }
+
+    @Test
+    fun aHiddenFileInTheStoreIsNotListedAndDoesNotStopASweep() {
+        val store = File(root, "store").apply { mkdirs() }
+        File(store, ".nfs0000123").writeBytes(byteArrayOf(1))
+        val directory = FileRecoveryDirectory(store) {}
+        directory.create("stale1.patch").close()
+        directory.create("stale2.staged").close()
+        assertEquals(listOf("stale1.patch", "stale2.staged"), directory.names())
+        TagRecovery(directory).sweep()
+        assertTrue(directory.names().isEmpty())
+        assertTrue(File(store, ".nfs0000123").exists())
+    }
+
+    @Test
+    fun aSweepGoesOnPastAFileThatWillNotBeDeletedAndStillSyncs() {
+        val real = FileRecoveryDirectory(File(root, "store")) {}
+        var syncs = 0
+        val directory = object : RecoveryDirectory by real {
+            override fun delete(name: String) {
+                if (name == "a.patch") throw IOException("busy")
+                real.delete(name)
+            }
+
+            override fun sync() {
+                syncs++
+                real.sync()
+            }
+        }
+        for (name in listOf("a.patch", "b.patch", "c.staged")) real.create(name).close()
+        TagRecovery(directory).sweep()
+        assertEquals(listOf("a.patch"), real.names())
+        assertEquals(1, syncs)
+    }
 }

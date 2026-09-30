@@ -38,7 +38,8 @@ public class FileRecoveryDirectory(
         file(name).delete()
     }
 
-    override fun names(): List<String> = root.list()?.sorted().orEmpty()
+    /** Only files this store could have made; anything else in the directory (`.nfs*`, `.DS_Store`) is not ours. */
+    override fun names(): List<String> = root.list()?.filter(NAME::matches)?.sorted().orEmpty()
 
     override fun sync() {
         root.mkdirs()
