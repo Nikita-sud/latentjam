@@ -184,10 +184,13 @@ internal class TagWriteCoordinator<C>(
         scope.launch(start = CoroutineStart.UNDISPATCHED) { restore() }
     }
 
-    /** Queues [edits] for [keys]; the id to [listen] on, or null when every key is already queued. */
+    /**
+     * Queues [edits] for [keys]; the id to [listen] on, or null when no key is usable. A key already
+     * queued by an earlier request (a recovery the user just accepted, say) waits its turn behind
+     * it: one request runs at a time, so two saves of one file never overlap.
+     */
     fun enqueue(keys: List<String>, edits: TagEdits): Long? {
-        val queued = requests.flatMapTo(HashSet()) { it.keys }
-        val distinct = keys.filter { it.isNotBlank() && it !in queued }.distinct()
+        val distinct = keys.filter { it.isNotBlank() }.distinct()
         if (distinct.isEmpty()) return null
         val id = freshId()
         requests = requests + TagWriteRequest(id, TagWriteKind.EDIT, distinct, edits, persisted = false)

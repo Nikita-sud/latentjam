@@ -821,6 +821,39 @@ internal class TagWriteCoordinatorTest {
         assertContentEquals(mp3(), backend.files.bytes("a"))
     }
 
+    @Test
+    fun aSaveOfAFileAlreadyQueuedWaitsItsTurnInsteadOfFailing() = runTest {
+        val backend = Backend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", mp3())
+        val release = CompletableDeferred<Unit>()
+        var peak = 0
+        backend.gate = {
+            peak = maxOf(peak, backend.inFlight)
+            release.await()
+        }
+        val harness = Harness(backend, this)
+        harness.enqueue(listOf("a"), TagEdits(title = "First"))
+        runCurrent()
+        // Queued behind the first, with its own duplicate folded into one file.
+        harness.enqueue(listOf("a", "a"), TagEdits(title = "Second"))
+        release.complete(Unit)
+        runCurrent()
+        harness.deliver()
+        runCurrent()
+        harness.deliver()
+        assertEquals(
+            listOf(listOf(FileWriteStatus.SAVED), listOf(FileWriteStatus.SAVED)),
+            harness.reports.map { report -> report.results.map { it.status } },
+        )
+        assertEquals(1, peak, "two saves of one file never overlap")
+        // The second edit landed over the first.
+        val expected = MemoryWriteFiles().apply { put("x", mp3()) }
+        var n = 0
+        val writer = DurableWriter(expected.directory, { "e${++n}" })
+        for (title in listOf("First", "Second")) writer.write("x", expected.track("x"), TagEdits(title = title), null)
+        assertContentEquals(expected.bytes("x"), backend.files.bytes("a"))
+    }
+
     private companion object {
         /** An MPEG-1 Layer III frame header, so an untagged file may be given a tag. */
         val MPEG_FRAME = byteArrayOf(0xFF.toByte(), 0xFB.toByte(), 0x90.toByte(), 0x64)
