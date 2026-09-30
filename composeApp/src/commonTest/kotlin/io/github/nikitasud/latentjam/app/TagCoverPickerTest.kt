@@ -43,6 +43,19 @@ internal class TagCoverPickerTest {
     }
 
     @Test
+    fun aPngIsKeptOnlyWhenItsBytesAreTheLengthPromisedAndUnderTheCap() {
+        val png = pngHead(800, 800).copyOf(4096)
+        assertTrue(keepsPickedPngBytes(png, 4096))
+        assertFalse(keepsPickedPngBytes(png, 4095))
+        assertFalse(keepsPickedPngBytes(png, 4097))
+        // A read capped at the limit from a longer file than the provider promised.
+        val capped = pngHead(800, 800).copyOf(TAG_COVER_PNG_KEEP_BYTES.toInt())
+        assertFalse(keepsPickedPngBytes(capped, TAG_COVER_PNG_KEEP_BYTES))
+        assertFalse(keepsPickedPngBytes(ByteArray(4096), 4096))
+        assertFalse(keepsPickedPngBytes(pngHead(1001, 800).copyOf(4096), 4096))
+    }
+
+    @Test
     fun tagCoverReferencesCannotEscapeTheirDirectory() {
         val jpeg = "f08f8630-6120-4aa9-9580-973044632c42.jpg"
         val png = "f08f8630-6120-4aa9-9580-973044632c42.png"

@@ -207,8 +207,12 @@ internal fun importCoverImage(resolver: ContentResolver, uri: Uri, directory: Fi
     if (rule.keepSmallPng && encodedSize != null && encodedSize > 0) {
         val size = resolver.openInputStream(uri)?.use { pngSize(it.readAtMost(PNG_HEAD_BYTES)) }
         if (size != null && keepsPickedPng(size.first, size.second, encodedSize)) {
-            return storeCover(directory, "png") { output ->
-                resolver.openInputStream(uri)?.use { it.copyTo(output) } != null
+            val png = resolver.openInputStream(uri)?.use { it.readAtMost(TAG_COVER_PNG_KEEP_BYTES.toInt()) }
+            if (png != null && keepsPickedPngBytes(png, encodedSize)) {
+                return storeCover(directory, "png") { output ->
+                    output.write(png)
+                    true
+                }
             }
         }
     }

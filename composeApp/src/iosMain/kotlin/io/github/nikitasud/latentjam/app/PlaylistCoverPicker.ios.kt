@@ -64,6 +64,7 @@ import platform.Foundation.NSUserDomainMask
 import platform.Foundation.closeFile
 import platform.Foundation.fileHandleForReadingAtPath
 import platform.Foundation.readDataOfLength
+import platform.Foundation.writeToFile
 import platform.ImageIO.CGImageDestinationAddImage
 import platform.ImageIO.CGImageDestinationCreateWithURL
 import platform.ImageIO.CGImageDestinationFinalize
@@ -246,23 +247,21 @@ internal fun importCoverImage(
         return null
     }
     if (keepSmallPng && bytes != null) {
-        val head = NSFileHandle.fileHandleForReadingAtPath(sourcePath)?.let { handle ->
-            try {
-                handle.readDataOfLength(PNG_HEAD_BYTES.toULong()).toByteArray()
-            } finally {
-                handle.closeFile()
-            }
-        }
-        val size = head?.let(::pngSize)
+        val size = readFileStart(sourcePath, PNG_HEAD_BYTES)?.toByteArray()?.let(::pngSize)
         if (size != null && keepsPickedPng(size.first, size.second, bytes.toLong())) {
-            val reference = "${NSUUID().UUIDString.lowercase()}.png"
-            val finalPath = "$directory/$reference"
-            val pendingPath = "$finalPath.tmp"
-            try {
-                if (!manager.copyItemAtPath(sourcePath, pendingPath, null)) return null
-                return if (manager.moveItemAtPath(pendingPath, finalPath, null)) reference else null
-            } finally {
-                manager.removeItemAtPath(pendingPath, null)
+            val png = readFileStart(sourcePath, TAG_COVER_PNG_KEEP_BYTES.toInt())
+            if (png != null && keepsPickedPngBytes(png.toByteArray(), bytes.toLong())) {
+                // Written, not copied: a copy would carry the photo's old modification date,
+                // and the tag-cover prune would then take the fresh pick for an abandoned one.
+                val reference = "${NSUUID().UUIDString.lowercase()}.png"
+                val finalPath = "$directory/$reference"
+                val pendingPath = "$finalPath.tmp"
+                try {
+                    if (!png.writeToFile(pendingPath, false)) return null
+                    return if (manager.moveItemAtPath(pendingPath, finalPath, null)) reference else null
+                } finally {
+                    manager.removeItemAtPath(pendingPath, null)
+                }
             }
         }
     }
@@ -346,6 +345,17 @@ internal fun importCoverImage(
         CFRelease(sourceUrl)
     }
 }
+
+/** At most [count] bytes from the start of the file at [path]. */
+@OptIn(ExperimentalForeignApi::class)
+private fun readFileStart(path: String, count: Int): NSData? =
+    NSFileHandle.fileHandleForReadingAtPath(path)?.let { handle ->
+        try {
+            handle.readDataOfLength(count.toULong())
+        } finally {
+            handle.closeFile()
+        }
+    }
 
 /** A one-entry destination dictionary asking for [quality] (0…1) lossy compression; the caller releases it. */
 @OptIn(ExperimentalForeignApi::class)
