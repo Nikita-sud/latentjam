@@ -363,7 +363,7 @@ public object IosTagFiles {
         (store ?: throw IllegalStateException("no Application Support")).prepare()
     }
 
-    /** The files of save request bookkeeping of [kind] (`keys`, `covers`), never inside the store. */
+    /** The files of save request bookkeeping of [kind] (`keys`, `covers`, `state`), never inside the store. */
     public fun requestFiles(kind: String): IosPrivateFiles? {
         require(NAME.matches(kind)) { "unsafe kind $kind" }
         return IosPaths.appSupport()?.let { IosPrivateFiles("$it/tag-write-requests/$kind") }

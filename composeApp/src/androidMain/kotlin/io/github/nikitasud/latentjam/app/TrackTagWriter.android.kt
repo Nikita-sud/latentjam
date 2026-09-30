@@ -44,7 +44,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.nikitasud.latentjam.library.tags.TagEdits
@@ -54,7 +53,9 @@ import io.github.nikitasud.latentjam.library.tags.write.FileRecoveryDirectory
 import io.github.nikitasud.latentjam.library.tags.write.TagRecovery
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -81,31 +82,51 @@ internal fun tagWriteStrategy(sdkInt: Int): TagWriteStrategy = when {
 }
 
 /**
- * Holds only application context; an Activity supplies launchers while its UI is resumed.
- *
- * Owns the one live coordinator over the store. A coordinator deletes the key and cover files no
- * request of its own names when it starts, so a second one would delete the first one's.
+ * The one coordinator over the store, for the life of the process. An Activity that finishes no
+ * longer stops a batch. A second MainActivity (started into another task) shares this coordinator
+ * instead of starting one whose restore would delete this one's key and cover files. Checkpoints
+ * still go to every live Activity's saved state, so process death restores a batch as before.
+ * Main thread only, like every coordinator call.
  */
-internal class TagWriteViewModel(context: Context, handle: SavedStateHandle) : ViewModel() {
-    private val backend = AndroidTagWriteBackend(context.applicationContext)
+internal object AndroidTagWrites {
+    private const val CHECKPOINT = "tag-writes"
+    private val checkpoints = CheckpointFanOut()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var coordinator: TagWriteCoordinator<IntentSender>? = null
 
-    val coordinator = TagWriteCoordinator(
-        backend = backend,
-        scope = viewModelScope,
-        io = Dispatchers.IO,
-        restored = handle.get<ArrayList<String>>("tag-writes"),
-        save = { handle["tag-writes"] = ArrayList(it) },
-    )
-
-    init {
+    /** [handle]'s checkpoint restores only the coordinator it creates; a later handle just receives checkpoints. */
+    fun attach(context: Context, handle: SavedStateHandle, owner: Any): TagWriteCoordinator<IntentSender> {
+        checkpoints.attach(owner) { handle[CHECKPOINT] = ArrayList(it) }
+        coordinator?.let { return it }
+        val backend = AndroidTagWriteBackend(context.applicationContext)
+        val created = TagWriteCoordinator(
+            backend = backend,
+            scope = scope,
+            io = Dispatchers.IO,
+            restored = handle.get<ArrayList<String>>(CHECKPOINT),
+            save = checkpoints::save,
+        )
+        coordinator = created
         // Eagerly but off the main thread. A save that comes first prepares the store itself.
-        viewModelScope.launch(Dispatchers.IO) {
+        scope.launch(Dispatchers.IO) {
             try {
                 backend.prepareStore()
             } catch (_: Exception) {
                 // Retried by the first save, which fails if it fails again.
             }
         }
+        return created
+    }
+
+    fun detach(owner: Any) = checkpoints.detach(owner)
+}
+
+/** Connects an Activity's saved state to [AndroidTagWrites]; it owns nothing itself. */
+internal class TagWriteViewModel(context: Context, handle: SavedStateHandle) : ViewModel() {
+    val coordinator = AndroidTagWrites.attach(context, handle, this)
+
+    override fun onCleared() {
+        AndroidTagWrites.detach(this)
     }
 }
 
@@ -118,6 +139,16 @@ private fun tagWriteCoordinator(): TagWriteCoordinator<IntentSender>? {
         }
         ViewModelProvider(activity, factory)[TagWriteViewModel::class.java]
     }.coordinator
+}
+
+@Composable
+internal actual fun rememberTagWriteAccess(): TagWriteAccess? {
+    val coordinator = tagWriteCoordinator() ?: return null
+    return remember(coordinator) {
+        TagWriteAccess(coordinator, readOnlyIsMusicLibrary = false) { track ->
+            track.audioUri?.takeIf(String::isNotBlank)
+        }
+    }
 }
 
 @Composable

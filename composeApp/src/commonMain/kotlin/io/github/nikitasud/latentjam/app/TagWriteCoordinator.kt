@@ -127,7 +127,7 @@ internal data class TagWriteProgress(val requestId: Long, val done: Int, val tot
  * live coordinator per store, which the platform owner keeps: a second one would delete the first
  * one's files.
  *
- * With [checkpoints] false (iOS, which keeps no checkpoint yet) nothing could ever read a request's
+ * With [checkpoints] false (no platform uses it today) nothing could ever read a request's
  * key and cover files, so none are written: a request runs from memory at once.
  *
  * Request ids are random, never counted: an id is a key file's name and a listener's address, and
