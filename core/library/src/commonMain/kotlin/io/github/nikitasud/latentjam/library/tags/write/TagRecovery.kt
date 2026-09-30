@@ -78,10 +78,13 @@ public class TagRecovery(
     }
 
     /**
-     * Gives up on [record] because its file is gone for good (deleted, not merely unreachable):
-     * journals [JournalState.ABANDONED] and deletes the save's files, so the file no longer shows as
-     * interrupted. The same precondition as [recover] applies. A failure leaves the record open for
-     * another try.
+     * Gives up on [record]: journals [JournalState.ABANDONED] and deletes the save's files, so the
+     * file no longer shows as interrupted. The same precondition as [recover] applies. A failure
+     * leaves the record open for another try.
+     *
+     * Only for an explicit user action (forgetting a file). Nothing calls it on its own, because a
+     * file that looks gone may only be on a volume that is not mounted, and this deletes its only
+     * way back.
      */
     public fun abandon(record: JournalRecord) {
         try {

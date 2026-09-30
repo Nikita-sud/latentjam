@@ -13,16 +13,18 @@ import io.github.nikitasud.latentjam.library.tags.write.TagRecovery
 import io.github.nikitasud.latentjam.library.tags.write.TargetFile
 import io.github.nikitasud.latentjam.library.tags.write.WriteResult
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 
 internal enum class TagWriteStrategy { SYSTEM_WRITE_REQUEST, RECOVERABLE_CONSENT, WRITE_PERMISSION, NO_CONSENT }
@@ -34,8 +36,8 @@ internal sealed interface WriteOpen<out C> {
     class Opened(val file: TargetFile, val freeBytes: Long?) : WriteOpen<Nothing>
 
     /**
-     * The file is gone for good: a recovery request gives up its interrupted save. A file on a
-     * volume that is merely unmounted is [Failed], never this, or its only way back would be deleted.
+     * The file is not there. It may be deleted, or only on a volume that is not mounted, so an
+     * interrupted save of it is never given up automatically: its record and backup stay.
      */
     data object Missing : WriteOpen<Nothing>
     data object Denied : WriteOpen<Nothing>
@@ -54,7 +56,10 @@ internal interface TagWriteBackend<C> {
     suspend fun open(key: String): WriteOpen<C>
     suspend fun rescan(keys: List<String>)
 
-    /** Keeps a replacement cover outside the saved state, which cannot hold image bytes. */
+    /**
+     * Keeps a replacement cover outside the saved state, which cannot hold image bytes. Like the key
+     * files below, these do file I/O and are only ever called on the coordinator's io dispatcher.
+     */
     fun stash(name: String, bytes: ByteArray)
     fun unstash(name: String): ByteArray?
     fun drop(name: String)
@@ -87,6 +92,11 @@ internal data class TagWriteRequest(
      * but whose result did not, is now UNCHANGED and still needs the rescan.
      */
     val interrupted: Boolean = false,
+    /**
+     * Its keys (and cover) are in the backend's files. Until then no checkpoint names it and none of
+     * its files is written: after a restart nothing could name them.
+     */
+    val persisted: Boolean = true,
 ) {
     val remaining: List<String>
         get() {
@@ -102,16 +112,24 @@ internal data class TagWriteProgress(val requestId: Long, val done: Int, val tot
  * Saves tag edits into many files with the consent each platform needs, three at a time, and
  * reports each file's fate exactly.
  *
- * Runs on the main thread, where every state change happens; the writes themselves run on [io].
- * Its owner outlives the Activity and checkpoints every transition. A process that dies mid-request
- * restores it, asks for consent again (a grant never outlives its process) and finishes the file
- * that was being written through [TagRecovery] before saving it again.
+ * Runs on the main thread, where every state change happens; file work (the writes, and the
+ * backend's key and cover files) runs on [io]. Its owner outlives the Activity and checkpoints every
+ * transition. A process that dies mid-request restores it, asks for consent again (a grant never
+ * outlives its process) and finishes the file that was being written through [TagRecovery] before
+ * saving it again.
+ *
+ * A restore reads the request's keys on [io], so the constructor never blocks the UI. Until it is
+ * done nothing runs, answers and resumes that arrive meanwhile are replayed after it, and the saved
+ * state is left as restored. It also deletes key and cover files no request names. That assumes one
+ * live coordinator per store, which the platform owner keeps: a second one would delete the first
+ * one's files.
  *
  * It enforces [TagRecovery]'s preconditions. A file's interrupted save is recovered only by the
  * worker that is about to save that file, so never under a live save of it. The store is swept only
  * under [TagWriteStoreLock] with nothing written or recovered: once per request after all its files
  * are closed, and by [refreshRecovery] when no request is queued. A save's saved bytes exist before
- * its journal record does, and a sweep beside it would delete them as stale.
+ * its journal record does, and a sweep beside it would delete them as stale. An interrupted save is
+ * never given up: a file that seems gone may only be on a volume that is not mounted.
  */
 internal class TagWriteCoordinator<C>(
     private val backend: TagWriteBackend<C>,
@@ -121,12 +139,22 @@ internal class TagWriteCoordinator<C>(
     private val save: (List<String>) -> Unit = {},
     private val concurrency: Int = 3,
 ) {
-    private var requests: List<TagWriteRequest> = decodeTagWriteRequests(restored, ::unstash, ::loadKeys)
+    /** The restored checkpoint; its keys and covers are read on [io] before anything runs. */
+    private val saved = parseTagWriteCheckpoint(restored)
+    private var restoring = true
+    private val restoredSignal = CompletableDeferred<Unit>()
 
-    // Past every id with keys on disk too, so a new request never takes over files it did not write.
-    private var nextId = (requests.map { it.id } + storedKeyIds()).maxOrNull()?.plus(1L) ?: 1L
+    /** Calls that came in while restoring, replayed in order once it is done. */
+    private val deferred = ArrayList<() -> Unit>()
+
+    /** Orders the key and cover files: a restore's reads and prune, then saves, then deletes. */
+    private val keyFiles = Mutex()
+
+    private var requests: List<TagWriteRequest> = emptyList()
+    private var nextId = (saved.maxOfOrNull { it.id } ?: 0L) + 1L
     private var worker: Job? = null
     private val listeners = HashMap<Long, (TagWriteReport) -> Unit>()
+    private val encodedResults = EncodedResults()
 
     private val mutablePrompt = MutableStateFlow<TagWritePrompt<C>?>(null)
     val prompt = mutablePrompt.asStateFlow()
@@ -138,22 +166,14 @@ internal class TagWriteCoordinator<C>(
     val pendingRecovery = mutablePending.asStateFlow()
 
     /** True while any request is queued or running: an open journal record then may be a save in flight. */
-    private val mutableActive = MutableStateFlow(requests.isNotEmpty())
+    private val mutableActive = MutableStateFlow(saved.isNotEmpty())
     val active = mutableActive.asStateFlow()
 
-    private var restoredWait = requests.firstOrNull()?.takeIf { it.stage in WAITING }?.id
+    private var restoredWait: Long? = null
 
     init {
-        prune()
-        val first = requests.firstOrNull()
-        when {
-            first == null -> Unit
-            first.stage in OFFERING -> update(first.copy(stage = TagWriteStage.READY))
-            // Consent died with the process; the interrupted file has an open journal record.
-            first.stage == TagWriteStage.WRITING ->
-                update(first.copy(stage = TagWriteStage.READY, consented = false, batch = emptyList(), interrupted = true))
-        }
-        resume()
+        // Undispatched, so the key-file lock is taken before any enqueue can queue a save behind it.
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { restore() }
     }
 
     /** Queues [edits] for [keys]; the id to [listen] on, or null when every key is already queued. */
@@ -162,11 +182,9 @@ internal class TagWriteCoordinator<C>(
         val distinct = keys.filter { it.isNotBlank() && it !in queued }.distinct()
         if (distinct.isEmpty()) return null
         val id = nextId++
-        persist(id, distinct)
-        (edits.cover as? CoverEdit.Replace)?.let { cover -> safely { backend.stash(coverName(id), cover.bytes) } }
-        requests = requests + TagWriteRequest(id, TagWriteKind.EDIT, distinct, edits)
+        requests = requests + TagWriteRequest(id, TagWriteKind.EDIT, distinct, edits, persisted = false)
         checkpoint()
-        resume()
+        persist(id, distinct, edits.cover as? CoverEdit.Replace)
         return id
     }
 
@@ -176,10 +194,9 @@ internal class TagWriteCoordinator<C>(
         val targets = mutablePending.value.map { it.target }.distinct().filter { it !in queued }
         if (targets.isEmpty()) return null
         val id = nextId++
-        persist(id, targets)
-        requests = requests + TagWriteRequest(id, TagWriteKind.RECOVER, targets, TagEdits())
+        requests = requests + TagWriteRequest(id, TagWriteKind.RECOVER, targets, TagEdits(), persisted = false)
         checkpoint()
-        resume()
+        persist(id, targets, cover = null)
         return id
     }
 
@@ -188,6 +205,8 @@ internal class TagWriteCoordinator<C>(
      * the store; a queued request's files may be written the moment it resumes, so then it does not.
      */
     suspend fun refreshRecovery() {
+        // A restored request's interrupted file is its own to finish, not one to offer recovering.
+        restoredSignal.await()
         val records = TagWriteStoreLock.withLock {
             val idle = requests.isEmpty()
             withContext(io) {
@@ -206,6 +225,10 @@ internal class TagWriteCoordinator<C>(
 
     /** Stops between files: those written stay written, the rest untouched. */
     fun stop() {
+        if (restoring) {
+            deferred += ::stop
+            return
+        }
         val first = requests.firstOrNull() ?: return
         if (first.stage == TagWriteStage.COMPLETE || first.stopRequested) return
         update(first.copy(stopRequested = true))
@@ -232,15 +255,26 @@ internal class TagWriteCoordinator<C>(
         requests = requests.drop(1)
         mutableCompleted.value = null
         checkpoint()
-        // After the checkpoint: a request the saved state still names must still find its files.
-        safely { backend.drop(coverName(id)) }
-        safely { backend.dropKeys(id) }
+        // Once no checkpoint names it: a request the saved state still names must still find its files.
+        val cover = first.edits.cover is CoverEdit.Replace
+        scope.launch {
+            keyFiles.withLock {
+                withContext(io) {
+                    if (cover) safely { backend.drop(coverName(id)) }
+                    safely { backend.dropKeys(id) }
+                }
+            }
+        }
         listeners.remove(id)?.invoke(report)
         resume()
     }
 
     /** Activity results arrive before the host resumes; none after a recreation means the dialog is gone. */
     fun onHostResumed() {
+        if (restoring) {
+            deferred += ::onHostResumed
+            return
+        }
         val first = requests.firstOrNull() ?: return
         if (first.id != restoredWait) return
         restoredWait = null
@@ -270,6 +304,10 @@ internal class TagWriteCoordinator<C>(
     }
 
     fun answer(answer: WriteAnswer) {
+        if (restoring) {
+            deferred += { answer(answer) }
+            return
+        }
         val first = requests.firstOrNull() ?: return
         if (first.stage !in WAITING) return
         restoredWait = null
@@ -283,29 +321,79 @@ internal class TagWriteCoordinator<C>(
         resume()
     }
 
-    private fun checkpoint() {
-        mutableActive.value = requests.isNotEmpty()
-        save(encodeTagWriteRequests(requests))
+    /**
+     * Reads the restored requests' keys and covers, deletes the files no request names, and only then
+     * lets anything run.
+     */
+    private suspend fun restore() {
+        keyFiles.withLock {
+            val loaded = withContext(io) {
+                saved.mapNotNull { entry ->
+                    val cover = if (entry.replacesCover) unstash(coverName(entry.id)) else null
+                    entry.toRequest(loadKeys(entry.id), cover)
+                }
+            }
+            // Requests enqueued meanwhile go after the restored ones, and their files are kept.
+            requests = loaded + requests
+            val ids = requests.mapTo(HashSet()) { it.id }
+            val covers = requests.filter { it.edits.cover is CoverEdit.Replace }.mapTo(HashSet()) { coverName(it.id) }
+            withContext(io) {
+                for (id in storedKeyIds()) if (id !in ids) safely { backend.dropKeys(id) }
+                for (name in stashNames()) if (name !in covers) safely { backend.drop(name) }
+            }
+        }
+        restoring = false
+        val first = requests.firstOrNull()
+        when {
+            first == null || !first.persisted -> Unit
+            first.stage in OFFERING -> update(first.copy(stage = TagWriteStage.READY))
+            // Consent died with the process; the interrupted file has an open journal record.
+            first.stage == TagWriteStage.WRITING -> update(
+                first.copy(stage = TagWriteStage.READY, consented = false, batch = emptyList(), interrupted = true),
+            )
+        }
+        restoredWait = requests.firstOrNull()?.takeIf { it.stage in WAITING }?.id
+        checkpoint()
+        restoredSignal.complete(Unit)
+        val replay = deferred.toList()
+        deferred.clear()
+        replay.forEach { it() }
+        resume()
     }
 
-    /** Written before the checkpoint that names [id]; if it fails, the request still runs, but not past a restart. */
-    private fun persist(id: Long, keys: List<String>) = safely { backend.saveKeys(id, keys) }
-
-    /** Deletes the keys and covers of requests the restored state does not name (a death between the two writes). */
-    private fun prune() {
-        val ids = requests.mapTo(HashSet()) { it.id }
-        for (id in storedKeyIds()) if (id !in ids) safely { backend.dropKeys(id) }
-        val covers = requests.filter { it.edits.cover is CoverEdit.Replace }.mapTo(HashSet()) { coverName(it.id) }
-        val stashed = try {
-            backend.stashNames()
-        } catch (_: Exception) {
-            emptyList()
+    /** Saves the keys (and cover) on [io] before any checkpoint names the request; then it may run. */
+    private fun persist(id: Long, keys: List<String>, cover: CoverEdit.Replace?) {
+        scope.launch {
+            keyFiles.withLock {
+                withContext(io) {
+                    // If this fails the request still runs, but does not survive a restart.
+                    safely { backend.saveKeys(id, keys) }
+                    cover?.let { safely { backend.stash(coverName(id), it.bytes) } }
+                }
+            }
+            val index = requests.indexOfFirst { it.id == id }
+            if (index < 0) return@launch
+            requests = requests.toMutableList().also { it[index] = it[index].copy(persisted = true) }
+            checkpoint()
+            resume()
         }
-        for (name in stashed) if (name !in covers) safely { backend.drop(name) }
+    }
+
+    private fun checkpoint() {
+        mutableActive.value = requests.isNotEmpty() || (restoring && saved.isNotEmpty())
+        // While restoring, the saved state still holds the restored requests; writing now would drop them.
+        if (restoring) return
+        save(encodeTagWriteRequests(requests.filter { it.persisted }, encodedResults))
     }
 
     private fun storedKeyIds(): List<Long> = try {
         backend.savedKeyIds()
+    } catch (_: Exception) {
+        emptyList()
+    }
+
+    private fun stashNames(): List<String> = try {
+        backend.stashNames()
     } catch (_: Exception) {
         emptyList()
     }
@@ -349,6 +437,7 @@ internal class TagWriteCoordinator<C>(
         mutablePrompt.value = TagWritePrompt(request.id, consent)
     }
 
+    /** In memory first, then checkpointed: a checkpoint that fails still leaves the result recorded. */
     private fun record(result: FileWriteResult) {
         val first = requests.first()
         if (first.results.any { it.key == result.key }) return
@@ -358,12 +447,13 @@ internal class TagWriteCoordinator<C>(
     }
 
     private fun resume() {
+        if (restoring) return
         val first = requests.firstOrNull() ?: return
         if (first.stage == TagWriteStage.COMPLETE) {
             mutableCompleted.value = first
             return
         }
-        if (worker?.isActive == true || first.stage !in RUNNABLE) return
+        if (!first.persisted || worker?.isActive == true || first.stage !in RUNNABLE) return
         val job = scope.launch { run() }
         worker = job
         job.invokeOnCompletion { failure ->
@@ -379,7 +469,7 @@ internal class TagWriteCoordinator<C>(
                 mutableCompleted.value = current
                 return
             }
-            if (current.stage !in RUNNABLE) return
+            if (!current.persisted || current.stage !in RUNNABLE) return
             try {
                 step(current)
             } catch (cancelled: CancellationException) {
@@ -436,7 +526,9 @@ internal class TagWriteCoordinator<C>(
         update(current.copy(stage = TagWriteStage.WRITING))
         val permits = Semaphore(concurrency)
         TagWriteStoreLock.withLock {
-            coroutineScope {
+            // One file's failure must not cancel the others: their saves may have landed, and each is
+            // reported as it is.
+            supervisorScope {
                 for (key in keys) {
                     permits.acquire()
                     if (requests.first().stopRequested) {
@@ -447,6 +539,11 @@ internal class TagWriteCoordinator<C>(
                         try {
                             val step = attempt(current, key)
                             record(if (step is Attempt.Done) step.result else FileWriteResult(key, FileWriteStatus.DENIED))
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            // A result already recorded in memory stands; otherwise this file failed.
+                            safely { record(FileWriteResult(key, FileWriteStatus.FAILED)) }
                         } finally {
                             permits.release()
                         }
@@ -505,14 +602,8 @@ internal class TagWriteCoordinator<C>(
     }
 
     private suspend fun attempt(request: TagWriteRequest, key: String): Attempt<C> {
-        if (request.kind == TagWriteKind.RECOVER) {
-            val recovered = withOpened(key) { file, _ -> recoverKey(key, file) }
-            // Gone for good: nothing is left to finish, so its records are closed and it stops showing as interrupted.
-            if (recovered is Attempt.Done && recovered.result.status == FileWriteStatus.MISSING) {
-                withContext(io) { abandonKey(key) }
-            }
-            return recovered
-        }
+        // A file that is missing is reported MISSING, and its record stays open (see the class notes).
+        if (request.kind == TagWriteKind.RECOVER) return withOpened(key) { file, _ -> recoverKey(key, file) }
         val first = withOpened(key) { file, free -> saved(key, backend.writer.write(key, file, request.edits, free)) }
         if (first !is Attempt.Done || first.result.status != FileWriteStatus.RECOVERY_PENDING) return first
         // An earlier save of this file was interrupted: finish or undo it, then save again on a fresh handle
@@ -572,15 +663,6 @@ internal class TagWriteCoordinator<C>(
         return FileWriteResult(key, status)
     }
 
-    private fun abandonKey(key: String) {
-        val records = try {
-            backend.recovery.pending().filter { it.target == key }
-        } catch (_: Exception) {
-            return
-        }
-        records.forEach(backend.recovery::abandon)
-    }
-
     private companion object {
         const val CONSENT_LIMIT = 2_000
         val WAITING = setOf(TagWriteStage.WAIT_PERMISSION, TagWriteStage.WAIT_FILE, TagWriteStage.WAIT_BATCH)
@@ -600,13 +682,99 @@ internal fun coverName(id: Long): String = "cover-$id"
 internal val TagWriteStoreLock = Mutex()
 
 /**
- * String-only saved state (SavedStateHandle holds no Context, IntentSender or image), kept small
- * for a Bundle: the keys live in the backend's files ([TagWriteBackend.saveKeys]) and results
- * name a key by its index. A replaced cover is stashed under [coverName], and only its mime is
- * written here. The batch is stored as its size: it is always the first files still to do.
+ * Each request's results as the one checkpoint string that holds them, appended to as files finish
+ * rather than re-encoded, so a 10,000-file batch does not redo its whole report per file.
  */
-internal fun encodeTagWriteRequests(requests: List<TagWriteRequest>): List<String> = buildList {
-    add("2")
+internal class EncodedResults {
+    private class Entry(val keys: List<String>) {
+        val index = HashMap<String, Int>(keys.size * 2).also { map -> keys.forEachIndexed { i, key -> map[key] = i } }
+        val text = StringBuilder()
+        var count = 0
+        var last: FileWriteResult? = null
+    }
+
+    private val entries = HashMap<Long, Entry>()
+
+    fun retain(ids: Set<Long>) {
+        entries.keys.retainAll(ids)
+    }
+
+    fun of(request: TagWriteRequest): String {
+        val results = request.results
+        var entry = entries[request.id]
+        // Results only ever grow at the end; anything else is encoded afresh.
+        if (entry == null || entry.keys !== request.keys || entry.count > results.size ||
+            (entry.count > 0 && results[entry.count - 1] !== entry.last)
+        ) {
+            entry = Entry(request.keys).also { entries[request.id] = it }
+        }
+        for (i in entry.count until results.size) {
+            if (entry.text.isNotEmpty()) entry.text.append(',')
+            encodeResult(entry.text, entry.index.getValue(results[i].key), results[i])
+        }
+        entry.count = results.size
+        entry.last = results.lastOrNull()
+        return entry.text.toString()
+    }
+}
+
+/** `<index><status code>[<new length>][!<refusal>]`, e.g. `12S17436` or `3R!TRUNCATED`. */
+private fun encodeResult(into: StringBuilder, index: Int, result: FileWriteResult) {
+    into.append(index).append(result.status.code)
+    result.newLength?.let { into.append(it) }
+    result.refusal?.let { into.append('!').append(it.name) }
+}
+
+private fun decodeResult(entry: String, keys: List<String>): FileWriteResult {
+    val codeAt = entry.indexOfFirst { !it.isDigit() }
+    check(codeAt > 0) { "no index in $entry" }
+    val status = STATUS_BY_CODE.getValue(entry[codeAt])
+    val rest = entry.substring(codeAt + 1)
+    val bang = rest.indexOf('!')
+    val length = if (bang < 0) rest else rest.substring(0, bang)
+    return FileWriteResult(
+        key = keys[entry.substring(0, codeAt).toInt()],
+        status = status,
+        refusal = if (bang < 0) null else TagRefusal.valueOf(rest.substring(bang + 1)),
+        newLength = length.takeIf { it.isNotEmpty() }?.toLong(),
+    )
+}
+
+/** One letter per status, fixed here rather than by declaration order, so a reorder cannot misread a checkpoint. */
+private val FileWriteStatus.code: Char
+    get() = when (this) {
+        FileWriteStatus.SAVED -> 'S'
+        FileWriteStatus.UNCHANGED -> 'U'
+        FileWriteStatus.REFUSED -> 'R'
+        FileWriteStatus.NO_SPACE -> 'N'
+        FileWriteStatus.FAILED -> 'F'
+        FileWriteStatus.RECOVERY_PENDING -> 'P'
+        FileWriteStatus.DENIED -> 'D'
+        FileWriteStatus.CANCELLED -> 'C'
+        FileWriteStatus.MISSING -> 'M'
+        FileWriteStatus.READ_ONLY -> 'O'
+        FileWriteStatus.STOPPED -> 'T'
+        FileWriteStatus.RECOVERED -> 'V'
+        FileWriteStatus.RESTORED -> 'E'
+        FileWriteStatus.FOREIGN -> 'G'
+    }
+
+private val STATUS_BY_CODE: Map<Char, FileWriteStatus> = FileWriteStatus.entries.associateBy { it.code }
+
+/**
+ * String-only saved state (SavedStateHandle holds no Context, IntentSender or image), kept small
+ * for a Bundle:
+ * - the keys live in the backend's files ([TagWriteBackend.saveKeys]);
+ * - results are one string per request that names each key by its index;
+ * - the batch is stored as its size, since it is always the first files still to do;
+ * - a replaced cover is stashed under [coverName], and only its mime is written here.
+ */
+internal fun encodeTagWriteRequests(
+    requests: List<TagWriteRequest>,
+    results: EncodedResults = EncodedResults(),
+): List<String> = buildList {
+    results.retain(requests.mapTo(HashSet()) { it.id })
+    add(CHECKPOINT_VERSION)
     add(requests.size.toString())
     for (r in requests) {
         addAll(listOf(r.id.toString(), r.kind.name, r.stage.name, r.consented.toString(),
@@ -621,49 +789,33 @@ internal fun encodeTagWriteRequests(requests: List<TagWriteRequest>): List<Strin
         })
         add(r.keys.size.toString())
         add(r.batch.size.toString())
-        add(r.results.size.toString())
-        val index = r.keys.withIndex().associate { (i, key) -> key to i }
-        for (result in r.results) {
-            add("${index.getValue(result.key)}:${result.status.name}:${result.refusal?.name.orEmpty()}:${result.newLength?.toString().orEmpty()}")
-        }
+        add(results.of(r))
     }
 }
 
-/** Null keys (lost with their file, or not the count saved) drop that request: its files cannot be named. */
-internal fun decodeTagWriteRequests(
-    saved: List<String>?,
-    unstash: (String) -> ByteArray?,
-    loadKeys: (Long) -> List<String>?,
-): List<TagWriteRequest> {
-    if (saved == null) return emptyList()
-    return try {
-        val values = saved.iterator()
-        check(values.next() == "2")
-        List(values.next().toInt()) {
-            val id = values.next().toLong()
-            val kind = TagWriteKind.valueOf(values.next())
-            val stage = TagWriteStage.valueOf(values.next())
-            val consented = values.next().toBooleanStrict()
-            val permissionRequested = values.next().toBooleanStrict()
-            val stopRequested = values.next().toBooleanStrict()
-            val interrupted = values.next().toBooleanStrict()
-            val fields = List(11) { values.next().let { v -> if (v == "0") null else v.removePrefix("1") } }
-            val coverCode = values.next()
-            val keyCount = values.next().toInt()
-            val batchSize = values.next().toInt()
-            val encoded = List(values.next().toInt()) { values.next() }
-            val keys = loadKeys(id)?.takeIf { it.size == keyCount } ?: return@List null
-            val results = encoded.map { entry ->
-                val (index, status, refusal, newLength) = entry.split(':').also { check(it.size == 4) }
-                FileWriteResult(
-                    key = keys[index.toInt()],
-                    status = FileWriteStatus.valueOf(status),
-                    refusal = refusal.takeIf { it.isNotEmpty() }?.let(TagRefusal::valueOf),
-                    newLength = newLength.takeIf { it.isNotEmpty() }?.toLong(),
-                )
-            }
+/** One request as the checkpoint holds it: everything but its keys and cover bytes, which are files. */
+internal class SavedTagWrite(
+    val id: Long,
+    private val kind: TagWriteKind,
+    private val stage: TagWriteStage,
+    private val consented: Boolean,
+    private val permissionRequested: Boolean,
+    private val stopRequested: Boolean,
+    private val interrupted: Boolean,
+    private val fields: List<String?>,
+    private val coverCode: String,
+    private val keyCount: Int,
+    private val batchSize: Int,
+    private val results: String,
+) {
+    val replacesCover: Boolean get() = coverCode.startsWith("c")
+
+    /** The request, or null when its keys were lost or are not the ones saved: its files cannot be named. */
+    fun toRequest(keys: List<String>?, coverBytes: ByteArray?): TagWriteRequest? {
+        if (keys == null || keys.size != keyCount) return null
+        return try {
+            val results = if (results.isEmpty()) emptyList() else results.split(',').map { decodeResult(it, keys) }
             check(results.mapTo(HashSet()) { it.key }.size == results.size)
-            val coverBytes = if (coverCode.startsWith("c")) unstash(coverName(id)) else null
             val cover = when {
                 coverCode == "k" -> CoverEdit.Keep
                 coverCode == "r" -> CoverEdit.Remove
@@ -680,8 +832,46 @@ internal fun decodeTagWriteRequests(
                 request.copy(stage = TagWriteStage.READY, batch = emptyList(),
                     results = results + request.remaining.map { FileWriteResult(it, FileWriteStatus.FAILED) })
             } else request
-        }.filterNotNull().also { check(!values.hasNext()) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+}
+
+/** Parses without touching a file, so a coordinator can read it in its constructor; empty when malformed. */
+internal fun parseTagWriteCheckpoint(saved: List<String>?): List<SavedTagWrite> {
+    if (saved == null) return emptyList()
+    return try {
+        val values = saved.iterator()
+        check(values.next() == CHECKPOINT_VERSION)
+        List(values.next().toInt()) {
+            SavedTagWrite(
+                id = values.next().toLong(),
+                kind = TagWriteKind.valueOf(values.next()),
+                stage = TagWriteStage.valueOf(values.next()),
+                consented = values.next().toBooleanStrict(),
+                permissionRequested = values.next().toBooleanStrict(),
+                stopRequested = values.next().toBooleanStrict(),
+                interrupted = values.next().toBooleanStrict(),
+                fields = List(11) { values.next().let { v -> if (v == "0") null else v.removePrefix("1") } },
+                coverCode = values.next(),
+                keyCount = values.next().toInt(),
+                batchSize = values.next().toInt(),
+                results = values.next(),
+            )
+        }.also { check(!values.hasNext()) }
     } catch (_: Exception) {
         emptyList()
     }
 }
+
+/** The whole restore in one go, for tests and tools: [loadKeys] and [unstash] do file I/O. */
+internal fun decodeTagWriteRequests(
+    saved: List<String>?,
+    unstash: (String) -> ByteArray?,
+    loadKeys: (Long) -> List<String>?,
+): List<TagWriteRequest> = parseTagWriteCheckpoint(saved).mapNotNull {
+    it.toRequest(loadKeys(it.id), if (it.replacesCover) unstash(coverName(it.id)) else null)
+}
+
+private const val CHECKPOINT_VERSION = "3"
