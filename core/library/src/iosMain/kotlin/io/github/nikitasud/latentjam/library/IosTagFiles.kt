@@ -88,15 +88,7 @@ internal class PosixTargetFile(private var fd: Int) : TargetFile {
         if (count == 0) return
         require(from >= 0 && count > 0 && from + count <= bytes.size) { "range $from+$count of ${bytes.size}" }
         bytes.usePinned { pinned ->
-            var done = 0
-            while (done < count) {
-                val n = pwrite(fd, pinned.addressOf(from + done), (count - done).toULong(), offset + done)
-                if (n < 0) {
-                    if (errno == EINTR) continue
-                    throw failure("write")
-                }
-                done += n.toInt()
-            }
+            writeFully(count) { done -> pwrite(fd, pinned.addressOf(from + done), (count - done).toULong(), offset + done) }
         }
     }
 
@@ -127,12 +119,28 @@ internal class PosixTargetFile(private var fd: Int) : TargetFile {
         if (fd >= 0) posixClose(fd)
         fd = -1
     }
+}
 
-    private fun failure(call: String): Exception {
-        val code = errno
-        // With delayed allocation the disk-full error can surface at the sync, not at the write.
-        return if (code == ENOSPC || code == EDQUOT) StorageFullException("$call: no space (errno $code)")
-        else IllegalStateException("$call failed: errno $code")
+/** An exception for a failed [call] from `errno`: a full disk is [StorageFullException]. */
+private fun failure(call: String): Exception {
+    val code = errno
+    // With delayed allocation the disk-full error can surface at the sync, not at the write.
+    return if (code == ENOSPC || code == EDQUOT) StorageFullException("$call: no space (errno $code)")
+    else IllegalStateException("$call failed: errno $code")
+}
+
+/** Calls [write] (a `pwrite` of what is left after `done` bytes) until [count] bytes are written. */
+internal fun writeFully(count: Int, write: (done: Int) -> Long) {
+    var done = 0
+    while (done < count) {
+        val n = write(done)
+        if (n < 0) {
+            if (errno == EINTR) continue
+            throw failure("write")
+        }
+        // Nothing written for a nonzero count would loop forever, holding the store lock.
+        if (n == 0L) throw IllegalStateException("write made no progress at $done of $count bytes")
+        done += n.toInt()
     }
 }
 

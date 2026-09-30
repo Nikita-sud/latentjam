@@ -102,6 +102,20 @@ class IosTagFilesTest {
     }
 
     @Test
+    fun aWriteThatMakesNoProgressFailsInsteadOfSpinning() {
+        var calls = 0
+        assertFailsWith<IllegalStateException> {
+            writeFully(4) {
+                if (++calls > 3) throw AssertionError("spins on a write of 0 bytes")
+                0L
+            }
+        }
+        var done = 0
+        writeFully(4) { at -> 2L.also { done = at + 2 } }
+        assertEquals(4, done)
+    }
+
+    @Test
     fun aStoreFileThatCannotBeOpenedIsNotTakenForAbsent() {
         val directory = IosRecoveryDirectory(storeRoot)
         manager.createDirectoryAtPath("$storeRoot/w1.staged", true, null, null)
