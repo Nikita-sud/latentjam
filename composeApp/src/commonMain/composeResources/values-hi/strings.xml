@@ -534,6 +534,43 @@
         <item quantity="other">फ़ाइल में +%1$d और तस्वीरें हैं, वे बनी रहेंगी</item>
     </plurals>
     <string name="info_reading_file">फ़ाइल पढ़ी जा रही है…</string>
+    <string name="action_edit_album">एल्बम संपादित करें</string>
+    <string name="action_edit_artist">कलाकार संपादित करें</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d फ़ाइल</item>
+        <item quantity="other">%1$d फ़ाइलें</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d फ़ील्ड</item>
+        <item quantity="other">%1$d फ़ील्ड</item>
+    </plurals>
+    <string name="bulk_save">%1$s बदलें (%2$s)</string>
+    <string name="bulk_reading">पढ़ा जा रहा है: %2$d में से %1$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d फ़ाइल संपादित नहीं की जा सकती और जैसी है वैसी ही रहेगी:</item>
+        <item quantity="other">%1$d फ़ाइलें संपादित नहीं की जा सकतीं और जैसी हैं वैसी ही रहेंगी:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">और %1$d</item>
+        <item quantity="other">और %1$d</item>
+    </plurals>
+    <string name="bulk_nothing_editable">इनमें से कोई भी फ़ाइल संपादित नहीं की जा सकती।</string>
+    <string name="bulk_different">अलग-अलग मान</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">%1$d फ़ाइल से हटाया गया</item>
+        <item quantity="other">सभी %1$d से हटाया गया</item>
+    </plurals>
+    <string name="bulk_remove_field">हर फ़ाइल से हटाएँ</string>
+    <string name="bulk_keep_field">जैसा है वैसा रखें</string>
+    <string name="bulk_saving">%2$d में से %1$d सहेजी गईं</string>
+    <string name="bulk_stop">रोकें</string>
+    <string name="bulk_result">%2$d में से %1$d सहेजी गईं।</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d फ़ाइल नहीं बदली गई:</item>
+        <item quantity="other">%1$d फ़ाइलें नहीं बदली गईं:</item>
+    </plurals>
+    <string name="bulk_done">हो गया</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">इस ट्रैक के लिए कोई बोल नहीं मिले।</string>
     <string name="cd_scroll_to_top">ऊपर वापस जाएँ</string>
     <string name="foryou_section_daypart_morning">आपकी सुबहें</string>

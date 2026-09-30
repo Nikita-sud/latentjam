@@ -596,6 +596,45 @@
         <item quantity="other">+%1$d more images in the file, kept</item>
     </plurals>
     <string name="info_reading_file">Reading the file…</string>
+    <string name="action_edit_album">Edit album</string>
+    <string name="action_edit_artist">Edit artist</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d field</item>
+        <item quantity="other">%1$d fields</item>
+    </plurals>
+    <!-- %1$s is a count_fields fragment, %2$s a count_files fragment, both already pluralized. -->
+    <string name="bulk_save">Change %1$s in %2$s</string>
+    <string name="bulk_reading">Reading %1$d of %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d file can't be edited and will be left as it is:</item>
+        <item quantity="other">%1$d files can't be edited and will be left as they are:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
+    <string name="bulk_nothing_editable">None of these files can be edited.</string>
+    <string name="bulk_different">Different values</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Removed from this file</item>
+        <item quantity="other">Removed from all %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Remove from every file</string>
+    <string name="bulk_keep_field">Keep as it is</string>
+    <string name="bulk_saving">Saved %1$d of %2$d</string>
+    <string name="bulk_stop">Stop</string>
+    <string name="bulk_result">Saved %1$d of %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d file not changed:</item>
+        <item quantity="other">%1$d files not changed:</item>
+    </plurals>
+    <string name="bulk_done">Done</string>
+    <!-- One line of a result list: %1$s the song, %2$s why it was not changed. -->
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">No lyrics were found for this track.</string>
     <string name="cd_scroll_to_top">Back to top</string>
     <string name="foryou_section_daypart_morning">Your mornings</string>

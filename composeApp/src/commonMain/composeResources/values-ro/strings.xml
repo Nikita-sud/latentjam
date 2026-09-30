@@ -535,6 +535,49 @@
         <item quantity="other">+%1$d de alte imagini în fișier, păstrate</item>
     </plurals>
     <string name="info_reading_file">Se citește fișierul…</string>
+    <string name="action_edit_album">Editează albumul</string>
+    <string name="action_edit_artist">Editează artistul</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d fișier</item>
+        <item quantity="few">%1$d fișiere</item>
+        <item quantity="other">%1$d de fișiere</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d câmp</item>
+        <item quantity="few">%1$d câmpuri</item>
+        <item quantity="other">%1$d de câmpuri</item>
+    </plurals>
+    <string name="bulk_save">Modifică %1$s în %2$s</string>
+    <string name="bulk_reading">Se citesc fișierele: %1$d din %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d fișier nu poate fi editat și va rămâne neschimbat:</item>
+        <item quantity="few">%1$d fișiere nu pot fi editate și vor rămâne neschimbate:</item>
+        <item quantity="other">%1$d de fișiere nu pot fi editate și vor rămâne neschimbate:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">și încă %1$d</item>
+        <item quantity="few">și încă %1$d</item>
+        <item quantity="other">și încă %1$d</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Niciunul dintre aceste fișiere nu poate fi editat.</string>
+    <string name="bulk_different">Valori diferite</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Eliminat din %1$d fișier</item>
+        <item quantity="few">Eliminat din toate cele %1$d</item>
+        <item quantity="other">Eliminat din toate cele %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Elimină din toate fișierele</string>
+    <string name="bulk_keep_field">Lasă neschimbat</string>
+    <string name="bulk_saving">Salvate: %1$d din %2$d</string>
+    <string name="bulk_stop">Oprește</string>
+    <string name="bulk_result">Salvate: %1$d din %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d fișier nemodificat:</item>
+        <item quantity="few">%1$d fișiere nemodificate:</item>
+        <item quantity="other">%1$d de fișiere nemodificate:</item>
+    </plurals>
+    <string name="bulk_done">Gata</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">Nu s-au găsit versuri pentru această piesă.</string>
     <string name="cd_scroll_to_top">Înapoi sus</string>
     <string name="foryou_section_daypart_morning">Diminețile tale</string>

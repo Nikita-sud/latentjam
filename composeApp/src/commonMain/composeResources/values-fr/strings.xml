@@ -546,6 +546,43 @@
         <item quantity="other">+%1$d autres images dans le fichier, conservées</item>
     </plurals>
     <string name="info_reading_file">Lecture du fichier…</string>
+    <string name="action_edit_album">Modifier l'album</string>
+    <string name="action_edit_artist">Modifier l'artiste</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d fichier</item>
+        <item quantity="other">%1$d fichiers</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d champ</item>
+        <item quantity="other">%1$d champs</item>
+    </plurals>
+    <string name="bulk_save">Modifier %1$s dans %2$s</string>
+    <string name="bulk_reading">Lecture de %1$d sur %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d fichier ne peut pas être modifié et restera tel quel :</item>
+        <item quantity="other">%1$d fichiers ne peuvent pas être modifiés et resteront tels quels :</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">et %1$d de plus</item>
+        <item quantity="other">et %1$d de plus</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Aucun de ces fichiers ne peut être modifié.</string>
+    <string name="bulk_different">Valeurs différentes</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Supprimé de %1$d fichier</item>
+        <item quantity="other">Supprimé des %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Supprimer de tous les fichiers</string>
+    <string name="bulk_keep_field">Laisser tel quel</string>
+    <string name="bulk_saving">%1$d sur %2$d enregistrés</string>
+    <string name="bulk_stop">Arrêter</string>
+    <string name="bulk_result">%1$d sur %2$d enregistrés.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d fichier non modifié :</item>
+        <item quantity="other">%1$d fichiers non modifiés :</item>
+    </plurals>
+    <string name="bulk_done">Terminé</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">Aucune parole n’a été trouvée pour ce titre.</string>
     <string name="cd_scroll_to_top">Revenir en haut</string>
     <string name="foryou_section_daypart_morning">Vos matins</string>

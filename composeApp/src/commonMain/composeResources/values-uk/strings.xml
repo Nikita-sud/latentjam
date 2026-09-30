@@ -558,6 +558,55 @@
         <item quantity="other">+%1$d іншого зображення у файлі, збережуться</item>
     </plurals>
     <string name="info_reading_file">Читання файлу…</string>
+    <string name="action_edit_album">Змінити альбом</string>
+    <string name="action_edit_artist">Змінити виконавця</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d файл</item>
+        <item quantity="few">%1$d файли</item>
+        <item quantity="many">%1$d файлів</item>
+        <item quantity="other">%1$d файлу</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d поле</item>
+        <item quantity="few">%1$d поля</item>
+        <item quantity="many">%1$d полів</item>
+        <item quantity="other">%1$d поля</item>
+    </plurals>
+    <string name="bulk_save">Змінити %1$s (%2$s)</string>
+    <string name="bulk_reading">Читання: %1$d з %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d файл не можна змінити, він залишиться як є:</item>
+        <item quantity="few">%1$d файли не можна змінити, вони залишаться як є:</item>
+        <item quantity="many">%1$d файлів не можна змінити, вони залишаться як є:</item>
+        <item quantity="other">%1$d файлу не можна змінити, вони залишаться як є:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">і ще %1$d</item>
+        <item quantity="few">і ще %1$d</item>
+        <item quantity="many">і ще %1$d</item>
+        <item quantity="other">і ще %1$d</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Жоден із цих файлів не можна змінити.</string>
+    <string name="bulk_different">Різні значення</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Видалено з %1$d файлу</item>
+        <item quantity="few">Видалено з усіх %1$d</item>
+        <item quantity="many">Видалено з усіх %1$d</item>
+        <item quantity="other">Видалено з усіх %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Видалити з усіх файлів</string>
+    <string name="bulk_keep_field">Залишити як є</string>
+    <string name="bulk_saving">Збережено %1$d з %2$d</string>
+    <string name="bulk_stop">Зупинити</string>
+    <string name="bulk_result">Збережено %1$d з %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d файл не змінено:</item>
+        <item quantity="few">%1$d файли не змінено:</item>
+        <item quantity="many">%1$d файлів не змінено:</item>
+        <item quantity="other">%1$d файлу не змінено:</item>
+    </plurals>
+    <string name="bulk_done">Готово</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">Текст пісні для цього треку не знайдено.</string>
     <string name="cd_scroll_to_top">Нагору списку</string>
     <string name="foryou_section_daypart_morning">Ваш ранок</string>

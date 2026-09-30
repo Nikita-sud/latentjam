@@ -544,6 +544,43 @@
         <item quantity="other">+%1$d weitere Bilder in der Datei, bleiben erhalten</item>
     </plurals>
     <string name="info_reading_file">Datei wird gelesen…</string>
+    <string name="action_edit_album">Album bearbeiten</string>
+    <string name="action_edit_artist">Künstler bearbeiten</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d Datei</item>
+        <item quantity="other">%1$d Dateien</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d Feld</item>
+        <item quantity="other">%1$d Felder</item>
+    </plurals>
+    <string name="bulk_save">%1$s in %2$s ändern</string>
+    <string name="bulk_reading">Dateien werden gelesen: %1$d von %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d Datei kann nicht bearbeitet werden und bleibt unverändert:</item>
+        <item quantity="other">%1$d Dateien können nicht bearbeitet werden und bleiben unverändert:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">und %1$d weitere</item>
+        <item quantity="other">und %1$d weitere</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Keine dieser Dateien kann bearbeitet werden.</string>
+    <string name="bulk_different">Unterschiedliche Werte</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Aus %1$d Datei entfernt</item>
+        <item quantity="other">Aus allen %1$d entfernt</item>
+    </plurals>
+    <string name="bulk_remove_field">Aus jeder Datei entfernen</string>
+    <string name="bulk_keep_field">Unverändert lassen</string>
+    <string name="bulk_saving">%1$d von %2$d gespeichert</string>
+    <string name="bulk_stop">Anhalten</string>
+    <string name="bulk_result">%1$d von %2$d gespeichert.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d Datei nicht geändert:</item>
+        <item quantity="other">%1$d Dateien nicht geändert:</item>
+    </plurals>
+    <string name="bulk_done">Fertig</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">Für diesen Titel wurde kein Songtext gefunden.</string>
     <string name="cd_scroll_to_top">Zurück nach oben</string>
     <string name="foryou_section_daypart_morning">Dein Morgen</string>

@@ -534,6 +534,43 @@
         <item quantity="other">Dosyada +%1$d görsel daha var, korunacak</item>
     </plurals>
     <string name="info_reading_file">Dosya okunuyor…</string>
+    <string name="action_edit_album">Albümü düzenle</string>
+    <string name="action_edit_artist">Sanatçıyı düzenle</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d dosya</item>
+        <item quantity="other">%1$d dosya</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d alan</item>
+        <item quantity="other">%1$d alan</item>
+    </plurals>
+    <string name="bulk_save">%1$s değiştir (%2$s)</string>
+    <string name="bulk_reading">Okunuyor: %1$d / %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d dosya düzenlenemiyor ve olduğu gibi bırakılacak:</item>
+        <item quantity="other">%1$d dosya düzenlenemiyor ve olduğu gibi bırakılacak:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">ve %1$d tane daha</item>
+        <item quantity="other">ve %1$d tane daha</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Bu dosyaların hiçbiri düzenlenemiyor.</string>
+    <string name="bulk_different">Farklı değerler</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">%1$d dosyadan kaldırıldı</item>
+        <item quantity="other">Tüm %1$d dosyadan kaldırıldı</item>
+    </plurals>
+    <string name="bulk_remove_field">Tüm dosyalardan kaldır</string>
+    <string name="bulk_keep_field">Olduğu gibi bırak</string>
+    <string name="bulk_saving">%1$d / %2$d kaydedildi</string>
+    <string name="bulk_stop">Durdur</string>
+    <string name="bulk_result">%1$d / %2$d kaydedildi.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d dosya değiştirilmedi:</item>
+        <item quantity="other">%1$d dosya değiştirilmedi:</item>
+    </plurals>
+    <string name="bulk_done">Tamam</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">Bu parça için şarkı sözü bulunamadı.</string>
     <string name="cd_scroll_to_top">Başa dön</string>
     <string name="foryou_section_daypart_morning">Sabahların</string>

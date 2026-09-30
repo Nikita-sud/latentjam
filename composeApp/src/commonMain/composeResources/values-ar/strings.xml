@@ -575,6 +575,67 @@
         <item quantity="other">+%1$d صورة أخرى في الملف، ستبقى كما هي</item>
     </plurals>
     <string name="info_reading_file">جارٍ قراءة الملف…</string>
+    <string name="action_edit_album">تعديل الألبوم</string>
+    <string name="action_edit_artist">تعديل الفنان</string>
+    <plurals name="count_files">
+        <item quantity="zero">%1$d ملف</item>
+        <item quantity="one">%1$d ملف</item>
+        <item quantity="two">%1$d ملفان</item>
+        <item quantity="few">%1$d ملفات</item>
+        <item quantity="many">%1$d ملفًا</item>
+        <item quantity="other">%1$d ملف</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="zero">%1$d حقل</item>
+        <item quantity="one">%1$d حقل</item>
+        <item quantity="two">%1$d حقلان</item>
+        <item quantity="few">%1$d حقول</item>
+        <item quantity="many">%1$d حقلًا</item>
+        <item quantity="other">%1$d حقل</item>
+    </plurals>
+    <string name="bulk_save">تعديل %1$s في %2$s</string>
+    <string name="bulk_reading">جارٍ قراءة %1$d من %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="zero">لا يمكن تعديل %1$d ملف، وسيبقى كما هو:</item>
+        <item quantity="one">لا يمكن تعديل %1$d ملف، وسيبقى كما هو:</item>
+        <item quantity="two">لا يمكن تعديل %1$d ملفين، وسيبقيان كما هما:</item>
+        <item quantity="few">لا يمكن تعديل %1$d ملفات، وستبقى كما هي:</item>
+        <item quantity="many">لا يمكن تعديل %1$d ملفًا، وستبقى كما هي:</item>
+        <item quantity="other">لا يمكن تعديل %1$d ملف، وستبقى كما هي:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="zero">و%1$d أخرى</item>
+        <item quantity="one">و%1$d أخرى</item>
+        <item quantity="two">و%1$d أخرى</item>
+        <item quantity="few">و%1$d أخرى</item>
+        <item quantity="many">و%1$d أخرى</item>
+        <item quantity="other">و%1$d أخرى</item>
+    </plurals>
+    <string name="bulk_nothing_editable">لا يمكن تعديل أي من هذه الملفات.</string>
+    <string name="bulk_different">قيم مختلفة</string>
+    <plurals name="bulk_removed">
+        <item quantity="zero">أُزيل من %1$d ملف</item>
+        <item quantity="one">أُزيل من %1$d ملف</item>
+        <item quantity="two">أُزيل من جميع الملفات (%1$d)</item>
+        <item quantity="few">أُزيل من جميع الملفات (%1$d)</item>
+        <item quantity="many">أُزيل من جميع الملفات (%1$d)</item>
+        <item quantity="other">أُزيل من جميع الملفات (%1$d)</item>
+    </plurals>
+    <string name="bulk_remove_field">إزالة من كل الملفات</string>
+    <string name="bulk_keep_field">الإبقاء كما هو</string>
+    <string name="bulk_saving">تم حفظ %1$d من %2$d</string>
+    <string name="bulk_stop">إيقاف</string>
+    <string name="bulk_result">تم حفظ %1$d من %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="zero">%1$d ملف لم يتغيّر:</item>
+        <item quantity="one">%1$d ملف لم يتغيّر:</item>
+        <item quantity="two">%1$d ملفان لم يتغيّرا:</item>
+        <item quantity="few">%1$d ملفات لم تتغيّر:</item>
+        <item quantity="many">%1$d ملفًا لم تتغيّر:</item>
+        <item quantity="other">%1$d ملف لم تتغيّر:</item>
+    </plurals>
+    <string name="bulk_done">تم</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">لم يتم العثور على كلمات لهذه الأغنية.</string>
     <string name="cd_scroll_to_top">العودة إلى الأعلى</string>
     <string name="foryou_section_daypart_morning">صباحاتك</string>

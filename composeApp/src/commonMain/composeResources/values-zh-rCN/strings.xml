@@ -525,6 +525,37 @@
         <item quantity="other">文件中另有 %1$d 张图片，将予保留</item>
     </plurals>
     <string name="info_reading_file">正在读取文件…</string>
+    <string name="action_edit_album">编辑专辑</string>
+    <string name="action_edit_artist">编辑艺人</string>
+    <plurals name="count_files">
+        <item quantity="other">%1$d 个文件</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="other">%1$d 项</item>
+    </plurals>
+    <string name="bulk_save">更改 %2$s中的 %1$s</string>
+    <string name="bulk_reading">正在读取（%1$d/%2$d）…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="other">%1$d 个文件无法编辑，将保持原样：</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="other">另有 %1$d 个</item>
+    </plurals>
+    <string name="bulk_nothing_editable">这些文件都无法编辑。</string>
+    <string name="bulk_different">多个值</string>
+    <plurals name="bulk_removed">
+        <item quantity="other">从全部 %1$d 个文件中移除</item>
+    </plurals>
+    <string name="bulk_remove_field">从所有文件中移除</string>
+    <string name="bulk_keep_field">保持原样</string>
+    <string name="bulk_saving">已保存 %1$d 个，共 %2$d 个</string>
+    <string name="bulk_stop">停止</string>
+    <string name="bulk_result">已保存 %1$d 个，共 %2$d 个。</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="other">%1$d 个文件未更改：</item>
+    </plurals>
+    <string name="bulk_done">完成</string>
+    <string name="bulk_file_reason">%1$s：%2$s</string>
     <string name="lyrics_not_found">未找到此曲目的歌词。</string>
     <string name="cd_scroll_to_top">回到顶部</string>
     <string name="foryou_section_daypart_morning">你的早晨</string>

@@ -541,6 +541,43 @@
         <item quantity="other">+%1$d altre immagini nel file, mantenute</item>
     </plurals>
     <string name="info_reading_file">Lettura del file…</string>
+    <string name="action_edit_album">Modifica album</string>
+    <string name="action_edit_artist">Modifica artista</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d file</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d campo</item>
+        <item quantity="other">%1$d campi</item>
+    </plurals>
+    <string name="bulk_save">Modifica %1$s in %2$s</string>
+    <string name="bulk_reading">Lettura di %1$d su %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d file non può essere modificato e resterà com'è:</item>
+        <item quantity="other">%1$d file non possono essere modificati e resteranno come sono:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">e altri %1$d</item>
+        <item quantity="other">e altri %1$d</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Nessuno di questi file può essere modificato.</string>
+    <string name="bulk_different">Valori diversi</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Rimosso da %1$d file</item>
+        <item quantity="other">Rimosso da tutti i %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Rimuovi da tutti i file</string>
+    <string name="bulk_keep_field">Lascia com'è</string>
+    <string name="bulk_saving">Salvati %1$d su %2$d</string>
+    <string name="bulk_stop">Interrompi</string>
+    <string name="bulk_result">Salvati %1$d su %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d file non modificato:</item>
+        <item quantity="other">%1$d file non modificati:</item>
+    </plurals>
+    <string name="bulk_done">Fine</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">Nessun testo trovato per questo brano.</string>
     <string name="cd_scroll_to_top">Torna all'inizio</string>
     <string name="foryou_section_daypart_morning">Le tue mattine</string>

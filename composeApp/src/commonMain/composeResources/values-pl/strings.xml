@@ -558,6 +558,55 @@
         <item quantity="other">+%1$d innego obrazu w pliku, bez zmian</item>
     </plurals>
     <string name="info_reading_file">Odczytywanie pliku…</string>
+    <string name="action_edit_album">Edytuj album</string>
+    <string name="action_edit_artist">Edytuj wykonawcę</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d plik</item>
+        <item quantity="few">%1$d pliki</item>
+        <item quantity="many">%1$d plików</item>
+        <item quantity="other">%1$d pliku</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d pole</item>
+        <item quantity="few">%1$d pola</item>
+        <item quantity="many">%1$d pól</item>
+        <item quantity="other">%1$d pola</item>
+    </plurals>
+    <string name="bulk_save">Zmień %1$s (%2$s)</string>
+    <string name="bulk_reading">Odczytywanie: %1$d z %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">Nie można edytować %1$d pliku, pozostanie bez zmian:</item>
+        <item quantity="few">Nie można edytować %1$d plików, pozostaną bez zmian:</item>
+        <item quantity="many">Nie można edytować %1$d plików, pozostaną bez zmian:</item>
+        <item quantity="other">Nie można edytować %1$d pliku, pozostaną bez zmian:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">i jeszcze %1$d</item>
+        <item quantity="few">i jeszcze %1$d</item>
+        <item quantity="many">i jeszcze %1$d</item>
+        <item quantity="other">i jeszcze %1$d</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Żadnego z tych plików nie można edytować.</string>
+    <string name="bulk_different">Różne wartości</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Usunięte z %1$d pliku</item>
+        <item quantity="few">Usunięte ze wszystkich %1$d</item>
+        <item quantity="many">Usunięte ze wszystkich %1$d</item>
+        <item quantity="other">Usunięte ze wszystkich %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Usuń ze wszystkich plików</string>
+    <string name="bulk_keep_field">Pozostaw bez zmian</string>
+    <string name="bulk_saving">Zapisano %1$d z %2$d</string>
+    <string name="bulk_stop">Zatrzymaj</string>
+    <string name="bulk_result">Zapisano %1$d z %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">Nie zmieniono %1$d pliku:</item>
+        <item quantity="few">Nie zmieniono %1$d plików:</item>
+        <item quantity="many">Nie zmieniono %1$d plików:</item>
+        <item quantity="other">Nie zmieniono %1$d pliku:</item>
+    </plurals>
+    <string name="bulk_done">Gotowe</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">Nie znaleziono tekstu dla tego utworu.</string>
     <string name="cd_scroll_to_top">Wróć na górę</string>
     <string name="foryou_section_daypart_morning">Twoje poranki</string>

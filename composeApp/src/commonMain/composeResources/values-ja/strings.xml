@@ -525,6 +525,37 @@
         <item quantity="other">ファイル内の他の画像 +%1$d 枚はそのまま残ります</item>
     </plurals>
     <string name="info_reading_file">ファイルを読み取り中…</string>
+    <string name="action_edit_album">アルバムを編集</string>
+    <string name="action_edit_artist">アーティストを編集</string>
+    <plurals name="count_files">
+        <item quantity="other">%1$d件のファイル</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="other">%1$d項目</item>
+    </plurals>
+    <string name="bulk_save">%2$sで%1$sを変更</string>
+    <string name="bulk_reading">%2$d件中%1$d件を読み取り中…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="other">%1$d件のファイルは編集できないため、そのまま残します：</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="other">ほか%1$d件</item>
+    </plurals>
+    <string name="bulk_nothing_editable">これらのファイルはどれも編集できません。</string>
+    <string name="bulk_different">複数の値</string>
+    <plurals name="bulk_removed">
+        <item quantity="other">%1$d件すべてから削除</item>
+    </plurals>
+    <string name="bulk_remove_field">すべてのファイルから削除</string>
+    <string name="bulk_keep_field">そのままにする</string>
+    <string name="bulk_saving">%2$d件中%1$d件を保存済み</string>
+    <string name="bulk_stop">停止</string>
+    <string name="bulk_result">%2$d件中%1$d件を保存しました。</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="other">%1$d件のファイルは変更されませんでした：</item>
+    </plurals>
+    <string name="bulk_done">完了</string>
+    <string name="bulk_file_reason">%1$s：%2$s</string>
     <string name="lyrics_not_found">この曲の歌詞が見つかりませんでした。</string>
     <string name="cd_scroll_to_top">先頭に戻る</string>
     <string name="foryou_section_daypart_morning">あなたの朝</string>

@@ -531,6 +531,37 @@
         <item quantity="other">+%1$d gambar lain di file, tetap disimpan</item>
     </plurals>
     <string name="info_reading_file">Membaca file…</string>
+    <string name="action_edit_album">Edit album</string>
+    <string name="action_edit_artist">Edit artis</string>
+    <plurals name="count_files">
+        <item quantity="other">%1$d file</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="other">%1$d kolom</item>
+    </plurals>
+    <string name="bulk_save">Ubah %1$s di %2$s</string>
+    <string name="bulk_reading">Membaca %1$d dari %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="other">%1$d file tidak dapat diedit dan akan dibiarkan apa adanya:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="other">dan %1$d lainnya</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Tak satu pun dari file ini dapat diedit.</string>
+    <string name="bulk_different">Nilai berbeda</string>
+    <plurals name="bulk_removed">
+        <item quantity="other">Dihapus dari %1$d file</item>
+    </plurals>
+    <string name="bulk_remove_field">Hapus dari semua file</string>
+    <string name="bulk_keep_field">Biarkan apa adanya</string>
+    <string name="bulk_saving">Tersimpan %1$d dari %2$d</string>
+    <string name="bulk_stop">Hentikan</string>
+    <string name="bulk_result">Tersimpan %1$d dari %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="other">%1$d file tidak diubah:</item>
+    </plurals>
+    <string name="bulk_done">Selesai</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">Tidak ada lirik yang ditemukan untuk lagu ini.</string>
     <string name="cd_scroll_to_top">Kembali ke atas</string>
     <string name="foryou_section_daypart_morning">Pagi Anda</string>

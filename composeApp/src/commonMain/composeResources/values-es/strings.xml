@@ -541,6 +541,43 @@
         <item quantity="other">+%1$d imágenes más en el archivo, se conservan</item>
     </plurals>
     <string name="info_reading_file">Leyendo el archivo…</string>
+    <string name="action_edit_album">Editar álbum</string>
+    <string name="action_edit_artist">Editar artista</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d archivo</item>
+        <item quantity="other">%1$d archivos</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d campo</item>
+        <item quantity="other">%1$d campos</item>
+    </plurals>
+    <string name="bulk_save">Cambiar %1$s en %2$s</string>
+    <string name="bulk_reading">Leyendo %1$d de %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d archivo no se puede editar y se dejará como está:</item>
+        <item quantity="other">%1$d archivos no se pueden editar y se dejarán como están:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">y %1$d más</item>
+        <item quantity="other">y %1$d más</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Ninguno de estos archivos se puede editar.</string>
+    <string name="bulk_different">Valores distintos</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Eliminado de %1$d archivo</item>
+        <item quantity="other">Eliminado de los %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Eliminar de todos los archivos</string>
+    <string name="bulk_keep_field">Dejar como está</string>
+    <string name="bulk_saving">Guardados %1$d de %2$d</string>
+    <string name="bulk_stop">Detener</string>
+    <string name="bulk_result">Guardados %1$d de %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d archivo sin cambios:</item>
+        <item quantity="other">%1$d archivos sin cambios:</item>
+    </plurals>
+    <string name="bulk_done">Listo</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
     <string name="lyrics_not_found">No se encontró letra para esta pista.</string>
     <string name="cd_scroll_to_top">Volver arriba</string>
     <string name="foryou_section_daypart_morning">Tus mañanas</string>
