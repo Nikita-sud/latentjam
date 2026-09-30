@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.library.tags.write
 
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.RandomAccessFile
 
@@ -33,7 +34,26 @@ public class FileRecoveryDirectory(
         return ChannelTargetFile.open(file)
     }
 
-    override fun open(name: String): TargetFile? = file(name).takeIf { it.isFile }?.let { ChannelTargetFile.open(it) }
+    /**
+     * Null only when the file is certainly not there. `File.isFile` also answers false when the stat
+     * itself fails, and a journal read as absent would let a sweep delete the saved bytes it names.
+     * The probe opens read-only because "rw" would create a missing file. Between the probe and the
+     * open only this store's own writers could delete the name, and they run under the store lock.
+     */
+    override fun open(name: String): TargetFile? {
+        val file = file(name)
+        try {
+            RandomAccessFile(file, "r").close()
+        } catch (failure: FileNotFoundException) {
+            if (failure.isNoSuchFile()) return null
+            throw failure
+        }
+        return ChannelTargetFile.open(file)
+    }
+
+    /** Android says "open failed: ENOENT (No such file or directory)", a desktop JVM "(No such file or directory)". */
+    private fun FileNotFoundException.isNoSuchFile(): Boolean =
+        message?.let { "ENOENT" in it || "No such file or directory" in it } == true
 
     /**
      * Throws when the file is still there afterwards. A delete that failed silently could remove a

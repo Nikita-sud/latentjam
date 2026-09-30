@@ -253,4 +253,21 @@ internal class JvmWriteFilesTest {
         assertEquals(listOf("a.patch"), real.names())
         assertEquals(1, syncs)
     }
+
+    @Test
+    fun aStoreFileThatIsMissingOpensAsAbsentWithoutBeingCreated() {
+        val store = File(root, "store").apply { mkdirs() }
+        val directory = FileRecoveryDirectory(store) {}
+        assertNull(directory.open("w1.journal"))
+        assertFalse(File(store, "w1.journal").exists(), "a probe must never create the file it looks for")
+    }
+
+    @Test
+    fun aStoreEntryThatCannotBeOpenedFailsInsteadOfReadingAsAbsent() {
+        val store = File(root, "store").apply { mkdirs() }
+        // A directory under a journal's name: the open fails, and not with ENOENT.
+        File(store, "w1.journal").mkdirs()
+        val directory = FileRecoveryDirectory(store) {}
+        assertFailsWith<IOException> { directory.open("w1.journal") }
+    }
 }
