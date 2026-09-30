@@ -4361,6 +4361,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             )
         }
 
+        // Once, always composed: it launches the tag-save prompts every editor's saves wait on.
+        TagWriteHost()
+
         deleteTarget?.let { target ->
             DeleteTrackDialog(
                 track = target,

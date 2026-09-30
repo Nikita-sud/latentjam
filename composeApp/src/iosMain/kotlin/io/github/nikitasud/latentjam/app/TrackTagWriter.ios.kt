@@ -28,3 +28,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 actual fun rememberTagWriter(
     onOutcome: (TagWriteOutcome) -> Unit,
 ): (TrackDescriptor, TagEdits) -> Unit = { _, _ -> onOutcome(TagWriteOutcome.Unavailable) }
+
+/** Nothing to host while iOS has no file to save into. */
+@Composable
+actual fun TagWriteHost() = Unit
