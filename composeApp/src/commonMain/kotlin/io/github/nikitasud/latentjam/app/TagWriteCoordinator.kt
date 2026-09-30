@@ -127,6 +127,9 @@ internal data class TagWriteProgress(val requestId: Long, val done: Int, val tot
  * live coordinator per store, which the platform owner keeps: a second one would delete the first
  * one's files.
  *
+ * With [checkpoints] false (iOS, which keeps no checkpoint yet) nothing could ever read a request's
+ * key and cover files, so none are written: a request runs from memory at once.
+ *
  * Request ids are random, never counted: an id is a key file's name and a listener's address, and
  * one reused by another coordinator or after a restart could hand a restored request someone
  * else's keys, or an editor someone else's report. The checkpoint also keeps a CRC of each
@@ -147,6 +150,7 @@ internal class TagWriteCoordinator<C>(
     private val save: (List<String>) -> Unit = {},
     private val concurrency: Int = 3,
     private val newId: () -> Long = { Random.nextLong(1, Long.MAX_VALUE) },
+    private val checkpoints: Boolean = true,
 ) {
     /** The restored checkpoint; its keys and covers are read on [io] before anything runs. */
     private val saved = parseTagWriteCheckpoint(restored)
@@ -193,7 +197,7 @@ internal class TagWriteCoordinator<C>(
         val distinct = keys.filter { it.isNotBlank() }.distinct()
         if (distinct.isEmpty()) return null
         val id = freshId()
-        requests = requests + TagWriteRequest(id, TagWriteKind.EDIT, distinct, edits, persisted = false)
+        requests = requests + TagWriteRequest(id, TagWriteKind.EDIT, distinct, edits, persisted = !checkpoints)
         checkpoint()
         persist(id, distinct, edits.cover as? CoverEdit.Replace)
         return id
@@ -205,7 +209,7 @@ internal class TagWriteCoordinator<C>(
         val targets = mutablePending.value.map { it.target }.distinct().filter { it !in queued }
         if (targets.isEmpty()) return null
         val id = freshId()
-        requests = requests + TagWriteRequest(id, TagWriteKind.RECOVER, targets, TagEdits(), persisted = false)
+        requests = requests + TagWriteRequest(id, TagWriteKind.RECOVER, targets, TagEdits(), persisted = !checkpoints)
         checkpoint()
         persist(id, targets, cover = null)
         return id
@@ -268,7 +272,7 @@ internal class TagWriteCoordinator<C>(
         checkpoint()
         // Once no checkpoint names it: a request the saved state still names must still find its files.
         val cover = first.edits.cover is CoverEdit.Replace
-        scope.launch {
+        if (checkpoints) scope.launch {
             keyFiles.withLock {
                 withContext(io) {
                     if (cover) safely { backend.drop(coverName(id)) }
@@ -400,8 +404,15 @@ internal class TagWriteCoordinator<C>(
         }
     }
 
-    /** Saves the keys (and cover) on [io] before any checkpoint names the request; then it may run. */
+    /**
+     * Saves the keys (and cover) on [io] before any checkpoint names the request; then it may run.
+     * Without checkpoints there is nothing to save, and it may run at once.
+     */
     private fun persist(id: Long, keys: List<String>, cover: CoverEdit.Replace?) {
+        if (!checkpoints) {
+            resume()
+            return
+        }
         scope.launch {
             keyFiles.withLock {
                 withContext(io) {

@@ -126,7 +126,9 @@ private object IosTagWrites {
                 // Retried by the first save, which fails if it fails again.
             }
         }
-        TagWriteCoordinator(IosTagWriteBackend(store, keys, covers), scope, Dispatchers.IO)
+        // No checkpoint yet (a suspended save is rolled back at the next launch), so no key or cover
+        // files either: nothing would ever read them. The restore still prunes those older builds left.
+        TagWriteCoordinator(IosTagWriteBackend(store, keys, covers), scope, Dispatchers.IO, checkpoints = false)
     }
 }
 

@@ -125,7 +125,12 @@ internal class TagWriteCoordinatorTest {
         override fun savedKeyIds(): List<Long> = savedKeys.keys.toList()
     }
 
-    private class Harness(val backend: Backend, val test: TestScope, restored: List<String>? = null) {
+    private class Harness(
+        val backend: Backend,
+        val test: TestScope,
+        restored: List<String>? = null,
+        checkpoints: Boolean = true,
+    ) {
         var saved: List<String> = restored.orEmpty()
 
         /** A checkpoint write that fails, as a full disk or a torn-down owner can make it. */
@@ -139,7 +144,7 @@ internal class TagWriteCoordinatorTest {
         val coordinator = TagWriteCoordinator(backend, scope, StandardTestDispatcher(test.testScheduler), restored, {
             if (failSave(it)) throw IllegalStateException("the checkpoint could not be written")
             saved = it
-        })
+        }, checkpoints = checkpoints)
         val reports = ArrayList<TagWriteReport>()
 
         fun enqueue(keys: List<String>, edits: TagEdits): Long {
@@ -854,6 +859,24 @@ internal class TagWriteCoordinatorTest {
         val writer = DurableWriter(expected.directory, { "e${++n}" })
         for (title in listOf("First", "Second")) writer.write("x", expected.track("x"), TagEdits(title = title), null)
         assertContentEquals(expected.bytes("x"), backend.files.bytes("a"))
+    }
+
+    @Test
+    fun withoutACheckpointNoKeyOrCoverFileIsWritten() = runTest {
+        val backend = Backend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", mp3())
+        val harness = Harness(backend, this, checkpoints = false)
+        harness.enqueue(listOf("a"), TagEdits(title = "New"))
+        harness.enqueue(listOf("a"), TagEdits(cover = CoverEdit.Replace(byteArrayOf(1), "image/png")))
+        runCurrent()
+        assertEquals(emptyList(), backend.savedKeyIds())
+        assertEquals(emptyList(), backend.stashNames())
+        harness.deliver()
+        runCurrent()
+        harness.deliver()
+        assertEquals(listOf(FileWriteStatus.SAVED, FileWriteStatus.REFUSED), harness.reports.map { it.results.single().status })
+        assertEquals(emptyList(), backend.savedKeyIds())
+        assertEquals(emptyList(), backend.stashNames())
     }
 
     private companion object {
