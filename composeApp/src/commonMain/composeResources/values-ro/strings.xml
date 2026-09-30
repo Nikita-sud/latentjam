@@ -227,7 +227,6 @@
     <string name="info_edit_note">Se salvează în fișierul propriu-zis, așa că orice aplicație vede corectura. Este posibil să ți se ceară permisiunea de a modifica fișierul.</string>
     <string name="info_edit_refused">Etichetele acestui fișier sunt într-o formă care nu poate fi rescrisă în siguranță, așa că nimic nu a fost schimbat.</string>
     <string name="info_edit_failed">Fișierul nu a putut fi scris. A rămas neschimbat.</string>
-    <string name="info_edit_unavailable">Editarea etichetelor nu este disponibilă pe acest dispozitiv.</string>
     <string name="info_edit_no_space">Nu există suficient spațiu liber pentru a salva aceste etichete în siguranță. Nu s-a modificat nimic.</string>
     <string name="info_edit_recovery_pending">Salvarea a fost întreruptă. LatentJam o va termina sau o va anula data viitoare când va avea voie să scrie fișierul.</string>
     <string name="tag_recovery_title">Termină salvarea etichetelor</string>
@@ -238,6 +237,22 @@
     </plurals>
     <string name="tag_recovery_finish">Termină</string>
     <string name="tag_recovery_later">Mai târziu</string>
+    <string name="tag_problem_unsupported_format">LatentJam nu poate edita acest tip de fișier.</string>
+    <string name="tag_problem_damaged">Acest fișier pare deteriorat, așa că a rămas neschimbat.</string>
+    <string name="tag_problem_protected">Acest fișier este protejat la copiere și nu poate fi modificat.</string>
+    <string name="tag_problem_tags_too_large">Etichetele ar fi prea mari pentru acest fișier.</string>
+    <string name="tag_problem_bad_number">Numerele pistei și ale discului trebuie să fie numere întregi de la 1 la 999.</string>
+    <string name="tag_problem_number_unreadable">Numărul pistei sau al discului din fișier nu este un număr simplu, așa că totalul lui nu poate fi schimbat separat.</string>
+    <string name="tag_problem_bad_image">Imaginea nu este de tip JPEG sau PNG.</string>
+    <string name="tag_problem_read_only_storage">Acest fișier se află pe un spațiu de stocare pe care nu se poate scrie.</string>
+    <string name="tag_problem_music_library">Melodiile din biblioteca muzicală nu pot fi editate, doar cele importate în LatentJam.</string>
+    <string name="tag_problem_unreadable">Acest fișier nu a putut fi citit.</string>
+    <string name="tag_problem_not_allowed">Permisiunea de a modifica fișierul nu a fost acordată.</string>
+    <string name="tag_problem_missing">Fișierul nu mai există.</string>
+    <string name="tag_problem_stopped">Oprit înainte de acest fișier.</string>
+    <string name="tag_problem_cancelled">Cererea de permisiune a fost închisă.</string>
+    <string name="tag_problem_undone">O salvare întreruptă a fost anulată: fișierul este ca înainte.</string>
+    <string name="tag_problem_changed_elsewhere">O altă aplicație a modificat fișierul după întreruperea salvării, așa că a rămas neschimbat.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Setări</string>

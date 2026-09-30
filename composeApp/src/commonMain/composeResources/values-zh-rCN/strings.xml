@@ -222,7 +222,6 @@
     <string name="info_edit_note">直接写入文件本身，因此所有应用都能看到更正。系统可能会请求修改文件的权限。</string>
     <string name="info_edit_refused">此文件的标签采用了无法安全重写的形式，因此未做任何更改。</string>
     <string name="info_edit_failed">无法写入此文件。文件保持原样。</string>
-    <string name="info_edit_unavailable">此设备不支持编辑标签。</string>
     <string name="info_edit_no_space">可用空间不足，无法安全保存这些标签。未做任何更改。</string>
     <string name="info_edit_recovery_pending">保存已中断。下次获准写入该文件时，LatentJam 将完成或撤销保存。</string>
     <string name="tag_recovery_title">完成标签保存</string>
@@ -231,6 +230,22 @@
     </plurals>
     <string name="tag_recovery_finish">完成</string>
     <string name="tag_recovery_later">稍后</string>
+    <string name="tag_problem_unsupported_format">LatentJam 无法编辑这种类型的文件。</string>
+    <string name="tag_problem_damaged">此文件似乎已损坏，因此保持原样。</string>
+    <string name="tag_problem_protected">此文件受复制保护，无法更改。</string>
+    <string name="tag_problem_tags_too_large">标签对此文件来说会太大。</string>
+    <string name="tag_problem_bad_number">音轨号和光盘号必须是 1 到 999 之间的整数。</string>
+    <string name="tag_problem_number_unreadable">文件本身的音轨号或光盘号不是普通数字，因此无法单独更改其总数。</string>
+    <string name="tag_problem_bad_image">该图片不是 JPEG 或 PNG 图像。</string>
+    <string name="tag_problem_read_only_storage">此文件所在的存储空间无法写入。</string>
+    <string name="tag_problem_music_library">音乐资料库中的歌曲无法编辑，只有导入 LatentJam 的歌曲可以编辑。</string>
+    <string name="tag_problem_unreadable">无法读取此文件。</string>
+    <string name="tag_problem_not_allowed">未获得更改该文件的权限。</string>
+    <string name="tag_problem_missing">文件已不存在。</string>
+    <string name="tag_problem_stopped">已在处理此文件之前停止。</string>
+    <string name="tag_problem_cancelled">权限请求已关闭。</string>
+    <string name="tag_problem_undone">中断的保存已被撤销：文件与之前一样。</string>
+    <string name="tag_problem_changed_elsewhere">保存中断后，另一个应用更改了该文件，因此保持原样。</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">设置</string>

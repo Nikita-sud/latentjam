@@ -244,7 +244,6 @@
     <string name="info_edit_note">Зберігається в сам файл, тому виправлення побачать усі застосунки. Можливо, знадобиться дозвіл на зміну файлу.</string>
     <string name="info_edit_refused">Теги цього файлу записані так, що їх не можна безпечно перезаписати, тому нічого не змінено.</string>
     <string name="info_edit_failed">Не вдалося записати файл. Він залишився без змін.</string>
-    <string name="info_edit_unavailable">Змінення тегів недоступне на цьому пристрої.</string>
     <string name="info_edit_no_space">Недостатньо вільного місця, щоб безпечно зберегти теги. Нічого не змінено.</string>
     <string name="info_edit_recovery_pending">Збереження було перервано. LatentJam завершить або скасує його, коли йому знову дозволять змінити файл.</string>
     <string name="tag_recovery_title">Завершити збереження тегів</string>
@@ -256,6 +255,22 @@
     </plurals>
     <string name="tag_recovery_finish">Завершити</string>
     <string name="tag_recovery_later">Пізніше</string>
+    <string name="tag_problem_unsupported_format">LatentJam не може змінювати файли такого типу.</string>
+    <string name="tag_problem_damaged">Цей файл виглядає пошкодженим, тому його залишено як є.</string>
+    <string name="tag_problem_protected">Цей файл захищено від копіювання, його не можна змінити.</string>
+    <string name="tag_problem_tags_too_large">Теги були б завеликі для цього файлу.</string>
+    <string name="tag_problem_bad_number">Номери треку й диска мають бути цілими числами від 1 до 999.</string>
+    <string name="tag_problem_number_unreadable">Номер треку або диска в самому файлі не є звичайним числом, тому загальну кількість не можна змінити окремо.</string>
+    <string name="tag_problem_bad_image">Зображення не у форматі JPEG чи PNG.</string>
+    <string name="tag_problem_read_only_storage">Цей файл зберігається на носії, на який не можна записувати.</string>
+    <string name="tag_problem_music_library">Пісні з медіатеки змінювати не можна, лише імпортовані в LatentJam.</string>
+    <string name="tag_problem_unreadable">Не вдалося прочитати цей файл.</string>
+    <string name="tag_problem_not_allowed">Дозвіл на зміну файлу не надано.</string>
+    <string name="tag_problem_missing">Файлу більше немає.</string>
+    <string name="tag_problem_stopped">Зупинено перед цим файлом.</string>
+    <string name="tag_problem_cancelled">Запит на дозвіл закрито.</string>
+    <string name="tag_problem_undone">Перерване збереження скасовано: файл такий, як був.</string>
+    <string name="tag_problem_changed_elsewhere">Інший застосунок змінив файл після перерваного збереження, тому його залишено як є.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Налаштування</string>

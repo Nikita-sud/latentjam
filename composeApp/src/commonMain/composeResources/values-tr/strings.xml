@@ -228,7 +228,6 @@
     <string name="info_edit_note">Dosyanın kendisine kaydedilir, böylece düzeltmeyi tüm uygulamalar görür. Dosyayı değiştirmek için izin istenebilir.</string>
     <string name="info_edit_refused">Bu dosyanın etiketleri güvenle yeniden yazılamayacak bir yapıda olduğu için hiçbir şey değiştirilmedi.</string>
     <string name="info_edit_failed">Bu dosyaya yazılamadı. Olduğu gibi bırakıldı.</string>
-    <string name="info_edit_unavailable">Etiket düzenleme bu cihazda kullanılamıyor.</string>
     <string name="info_edit_no_space">Bu etiketleri güvenle kaydetmek için yeterli boş alan yok. Hiçbir şey değiştirilmedi.</string>
     <string name="info_edit_recovery_pending">Kaydetme yarıda kesildi. LatentJam, dosyaya yazmasına yeniden izin verildiğinde bunu tamamlayacak veya geri alacak.</string>
     <string name="tag_recovery_title">Etiketlerin kaydedilmesini tamamla</string>
@@ -238,6 +237,22 @@
     </plurals>
     <string name="tag_recovery_finish">Tamamla</string>
     <string name="tag_recovery_later">Sonra</string>
+    <string name="tag_problem_unsupported_format">LatentJam bu tür bir dosyayı düzenleyemez.</string>
+    <string name="tag_problem_damaged">Bu dosya hasarlı görünüyor, bu yüzden olduğu gibi bırakıldı.</string>
+    <string name="tag_problem_protected">Bu dosya kopyalamaya karşı korumalı ve değiştirilemez.</string>
+    <string name="tag_problem_tags_too_large">Etiketler bu dosya için çok büyük olurdu.</string>
+    <string name="tag_problem_bad_number">Parça ve disk numaraları 1 ile 999 arasında tam sayılar olmalıdır.</string>
+    <string name="tag_problem_number_unreadable">Dosyanın kendi parça veya disk numarası düz bir sayı değil, bu yüzden toplamı tek başına değiştirilemez.</string>
+    <string name="tag_problem_bad_image">Resim bir JPEG veya PNG görüntüsü değil.</string>
+    <string name="tag_problem_read_only_storage">Bu dosya, yazılamayan bir depolama alanında.</string>
+    <string name="tag_problem_music_library">Müzik arşivindeki şarkılar düzenlenemez, yalnızca LatentJam'e aktarılan şarkılar düzenlenebilir.</string>
+    <string name="tag_problem_unreadable">Bu dosya okunamadı.</string>
+    <string name="tag_problem_not_allowed">Dosyayı değiştirme izni verilmedi.</string>
+    <string name="tag_problem_missing">Dosya artık yok.</string>
+    <string name="tag_problem_stopped">Bu dosyadan önce durduruldu.</string>
+    <string name="tag_problem_cancelled">İzin isteği kapatıldı.</string>
+    <string name="tag_problem_undone">Yarıda kalan bir kaydetme geri alındı: dosya eskisi gibi.</string>
+    <string name="tag_problem_changed_elsewhere">Kaydetme yarıda kesildikten sonra başka bir uygulama dosyayı değiştirdi, bu yüzden olduğu gibi bırakıldı.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ayarlar</string>

@@ -230,7 +230,6 @@
     <string name="info_edit_note">Сохраняется в сам файл, поэтому исправление увидят все приложения. Возможно, потребуется разрешение на изменение файла.</string>
     <string name="info_edit_refused">Теги этого файла записаны так, что их нельзя перезаписать безопасно — ничего не изменено.</string>
     <string name="info_edit_failed">Не удалось записать файл. Он остался прежним.</string>
-    <string name="info_edit_unavailable">Изменение тегов недоступно на этом устройстве.</string>
     <string name="info_edit_no_space">Недостаточно свободного места, чтобы безопасно сохранить теги. Ничего не изменено.</string>
     <string name="info_edit_recovery_pending">Сохранение было прервано. LatentJam завершит или отменит его, когда ему снова разрешат изменить файл.</string>
     <string name="tag_recovery_title">Завершить сохранение тегов</string>
@@ -242,6 +241,22 @@
     </plurals>
     <string name="tag_recovery_finish">Завершить</string>
     <string name="tag_recovery_later">Позже</string>
+    <string name="tag_problem_unsupported_format">LatentJam не может изменять файлы такого типа.</string>
+    <string name="tag_problem_damaged">Этот файл выглядит повреждённым, поэтому оставлен как есть.</string>
+    <string name="tag_problem_protected">Этот файл защищён от копирования, его нельзя изменить.</string>
+    <string name="tag_problem_tags_too_large">Теги были бы слишком велики для этого файла.</string>
+    <string name="tag_problem_bad_number">Номера трека и диска должны быть целыми числами от 1 до 999.</string>
+    <string name="tag_problem_number_unreadable">Номер трека или диска в самом файле не является обычным числом, поэтому общее количество нельзя изменить отдельно.</string>
+    <string name="tag_problem_bad_image">Изображение не в формате JPEG или PNG.</string>
+    <string name="tag_problem_read_only_storage">Этот файл находится на носителе, на который нельзя записывать.</string>
+    <string name="tag_problem_music_library">Песни из медиатеки изменять нельзя, только импортированные в LatentJam.</string>
+    <string name="tag_problem_unreadable">Не удалось прочитать этот файл.</string>
+    <string name="tag_problem_not_allowed">Разрешение на изменение файла не было дано.</string>
+    <string name="tag_problem_missing">Файла больше нет.</string>
+    <string name="tag_problem_stopped">Остановлено перед этим файлом.</string>
+    <string name="tag_problem_cancelled">Запрос разрешения был закрыт.</string>
+    <string name="tag_problem_undone">Прерванное сохранение отменено: файл такой же, как был.</string>
+    <string name="tag_problem_changed_elsewhere">Другое приложение изменило файл после прерванного сохранения, поэтому он оставлен как есть.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Настройки</string>

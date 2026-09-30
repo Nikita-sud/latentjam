@@ -240,7 +240,6 @@
     <string name="info_edit_note">Enregistré dans le fichier lui-même, afin que toutes les applications voient la correction. L'autorisation de modifier le fichier peut vous être demandée.</string>
     <string name="info_edit_refused">Les tags de ce fichier sont dans une forme qui ne peut pas être réécrite en toute sécurité, rien n'a donc été modifié.</string>
     <string name="info_edit_failed">Impossible d'écrire dans ce fichier. Il est resté tel quel.</string>
-    <string name="info_edit_unavailable">La modification des tags n'est pas disponible sur cet appareil.</string>
     <string name="info_edit_no_space">Pas assez d'espace libre pour enregistrer ces tags en toute sécurité. Rien n'a été modifié.</string>
     <string name="info_edit_recovery_pending">L'enregistrement a été interrompu. LatentJam le terminera ou l'annulera dès qu'il sera de nouveau autorisé à écrire dans le fichier.</string>
     <string name="tag_recovery_title">Terminer l'enregistrement des tags</string>
@@ -250,6 +249,22 @@
     </plurals>
     <string name="tag_recovery_finish">Terminer</string>
     <string name="tag_recovery_later">Plus tard</string>
+    <string name="tag_problem_unsupported_format">LatentJam ne peut pas modifier ce type de fichier.</string>
+    <string name="tag_problem_damaged">Ce fichier semble endommagé ; il est donc laissé tel quel.</string>
+    <string name="tag_problem_protected">Ce fichier est protégé contre la copie et ne peut pas être modifié.</string>
+    <string name="tag_problem_tags_too_large">Les tags seraient trop volumineux pour ce fichier.</string>
+    <string name="tag_problem_bad_number">Les numéros de piste et de disque doivent être des nombres entiers de 1 à 999.</string>
+    <string name="tag_problem_number_unreadable">Le numéro de piste ou de disque du fichier n'est pas un nombre simple ; son total ne peut donc pas être modifié seul.</string>
+    <string name="tag_problem_bad_image">L'image n'est ni au format JPEG ni au format PNG.</string>
+    <string name="tag_problem_read_only_storage">Ce fichier se trouve sur un stockage qui n'est pas accessible en écriture.</string>
+    <string name="tag_problem_music_library">Les morceaux de la bibliothèque musicale ne peuvent pas être modifiés, seulement ceux importés dans LatentJam.</string>
+    <string name="tag_problem_unreadable">Ce fichier n'a pas pu être lu.</string>
+    <string name="tag_problem_not_allowed">L'autorisation de modifier le fichier n'a pas été accordée.</string>
+    <string name="tag_problem_missing">Le fichier n'est plus là.</string>
+    <string name="tag_problem_stopped">Arrêté avant ce fichier.</string>
+    <string name="tag_problem_cancelled">La demande d'autorisation a été fermée.</string>
+    <string name="tag_problem_undone">Un enregistrement interrompu a été annulé : le fichier est tel qu'il était avant.</string>
+    <string name="tag_problem_changed_elsewhere">Une autre application a modifié le fichier après l'interruption de l'enregistrement ; il a donc été laissé tel quel.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Paramètres</string>

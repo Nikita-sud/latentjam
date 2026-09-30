@@ -289,7 +289,6 @@
     <string name="info_edit_note">Saved into the file itself, so every app sees the correction. You may be asked for permission to modify the file.</string>
     <string name="info_edit_refused">This file's tags are in a form that cannot be rewritten safely, so nothing was changed.</string>
     <string name="info_edit_failed">Could not write to this file. It was left as it was.</string>
-    <string name="info_edit_unavailable">Editing tags is not available on this device.</string>
     <string name="info_edit_no_space">Not enough free space to save these tags safely. Nothing was changed.</string>
     <string name="info_edit_recovery_pending">Saving was interrupted. LatentJam will finish or undo it the next time it is allowed to write the file.</string>
     <string name="tag_recovery_title">Finish saving tags</string>

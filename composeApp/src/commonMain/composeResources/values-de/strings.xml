@@ -238,7 +238,6 @@
     <string name="info_edit_note">Wird in die Datei selbst geschrieben, sodass jede App die Korrektur sieht. Möglicherweise wird die Berechtigung zum Ändern der Datei abgefragt.</string>
     <string name="info_edit_refused">Die Tags dieser Datei liegen in einer Form vor, die sich nicht sicher neu schreiben lässt, daher wurde nichts geändert.</string>
     <string name="info_edit_failed">Die Datei konnte nicht geschrieben werden. Sie blieb unverändert.</string>
-    <string name="info_edit_unavailable">Das Bearbeiten von Tags ist auf diesem Gerät nicht verfügbar.</string>
     <string name="info_edit_no_space">Nicht genug freier Speicherplatz, um diese Tags sicher zu speichern. Es wurde nichts geändert.</string>
     <string name="info_edit_recovery_pending">Das Speichern wurde unterbrochen. LatentJam schließt es ab oder macht es rückgängig, sobald es die Datei wieder schreiben darf.</string>
     <string name="tag_recovery_title">Speichern der Tags abschließen</string>
@@ -248,6 +247,22 @@
     </plurals>
     <string name="tag_recovery_finish">Abschließen</string>
     <string name="tag_recovery_later">Später</string>
+    <string name="tag_problem_unsupported_format">LatentJam kann diese Art von Datei nicht bearbeiten.</string>
+    <string name="tag_problem_damaged">Diese Datei scheint beschädigt zu sein und bleibt deshalb unverändert.</string>
+    <string name="tag_problem_protected">Diese Datei ist kopiergeschützt und lässt sich nicht ändern.</string>
+    <string name="tag_problem_tags_too_large">Die Tags wären für diese Datei zu groß.</string>
+    <string name="tag_problem_bad_number">Titel- und Disc-Nummern müssen ganze Zahlen von 1 bis 999 sein.</string>
+    <string name="tag_problem_number_unreadable">Die eigene Titel- oder Disc-Nummer der Datei ist keine einfache Zahl, daher lässt sich ihre Gesamtzahl nicht einzeln ändern.</string>
+    <string name="tag_problem_bad_image">Das Bild ist kein JPEG- oder PNG-Bild.</string>
+    <string name="tag_problem_read_only_storage">Diese Datei liegt auf einem Speicher, der nicht beschrieben werden kann.</string>
+    <string name="tag_problem_music_library">Titel aus der Musikmediathek lassen sich nicht bearbeiten, nur in LatentJam importierte Titel.</string>
+    <string name="tag_problem_unreadable">Diese Datei konnte nicht gelesen werden.</string>
+    <string name="tag_problem_not_allowed">Die Berechtigung zum Ändern der Datei wurde nicht erteilt.</string>
+    <string name="tag_problem_missing">Die Datei ist nicht mehr vorhanden.</string>
+    <string name="tag_problem_stopped">Vor dieser Datei angehalten.</string>
+    <string name="tag_problem_cancelled">Die Berechtigungsanfrage wurde geschlossen.</string>
+    <string name="tag_problem_undone">Ein unterbrochenes Speichern wurde rückgängig gemacht: Die Datei ist wie zuvor.</string>
+    <string name="tag_problem_changed_elsewhere">Eine andere App hat die Datei geändert, nachdem das Speichern unterbrochen wurde, daher blieb sie unverändert.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Einstellungen</string>

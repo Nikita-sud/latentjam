@@ -228,7 +228,6 @@
     <string name="info_edit_note">Disimpan ke dalam file itu sendiri, sehingga semua aplikasi melihat koreksinya. Anda mungkin diminta izin untuk mengubah file.</string>
     <string name="info_edit_refused">Tag file ini dalam bentuk yang tidak dapat ditulis ulang dengan aman, jadi tidak ada yang diubah.</string>
     <string name="info_edit_failed">Tidak dapat menulis ke file ini. File dibiarkan apa adanya.</string>
-    <string name="info_edit_unavailable">Pengeditan tag tidak tersedia di perangkat ini.</string>
     <string name="info_edit_no_space">Ruang kosong tidak cukup untuk menyimpan tag ini dengan aman. Tidak ada yang diubah.</string>
     <string name="info_edit_recovery_pending">Penyimpanan terhenti. LatentJam akan menyelesaikan atau membatalkannya saat berikutnya diizinkan menulis ke file.</string>
     <string name="tag_recovery_title">Selesaikan penyimpanan tag</string>
@@ -237,6 +236,22 @@
     </plurals>
     <string name="tag_recovery_finish">Selesaikan</string>
     <string name="tag_recovery_later">Nanti</string>
+    <string name="tag_problem_unsupported_format">LatentJam tidak dapat mengedit jenis file ini.</string>
+    <string name="tag_problem_damaged">File ini tampaknya rusak, jadi dibiarkan apa adanya.</string>
+    <string name="tag_problem_protected">File ini dilindungi dari penyalinan dan tidak dapat diubah.</string>
+    <string name="tag_problem_tags_too_large">Tag akan terlalu besar untuk file ini.</string>
+    <string name="tag_problem_bad_number">Nomor trek dan nomor disk harus berupa bilangan bulat dari 1 sampai 999.</string>
+    <string name="tag_problem_number_unreadable">Nomor trek atau nomor disk bawaan file ini bukan angka biasa, jadi totalnya tidak dapat diubah sendiri.</string>
+    <string name="tag_problem_bad_image">Gambar ini bukan gambar JPEG atau PNG.</string>
+    <string name="tag_problem_read_only_storage">File ini berada di penyimpanan yang tidak dapat ditulisi.</string>
+    <string name="tag_problem_music_library">Lagu dari Pustaka musik tidak dapat diedit, hanya lagu yang diimpor ke LatentJam.</string>
+    <string name="tag_problem_unreadable">File ini tidak dapat dibaca.</string>
+    <string name="tag_problem_not_allowed">Izin untuk mengubah file tidak diberikan.</string>
+    <string name="tag_problem_missing">File tidak lagi ada.</string>
+    <string name="tag_problem_stopped">Dihentikan sebelum file ini.</string>
+    <string name="tag_problem_cancelled">Permintaan izin ditutup.</string>
+    <string name="tag_problem_undone">Penyimpanan yang terhenti telah dibatalkan: file kembali seperti semula.</string>
+    <string name="tag_problem_changed_elsewhere">Aplikasi lain mengubah file setelah penyimpanan terhenti, jadi file dibiarkan apa adanya.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Setelan</string>

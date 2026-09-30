@@ -244,7 +244,6 @@
     <string name="info_edit_note">Zapisywane w samym pliku, więc poprawkę zobaczą wszystkie aplikacje. Możesz zostać poproszony o zgodę na modyfikację pliku.</string>
     <string name="info_edit_refused">Tagi tego pliku są zapisane w formie, której nie da się bezpiecznie nadpisać, więc nic nie zostało zmienione.</string>
     <string name="info_edit_failed">Nie udało się zapisać tego pliku. Pozostał bez zmian.</string>
-    <string name="info_edit_unavailable">Edycja tagów jest niedostępna na tym urządzeniu.</string>
     <string name="info_edit_no_space">Za mało wolnego miejsca, aby bezpiecznie zapisać te tagi. Nic nie zostało zmienione.</string>
     <string name="info_edit_recovery_pending">Zapisywanie zostało przerwane. LatentJam dokończy je lub cofnie, gdy znów będzie mógł zapisać plik.</string>
     <string name="tag_recovery_title">Dokończ zapisywanie tagów</string>
@@ -256,6 +255,22 @@
     </plurals>
     <string name="tag_recovery_finish">Dokończ</string>
     <string name="tag_recovery_later">Później</string>
+    <string name="tag_problem_unsupported_format">LatentJam nie może edytować tego rodzaju pliku.</string>
+    <string name="tag_problem_damaged">Ten plik wygląda na uszkodzony, więc pozostał bez zmian.</string>
+    <string name="tag_problem_protected">Ten plik jest zabezpieczony przed kopiowaniem i nie można go zmienić.</string>
+    <string name="tag_problem_tags_too_large">Tagi byłyby zbyt duże dla tego pliku.</string>
+    <string name="tag_problem_bad_number">Numery utworu i płyty muszą być liczbami całkowitymi od 1 do 999.</string>
+    <string name="tag_problem_number_unreadable">Numer utworu lub płyty zapisany w samym pliku nie jest zwykłą liczbą, więc jego łącznej liczby nie można zmienić osobno.</string>
+    <string name="tag_problem_bad_image">Obraz nie jest w formacie JPEG ani PNG.</string>
+    <string name="tag_problem_read_only_storage">Ten plik znajduje się w pamięci, na której nie można zapisywać.</string>
+    <string name="tag_problem_music_library">Utworów z biblioteki muzycznej nie można edytować, tylko te zaimportowane do LatentJam.</string>
+    <string name="tag_problem_unreadable">Nie udało się odczytać tego pliku.</string>
+    <string name="tag_problem_not_allowed">Nie udzielono zgody na zmianę pliku.</string>
+    <string name="tag_problem_missing">Pliku już nie ma.</string>
+    <string name="tag_problem_stopped">Zatrzymano przed tym plikiem.</string>
+    <string name="tag_problem_cancelled">Prośba o zgodę została zamknięta.</string>
+    <string name="tag_problem_undone">Przerwany zapis został cofnięty: plik jest taki jak wcześniej.</string>
+    <string name="tag_problem_changed_elsewhere">Inna aplikacja zmieniła plik po przerwaniu zapisu, więc pozostał bez zmian.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ustawienia</string>

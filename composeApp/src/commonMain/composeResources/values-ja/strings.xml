@@ -222,7 +222,6 @@
     <string name="info_edit_note">ファイル自体に保存されるため、すべてのアプリに修正が反映されます。ファイルの変更許可を求められる場合があります。</string>
     <string name="info_edit_refused">このファイルのタグは安全に書き換えられない形式のため、何も変更されませんでした。</string>
     <string name="info_edit_failed">このファイルに書き込めませんでした。元のままです。</string>
-    <string name="info_edit_unavailable">このデバイスではタグの編集を利用できません。</string>
     <string name="info_edit_no_space">空き容量が足りず、これらのタグを安全に保存できません。何も変更されていません。</string>
     <string name="info_edit_recovery_pending">保存が中断されました。次にファイルへの書き込みが許可されたときに、LatentJam が完了するか元に戻します。</string>
     <string name="tag_recovery_title">タグの保存を完了</string>
@@ -231,6 +230,22 @@
     </plurals>
     <string name="tag_recovery_finish">完了</string>
     <string name="tag_recovery_later">後で</string>
+    <string name="tag_problem_unsupported_format">LatentJamはこの種類のファイルを編集できません。</string>
+    <string name="tag_problem_damaged">このファイルは破損しているようなので、そのままにしています。</string>
+    <string name="tag_problem_protected">このファイルはコピー防止されているため、変更できません。</string>
+    <string name="tag_problem_tags_too_large">タグがこのファイルには大きすぎます。</string>
+    <string name="tag_problem_bad_number">トラック番号とディスク番号は1〜999の整数にしてください。</string>
+    <string name="tag_problem_number_unreadable">ファイル自体のトラック番号またはディスク番号が通常の数値ではないため、合計数だけを変更することはできません。</string>
+    <string name="tag_problem_bad_image">画像がJPEGまたはPNGではありません。</string>
+    <string name="tag_problem_read_only_storage">このファイルは書き込みできないストレージにあります。</string>
+    <string name="tag_problem_music_library">ミュージックライブラリの曲は編集できません。LatentJamに読み込んだ曲のみ編集できます。</string>
+    <string name="tag_problem_unreadable">このファイルを読み取れませんでした。</string>
+    <string name="tag_problem_not_allowed">ファイルの変更が許可されませんでした。</string>
+    <string name="tag_problem_missing">ファイルが見つかりません。</string>
+    <string name="tag_problem_stopped">このファイルの前で停止しました。</string>
+    <string name="tag_problem_cancelled">許可のリクエストが閉じられました。</string>
+    <string name="tag_problem_undone">中断された保存は取り消されました。ファイルは以前の状態のままです。</string>
+    <string name="tag_problem_changed_elsewhere">保存が中断された後に別のアプリがファイルを変更したため、そのままにしています。</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">設定</string>

@@ -257,7 +257,6 @@
     <string name="info_edit_note">يُحفظ في الملف نفسه، فترى كل التطبيقات التصحيح. قد يُطلب منك إذن لتعديل الملف.</string>
     <string name="info_edit_refused">وسوم هذا الملف بصيغة لا يمكن إعادة كتابتها بأمان، لذلك لم يتغير شيء.</string>
     <string name="info_edit_failed">تعذّرت الكتابة إلى هذا الملف. تُرك كما كان.</string>
-    <string name="info_edit_unavailable">تعديل الوسوم غير متاح على هذا الجهاز.</string>
     <string name="info_edit_no_space">لا توجد مساحة فارغة كافية لحفظ هذه الوسوم بأمان. لم يتغير شيء.</string>
     <string name="info_edit_recovery_pending">توقّف الحفظ. سيُكمله LatentJam أو يتراجع عنه في المرة التالية التي يُسمح له فيها بالكتابة إلى الملف.</string>
     <string name="tag_recovery_title">إكمال حفظ الوسوم</string>
@@ -271,6 +270,22 @@
     </plurals>
     <string name="tag_recovery_finish">إكمال</string>
     <string name="tag_recovery_later">لاحقًا</string>
+    <string name="tag_problem_unsupported_format">لا يستطيع LatentJam تعديل هذا النوع من الملفات.</string>
+    <string name="tag_problem_damaged">يبدو هذا الملف تالفًا، لذلك تُرك كما هو.</string>
+    <string name="tag_problem_protected">هذا الملف محمي من النسخ ولا يمكن تغييره.</string>
+    <string name="tag_problem_tags_too_large">ستكون الوسوم أكبر من أن يتسع لها هذا الملف.</string>
+    <string name="tag_problem_bad_number">يجب أن يكون رقم المقطع ورقم القرص عددين صحيحين من 1 إلى 999.</string>
+    <string name="tag_problem_number_unreadable">رقم المقطع أو القرص المكتوب في الملف ليس رقمًا عاديًا، لذلك لا يمكن تغيير إجماليه وحده.</string>
+    <string name="tag_problem_bad_image">الصورة ليست بصيغة JPEG أو PNG.</string>
+    <string name="tag_problem_read_only_storage">هذا الملف موجود على وحدة تخزين لا يمكن الكتابة إليها.</string>
+    <string name="tag_problem_music_library">لا يمكن تعديل الأغاني من مكتبة الموسيقى، بل فقط الأغاني المستوردة إلى LatentJam.</string>
+    <string name="tag_problem_unreadable">تعذّرت قراءة هذا الملف.</string>
+    <string name="tag_problem_not_allowed">لم يُمنح الإذن بتغيير الملف.</string>
+    <string name="tag_problem_missing">الملف لم يعد موجودًا.</string>
+    <string name="tag_problem_stopped">تم الإيقاف قبل الوصول إلى هذا الملف.</string>
+    <string name="tag_problem_cancelled">أُغلق طلب الإذن.</string>
+    <string name="tag_problem_undone">أُلغي حفظ متوقف: الملف كما كان من قبل.</string>
+    <string name="tag_problem_changed_elsewhere">غيّر تطبيق آخر الملف بعد توقف الحفظ، لذلك تُرك كما هو.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">الإعدادات</string>

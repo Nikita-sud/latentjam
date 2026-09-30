@@ -228,7 +228,6 @@
     <string name="info_edit_note">फ़ाइल में ही सहेजा जाता है, इसलिए सुधार हर ऐप को दिखता है। फ़ाइल बदलने की अनुमति माँगी जा सकती है।</string>
     <string name="info_edit_refused">इस फ़ाइल के टैग ऐसे रूप में हैं जिन्हें सुरक्षित रूप से दोबारा नहीं लिखा जा सकता, इसलिए कुछ नहीं बदला गया।</string>
     <string name="info_edit_failed">इस फ़ाइल में नहीं लिखा जा सका। इसे जैसा था वैसा ही छोड़ दिया गया।</string>
-    <string name="info_edit_unavailable">इस डिवाइस पर टैग संपादित करना उपलब्ध नहीं है।</string>
     <string name="info_edit_no_space">इन टैग को सुरक्षित रूप से सहेजने के लिए पर्याप्त खाली जगह नहीं है। कुछ भी नहीं बदला गया।</string>
     <string name="info_edit_recovery_pending">सहेजना बीच में रुक गया। LatentJam अगली बार फ़ाइल लिखने की अनुमति मिलने पर इसे पूरा करेगा या वापस ले लेगा।</string>
     <string name="tag_recovery_title">टैग सहेजना पूरा करें</string>
@@ -238,6 +237,22 @@
     </plurals>
     <string name="tag_recovery_finish">पूरा करें</string>
     <string name="tag_recovery_later">बाद में</string>
+    <string name="tag_problem_unsupported_format">LatentJam इस तरह की फ़ाइल को संपादित नहीं कर सकता।</string>
+    <string name="tag_problem_damaged">यह फ़ाइल खराब लगती है, इसलिए इसे जैसी है वैसी ही छोड़ दिया गया।</string>
+    <string name="tag_problem_protected">यह फ़ाइल कॉपी-सुरक्षित है और इसे बदला नहीं जा सकता।</string>
+    <string name="tag_problem_tags_too_large">टैग इस फ़ाइल के लिए बहुत बड़े हो जाएँगे।</string>
+    <string name="tag_problem_bad_number">ट्रैक और डिस्क नंबर 1 से 999 तक की पूर्ण संख्याएँ होने चाहिए।</string>
+    <string name="tag_problem_number_unreadable">फ़ाइल का अपना ट्रैक या डिस्क नंबर सामान्य संख्या नहीं है, इसलिए उसका कुल अकेले नहीं बदला जा सकता।</string>
+    <string name="tag_problem_bad_image">यह चित्र JPEG या PNG छवि नहीं है।</string>
+    <string name="tag_problem_read_only_storage">यह फ़ाइल ऐसे स्टोरेज पर है जिसमें लिखा नहीं जा सकता।</string>
+    <string name="tag_problem_music_library">संगीत लाइब्रेरी के गाने संपादित नहीं किए जा सकते, केवल LatentJam में इंपोर्ट किए गए गाने किए जा सकते हैं।</string>
+    <string name="tag_problem_unreadable">यह फ़ाइल पढ़ी नहीं जा सकी।</string>
+    <string name="tag_problem_not_allowed">फ़ाइल बदलने की अनुमति नहीं दी गई।</string>
+    <string name="tag_problem_missing">फ़ाइल अब मौजूद नहीं है।</string>
+    <string name="tag_problem_stopped">इस फ़ाइल से पहले रोक दिया गया।</string>
+    <string name="tag_problem_cancelled">अनुमति का अनुरोध बंद कर दिया गया।</string>
+    <string name="tag_problem_undone">बीच में रुका हुआ सहेजना वापस ले लिया गया: फ़ाइल पहले जैसी है।</string>
+    <string name="tag_problem_changed_elsewhere">सहेजना रुकने के बाद किसी दूसरे ऐप ने फ़ाइल बदल दी, इसलिए उसे जैसी है वैसी ही छोड़ दिया गया।</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">सेटिंग</string>

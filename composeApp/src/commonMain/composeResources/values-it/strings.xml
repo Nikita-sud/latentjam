@@ -235,7 +235,6 @@
     <string name="info_edit_note">Viene salvato nel file stesso, così tutte le app vedono la correzione. Potrebbe essere richiesto il permesso di modificare il file.</string>
     <string name="info_edit_refused">I tag di questo file sono in una forma che non può essere riscritta in modo sicuro, quindi non è stato modificato nulla.</string>
     <string name="info_edit_failed">Impossibile scrivere su questo file. È rimasto com'era.</string>
-    <string name="info_edit_unavailable">La modifica dei tag non è disponibile su questo dispositivo.</string>
     <string name="info_edit_no_space">Spazio libero insufficiente per salvare questi tag in sicurezza. Non è stato modificato nulla.</string>
     <string name="info_edit_recovery_pending">Il salvataggio è stato interrotto. LatentJam lo completerà o lo annullerà la prossima volta che potrà scrivere il file.</string>
     <string name="tag_recovery_title">Completa il salvataggio dei tag</string>
@@ -245,6 +244,22 @@
     </plurals>
     <string name="tag_recovery_finish">Completa</string>
     <string name="tag_recovery_later">Più tardi</string>
+    <string name="tag_problem_unsupported_format">LatentJam non può modificare questo tipo di file.</string>
+    <string name="tag_problem_damaged">Questo file sembra danneggiato, quindi è stato lasciato com'è.</string>
+    <string name="tag_problem_protected">Questo file è protetto da copia e non può essere modificato.</string>
+    <string name="tag_problem_tags_too_large">I tag sarebbero troppo grandi per questo file.</string>
+    <string name="tag_problem_bad_number">I numeri di traccia e di disco devono essere numeri interi da 1 a 999.</string>
+    <string name="tag_problem_number_unreadable">Il numero di traccia o di disco del file non è un numero semplice, quindi il suo totale non può essere modificato da solo.</string>
+    <string name="tag_problem_bad_image">L'immagine non è in formato JPEG o PNG.</string>
+    <string name="tag_problem_read_only_storage">Questo file si trova su un archivio in cui non si può scrivere.</string>
+    <string name="tag_problem_music_library">I brani della libreria musicale non possono essere modificati, solo quelli importati in LatentJam.</string>
+    <string name="tag_problem_unreadable">Non è stato possibile leggere questo file.</string>
+    <string name="tag_problem_not_allowed">Il permesso di modificare il file non è stato concesso.</string>
+    <string name="tag_problem_missing">Il file non c'è più.</string>
+    <string name="tag_problem_stopped">Interrotto prima di questo file.</string>
+    <string name="tag_problem_cancelled">La richiesta di permesso è stata chiusa.</string>
+    <string name="tag_problem_undone">Un salvataggio interrotto è stato annullato: il file è com'era prima.</string>
+    <string name="tag_problem_changed_elsewhere">Un'altra app ha modificato il file dopo l'interruzione del salvataggio, quindi è stato lasciato com'è.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Impostazioni</string>

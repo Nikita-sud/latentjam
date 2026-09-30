@@ -235,7 +235,6 @@
     <string name="info_edit_note">Salvo no próprio arquivo, então todos os aplicativos veem a correção. Talvez seja solicitada permissão para modificar o arquivo.</string>
     <string name="info_edit_refused">As tags deste arquivo estão em um formato que não pode ser reescrito com segurança, então nada foi alterado.</string>
     <string name="info_edit_failed">Não foi possível gravar neste arquivo. Ele foi mantido como estava.</string>
-    <string name="info_edit_unavailable">A edição de tags não está disponível neste dispositivo.</string>
     <string name="info_edit_no_space">Não há espaço livre suficiente para salvar estas tags com segurança. Nada foi alterado.</string>
     <string name="info_edit_recovery_pending">O salvamento foi interrompido. O LatentJam vai concluí-lo ou desfazê-lo na próxima vez que puder gravar no arquivo.</string>
     <string name="tag_recovery_title">Concluir o salvamento das tags</string>
@@ -245,6 +244,22 @@
     </plurals>
     <string name="tag_recovery_finish">Concluir</string>
     <string name="tag_recovery_later">Depois</string>
+    <string name="tag_problem_unsupported_format">O LatentJam não consegue editar este tipo de arquivo.</string>
+    <string name="tag_problem_damaged">Este arquivo parece danificado, então foi mantido como está.</string>
+    <string name="tag_problem_protected">Este arquivo é protegido contra cópia e não pode ser alterado.</string>
+    <string name="tag_problem_tags_too_large">As tags ficariam grandes demais para este arquivo.</string>
+    <string name="tag_problem_bad_number">Os números da faixa e do disco devem ser números inteiros de 1 a 999.</string>
+    <string name="tag_problem_number_unreadable">O número da faixa ou do disco gravado no próprio arquivo não é um número simples, então o total dele não pode ser alterado separadamente.</string>
+    <string name="tag_problem_bad_image">A imagem não é um JPEG nem um PNG.</string>
+    <string name="tag_problem_read_only_storage">Este arquivo está em um armazenamento em que não é possível gravar.</string>
+    <string name="tag_problem_music_library">As músicas da biblioteca de música não podem ser editadas, apenas as importadas para o LatentJam.</string>
+    <string name="tag_problem_unreadable">Não foi possível ler este arquivo.</string>
+    <string name="tag_problem_not_allowed">A permissão para alterar o arquivo não foi concedida.</string>
+    <string name="tag_problem_missing">O arquivo não está mais lá.</string>
+    <string name="tag_problem_stopped">Interrompido antes deste arquivo.</string>
+    <string name="tag_problem_cancelled">A solicitação de permissão foi fechada.</string>
+    <string name="tag_problem_undone">Um salvamento interrompido foi desfeito: o arquivo está como antes.</string>
+    <string name="tag_problem_changed_elsewhere">Outro aplicativo alterou o arquivo depois que o salvamento foi interrompido, então ele foi mantido como está.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Configurações</string>
