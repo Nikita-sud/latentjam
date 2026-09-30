@@ -152,7 +152,7 @@ private fun rewriteFile(context: Context, uri: Uri, edits: TagEdits): TagWriteOu
             // descriptor itself, which is the ParcelFileDescriptor's job.
             val channel = FileInputStream(pfd.fileDescriptor).channel
             when (val plan = planRewrite(channel, edits)) {
-                is Plan.Refused -> return TagWriteOutcome.Refused(plan.reason)
+                is Plan.Refused -> return TagWriteOutcome.Refused(null)
                 is Plan.Ready -> plan.rewrite.also {
                     // When the audio has to move there is no small write to be
                     // had, so the entire new file is built in the cache first.
