@@ -16,6 +16,10 @@ import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
  * Every action amounts to "make the file equal these checksummed bytes", so a crash during
  * recovery is recovered by running recovery again.
  *
+ * After a killed process (not a power loss), reads still see writes that never reached storage.
+ * Recovery forces the record and the track before it reads either. Otherwise it could close a
+ * record, and delete the only copy, on the word of bytes that a later power loss takes back.
+ *
  * A file that has since been changed by someone else is left exactly as found ([Outcome.FOREIGN]).
  * Recovery never writes stale bytes over another app's edit.
  *
@@ -55,11 +59,22 @@ public class TagRecovery(
      * Finishes [record] on [target], which must be the file the record names, opened for writing.
      * No save of that file may be in flight (see the class notes); saves of other files may.
      */
-    public fun recover(record: JournalRecord, target: TargetFile): Outcome = when (record.state) {
-        JournalState.PATCH_PREPARED, JournalState.ROLLING_BACK -> rollBackPatch(record, target, known = null)
-        JournalState.REPLACE_PREPARED, JournalState.REPLACING ->
-            if (record.atomic) finishAtomic(record, target) else finishCopyOver(record, target)
-        else -> Outcome.COMPLETED
+    public fun recover(record: JournalRecord, target: TargetFile): Outcome {
+        // A killed process leaves its last record readable before it is on storage: forced, and its
+        // file listed durably, before anything is done on its word. Otherwise a power loss during
+        // this recovery could take the record, and with it the only way back, from under the track.
+        try {
+            directory.open(record.journalName)?.use { it.force() } ?: return Outcome.STUCK
+            directory.sync()
+        } catch (_: Exception) {
+            return Outcome.STUCK
+        }
+        return when (record.state) {
+            JournalState.PATCH_PREPARED, JournalState.ROLLING_BACK -> rollBackPatch(record, target, known = null)
+            JournalState.REPLACE_PREPARED, JournalState.REPLACING ->
+                if (record.atomic) finishAtomic(record, target) else finishCopyOver(record, target)
+            else -> Outcome.COMPLETED
+        }
     }
 
     /**
@@ -70,9 +85,8 @@ public class TagRecovery(
     public fun sweep() {
         try {
             val open = journal.open().mapTo(HashSet()) { it.writeId }
-            val stale = directory.names().filter { it.substringBefore('.') !in open }
-            if (stale.isEmpty()) return
-            stale.forEach(directory::delete)
+            directory.names().filter { it.substringBefore('.') !in open }.forEach(directory::delete)
+            // Even with nothing to delete: a killed process may have left a delete that is not durable.
             directory.sync()
         } catch (_: Exception) {
             // The next sweep repeats it.
@@ -80,6 +94,7 @@ public class TagRecovery(
     }
 
     internal fun rollBackPatch(record: JournalRecord, target: TargetFile, known: PatchBackup?): Outcome = try {
+        target.force() // What is read next must be what storage holds (see the class notes).
         val backup = known
             ?: directory.open(record.patchName)?.use { file -> FileOps.readAll(file)?.let(PatchBackup::decode) }
         when {
@@ -102,6 +117,7 @@ public class TagRecovery(
 
     /** §5.3 steps 5–7 and their recovery: finish forward from the staged copy, else put the backup back. */
     internal fun finishCopyOver(record: JournalRecord, target: TargetFile): Outcome = try {
+        target.force() // What is read next must be what storage holds (see the class notes).
         when {
             matches(target, record.finalLength, record.stagedCrc) -> close(record, JournalState.DONE, Outcome.COMPLETED)
             // Not one byte of ours was written before REPLACING; a different file is someone else's.
@@ -121,6 +137,7 @@ public class TagRecovery(
 
     /** An atomic replace (iOS): the rename either happened or it did not. */
     internal fun finishAtomic(record: JournalRecord, target: TargetFile): Outcome = try {
+        target.force() // What is read next must be what storage holds (see the class notes).
         when {
             matches(target, record.finalLength, record.stagedCrc) -> close(record, JournalState.DONE, Outcome.COMPLETED)
             !matches(target, record.originalLength, record.originalCrc) -> close(record, JournalState.ABANDONED, Outcome.FOREIGN)

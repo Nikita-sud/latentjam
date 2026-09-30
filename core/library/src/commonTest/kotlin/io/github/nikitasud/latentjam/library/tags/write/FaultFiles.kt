@@ -20,6 +20,7 @@ internal class PowerLoss : Error("simulated power loss")
  * - [powerLoss] then rebuilds what storage would hold: `powerLoss(keep)` keeps, per file, the first
  *   `keep` bytes of its unforced writes in order (a torn write at any byte); `powerLoss(select)` and
  *   `powerLossSubset(seed)` keep an arbitrary subset of the unforced changes, in or out of order.
+ * - [processDeath] instead keeps everything visible and unforced, as a killed process leaves it.
  * - Track files (made with [put]) are always durable entries; store files live in [directory].
  */
 internal class FaultFiles(var storeCapacity: Long = Long.MAX_VALUE) {
@@ -82,10 +83,46 @@ internal class FaultFiles(var storeCapacity: Long = Long.MAX_VALUE) {
             node.current = data.copyOf()
             node.pending.clear()
         }
+        resetCounters()
+    }
+
+    private fun resetCounters() {
         crashAt = 0
         operations = 0
         crashAtTrackWrite = 0
         trackWrites = 0
+    }
+
+    /**
+     * The process is killed but the machine keeps running: every write and directory change so far
+     * stays visible (the OS still holds it) and stays unforced, so a later [powerLoss] can still
+     * drop it. Only the crash counters reset.
+     */
+    fun processDeath() = resetCounters()
+
+    /**
+     * An independent copy of everything: both views of every file, the pending changes, the synced
+     * listing and the counters. It lets a crash test replay one save once and then try many ways
+     * its power loss can end. Byte arrays are never changed in place here, so the copies share them.
+     */
+    fun copy(): FaultFiles {
+        val copies = HashMap<Node, Node>()
+        fun Node.copied(): Node = copies.getOrPut(this) {
+            Node(durable).also {
+                it.current = current
+                it.pending += pending
+            }
+        }
+        return FaultFiles(storeCapacity).also { c ->
+            tracks.forEach { (name, node) -> c.tracks[name] = node.copied() }
+            store.forEach { (name, node) -> c.store[name] = node.copied() }
+            c.syncedStore = syncedStore.mapValuesTo(LinkedHashMap()) { it.value.copied() }
+            c.crashAt = crashAt
+            c.operations = operations
+            c.reportedFree = reportedFree
+            c.crashAtTrackWrite = crashAtTrackWrite
+            c.trackWrites = trackWrites
+        }
     }
 
     /**

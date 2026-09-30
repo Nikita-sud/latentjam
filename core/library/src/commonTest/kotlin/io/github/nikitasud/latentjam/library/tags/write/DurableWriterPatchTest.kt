@@ -171,4 +171,14 @@ internal class DurableWriterPatchTest {
     fun powerLossAnywhereLeavesTheOriginalOrTheEdit() {
         for (case in WriteFixtures.inPlace) CrashHarness.everywhere(case, atomic = false)
     }
+
+    @Test
+    fun aProcessKilledAnywhereAndThenAPowerLossLeavesTheOriginalOrTheEdit() {
+        for (case in WriteFixtures.inPlace) CrashHarness.afterProcessDeath(case, atomic = false)
+    }
+
+    @Test
+    fun aProcessKilledAnywhereInTheWritersOwnRollBackAndThenAPowerLossLeavesTheOriginal() {
+        for (case in WriteFixtures.inPlace) CrashHarness.afterProcessDeath(case, atomic = false, flip = true)
+    }
 }

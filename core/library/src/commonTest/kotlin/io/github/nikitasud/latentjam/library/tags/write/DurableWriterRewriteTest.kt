@@ -8,7 +8,9 @@ import io.github.nikitasud.latentjam.library.tags.WritePlan
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 internal class DurableWriterRewriteTest {
@@ -41,8 +43,11 @@ internal class DurableWriterRewriteTest {
         val copyOver = setUp(case, FaultFiles(storeCapacity = room))
         assertEquals(WriteResult.NotEnoughSpace, writer(copyOver, atomic = false).write(track, copyOver.track(track), case.edits, null))
         assertContentEquals(case.original, copyOver.trackBytes(track))
+        assertEquals(emptySet(), copyOver.storeNames())
         val atomic = setUp(case, FaultFiles(storeCapacity = room))
         assertIs<WriteResult.Saved>(writer(atomic, atomic = true).write(track, atomic.track(track), case.edits, null))
+        assertContentEquals(WriteFixtures.expected(case), atomic.trackBytes(track))
+        assertEquals(emptySet(), atomic.storeNames())
     }
 
     @Test
@@ -58,8 +63,13 @@ internal class DurableWriterRewriteTest {
     fun aVolumeThatFillsDuringTheCopyOverPutsTheOriginalBack() {
         val case = WriteFixtures.rewrites.first()
         val files = setUp(case)
-        val full = VolumeFullAt(files.track(track), limit = case.original.size.toLong())
+        // Room for the file's own bytes, not for its growth: the copy lands that much, then fails.
+        val limit = case.original.size.toLong()
+        assertTrue(assertIs<WritePlan.StreamingRewrite>(WriteFixtures.plan(case)).newLength > limit)
+        val full = VolumeFullAt(files.track(track), limit)
         assertIs<WriteResult.Failed>(writer(files, atomic = false).write(track, full, case.edits, targetFreeBytes = null))
+        // The copy really was cut short over the track, so the original came back from the backup.
+        assertFalse(assertNotNull(full.cutShort).contentEquals(case.original))
         assertContentEquals(case.original, files.trackBytes(track))
         assertEquals(emptySet(), files.storeNames())
     }
@@ -139,7 +149,36 @@ internal class DurableWriterRewriteTest {
             val changed = files.trackBytes(track)
             assertEquals(listOf(TagRecovery.Outcome.FOREIGN), CrashHarness.recoverAll(files, atomic), "atomic=$atomic")
             assertContentEquals(changed, files.trackBytes(track))
+            assertEquals(emptySet(), files.storeNames(), "atomic=$atomic")
         }
+    }
+
+    @Test
+    fun aReplaceWhoseResultCannotBeOpenedIsFinishedByRecovery() {
+        val case = WriteFixtures.rewrites.first()
+        val files = setUp(case)
+        val renaming = files.replacer()
+        val openFails = AtomicReplacer { key, stagedName ->
+            renaming.replace(key, stagedName).close()
+            throw IllegalStateException("the replaced file could not be opened")
+        }
+        val result = DurableWriter(files.directory, { "w1" }, openFails).write(track, files.track(track), case.edits, null)
+        assertEquals(WriteResult.RecoveryPending("w1"), result)
+        assertEquals(listOf(TagRecovery.Outcome.COMPLETED), CrashHarness.recoverAll(files, atomic = true))
+        assertContentEquals(WriteFixtures.expected(case), files.trackBytes(track))
+        assertEquals(emptySet(), files.storeNames())
+    }
+
+    @Test
+    fun aCopyOverWhoseReplacingRecordCannotBeWrittenIsFinishedByRecovery() {
+        val case = WriteFixtures.rewrites.first()
+        val files = setUp(case)
+        val result = DurableWriter(NoSecondRecord(files.directory), { "w1" }).write(track, files.track(track), case.edits, null)
+        assertEquals(WriteResult.RecoveryPending("w1"), result)
+        assertContentEquals(case.original, files.trackBytes(track))
+        assertEquals(listOf(TagRecovery.Outcome.COMPLETED), CrashHarness.recoverAll(files, atomic = false))
+        assertContentEquals(WriteFixtures.expected(case), files.trackBytes(track))
+        assertEquals(emptySet(), files.storeNames())
     }
 
     @Test
@@ -150,6 +189,16 @@ internal class DurableWriterRewriteTest {
     @Test
     fun powerLossAnywhereDuringAnAtomicReplaceLeavesTheOriginalOrTheEdit() {
         for (case in WriteFixtures.rewrites) CrashHarness.everywhere(case, atomic = true)
+    }
+
+    @Test
+    fun aProcessKilledAnywhereInACopyOverAndThenAPowerLossLeavesTheOriginalOrTheEdit() {
+        for (case in WriteFixtures.rewrites) CrashHarness.afterProcessDeath(case, atomic = false)
+    }
+
+    @Test
+    fun aProcessKilledAnywhereInAnAtomicReplaceAndThenAPowerLossLeavesTheOriginalOrTheEdit() {
+        for (case in WriteFixtures.rewrites) CrashHarness.afterProcessDeath(case, atomic = true)
     }
 
     /** The operation count at which REPLACE_PREPARED is on storage, found by replaying the save. */
@@ -164,11 +213,32 @@ internal class DurableWriterRewriteTest {
         }
     }
 
-    /** A track whose volume has no room past [limit] bytes. */
+    /**
+     * A track whose volume has no room past [limit] bytes: a write reaching past it lands up to the
+     * limit and then fails. [cutShort] is the file as the first such write left it.
+     */
     private class VolumeFullAt(private val delegate: TargetFile, private val limit: Long) : TargetFile by delegate {
+        var cutShort: ByteArray? = null
+            private set
+
         override fun write(offset: Long, bytes: ByteArray, from: Int, count: Int) {
-            if (offset + count > limit) throw StorageFullException("volume full")
-            delegate.write(offset, bytes, from, count)
+            if (offset + count <= limit) return delegate.write(offset, bytes, from, count)
+            val fits = maxOf(0L, limit - offset).toInt()
+            if (fits > 0) delegate.write(offset, bytes, from, fits)
+            if (cutShort == null) cutShort = delegate.read(0, delegate.length.toInt())
+            throw StorageFullException("volume full")
+        }
+    }
+
+    /** A store where a journal takes its first record but refuses every later one. */
+    private class NoSecondRecord(private val delegate: RecoveryDirectory) : RecoveryDirectory by delegate {
+        override fun open(name: String): TargetFile? {
+            val file = delegate.open(name) ?: return null
+            if (!name.endsWith(Journal.SUFFIX)) return file
+            return object : TargetFile by file {
+                override fun write(offset: Long, bytes: ByteArray, from: Int, count: Int) =
+                    throw IllegalStateException("the journal could not be written")
+            }
         }
     }
 }

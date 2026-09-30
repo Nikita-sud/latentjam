@@ -261,6 +261,7 @@ public class DurableWriter(
             }
         }
         check(originalLength == draft.originalLength) { CHANGED }
+        // Load-bearing if a record is ever journaled before this one: only a first record syncs the directory.
         directory.sync()
         val prepared = draft.copy(originalLength = originalLength, stagedCrc = stagedCrc, originalCrc = originalCrc)
         journal.append(prepared)

@@ -102,7 +102,7 @@ internal object CrashHarness {
                     val seed = (crashAt * 1_000L + index) * 1_000L + recoveryCrash
                     var crashed = false
                     for (again in lossesDuringRecovery(seed)) {
-                        val (files, _) = save(case, crashAt, atomic, flip)
+                        val files = probe.copy()
                         survival.apply(files)
                         files.crashAt = recoveryCrash
                         val first = try {
@@ -123,6 +123,54 @@ internal object CrashHarness {
                     if (!crashed) break
                     recoveryCrash++
                 }
+            }
+            crashAt++
+        }
+    }
+
+    /**
+     * The process is killed at every operation of a save, so its unforced writes stay visible. The
+     * recovery that follows is itself cut by a power loss at every operation, and when it finishes,
+     * power is lost after it. After each power loss, every state from [survivals] is tried.
+     *
+     * Whatever recovery read from the page cache and did not force may be gone afterwards. A
+     * recovery that finished must have left the track whole and the store empty with no further
+     * help. One that was cut short gets one more recovery.
+     */
+    fun afterProcessDeath(case: WriteFixtures.Case, atomic: Boolean, flip: Boolean = false) {
+        val edited = if (flip) case.original else WriteFixtures.expected(case)
+        var crashAt = 1
+        while (true) {
+            val (base, finished) = save(case, crashAt, atomic, flip)
+            if (finished != null) return
+            base.processDeath()
+            var recoveryCrash = 1
+            while (true) {
+                val probe = base.copy()
+                probe.crashAt = recoveryCrash
+                val cut = try {
+                    recoverAll(probe, atomic)
+                    false
+                } catch (_: PowerLoss) {
+                    true
+                }
+                for (survival in survivals(probe.pendingBytes())) {
+                    val files = base.copy()
+                    files.crashAt = recoveryCrash
+                    val first = try {
+                        recoverAll(files, atomic)
+                    } catch (_: PowerLoss) {
+                        null
+                    }
+                    val where = "${case.name}: killed at $crashAt, " +
+                        (if (first == null) "recovery cut at $recoveryCrash" else "recovered") + ", then ${survival.label}"
+                    first?.let { assertRecovered(it, where) }
+                    survival.apply(files)
+                    if (first == null) assertRecovered(recoverAll(files, atomic), where)
+                    assertWhole(files, case.original, edited, where)
+                }
+                if (!cut) break
+                recoveryCrash++
             }
             crashAt++
         }
