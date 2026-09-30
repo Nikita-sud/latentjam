@@ -35,10 +35,27 @@ internal fun isPlaylistCoverReference(reference: String?): Boolean =
     reference != null && reference.length == 40 && playlistCoverReferencePattern.matches(reference)
 
 /** Decode at no more than twice the output edge, then do the final orientation/scale together. */
-internal fun playlistCoverDecodeSample(width: Int, height: Int): Int? {
+internal fun coverDecodeSample(width: Int, height: Int, maxEdge: Int): Int? {
     if (width !in 1..100_000 || height !in 1..100_000) return null
     val edge = maxOf(width, height)
     var sample = 1
-    while (edge / (sample * 2) >= PLAYLIST_COVER_MAX_EDGE) sample *= 2
+    while (edge / (sample * 2) >= maxEdge) sample *= 2
     return sample
+}
+
+internal fun playlistCoverDecodeSample(width: Int, height: Int): Int? =
+    coverDecodeSample(width, height, PLAYLIST_COVER_MAX_EDGE)
+
+/** Enough of a file to hold a PNG's signature and its IHDR width and height. */
+internal const val PNG_HEAD_BYTES = 24
+
+private val PNG_SIGNATURE = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+
+/** The width and height a PNG's IHDR chunk states, or null when [head] is not the start of a PNG. */
+internal fun pngSize(head: ByteArray): Pair<Int, Int>? {
+    if (head.size < PNG_HEAD_BYTES) return null
+    if (PNG_SIGNATURE.indices.any { head[it] != PNG_SIGNATURE[it] }) return null
+    if (head.decodeToString(12, 16) != "IHDR") return null
+    fun int(at: Int): Int = (0 until 4).fold(0) { value, i -> (value shl 8) or (head[at + i].toInt() and 0xFF) }
+    return int(16) to int(20)
 }

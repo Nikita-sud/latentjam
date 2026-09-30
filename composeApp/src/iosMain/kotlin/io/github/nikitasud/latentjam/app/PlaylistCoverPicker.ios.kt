@@ -12,22 +12,27 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.uikit.LocalUIViewController
+import kotlinx.cinterop.DoubleVar
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.IntVar
+import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import platform.CoreFoundation.CFDictionaryCreateMutable
 import platform.CoreFoundation.CFDictionarySetValue
+import platform.CoreFoundation.CFMutableDictionaryRef
 import platform.CoreFoundation.CFNumberCreate
 import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.kCFBooleanFalse
 import platform.CoreFoundation.kCFBooleanTrue
+import platform.CoreFoundation.kCFNumberDoubleType
 import platform.CoreFoundation.kCFNumberIntType
 import platform.CoreFoundation.kCFTypeDictionaryKeyCallBacks
 import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
@@ -46,6 +51,8 @@ import platform.CoreGraphics.CGImageRelease
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSApplicationSupportDirectory
+import platform.Foundation.NSData
+import platform.Foundation.NSFileHandle
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
 import platform.Foundation.NSNumber
@@ -54,11 +61,15 @@ import platform.Foundation.NSURL
 import platform.Foundation.NSURLIsExcludedFromBackupKey
 import platform.Foundation.NSUUID
 import platform.Foundation.NSUserDomainMask
+import platform.Foundation.closeFile
+import platform.Foundation.fileHandleForReadingAtPath
+import platform.Foundation.readDataOfLength
 import platform.ImageIO.CGImageDestinationAddImage
 import platform.ImageIO.CGImageDestinationCreateWithURL
 import platform.ImageIO.CGImageDestinationFinalize
 import platform.ImageIO.CGImageSourceCreateThumbnailAtIndex
 import platform.ImageIO.CGImageSourceCreateWithURL
+import platform.ImageIO.kCGImageDestinationLossyCompressionQuality
 import platform.ImageIO.kCGImageSourceCreateThumbnailFromImageAlways
 import platform.ImageIO.kCGImageSourceCreateThumbnailWithTransform
 import platform.ImageIO.kCGImageSourceShouldCache
@@ -74,18 +85,37 @@ import platform.UIKit.presentationController
 import platform.UniformTypeIdentifiers.UTTypeImage
 import platform.UniformTypeIdentifiers.UTTypeJPEG
 import platform.darwin.NSObject
+import platform.posix.memcpy
 
+@Composable
+internal actual fun rememberPlaylistCoverPicker(onResult: (PlaylistCoverPickResult) -> Unit): () -> Unit =
+    rememberSystemCoverPicker(
+        import = { url -> coverDirectory?.let { importCoverImage(url, it, PLAYLIST_COVER_MAX_EDGE, null, false) } },
+        remove = ::removeCoverFile,
+    ) { outcome ->
+        onResult(
+            when (outcome) {
+                is CoverPickOutcome.Picked -> PlaylistCoverPickResult.Selected(outcome.reference)
+                CoverPickOutcome.Cancelled -> PlaylistCoverPickResult.Cancelled
+                CoverPickOutcome.Failed -> PlaylistCoverPickResult.Failed
+            },
+        )
+    }
+
+/** The system photo picker; a picked image is imported on the item provider's queue by [import]. */
 @OptIn(ExperimentalForeignApi::class)
 @Composable
-internal actual fun rememberPlaylistCoverPicker(
-    onResult: (PlaylistCoverPickResult) -> Unit,
+internal fun rememberSystemCoverPicker(
+    import: (NSURL) -> String?,
+    remove: (String) -> Unit,
+    onResult: (CoverPickOutcome) -> Unit,
 ): () -> Unit {
     val host = LocalUIViewController.current
     val scope = rememberCoroutineScope()
     val currentOnResult by rememberUpdatedState(onResult)
     var busy by remember { mutableStateOf(false) }
     val delegate = remember(scope) {
-        PlaylistCoverDelegate { result ->
+        CoverPickerDelegate(import) { result ->
             var delivered = false
             val delivery = scope.launch {
                 busy = false
@@ -95,8 +125,8 @@ internal actual fun rememberPlaylistCoverPicker(
             // If the owning composition disappears during the system's asynchronous load,
             // discard the new unclaimed file rather than leave an orphan in private storage.
             delivery.invokeOnCompletion {
-                if (!delivered && result is PlaylistCoverPickResult.Selected) {
-                    removeCoverFile(result.reference)
+                if (!delivered && result is CoverPickOutcome.Picked) {
+                    remove(result.reference)
                 }
             }
         }
@@ -106,7 +136,7 @@ internal actual fun rememberPlaylistCoverPicker(
             if (!busy) {
                 val root = host.view.window?.rootViewController
                 if (root == null) {
-                    currentOnResult(PlaylistCoverPickResult.Failed)
+                    currentOnResult(CoverPickOutcome.Failed)
                 } else {
                     busy = true
                     try {
@@ -126,7 +156,7 @@ internal actual fun rememberPlaylistCoverPicker(
                         picker.presentationController?.delegate = delegate
                     } catch (_: Exception) {
                         busy = false
-                        currentOnResult(PlaylistCoverPickResult.Failed)
+                        currentOnResult(CoverPickOutcome.Failed)
                     }
                 }
             }
@@ -135,8 +165,9 @@ internal actual fun rememberPlaylistCoverPicker(
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private class PlaylistCoverDelegate(
-    private val onResult: (PlaylistCoverPickResult) -> Unit,
+private class CoverPickerDelegate(
+    private val import: (NSURL) -> String?,
+    private val onResult: (CoverPickOutcome) -> Unit,
 ) : NSObject(), PHPickerViewControllerDelegateProtocol, UIAdaptivePresentationControllerDelegateProtocol {
     private var finished = false
 
@@ -148,7 +179,7 @@ private class PlaylistCoverDelegate(
         picker.dismissViewControllerAnimated(true, null)
         val chosen = didFinishPicking.firstOrNull() as? PHPickerResult
         if (chosen == null) {
-            onResult(PlaylistCoverPickResult.Cancelled)
+            onResult(CoverPickOutcome.Cancelled)
             return
         }
         // NSItemProvider invokes this completion on its internal queue. Its temporary file
@@ -156,18 +187,18 @@ private class PlaylistCoverDelegate(
         // or a full-size NSData, and deliver only the small durable output back to the UI.
         chosen.itemProvider.loadFileRepresentationForTypeIdentifier(UTTypeImage.identifier) { url, error ->
             val reference = if (url != null && error == null) {
-                runCatching { importPlaylistCover(url) }.getOrNull()
+                runCatching { import(url) }.getOrNull()
             } else {
                 null
             }
-            onResult(reference?.let(PlaylistCoverPickResult::Selected) ?: PlaylistCoverPickResult.Failed)
+            onResult(reference?.let(CoverPickOutcome::Picked) ?: CoverPickOutcome.Failed)
         }
     }
 
     override fun presentationControllerDidDismiss(presentationController: UIPresentationController) {
         if (!finished) {
             finished = true
-            onResult(PlaylistCoverPickResult.Cancelled)
+            onResult(CoverPickOutcome.Cancelled)
         }
     }
 }
@@ -193,17 +224,47 @@ private fun removeCoverFile(reference: String): Boolean {
     return !manager.fileExistsAtPath(path) || manager.removeItemAtPath(path, null)
 }
 
+/**
+ * Imports the picked file at [url] into [directory], downscaled to [maxEdge] as JPEG at [jpegQuality]
+ * (null: the system default). With [keepSmallPng], a PNG [keepsPickedPng] accepts is copied as it is.
+ */
 @OptIn(ExperimentalForeignApi::class)
-private fun importPlaylistCover(url: NSURL): String? {
+internal fun importCoverImage(
+    url: NSURL,
+    directory: String,
+    maxEdge: Int,
+    jpegQuality: Double?,
+    keepSmallPng: Boolean,
+): String? {
     val manager = NSFileManager.defaultManager
     val sourcePath = url.path ?: return null
     val bytes = (manager.attributesOfItemAtPath(sourcePath, null)?.get(NSFileSize) as? NSNumber)
         ?.unsignedLongLongValue
     if (bytes != null && (bytes == 0uL || bytes > 64uL * 1024uL * 1024uL)) return null
-    val directory = coverDirectory ?: return null
     if (!manager.createDirectoryAtPath(directory, true, null, null)) return null
     if (!NSURL.fileURLWithPath(directory, true).setResourceValue(true, NSURLIsExcludedFromBackupKey, null)) {
         return null
+    }
+    if (keepSmallPng && bytes != null) {
+        val head = NSFileHandle.fileHandleForReadingAtPath(sourcePath)?.let { handle ->
+            try {
+                handle.readDataOfLength(PNG_HEAD_BYTES.toULong()).toByteArray()
+            } finally {
+                handle.closeFile()
+            }
+        }
+        val size = head?.let(::pngSize)
+        if (size != null && keepsPickedPng(size.first, size.second, bytes.toLong())) {
+            val reference = "${NSUUID().UUIDString.lowercase()}.png"
+            val finalPath = "$directory/$reference"
+            val pendingPath = "$finalPath.tmp"
+            try {
+                if (!manager.copyItemAtPath(sourcePath, pendingPath, null)) return null
+                return if (manager.moveItemAtPath(pendingPath, finalPath, null)) reference else null
+            } finally {
+                manager.removeItemAtPath(pendingPath, null)
+            }
+        }
     }
 
     val sourceUrl = CFBridgingRetain(url) ?: return null
@@ -215,7 +276,7 @@ private fun importPlaylistCover(url: NSURL): String? {
         CFDictionarySetValue(options, kCGImageSourceCreateThumbnailFromImageAlways, kCFBooleanTrue)
         CFDictionarySetValue(options, kCGImageSourceCreateThumbnailWithTransform, kCFBooleanTrue)
         val dimension = memScoped {
-            val value = alloc<IntVar> { this.value = PLAYLIST_COVER_MAX_EDGE }
+            val value = alloc<IntVar> { this.value = maxEdge }
             CFNumberCreate(null, kCFNumberIntType, value.ptr)
         } ?: return null
         CFDictionarySetValue(options, kCGImageSourceThumbnailMaxPixelSize, dimension)
@@ -226,7 +287,7 @@ private fun importPlaylistCover(url: NSURL): String? {
             try {
                 val width = CGImageGetWidth(thumbnail)
                 val height = CGImageGetHeight(thumbnail)
-                if (width == 0uL || height == 0uL || maxOf(width, height) > PLAYLIST_COVER_MAX_EDGE.toULong()) {
+                if (width == 0uL || height == 0uL || maxOf(width, height) > maxEdge.toULong()) {
                     return null
                 }
                 val colorSpace = CGColorSpaceCreateDeviceRGB() ?: return null
@@ -252,10 +313,13 @@ private fun importPlaylistCover(url: NSURL): String? {
                             val destination = CGImageDestinationCreateWithURL(
                                 outputUrl.reinterpret(), jpegType?.reinterpret(), 1u, null,
                             ) ?: return null
+                            var properties: CFMutableDictionaryRef? = null
                             try {
-                                CGImageDestinationAddImage(destination, flattened, null)
+                                if (jpegQuality != null) properties = jpegQualityProperties(jpegQuality) ?: return null
+                                CGImageDestinationAddImage(destination, flattened, properties)
                                 if (!CGImageDestinationFinalize(destination)) return null
                             } finally {
+                                properties?.let { CFRelease(it) }
                                 CFRelease(destination)
                             }
                             if (!manager.moveItemAtPath(pendingPath, finalPath, null)) return null
@@ -280,5 +344,29 @@ private fun importPlaylistCover(url: NSURL): String? {
     } finally {
         CFRelease(options)
         CFRelease(sourceUrl)
+    }
+}
+
+/** A one-entry destination dictionary asking for [quality] (0…1) lossy compression; the caller releases it. */
+@OptIn(ExperimentalForeignApi::class)
+private fun jpegQualityProperties(quality: Double): CFMutableDictionaryRef? {
+    val dictionary = CFDictionaryCreateMutable(
+        null, 1, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr,
+    ) ?: return null
+    val number = memScoped {
+        val value = alloc<DoubleVar> { this.value = quality }
+        CFNumberCreate(null, kCFNumberDoubleType, value.ptr)
+    } ?: run { CFRelease(dictionary); return null }
+    CFDictionarySetValue(dictionary, kCGImageDestinationLossyCompressionQuality, number)
+    CFRelease(number)
+    return dictionary
+}
+
+@OptIn(ExperimentalForeignApi::class)
+internal fun NSData.toByteArray(): ByteArray {
+    val size = length.toInt()
+    if (size == 0) return ByteArray(0)
+    return ByteArray(size).also { output ->
+        output.usePinned { pinned -> memcpy(pinned.addressOf(0), bytes, length) }
     }
 }

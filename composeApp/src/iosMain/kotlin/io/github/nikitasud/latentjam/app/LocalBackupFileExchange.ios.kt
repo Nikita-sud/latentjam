@@ -31,7 +31,6 @@ import platform.UIKit.UIDocumentPickerDelegateProtocol
 import platform.UIKit.UIDocumentPickerViewController
 import platform.UniformTypeIdentifiers.UTTypeData
 import platform.darwin.NSObject
-import platform.posix.memcpy
 
 private enum class PickerPurpose { IMPORT, EXPORT }
 
@@ -249,13 +248,4 @@ private fun readDocument(url: NSURL): LocalBackupFileResult<String> = runCatchin
 private fun ByteArray.toNSData(): NSData {
     if (isEmpty()) return NSData()
     return usePinned { pinned -> NSData.dataWithBytes(pinned.addressOf(0), size.toULong()) }
-}
-
-@OptIn(ExperimentalForeignApi::class)
-private fun NSData.toByteArray(): ByteArray {
-    val size = length.toInt()
-    if (size == 0) return ByteArray(0)
-    return ByteArray(size).also { output ->
-        output.usePinned { pinned -> memcpy(pinned.addressOf(0), bytes, length) }
-    }
 }
