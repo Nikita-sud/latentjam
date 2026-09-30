@@ -71,7 +71,8 @@ internal data class FileWriteResult(
     val newLength: Long? = null,
 )
 
-internal data class TagWriteReport(val kind: TagWriteKind, val results: List<FileWriteResult>)
+/** A finished request: what became of each file, and the request [id] its editor listens on. */
+internal data class TagWriteReport(val kind: TagWriteKind, val results: List<FileWriteResult>, val id: Long = 0)
 
 /** The single-track editor's view of a one-file report. */
 internal fun tagWriteOutcome(report: TagWriteReport): TagWriteOutcome {

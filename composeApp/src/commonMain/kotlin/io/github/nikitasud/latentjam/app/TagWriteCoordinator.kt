@@ -177,6 +177,19 @@ internal class TagWriteCoordinator<C>(
     private val mutablePending = MutableStateFlow<List<JournalRecord>>(emptyList())
     val pendingRecovery = mutablePending.asStateFlow()
 
+    private val mutableUnclaimed = MutableStateFlow<List<TagWriteReport>>(emptyList())
+
+    /**
+     * Finished reports nobody was listening for: a recovery, an edit whose sheet was closed or
+     * recreated, or an edit restored after process death. Kept until [acknowledge]; a report shown
+     * nowhere would be a save that failed or succeeded in silence.
+     */
+    val unclaimed = mutableUnclaimed.asStateFlow()
+
+    fun acknowledge(report: TagWriteReport) {
+        mutableUnclaimed.value = mutableUnclaimed.value.filterNot { it.id == report.id }
+    }
+
     /** True while any request is queued or running: an open journal record then may be a save in flight. */
     private val mutableActive = MutableStateFlow(saved.isNotEmpty())
     val active = mutableActive.asStateFlow()
@@ -254,6 +267,50 @@ internal class TagWriteCoordinator<C>(
         }
     }
 
+    /**
+     * Stops [id]'s request: between files when it is running, before its first file when it is
+     * still queued behind another. An editor stops its own save, never the one in front of it.
+     */
+    fun stop(id: Long) {
+        if (restoring) {
+            deferred += { stop(id) }
+            return
+        }
+        val index = requests.indexOfFirst { it.id == id }
+        when {
+            index < 0 -> return
+            index == 0 -> stop()
+            else -> {
+                requests = requests.mapIndexed { i, request -> if (i == index) request.copy(stopRequested = true) else request }
+                checkpoint()
+            }
+        }
+    }
+
+    /**
+     * Gives up an interrupted save for good. Its record and saved bytes are deleted, and the file
+     * stays exactly as it is now. Only for the user's explicit "Forget" in Settings, because it
+     * deletes the only way back (see [TagRecovery.abandon]). Refused while any queued request names
+     * the file: that request's save or recovery owns the record.
+     */
+    suspend fun forget(record: JournalRecord): Boolean {
+        restoredSignal.await()
+        val forgotten = TagWriteStoreLock.withLock {
+            // Checked under the lock: a request enqueued meanwhile opens its files only under it too.
+            if (requests.any { record.target in it.keys }) return@withLock false
+            try {
+                withContext(io) { backend.recovery.abandon(record) }
+                true
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                false
+            }
+        }
+        refreshRecovery()
+        return forgotten
+    }
+
     fun listen(id: Long, listener: (TagWriteReport) -> Unit) {
         listeners[id] = listener
     }
@@ -266,7 +323,7 @@ internal class TagWriteCoordinator<C>(
     fun deliver(id: Long) {
         val first = requests.firstOrNull() ?: return
         if (first.id != id || first.stage != TagWriteStage.COMPLETE) return
-        val report = TagWriteReport(first.kind, first.results)
+        val report = TagWriteReport(first.kind, first.results, first.id)
         requests = requests.drop(1)
         mutableCompleted.value = null
         checkpoint()
@@ -280,7 +337,8 @@ internal class TagWriteCoordinator<C>(
                 }
             }
         }
-        listeners.remove(id)?.invoke(report)
+        val listener = listeners.remove(id)
+        if (listener != null) listener(report) else mutableUnclaimed.value = mutableUnclaimed.value + report
         resume()
     }
 
