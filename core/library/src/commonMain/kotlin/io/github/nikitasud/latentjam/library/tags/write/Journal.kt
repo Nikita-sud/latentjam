@@ -12,9 +12,8 @@ public enum class JournalState {
     PATCH_PREPARED,
 
     /**
-     * The writer found its own patch wrong and is putting the saved ranges back. Whatever the track
-     * holds now is ours, however storage mangled it, so recovery restores it without asking whose
-     * change it is.
+     * The writer found its own patch wrong and is putting the saved ranges back. Recovery finishes
+     * the roll-back, unless the file has since been changed by someone else.
      */
     ROLLING_BACK,
 

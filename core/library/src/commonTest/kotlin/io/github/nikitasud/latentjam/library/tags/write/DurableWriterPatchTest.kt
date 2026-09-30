@@ -140,6 +140,29 @@ internal class DurableWriterPatchTest {
     }
 
     @Test
+    fun recoveryLeavesARollingBackFileSomeoneElseChangedSince() {
+        val case = WriteFixtures.inPlace.first()
+        val plan = assertIs<WritePlan.InPlacePatch>(WriteFixtures.plan(case))
+        val changes = mapOf<String, (TargetFile) -> Unit>(
+            // Another tagger rewrote the file with a different layout: here, one byte longer.
+            "a different length" to { it.write(it.length, byteArrayOf(1)) },
+            // Byte 0 of the ID3 header lies in the head window, outside every range we wrote.
+            "a head byte outside our ranges" to { it.write(0, byteArrayOf((case.original[0] + 1).toByte())) },
+        )
+        for ((name, change) in changes) {
+            val files = setUp(case).apply { crashAtTrackWrite = plan.writes.size + 1 }
+            runCatching { writer(files).write(track, FlippingFile(files.track(track)), case.edits, null) }
+            files.powerLoss { _, _ -> false }
+            assertEquals(JournalState.ROLLING_BACK, Journal(files.directory).open().single().state, name)
+            files.track(track).apply { change(this); force() }
+            val found = files.trackBytes(track)
+            assertEquals(listOf(TagRecovery.Outcome.FOREIGN), CrashHarness.recoverAll(files, atomic = false), name)
+            assertContentEquals(found, files.trackBytes(track), name)
+            assertEquals(emptySet(), files.storeNames(), name)
+        }
+    }
+
+    @Test
     fun powerLossAnywhereInTheWritersOwnRollBackLeavesTheOriginal() {
         for (case in WriteFixtures.inPlace) CrashHarness.everywhere(case, atomic = false, flip = true)
     }

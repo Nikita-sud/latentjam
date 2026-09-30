@@ -19,10 +19,12 @@ import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
  * A file that has since been changed by someone else is left exactly as found ([Outcome.FOREIGN]).
  * Recovery never writes stale bytes over another app's edit.
  *
- * Precondition: [recover] and [sweep] never run while a [DurableWriter.write] is in flight on the
- * same store. A live save's files look exactly like an interrupted one's: recovery would roll back
- * a patch mid-write, and a sweep could delete saved bytes whose record is not yet journaled. The
- * caller serialises them (the tag-write coordinator).
+ * Preconditions, which the caller (the tag-write coordinator) enforces:
+ * - [recover] never runs on a record whose file has a [DurableWriter.write] in flight: a live save
+ *   looks exactly like an interrupted one, and would be rolled back mid-write. Recovering other
+ *   files' records while a save runs is fine — closing a record touches only that record's files.
+ * - [sweep] never runs while any save is in flight on the same store: a save's patch file exists
+ *   before its record does, and would be deleted as stale.
  */
 public class TagRecovery(
     private val directory: RecoveryDirectory,
@@ -51,7 +53,7 @@ public class TagRecovery(
 
     /**
      * Finishes [record] on [target], which must be the file the record names, opened for writing.
-     * No save may be in flight on this store (see the class notes).
+     * No save of that file may be in flight (see the class notes); saves of other files may.
      */
     public fun recover(record: JournalRecord, target: TargetFile): Outcome = when (record.state) {
         JournalState.PATCH_PREPARED, JournalState.ROLLING_BACK -> rollBackPatch(record, target, known = null)
@@ -61,8 +63,8 @@ public class TagRecovery(
     }
 
     /**
-     * Deletes every store file that no open save needs. Safe after any crash and during any
-     * recovery, but never while a save is in flight on this store: a save's patch file exists
+     * Deletes every store file that no open save needs. Safe after any crash and between
+     * recoveries, but never while any save is in flight on this store: a save's patch file exists
      * before its record does (see the class notes).
      */
     public fun sweep() {
@@ -83,9 +85,11 @@ public class TagRecovery(
         when {
             backup == null -> Outcome.STUCK
             backup.matches(target) -> close(record, JournalState.ROLLED_BACK, Outcome.ROLLED_BACK)
-            // Only a patch cut short by a crash asks whose change this is. A roll-back the writer
-            // started (ROLLING_BACK) undoes bytes it wrote itself, however storage mangled them.
-            record.state == JournalState.PATCH_PREPARED && !backup.explains(target) ->
+            // After a crash, recovery asks whose change this is — for a roll-back the writer began
+            // (ROLLING_BACK) too, since another app may have rewritten the file before recovery ran.
+            // Every state our own patch or roll-back leaves passes explains(). Only the writer's
+            // in-process roll-back ([known] given) skips it: it undoes what it has just written.
+            known == null && !backup.explains(target) ->
                 close(record, JournalState.ABANDONED, Outcome.FOREIGN)
             else -> {
                 backup.restore(target)
