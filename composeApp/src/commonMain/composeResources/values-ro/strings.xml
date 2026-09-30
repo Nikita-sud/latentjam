@@ -224,10 +224,20 @@
     <string name="info_save">Salvează</string>
     <string name="info_cancel">Anulează</string>
     <string name="info_saving">Se salvează…</string>
-    <string name="info_edit_note">Se salvează în fișierul propriu-zis, așa că orice aplicație vede corectura. Android va cere permisiunea de a modifica fișierul.</string>
+    <string name="info_edit_note">Se salvează în fișierul propriu-zis, așa că orice aplicație vede corectura. Este posibil să ți se ceară permisiunea de a modifica fișierul.</string>
     <string name="info_edit_refused">Etichetele acestui fișier sunt într-o formă care nu poate fi rescrisă în siguranță, așa că nimic nu a fost schimbat.</string>
     <string name="info_edit_failed">Fișierul nu a putut fi scris. A rămas neschimbat.</string>
     <string name="info_edit_unavailable">Editarea etichetelor nu este disponibilă pe acest dispozitiv.</string>
+    <string name="info_edit_no_space">Nu există suficient spațiu liber pentru a salva aceste etichete în siguranță. Nu s-a modificat nimic.</string>
+    <string name="info_edit_recovery_pending">Salvarea a fost întreruptă. LatentJam o va termina sau o va anula data viitoare când va avea voie să scrie fișierul.</string>
+    <string name="tag_recovery_title">Termină salvarea etichetelor</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam a fost întrerupt în timp ce salva etichete în %1$d fișier. Poate termina modificarea acum sau o poate anula dacă fișierul nu poate fi terminat.</item>
+        <item quantity="few">LatentJam a fost întrerupt în timp ce salva etichete în %1$d fișiere. Poate termina modificările acum sau le poate anula acolo unde un fișier nu poate fi terminat.</item>
+        <item quantity="other">LatentJam a fost întrerupt în timp ce salva etichete în %1$d de fișiere. Poate termina modificările acum sau le poate anula acolo unde un fișier nu poate fi terminat.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Termină</string>
+    <string name="tag_recovery_later">Mai târziu</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Setări</string>

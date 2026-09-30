@@ -225,10 +225,19 @@
     <string name="info_save">Kaydet</string>
     <string name="info_cancel">İptal</string>
     <string name="info_saving">Kaydediliyor…</string>
-    <string name="info_edit_note">Dosyanın kendisine kaydedilir, böylece düzeltmeyi tüm uygulamalar görür. Android dosyayı değiştirmek için izin isteyecek.</string>
+    <string name="info_edit_note">Dosyanın kendisine kaydedilir, böylece düzeltmeyi tüm uygulamalar görür. Dosyayı değiştirmek için izin istenebilir.</string>
     <string name="info_edit_refused">Bu dosyanın etiketleri güvenle yeniden yazılamayacak bir yapıda olduğu için hiçbir şey değiştirilmedi.</string>
     <string name="info_edit_failed">Bu dosyaya yazılamadı. Olduğu gibi bırakıldı.</string>
     <string name="info_edit_unavailable">Etiket düzenleme bu cihazda kullanılamıyor.</string>
+    <string name="info_edit_no_space">Bu etiketleri güvenle kaydetmek için yeterli boş alan yok. Hiçbir şey değiştirilmedi.</string>
+    <string name="info_edit_recovery_pending">Kaydetme yarıda kesildi. LatentJam, dosyaya yazmasına yeniden izin verildiğinde bunu tamamlayacak veya geri alacak.</string>
+    <string name="tag_recovery_title">Etiketlerin kaydedilmesini tamamla</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam, %1$d dosyaya etiket kaydederken yarıda kesildi. Değişikliği şimdi tamamlayabilir veya dosya tamamlanamıyorsa geri alabilir.</item>
+        <item quantity="other">LatentJam, %1$d dosyaya etiket kaydederken yarıda kesildi. Değişiklikleri şimdi tamamlayabilir veya tamamlanamayan dosyalarda geri alabilir.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Tamamla</string>
+    <string name="tag_recovery_later">Sonra</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ayarlar</string>

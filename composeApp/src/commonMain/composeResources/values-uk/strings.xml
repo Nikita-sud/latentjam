@@ -241,10 +241,21 @@
     <string name="info_save">Зберегти</string>
     <string name="info_cancel">Скасувати</string>
     <string name="info_saving">Збереження…</string>
-    <string name="info_edit_note">Зберігається в сам файл, тому виправлення побачать усі застосунки. Android запитає дозвіл на зміну файлу.</string>
+    <string name="info_edit_note">Зберігається в сам файл, тому виправлення побачать усі застосунки. Можливо, знадобиться дозвіл на зміну файлу.</string>
     <string name="info_edit_refused">Теги цього файлу записані так, що їх не можна безпечно перезаписати, тому нічого не змінено.</string>
     <string name="info_edit_failed">Не вдалося записати файл. Він залишився без змін.</string>
     <string name="info_edit_unavailable">Змінення тегів недоступне на цьому пристрої.</string>
+    <string name="info_edit_no_space">Недостатньо вільного місця, щоб безпечно зберегти теги. Нічого не змінено.</string>
+    <string name="info_edit_recovery_pending">Збереження було перервано. LatentJam завершить або скасує його, коли йому знову дозволять змінити файл.</string>
+    <string name="tag_recovery_title">Завершити збереження тегів</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">Збереження тегів у %1$d файл було перервано. LatentJam може завершити його зараз, а якщо файл завершити не можна — повернути як було.</item>
+        <item quantity="few">Збереження тегів у %1$d файли було перервано. LatentJam може завершити його зараз, а якщо якийсь файл завершити не можна — повернути його як було.</item>
+        <item quantity="many">Збереження тегів у %1$d файлів було перервано. LatentJam може завершити його зараз, а якщо якийсь файл завершити не можна — повернути його як було.</item>
+        <item quantity="other">Збереження тегів у %1$d файлу було перервано. LatentJam може завершити його зараз, а якщо якийсь файл завершити не можна — повернути його як було.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Завершити</string>
+    <string name="tag_recovery_later">Пізніше</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Налаштування</string>

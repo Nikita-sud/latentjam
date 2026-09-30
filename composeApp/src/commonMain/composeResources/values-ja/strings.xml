@@ -219,10 +219,18 @@
     <string name="info_save">保存</string>
     <string name="info_cancel">キャンセル</string>
     <string name="info_saving">保存中…</string>
-    <string name="info_edit_note">ファイル自体に保存されるため、すべてのアプリに修正が反映されます。Android がファイルの変更許可を求めます。</string>
+    <string name="info_edit_note">ファイル自体に保存されるため、すべてのアプリに修正が反映されます。ファイルの変更許可を求められる場合があります。</string>
     <string name="info_edit_refused">このファイルのタグは安全に書き換えられない形式のため、何も変更されませんでした。</string>
     <string name="info_edit_failed">このファイルに書き込めませんでした。元のままです。</string>
     <string name="info_edit_unavailable">このデバイスではタグの編集を利用できません。</string>
+    <string name="info_edit_no_space">空き容量が足りず、これらのタグを安全に保存できません。何も変更されていません。</string>
+    <string name="info_edit_recovery_pending">保存が中断されました。次にファイルへの書き込みが許可されたときに、LatentJam が完了するか元に戻します。</string>
+    <string name="tag_recovery_title">タグの保存を完了</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="other">%1$d 個のファイルへのタグの保存中に LatentJam が中断されました。今すぐ変更を完了するか、完了できないファイルは元に戻せます。</item>
+    </plurals>
+    <string name="tag_recovery_finish">完了</string>
+    <string name="tag_recovery_later">後で</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">設定</string>

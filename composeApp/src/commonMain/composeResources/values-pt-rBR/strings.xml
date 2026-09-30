@@ -232,10 +232,19 @@
     <string name="info_save">Salvar</string>
     <string name="info_cancel">Cancelar</string>
     <string name="info_saving">Salvando…</string>
-    <string name="info_edit_note">Salvo no próprio arquivo, então todos os aplicativos veem a correção. O Android vai pedir permissão para modificar o arquivo.</string>
+    <string name="info_edit_note">Salvo no próprio arquivo, então todos os aplicativos veem a correção. Pode ser que seja pedida permissão para modificar o arquivo.</string>
     <string name="info_edit_refused">As tags deste arquivo estão em um formato que não pode ser reescrito com segurança, então nada foi alterado.</string>
     <string name="info_edit_failed">Não foi possível gravar neste arquivo. Ele foi mantido como estava.</string>
     <string name="info_edit_unavailable">A edição de tags não está disponível neste dispositivo.</string>
+    <string name="info_edit_no_space">Não há espaço livre suficiente para salvar estas tags com segurança. Nada foi alterado.</string>
+    <string name="info_edit_recovery_pending">O salvamento foi interrompido. O LatentJam vai concluí-lo ou desfazê-lo na próxima vez que puder gravar no arquivo.</string>
+    <string name="tag_recovery_title">Concluir o salvamento das tags</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">O LatentJam foi interrompido ao salvar tags em %1$d arquivo. Ele pode concluir a alteração agora ou desfazê-la se o arquivo não puder ser concluído.</item>
+        <item quantity="other">O LatentJam foi interrompido ao salvar tags em %1$d arquivos. Ele pode concluir as alterações agora ou desfazê-las onde um arquivo não puder ser concluído.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Concluir</string>
+    <string name="tag_recovery_later">Depois</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Configurações</string>

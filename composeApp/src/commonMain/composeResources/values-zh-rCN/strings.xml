@@ -219,10 +219,18 @@
     <string name="info_save">保存</string>
     <string name="info_cancel">取消</string>
     <string name="info_saving">正在保存…</string>
-    <string name="info_edit_note">直接写入文件本身，因此所有应用都能看到更正。Android 会请求修改文件的权限。</string>
+    <string name="info_edit_note">直接写入文件本身，因此所有应用都能看到更正。系统可能会请求修改文件的权限。</string>
     <string name="info_edit_refused">此文件的标签采用了无法安全重写的形式，因此未做任何更改。</string>
     <string name="info_edit_failed">无法写入此文件。文件保持原样。</string>
     <string name="info_edit_unavailable">此设备不支持编辑标签。</string>
+    <string name="info_edit_no_space">可用空间不足，无法安全保存这些标签。未做任何更改。</string>
+    <string name="info_edit_recovery_pending">保存已中断。下次获准写入该文件时，LatentJam 将完成或撤销保存。</string>
+    <string name="tag_recovery_title">完成标签保存</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="other">LatentJam 在向 %1$d 个文件保存标签时被中断。现在可以完成更改，对无法完成的文件则可撤销。</item>
+    </plurals>
+    <string name="tag_recovery_finish">完成</string>
+    <string name="tag_recovery_later">稍后</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">设置</string>

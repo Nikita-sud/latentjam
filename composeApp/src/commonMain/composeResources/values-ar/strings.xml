@@ -254,10 +254,23 @@
     <string name="info_save">حفظ</string>
     <string name="info_cancel">إلغاء</string>
     <string name="info_saving">جارٍ الحفظ…</string>
-    <string name="info_edit_note">يُحفظ في الملف نفسه، فترى كل التطبيقات التصحيح. سيطلب Android الإذن لتعديل الملف.</string>
+    <string name="info_edit_note">يُحفظ في الملف نفسه، فترى كل التطبيقات التصحيح. قد يُطلب منك إذن لتعديل الملف.</string>
     <string name="info_edit_refused">وسوم هذا الملف بصيغة لا يمكن إعادة كتابتها بأمان، لذلك لم يتغير شيء.</string>
     <string name="info_edit_failed">تعذّرت الكتابة إلى هذا الملف. تُرك كما كان.</string>
     <string name="info_edit_unavailable">تعديل الوسوم غير متاح على هذا الجهاز.</string>
+    <string name="info_edit_no_space">لا توجد مساحة فارغة كافية لحفظ هذه الوسوم بأمان. لم يتغير شيء.</string>
+    <string name="info_edit_recovery_pending">توقّف الحفظ. سيُكمله LatentJam أو يتراجع عنه في المرة التالية التي يُسمح له فيها بالكتابة إلى الملف.</string>
+    <string name="tag_recovery_title">إكمال حفظ الوسوم</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="zero">توقّف LatentJam أثناء حفظ الوسوم في %1$d ملف. يمكنه إكمال التغييرات الآن، أو التراجع عنها حيث يتعذر إكمال الملف.</item>
+        <item quantity="one">توقّف LatentJam أثناء حفظ الوسوم في ملف واحد (%1$d). يمكنه إكمال التغيير الآن، أو التراجع عنه إذا تعذر إكمال الملف.</item>
+        <item quantity="two">توقّف LatentJam أثناء حفظ الوسوم في ملفين (%1$d). يمكنه إكمال التغييرين الآن، أو التراجع عنهما حيث يتعذر إكمال ملف.</item>
+        <item quantity="few">توقّف LatentJam أثناء حفظ الوسوم في %1$d ملفات. يمكنه إكمال التغييرات الآن، أو التراجع عنها حيث يتعذر إكمال ملف.</item>
+        <item quantity="many">توقّف LatentJam أثناء حفظ الوسوم في %1$d ملفًا. يمكنه إكمال التغييرات الآن، أو التراجع عنها حيث يتعذر إكمال ملف.</item>
+        <item quantity="other">توقّف LatentJam أثناء حفظ الوسوم في %1$d ملف. يمكنه إكمال التغييرات الآن، أو التراجع عنها حيث يتعذر إكمال ملف.</item>
+    </plurals>
+    <string name="tag_recovery_finish">إكمال</string>
+    <string name="tag_recovery_later">لاحقًا</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">الإعدادات</string>

@@ -235,10 +235,19 @@
     <string name="info_save">Speichern</string>
     <string name="info_cancel">Abbrechen</string>
     <string name="info_saving">Wird gespeichert…</string>
-    <string name="info_edit_note">Wird in die Datei selbst geschrieben, sodass jede App die Korrektur sieht. Android fragt nach der Berechtigung, die Datei zu ändern.</string>
+    <string name="info_edit_note">Wird in die Datei selbst geschrieben, sodass jede App die Korrektur sieht. Möglicherweise wird die Berechtigung zum Ändern der Datei abgefragt.</string>
     <string name="info_edit_refused">Die Tags dieser Datei liegen in einer Form vor, die sich nicht sicher neu schreiben lässt, daher wurde nichts geändert.</string>
     <string name="info_edit_failed">Die Datei konnte nicht geschrieben werden. Sie blieb unverändert.</string>
     <string name="info_edit_unavailable">Das Bearbeiten von Tags ist auf diesem Gerät nicht verfügbar.</string>
+    <string name="info_edit_no_space">Nicht genug freier Speicherplatz, um diese Tags sicher zu speichern. Es wurde nichts geändert.</string>
+    <string name="info_edit_recovery_pending">Das Speichern wurde unterbrochen. LatentJam schließt es ab oder macht es rückgängig, sobald es die Datei wieder schreiben darf.</string>
+    <string name="tag_recovery_title">Speichern der Tags abschließen</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam wurde beim Speichern von Tags in %1$d Datei unterbrochen. Die Änderung kann jetzt abgeschlossen oder, falls die Datei nicht fertiggestellt werden kann, rückgängig gemacht werden.</item>
+        <item quantity="other">LatentJam wurde beim Speichern von Tags in %1$d Dateien unterbrochen. Die Änderungen können jetzt abgeschlossen oder, wo eine Datei nicht fertiggestellt werden kann, rückgängig gemacht werden.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Abschließen</string>
+    <string name="tag_recovery_later">Später</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Einstellungen</string>

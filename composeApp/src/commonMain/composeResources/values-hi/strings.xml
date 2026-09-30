@@ -225,10 +225,19 @@
     <string name="info_save">सहेजें</string>
     <string name="info_cancel">रद्द करें</string>
     <string name="info_saving">सहेजा जा रहा है…</string>
-    <string name="info_edit_note">फ़ाइल में ही सहेजा जाता है, इसलिए सुधार हर ऐप को दिखता है। Android फ़ाइल बदलने की अनुमति माँगेगा।</string>
+    <string name="info_edit_note">फ़ाइल में ही सहेजा जाता है, इसलिए सुधार हर ऐप को दिखता है। फ़ाइल बदलने की अनुमति माँगी जा सकती है।</string>
     <string name="info_edit_refused">इस फ़ाइल के टैग ऐसे रूप में हैं जिन्हें सुरक्षित रूप से दोबारा नहीं लिखा जा सकता, इसलिए कुछ नहीं बदला गया।</string>
     <string name="info_edit_failed">इस फ़ाइल में नहीं लिखा जा सका। इसे जैसा था वैसा ही छोड़ दिया गया।</string>
     <string name="info_edit_unavailable">इस डिवाइस पर टैग संपादित करना उपलब्ध नहीं है।</string>
+    <string name="info_edit_no_space">इन टैग को सुरक्षित रूप से सहेजने के लिए पर्याप्त खाली जगह नहीं है। कुछ भी नहीं बदला गया।</string>
+    <string name="info_edit_recovery_pending">सहेजना बीच में रुक गया। LatentJam अगली बार फ़ाइल लिखने की अनुमति मिलने पर इसे पूरा करेगा या वापस ले लेगा।</string>
+    <string name="tag_recovery_title">टैग सहेजना पूरा करें</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">%1$d फ़ाइल में टैग सहेजते समय LatentJam बीच में रुक गया। यह बदलाव अभी पूरा कर सकता है, या फ़ाइल पूरी न हो सके तो उसे वापस ले सकता है।</item>
+        <item quantity="other">%1$d फ़ाइलों में टैग सहेजते समय LatentJam बीच में रुक गया। यह बदलाव अभी पूरे कर सकता है, या जो फ़ाइल पूरी न हो सके उसमें उन्हें वापस ले सकता है।</item>
+    </plurals>
+    <string name="tag_recovery_finish">पूरा करें</string>
+    <string name="tag_recovery_later">बाद में</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">सेटिंग</string>

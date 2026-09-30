@@ -225,10 +225,18 @@
     <string name="info_save">Simpan</string>
     <string name="info_cancel">Batal</string>
     <string name="info_saving">Menyimpan…</string>
-    <string name="info_edit_note">Disimpan ke dalam file itu sendiri, sehingga semua aplikasi melihat koreksinya. Android akan meminta izin untuk mengubah file.</string>
+    <string name="info_edit_note">Disimpan ke dalam file itu sendiri, sehingga semua aplikasi melihat koreksinya. Anda mungkin diminta izin untuk mengubah file.</string>
     <string name="info_edit_refused">Tag file ini dalam bentuk yang tidak dapat ditulis ulang dengan aman, jadi tidak ada yang diubah.</string>
     <string name="info_edit_failed">Tidak dapat menulis ke file ini. File dibiarkan apa adanya.</string>
     <string name="info_edit_unavailable">Pengeditan tag tidak tersedia di perangkat ini.</string>
+    <string name="info_edit_no_space">Ruang kosong tidak cukup untuk menyimpan tag ini dengan aman. Tidak ada yang diubah.</string>
+    <string name="info_edit_recovery_pending">Penyimpanan terhenti. LatentJam akan menyelesaikan atau membatalkannya saat berikutnya diizinkan menulis ke file.</string>
+    <string name="tag_recovery_title">Selesaikan penyimpanan tag</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="other">LatentJam terhenti saat menyimpan tag ke %1$d file. LatentJam dapat menyelesaikan perubahan sekarang, atau membatalkannya jika file tidak dapat diselesaikan.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Selesaikan</string>
+    <string name="tag_recovery_later">Nanti</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Setelan</string>

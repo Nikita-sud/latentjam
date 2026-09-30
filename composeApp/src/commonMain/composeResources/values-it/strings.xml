@@ -232,10 +232,19 @@
     <string name="info_save">Salva</string>
     <string name="info_cancel">Annulla</string>
     <string name="info_saving">Salvataggio…</string>
-    <string name="info_edit_note">Viene salvato nel file stesso, così tutte le app vedono la correzione. Android chiederà il permesso di modificare il file.</string>
+    <string name="info_edit_note">Viene salvato nel file stesso, così tutte le app vedono la correzione. Potrebbe essere richiesto il permesso di modificare il file.</string>
     <string name="info_edit_refused">I tag di questo file sono in una forma che non può essere riscritta in modo sicuro, quindi non è stato modificato nulla.</string>
     <string name="info_edit_failed">Impossibile scrivere su questo file. È rimasto com'era.</string>
     <string name="info_edit_unavailable">La modifica dei tag non è disponibile su questo dispositivo.</string>
+    <string name="info_edit_no_space">Spazio libero insufficiente per salvare questi tag in sicurezza. Non è stato modificato nulla.</string>
+    <string name="info_edit_recovery_pending">Il salvataggio è stato interrotto. LatentJam lo completerà o lo annullerà la prossima volta che potrà scrivere il file.</string>
+    <string name="tag_recovery_title">Completa il salvataggio dei tag</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam è stato interrotto mentre salvava i tag in %1$d file. Può completare la modifica ora, oppure annullarla se il file non può essere completato.</item>
+        <item quantity="other">LatentJam è stato interrotto mentre salvava i tag in %1$d file. Può completare le modifiche ora, oppure annullarle dove un file non può essere completato.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Completa</string>
+    <string name="tag_recovery_later">Più tardi</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Impostazioni</string>

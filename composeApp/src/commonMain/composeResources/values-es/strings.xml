@@ -232,10 +232,19 @@
     <string name="info_save">Guardar</string>
     <string name="info_cancel">Cancelar</string>
     <string name="info_saving">Guardando…</string>
-    <string name="info_edit_note">Se guarda en el propio archivo, así que todas las aplicaciones ven la corrección. Android pedirá permiso para modificar el archivo.</string>
+    <string name="info_edit_note">Se guarda en el propio archivo, así que todas las aplicaciones ven la corrección. Es posible que se te pida permiso para modificar el archivo.</string>
     <string name="info_edit_refused">Las etiquetas de este archivo tienen un formato que no se puede reescribir de forma segura, así que no se ha cambiado nada.</string>
     <string name="info_edit_failed">No se pudo escribir en este archivo. Se ha dejado como estaba.</string>
     <string name="info_edit_unavailable">La edición de etiquetas no está disponible en este dispositivo.</string>
+    <string name="info_edit_no_space">No hay suficiente espacio libre para guardar estas etiquetas de forma segura. No se cambió nada.</string>
+    <string name="info_edit_recovery_pending">Se interrumpió el guardado. LatentJam lo terminará o lo deshará la próxima vez que pueda escribir en el archivo.</string>
+    <string name="tag_recovery_title">Terminar de guardar las etiquetas</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam se interrumpió mientras guardaba etiquetas en %1$d archivo. Puede terminar el cambio ahora, o deshacerlo si el archivo no se puede terminar.</item>
+        <item quantity="other">LatentJam se interrumpió mientras guardaba etiquetas en %1$d archivos. Puede terminar los cambios ahora, o deshacerlos donde un archivo no se pueda terminar.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Terminar</string>
+    <string name="tag_recovery_later">Más tarde</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ajustes</string>

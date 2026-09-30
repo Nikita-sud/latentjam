@@ -241,10 +241,21 @@
     <string name="info_save">Zapisz</string>
     <string name="info_cancel">Anuluj</string>
     <string name="info_saving">Zapisywanie…</string>
-    <string name="info_edit_note">Zapisywane w samym pliku, więc poprawkę zobaczą wszystkie aplikacje. Android poprosi o zgodę na modyfikację pliku.</string>
+    <string name="info_edit_note">Zapisywane w samym pliku, więc poprawkę zobaczą wszystkie aplikacje. Możesz zostać poproszony o zgodę na modyfikację pliku.</string>
     <string name="info_edit_refused">Tagi tego pliku są zapisane w formie, której nie da się bezpiecznie nadpisać, więc nic nie zostało zmienione.</string>
     <string name="info_edit_failed">Nie udało się zapisać tego pliku. Pozostał bez zmian.</string>
     <string name="info_edit_unavailable">Edycja tagów jest niedostępna na tym urządzeniu.</string>
+    <string name="info_edit_no_space">Za mało wolnego miejsca, aby bezpiecznie zapisać te tagi. Nic nie zostało zmienione.</string>
+    <string name="info_edit_recovery_pending">Zapisywanie zostało przerwane. LatentJam dokończy je lub cofnie, gdy znów będzie mógł zapisać plik.</string>
+    <string name="tag_recovery_title">Dokończ zapisywanie tagów</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam został przerwany podczas zapisywania tagów w %1$d pliku. Może teraz dokończyć zmianę albo cofnąć ją, jeśli pliku nie da się dokończyć.</item>
+        <item quantity="few">LatentJam został przerwany podczas zapisywania tagów w %1$d plikach. Może teraz dokończyć zmiany albo cofnąć je tam, gdzie pliku nie da się dokończyć.</item>
+        <item quantity="many">LatentJam został przerwany podczas zapisywania tagów w %1$d plikach. Może teraz dokończyć zmiany albo cofnąć je tam, gdzie pliku nie da się dokończyć.</item>
+        <item quantity="other">LatentJam został przerwany podczas zapisywania tagów w %1$d pliku. Może teraz dokończyć zmiany albo cofnąć je tam, gdzie pliku nie da się dokończyć.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Dokończ</string>
+    <string name="tag_recovery_later">Później</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ustawienia</string>

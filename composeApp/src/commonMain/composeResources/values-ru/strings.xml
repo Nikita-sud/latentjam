@@ -227,10 +227,21 @@
     <string name="info_save">Сохранить</string>
     <string name="info_cancel">Отмена</string>
     <string name="info_saving">Сохранение…</string>
-    <string name="info_edit_note">Сохраняется в сам файл, поэтому исправление увидят все приложения. Android запросит разрешение на изменение файла.</string>
+    <string name="info_edit_note">Сохраняется в сам файл, поэтому исправление увидят все приложения. Возможно, потребуется разрешение на изменение файла.</string>
     <string name="info_edit_refused">Теги этого файла записаны так, что их нельзя перезаписать безопасно — ничего не изменено.</string>
     <string name="info_edit_failed">Не удалось записать файл. Он остался прежним.</string>
     <string name="info_edit_unavailable">Изменение тегов недоступно на этом устройстве.</string>
+    <string name="info_edit_no_space">Недостаточно свободного места, чтобы безопасно сохранить теги. Ничего не изменено.</string>
+    <string name="info_edit_recovery_pending">Сохранение было прервано. LatentJam завершит или отменит его, когда ему снова разрешат изменить файл.</string>
+    <string name="tag_recovery_title">Завершить сохранение тегов</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">Сохранение тегов в %1$d файл было прервано. LatentJam может завершить его сейчас, а если файл завершить нельзя — вернуть как было.</item>
+        <item quantity="few">Сохранение тегов в %1$d файла было прервано. LatentJam может завершить его сейчас, а если какой-то файл завершить нельзя — вернуть его как было.</item>
+        <item quantity="many">Сохранение тегов в %1$d файлов было прервано. LatentJam может завершить его сейчас, а если какой-то файл завершить нельзя — вернуть его как было.</item>
+        <item quantity="other">Сохранение тегов в %1$d файла было прервано. LatentJam может завершить его сейчас, а если какой-то файл завершить нельзя — вернуть его как было.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Завершить</string>
+    <string name="tag_recovery_later">Позже</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Настройки</string>

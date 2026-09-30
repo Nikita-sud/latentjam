@@ -59,7 +59,9 @@ import io.github.nikitasud.latentjam.app.generated.resources.info_duration
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit
 import io.github.nikitasud.latentjam.app.generated.resources.info_lyrics
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit_failed
+import io.github.nikitasud.latentjam.app.generated.resources.info_edit_no_space
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit_note
+import io.github.nikitasud.latentjam.app.generated.resources.info_edit_recovery_pending
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit_refused
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit_unavailable
 import io.github.nikitasud.latentjam.app.generated.resources.info_genre
@@ -351,6 +353,8 @@ internal fun TrackDescriptor.lyricsSourceIdentity(): List<String?> =
 private fun failureMessage(outcome: TagWriteOutcome): String = when (outcome) {
     is TagWriteOutcome.Refused -> stringResource(Res.string.info_edit_refused)
     TagWriteOutcome.Unavailable -> stringResource(Res.string.info_edit_unavailable)
+    TagWriteOutcome.NotEnoughSpace -> stringResource(Res.string.info_edit_no_space)
+    TagWriteOutcome.RecoveryPending -> stringResource(Res.string.info_edit_recovery_pending)
     else -> stringResource(Res.string.info_edit_failed)
 }
 
