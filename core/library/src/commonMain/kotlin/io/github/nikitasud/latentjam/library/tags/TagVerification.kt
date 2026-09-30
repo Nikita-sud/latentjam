@@ -37,6 +37,26 @@ public object TagVerification {
 
     public data class Failure(val check: Check, val detail: String)
 
+    /** What a file said before a write: all an in-place check needs, captured before any byte moves. */
+    public class Baseline(public val snapshot: TagSnapshot, public val inventory: List<String>)
+
+    public fun baseline(codec: TagCodec, source: RandomAccessSource): Baseline =
+        Baseline(codec.read(source), codec.inventory(source))
+
+    /**
+     * Read-back and inventory checks of [after] against [baseline], with no audio pass. For writes
+     * whose ranges are checked byte for byte and lie inside the tag (in-place patches): reading the
+     * audio there would cost exactly what the fast path exists to avoid.
+     */
+    public fun verifyTags(codec: TagCodec, baseline: Baseline, after: RandomAccessSource, edits: TagEdits): List<Failure> {
+        baseline.snapshot.refusal?.let { return listOf(Failure(Check.EDITABLE, "the original was refused: $it")) }
+        val failures = ArrayList(readBackFailures(baseline.snapshot, edits, codec.read(after)))
+        val expected = expectedInventory(baseline.inventory, edits)
+        val actual = codec.inventory(after)
+        if (expected != actual) failures += Failure(Check.INVENTORY, "expected $expected\nactual   $actual")
+        return failures
+    }
+
     /** Every way [after] fails to be a correct write of [edits] onto [before]; empty when it verifies. */
     public fun verify(
         codec: TagCodec,
@@ -44,17 +64,13 @@ public object TagVerification {
         after: RandomAccessSource,
         edits: TagEdits,
     ): List<Failure> {
-        val start = codec.read(before)
-        start.refusal?.let { return listOf(Failure(Check.EDITABLE, "the original was refused: $it")) }
-        val failures = ArrayList(readBackFailures(start, edits, codec.read(after)))
+        val failures = ArrayList(verifyTags(codec, baseline(codec, before), after, edits))
+        if (failures.any { it.check == Check.EDITABLE }) return failures
         val audioBefore = codec.audioDigest(before)
         val audioAfter = codec.audioDigest(after)
         if (!audioMatches(audioBefore, audioAfter)) {
             failures += Failure(Check.AUDIO, "digest $audioBefore before, $audioAfter after")
         }
-        val expected = expectedInventory(codec.inventory(before), edits)
-        val actual = codec.inventory(after)
-        if (expected != actual) failures += Failure(Check.INVENTORY, "expected $expected\nactual   $actual")
         return failures
     }
 

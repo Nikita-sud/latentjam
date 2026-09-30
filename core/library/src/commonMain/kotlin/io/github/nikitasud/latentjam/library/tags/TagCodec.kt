@@ -74,4 +74,14 @@ public object TagCodecs {
 
     public fun plan(source: RandomAccessSource, edits: TagEdits): WritePlan =
         forSource(source)?.plan(source, edits) ?: WritePlan.Refused(TagRefusal.UNSUPPORTED_FORMAT)
+
+    /**
+     * [TagCodec.plan], where a codec that throws — a plan breaking its own invariants, an index
+     * past an array — is a refusal. A codec bug must cost the user an edit, never reach the writer.
+     */
+    public fun planSafely(codec: TagCodec, source: RandomAccessSource, edits: TagEdits): WritePlan = try {
+        codec.plan(source, edits)
+    } catch (_: Exception) {
+        WritePlan.Refused(TagRefusal.PLAN_INCONSISTENT)
+    }
 }
