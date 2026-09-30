@@ -332,40 +332,59 @@ internal class TagWriteCoordinator<C>(
     /**
      * Reads the restored requests' keys and covers, deletes the files no request names, and only then
      * lets anything run.
+     *
+     * A restore that fails (a checkpoint that cannot be written) restores nothing rather than
+     * crashing the owner, which would crash again at every relaunch from the same saved state. The
+     * journals still protect every interrupted file, and the recovery offer finds it. Whatever
+     * happens, it ends: nothing is left waiting for it.
      */
     private suspend fun restore() {
-        keyFiles.withLock {
-            val loaded = withContext(io) {
-                saved.mapNotNull { entry ->
-                    val cover = if (entry.replacesCover) unstash(coverName(entry.id)) else null
-                    entry.toRequest(loadKeys(entry.id), cover)
+        var loadedIds: Set<Long> = emptySet()
+        try {
+            keyFiles.withLock {
+                val loaded = withContext(io) {
+                    saved.mapNotNull { entry ->
+                        val cover = if (entry.replacesCover) unstash(coverName(entry.id)) else null
+                        entry.toRequest(loadKeys(entry.id), cover)
+                    }
+                }
+                loadedIds = loaded.mapTo(HashSet()) { it.id }
+                // Requests enqueued meanwhile go after the restored ones, and their files are kept.
+                requests = loaded + requests
+                val ids = requests.mapTo(HashSet()) { it.id }
+                val covers = requests.filter { it.edits.cover is CoverEdit.Replace }.mapTo(HashSet()) { coverName(it.id) }
+                withContext(io) {
+                    for (id in storedKeyIds()) if (id !in ids) safely { backend.dropKeys(id) }
+                    for (name in stashNames()) if (name !in covers) safely { backend.drop(name) }
                 }
             }
-            // Requests enqueued meanwhile go after the restored ones, and their files are kept.
-            requests = loaded + requests
-            val ids = requests.mapTo(HashSet()) { it.id }
-            val covers = requests.filter { it.edits.cover is CoverEdit.Replace }.mapTo(HashSet()) { coverName(it.id) }
-            withContext(io) {
-                for (id in storedKeyIds()) if (id !in ids) safely { backend.dropKeys(id) }
-                for (name in stashNames()) if (name !in covers) safely { backend.drop(name) }
+            restoring = false
+            val first = requests.firstOrNull()
+            when {
+                first == null || !first.persisted -> Unit
+                first.stage in OFFERING -> update(first.copy(stage = TagWriteStage.READY))
+                // Consent died with the process; the interrupted file has an open journal record.
+                first.stage == TagWriteStage.WRITING -> update(
+                    first.copy(stage = TagWriteStage.READY, consented = false, batch = emptyList(), interrupted = true),
+                )
             }
+            restoredWait = requests.firstOrNull()?.takeIf { it.stage in WAITING }?.id
+            checkpoint()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            requests = requests.filter { it.id !in loadedIds }
+            restoredWait = null
+            restoring = false
+            safely { checkpoint() }
+        } finally {
+            restoring = false
+            restoredSignal.complete(Unit)
         }
-        restoring = false
-        val first = requests.firstOrNull()
-        when {
-            first == null || !first.persisted -> Unit
-            first.stage in OFFERING -> update(first.copy(stage = TagWriteStage.READY))
-            // Consent died with the process; the interrupted file has an open journal record.
-            first.stage == TagWriteStage.WRITING -> update(
-                first.copy(stage = TagWriteStage.READY, consented = false, batch = emptyList(), interrupted = true),
-            )
-        }
-        restoredWait = requests.firstOrNull()?.takeIf { it.stage in WAITING }?.id
-        checkpoint()
-        restoredSignal.complete(Unit)
         val replay = deferred.toList()
         deferred.clear()
-        replay.forEach { it() }
+        // A replayed call whose checkpoint fails has still changed the state in memory; it must not end the owner.
+        replay.forEach { call -> safely { call() } }
         resume()
     }
 

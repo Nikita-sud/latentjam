@@ -23,6 +23,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -49,6 +50,7 @@ internal class TagWriteCoordinatorTest {
         val savedKeys = HashMap<Long, List<String>>()
         var keyReads = 0
         var permissionError = false
+        var keysError = false
 
         /** Runs as a file's open begins; a test suspends here to hold that save in flight. */
         var gate: suspend (String) -> Unit = {}
@@ -114,6 +116,7 @@ internal class TagWriteCoordinatorTest {
         }
         override fun loadKeys(id: Long): List<String>? {
             keyReads++
+            if (keysError) throw IllegalStateException("the key file could not be read")
             return savedKeys[id]
         }
         override fun dropKeys(id: Long) {
@@ -777,6 +780,45 @@ internal class TagWriteCoordinatorTest {
         val third = assertNotNull(restarted.coordinator.enqueue(listOf("a"), TagEdits(title = "Newer")))
         assertEquals(3, setOf(first, second, third).size)
         assertTrue(listOf(first, second, third).all { it > 0 })
+    }
+
+    @Test
+    fun aRestoreWhoseCheckpointCannotBeWrittenRestoresNothingAndStillLetsSavesRun() = runTest {
+        val backend = Backend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        listOf("a", "b").forEach { backend.files.put(it, mp3()) }
+        val first = Harness(backend, this)
+        first.enqueue(listOf("a"), TagEdits(title = "New"))
+        runCurrent()
+        val restored = first.recreate()
+        restored.failSave = { true }
+        runCurrent()
+        // The restore finished: nothing waits on it for ever, and nothing was restored.
+        assertNotNull(withTimeoutOrNull(1_000) { restored.coordinator.refreshRecovery() })
+        assertNull(restored.coordinator.prompt.value)
+        restored.failSave = { false }
+        restored.enqueue(listOf("b"), TagEdits(title = "New"))
+        runCurrent()
+        restored.approvePrompt()
+        runCurrent()
+        restored.deliver()
+        assertEquals(FileWriteStatus.SAVED, restored.reports.single().results.single().status)
+        assertContentEquals(mp3(), backend.files.bytes("a"))
+    }
+
+    @Test
+    fun aRestoreWhoseKeysCannotBeReadRestoresNothingAndFinishes() = runTest {
+        val backend = Backend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        backend.files.put("a", mp3())
+        val first = Harness(backend, this)
+        first.enqueue(listOf("a"), TagEdits(title = "New"))
+        runCurrent()
+        backend.keysError = true
+        val restored = first.recreate()
+        runCurrent()
+        assertNotNull(withTimeoutOrNull(1_000) { restored.coordinator.refreshRecovery() })
+        assertNull(restored.coordinator.prompt.value)
+        assertFalse(restored.coordinator.active.value)
+        assertContentEquals(mp3(), backend.files.bytes("a"))
     }
 
     private companion object {
