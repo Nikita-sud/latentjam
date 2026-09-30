@@ -87,6 +87,31 @@ internal class TagEditorFormTest {
         assertEquals(null, TagEditorForm.fromSaveable(listOf("too", "short")))
     }
 
+    private val changedOnDisk = TagEditorForm.of(snapshot.copy(title = "Other title", artist = "Other artist", discTotal = 2))
+
+    @Test
+    fun untouchedFieldsFollowTheFileWhenItChangesUnderTheEditor() {
+        val rebased = baseline.copy(album = "My album").rebased(from = baseline, to = changedOnDisk)
+        assertEquals("Other title", rebased.title)
+        assertEquals("Other artist", rebased.artist)
+        assertEquals("2", rebased.discTotal)
+    }
+
+    @Test
+    fun typedFieldsAndTheCoverChoiceSurviveARebase() {
+        val typed = baseline.copy(title = "My title", cover = CoverChoice.Remove)
+        val rebased = typed.rebased(from = baseline, to = changedOnDisk)
+        assertEquals(changedOnDisk.copy(title = "My title", cover = CoverChoice.Remove), rebased)
+        assertEquals(TagEdits(title = "My title", cover = CoverEdit.Remove), rebased.edits(changedOnDisk, CoverEdit.Remove))
+    }
+
+    @Test
+    fun aRebaseWithNothingTypedLeavesNothingToSave() {
+        val rebased = baseline.copy(title = "Song ").rebased(from = baseline, to = changedOnDisk)
+        assertEquals(changedOnDisk, rebased)
+        assertFalse(rebased.hasChanges(changedOnDisk))
+    }
+
     @Test
     fun inputFiltersKeepWhatATagCanHold() {
         assertEquals("123", numberInput("1a2b34"))

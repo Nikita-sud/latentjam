@@ -134,24 +134,31 @@ internal fun TrackInfoSheet(
         if (editing && read == null) read = readTagFile(track)
     }
     val snapshot = (read as? TagFileRead.Ready)?.snapshot
-    val baseline = remember(snapshot) { snapshot?.let(TagEditorForm::of) }
-    var form by rememberSaveable(
-        track.id.value,
-        stateSaver = Saver<TagEditorForm?, List<String>>(
-            save = { it?.toSaveable() ?: emptyList() },
-            restore = { TagEditorForm.fromSaveable(it) },
-        ),
-    ) { mutableStateOf(null) }
-    // A restored form keeps the user's typing; a fresh one starts from what the file holds.
-    LaunchedEffect(baseline) {
-        if (form == null && baseline != null) form = baseline
+    val fileForm = remember(snapshot) { snapshot?.let(TagEditorForm::of) }
+    val formSaver = Saver<TagEditorForm?, List<String>>(
+        save = { it?.toSaveable() ?: emptyList() },
+        restore = { TagEditorForm.fromSaveable(it) },
+    )
+    var form by rememberSaveable(track.id.value, stateSaver = formSaver) { mutableStateOf(null) }
+    // The file as it was when the form was built from it. Edits are measured against this, never
+    // against a newer reading, so a field the user did not touch is never written.
+    var baseline by rememberSaveable(track.id.value, stateSaver = formSaver) { mutableStateOf(null) }
+    // A restored form keeps the user's typing; a fresh one starts from what the file holds. When
+    // the file changed since (a rescan, another app, a finished recovery), untouched fields follow it.
+    LaunchedEffect(fileForm) {
+        val now = fileForm ?: return@LaunchedEffect
+        val current = form
+        val from = baseline
+        form = if (current == null || from == null) now else current.rebased(from = from, to = now)
+        baseline = now
     }
     var failure by remember(track.id) { mutableStateOf<TagProblem?>(null) }
     val pending = access?.coordinator?.pendingRecovery?.collectAsState()?.value.orEmpty()
     val interrupted = access?.keyOf(track)?.let { key -> pending.any { it.target == key } } == true
 
+    // On the app's scope: the sheet's own is cancelled as it leaves, which would keep the file.
     fun forgetPickedCover() {
-        (form?.cover as? CoverChoice.Replace)?.let { scope.launch { deleteTagCover(it.reference) } }
+        (form?.cover as? CoverChoice.Replace)?.let { AppGraph.appScope.launch { deleteTagCover(it.reference) } }
     }
 
     val saver = rememberTagSaver { result ->
@@ -179,8 +186,12 @@ internal fun TrackInfoSheet(
             TagCoverPick.Cancelled -> Unit
         }
     }
-    val edits = baseline?.let { form?.edits(it) }
-    val canSave = !saving && baseline != null && form?.hasChanges(baseline) == true && edits?.numbersAreValid == true
+    // True from the Save tap until the saver owns the request: reading a picked cover suspends.
+    var starting by remember(track.id) { mutableStateOf(false) }
+    val base = baseline
+    val edits = base?.let { form?.edits(it) }
+    val canSave = !saving && !starting && !interrupted && fileForm != null && base != null &&
+        form?.hasChanges(base) == true && edits?.numbersAreValid == true
 
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -431,30 +442,35 @@ internal fun TrackInfoSheet(
                         focus.clearFocus()
                         keyboard?.hide()
                         forgetPickedCover()
-                        form = baseline
+                        form = fileForm
+                        baseline = fileForm
                         failure = null
                         editing = false
                     },
                     onConfirm = {
                         val current = form
-                        val base = baseline
                         // canSave holds only with a baseline, so base is known non-null here.
                         if (canSave && current != null) {
                             focus.clearFocus()
                             keyboard?.hide()
                             failure = null
+                            starting = true
                             scope.launch {
-                                val cover = when (val choice = current.cover) {
-                                    CoverChoice.Keep -> CoverEdit.Keep
-                                    CoverChoice.Remove -> CoverEdit.Remove
-                                    is CoverChoice.Replace ->
-                                        readTagCover(choice.reference)?.let { CoverEdit.Replace(it, tagCoverMime(choice.reference)) }
-                                }
-                                when {
-                                    cover == null -> failure = TagProblem.BAD_IMAGE
-                                    saver == null -> failure = TagProblem.FAILED
-                                    // Null leaves an untouched field intact; an empty string removes it.
-                                    else -> saver.start(listOf(track), current.edits(base, cover))
+                                try {
+                                    val cover = when (val choice = current.cover) {
+                                        CoverChoice.Keep -> CoverEdit.Keep
+                                        CoverChoice.Remove -> CoverEdit.Remove
+                                        is CoverChoice.Replace -> readTagCover(choice.reference)
+                                            ?.let { CoverEdit.Replace(it, tagCoverMime(choice.reference)) }
+                                    }
+                                    when {
+                                        cover == null -> failure = TagProblem.BAD_IMAGE
+                                        saver == null -> failure = TagProblem.FAILED
+                                        // Null leaves an untouched field intact; an empty string removes it.
+                                        else -> saver.start(listOf(track), current.edits(base, cover))
+                                    }
+                                } finally {
+                                    starting = false
                                 }
                             }
                         }

@@ -54,6 +54,27 @@ internal data class TagEditorForm(
 
     fun hasChanges(baseline: TagEditorForm): Boolean = !edits(baseline).isEmpty || cover != CoverChoice.Keep
 
+    /**
+     * This form moved onto [to], the file as it is now, from [from], the file it was built from.
+     * Another app, a rescan or a finished recovery can change the file under an open editor. A
+     * field the user left alone takes the file's new value, so saving never writes the old one
+     * back over that change. A field the user typed keeps the typing, and the cover choice stays.
+     */
+    fun rebased(from: TagEditorForm, to: TagEditorForm): TagEditorForm = TagEditorForm(
+        title = kept(title, from.title, to.title),
+        artist = kept(artist, from.artist, to.artist),
+        album = kept(album, from.album, to.album),
+        albumArtist = kept(albumArtist, from.albumArtist, to.albumArtist),
+        genre = kept(genre, from.genre, to.genre),
+        year = kept(year, from.year, to.year),
+        trackNumber = kept(trackNumber, from.trackNumber, to.trackNumber),
+        trackTotal = kept(trackTotal, from.trackTotal, to.trackTotal),
+        discNumber = kept(discNumber, from.discNumber, to.discNumber),
+        discTotal = kept(discTotal, from.discTotal, to.discTotal),
+        lyrics = kept(lyrics, from.lyrics, to.lyrics),
+        cover = cover,
+    )
+
     /** Twelve strings, so any text survives a Bundle; the cover as "keep", "remove" or "replace:<reference>". */
     fun toSaveable(): List<String> = listOf(
         title, artist, album, albumArtist, genre, year, trackNumber, trackTotal, discNumber, discTotal, lyrics,
@@ -100,6 +121,8 @@ internal data class TagEditorForm(
 }
 
 private fun changed(value: String, baseline: String): String? = value.trim().takeIf { it != baseline.trim() }
+
+private fun kept(value: String, from: String, to: String): String = if (changed(value, from) == null) to else value
 
 /** Digits only, at most three: a tag number runs from 1 to 999 ([TagEdits.numbersAreValid] checks the rest). */
 internal fun numberInput(text: String): String = text.filter { it in '0'..'9' }.take(3)
