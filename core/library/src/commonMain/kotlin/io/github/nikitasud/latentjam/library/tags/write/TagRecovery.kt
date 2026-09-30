@@ -18,6 +18,11 @@ import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
  *
  * A file that has since been changed by someone else is left exactly as found ([Outcome.FOREIGN]).
  * Recovery never writes stale bytes over another app's edit.
+ *
+ * Precondition: [recover] and [sweep] never run while a [DurableWriter.write] is in flight on the
+ * same store. A live save's files look exactly like an interrupted one's: recovery would roll back
+ * a patch mid-write, and a sweep could delete saved bytes whose record is not yet journaled. The
+ * caller serialises them (the tag-write coordinator).
  */
 public class TagRecovery(
     private val directory: RecoveryDirectory,
@@ -44,15 +49,22 @@ public class TagRecovery(
 
     public fun pending(): List<JournalRecord> = journal.open()
 
-    /** Finishes [record] on [target], which must be the file the record names, opened for writing. */
+    /**
+     * Finishes [record] on [target], which must be the file the record names, opened for writing.
+     * No save may be in flight on this store (see the class notes).
+     */
     public fun recover(record: JournalRecord, target: TargetFile): Outcome = when (record.state) {
-        JournalState.PATCH_PREPARED -> rollBackPatch(record, target, known = null)
+        JournalState.PATCH_PREPARED, JournalState.ROLLING_BACK -> rollBackPatch(record, target, known = null)
         JournalState.REPLACE_PREPARED, JournalState.REPLACING ->
             if (record.atomic) finishAtomic(record, target) else finishCopyOver(record, target)
         else -> Outcome.COMPLETED
     }
 
-    /** Deletes every store file that no open save needs. Safe at any time. */
+    /**
+     * Deletes every store file that no open save needs. Safe after any crash and during any
+     * recovery, but never while a save is in flight on this store: a save's patch file exists
+     * before its record does (see the class notes).
+     */
     public fun sweep() {
         try {
             val open = journal.open().mapTo(HashSet()) { it.writeId }
@@ -71,9 +83,10 @@ public class TagRecovery(
         when {
             backup == null -> Outcome.STUCK
             backup.matches(target) -> close(record, JournalState.ROLLED_BACK, Outcome.ROLLED_BACK)
-            // Only a recovery after a crash asks whose change this is. The writer's own roll-back
-            // ([known] given) undoes bytes it has just written, however storage mangled them.
-            known == null && !backup.explains(target) -> close(record, JournalState.ABANDONED, Outcome.FOREIGN)
+            // Only a patch cut short by a crash asks whose change this is. A roll-back the writer
+            // started (ROLLING_BACK) undoes bytes it wrote itself, however storage mangled them.
+            record.state == JournalState.PATCH_PREPARED && !backup.explains(target) ->
+                close(record, JournalState.ABANDONED, Outcome.FOREIGN)
             else -> {
                 backup.restore(target)
                 if (backup.matches(target)) close(record, JournalState.ROLLED_BACK, Outcome.ROLLED_BACK) else Outcome.STUCK

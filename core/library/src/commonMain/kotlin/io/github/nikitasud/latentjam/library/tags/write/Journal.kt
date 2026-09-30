@@ -11,6 +11,13 @@ public enum class JournalState {
     /** Saved ranges are durable; the track may now be patched (§5.2). */
     PATCH_PREPARED,
 
+    /**
+     * The writer found its own patch wrong and is putting the saved ranges back. Whatever the track
+     * holds now is ours, however storage mangled it, so recovery restores it without asking whose
+     * change it is.
+     */
+    ROLLING_BACK,
+
     /** A verified staged file (and, without an atomic replace, a verified backup) is durable (§5.3). */
     REPLACE_PREPARED,
 
@@ -30,7 +37,8 @@ public enum class JournalState {
     ABANDONED,
     ;
 
-    public val finished: Boolean get() = this != PATCH_PREPARED && this != REPLACE_PREPARED && this != REPLACING
+    public val finished: Boolean
+        get() = this != PATCH_PREPARED && this != ROLLING_BACK && this != REPLACE_PREPARED && this != REPLACING
 }
 
 /**
@@ -91,10 +99,13 @@ public class Journal(private val directory: RecoveryDirectory) {
             decode(bytes, start, i)?.takeIf { it.writeId == writeId }?.let { latest = it }
             start = i + 1
         }
+        // A last line that lost only its line end still checks, and counts: the next append ends
+        // that line, and the journal must read the same before and after it does.
+        if (start < bytes.size) decode(bytes, start, bytes.size)?.takeIf { it.writeId == writeId }?.let { latest = it }
         return latest
     }
 
-    /** Every save that has not reached a finished state, oldest first by name. */
+    /** Every save that has not reached a finished state, in name order. */
     public fun open(): List<JournalRecord> = directory.names()
         .filter { it.endsWith(SUFFIX) }
         .sorted()

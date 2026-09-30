@@ -126,21 +126,26 @@ internal class DurableWriterPatchTest {
     }
 
     @Test
-    fun powerLossAnywhereLeavesTheOriginalOrTheEdit() {
-        for (case in WriteFixtures.inPlace) CrashHarness.everywhere(case, atomic = false)
+    fun powerLossDuringTheWritersOwnRollBackIsFinishedByRecovery() {
+        val case = WriteFixtures.inPlace.first()
+        val plan = assertIs<WritePlan.InPlacePatch>(WriteFixtures.plan(case))
+        // The patch fails its read-back and is forced; power is lost at the roll-back's first write.
+        val files = setUp(case).apply { crashAtTrackWrite = plan.writes.size + 1 }
+        runCatching { writer(files).write(track, FlippingFile(files.track(track)), case.edits, null) }
+        files.powerLoss { _, _ -> false }
+        assertTrue(!files.trackBytes(track).contentEquals(case.original), "the flipped patch is on storage")
+        assertEquals(listOf(TagRecovery.Outcome.ROLLED_BACK), CrashHarness.recoverAll(files, atomic = false))
+        assertContentEquals(case.original, files.trackBytes(track))
+        assertEquals(emptySet(), files.storeNames())
     }
 
-    /** Flips one bit of the first byte written: a write that does not read back. */
-    private class FlippingFile(private val delegate: TargetFile) : TargetFile by delegate {
-        private var flipped = false
+    @Test
+    fun powerLossAnywhereInTheWritersOwnRollBackLeavesTheOriginal() {
+        for (case in WriteFixtures.inPlace) CrashHarness.everywhere(case, atomic = false, flip = true)
+    }
 
-        override fun write(offset: Long, bytes: ByteArray, from: Int, count: Int) {
-            val copy = bytes.copyOfRange(from, from + count)
-            if (!flipped && count > 0) {
-                copy[0] = (copy[0].toInt() xor 1).toByte()
-                flipped = true
-            }
-            delegate.write(offset, copy, 0, copy.size)
-        }
+    @Test
+    fun powerLossAnywhereLeavesTheOriginalOrTheEdit() {
+        for (case in WriteFixtures.inPlace) CrashHarness.everywhere(case, atomic = false)
     }
 }

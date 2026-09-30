@@ -48,6 +48,22 @@ internal class JournalTest {
     }
 
     @Test
+    fun aRecordMissingOnlyItsNewlineReadsTheSameBeforeAndAfterTheNextAppend() {
+        val files = FaultFiles()
+        val journal = Journal(files.directory)
+        journal.append(record(JournalState.PATCH_PREPARED))
+        // Power lost with every byte of the next record on storage but its line end.
+        val line = Journal.encode(record(JournalState.ROLLING_BACK))
+        val file = files.directory.open("w1.journal")!!
+        file.write(file.length, line.copyOf(line.size - 1))
+        file.force()
+        assertEquals(JournalState.ROLLING_BACK, journal.latest("w1")?.state)
+        // The next append ends that line first; the reading must not change under it.
+        journal.append(record(JournalState.ABANDONED))
+        assertEquals(JournalState.ABANDONED, Journal(files.directory).latest("w1")?.state)
+    }
+
+    @Test
     fun aCorruptedLineIsIgnored() {
         val files = FaultFiles()
         val journal = Journal(files.directory)

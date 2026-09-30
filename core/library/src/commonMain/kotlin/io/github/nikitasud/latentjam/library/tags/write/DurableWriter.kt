@@ -61,11 +61,15 @@ public class DurableWriter(
      * free space on the file's volume, or null when the platform cannot tell.
      */
     public fun write(key: String, target: TargetFile, edits: TagEdits, targetFreeBytes: Long?): WriteResult {
+        val seenLength: Long
         val codec: TagCodec
         val baseline: TagVerification.Baseline
         val plan: WritePlan
         try {
             journal.open().firstOrNull { it.target == key }?.let { return WriteResult.RecoveryPending(it.writeId) }
+            // Read before the codec looks at the file: a file that changes length after this was
+            // planned from a view that no longer holds.
+            seenLength = target.length
             codec = TagCodecs.forSource(target) ?: return WriteResult.Refused(TagRefusal.UNSUPPORTED_FORMAT)
             baseline = TagVerification.baseline(codec, target)
             baseline.snapshot.refusal?.let { return WriteResult.Refused(it) }
@@ -76,8 +80,8 @@ public class DurableWriter(
         return when (plan) {
             WritePlan.NoChange -> WriteResult.NoChange
             is WritePlan.Refused -> WriteResult.Refused(plan.reason)
-            is WritePlan.InPlacePatch -> patch(key, target, codec, baseline, edits, plan, targetFreeBytes)
-            is WritePlan.StreamingRewrite -> rewrite(key, target, codec, baseline, edits, plan, targetFreeBytes)
+            is WritePlan.InPlacePatch -> patch(key, target, codec, baseline, edits, plan, seenLength, targetFreeBytes)
+            is WritePlan.StreamingRewrite -> rewrite(key, target, codec, baseline, edits, plan, seenLength, targetFreeBytes)
         }
     }
 
@@ -88,15 +92,18 @@ public class DurableWriter(
         baseline: TagVerification.Baseline,
         edits: TagEdits,
         plan: WritePlan.InPlacePatch,
+        seenLength: Long,
         targetFreeBytes: Long?,
     ): WriteResult {
-        val originalLength = target.length
         val backup = PatchBackup.capture(target, plan) ?: return WriteResult.Failed("the bytes to overwrite could not be read")
+        if (backup.originalLength != seenLength) return WriteResult.Failed(CHANGED)
+        val originalLength = backup.originalLength
         val saved = backup.encode()
         if (directory.freeBytes() < saved.size + STORE_MARGIN) return WriteResult.NotEnoughSpace
         if (lacksRoom(plan.newLength, originalLength, targetFreeBytes)) return WriteResult.NotEnoughSpace
 
-        val record = JournalRecord(newWriteId(), key, JournalState.PATCH_PREPARED, originalLength, plan.newLength)
+        val writeId = freshId() ?: return WriteResult.Failed(ID_TAKEN)
+        val record = JournalRecord(writeId, key, JournalState.PATCH_PREPARED, originalLength, plan.newLength)
         try {
             directory.create(record.patchName).use {
                 it.write(0, saved)
@@ -131,9 +138,16 @@ public class DurableWriter(
                 WriteResult.RecoveryPending(record.writeId)
             }
         }
-        return when (recovery.rollBackPatch(record, target, backup)) {
+        // Journaled before the first byte is put back: a crash from here on leaves a track that only a
+        // restore can explain, which a PATCH_PREPARED recovery would take for someone else's change.
+        val rollingBack = record.copy(state = JournalState.ROLLING_BACK)
+        try {
+            journal.append(rollingBack)
+        } catch (_: Exception) {
+            // Roll back all the same while the process can: that is the file's best chance.
+        }
+        return when (recovery.rollBackPatch(rollingBack, target, backup)) {
             TagRecovery.Outcome.ROLLED_BACK -> WriteResult.Failed(problem)
-            TagRecovery.Outcome.FOREIGN -> WriteResult.Failed("the file changed while it was being saved")
             else -> WriteResult.RecoveryPending(record.writeId)
         }
     }
@@ -145,16 +159,18 @@ public class DurableWriter(
         baseline: TagVerification.Baseline,
         edits: TagEdits,
         plan: WritePlan.StreamingRewrite,
+        seenLength: Long,
         targetFreeBytes: Long?,
     ): WriteResult {
-        val originalLength = target.length
+        val originalLength = seenLength
         val newLength = plan.newLength
         val atomic = replacer != null
         val storeNeeded = newLength + (if (atomic) 0 else originalLength) + REWRITE_MARGIN
         if (directory.freeBytes() < storeNeeded) return WriteResult.NotEnoughSpace
         if (!atomic && lacksRoom(newLength, originalLength, targetFreeBytes)) return WriteResult.NotEnoughSpace
 
-        val draft = JournalRecord(newWriteId(), key, JournalState.REPLACE_PREPARED, originalLength, newLength, atomic = atomic)
+        val writeId = freshId() ?: return WriteResult.Failed(ID_TAKEN)
+        val draft = JournalRecord(writeId, key, JournalState.REPLACE_PREPARED, originalLength, newLength, atomic = atomic)
         val prepared = try {
             stage(draft, target, codec, baseline, edits, plan)
         } catch (e: StreamRefusedException) {
@@ -184,9 +200,28 @@ public class DurableWriter(
             TagRecovery.Outcome.COMPLETED -> WriteResult.Saved(newLength, rewritten = true)
             TagRecovery.Outcome.ROLLED_BACK, TagRecovery.Outcome.RESTORED ->
                 WriteResult.Failed("the new file did not verify; the original was kept")
-            TagRecovery.Outcome.FOREIGN -> WriteResult.Failed("the file changed while it was being saved")
-            TagRecovery.Outcome.STUCK -> WriteResult.RecoveryPending(prepared.writeId)
+            TagRecovery.Outcome.FOREIGN -> WriteResult.Failed(CHANGED)
+            TagRecovery.Outcome.STUCK ->
+                if (atomic && notReplaced(prepared, target)) {
+                    discard(prepared)
+                    WriteResult.Failed("the file could not be replaced; the original was kept")
+                } else {
+                    WriteResult.RecoveryPending(prepared.writeId)
+                }
         }
+    }
+
+    /**
+     * True when an atomic replace never happened: the staged file is still in the store (a rename
+     * moves it out) and the track is still its original. Such a save can be dropped like one that
+     * never started.
+     */
+    private fun notReplaced(record: JournalRecord, target: TargetFile): Boolean = try {
+        record.stagedName in directory.names() &&
+            target.length == record.originalLength &&
+            FileOps.crc(target) == record.originalCrc
+    } catch (_: Exception) {
+        false
     }
 
     /**
@@ -212,18 +247,22 @@ public class DurableWriter(
             check(FileOps.crc(staged) == sink.crcValue) { "the staged file does not read back" }
             sink.crcValue
         }
-        val originalCrc = if (draft.atomic) {
-            FileOps.crc(target) ?: throw IllegalStateException("the original could not be read")
+        // The length recorded is the one checksummed (the backup's own, with a backup), and it must
+        // be the length the plan was made from: a file that grew or shrank since is not the original.
+        val (originalLength, originalCrc) = if (draft.atomic) {
+            val crc = FileOps.crc(target) ?: throw IllegalStateException("the original could not be read")
+            target.length to crc
         } else {
             directory.create(draft.backupName).use { backup ->
                 val crc = FileOps.copyOver(target, backup)
                 backup.force()
                 check(FileOps.crc(backup) == crc) { "the backup does not read back" }
-                crc
+                backup.length to crc
             }
         }
+        check(originalLength == draft.originalLength) { CHANGED }
         directory.sync()
-        val prepared = draft.copy(stagedCrc = stagedCrc, originalCrc = originalCrc)
+        val prepared = draft.copy(originalLength = originalLength, stagedCrc = stagedCrc, originalCrc = originalCrc)
         journal.append(prepared)
         return prepared
     }
@@ -242,11 +281,19 @@ public class DurableWriter(
     private fun lacksRoom(newLength: Long, originalLength: Long, targetFreeBytes: Long?): Boolean =
         newLength > originalLength && targetFreeBytes != null && targetFreeBytes < newLength - originalLength + TARGET_MARGIN
 
-    /** Removes a save that never touched its track. Leftovers are swept by the next recovery. */
+    /**
+     * Removes a save that never touched its track. The journal goes first, durably: data files
+     * without a record are swept by the next recovery, but a record whose saved bytes are gone
+     * could never be finished, and would block the file for good.
+     */
     private fun discard(record: JournalRecord) {
         try {
             val names = directory.names()
-            for (name in listOf(record.patchName, record.stagedName, record.backupName, record.journalName)) {
+            if (record.journalName in names) {
+                directory.delete(record.journalName)
+                directory.sync()
+            }
+            for (name in listOf(record.patchName, record.stagedName, record.backupName)) {
                 if (name in names) directory.delete(name)
             }
             directory.sync()
@@ -255,7 +302,23 @@ public class DurableWriter(
         }
     }
 
+    /**
+     * A new write id, or null when the store already holds a file of that id: its files are named
+     * `<id>.<kind>`, and a reused id would overwrite another save's journal and saved bytes.
+     */
+    private fun freshId(): String? {
+        val id = newWriteId()
+        require(id.isNotEmpty() && '.' !in id) { "a write id must be non-empty and hold no '.': $id" }
+        return try {
+            id.takeIf { directory.names().none { name -> name.substringBefore('.') == id } }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private companion object {
+        const val CHANGED = "the file changed while it was being saved"
+        const val ID_TAKEN = "the recovery store could not give this save a fresh id"
         const val STORE_MARGIN = 64L * 1024
         const val TARGET_MARGIN = 64L * 1024
         const val REWRITE_MARGIN = 16L * 1024 * 1024

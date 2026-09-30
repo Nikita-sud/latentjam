@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library.tags.write
 
+import io.github.nikitasud.latentjam.library.tags.WritePlan
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -28,14 +29,18 @@ internal object CrashHarness {
         return { "w${++n}" }
     }
 
-    /** One save with power lost at operation [crashAt]; the files are left as the crash left them. */
-    private fun save(case: WriteFixtures.Case, crashAt: Int, atomic: Boolean): Pair<FaultFiles, WriteResult?> {
+    /**
+     * One save with power lost at operation [crashAt]; the files are left as the crash left them.
+     * With [flip] the save writes through a [FlippingFile], so it always ends in its own roll-back.
+     */
+    private fun save(case: WriteFixtures.Case, crashAt: Int, atomic: Boolean, flip: Boolean): Pair<FaultFiles, WriteResult?> {
         val files = FaultFiles()
         files.put(TRACK, case.original)
         val writer = DurableWriter(files.directory, ids(), if (atomic) files.replacer() else null)
         files.crashAt = crashAt
+        val target = if (flip) FlippingFile(files.track(TRACK)) else files.track(TRACK)
         val result = try {
-            writer.write(TRACK, files.track(TRACK), case.edits, targetFreeBytes = null)
+            writer.write(TRACK, target, case.edits, targetFreeBytes = null)
         } catch (_: PowerLoss) {
             null
         }
@@ -73,13 +78,22 @@ internal object CrashHarness {
         Survival("subset $seed") { it.powerLossSubset(seed) },
     )
 
-    fun everywhere(case: WriteFixtures.Case, atomic: Boolean) {
-        val edited = WriteFixtures.expected(case)
+    /**
+     * Runs [case] with power lost everywhere. With [flip] every save's patch fails its read-back,
+     * so the save rolls itself back: then the only whole outcome is the original, bar the one
+     * window [unattributable] names.
+     */
+    fun everywhere(case: WriteFixtures.Case, atomic: Boolean, flip: Boolean = false) {
+        val edited = if (flip) case.original else WriteFixtures.expected(case)
         var crashAt = 1
         while (true) {
-            val (probe, finished) = save(case, crashAt, atomic)
+            val (probe, finished) = save(case, crashAt, atomic, flip)
             if (finished != null) {
-                assertTrue(finished is WriteResult.Saved, "${case.name}: $finished")
+                if (flip) {
+                    assertTrue(finished is WriteResult.Failed, "${case.name}: $finished")
+                } else {
+                    assertTrue(finished is WriteResult.Saved, "${case.name}: $finished")
+                }
                 assertWhole(probe, case.original, edited, "${case.name}, no crash")
                 return
             }
@@ -90,25 +104,28 @@ internal object CrashHarness {
                     val seed = (crashAt * 1_000L + index) * 1_000L + recoveryCrash
                     var crashed = false
                     for (again in lossesDuringRecovery(seed)) {
-                        val (files, _) = save(case, crashAt, atomic)
+                        val (files, _) = save(case, crashAt, atomic, flip)
                         survival.apply(files)
+                        val found = files.trackBytes(TRACK).takeIf { flip && unattributable(files, case) }
                         files.crashAt = recoveryCrash
-                        crashed = try {
+                        val first = try {
                             recoverAll(files, atomic)
-                            false
                         } catch (_: PowerLoss) {
-                            true
+                            null
                         }
-                        if (!crashed) {
-                            assertWhole(files, case.original, edited, where)
-                            break
+                        crashed = first == null
+                        val label = if (crashed) "$where, ${again.label}" else where
+                        val outcomes = first ?: run {
+                            again.apply(files)
+                            recoverAll(files, atomic)
                         }
-                        again.apply(files)
-                        val outcomes = recoverAll(files, atomic)
-                        if (TagRecovery.Outcome.STUCK in outcomes || TagRecovery.Outcome.FOREIGN in outcomes) {
-                            fail("$where, ${again.label} → $outcomes")
+                        if (found == null) {
+                            assertRecovered(outcomes, label)
+                            assertWhole(files, case.original, edited, label)
+                        } else {
+                            assertLeftAsFound(files, outcomes, found, label)
                         }
-                        assertWhole(files, case.original, edited, "$where, ${again.label}")
+                        if (!crashed) break
                     }
                     if (!crashed) break
                     recoveryCrash++
@@ -118,9 +135,54 @@ internal object CrashHarness {
         }
     }
 
+    /**
+     * The double fault no protocol can undo: storage kept a byte the save never meant to write
+     * (the flip) before the save could read it back, and power was lost before its roll-back was
+     * journaled. Under the open PATCH_PREPARED record that byte is indistinguishable from another
+     * app's edit, so recovery must leave the file exactly as found ([assertLeftAsFound]).
+     */
+    private fun unattributable(files: FaultFiles, case: WriteFixtures.Case): Boolean {
+        val first = (WriteFixtures.plan(case) as WritePlan.InPlacePatch).writes.first()
+        val flipped = (first.bytes[0].toInt() xor FlippingFile.MASK).toByte()
+        val onStorage = files.trackBytes(TRACK).getOrNull(first.offset.toInt()) == flipped
+        return onStorage && Journal(files.directory).open().singleOrNull()?.state == JournalState.PATCH_PREPARED
+    }
+
+    private fun assertLeftAsFound(files: FaultFiles, outcomes: List<TagRecovery.Outcome>, found: ByteArray, where: String) {
+        assertTrue(TagRecovery.Outcome.STUCK !in outcomes, "$where → $outcomes")
+        assertTrue(files.trackBytes(TRACK).contentEquals(found), "$where: an unattributable track was changed")
+        assertEquals(emptySet(), files.storeNames(), "$where: the store kept files")
+    }
+
+    /** Our own crash never leaves a file for another try, nor mistakes it for someone else's. */
+    private fun assertRecovered(outcomes: List<TagRecovery.Outcome>, where: String) {
+        if (TagRecovery.Outcome.STUCK in outcomes || TagRecovery.Outcome.FOREIGN in outcomes) fail("$where → $outcomes")
+    }
+
     fun assertWhole(files: FaultFiles, original: ByteArray, edited: ByteArray, where: String) {
         val now = files.trackBytes(TRACK)
         assertTrue(now.contentEquals(original) || now.contentEquals(edited), "$where: the track is neither original nor edited")
         assertEquals(emptySet(), files.storeNames(), "$where: the store kept files")
+    }
+}
+
+/**
+ * Flips the high bit of the first byte written: a write that does not read back. Not the low bit,
+ * which turns the fixtures' first new byte back into the old one ('N' ↔ 'O' in "Old" → "New").
+ */
+internal class FlippingFile(private val delegate: TargetFile) : TargetFile by delegate {
+    private var flipped = false
+
+    override fun write(offset: Long, bytes: ByteArray, from: Int, count: Int) {
+        val copy = bytes.copyOfRange(from, from + count)
+        if (!flipped && count > 0) {
+            copy[0] = (copy[0].toInt() xor MASK).toByte()
+            flipped = true
+        }
+        delegate.write(offset, copy, 0, copy.size)
+    }
+
+    companion object {
+        const val MASK = 0x80
     }
 }
