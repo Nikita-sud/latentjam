@@ -37,6 +37,7 @@ public interface RecoveryDirectory {
     /** The file named [name], or null when there is none. */
     public fun open(name: String): TargetFile?
 
+    /** Deletes [name] if it is there. Throws when it is still there afterwards: a delete never fails silently. */
     public fun delete(name: String)
 
     /**

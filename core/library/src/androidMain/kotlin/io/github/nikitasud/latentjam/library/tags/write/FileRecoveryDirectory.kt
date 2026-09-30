@@ -35,8 +35,13 @@ public class FileRecoveryDirectory(
 
     override fun open(name: String): TargetFile? = file(name).takeIf { it.isFile }?.let { ChannelTargetFile.open(it) }
 
+    /**
+     * Throws when the file is still there afterwards. A delete that failed silently could remove a
+     * save's saved bytes after its record failed to go, leaving a record that can never be finished.
+     */
     override fun delete(name: String) {
-        file(name).delete()
+        val file = file(name)
+        if (!file.delete() && file.exists()) throw IOException("cannot delete $file")
     }
 
     /**

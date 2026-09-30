@@ -187,6 +187,53 @@ internal class JvmWriteFilesTest {
     }
 
     @Test
+    fun aStoreFileThatWillNotBeDeletedSaysSo() {
+        val store = File(root, "store")
+        val directory = FileRecoveryDirectory(store) {}
+        directory.create("w1.journal").close()
+        directory.delete("w2.patch") // Not there: nothing to do.
+        File(store, "w3.staged").mkdirs()
+        File(store, "w3.staged/inside").writeBytes(byteArrayOf(1))
+        assertFailsWith<IOException> { directory.delete("w3.staged") }
+        assertTrue(store.setWritable(false))
+        try {
+            assertFailsWith<IOException> { directory.delete("w1.journal") }
+        } finally {
+            store.setWritable(true)
+        }
+        assertEquals(listOf("w1.journal", "w3.staged"), directory.names())
+    }
+
+    @Test
+    fun aSaveThatCannotStartOnAStoreThatWillNotDeleteKeepsItsRecordWithItsSavedBytes() {
+        val case = WriteFixtures.inPlace.first()
+        val store = File(root, "store")
+        var syncs = 0
+        // The journal's first sync fails, and from then on nothing in the store can be deleted.
+        val directory = FileRecoveryDirectory(store) {
+            if (++syncs == 2) {
+                assertTrue(store.setWritable(false))
+                throw IOException("EIO")
+            }
+        }
+        val file = File(root, "track").apply { writeBytes(case.original) }
+        try {
+            val result = ChannelTargetFile.open(file).use { DurableWriter(directory, { "w1" }).write(file.path, it, case.edits, null) }
+            assertTrue(result is WriteResult.Failed, "$result")
+        } finally {
+            store.setWritable(true)
+        }
+        assertContentEquals(case.original, file.readBytes())
+        // The record was never removed, so its saved bytes were not either: it can still be finished.
+        assertEquals(listOf("w1.journal", "w1.patch"), directory.names())
+        val recovery = TagRecovery(directory)
+        val outcome = ChannelTargetFile.open(file).use { recovery.recover(recovery.pending().single(), it) }
+        assertEquals(TagRecovery.Outcome.ROLLED_BACK, outcome)
+        assertContentEquals(case.original, file.readBytes())
+        assertTrue(directory.names().isEmpty())
+    }
+
+    @Test
     fun aSweepGoesOnPastAFileThatWillNotBeDeletedAndStillSyncs() {
         val real = FileRecoveryDirectory(File(root, "store")) {}
         var syncs = 0
