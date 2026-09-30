@@ -41,13 +41,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
@@ -60,6 +60,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.bulk_different
 import io.github.nikitasud.latentjam.app.generated.resources.bulk_done
 import io.github.nikitasud.latentjam.app.generated.resources.bulk_file_reason
 import io.github.nikitasud.latentjam.app.generated.resources.bulk_keep_field
+import io.github.nikitasud.latentjam.app.generated.resources.bulk_kept
 import io.github.nikitasud.latentjam.app.generated.resources.bulk_more_files
 import io.github.nikitasud.latentjam.app.generated.resources.bulk_not_changed
 import io.github.nikitasud.latentjam.app.generated.resources.bulk_not_editable
@@ -81,6 +82,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.info_disc_number
 import io.github.nikitasud.latentjam.app.generated.resources.info_disc_total
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit
 import io.github.nikitasud.latentjam.app.generated.resources.info_genre
+import io.github.nikitasud.latentjam.app.generated.resources.info_save
 import io.github.nikitasud.latentjam.app.generated.resources.info_saving
 import io.github.nikitasud.latentjam.app.generated.resources.info_track_total
 import io.github.nikitasud.latentjam.app.generated.resources.info_year
@@ -100,16 +102,15 @@ import org.jetbrains.compose.resources.stringResource
 internal enum class BulkEditScope { ALBUM, ARTIST, SELECTION }
 
 private const val READ_CONCURRENCY = 4
-private const val LISTED_FILES = 20
 
 private val BulkFormSaver = Saver<BulkTagForm, List<String>>(
     save = { it.toSaveable() },
     restore = { BulkTagForm.fromSaveable(it) },
 )
 
-private val BulkResultSaver = Saver<TagSaveResult?, List<String>>(
+private val BulkResultSaver = Saver<BulkResult?, List<String>>(
     save = { it?.toSaveable() ?: emptyList() },
-    restore = { saved -> tagSaveResultOf(saved)?.takeIf { it.entries.isNotEmpty() } },
+    restore = { BulkResult.fromSaveable(it) },
 )
 
 /**
@@ -172,7 +173,7 @@ internal fun BulkTagEditorSheet(
             forgetPickedCover()
             onDismiss()
         } else {
-            result = finished
+            result = BulkResult.of(finished)
         }
     }
     val saving = saver?.busy == true
@@ -190,16 +191,16 @@ internal fun BulkTagEditorSheet(
     // True from the Save tap until the saver owns the request: reading a picked cover suspends.
     var starting by remember { mutableStateOf(false) }
     val busy = saving || starting
-    val busyNow by rememberUpdatedState(busy)
 
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
-        confirmValueChange = { !busyNow || it != SheetValue.Hidden },
+        // Both are snapshot state, read when asked, never a value from the last composition.
+        confirmValueChange = { !(starting || saver?.busy == true) || it != SheetValue.Hidden },
     )
     val leave = {
-        if (!busyNow) {
+        if (!(starting || saver?.busy == true)) {
             forgetPickedCover()
             onDismiss()
         }
@@ -307,17 +308,23 @@ internal fun BulkTagEditorSheet(
                     EditorActions(
                         modifier = actions,
                         cancelLabel = stringResource(Res.string.info_cancel),
-                        confirmLabel = stringResource(Res.string.bulk_save, fields, files),
+                        // While the files are read there is no scope to state yet.
+                        confirmLabel = if (baseline == null || editable.isEmpty()) {
+                            stringResource(Res.string.info_save)
+                        } else {
+                            stringResource(Res.string.bulk_save, fields, files)
+                        },
                         confirmEnabled = fieldCount > 0 && numbersValid && editable.isNotEmpty(),
                         busy = starting,
                         onCancel = leave,
                         onConfirm = {
-                            // Read live, not from the last composition: a second tap within a frame
-                            // must not enqueue the same save twice.
+                            // starting and the saver's ids are snapshot state, read here at the tap
+                            // rather than taken from the last composition: a second tap before the
+                            // next frame sees the first one and does not enqueue the save twice.
                             val base = baseline
                             val current = form
                             val to = editable
-                            val ready = !busyNow && base != null && to.isNotEmpty() &&
+                            val ready = !starting && saver?.busy != true && base != null && to.isNotEmpty() &&
                                 current.changedFieldCount(base) > 0 && current.edits(base).numbersAreValid
                             if (ready) {
                                 focus.clearFocus()
@@ -389,8 +396,11 @@ private fun BulkFields(
 /**
  * One field in its three states. The clear control removes the field from every file, a visible,
  * deliberate choice; undo returns it to Keep. Typing into a removed field sets it instead. An
- * emptied box is Keep, so it shows what will be kept rather than looking removed. The clear
+ * emptied box is Keep, so it says what will be kept rather than looking removed. The clear
  * control is offered only when some file holds the field: there is nothing else to remove.
+ *
+ * The state is a line under the field, not a placeholder: material3 shows a placeholder only once
+ * the field is focused, and the clear control does not focus it.
  */
 @Composable
 private fun BulkTextField(
@@ -407,19 +417,22 @@ private fun BulkTextField(
     val focus = LocalFocusManager.current
     val removed = form.removed(field)
     val shared = baseline.shared[field]
+    val text = if (removed) "" else form.text(field, baseline)
     EditorTextField(
         label = stringResource(field.label()),
-        value = if (removed) "" else form.text(field, baseline),
+        value = text,
         onValueChange = { onForm(form.typed(field, filter(it))) },
         enabled = enabled,
         modifier = modifier,
         keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = ImeAction.Next),
         keyboardActions = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }),
-        placeholder = when {
+        supportingText = when {
             removed -> pluralStringResource(Res.plurals.bulk_removed, count, count)
+            text.isNotBlank() -> null
             shared == SharedValue.Different -> stringResource(Res.string.bulk_different)
-            else -> baseline.initialText(field).takeIf(String::isNotBlank)
+            else -> baseline.initialText(field).takeIf(String::isNotBlank)?.let { stringResource(Res.string.bulk_kept, it) }
         },
+        supportingTextColor = if (removed) MaterialTheme.colorScheme.error else Color.Unspecified,
         trailingIcon = when {
             removed -> {
                 {
@@ -458,31 +471,31 @@ private fun NotEditableList(files: List<Pair<TrackDescriptor, TagProblem>>) {
             pluralStringResource(Res.plurals.bulk_not_editable, files.size, files.size),
             style = MaterialTheme.typography.bodyMedium,
         )
-        files.take(LISTED_FILES).forEach { (track, problem) ->
+        files.take(BULK_LISTED_FILES).forEach { (track, problem) ->
             FileReasonLine(trackLabel(track, track.id.value), tagProblemText(problem))
         }
-        MoreFiles(files.size - LISTED_FILES)
+        MoreFiles(files.size - BULK_LISTED_FILES)
     }
 }
 
 @Composable
-private fun ResultList(result: TagSaveResult, tracks: List<TrackDescriptor>, access: TagWriteAccess?) {
+private fun ResultList(result: BulkResult, tracks: List<TrackDescriptor>, access: TagWriteAccess?) {
     val byKey = remember(tracks, access) { tracks.associateBy { access?.keyOf(it) ?: it.id.value } }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            stringResource(Res.string.bulk_result, result.savedCount, result.entries.size),
+            stringResource(Res.string.bulk_result, result.savedCount, result.total),
             style = MaterialTheme.typography.bodyLarge,
         )
-        val notChanged = result.notChanged
-        if (notChanged.isNotEmpty()) {
+        val notChanged = result.notChangedCount
+        if (notChanged > 0) {
             Text(
-                pluralStringResource(Res.plurals.bulk_not_changed, notChanged.size, notChanged.size),
+                pluralStringResource(Res.plurals.bulk_not_changed, notChanged, notChanged),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            notChanged.take(LISTED_FILES).forEach { entry ->
+            result.notChanged.forEach { entry ->
                 FileReasonLine(trackLabel(byKey[entry.key], entry.key), entry.problem?.let { tagProblemText(it) }.orEmpty())
             }
-            MoreFiles(notChanged.size - LISTED_FILES)
+            MoreFiles(notChanged - result.notChanged.size)
         }
     }
 }

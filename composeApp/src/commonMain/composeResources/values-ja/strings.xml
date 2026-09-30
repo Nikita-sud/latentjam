@@ -548,6 +548,7 @@
     </plurals>
     <string name="bulk_remove_field">すべてのファイルから削除</string>
     <string name="bulk_keep_field">そのままにする</string>
+    <string name="bulk_kept">そのまま：%1$s</string>
     <string name="bulk_saving">%2$d件中%1$d件を保存済み</string>
     <string name="bulk_stop">停止</string>
     <string name="bulk_result">%2$d件中%1$d件を保存しました。</string>

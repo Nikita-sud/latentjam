@@ -568,6 +568,7 @@
     </plurals>
     <string name="bulk_remove_field">Elimină din toate fișierele</string>
     <string name="bulk_keep_field">Lasă neschimbat</string>
+    <string name="bulk_kept">Rămâne neschimbat: %1$s</string>
     <string name="bulk_saving">Salvate: %1$d din %2$d</string>
     <string name="bulk_stop">Oprește</string>
     <string name="bulk_result">Salvate: %1$d din %2$d.</string>

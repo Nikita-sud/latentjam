@@ -562,6 +562,7 @@
     </plurals>
     <string name="bulk_remove_field">Tüm dosyalardan kaldır</string>
     <string name="bulk_keep_field">Olduğu gibi bırak</string>
+    <string name="bulk_kept">Olduğu gibi kalır: %1$s</string>
     <string name="bulk_saving">%1$d / %2$d kaydedildi</string>
     <string name="bulk_stop">Durdur</string>
     <string name="bulk_result">%1$d / %2$d kaydedildi.</string>

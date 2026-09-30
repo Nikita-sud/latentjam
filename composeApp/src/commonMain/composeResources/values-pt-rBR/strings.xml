@@ -569,6 +569,7 @@
     </plurals>
     <string name="bulk_remove_field">Remover de todos os arquivos</string>
     <string name="bulk_keep_field">Deixar como está</string>
+    <string name="bulk_kept">Fica como está: %1$s</string>
     <string name="bulk_saving">%1$d de %2$d salvos</string>
     <string name="bulk_stop">Parar</string>
     <string name="bulk_result">%1$d de %2$d salvos.</string>

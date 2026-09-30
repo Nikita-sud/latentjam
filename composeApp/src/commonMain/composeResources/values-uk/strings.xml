@@ -596,6 +596,7 @@
     </plurals>
     <string name="bulk_remove_field">Видалити з усіх файлів</string>
     <string name="bulk_keep_field">Залишити як є</string>
+    <string name="bulk_kept">Залишиться як є: %1$s</string>
     <string name="bulk_saving">Збережено %1$d з %2$d</string>
     <string name="bulk_stop">Зупинити</string>
     <string name="bulk_result">Збережено %1$d з %2$d.</string>

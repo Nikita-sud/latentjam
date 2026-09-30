@@ -8,12 +8,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -31,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.unit.dp
 
 /** Quiet resting fields with an explicit focus outline in both appearances. */
@@ -47,9 +50,52 @@ internal fun EditorTextField(
     singleLine: Boolean = true,
     minLines: Int = 1,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
-    /** Shown in an empty field, as the N-track editor's "Different values". */
+    /** Shown in an empty field once it is focused (material3 hides it while the label rests). */
     placeholder: String? = null,
     trailingIcon: (@Composable () -> Unit)? = null,
+    /**
+     * A line under the field, visible focused or not: the N-track editor's field state. A
+     * placeholder cannot carry that, as it only shows once the field is focused.
+     */
+    supportingText: String? = null,
+    supportingTextColor: Color = Color.Unspecified,
+) {
+    if (supportingText == null) {
+        EditorTextFieldBox(
+            label, value, onValueChange, modifier, enabled, isError, keyboardOptions, keyboardActions,
+            singleLine, minLines, maxLines, placeholder, trailingIcon,
+        )
+    } else {
+        Column(modifier.fillMaxWidth()) {
+            EditorTextFieldBox(
+                label, value, onValueChange, Modifier, enabled, isError, keyboardOptions, keyboardActions,
+                singleLine, minLines, maxLines, placeholder, trailingIcon,
+            )
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.bodySmall,
+                color = supportingTextColor.takeOrElse { MaterialTheme.colorScheme.onSurfaceVariant },
+                modifier = Modifier.padding(start = 16.dp, top = 4.dp, end = 16.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditorTextFieldBox(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier,
+    enabled: Boolean,
+    isError: Boolean,
+    keyboardOptions: KeyboardOptions,
+    keyboardActions: KeyboardActions,
+    singleLine: Boolean,
+    minLines: Int,
+    maxLines: Int,
+    placeholder: String?,
+    trailingIcon: (@Composable () -> Unit)?,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()

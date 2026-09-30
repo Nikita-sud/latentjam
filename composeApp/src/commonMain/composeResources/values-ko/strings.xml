@@ -548,6 +548,7 @@
     </plurals>
     <string name="bulk_remove_field">모든 파일에서 삭제</string>
     <string name="bulk_keep_field">그대로 유지</string>
+    <string name="bulk_kept">그대로 유지: %1$s</string>
     <string name="bulk_saving">%2$d개 중 %1$d개 저장됨</string>
     <string name="bulk_stop">중지</string>
     <string name="bulk_result">%2$d개 중 %1$d개를 저장했습니다.</string>

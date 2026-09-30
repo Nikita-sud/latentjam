@@ -574,6 +574,7 @@
     </plurals>
     <string name="bulk_remove_field">Supprimer de tous les fichiers</string>
     <string name="bulk_keep_field">Laisser tel quel</string>
+    <string name="bulk_kept">Reste tel quel : %1$s</string>
     <string name="bulk_saving">%1$d sur %2$d enregistrés</string>
     <string name="bulk_stop">Arrêter</string>
     <string name="bulk_result">%1$d sur %2$d enregistrés.</string>

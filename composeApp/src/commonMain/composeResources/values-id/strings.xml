@@ -554,6 +554,7 @@
     </plurals>
     <string name="bulk_remove_field">Hapus dari semua file</string>
     <string name="bulk_keep_field">Biarkan apa adanya</string>
+    <string name="bulk_kept">Tetap seperti semula: %1$s</string>
     <string name="bulk_saving">Tersimpan %1$d dari %2$d</string>
     <string name="bulk_stop">Hentikan</string>
     <string name="bulk_result">Tersimpan %1$d dari %2$d.</string>

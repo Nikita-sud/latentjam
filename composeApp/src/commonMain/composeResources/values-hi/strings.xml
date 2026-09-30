@@ -562,6 +562,7 @@
     </plurals>
     <string name="bulk_remove_field">हर फ़ाइल से हटाएँ</string>
     <string name="bulk_keep_field">जैसा है वैसा रखें</string>
+    <string name="bulk_kept">जैसा है वैसा रहेगा: %1$s</string>
     <string name="bulk_saving">%2$d में से %1$d सहेजी गईं</string>
     <string name="bulk_stop">रोकें</string>
     <string name="bulk_result">%2$d में से %1$d सहेजी गईं।</string>

@@ -572,6 +572,7 @@
     </plurals>
     <string name="bulk_remove_field">Aus jeder Datei entfernen</string>
     <string name="bulk_keep_field">Unverändert lassen</string>
+    <string name="bulk_kept">Bleibt unverändert: %1$s</string>
     <string name="bulk_saving">%1$d von %2$d gespeichert</string>
     <string name="bulk_stop">Anhalten</string>
     <string name="bulk_result">%1$d von %2$d gespeichert.</string>

@@ -548,6 +548,7 @@
     </plurals>
     <string name="bulk_remove_field">从所有文件中移除</string>
     <string name="bulk_keep_field">保持原样</string>
+    <string name="bulk_kept">保持原样：%1$s</string>
     <string name="bulk_saving">已保存 %1$d 个，共 %2$d 个</string>
     <string name="bulk_stop">停止</string>
     <string name="bulk_result">已保存 %1$d 个，共 %2$d 个。</string>

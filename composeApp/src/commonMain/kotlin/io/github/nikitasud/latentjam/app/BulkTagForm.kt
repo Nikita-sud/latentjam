@@ -145,3 +145,33 @@ internal fun bulkTargets(tracks: List<TrackDescriptor>, reads: List<TagFileRead>
 /** How a file is named in a result: its title, else its file name, else its key. */
 internal fun trackLabel(track: TrackDescriptor?, key: String): String =
     track?.title?.takeIf(String::isNotBlank) ?: track?.fileName?.takeIf(String::isNotBlank) ?: key
+
+/** How many files a list of set-aside or unchanged files names before "and N more". */
+internal const val BULK_LISTED_FILES = 20
+
+/**
+ * A finished N-track save as its result screen shows it (spec §6.3): the counts, and the files not
+ * changed up to the ones it lists. Saved state holds only this, so a batch of thousands of files
+ * cannot outgrow it; the files that were saved are never listed, so they are not kept.
+ */
+internal data class BulkResult(val savedCount: Int, val total: Int, val notChanged: List<TagSaveEntry>) {
+    val notChangedCount: Int get() = total - savedCount
+
+    /** The two counts, then five strings for each listed file ([TagSaveResult.toSaveable]). */
+    fun toSaveable(): List<String> =
+        listOf(savedCount.toString(), total.toString()) + TagSaveResult(notChanged).toSaveable()
+
+    companion object {
+        fun of(result: TagSaveResult, listed: Int = BULK_LISTED_FILES) =
+            BulkResult(result.savedCount, result.entries.size, result.notChanged.take(listed))
+
+        fun fromSaveable(saved: List<String>): BulkResult? {
+            val savedCount = saved.getOrNull(0)?.toIntOrNull() ?: return null
+            val total = saved.getOrNull(1)?.toIntOrNull() ?: return null
+            if (savedCount !in 0..total) return null
+            val listed = tagSaveResultOf(saved.drop(2))?.entries ?: return null
+            if (listed.size > total - savedCount || listed.any { it.saved }) return null
+            return BulkResult(savedCount, total, listed)
+        }
+    }
+}

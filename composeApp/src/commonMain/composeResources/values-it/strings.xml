@@ -569,6 +569,7 @@
     </plurals>
     <string name="bulk_remove_field">Rimuovi da tutti i file</string>
     <string name="bulk_keep_field">Lascia com'è</string>
+    <string name="bulk_kept">Resta com'è: %1$s</string>
     <string name="bulk_saving">Salvati %1$d su %2$d</string>
     <string name="bulk_stop">Interrompi</string>
     <string name="bulk_result">Salvati %1$d su %2$d.</string>

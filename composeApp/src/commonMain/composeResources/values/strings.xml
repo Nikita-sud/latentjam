@@ -625,6 +625,8 @@
     </plurals>
     <string name="bulk_remove_field">Remove from every file</string>
     <string name="bulk_keep_field">Keep as it is</string>
+    <!-- Under a field whose box the user emptied: an empty box keeps what the files hold, %1$s. -->
+    <string name="bulk_kept">Stays as it is: %1$s</string>
     <string name="bulk_saving">Saved %1$d of %2$d</string>
     <string name="bulk_stop">Stop</string>
     <string name="bulk_result">Saved %1$d of %2$d.</string>

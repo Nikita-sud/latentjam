@@ -92,6 +92,32 @@ internal class BulkTagFormTest {
     }
 
     @Test
+    fun aResultKeepsItsCountsButOnlyTheFilesItLists() {
+        val entries = (1..30).map { TagSaveEntry("k$it", FileWriteStatus.DENIED, problem = TagProblem.NOT_ALLOWED) } +
+            (31..40).map { TagSaveEntry("k$it", FileWriteStatus.SAVED) }
+        val result = BulkResult.of(TagSaveResult(entries), listed = 20)
+        assertEquals(10, result.savedCount)
+        assertEquals(40, result.total)
+        assertEquals(30, result.notChangedCount)
+        assertEquals((1..20).map { "k$it" }, result.notChanged.map { it.key })
+        assertEquals(result, BulkResult.fromSaveable(result.toSaveable()))
+        assertEquals(2 + 20 * 5, result.toSaveable().size)
+    }
+
+    @Test
+    fun aSavedResultThatIsNotOneIsDropped() {
+        val stopped = TagSaveEntry("k", FileWriteStatus.STOPPED, problem = TagProblem.STOPPED)
+        val listed = TagSaveResult(listOf(stopped)).toSaveable()
+        assertEquals(null, BulkResult.fromSaveable(emptyList()))
+        assertEquals(null, BulkResult.fromSaveable(listOf("x", "2") + listed))
+        assertEquals(null, BulkResult.fromSaveable(listOf("3", "2") + listed))
+        // More files listed than were left unchanged.
+        assertEquals(null, BulkResult.fromSaveable(listOf("2", "2") + listed))
+        assertEquals(null, BulkResult.fromSaveable(listOf("0", "1") + TagSaveResult(listOf(TagSaveEntry("k", FileWriteStatus.SAVED))).toSaveable()))
+        assertEquals(BulkResult(1, 2, listOf(stopped)), BulkResult.fromSaveable(listOf("1", "2") + listed))
+    }
+
+    @Test
     fun aFileIsNamedByItsTitleThenItsFileName() {
         assertEquals("Song", trackLabel(TrackDescriptor(TrackId("1"), title = "Song", fileName = "s.mp3"), "k"))
         assertEquals("s.mp3", trackLabel(TrackDescriptor(TrackId("1"), fileName = "s.mp3"), "k"))

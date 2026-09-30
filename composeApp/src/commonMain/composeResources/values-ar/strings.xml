@@ -623,6 +623,7 @@
     </plurals>
     <string name="bulk_remove_field">إزالة من كل الملفات</string>
     <string name="bulk_keep_field">الإبقاء كما هو</string>
+    <string name="bulk_kept">سيبقى كما هو: %1$s</string>
     <string name="bulk_saving">تم حفظ %1$d من %2$d</string>
     <string name="bulk_stop">إيقاف</string>
     <string name="bulk_result">تم حفظ %1$d من %2$d.</string>

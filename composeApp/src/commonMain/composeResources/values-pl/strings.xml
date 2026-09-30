@@ -596,6 +596,7 @@
     </plurals>
     <string name="bulk_remove_field">Usuń ze wszystkich plików</string>
     <string name="bulk_keep_field">Pozostaw bez zmian</string>
+    <string name="bulk_kept">Pozostanie bez zmian: %1$s</string>
     <string name="bulk_saving">Zapisano %1$d z %2$d</string>
     <string name="bulk_stop">Zatrzymaj</string>
     <string name="bulk_result">Zapisano %1$d z %2$d.</string>

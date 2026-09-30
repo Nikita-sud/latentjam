@@ -587,6 +587,7 @@
     </plurals>
     <string name="bulk_remove_field">Удалить из всех файлов</string>
     <string name="bulk_keep_field">Оставить как есть</string>
+    <string name="bulk_kept">Останется как есть: %1$s</string>
     <string name="bulk_saving">Сохранено %1$d из %2$d</string>
     <string name="bulk_stop">Остановить</string>
     <string name="bulk_result">Сохранено %1$d из %2$d.</string>
