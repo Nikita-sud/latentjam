@@ -540,6 +540,24 @@
     <string name="duplicates_keep_this">Zachowaj ten</string>
     <string name="snack_duplicates_merged">Duplikaty scalone: playlisty wskazują teraz zachowaną kopię</string>
     <string name="info_lyrics">Tekst utworu</string>
+    <string name="info_album_artist">Wykonawca albumu</string>
+    <string name="info_track_number">Nr utworu</string>
+    <string name="info_track_total">Liczba utworów</string>
+    <string name="info_disc_number">Nr płyty</string>
+    <string name="info_disc_total">Liczba płyt</string>
+    <string name="info_cover">Okładka</string>
+    <string name="info_cover_replace">Zamień</string>
+    <string name="info_cover_remove">Usuń</string>
+    <string name="info_cover_keep">Zachowaj obecną</string>
+    <string name="info_cover_new">Nowa okładka</string>
+    <string name="info_cover_removed">Okładka zostanie usunięta.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d inny obraz w pliku, bez zmian</item>
+        <item quantity="few">+%1$d inne obrazy w pliku, bez zmian</item>
+        <item quantity="many">+%1$d innych obrazów w pliku, bez zmian</item>
+        <item quantity="other">+%1$d innego obrazu w pliku, bez zmian</item>
+    </plurals>
+    <string name="info_reading_file">Odczytywanie pliku…</string>
     <string name="lyrics_not_found">Nie znaleziono tekstu dla tego utworu.</string>
     <string name="cd_scroll_to_top">Wróć na górę</string>
     <string name="foryou_section_daypart_morning">Twoje poranki</string>

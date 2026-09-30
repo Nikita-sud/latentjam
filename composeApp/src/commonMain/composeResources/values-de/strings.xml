@@ -528,6 +528,22 @@
     <string name="duplicates_keep_this">Diesen behalten</string>
     <string name="snack_duplicates_merged">Duplikate zusammengeführt: Playlists zeigen jetzt auf die behaltene Kopie</string>
     <string name="info_lyrics">Songtext</string>
+    <string name="info_album_artist">Albumkünstler</string>
+    <string name="info_track_number">Titelnummer</string>
+    <string name="info_track_total">Titel gesamt</string>
+    <string name="info_disc_number">CD-Nummer</string>
+    <string name="info_disc_total">CDs gesamt</string>
+    <string name="info_cover">Cover</string>
+    <string name="info_cover_replace">Ersetzen</string>
+    <string name="info_cover_remove">Entfernen</string>
+    <string name="info_cover_keep">Aktuelles behalten</string>
+    <string name="info_cover_new">Neues Cover</string>
+    <string name="info_cover_removed">Das Cover wird entfernt.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d weiteres Bild in der Datei, bleibt erhalten</item>
+        <item quantity="other">+%1$d weitere Bilder in der Datei, bleiben erhalten</item>
+    </plurals>
+    <string name="info_reading_file">Datei wird gelesen…</string>
     <string name="lyrics_not_found">Für diesen Titel wurde kein Songtext gefunden.</string>
     <string name="cd_scroll_to_top">Zurück nach oben</string>
     <string name="foryou_section_daypart_morning">Dein Morgen</string>

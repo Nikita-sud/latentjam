@@ -525,6 +525,22 @@
     <string name="duplicates_keep_this">Tieni questo</string>
     <string name="snack_duplicates_merged">Duplicati uniti: le playlist ora puntano alla copia conservata</string>
     <string name="info_lyrics">Testo</string>
+    <string name="info_album_artist">Artista dell'album</string>
+    <string name="info_track_number">Numero brano</string>
+    <string name="info_track_total">Totale brani</string>
+    <string name="info_disc_number">Numero disco</string>
+    <string name="info_disc_total">Totale dischi</string>
+    <string name="info_cover">Copertina</string>
+    <string name="info_cover_replace">Sostituisci</string>
+    <string name="info_cover_remove">Rimuovi</string>
+    <string name="info_cover_keep">Mantieni l'attuale</string>
+    <string name="info_cover_new">Nuova copertina</string>
+    <string name="info_cover_removed">La copertina verrà rimossa.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d altra immagine nel file, mantenuta</item>
+        <item quantity="other">+%1$d altre immagini nel file, mantenute</item>
+    </plurals>
+    <string name="info_reading_file">Lettura del file…</string>
     <string name="lyrics_not_found">Nessun testo trovato per questo brano.</string>
     <string name="cd_scroll_to_top">Torna all'inizio</string>
     <string name="foryou_section_daypart_morning">Le tue mattine</string>

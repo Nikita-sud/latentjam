@@ -540,6 +540,24 @@
     <string name="duplicates_keep_this">Залишити цей</string>
     <string name="snack_duplicates_merged">Дублікати об'єднано: плейлисти тепер вказують на залишену копію</string>
     <string name="info_lyrics">Текст пісні</string>
+    <string name="info_album_artist">Виконавець альбому</string>
+    <string name="info_track_number">Номер треку</string>
+    <string name="info_track_total">Усього треків</string>
+    <string name="info_disc_number">Номер диска</string>
+    <string name="info_disc_total">Усього дисків</string>
+    <string name="info_cover">Обкладинка</string>
+    <string name="info_cover_replace">Замінити</string>
+    <string name="info_cover_remove">Видалити</string>
+    <string name="info_cover_keep">Залишити поточну</string>
+    <string name="info_cover_new">Нова обкладинка</string>
+    <string name="info_cover_removed">Обкладинку буде видалено.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d інше зображення у файлі, збережеться</item>
+        <item quantity="few">+%1$d інші зображення у файлі, збережуться</item>
+        <item quantity="many">+%1$d інших зображень у файлі, збережуться</item>
+        <item quantity="other">+%1$d іншого зображення у файлі, збережуться</item>
+    </plurals>
+    <string name="info_reading_file">Читання файлу…</string>
     <string name="lyrics_not_found">Текст пісні для цього треку не знайдено.</string>
     <string name="cd_scroll_to_top">Нагору списку</string>
     <string name="foryou_section_daypart_morning">Ваш ранок</string>

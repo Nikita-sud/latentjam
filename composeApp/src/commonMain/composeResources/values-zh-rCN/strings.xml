@@ -510,6 +510,21 @@
     <string name="duplicates_keep_this">保留此曲</string>
     <string name="snack_duplicates_merged">已合并重复项：播放列表现在指向保留的副本</string>
     <string name="info_lyrics">歌词</string>
+    <string name="info_album_artist">专辑艺人</string>
+    <string name="info_track_number">歌曲序号</string>
+    <string name="info_track_total">歌曲总数</string>
+    <string name="info_disc_number">碟片序号</string>
+    <string name="info_disc_total">碟片总数</string>
+    <string name="info_cover">封面</string>
+    <string name="info_cover_replace">替换</string>
+    <string name="info_cover_remove">移除</string>
+    <string name="info_cover_keep">保留当前封面</string>
+    <string name="info_cover_new">新封面</string>
+    <string name="info_cover_removed">封面将被移除。</string>
+    <plurals name="info_cover_more">
+        <item quantity="other">文件中另有 %1$d 张图片，将予保留</item>
+    </plurals>
+    <string name="info_reading_file">正在读取文件…</string>
     <string name="lyrics_not_found">未找到此曲目的歌词。</string>
     <string name="cd_scroll_to_top">回到顶部</string>
     <string name="foryou_section_daypart_morning">你的早晨</string>

@@ -516,6 +516,21 @@
     <string name="duplicates_keep_this">Simpan yang ini</string>
     <string name="snack_duplicates_merged">Duplikat digabung: playlist kini menunjuk ke salinan yang disimpan</string>
     <string name="info_lyrics">Lirik</string>
+    <string name="info_album_artist">Artis album</string>
+    <string name="info_track_number">Nomor lagu</string>
+    <string name="info_track_total">Total lagu</string>
+    <string name="info_disc_number">Nomor disk</string>
+    <string name="info_disc_total">Total disk</string>
+    <string name="info_cover">Sampul</string>
+    <string name="info_cover_replace">Ganti</string>
+    <string name="info_cover_remove">Hapus</string>
+    <string name="info_cover_keep">Pertahankan yang sekarang</string>
+    <string name="info_cover_new">Sampul baru</string>
+    <string name="info_cover_removed">Sampul akan dihapus.</string>
+    <plurals name="info_cover_more">
+        <item quantity="other">+%1$d gambar lain di file, tetap disimpan</item>
+    </plurals>
+    <string name="info_reading_file">Membaca file…</string>
     <string name="lyrics_not_found">Tidak ada lirik yang ditemukan untuk lagu ini.</string>
     <string name="cd_scroll_to_top">Kembali ke atas</string>
     <string name="foryou_section_daypart_morning">Pagi Anda</string>

@@ -531,6 +531,24 @@
     <string name="duplicates_keep_this">Оставить этот</string>
     <string name="snack_duplicates_merged">Дубликаты объединены: плейлисты теперь указывают на оставленную копию</string>
     <string name="info_lyrics">Текст песни</string>
+    <string name="info_album_artist">Исполнитель альбома</string>
+    <string name="info_track_number">Номер трека</string>
+    <string name="info_track_total">Всего треков</string>
+    <string name="info_disc_number">Номер диска</string>
+    <string name="info_disc_total">Всего дисков</string>
+    <string name="info_cover">Обложка</string>
+    <string name="info_cover_replace">Заменить</string>
+    <string name="info_cover_remove">Удалить</string>
+    <string name="info_cover_keep">Оставить текущую</string>
+    <string name="info_cover_new">Новая обложка</string>
+    <string name="info_cover_removed">Обложка будет удалена.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d другое изображение в файле, сохранится</item>
+        <item quantity="few">+%1$d других изображения в файле, сохранятся</item>
+        <item quantity="many">+%1$d других изображений в файле, сохранятся</item>
+        <item quantity="other">+%1$d другого изображения в файле, сохранятся</item>
+    </plurals>
+    <string name="info_reading_file">Чтение файла…</string>
     <string name="lyrics_not_found">Текст песни для этого трека не найден.</string>
     <string name="cd_scroll_to_top">Наверх списка</string>
     <string name="foryou_section_daypart_morning">Ваше утро</string>

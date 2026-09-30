@@ -510,6 +510,21 @@
     <string name="duplicates_keep_this">이것을 유지</string>
     <string name="snack_duplicates_merged">중복이 병합되었습니다. 재생목록이 유지된 복사본을 가리킵니다</string>
     <string name="info_lyrics">가사</string>
+    <string name="info_album_artist">앨범 아티스트</string>
+    <string name="info_track_number">곡 번호</string>
+    <string name="info_track_total">전체 곡 수</string>
+    <string name="info_disc_number">디스크 번호</string>
+    <string name="info_disc_total">전체 디스크 수</string>
+    <string name="info_cover">커버</string>
+    <string name="info_cover_replace">바꾸기</string>
+    <string name="info_cover_remove">제거</string>
+    <string name="info_cover_keep">현재 커버 유지</string>
+    <string name="info_cover_new">새 커버</string>
+    <string name="info_cover_removed">커버가 제거됩니다.</string>
+    <plurals name="info_cover_more">
+        <item quantity="other">파일의 다른 이미지 +%1$d개는 그대로 유지됩니다</item>
+    </plurals>
+    <string name="info_reading_file">파일을 읽는 중…</string>
     <string name="lyrics_not_found">이 곡의 가사를 찾을 수 없습니다.</string>
     <string name="cd_scroll_to_top">맨 위로</string>
     <string name="foryou_section_daypart_morning">당신의 아침</string>

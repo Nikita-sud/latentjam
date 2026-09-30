@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.SheetValue
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
@@ -37,13 +38,17 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,22 +58,30 @@ import io.github.nikitasud.latentjam.app.generated.resources.Res
 import io.github.nikitasud.latentjam.app.generated.resources.details_file
 import io.github.nikitasud.latentjam.app.generated.resources.details_format
 import io.github.nikitasud.latentjam.app.generated.resources.info_album
+import io.github.nikitasud.latentjam.app.generated.resources.info_album_artist
 import io.github.nikitasud.latentjam.app.generated.resources.info_artist
 import io.github.nikitasud.latentjam.app.generated.resources.info_cancel
+import io.github.nikitasud.latentjam.app.generated.resources.info_disc_number
+import io.github.nikitasud.latentjam.app.generated.resources.info_disc_total
 import io.github.nikitasud.latentjam.app.generated.resources.info_duration
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit
 import io.github.nikitasud.latentjam.app.generated.resources.info_lyrics
 import io.github.nikitasud.latentjam.app.generated.resources.info_edit_note
 import io.github.nikitasud.latentjam.app.generated.resources.info_genre
 import io.github.nikitasud.latentjam.app.generated.resources.info_not_set
+import io.github.nikitasud.latentjam.app.generated.resources.info_reading_file
 import io.github.nikitasud.latentjam.app.generated.resources.info_save
 import io.github.nikitasud.latentjam.app.generated.resources.info_saving
 import io.github.nikitasud.latentjam.app.generated.resources.info_title
+import io.github.nikitasud.latentjam.app.generated.resources.info_track_number
+import io.github.nikitasud.latentjam.app.generated.resources.info_track_total
 import io.github.nikitasud.latentjam.app.generated.resources.info_year
+import io.github.nikitasud.latentjam.app.generated.resources.tag_recovery_finish
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
-import io.github.nikitasud.latentjam.library.tags.TagEdits
+import io.github.nikitasud.latentjam.library.tags.CoverEdit
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -80,34 +93,31 @@ import org.jetbrains.compose.resources.stringResource
  * guess, since a guess is exactly what the user came here to remove.
  *
  * ### What a save actually does
- * It rewrites the ID3v2 tag inside the audio FILE, then has the media index re-read it — see
- * [FileWriteStatus], which also records why the obvious shortcut of writing MediaStore's columns
- * does not work. A correction therefore travels with the file and is visible to every other app.
+ * It rewrites the file's own tags, in whichever of the four formats the file is (ID3v2 in an MP3,
+ * Vorbis comments in FLAC and Ogg, the metadata atoms in an MP4), through the durable writer, then
+ * has the media index re-read it — see [FileWriteStatus], which also records why the obvious
+ * shortcut of writing MediaStore's columns does not work. A correction therefore travels with the
+ * file and is visible to every other app. For the same reason the edit fields are filled from the
+ * file itself rather than from the media index: what the user corrects is what the file holds.
  *
  * A save can legitimately fail: the writer refuses any file whose existing tag it cannot reproduce
  * byte for byte, because a partial rewrite is indistinguishable from deleting the frames it did not
  * understand. That refusal is shown here in words. The one thing this screen will never do is
  * report success it did not get — the version of this UI that did was removed for it.
  *
- * @param onSaved runs after the file and the media index both hold the new tags, so the caller can
- *   refresh its library snapshot and see them.
+ * @param onSaved runs with the save's result after the file and the media index both hold the new
+ *   tags, so the caller can refresh its library snapshot and see them.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TrackInfoSheet(
     track: TrackDescriptor,
-    onSaved: () -> Unit = {},
+    onSaved: (TagSaveResult) -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val lyricsSource = track.lyricsSourceIdentity()
     val reduceMotion = rememberReduceMotion()
     var editing by rememberSaveable(track.id.value) { mutableStateOf(false) }
-    var title by rememberSaveable(track.id.value) { mutableStateOf(track.title.orEmpty()) }
-    var artist by rememberSaveable(track.id.value) { mutableStateOf(track.artist.orEmpty()) }
-    var album by rememberSaveable(track.id.value) { mutableStateOf(track.album.orEmpty()) }
-    var genre by rememberSaveable(track.id.value) { mutableStateOf(track.genre.orEmpty()) }
-    var year by rememberSaveable(track.id.value) { mutableStateOf(track.year?.toString().orEmpty()) }
-    var failure by remember(track.id) { mutableStateOf<TagProblem?>(null) }
     var lyrics by remember(lyricsSource) { mutableStateOf<String?>(null) }
     val readLyrics = rememberLyricsReader()
     val lyricsSources = rememberLyricsSourcesRevision()
@@ -116,12 +126,41 @@ internal fun TrackInfoSheet(
         lyrics = readLyrics(track)?.text
     }
 
+    val scope = rememberCoroutineScope()
+    val access = rememberTagWriteAccess()
+    // Read only once editing starts: the info view never opens the file for tags it does not show.
+    var read by remember(track.id, track.sourceRevision) { mutableStateOf<TagFileRead?>(null) }
+    LaunchedEffect(editing, track.id, track.sourceRevision) {
+        if (editing && read == null) read = readTagFile(track)
+    }
+    val snapshot = (read as? TagFileRead.Ready)?.snapshot
+    val baseline = remember(snapshot) { snapshot?.let(TagEditorForm::of) }
+    var form by rememberSaveable(
+        track.id.value,
+        stateSaver = Saver<TagEditorForm?, List<String>>(
+            save = { it?.toSaveable() ?: emptyList() },
+            restore = { TagEditorForm.fromSaveable(it) },
+        ),
+    ) { mutableStateOf(null) }
+    // A restored form keeps the user's typing; a fresh one starts from what the file holds.
+    LaunchedEffect(baseline) {
+        if (form == null && baseline != null) form = baseline
+    }
+    var failure by remember(track.id) { mutableStateOf<TagProblem?>(null) }
+    val pending = access?.coordinator?.pendingRecovery?.collectAsState()?.value.orEmpty()
+    val interrupted = access?.keyOf(track)?.let { key -> pending.any { it.target == key } } == true
+
+    fun forgetPickedCover() {
+        (form?.cover as? CoverChoice.Replace)?.let { scope.launch { deleteTagCover(it.reference) } }
+    }
+
     val saver = rememberTagSaver { result ->
         val entry = result.entries.singleOrNull()
         when {
             entry == null -> failure = TagProblem.FAILED
             entry.saved -> {
-                onSaved()
+                forgetPickedCover()
+                onSaved(result)
                 onDismiss()
             }
             // The user closed the system's permission dialog. They know they did.
@@ -130,16 +169,21 @@ internal fun TrackInfoSheet(
         }
     }
     val saving = saver?.busy == true
+    val pickCover = rememberTagCoverPicker { pick ->
+        when (pick) {
+            is TagCoverPick.Picked -> {
+                forgetPickedCover()
+                form = form?.copy(cover = CoverChoice.Replace(pick.reference))
+            }
+            TagCoverPick.Failed -> failure = TagProblem.BAD_IMAGE
+            TagCoverPick.Cancelled -> Unit
+        }
+    }
+    val edits = baseline?.let { form?.edits(it) }
+    val canSave = !saving && baseline != null && form?.hasChanges(baseline) == true && edits?.numbersAreValid == true
 
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    val edits = TagEdits(
-        title = title.trim().takeIf { it != track.title.orEmpty() },
-        artist = artist.trim().takeIf { it != track.artist.orEmpty() },
-        album = album.trim().takeIf { it != track.album.orEmpty() },
-        genre = genre.trim().takeIf { it != track.genre.orEmpty() },
-        year = year.trim().takeIf { it != track.year?.toString().orEmpty() },
-    )
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
         confirmValueChange = { !saving || it != SheetValue.Hidden },
@@ -157,7 +201,12 @@ internal fun TrackInfoSheet(
     }
 
     ModalBottomSheet(
-        onDismissRequest = { if (!saving) onDismiss() },
+        onDismissRequest = {
+            if (!saving) {
+                forgetPickedCover()
+                onDismiss()
+            }
+        },
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -236,14 +285,84 @@ internal fun TrackInfoSheet(
                             .padding(top = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                    MetadataField(stringResource(Res.string.info_title), title, enabled = !saving) { title = it }
-                    MetadataField(stringResource(Res.string.info_artist), artist, enabled = !saving) { artist = it }
-                    MetadataField(stringResource(Res.string.info_album), album, enabled = !saving) { album = it }
-                    MetadataField(stringResource(Res.string.info_genre), genre, enabled = !saving) { genre = it }
-                    MetadataField(stringResource(Res.string.info_year), year, enabled = !saving, last = true) { input ->
-                        // Filtered at entry rather than validated on save: a year is digits, and
-                        // rejecting the field afterwards would lose the rest of the edit.
-                        year = input.filter(Char::isDigit).take(4)
+                    when {
+                        interrupted -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(tagProblemText(TagProblem.INTERRUPTED), style = MaterialTheme.typography.bodyMedium)
+                            TextButton(onClick = { access.coordinator.enqueueRecovery() }) {
+                                Text(stringResource(Res.string.tag_recovery_finish))
+                            }
+                        }
+                        read == null -> Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Text(stringResource(Res.string.info_reading_file), style = MaterialTheme.typography.bodyMedium)
+                        }
+                        read is TagFileRead.NotEditable -> Text(
+                            text = tagProblemText((read as TagFileRead.NotEditable).problem),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        else -> form?.let { current ->
+                            val enabled = !saving
+                            CoverEditRow(
+                                choice = current.cover,
+                                currentUri = track.artworkUri,
+                                canRemove = snapshot?.cover != null,
+                                otherPictures = snapshot?.otherPictures ?: 0,
+                                enabled = enabled,
+                                onReplace = pickCover,
+                                onRemove = { form = current.copy(cover = CoverChoice.Remove) },
+                                onKeep = {
+                                    forgetPickedCover()
+                                    form = current.copy(cover = CoverChoice.Keep)
+                                },
+                            )
+                            TextRow(stringResource(Res.string.info_title), current.title, enabled) { form = current.copy(title = it) }
+                            TextRow(stringResource(Res.string.info_artist), current.artist, enabled) { form = current.copy(artist = it) }
+                            TextRow(stringResource(Res.string.info_album), current.album, enabled) { form = current.copy(album = it) }
+                            TextRow(stringResource(Res.string.info_album_artist), current.albumArtist, enabled) {
+                                form = current.copy(albumArtist = it)
+                            }
+                            TextRow(stringResource(Res.string.info_genre), current.genre, enabled) { form = current.copy(genre = it) }
+                            TextRow(stringResource(Res.string.info_year), current.year, enabled, KeyboardType.Number) {
+                                form = current.copy(year = yearInput(it))
+                            }
+                            NumberPairField(
+                                numberLabel = stringResource(Res.string.info_track_number),
+                                totalLabel = stringResource(Res.string.info_track_total),
+                                number = current.trackNumber,
+                                total = current.trackTotal,
+                                enabled = enabled,
+                                onNumber = { form = current.copy(trackNumber = it) },
+                                onTotal = { form = current.copy(trackTotal = it) },
+                            )
+                            NumberPairField(
+                                numberLabel = stringResource(Res.string.info_disc_number),
+                                totalLabel = stringResource(Res.string.info_disc_total),
+                                number = current.discNumber,
+                                total = current.discTotal,
+                                enabled = enabled,
+                                onNumber = { form = current.copy(discNumber = it) },
+                                onTotal = { form = current.copy(discTotal = it) },
+                            )
+                            EditorTextField(
+                                label = stringResource(Res.string.info_lyrics),
+                                value = current.lyrics,
+                                onValueChange = { form = current.copy(lyrics = it) },
+                                enabled = enabled,
+                                singleLine = false,
+                                minLines = 3,
+                                maxLines = 12,
+                            )
+                            if (edits?.numbersAreValid == false) {
+                                Text(
+                                    text = tagProblemText(TagProblem.BAD_NUMBER),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
                     }
 
                     AnimatedContent(
@@ -306,26 +425,38 @@ internal fun TrackInfoSheet(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     cancelLabel = stringResource(Res.string.info_cancel),
                     confirmLabel = stringResource(if (saving) Res.string.info_saving else Res.string.info_save),
-                    confirmEnabled = !edits.isEmpty,
+                    confirmEnabled = canSave,
                     busy = saving,
                     onCancel = {
                         focus.clearFocus()
                         keyboard?.hide()
-                        title = track.title.orEmpty()
-                        artist = track.artist.orEmpty()
-                        album = track.album.orEmpty()
-                        genre = track.genre.orEmpty()
-                        year = track.year?.toString().orEmpty()
+                        forgetPickedCover()
+                        form = baseline
                         failure = null
                         editing = false
                     },
                     onConfirm = {
-                        if (!saving && !edits.isEmpty) {
+                        val current = form
+                        val base = baseline
+                        // canSave holds only with a baseline, so base is known non-null here.
+                        if (canSave && current != null) {
                             focus.clearFocus()
                             keyboard?.hide()
                             failure = null
-                            // Null leaves an untouched field intact; an empty string removes it.
-                            if (saver == null) failure = TagProblem.FAILED else saver.start(listOf(track), edits)
+                            scope.launch {
+                                val cover = when (val choice = current.cover) {
+                                    CoverChoice.Keep -> CoverEdit.Keep
+                                    CoverChoice.Remove -> CoverEdit.Remove
+                                    is CoverChoice.Replace ->
+                                        readTagCover(choice.reference)?.let { CoverEdit.Replace(it, tagCoverMime(choice.reference)) }
+                                }
+                                when {
+                                    cover == null -> failure = TagProblem.BAD_IMAGE
+                                    saver == null -> failure = TagProblem.FAILED
+                                    // Null leaves an untouched field intact; an empty string removes it.
+                                    else -> saver.start(listOf(track), current.edits(base, cover))
+                                }
+                            }
                         }
                     },
                 )
@@ -367,27 +498,14 @@ private fun InfoRow(label: String, value: String?, showDivider: Boolean = true) 
 }
 
 @Composable
-private fun MetadataField(
-    label: String,
-    value: String,
-    enabled: Boolean,
-    last: Boolean = false,
-    onChange: (String) -> Unit,
-) {
+private fun TextRow(label: String, value: String, enabled: Boolean, keyboard: KeyboardType = KeyboardType.Text, onChange: (String) -> Unit) {
     val focus = LocalFocusManager.current
-    val keyboard = LocalSoftwareKeyboardController.current
     EditorTextField(
         label = label,
         value = value,
         onValueChange = onChange,
         enabled = enabled,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = if (last) KeyboardType.Number else KeyboardType.Text,
-            imeAction = if (last) ImeAction.Done else ImeAction.Next,
-        ),
-        keyboardActions = KeyboardActions(
-            onNext = { focus.moveFocus(FocusDirection.Down) },
-            onDone = { focus.clearFocus(); keyboard?.hide() },
-        ),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = ImeAction.Next),
+        keyboardActions = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }),
     )
 }

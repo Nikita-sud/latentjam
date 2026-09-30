@@ -44,6 +44,12 @@ internal fun EditorTextField(
     isError: Boolean = false,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    /** Shown in an empty field, as the N-track editor's "Different values". */
+    placeholder: String? = null,
+    trailingIcon: (@Composable () -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
@@ -54,7 +60,11 @@ internal fun EditorTextField(
         onValueChange = onValueChange,
         label = { Text(label, style = MaterialTheme.typography.bodySmall) },
         textStyle = MaterialTheme.typography.bodyLarge,
-        singleLine = true,
+        placeholder = placeholder?.let { { Text(it, style = MaterialTheme.typography.bodyLarge) } },
+        trailingIcon = trailingIcon,
+        singleLine = singleLine,
+        minLines = minLines,
+        maxLines = maxLines,
         enabled = enabled,
         isError = isError,
         shape = shape,

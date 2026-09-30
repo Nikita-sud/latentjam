@@ -518,6 +518,23 @@
     <string name="duplicates_keep_this">Păstrează-l pe acesta</string>
     <string name="snack_duplicates_merged">Duplicatele au fost unite: playlisturile indică acum copia păstrată</string>
     <string name="info_lyrics">Versuri</string>
+    <string name="info_album_artist">Artistul albumului</string>
+    <string name="info_track_number">Nr. piesă</string>
+    <string name="info_track_total">Total piese</string>
+    <string name="info_disc_number">Nr. disc</string>
+    <string name="info_disc_total">Total discuri</string>
+    <string name="info_cover">Copertă</string>
+    <string name="info_cover_replace">Înlocuiește</string>
+    <string name="info_cover_remove">Elimină</string>
+    <string name="info_cover_keep">Păstrează coperta actuală</string>
+    <string name="info_cover_new">Copertă nouă</string>
+    <string name="info_cover_removed">Coperta va fi eliminată.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d altă imagine în fișier, păstrată</item>
+        <item quantity="few">+%1$d alte imagini în fișier, păstrate</item>
+        <item quantity="other">+%1$d de alte imagini în fișier, păstrate</item>
+    </plurals>
+    <string name="info_reading_file">Se citește fișierul…</string>
     <string name="lyrics_not_found">Nu s-au găsit versuri pentru această piesă.</string>
     <string name="cd_scroll_to_top">Înapoi sus</string>
     <string name="foryou_section_daypart_morning">Diminețile tale</string>

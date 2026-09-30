@@ -518,6 +518,22 @@
     <string name="duplicates_keep_this">इसे रखें</string>
     <string name="snack_duplicates_merged">डुप्लिकेट मिला दिए गए: प्लेलिस्ट अब रखी गई कॉपी की ओर इशारा करती हैं</string>
     <string name="info_lyrics">गीत के बोल</string>
+    <string name="info_album_artist">एल्बम कलाकार</string>
+    <string name="info_track_number">गाना नंबर</string>
+    <string name="info_track_total">कुल गाने</string>
+    <string name="info_disc_number">डिस्क नंबर</string>
+    <string name="info_disc_total">कुल डिस्क</string>
+    <string name="info_cover">कवर</string>
+    <string name="info_cover_replace">बदलें</string>
+    <string name="info_cover_remove">हटाएँ</string>
+    <string name="info_cover_keep">मौजूदा रखें</string>
+    <string name="info_cover_new">नया कवर</string>
+    <string name="info_cover_removed">कवर हटा दिया जाएगा।</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">फ़ाइल में +%1$d और तस्वीर है, वह बनी रहेगी</item>
+        <item quantity="other">फ़ाइल में +%1$d और तस्वीरें हैं, वे बनी रहेंगी</item>
+    </plurals>
+    <string name="info_reading_file">फ़ाइल पढ़ी जा रही है…</string>
     <string name="lyrics_not_found">इस ट्रैक के लिए कोई बोल नहीं मिले।</string>
     <string name="cd_scroll_to_top">ऊपर वापस जाएँ</string>
     <string name="foryou_section_daypart_morning">आपकी सुबहें</string>
