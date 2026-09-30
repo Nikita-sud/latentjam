@@ -223,9 +223,10 @@ internal class IosRecoveryDirectory(private val root: String) : RecoveryDirector
 }
 
 /**
- * App-private files beside the recovery store: a save request's keys and replacement cover. Each is
- * written to a `.partial` file and renamed, so a killed process never leaves a torn one under its
- * name. [names] lists leftover partial files too, so a prune deletes them.
+ * App-private files beside the recovery store: a save request's keys and replacement cover, and the
+ * coordinator's checkpoint. Each is written to a `.partial` file and renamed, so a killed process
+ * never leaves a torn one under its name. [names] lists leftover partial files too, so a prune
+ * deletes them.
  */
 public class IosPrivateFiles internal constructor(private val root: String) {
     private val directory = DirectoryOnce(root)

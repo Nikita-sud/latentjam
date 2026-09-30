@@ -151,8 +151,22 @@ private fun readCheckpoint(files: IosPrivateFiles): List<String>? = try {
     null
 }
 
+/**
+ * Best effort: a checkpoint that cannot be written (a full disk) costs only a resume at the next
+ * launch, since the journals still protect every file, while a throw here would end the app
+ * mid-batch. A failed write also drops the old checkpoint, which must not restore a batch that has
+ * moved on.
+ */
 private fun writeCheckpoint(files: IosPrivateFiles, saved: List<String>) {
-    if (saved.isEmpty()) files.delete(CHECKPOINT) else files.write(CHECKPOINT, encodeTagWriteKeys(saved))
+    try {
+        if (saved.isEmpty()) files.delete(CHECKPOINT) else files.write(CHECKPOINT, encodeTagWriteKeys(saved))
+    } catch (_: Exception) {
+        try {
+            files.delete(CHECKPOINT)
+        } catch (_: Exception) {
+            // Nothing more can be done; the next checkpoint tries again.
+        }
+    }
 }
 
 /**
