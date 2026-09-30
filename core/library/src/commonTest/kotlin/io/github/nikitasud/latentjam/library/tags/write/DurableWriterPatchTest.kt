@@ -35,6 +35,24 @@ internal class DurableWriterPatchTest {
     }
 
     @Test
+    fun anInPlaceSaveSyncsTheStoreThreeTimes() {
+        val case = WriteFixtures.inPlace.first()
+        val files = setUp(case)
+        var syncs = 0
+        val counting = object : RecoveryDirectory by files.directory {
+            override fun sync() {
+                syncs++
+                files.directory.sync()
+            }
+        }
+        assertIs<WriteResult.Saved>(DurableWriter(counting, { "w1" }).write(track, files.track(track), case.edits, null))
+        // Two before the track is touched (the saved bytes, then the record), and one to close: DONE is
+        // already durable, so the save's files and its journal go under a single sync.
+        assertEquals(3, syncs)
+        assertEquals(emptySet(), files.storeNames())
+    }
+
+    @Test
     fun aSaveThatChangesNothingWritesNothing() {
         val case = WriteFixtures.inPlace.first()
         val files = setUp(case)

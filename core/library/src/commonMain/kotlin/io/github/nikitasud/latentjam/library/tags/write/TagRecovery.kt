@@ -185,16 +185,22 @@ public class TagRecovery(
         Outcome.STUCK
     }
 
-    /** Journals [state], then deletes the save's files and its journal; a crash in between is swept later. */
+    /**
+     * Journals [state], then deletes the save's files and its journal under one directory sync.
+     *
+     * One sync is enough because the finished state is already forced: whichever of these deletes a
+     * power loss takes back, what comes back is a finished record or files no record needs, and
+     * [sweep] deletes both. (The two syncs while a save is prepared must stay: a durable record
+     * whose saved bytes are not could never be finished.)
+     */
     internal fun close(record: JournalRecord, state: JournalState, outcome: Outcome): Outcome {
         journal.append(record.copy(state = state))
         try {
             val names = directory.names()
-            for (name in listOf(record.patchName, record.stagedName, record.backupName)) {
+            for (name in listOf(record.patchName, record.stagedName, record.backupName, record.journalName)) {
                 if (name in names) directory.delete(name)
             }
             directory.sync()
-            journal.forget(record.writeId)
         } catch (_: Exception) {
             // Finished records and their files are removed by sweep().
         }
