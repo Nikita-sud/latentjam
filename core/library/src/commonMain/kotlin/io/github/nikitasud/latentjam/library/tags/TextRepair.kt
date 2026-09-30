@@ -17,6 +17,17 @@ package io.github.nikitasud.latentjam.library.tags
  * are re-decoded as strict UTF-8. If either step is impossible — a character
  * the codepage has no byte for, or bytes that are not valid UTF-8 — the input
  * almost certainly was not mangled that way and is returned as is.
+ *
+ * Valid UTF-8 is not proof on its own. Correctly spelled Central-European,
+ * Turkish and Czech capitals often map back to a valid pair: "PÓŁNOC" through
+ * Windows-1250 is the bytes of "PӣNOC", "KÖŞE" of "K֪E", and "PETR SEPÉŠI"
+ * through cp1252 itself of "PETR SEPɊI". So a candidate that decodes is still
+ * refused when [isImplausible] says it looks like one of those accidents. The
+ * rule was measured on 111,069 non-ASCII MusicBrainz artist names and aliases,
+ * as written and uppercased: it changes none of the genuine ones (the only
+ * names it changes are nine that MusicBrainz itself stores as mojibake), and
+ * of the same names mangled once it gives up 537 (cp1252), 657 (Windows-1250)
+ * and 918 (Windows-1251) that a bare decode would have repaired.
  */
 public object TextRepair {
 
@@ -27,17 +38,21 @@ public object TextRepair {
      * UTF-8 continuation or lead byte is always ≥ 0x80), so text made only of
      * those is returned unchanged without doing any work.
      *
-     * One round is tried first; if it changes the text, a second round is
-     * tried too, to undo double-encoded text (the same mistake made twice in
-     * a chain of tools). No more than two rounds run, and a round that
-     * changes nothing stops the process immediately.
+     * cp1252 (with Latin-1) is tried first, then Windows-1250, then
+     * Windows-1251; the first that gives an acceptable repair wins. A second
+     * round then undoes double-encoded text (the same mistake made twice in a
+     * chain of tools), but only through the codepage that won the first: the
+     * first round's result is real text, and letting another codepage at it
+     * could garble a correct repair again ("PÃ“Å\u0081NOC" repairs to
+     * "PÓŁNOC", which Windows-1250 would then read as "PӣNOC").
      */
     public fun repair(text: String): String {
         if (text.none { it.code >= 0x80 }) return text
-        val once = repairOnce(text)
-        if (once == text) return text
-        val twice = repairOnce(once)
-        return if (twice == once) once else twice
+        for (codepage in CODEPAGES) {
+            val once = repairWith(codepage, text) ?: continue
+            return repairWith(codepage, once) ?: once
+        }
+        return text
     }
 
     /**
@@ -112,77 +127,140 @@ public object TextRepair {
         return sb.toString()
     }
 
-    /**
-     * One round of the repair. cp1252 (with Latin-1) goes first, exactly as before
-     * the other codepages were added; Windows-1250 and Windows-1251 are fallbacks
-     * for the characters cp1252 has no byte for, and each must also pass
-     * [isPlausibleFallback].
-     */
-    private fun repairOnce(text: String): String {
-        cp1252Bytes(text)?.let(::decodeUtf8Strict)?.let { return it }
-        for (codepage in FALLBACK_CODEPAGES) {
-            val repaired = codepage.encode(text)?.let(::decodeUtf8Strict) ?: continue
-            if (isPlausibleFallback(text, repaired)) return repaired
-        }
-        return text
+    /** One round through [codepage]: the repaired text, or null if it does not apply. */
+    private fun repairWith(codepage: Codepage, text: String): String? {
+        val bytes = codepage.encode(text) ?: return null
+        val repaired = decodeUtf8Strict(bytes) ?: return null
+        if (isImplausible(text, bytes, repaired)) return null
+        if (codepage.isFallback && !isPlausibleFallback(text, repaired)) return null
+        return repaired
     }
 
-    /** Every char to its Latin-1/cp1252 byte, or null if one has none. */
-    private fun cp1252Bytes(text: String): ByteArray? {
-        val bytes = ByteArray(text.length)
-        for (index in text.indices) {
-            val code = text[index].code
-            bytes[index] = when {
-                code <= 0xFF -> code.toByte()
-                else -> CP1252_SPECIALS[code]?.toByte() ?: return null
+    /**
+     * Whether a repair that decodes is still more likely an accident of genuine
+     * text than real mojibake. Any one of these refuses it:
+     *
+     * - a C1 control (U+0080-U+009F) in the result: no real name has one;
+     * - a decoded character in U+0250-U+07FF (IPA, Greek, Cyrillic, Armenian,
+     *   Hebrew, Arabic, …) other than the modifier letters U+02B0-U+02FF, with
+     *   an ASCII letter directly beside it in the result: "κi face loc" from
+     *   "Îşi face loc", "PӣNOC" from "PÓŁNOC". Real names mix scripts at word
+     *   boundaries, not inside a word;
+     * - a two-byte sequence spelled by two capitals, or a capital and a right
+     *   single quote, inside an all-caps word ([isCapsWord]): "ÉŠ" in
+     *   "SEPÉŠI". Mojibake of a capital is usually a capital followed by a
+     *   symbol ("Ó" reads "Ã“", "Ă“" or "Г“"), so two capitals are far more
+     *   likely the genuine word;
+     * - a three-byte sequence spelled by three letters with an ASCII letter
+     *   directly beside them in the input: Czech "Déšť" through Windows-1250
+     *   is the bytes of "D隝". Exempt are sequences that decode to Latin
+     *   Extended Additional (U+1E00-U+1EFF, Vietnamese) or to punctuation and
+     *   symbols (U+2000-U+2BFF), which do sit inside Latin words.
+     */
+    private fun isImplausible(text: String, bytes: ByteArray, repaired: String): Boolean {
+        if (repaired.any { it.code in 0x80..0x9F }) return true
+        for (index in repaired.indices) {
+            val code = repaired[index].code
+            if (code !in 0x0250..0x07FF || code in 0x02B0..0x02FF) continue
+            if (repaired.isAsciiLetterAt(index - 1) || repaired.isAsciiLetterAt(index + 1)) return true
+        }
+        for (index in 0 until bytes.size - 1) {
+            val b0 = bytes[index].toInt() and 0xFF
+            val b1 = bytes[index + 1].toInt() and 0xFF
+            if (b0 !in 0xC2..0xDF || b1 !in 0x80..0xBF) continue
+            val first = text[index]
+            val second = text[index + 1]
+            if (first.isUpperCase() && (second.isUpperCase() || second == RIGHT_QUOTE) &&
+                isCapsWord(text, index, index + 2)
+            ) {
+                return true
             }
         }
-        return bytes
+        for (index in 0 until bytes.size - 2) {
+            val b0 = bytes[index].toInt() and 0xFF
+            val b1 = bytes[index + 1].toInt() and 0xFF
+            val b2 = bytes[index + 2].toInt() and 0xFF
+            if (b0 !in 0xE0..0xEF || b1 !in 0x80..0xBF || b2 !in 0x80..0xBF) continue
+            val code = ((b0 and 0x0F) shl 12) or ((b1 and 0x3F) shl 6) or (b2 and 0x3F)
+            if (code in 0x1E00..0x1EFF || code in 0x2000..0x2BFF) continue
+            if (text[index].isLetter() && text[index + 1].isLetter() && text[index + 2].isLetter() &&
+                (text.isAsciiLetterAt(index - 1) || text.isAsciiLetterAt(index + 3))
+            ) {
+                return true
+            }
+        }
+        return false
     }
 
     /**
-     * Guards the Windows-1250/1251 fallbacks against correctly spelled text.
+     * Whether `text[from, to)` lies in an all-caps word: the run of letters and
+     * right single quotes around it holds an ASCII capital and no lowercase letter.
+     */
+    private fun isCapsWord(text: String, from: Int, to: Int): Boolean {
+        var start = from
+        while (start > 0 && (text[start - 1].isLetter() || text[start - 1] == RIGHT_QUOTE)) start--
+        var end = to
+        while (end < text.length && (text[end].isLetter() || text[end] == RIGHT_QUOTE)) end++
+        var hasAsciiCapital = false
+        for (index in start until end) {
+            val char = text[index]
+            if (char.isLowerCase()) return false
+            if (char in 'A'..'Z') hasAsciiCapital = true
+        }
+        return hasAsciiCapital
+    }
+
+    private fun String.isAsciiLetterAt(index: Int): Boolean =
+        index in indices && this[index].let { it in 'a'..'z' || it in 'A'..'Z' }
+
+    /**
+     * Guards the Windows-1250/1251 fallbacks against correctly spelled short words.
      * Cyrillic is almost entirely Windows-1251 bytes C0-FF (UTF-8 lead bytes) and
      * Ukrainian, Belarusian and Serbian letters such as і, ї, ё, ў, ђ sit in 80-BF
      * (UTF-8 continuation bytes), so a genuine short word can map to one valid
-     * pair: "Ні" would become "ͳ", "Ві" "³", "Её" "Ÿ". Longer genuine names never
-     * pair up all the way (none of 111,000 non-ASCII MusicBrainz artist names and
-     * aliases does), so the fallback is refused only when the whole repair is a
-     * single two-byte pair with no ASCII letter or digit anywhere in the text —
-     * "BjĂ¶rk" still repairs, a bare "Я" read as "РЇ" is the price. A result
-     * holding a C1 control (U+0080-U+009F) is refused too: no real name has one.
+     * pair: "Ні" would become "ͳ", "Ві" "³", "Её" "Ÿ". The fallback is refused
+     * when the whole repair is a single two-byte pair with no ASCII letter or
+     * digit anywhere in the text — "BjĂ¶rk" still repairs, a bare "Я" read as
+     * "РЇ" is the price.
      */
-    private fun isPlausibleFallback(text: String, repaired: String): Boolean {
-        if (repaired.any { it.code in 0x80..0x9F }) return false
-        return text.length - repaired.length >= 2 ||
+    private fun isPlausibleFallback(text: String, repaired: String): Boolean =
+        text.length - repaired.length >= 2 ||
             text.any { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }
-    }
 
     /**
-     * A single-byte codepage given as its upper half: the 128 characters that
-     * bytes 80-FF decode to, in byte order (bytes below 80 are ASCII). A byte the
-     * codepage leaves undefined is listed as the C1 control of the same value,
-     * which is what a lenient decoder — including Android's — emits for it.
+     * A single-byte codepage: [byteOf] gives the byte (80-FF) a non-ASCII char
+     * decodes from, or null if the codepage has none; bytes below 80 are ASCII.
+     * [isFallback] marks the codepages tried only after cp1252, which must also
+     * pass [isPlausibleFallback].
      */
-    private class Codepage(upperHalf: String) {
-        private val byteOf: Map<Char, Byte> = HashMap<Char, Byte>(upperHalf.length * 2).apply {
-            require(upperHalf.length == 128)
-            upperHalf.forEachIndexed { index, char -> put(char, (0x80 + index).toByte()) }
-        }
+    private class Codepage(val isFallback: Boolean, private val byteOf: (Char) -> Int?) {
 
         /** Every char to its byte in this codepage, or null if one has none. */
         fun encode(text: String): ByteArray? {
             val bytes = ByteArray(text.length)
             for (index in text.indices) {
                 val char = text[index]
-                bytes[index] = if (char.code < 0x80) char.code.toByte() else byteOf[char] ?: return null
+                bytes[index] = if (char.code < 0x80) char.code.toByte() else byteOf(char)?.toByte() ?: return null
             }
             return bytes
         }
     }
 
+    /**
+     * A fallback codepage given as its upper half: the 128 characters that bytes
+     * 80-FF decode to, in byte order. A byte the codepage leaves undefined is
+     * listed as the C1 control of the same value, which is what a lenient
+     * decoder — including Android's — emits for it.
+     */
+    private fun fallback(upperHalf: String): Codepage {
+        require(upperHalf.length == 128)
+        val byteOf = HashMap<Char, Int>(upperHalf.length * 2)
+        upperHalf.forEachIndexed { index, char -> byteOf[char] = 0x80 + index }
+        return Codepage(isFallback = true) { byteOf[it] }
+    }
+
     /** Windows-1250 (Central European); 81, 83, 88, 90 and 98 are undefined. */
-    private val WINDOWS_1250 = Codepage(
+    private val WINDOWS_1250 = fallback(
         "\u20AC\u0081\u201A\u0083\u201E\u2026\u2020\u2021" + // 80: € · ‚ · „ … † ‡
             "\u0088\u2030\u0160\u2039\u015A\u0164\u017D\u0179" + // 88: · ‰ Š ‹ Ś Ť Ž Ź
             "\u0090\u2018\u2019\u201C\u201D\u2022\u2013\u2014" + // 90: · ‘ ’ “ ” • – —
@@ -202,7 +280,7 @@ public object TextRepair {
     )
 
     /** Windows-1251 (Cyrillic); only 98 is undefined. */
-    private val WINDOWS_1251 = Codepage(
+    private val WINDOWS_1251 = fallback(
         "\u0402\u0403\u201A\u0453\u201E\u2026\u2020\u2021" + // 80: Ђ Ѓ ‚ ѓ „ … † ‡
             "\u20AC\u2030\u0409\u2039\u040A\u040C\u040B\u040F" + // 88: € ‰ Љ ‹ Њ Ќ Ћ Џ
             "\u0452\u2018\u2019\u201C\u201D\u2022\u2013\u2014" + // 90: ђ ‘ ’ “ ” • – —
@@ -221,8 +299,6 @@ public object TextRepair {
             "\u0448\u0449\u044A\u044B\u044C\u044D\u044E\u044F", // F8: ш щ ъ ы ь э ю я
     )
 
-    /** Tried in this order after cp1252. */
-    private val FALLBACK_CODEPAGES = listOf(WINDOWS_1250, WINDOWS_1251)
 
     /**
      * cp1252's 27 characters above U+00FF, keyed by code point and valued by
@@ -261,4 +337,14 @@ public object TextRepair {
         0x017E to 0x9E, // ž
         0x0178 to 0x9F, // Ÿ
     )
+
+    /** Latin-1 for every char up to U+00FF, plus cp1252's specials. */
+    private val CP1252 = Codepage(isFallback = false) { char ->
+        if (char.code <= 0xFF) char.code else CP1252_SPECIALS[char.code]
+    }
+
+    /** Tried in this order; see [repair]. */
+    private val CODEPAGES = listOf(CP1252, WINDOWS_1250, WINDOWS_1251)
+
+    private const val RIGHT_QUOTE = '\u2019'
 }

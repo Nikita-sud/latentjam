@@ -118,6 +118,75 @@ internal class TextRepairTest {
     }
 
     @Test
+    fun leavesAllCapsCentralEuropeanAndTurkishNamesUnchanged() {
+        // Each maps back to valid UTF-8 through Windows-1250: a capital pair such as "ÓŁ" is the
+        // bytes D3 A3, which spell "ӣ" ("PÓŁNOC" would read "PӣNOC", "KÖŞE" "K֪E").
+        val names = listOf(
+            "PÓŁNOC", "RÓŻNI WYKONAWCY", "KSIĘŻYC", "MŮŽE", "TĚŽKEJ POKONDR", "KÖŞE",
+            "MÜŞFIK KENTER", "ÎŞI FACE LOC",
+            "Północ", "Różni wykonawcy", "Księżyc", "Může", "Těžkej Pokondr", "Köşe",
+            "Müşfik Kenter", "Îşi face loc",
+        )
+        for (text in names) assertEquals(text, TextRepair.repair(text))
+    }
+
+    @Test
+    fun leavesCapsNamesThatSpellUtf8InCp1252Unchanged() {
+        // The same shape through cp1252 itself: "ÉŠ" is C9 8A, so "SEPÉŠI" would read "SEPɊI".
+        val names = listOf(
+            "RADEK POSPÍŠIL", "MATÚŠ", "ÚŽAS", "PETR SEPÉŠI",
+            "Radek Pospíšil", "Matúš", "Úžas", "Petr Sepéši",
+        )
+        for (text in names) assertEquals(text, TextRepair.repair(text))
+    }
+
+    @Test
+    fun leavesWordsThatSpellAThreeByteCharacterUnchanged() {
+        // "éšť" is the Windows-1250 bytes E9 9A 9D, which spell "隝": "Déšť" would read "D隝".
+        for (text in listOf("Déšť", "déšť", "Ještě déšť")) assertEquals(text, TextRepair.repair(text))
+    }
+
+    @Test
+    fun repairsMojibakeOfCapsNamesThroughEachCodepage() {
+        assertEquals("PÓŁNOC", TextRepair.repair("PÃ“Å\u0081NOC"))
+        assertEquals("PÓŁNOC", TextRepair.repair("PĂ“Ĺ\u0081NOC"))
+        assertEquals("KÖŞE", TextRepair.repair("KÃ–ÅžE"))
+        assertEquals("Północ", TextRepair.repair("PГіЕ‚noc"))
+    }
+
+    @Test
+    fun aSecondPassUsesOnlyTheCodepageOfTheFirst() {
+        // cp1252 repairs these; a second pass through another codepage would garble the result
+        // again ("PӣNOC", "RӯNI WYKONAWCY", and the known short-word shape "ͳ (Live)").
+        assertEquals("PÓŁNOC", TextRepair.repair("PÃ“Å\u0081NOC"))
+        assertEquals("RÓŻNI WYKONAWCY", TextRepair.repair("RÃ“Å»NI WYKONAWCY"))
+        assertEquals("Ні (Live)", TextRepair.repair("Ð\u009DÑ– (Live)"))
+    }
+
+    @Test
+    fun repairsUndefinedBytesThatArriveAsTheirC1Control() {
+        // Ł is C5 81, Ő C5 90 and Ř C5 98; Windows-1250 defines none of 81, 90, 98 and
+        // Windows-1251 not 98, so a lenient decoder hands them over as U+0081, U+0090, U+0098.
+        assertEquals("Łódź", TextRepair.repair("Ĺ\u0081ĂłdĹş"))
+        assertEquals("ŁÓDŹ", TextRepair.repair("Ĺ\u0081Ă“DĹą"))
+        assertEquals("Ősz", TextRepair.repair("Ĺ\u0090sz"))
+        assertEquals("Řeka", TextRepair.repair("Ĺ\u0098eka"))
+        assertEquals("Řeka", TextRepair.repair("Е\u0098eka"))
+    }
+
+    @Test
+    fun leavesUndefinedBytesThatArriveAsReplacementCharactersUnchanged() {
+        // A decoder that substitutes U+FFFD has lost the byte: nothing maps back to it.
+        val texts = listOf(
+            "Ĺ�ĂłdĹş",
+            "Ĺ�sz",
+            "Ĺ�eka",
+            "Е�eka",
+        )
+        for (text in texts) assertEquals(text, TextRepair.repair(text))
+    }
+
+    @Test
     fun leavesFallbackRepairsThatWouldYieldControlCharactersUnchanged() {
         // Maps back through Windows-1251 to C2 80 C2 80: valid UTF-8, but two C1 controls.
         assertEquals("ВЂВЂ", TextRepair.repair("ВЂВЂ"))
