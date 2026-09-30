@@ -252,6 +252,8 @@ internal class TagWriteCoordinatorTest {
         runCurrent()
         harness.deliver()
         assertEquals(FileWriteStatus.DENIED, harness.reports.single().results.single().status)
+        // Unlike a dismissed dialog, a denial is shown: Save would otherwise do nothing, every time.
+        assertEquals(TagWriteOutcome.Failed, tagWriteOutcome(harness.reports.single()))
         assertContentEquals(mp3(), backend.files.bytes("a"))
     }
 

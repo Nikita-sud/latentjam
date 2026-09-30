@@ -21,7 +21,10 @@ sealed interface TagWriteOutcome {
     /** The file's tags now say what the user asked, and the media index knows it. */
     data object Saved : TagWriteOutcome
 
-    /** The system's write-permission dialog was dismissed or declined. Not an error. */
+    /**
+     * The user dismissed the system's consent dialog, or stopped the save. Not an error, and not
+     * shown: it is what the user just chose.
+     */
     data object Cancelled : TagWriteOutcome
 
     /**
@@ -30,7 +33,11 @@ sealed interface TagWriteOutcome {
      */
     data class Refused(val reason: TagRefusal?) : TagWriteOutcome
 
-    /** The save did not happen; the file is exactly as it was. */
+    /**
+     * The save did not happen; the file is exactly as it was. That includes a write the system
+     * refused: a storage permission that is denied (for good, on Android 7–9, when it no longer
+     * asks), or a grant that did not hold. Saying nothing then would leave Save doing nothing.
+     */
     data object Failed : TagWriteOutcome
 
     /** Not enough free space for a safe save; nothing was touched. */
@@ -74,9 +81,10 @@ internal fun tagWriteOutcome(report: TagWriteReport): TagWriteOutcome {
         FileWriteStatus.REFUSED -> TagWriteOutcome.Refused(result.refusal)
         FileWriteStatus.NO_SPACE -> TagWriteOutcome.NotEnoughSpace
         FileWriteStatus.RECOVERY_PENDING -> TagWriteOutcome.RecoveryPending
-        FileWriteStatus.CANCELLED, FileWriteStatus.DENIED, FileWriteStatus.STOPPED -> TagWriteOutcome.Cancelled
+        FileWriteStatus.CANCELLED, FileWriteStatus.STOPPED -> TagWriteOutcome.Cancelled
         FileWriteStatus.READ_ONLY -> TagWriteOutcome.Unavailable
-        FileWriteStatus.FAILED, FileWriteStatus.MISSING, FileWriteStatus.RESTORED, FileWriteStatus.FOREIGN -> TagWriteOutcome.Failed
+        FileWriteStatus.FAILED, FileWriteStatus.DENIED, FileWriteStatus.MISSING, FileWriteStatus.RESTORED,
+        FileWriteStatus.FOREIGN -> TagWriteOutcome.Failed
     }
 }
 
