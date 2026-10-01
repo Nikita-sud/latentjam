@@ -427,6 +427,7 @@
     <string name="settings_interrupted_forget">포기</string>
     <string name="settings_interrupted_forget_title">이 저장을 포기할까요?</string>
     <string name="settings_interrupted_forget_body">파일은 지금 그대로 유지되며, LatentJam은 이 저장을 완료하거나 되돌리려는 시도를 멈춥니다. 되돌릴 수 없습니다.</string>
+    <string name="settings_interrupted_forget_damaged_body">이 저장은 도중에 멈췄습니다. 파일이 손상되어 재생되지 않을 수 있으며, 포기하면 LatentJam이 파일을 복구하는 데 쓸 수 있는 사본이 삭제됩니다. 되돌릴 수 없습니다.</string>
     <string name="settings_duplicates">오디오 중복</string>
     <string name="settings_duplicates_body">태그와 상관없이 같은 녹음의 복사본을 소리로 찾습니다</string>
     <string name="settings_duplicates_scanning">모든 트랙 쌍을 비교하는 중…</string>

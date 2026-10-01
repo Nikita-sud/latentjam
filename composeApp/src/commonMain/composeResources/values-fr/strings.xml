@@ -448,6 +448,7 @@
     <string name="settings_interrupted_forget">Oublier</string>
     <string name="settings_interrupted_forget_title">Oublier cet enregistrement ?</string>
     <string name="settings_interrupted_forget_body">Le fichier reste exactement tel qu'il est maintenant, et LatentJam cesse d'essayer de terminer ou d'annuler l'enregistrement. Cette action est irréversible.</string>
+    <string name="settings_interrupted_forget_damaged_body">Cet enregistrement s'est arrêté en cours de route. Le fichier est peut-être endommagé et risque de ne pas être lu, et l'oublier supprime les copies à partir desquelles LatentJam pourrait le réparer. Cette action est irréversible.</string>
     <string name="settings_duplicates">Doublons audio</string>
     <string name="settings_duplicates_body">Trouve les copies d’un même enregistrement au son, quelles que soient les étiquettes</string>
     <string name="settings_duplicates_scanning">Comparaison de toutes les paires de pistes…</string>

@@ -436,6 +436,7 @@
     <string name="settings_interrupted_forget">Uită</string>
     <string name="settings_interrupted_forget_title">Uiți această salvare?</string>
     <string name="settings_interrupted_forget_body">Fișierul rămâne exact cum este acum, iar LatentJam nu mai încearcă să termine sau să anuleze salvarea. Acest lucru nu poate fi anulat.</string>
+    <string name="settings_interrupted_forget_damaged_body">Această salvare s-a oprit la jumătate. Fișierul poate fi deteriorat și s-ar putea să nu se redea, iar dacă o uiți se șterg copiile din care LatentJam l-ar putea repara. Acest lucru nu poate fi anulat.</string>
     <string name="settings_duplicates">Dubluri audio</string>
     <string name="settings_duplicates_body">Găsește copii ale aceleiași înregistrări după sunet, indiferent de etichete</string>
     <string name="settings_duplicates_scanning">Se compară toate perechile de piese…</string>

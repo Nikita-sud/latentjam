@@ -446,6 +446,7 @@
     <string name="settings_interrupted_forget">Vergessen</string>
     <string name="settings_interrupted_forget_title">Dieses Speichern vergessen?</string>
     <string name="settings_interrupted_forget_body">Die Datei bleibt genau so, wie sie jetzt ist, und LatentJam versucht nicht mehr, das Speichern abzuschließen oder rückgängig zu machen. Das lässt sich nicht rückgängig machen.</string>
+    <string name="settings_interrupted_forget_damaged_body">Dieses Speichern wurde mittendrin unterbrochen. Die Datei ist möglicherweise beschädigt und lässt sich vielleicht nicht abspielen, und Vergessen löscht die Kopien, aus denen LatentJam sie reparieren könnte. Das lässt sich nicht rückgängig machen.</string>
     <string name="settings_duplicates">Audio-Duplikate</string>
     <string name="settings_duplicates_body">Findet Kopien derselben Aufnahme am Klang, unabhängig von den Tags</string>
     <string name="settings_duplicates_scanning">Alle Titelpaare werden verglichen…</string>

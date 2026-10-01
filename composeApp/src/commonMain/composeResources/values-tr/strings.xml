@@ -436,6 +436,7 @@
     <string name="settings_interrupted_forget">Unut</string>
     <string name="settings_interrupted_forget_title">Bu kaydetme unutulsun mu?</string>
     <string name="settings_interrupted_forget_body">Dosya şu anki haliyle kalır ve LatentJam kaydetmeyi tamamlamaya veya geri almaya çalışmayı bırakır. Bu geri alınamaz.</string>
+    <string name="settings_interrupted_forget_damaged_body">Bu kaydetme yarıda kesildi. Dosya hasar görmüş olabilir ve çalınmayabilir; unutmak, LatentJam'in dosyayı onarabileceği kopyaları siler. Bu geri alınamaz.</string>
     <string name="settings_duplicates">Ses kopyaları</string>
     <string name="settings_duplicates_body">Aynı kaydın kopyalarını etiketlere bakmadan sesten bulur</string>
     <string name="settings_duplicates_scanning">Tüm parça çiftleri karşılaştırılıyor…</string>

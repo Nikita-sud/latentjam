@@ -443,6 +443,7 @@
     <string name="settings_interrupted_forget">Dimentica</string>
     <string name="settings_interrupted_forget_title">Dimenticare questo salvataggio?</string>
     <string name="settings_interrupted_forget_body">Il file resta esattamente com'è ora e LatentJam smette di provare a completare o annullare il salvataggio. L'operazione non può essere annullata.</string>
+    <string name="settings_interrupted_forget_damaged_body">Questo salvataggio si è interrotto a metà. Il file potrebbe essere danneggiato e non essere riprodotto, e dimenticarlo elimina le copie da cui LatentJam potrebbe ripararlo. L'operazione non può essere annullata.</string>
     <string name="settings_duplicates">Duplicati audio</string>
     <string name="settings_duplicates_body">Trova copie della stessa registrazione dal suono, qualunque cosa dicano i tag</string>
     <string name="settings_duplicates_scanning">Confronto di tutte le coppie di brani…</string>

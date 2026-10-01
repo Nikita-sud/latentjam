@@ -498,6 +498,7 @@
     <string name="settings_interrupted_forget">Forget</string>
     <string name="settings_interrupted_forget_title">Forget this save?</string>
     <string name="settings_interrupted_forget_body">The file stays exactly as it is now, and LatentJam stops trying to finish or undo the save. This can't be undone.</string>
+    <string name="settings_interrupted_forget_damaged_body">This save stopped partway through. The file may be damaged and may not play, and forgetting deletes the copies LatentJam could repair it from. This can't be undone.</string>
     <string name="settings_duplicates">Audio duplicates</string>
     <string name="settings_duplicates_body">Finds copies of the same recording by sound, whatever their tags say</string>
     <string name="settings_duplicates_scanning">Comparing every pair of tracks…</string>

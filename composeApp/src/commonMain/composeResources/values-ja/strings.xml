@@ -427,6 +427,7 @@
     <string name="settings_interrupted_forget">破棄</string>
     <string name="settings_interrupted_forget_title">この保存を破棄しますか？</string>
     <string name="settings_interrupted_forget_body">ファイルは今の状態のまま残り、LatentJam は保存の完了や取り消しを試みなくなります。この操作は元に戻せません。</string>
+    <string name="settings_interrupted_forget_damaged_body">この保存は途中で止まりました。ファイルが壊れていて再生できない可能性があります。破棄すると、LatentJam が修復に使えるコピーも削除されます。この操作は元に戻せません。</string>
     <string name="settings_duplicates">音声の重複</string>
     <string name="settings_duplicates_body">タグに関係なく、同じ録音のコピーを音で見つけます</string>
     <string name="settings_duplicates_scanning">全トラックを比較中…</string>

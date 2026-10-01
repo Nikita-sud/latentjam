@@ -477,6 +477,7 @@
     <string name="settings_interrupted_forget">نسيان</string>
     <string name="settings_interrupted_forget_title">هل تريد نسيان هذا الحفظ؟</string>
     <string name="settings_interrupted_forget_body">يبقى الملف كما هو الآن، ويتوقف LatentJam عن محاولة إكمال الحفظ أو التراجع عنه. لا يمكن التراجع عن هذا.</string>
+    <string name="settings_interrupted_forget_damaged_body">توقّف هذا الحفظ في منتصفه. قد يكون الملف تالفًا وقد لا يُشغَّل، ونسيانه يحذف النسخ التي يمكن لـ LatentJam إصلاحه منها. لا يمكن التراجع عن هذا.</string>
     <string name="settings_duplicates">التكرارات الصوتية</string>
     <string name="settings_duplicates_body">يعثر على نسخ التسجيل نفسه بالصوت، بغض النظر عن الوسوم</string>
     <string name="settings_duplicates_scanning">تتم مقارنة جميع المقاطع…</string>

@@ -458,6 +458,7 @@
     <string name="settings_interrupted_forget">Zapomnij</string>
     <string name="settings_interrupted_forget_title">Zapomnieć o tym zapisie?</string>
     <string name="settings_interrupted_forget_body">Plik pozostanie dokładnie taki, jaki jest teraz, a LatentJam przestanie próbować dokończyć lub cofnąć zapis. Tego nie można cofnąć.</string>
+    <string name="settings_interrupted_forget_damaged_body">Ten zapis przerwał się w połowie. Plik może być uszkodzony i może się nie odtwarzać, a zapomnienie usunie kopie, z których LatentJam mógłby go naprawić. Tego nie można cofnąć.</string>
     <string name="settings_duplicates">Duplikaty audio</string>
     <string name="settings_duplicates_body">Znajduje kopie tego samego nagrania po dźwięku, niezależnie od tagów</string>
     <string name="settings_duplicates_scanning">Porównywanie wszystkich par utworów…</string>

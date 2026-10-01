@@ -427,6 +427,7 @@
     <string name="settings_interrupted_forget">忘记</string>
     <string name="settings_interrupted_forget_title">忘记此保存？</string>
     <string name="settings_interrupted_forget_body">文件将保持现状，LatentJam 不再尝试完成或撤销该保存。此操作无法撤销。</string>
+    <string name="settings_interrupted_forget_damaged_body">此次保存在中途停止。文件可能已损坏且无法播放；忘记它会删除 LatentJam 可用来修复它的副本。此操作无法撤销。</string>
     <string name="settings_duplicates">音频重复</string>
     <string name="settings_duplicates_body">按声音查找同一录音的副本，与标签无关</string>
     <string name="settings_duplicates_scanning">正在比较所有曲目…</string>

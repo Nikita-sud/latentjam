@@ -612,6 +612,45 @@ internal class TagWriteCoordinatorTest {
     }
 
     @Test
+    fun aFinishThatCouldNotFinishAFileSaysSoUntilOneDoes() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", testMp3())
+        interruptSave(backend, "a")
+        val bytes = backend.files.bytes("a")
+        backend.files.remove("a")
+        val harness = Harness(backend, this)
+        harness.coordinator.refreshRecovery()
+        assertNotNull(harness.coordinator.enqueueRecovery())
+        runCurrent()
+        harness.deliver()
+        assertEquals(setOf("a"), harness.coordinator.couldNotFinish.value)
+
+        // The volume is back: the next Finish finishes it, and it is no longer listed.
+        backend.files.put("a", bytes)
+        assertNotNull(harness.coordinator.enqueueRecovery())
+        runCurrent()
+        harness.deliver()
+        assertEquals(emptySet(), harness.coordinator.couldNotFinish.value)
+    }
+
+    @Test
+    fun aFinishTheUserDeclinedTriedNothing() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        backend.files.put("a", testMp3())
+        interruptSave(backend, "a")
+        val harness = Harness(backend, this)
+        harness.coordinator.refreshRecovery()
+        assertNotNull(harness.coordinator.enqueueRecovery())
+        runCurrent()
+        val prompt = assertNotNull(harness.coordinator.prompt.value)
+        assertTrue(harness.coordinator.promptLaunched(prompt.requestId))
+        harness.coordinator.answer(WriteAnswer.CANCELLED)
+        runCurrent()
+        harness.deliver()
+        assertEquals(emptySet(), harness.coordinator.couldNotFinish.value)
+    }
+
+    @Test
     fun aBackendErrorFinishesTheRequestAsFailed() = runTest {
         val backend = TestTagWriteBackend(TagWriteStrategy.WRITE_PERMISSION)
         listOf("a", "b").forEach { backend.files.put(it, testMp3()) }

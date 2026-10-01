@@ -443,6 +443,7 @@
     <string name="settings_interrupted_forget">Esquecer</string>
     <string name="settings_interrupted_forget_title">Esquecer este salvamento?</string>
     <string name="settings_interrupted_forget_body">O arquivo continua exatamente como está agora, e o LatentJam deixa de tentar concluir ou desfazer o salvamento. Isso não pode ser desfeito.</string>
+    <string name="settings_interrupted_forget_damaged_body">Este salvamento parou no meio. O arquivo pode estar danificado e pode não tocar, e esquecê-lo apaga as cópias com que o LatentJam poderia repará-lo. Isso não pode ser desfeito.</string>
     <string name="settings_duplicates">Duplicatas de áudio</string>
     <string name="settings_duplicates_body">Encontra cópias da mesma gravação pelo som, independentemente das tags</string>
     <string name="settings_duplicates_scanning">Comparando todos os pares de faixas…</string>

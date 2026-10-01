@@ -33,4 +33,16 @@ internal class InterruptedSavesTest {
         assertEquals(listOf("Apple", "gone.flac", "Zebra"), saves.map { it.label })
         assertEquals(listOf(true, false, false), saves.map { it.underRepair })
     }
+
+    @Test
+    fun aFileUnderRepairCanBeForgottenOnlyAfterAFinishCouldNotFinishIt() {
+        val records = listOf(
+            record("w1", "patched", JournalState.ROLLING_BACK),
+            record("w2", "replacing", JournalState.REPLACING),
+        )
+        val before = interruptedSavesOf(records, emptyList()) { null }.associate { it.label to it.forgettable }
+        assertEquals(mapOf("patched" to true, "replacing" to false), before)
+        val after = interruptedSavesOf(records, emptyList(), couldNotFinish = setOf("replacing")) { null }
+        assertEquals(listOf(true, true), after.map { it.forgettable })
+    }
 }

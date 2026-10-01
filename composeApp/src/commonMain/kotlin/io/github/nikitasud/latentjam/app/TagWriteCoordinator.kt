@@ -194,6 +194,15 @@ internal class TagWriteCoordinator<C>(
     private val mutableActive = MutableStateFlow(saved.isNotEmpty())
     val active = mutableActive.asStateFlow()
 
+    private val mutableCouldNotFinish = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * Files whose interrupted save a recovery in this process tried and could not finish. A file
+     * caught mid-replace can be forgotten only then: forgetting deletes the only copies it could be
+     * repaired from, so "Finish" is tried first. Never saved; a new process tries again.
+     */
+    val couldNotFinish = mutableCouldNotFinish.asStateFlow()
+
     private var restoredWait: Long? = null
 
     init {
@@ -347,6 +356,12 @@ internal class TagWriteCoordinator<C>(
                     safely { backend.dropKeys(id) }
                 }
             }
+        }
+        if (first.kind == TagWriteKind.RECOVER) {
+            val tried = first.results.filter { it.status !in NOT_TRIED }
+            mutableCouldNotFinish.value = mutableCouldNotFinish.value -
+                tried.filter { it.status in FINISHED }.mapTo(HashSet()) { it.key } +
+                tried.filter { it.status !in FINISHED }.map { it.key }
         }
         val listener = listeners.remove(id)
         if (listener != null) listener(report) else mutableUnclaimed.value = mutableUnclaimed.value + report
@@ -788,6 +803,14 @@ internal class TagWriteCoordinator<C>(
         val OFFERING = setOf(TagWriteStage.OFFER_PERMISSION, TagWriteStage.OFFER_FILE, TagWriteStage.OFFER_BATCH)
         val RUNNABLE = setOf(TagWriteStage.READY, TagWriteStage.WRITING)
         val CHANGED = setOf(FileWriteStatus.SAVED, FileWriteStatus.RECOVERED, FileWriteStatus.RESTORED)
+
+        /** A recovery that ended so never tried the file: the user declined or stopped it. */
+        val NOT_TRIED = setOf(FileWriteStatus.CANCELLED, FileWriteStatus.DENIED, FileWriteStatus.STOPPED)
+
+        /** A recovery that ended so left no interrupted save behind. */
+        val FINISHED = setOf(
+            FileWriteStatus.RECOVERED, FileWriteStatus.RESTORED, FileWriteStatus.SAVED, FileWriteStatus.UNCHANGED,
+        )
     }
 }
 

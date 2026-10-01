@@ -458,6 +458,7 @@
     <string name="settings_interrupted_forget">Забути</string>
     <string name="settings_interrupted_forget_title">Забути це збереження?</string>
     <string name="settings_interrupted_forget_body">Файл залишиться точно таким, як зараз, а LatentJam перестане намагатися завершити або скасувати збереження. Це не можна скасувати.</string>
+    <string name="settings_interrupted_forget_damaged_body">Це збереження перервалося на півдорозі. Файл може бути пошкоджений і не відтворюватися, а якщо забути збереження, буде видалено копії, з яких LatentJam міг би його відновити. Це не можна скасувати.</string>
     <string name="settings_duplicates">Дублікати за звуком</string>
     <string name="settings_duplicates_body">Знаходить копії одного запису за звуком, незалежно від тегів</string>
     <string name="settings_duplicates_scanning">Порівнюю треки між собою…</string>

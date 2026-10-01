@@ -48,6 +48,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Checkbox
@@ -260,6 +261,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupte
 import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_finish
 import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget
 import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget_damaged_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget_title
 import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_saves
 import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_saves_body
@@ -1163,8 +1165,11 @@ private fun LibrarySettings(
                                     )
                                 }
                             }
-                            TextButton(onClick = { forgetTarget = save }) {
-                                Text(stringResource(Res.string.settings_interrupted_forget))
+                            // A file under repair only after Finish failed: Finish is its way back.
+                            if (save.forgettable) {
+                                TextButton(onClick = { forgetTarget = save }) {
+                                    Text(stringResource(Res.string.settings_interrupted_forget))
+                                }
                             }
                         }
                     }
@@ -1229,9 +1234,27 @@ private fun LibrarySettings(
         AlertDialog(
             onDismissRequest = { forgetTarget = null },
             title = { Text(stringResource(Res.string.settings_interrupted_forget_title)) },
-            text = { Text(stringResource(Res.string.settings_interrupted_forget_body)) },
+            text = {
+                Text(
+                    stringResource(
+                        // Mid-replace the file holds part old bytes, part new: it may not play at all.
+                        if (save.underRepair) {
+                            Res.string.settings_interrupted_forget_damaged_body
+                        } else {
+                            Res.string.settings_interrupted_forget_body
+                        },
+                    ),
+                )
+            },
             confirmButton = {
-                TextButton(onClick = { forgetTarget = null; onForgetInterruptedSave(save) }) {
+                TextButton(
+                    onClick = { forgetTarget = null; onForgetInterruptedSave(save) },
+                    colors = if (save.underRepair) {
+                        ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    } else {
+                        ButtonDefaults.textButtonColors()
+                    },
+                ) {
                     Text(stringResource(Res.string.settings_interrupted_forget))
                 }
             },

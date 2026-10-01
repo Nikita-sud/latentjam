@@ -443,6 +443,7 @@
     <string name="settings_interrupted_forget">Olvidar</string>
     <string name="settings_interrupted_forget_title">¿Olvidar este guardado?</string>
     <string name="settings_interrupted_forget_body">El archivo se queda exactamente como está ahora y LatentJam deja de intentar terminar o deshacer el guardado. No se puede deshacer.</string>
+    <string name="settings_interrupted_forget_damaged_body">Este guardado se detuvo a medias. Puede que el archivo esté dañado y no se reproduzca, y al olvidarlo se borran las copias con las que LatentJam podría repararlo. No se puede deshacer.</string>
     <string name="settings_duplicates">Duplicados de audio</string>
     <string name="settings_duplicates_body">Encuentra copias de la misma grabación por el sonido, digan lo que digan las etiquetas</string>
     <string name="settings_duplicates_scanning">Comparando todos los pares de pistas…</string>

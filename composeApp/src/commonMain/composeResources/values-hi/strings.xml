@@ -436,6 +436,7 @@
     <string name="settings_interrupted_forget">भूल जाएँ</string>
     <string name="settings_interrupted_forget_title">इस सहेजने को भूल जाएँ?</string>
     <string name="settings_interrupted_forget_body">फ़ाइल ठीक वैसी ही रहेगी जैसी अभी है, और LatentJam सहेजना पूरा करने या वापस लेने की कोशिश बंद कर देगा। इसे पूर्ववत नहीं किया जा सकता।</string>
+    <string name="settings_interrupted_forget_damaged_body">यह सहेजना बीच में ही रुक गया। फ़ाइल खराब हो सकती है और शायद न चले, और इसे भूलने से वे कॉपी मिट जाती हैं जिनसे LatentJam इसे ठीक कर सकता है। इसे पूर्ववत नहीं किया जा सकता।</string>
     <string name="settings_duplicates">ऑडियो डुप्लिकेट</string>
     <string name="settings_duplicates_body">टैग चाहे जो कहें, एक ही रिकॉर्डिंग की प्रतियाँ ध्वनि से खोजता है</string>
     <string name="settings_duplicates_scanning">सभी ट्रैक की तुलना हो रही है…</string>

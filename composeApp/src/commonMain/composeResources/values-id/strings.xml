@@ -433,6 +433,7 @@
     <string name="settings_interrupted_forget">Lupakan</string>
     <string name="settings_interrupted_forget_title">Lupakan penyimpanan ini?</string>
     <string name="settings_interrupted_forget_body">File tetap persis seperti sekarang, dan LatentJam berhenti mencoba menyelesaikan atau membatalkan penyimpanan. Ini tidak dapat dibatalkan.</string>
+    <string name="settings_interrupted_forget_damaged_body">Penyimpanan ini berhenti di tengah jalan. File mungkin rusak dan tidak dapat diputar, dan melupakannya akan menghapus salinan yang dapat digunakan LatentJam untuk memperbaikinya. Ini tidak dapat dibatalkan.</string>
     <string name="settings_duplicates">Duplikat audio</string>
     <string name="settings_duplicates_body">Menemukan salinan rekaman yang sama dari suaranya, apa pun tag-nya</string>
     <string name="settings_duplicates_scanning">Membandingkan semua pasangan trek…</string>
