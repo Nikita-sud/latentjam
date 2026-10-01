@@ -789,6 +789,31 @@ internal class AndroidPlaybackController(
         pushState()
     }
 
+    override suspend fun refreshTracks(tracks: List<TrackDescriptor>): Unit = withContext(Dispatchers.Main) {
+        if (tracks.isEmpty()) return@withContext
+        val updates = tracks.associateBy { it.id }
+        refreshedTracks(pool, updates)?.let { pool = it }
+        refreshedTracks(smartLibrary, updates)?.let { smartLibrary = it }
+        poolById = poolById.mapValues { (id, track) -> updates[TrackId(id)] ?: track }
+        smartById = smartById.mapValues { (id, track) -> updates[TrackId(id)] ?: track }
+        // Not refreshed on purpose: `anticipatedResumption` and the registry's active resumption
+        // only bridge the moments before Media3 installs a restored queue and are dropped once it
+        // has; the durable resume snapshot stores ids and is resolved against the live library.
+        val player = controller
+        if (player != null) {
+            for (index in 0 until player.mediaItemCount) {
+                val item = player.getMediaItemAt(index)
+                val fresh = updates[TrackId(item.mediaId)] ?: continue
+                player.replaceMediaItem(index, item.withTagsOf(fresh))
+            }
+        }
+        rebuildQueueSnapshot()
+        pushState()
+        // A removed or unreadable cover leaves the playing item without one; it gets the generated
+        // cover a coverless track gets. Launched, because the latent colour can wait on indexing.
+        player?.currentMediaItem?.let { current -> mainScope.launch { decorateCoverlessTrack(current) } }
+    }
+
     override suspend fun playNext(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
         val player = controller()
         beginFreshRecoveryAttempt()
@@ -1605,6 +1630,21 @@ internal class AndroidPlaybackController(
                 .build(),
         )
         .build()
+
+    /**
+     * This item with [fresh]'s tags. Id and URI stay, so Media3 updates the item in place without
+     * re-preparing it. A generated fallback cover the item carries as data (see
+     * [publishFallbackArtwork]) stays until [fresh] brings a real cover, which replaces it.
+     */
+    private fun MediaItem.withTagsOf(fresh: TrackDescriptor): MediaItem {
+        val metadata = mediaMetadata.buildUpon()
+            .setTitle(fresh.title)
+            .setArtist(fresh.artist)
+            .setAlbumTitle(fresh.album)
+            .setArtworkUri(fresh.artworkUri?.let(Uri::parse))
+        if (fresh.artworkUri != null) metadata.setArtworkData(null, null)
+        return buildUpon().setMediaMetadata(metadata.build()).build()
+    }
 
     private fun MediaItem.toProvisionalTrack(): TrackDescriptor? {
         val metadata = mediaMetadata

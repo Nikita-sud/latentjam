@@ -549,6 +549,28 @@ internal class IosPlaybackController(
         pushState()
     }
 
+    override suspend fun refreshTracks(tracks: List<TrackDescriptor>): Unit = withContext(Dispatchers.Main) {
+        if (tracks.isEmpty()) return@withContext
+        val updates = tracks.associateBy { it.id }
+        val refreshedQueue = refreshedTracks(queue, updates)
+        val refreshedPool = refreshedTracks(pool, updates)
+        refreshedTracks(smartLibrary, updates)?.let { smartLibrary = it }
+        if (refreshedQueue == null && refreshedPool == null) return@withContext
+        refreshedQueue?.let { queue = it }
+        refreshedPool?.let { pool = it }
+        // Covers are cached by track id, so an edited cover must be read again.
+        tracks.forEach { forgetArtwork(it.id.value) }
+        invalidateNowPlayingInfo()
+        pushState()
+    }
+
+    private fun forgetArtwork(id: String) {
+        artworkCache.remove(id)
+        realArtworkIds.remove(id)
+        latentArtworkIds.remove(id)
+        artworkOrder.remove(id)
+    }
+
     override suspend fun playNext(track: TrackDescriptor): Unit = withContext(Dispatchers.Main) {
         val insertAt = (queueIndex + 1).coerceIn(0, queue.size)
         queue = queue.toMutableList().apply { add(insertAt, track) }
