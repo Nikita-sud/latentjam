@@ -210,7 +210,13 @@ internal fun TrackInfoSheet(
         forgetPickedCover()
         onDismiss()
     }
-    if (askDiscard) DiscardChangesDialog(onDiscard = discard, onKeepEditing = { askDiscard = false })
+    // A vetoed drag can be left resting part-way down; keeping the edit puts the sheet back up.
+    val keepEditing = {
+        askDiscard = false
+        scope.launch { sheetState.show() }
+        Unit
+    }
+    if (askDiscard) DiscardChangesDialog(onDiscard = discard, onKeepEditing = keepEditing)
 
     val fileLabel = remember(track.folderPath, track.fileName, track.audioUri) {
         track.fileName?.let { name ->
@@ -233,6 +239,9 @@ internal fun TrackInfoSheet(
             }
         },
         sheetState = sheetState,
+        // A drag cannot be vetoed reliably (a size change mid-drag hides the sheet regardless), so
+        // with unsaved changes or a save running the sheet does not drag at all.
+        sheetGesturesEnabled = !sheetBusy() && !unsaved(),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         dragHandle = {
