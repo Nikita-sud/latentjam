@@ -792,6 +792,8 @@ internal class AndroidPlaybackController(
     override suspend fun refreshTracks(tracks: List<TrackDescriptor>): Unit = withContext(Dispatchers.Main) {
         if (tracks.isEmpty()) return@withContext
         val updates = tracks.associateBy { it.id }
+        // Before the swap: which cover each track had decides whether its item's cover changes.
+        val previousArtworkUris = updates.keys.associateWith { trackById(it.value)?.artworkUri }
         refreshedTracks(pool, updates)?.let { pool = it }
         refreshedTracks(smartLibrary, updates)?.let { smartLibrary = it }
         poolById = poolById.mapValues { (id, track) -> updates[TrackId(id)] ?: track }
@@ -804,7 +806,9 @@ internal class AndroidPlaybackController(
             for (index in 0 until player.mediaItemCount) {
                 val item = player.getMediaItemAt(index)
                 val fresh = updates[TrackId(item.mediaId)] ?: continue
-                player.replaceMediaItem(index, item.withTagsOf(fresh))
+                val unchangedCover = fresh.id in previousArtworkUris &&
+                    previousArtworkUris[fresh.id] == fresh.artworkUri
+                player.replaceMediaItem(index, item.withTagsOf(fresh, coverChanged = !unchangedCover))
             }
         }
         rebuildQueueSnapshot()
@@ -1488,7 +1492,7 @@ internal class AndroidPlaybackController(
                 ?: withContext(Dispatchers.Default) {
                     renderFallbackArtwork(identityTrackColorSeed(id).toArgb())
                 }.also { fallbackArtworkCache[id] = it }
-            if (!publishFallbackArtwork(id, immediateArtwork)) return
+            if (!publishFallbackArtwork(id, immediateArtwork, claimedArtworkUri)) return
             if (id in latentArtworkCachedIds) return
 
             val embedding = runCatching { engine.embedding(track.id) }.getOrNull() ?: return
@@ -1497,17 +1501,23 @@ internal class AndroidPlaybackController(
             }
             fallbackArtworkCache[id] = latentArtwork
             latentArtworkCachedIds += id
-            publishFallbackArtwork(id, latentArtwork)
+            publishFallbackArtwork(id, latentArtwork, claimedArtworkUri)
         } finally {
             fallbackArtworkInFlight.remove(id)
         }
     }
 
-    /** Re-checks the playhead after every suspension before replacing metadata in place. */
-    private fun publishFallbackArtwork(id: String, artwork: ByteArray): Boolean {
+    /**
+     * Re-checks the playhead after every suspension before replacing metadata in place.
+     * [checkedArtworkUri] is the cover the caller found unreadable: an item that carries another
+     * cover by now (a tag edit swapped it meanwhile) is left alone.
+     */
+    private fun publishFallbackArtwork(id: String, artwork: ByteArray, checkedArtworkUri: String?): Boolean {
         val player = controller ?: return false
         val current = player.currentMediaItem ?: return false
         if (current.mediaId != id) return false
+        val itemArtworkUri = current.mediaMetadata.artworkUri?.toString()
+        if (itemArtworkUri != null && itemArtworkUri != checkedArtworkUri) return false
         val index = player.currentMediaItemIndex
         if (index !in 0 until player.mediaItemCount) return false
         val metadata = current.mediaMetadata.buildUpon()
@@ -1634,15 +1644,19 @@ internal class AndroidPlaybackController(
     /**
      * This item with [fresh]'s tags. Id and URI stay, so Media3 updates the item in place without
      * re-preparing it. A generated fallback cover the item carries as data (see
-     * [publishFallbackArtwork]) stays until [fresh] brings a real cover, which replaces it.
+     * [publishFallbackArtwork]) stays until [fresh] brings a real cover, which replaces it. With
+     * the same cover as before ([coverChanged] false) the item's artwork is not touched at all,
+     * so a title-only edit does not drop a generated cover for an unreadable album-art URI.
      */
-    private fun MediaItem.withTagsOf(fresh: TrackDescriptor): MediaItem {
+    private fun MediaItem.withTagsOf(fresh: TrackDescriptor, coverChanged: Boolean): MediaItem {
         val metadata = mediaMetadata.buildUpon()
             .setTitle(fresh.title)
             .setArtist(fresh.artist)
             .setAlbumTitle(fresh.album)
-            .setArtworkUri(fresh.artworkUri?.let(Uri::parse))
-        if (fresh.artworkUri != null) metadata.setArtworkData(null, null)
+        if (coverChanged) {
+            metadata.setArtworkUri(fresh.artworkUri?.let(Uri::parse))
+            if (fresh.artworkUri != null) metadata.setArtworkData(null, null)
+        }
         return buildUpon().setMediaMetadata(metadata.build()).build()
     }
 

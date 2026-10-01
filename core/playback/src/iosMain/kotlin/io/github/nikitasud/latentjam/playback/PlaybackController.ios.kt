@@ -556,10 +556,17 @@ internal class IosPlaybackController(
         val refreshedPool = refreshedTracks(pool, updates)
         refreshedTracks(smartLibrary, updates)?.let { smartLibrary = it }
         if (refreshedQueue == null && refreshedPool == null) return@withContext
+        // The cover URI is content-addressed, so a changed URI is exactly a changed cover.
+        val previousUris = (queue + pool).associate { it.id to it.artworkUri }
         refreshedQueue?.let { queue = it }
         refreshedPool?.let { pool = it }
-        // Covers are cached by track id, so an edited cover must be read again.
-        tracks.forEach { forgetArtwork(it.id.value) }
+        // Covers are cached by track id: only an edited cover is read again, so a title-only edit
+        // does not flash the placeholder on the lock screen.
+        tracks.forEach { fresh ->
+            if (fresh.id in previousUris && previousUris[fresh.id] != fresh.artworkUri) {
+                forgetArtwork(fresh.id.value)
+            }
+        }
         invalidateNowPlayingInfo()
         pushState()
     }
@@ -1533,9 +1540,15 @@ internal class IosPlaybackController(
         val id = track.id.value
         if (!fallbackArtworkInFlight.add(id)) return
         mainScope.launch {
+            // A tag edit can swap the cover while this load is suspended. What it read then
+            // belongs to the old cover and is dropped; the request is made again once the
+            // in-flight marker is released.
+            var superseded = false
             try {
                 val cover = withContext(Dispatchers.Default) { loadPlaybackArtwork(track.artworkUri) }
-                if (cover != null) {
+                if (!hasArtworkOf(track)) {
+                    superseded = true
+                } else if (cover != null) {
                     cacheArtwork(id, cover, real = true)
                 } else {
                     val embedding = try {
@@ -1545,18 +1558,32 @@ internal class IosPlaybackController(
                     } catch (_: Exception) {
                         null
                     } ?: return@launch
-                    val image = renderFallbackArtwork(latentTrackColorSeed(embedding).toArgb())
-                        ?: return@launch
-                    cacheArtwork(id, image, latent = true)
+                    if (!hasArtworkOf(track)) {
+                        superseded = true
+                    } else {
+                        val image = renderFallbackArtwork(latentTrackColorSeed(embedding).toArgb())
+                            ?: return@launch
+                        cacheArtwork(id, image, latent = true)
+                    }
                 }
-                if (queue.getOrNull(queueIndex)?.id == track.id) {
+                if (!superseded && queue.getOrNull(queueIndex)?.id == track.id) {
                     invalidateNowPlayingInfo()
                     pushState()
                 }
             } finally {
                 fallbackArtworkInFlight.remove(id)
             }
+            if (superseded && queue.getOrNull(queueIndex)?.id == track.id) {
+                invalidateNowPlayingInfo()
+                pushState()
+            }
         }
+    }
+
+    /** Whether the queued copy of [track] still has the cover [track] was read with. */
+    private fun hasArtworkOf(track: TrackDescriptor): Boolean {
+        val held = queue.firstOrNull { it.id == track.id } ?: pool.firstOrNull { it.id == track.id }
+        return held == null || held.artworkUri == track.artworkUri
     }
 
     private fun cacheArtwork(
