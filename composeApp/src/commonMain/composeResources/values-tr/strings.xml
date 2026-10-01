@@ -572,6 +572,27 @@
     </plurals>
     <string name="bulk_done">Tamam</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Etiketler %1$d dosyaya kaydedildi</item>
+        <item quantity="other">Etiketler %1$d dosyaya kaydedildi</item>
+    </plurals>
+    <string name="tags_saved_partly">Etiketler %2$d dosyanın %1$d tanesine kaydedildi</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">%1$d dosyanın kaydedilmesi tamamlandı</item>
+        <item quantity="other">%1$d dosyanın kaydedilmesi tamamlandı</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">Yarıda kalan %1$d kaydetme geri alındı; dosya eskisi gibi</item>
+        <item quantity="other">Yarıda kalan %1$d kaydetme geri alındı; dosyalar eskisi gibi</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d dosya başka bir uygulama tarafından değiştirilmişti, bu yüzden olduğu gibi bırakıldı</item>
+        <item quantity="other">%1$d dosya başka bir uygulama tarafından değiştirilmişti, bu yüzden olduğu gibi bırakıldı</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d dosya hâlâ tamamlanmayı bekliyor. Ayarlar → Kitaplık bölümüne bakın.</item>
+        <item quantity="other">%1$d dosya hâlâ tamamlanmayı bekliyor. Ayarlar → Kitaplık bölümüne bakın.</item>
+    </plurals>
     <string name="lyrics_not_found">Bu parça için şarkı sözü bulunamadı.</string>
     <string name="cd_scroll_to_top">Başa dön</string>
     <string name="foryou_section_daypart_morning">Sabahların</string>

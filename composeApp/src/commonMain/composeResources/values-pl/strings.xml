@@ -608,6 +608,37 @@
     </plurals>
     <string name="bulk_done">Gotowe</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Zapisano tagi w %1$d pliku</item>
+        <item quantity="few">Zapisano tagi w %1$d plikach</item>
+        <item quantity="many">Zapisano tagi w %1$d plikach</item>
+        <item quantity="other">Zapisano tagi w %1$d pliku</item>
+    </plurals>
+    <string name="tags_saved_partly">Zapisano tagi w %1$d z %2$d plików</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Dokończono zapis %1$d pliku</item>
+        <item quantity="few">Dokończono zapis %1$d plików</item>
+        <item quantity="many">Dokończono zapis %1$d plików</item>
+        <item quantity="other">Dokończono zapis %1$d pliku</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">Cofnięto %1$d przerwany zapis; plik jest taki jak wcześniej</item>
+        <item quantity="few">Cofnięto %1$d przerwane zapisy; pliki są takie jak wcześniej</item>
+        <item quantity="many">Cofnięto %1$d przerwanych zapisów; pliki są takie jak wcześniej</item>
+        <item quantity="other">Cofnięto %1$d przerwanego zapisu; pliki są takie jak wcześniej</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">Inna aplikacja zmieniła %1$d plik, więc pozostawiono go tak, jak jest</item>
+        <item quantity="few">Inna aplikacja zmieniła %1$d pliki, więc pozostawiono je tak, jak są</item>
+        <item quantity="many">Inna aplikacja zmieniła %1$d plików, więc pozostawiono je tak, jak są</item>
+        <item quantity="other">Inna aplikacja zmieniła %1$d pliku, więc pozostawiono je tak, jak są</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d plik wciąż czeka na dokończenie zapisu. Zobacz Ustawienia → Biblioteka.</item>
+        <item quantity="few">%1$d pliki wciąż czekają na dokończenie zapisu. Zobacz Ustawienia → Biblioteka.</item>
+        <item quantity="many">%1$d plików wciąż czeka na dokończenie zapisu. Zobacz Ustawienia → Biblioteka.</item>
+        <item quantity="other">%1$d pliku wciąż czeka na dokończenie zapisu. Zobacz Ustawienia → Biblioteka.</item>
+    </plurals>
     <string name="lyrics_not_found">Nie znaleziono tekstu dla tego utworu.</string>
     <string name="cd_scroll_to_top">Wróć na górę</string>
     <string name="foryou_section_daypart_morning">Twoje poranki</string>

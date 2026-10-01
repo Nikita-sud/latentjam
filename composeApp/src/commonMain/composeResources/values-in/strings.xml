@@ -563,6 +563,22 @@
     </plurals>
     <string name="bulk_done">Selesai</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="other">Tag disimpan di %1$d file</item>
+    </plurals>
+    <string name="tags_saved_partly">Tag disimpan di %1$d dari %2$d file</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="other">Selesai menyimpan %1$d file</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="other">%1$d penyimpanan yang terhenti dibatalkan; file kembali seperti semula</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="other">%1$d file diubah oleh aplikasi lain dan dibiarkan apa adanya</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="other">%1$d file masih menunggu untuk diselesaikan. Lihat Setelan → Pustaka.</item>
+    </plurals>
     <string name="lyrics_not_found">Tidak ada lirik yang ditemukan untuk lagu ini.</string>
     <string name="cd_scroll_to_top">Kembali ke atas</string>
     <string name="foryou_section_daypart_morning">Pagi Anda</string>

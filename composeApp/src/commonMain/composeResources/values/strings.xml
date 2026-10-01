@@ -637,6 +637,27 @@
     <string name="bulk_done">Done</string>
     <!-- One line of a result list: %1$s the song, %2$s why it was not changed. -->
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Tags saved in %1$d file</item>
+        <item quantity="other">Tags saved in %1$d files</item>
+    </plurals>
+    <string name="tags_saved_partly">Tags saved in %1$d of %2$d files</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Finished saving %1$d file</item>
+        <item quantity="other">Finished saving %1$d files</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d interrupted save was undone; the file is as it was</item>
+        <item quantity="other">%1$d interrupted saves were undone; the files are as they were</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d file was changed by another app and was left as it is</item>
+        <item quantity="other">%1$d files were changed by another app and were left as they are</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d file still waits to be finished. See Settings → Library.</item>
+        <item quantity="other">%1$d files still wait to be finished. See Settings → Library.</item>
+    </plurals>
     <string name="lyrics_not_found">No lyrics were found for this track.</string>
     <string name="cd_scroll_to_top">Back to top</string>
     <string name="foryou_section_daypart_morning">Your mornings</string>

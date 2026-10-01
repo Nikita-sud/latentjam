@@ -84,7 +84,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_smart_keep_t
 import io.github.nikitasud.latentjam.app.generated.resources.cd_more_options
 import io.github.nikitasud.latentjam.app.generated.resources.map_action_smart_here
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.info_edit
 import io.github.nikitasud.latentjam.app.generated.resources.action_close
+import io.github.nikitasud.latentjam.app.generated.resources.action_edit_album
+import io.github.nikitasud.latentjam.app.generated.resources.action_edit_artist
 import io.github.nikitasud.latentjam.app.generated.resources.action_deselect_all
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_select_all
@@ -289,6 +292,7 @@ fun CollectionDetailScreen(
     onResetCover: (() -> Unit)? = null,
     coverEditBusy: Boolean = false,
     onToggleSmart: (() -> Unit)? = null,
+    onEditTags: (() -> Unit)? = null,
     includeInSmart: Boolean = false,
     active: Boolean = true,
     /** Includes the shared cover transition, which can outlive the page's own entrance. */
@@ -409,7 +413,22 @@ fun CollectionDetailScreen(
                                         onClick = { optionsOpen = false; toggleSmart() },
                                     )
                                 }
-                                if (onChangeCover != null) {
+                                onEditTags?.let { editTags ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            val label = when {
+                                                selection.routeId.startsWith("album:") -> Res.string.action_edit_album
+                                                selection.routeId.startsWith("artist:") -> Res.string.action_edit_artist
+                                                else -> Res.string.info_edit
+                                            }
+                                            Text(stringResource(label))
+                                        },
+                                        leadingIcon = { Icon(Icons.Outlined.Edit, null, Modifier.size(20.dp)) },
+                                        enabled = selection.tracks.isNotEmpty(),
+                                        onClick = { optionsOpen = false; editTags() },
+                                    )
+                                }
+                                if (onChangeCover != null || onEditTags != null) {
                                     HorizontalDivider(
                                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),

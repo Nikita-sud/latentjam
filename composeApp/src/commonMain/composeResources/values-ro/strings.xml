@@ -579,6 +579,32 @@
     </plurals>
     <string name="bulk_done">Gata</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Etichete salvate în %1$d fișier</item>
+        <item quantity="few">Etichete salvate în %1$d fișiere</item>
+        <item quantity="other">Etichete salvate în %1$d de fișiere</item>
+    </plurals>
+    <string name="tags_saved_partly">Etichete salvate în %1$d din %2$d fișiere</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Salvare finalizată pentru %1$d fișier</item>
+        <item quantity="few">Salvare finalizată pentru %1$d fișiere</item>
+        <item quantity="other">Salvare finalizată pentru %1$d de fișiere</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d salvare întreruptă a fost anulată; fișierul este ca înainte</item>
+        <item quantity="few">%1$d salvări întrerupte au fost anulate; fișierele sunt ca înainte</item>
+        <item quantity="other">%1$d de salvări întrerupte au fost anulate; fișierele sunt ca înainte</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d fișier a fost modificat de o altă aplicație și a fost lăsat așa cum este</item>
+        <item quantity="few">%1$d fișiere au fost modificate de o altă aplicație și au fost lăsate așa cum sunt</item>
+        <item quantity="other">%1$d de fișiere au fost modificate de o altă aplicație și au fost lăsate așa cum sunt</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d fișier încă așteaptă să fie finalizat. Vezi Setări → Bibliotecă.</item>
+        <item quantity="few">%1$d fișiere încă așteaptă să fie finalizate. Vezi Setări → Bibliotecă.</item>
+        <item quantity="other">%1$d de fișiere încă așteaptă să fie finalizate. Vezi Setări → Bibliotecă.</item>
+    </plurals>
     <string name="lyrics_not_found">Nu s-au găsit versuri pentru această piesă.</string>
     <string name="cd_scroll_to_top">Înapoi sus</string>
     <string name="foryou_section_daypart_morning">Diminețile tale</string>

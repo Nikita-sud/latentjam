@@ -579,6 +579,27 @@
     </plurals>
     <string name="bulk_done">Concluído</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Tags salvas em %1$d arquivo</item>
+        <item quantity="other">Tags salvas em %1$d arquivos</item>
+    </plurals>
+    <string name="tags_saved_partly">Tags salvas em %1$d de %2$d arquivos</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Salvamento concluído em %1$d arquivo</item>
+        <item quantity="other">Salvamento concluído em %1$d arquivos</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d salvamento interrompido foi desfeito; o arquivo está como antes</item>
+        <item quantity="other">%1$d salvamentos interrompidos foram desfeitos; os arquivos estão como antes</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d arquivo foi alterado por outro aplicativo e foi mantido como está</item>
+        <item quantity="other">%1$d arquivos foram alterados por outro aplicativo e foram mantidos como estão</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d arquivo ainda aguarda para ser concluído. Veja Configurações → Biblioteca.</item>
+        <item quantity="other">%1$d arquivos ainda aguardam para ser concluídos. Veja Configurações → Biblioteca.</item>
+    </plurals>
     <string name="lyrics_not_found">Nenhuma letra foi encontrada para esta faixa.</string>
     <string name="cd_scroll_to_top">Voltar ao topo</string>
     <string name="foryou_section_daypart_morning">Suas manhãs</string>

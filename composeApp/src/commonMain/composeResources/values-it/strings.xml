@@ -579,6 +579,27 @@
     </plurals>
     <string name="bulk_done">Fine</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Tag salvati in %1$d file</item>
+        <item quantity="other">Tag salvati in %1$d file</item>
+    </plurals>
+    <string name="tags_saved_partly">Tag salvati in %1$d file su %2$d</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Salvataggio completato per %1$d file</item>
+        <item quantity="other">Salvataggio completato per %1$d file</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d salvataggio interrotto è stato annullato; il file è com'era</item>
+        <item quantity="other">%1$d salvataggi interrotti sono stati annullati; i file sono com'erano</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d file è stato modificato da un'altra app ed è stato lasciato com'è</item>
+        <item quantity="other">%1$d file sono stati modificati da un'altra app e sono stati lasciati come sono</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d file attende ancora di essere completato. Vedi Impostazioni → Libreria.</item>
+        <item quantity="other">%1$d file attendono ancora di essere completati. Vedi Impostazioni → Libreria.</item>
+    </plurals>
     <string name="lyrics_not_found">Nessun testo trovato per questo brano.</string>
     <string name="cd_scroll_to_top">Torna all'inizio</string>
     <string name="foryou_section_daypart_morning">Le tue mattine</string>

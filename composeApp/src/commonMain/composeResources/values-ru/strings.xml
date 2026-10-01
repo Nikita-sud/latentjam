@@ -599,6 +599,37 @@
     </plurals>
     <string name="bulk_done">Готово</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Теги сохранены в %1$d файле</item>
+        <item quantity="few">Теги сохранены в %1$d файлах</item>
+        <item quantity="many">Теги сохранены в %1$d файлах</item>
+        <item quantity="other">Теги сохранены в %1$d файла</item>
+    </plurals>
+    <string name="tags_saved_partly">Теги сохранены в %1$d из %2$d файлов</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Сохранение завершено для %1$d файла</item>
+        <item quantity="few">Сохранение завершено для %1$d файлов</item>
+        <item quantity="many">Сохранение завершено для %1$d файлов</item>
+        <item quantity="other">Сохранение завершено для %1$d файла</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d прерванное сохранение отменено; файл такой же, как был</item>
+        <item quantity="few">%1$d прерванных сохранения отменены; файлы такие же, как были</item>
+        <item quantity="many">%1$d прерванных сохранений отменено; файлы такие же, как были</item>
+        <item quantity="other">%1$d прерванного сохранения отменено; файлы такие же, как были</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d файл изменён другим приложением и оставлен как есть</item>
+        <item quantity="few">%1$d файла изменены другим приложением и оставлены как есть</item>
+        <item quantity="many">%1$d файлов изменено другим приложением и оставлено как есть</item>
+        <item quantity="other">%1$d файла изменено другим приложением и оставлено как есть</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d файл ещё ждёт завершения сохранения. См. Настройки → Медиатека.</item>
+        <item quantity="few">%1$d файла ещё ждут завершения сохранения. См. Настройки → Медиатека.</item>
+        <item quantity="many">%1$d файлов ещё ждут завершения сохранения. См. Настройки → Медиатека.</item>
+        <item quantity="other">%1$d файла ещё ждут завершения сохранения. См. Настройки → Медиатека.</item>
+    </plurals>
     <string name="lyrics_not_found">Текст песни для этого трека не найден.</string>
     <string name="cd_scroll_to_top">Наверх списка</string>
     <string name="foryou_section_daypart_morning">Ваше утро</string>

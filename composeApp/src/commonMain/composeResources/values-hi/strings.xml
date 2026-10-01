@@ -572,6 +572,27 @@
     </plurals>
     <string name="bulk_done">हो गया</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">%1$d फ़ाइल में टैग सहेजे गए</item>
+        <item quantity="other">%1$d फ़ाइलों में टैग सहेजे गए</item>
+    </plurals>
+    <string name="tags_saved_partly">%2$d में से %1$d फ़ाइलों में टैग सहेजे गए</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">%1$d फ़ाइल का सहेजना पूरा हुआ</item>
+        <item quantity="other">%1$d फ़ाइलों का सहेजना पूरा हुआ</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">बीच में रुका %1$d सहेजना वापस ले लिया गया; फ़ाइल पहले जैसी है</item>
+        <item quantity="other">बीच में रुके %1$d सहेजने वापस ले लिए गए; फ़ाइलें पहले जैसी हैं</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d फ़ाइल किसी दूसरे ऐप ने बदल दी थी, इसलिए उसे जैसी है वैसी ही छोड़ दिया गया</item>
+        <item quantity="other">%1$d फ़ाइलें किसी दूसरे ऐप ने बदल दी थीं, इसलिए उन्हें जैसी हैं वैसी ही छोड़ दिया गया</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d फ़ाइल का सहेजना अभी पूरा होना बाकी है। सेटिंग → लाइब्रेरी देखें।</item>
+        <item quantity="other">%1$d फ़ाइलों का सहेजना अभी पूरा होना बाकी है। सेटिंग → लाइब्रेरी देखें।</item>
+    </plurals>
     <string name="lyrics_not_found">इस ट्रैक के लिए कोई बोल नहीं मिले।</string>
     <string name="cd_scroll_to_top">ऊपर वापस जाएँ</string>
     <string name="foryou_section_daypart_morning">आपकी सुबहें</string>

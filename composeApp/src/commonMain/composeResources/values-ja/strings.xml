@@ -557,6 +557,22 @@
     </plurals>
     <string name="bulk_done">完了</string>
     <string name="bulk_file_reason">%1$s：%2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="other">%1$d件のファイルにタグを保存しました</item>
+    </plurals>
+    <string name="tags_saved_partly">%2$d件中%1$d件のファイルにタグを保存しました</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="other">%1$d件のファイルの保存を完了しました</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="other">中断された保存%1$d件を取り消しました。ファイルは以前の状態のままです</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="other">%1$d件のファイルは別のアプリによって変更されていたため、そのままにしています</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="other">%1$d件のファイルの保存がまだ完了していません。設定 → ライブラリをご覧ください。</item>
+    </plurals>
     <string name="lyrics_not_found">この曲の歌詞が見つかりませんでした。</string>
     <string name="cd_scroll_to_top">先頭に戻る</string>
     <string name="foryou_section_daypart_morning">あなたの朝</string>

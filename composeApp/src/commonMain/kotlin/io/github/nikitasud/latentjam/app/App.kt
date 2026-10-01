@@ -85,6 +85,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.FileOpen
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.MoreVert
@@ -193,6 +194,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_title
+import io.github.nikitasud.latentjam.app.generated.resources.info_edit
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_journey_title
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_discovery
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_instrumental
@@ -239,6 +241,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.tab_genres
 import io.github.nikitasud.latentjam.app.generated.resources.tab_map
 import io.github.nikitasud.latentjam.app.generated.resources.tab_playlists
 import io.github.nikitasud.latentjam.app.generated.resources.tab_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.tags_saved
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_album
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_genre
@@ -265,6 +268,7 @@ import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.SongSortDirection
 import io.github.nikitasud.latentjam.library.SongSorting
 import io.github.nikitasud.latentjam.library.defaultDirection
+import io.github.nikitasud.latentjam.library.tags.write.JournalState
 import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.ShuffleMode
@@ -580,6 +584,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             mutableStateOf<AutomaticIndexingRequest?>(null)
         }
         val genreEnrichment = remember { GenreEnrichment(AppGraph.settings) }
+        val tagAccess = rememberTagWriteAccess()
+        val interruptedSaves = tagAccess?.coordinator?.pendingRecovery?.collectAsState()?.value.orEmpty()
+        val repairingKeys = remember(interruptedSaves) {
+            interruptedSaves.filter { it.state == JournalState.REPLACING }.mapTo(HashSet()) { it.target }
+        }
+        val currentRepairingKeys = rememberUpdatedState(repairingKeys)
+        // The files under repair the published library was last filtered with.
+        var shownRepairingKeys by remember { mutableStateOf(emptySet<String>()) }
         fun publishLibraryTracks(
             value: List<TrackDescriptor>,
             authoritative: Boolean,
@@ -595,14 +607,33 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // Remembered embedded genres upgrade the scan before anything downstream sees it:
             // the system scanner keeps one genre per track, the files themselves keep them all.
             val enriched = genreEnrichment.apply(scan.tracks)
+            // A file mid-replace is neither its old bytes nor its new ones: not offered until recovered.
+            val repairing = currentRepairingKeys.value
+            val playable = withoutFilesUnderRepair(enriched, repairing) { tagAccess?.keyOf(it) }
+            shownRepairingKeys = repairing
             publishLibraryTracks(
-                value = enriched,
+                value = playable,
                 authoritative = authoritativeLibrarySnapshot(
                     scanCompleted = scan.complete,
                     permissionStatus = AppGraph.permissions.audioLibraryStatus.value,
                 ),
             )
-            return enriched
+            return playable
+        }
+        // Rescans when the files under repair differ from those the library was filtered with. Keyed
+        // on the first load too: the journal is read in the background and can land before it.
+        val libraryLoaded = tracks != null
+        LaunchedEffect(repairingKeys, libraryLoaded) {
+            if (libraryLoaded && repairingKeys != shownRepairingKeys) scanLibrary()
+        }
+        suspend fun buildCatalog(from: List<TrackDescriptor>): LibraryCatalog = withContext(Dispatchers.Default) {
+            // Collaborations split only where the MusicBrainz list can tell a band named
+            // "Earth, Wind & Fire" from two artists; without it, only at semicolons.
+            val entities = AppGraph.musicEntities
+            LibraryCatalog.build(
+                from,
+                isKnownArtist = if (entities.isAvailable) { name -> entities.resolve(name).isNotEmpty() } else null,
+            )
         }
         // Files not yet read (or retagged since) get their embedded genres read in the
         // background; anything learned republishes the same snapshot, richer. The identity
@@ -811,6 +842,77 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 ) return@launch
                 applySelectedCollection(built)
                 afterOpen()
+            }
+        }
+        var bulkEditIds by rememberSaveable { mutableStateOf<List<String>?>(null) }
+        var bulkEditScope by rememberSaveable { mutableStateOf(BulkEditScope.SELECTION) }
+
+        /** One song gets the full editor, with the per-track fields the N-track editor leaves out. */
+        fun openTagEditor(targets: List<TrackDescriptor>, editScope: BulkEditScope) {
+            when (targets.size) {
+                0 -> Unit
+                1 -> infoTargetId = targets.single().id.value
+                else -> {
+                    bulkEditScope = editScope
+                    bulkEditIds = targets.map { it.id.value }
+                }
+            }
+        }
+
+        /**
+         * An open page after an edit. An album or artist page follows its tracks to where they now
+         * group. Any other page swaps in fresh descriptors. The route identity is kept, so this is
+         * the same page updated, never a new one pushed.
+         */
+        suspend fun refreshOpenCollection(fresh: List<TrackDescriptor>) {
+            val open = selectedCollection ?: return
+            val pageIds = open.tracks.mapTo(HashSet()) { it.id }
+            val rebuilt = when {
+                open.routeId.startsWith("album:") -> refreshedAlbum(buildCatalog(fresh), pageIds)?.toSelection()
+                open.routeId.startsWith("artist:") ->
+                    refreshedArtist(buildCatalog(fresh), pageIds)?.toSelection(artistAlbumSortChoice)
+                else -> open.withFreshTracks(fresh.associateBy { it.id })
+            }
+            if (selectedCollection === open && rebuilt != null) {
+                updateSelectedCollection(rebuilt.copy(routeId = open.routeId))
+            }
+        }
+
+        /**
+         * Everything a finished save changes outside the file (spec §6.5). First SMART's carry-overs,
+         * before the reload that would otherwise start a sync without them. Then one library reload.
+         * Then the queue and the open page, which hold descriptors by value.
+         */
+        fun afterTagSave(saved: List<TrackDescriptor>, result: TagSaveResult) {
+            scope.launch {
+                tagAccess?.let { access ->
+                    AppGraph.audioCarryOvers.add(audioCarryOversOf(saved, result, access::keyOf))
+                }
+                val fresh = scanLibrary()
+                val freshById = fresh.associateBy { it.id }
+                playback.refreshTracks(saved.mapNotNull { freshById[it.id] })
+                refreshOpenCollection(fresh)
+            }
+        }
+
+        val unclaimedTagReports = tagAccess?.coordinator?.unclaimed?.collectAsState()?.value.orEmpty()
+        val tagEditorOpen = infoTargetId != null || bulkEditIds != null
+        // Reports no editor claimed. They are acknowledged at once, because acknowledging restarts this
+        // effect, and shown from the App scope so a restart cannot cut a snackbar short.
+        LaunchedEffect(unclaimedTagReports, tagEditorOpen) {
+            val access = tagAccess ?: return@LaunchedEffect
+            // An open editor claims its own report; the others wait until it closes.
+            if (tagEditorOpen || unclaimedTagReports.isEmpty()) return@LaunchedEffect
+            val reports = unclaimedTagReports
+            reports.forEach(access.coordinator::acknowledge)
+            scope.launch {
+                val results = reports.map { it to TagSaveResult.of(it, access.readOnlyIsMusicLibrary) }
+                if (results.any { (_, result) -> result.entries.any { it.status in TAG_FILE_CHANGED } }) scanLibrary()
+                for ((report, result) in results) {
+                    for (notice in tagReportNotices(report.kind, result)) {
+                        snackbar.showSnackbar(tagReportNoticeText(notice))
+                    }
+                }
             }
         }
         var playlistMutationInProgress by remember { mutableStateOf(false) }
@@ -1662,14 +1764,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // just-deleted row resolves to a harmless no-op — a far better trade than the jump.
             if (loaded != null) {
                 val derived = withContext(Dispatchers.Default) {
-                    // Collaborations split only where the MusicBrainz list can tell a band named
-                    // "Earth, Wind & Fire" from two artists; without it, only at semicolons.
-                    val entities = AppGraph.musicEntities
-                    val builtCatalog = LibraryCatalog.build(
-                        loaded,
-                        isKnownArtist = if (entities.isAvailable) { name -> entities.resolve(name).isNotEmpty() } else null,
-                    )
-                    AlbumBrowseDerivation.of(builtCatalog, settings.albumSort.value)
+                    AlbumBrowseDerivation.of(buildCatalog(loaded), settings.albumSort.value)
                 }
                 catalog = derived.catalog
                 albumBrowse = derived
@@ -3380,6 +3475,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             onToggleSmart = editablePlaylist?.let { playlist ->
                                 { togglePlaylistSmart(playlist) }
                             },
+                            onEditTags = when {
+                                selection.routeId.startsWith("album:") -> {
+                                    { openTagEditor(selection.tracks, BulkEditScope.ALBUM) }
+                                }
+                                selection.routeId.startsWith("artist:") -> {
+                                    { openTagEditor(selection.tracks, BulkEditScope.ARTIST) }
+                                }
+                                else -> null
+                            },
                             includeInSmart = editablePlaylist?.includeInSmart == true,
                             onChangeCover = editablePlaylist?.let { playlist ->
                                 { changePlaylistCover(playlist) }
@@ -3566,6 +3670,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             onShare = {
                                 shareTracks(selectedTracks)
                                 updateTrackSelection(emptySet())
+                            },
+                            onEditTags = {
+                                val selection = selectedTracks
+                                updateTrackSelection(emptySet())
+                                openTagEditor(selection, BulkEditScope.SELECTION)
                             },
                             onRemove = {
                                 val playlist = selectedCollection?.takeIf { it.playlistId != null }
@@ -4395,8 +4504,30 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 track = target,
                 // Without this the list keeps the old title until relaunch — the write lands, the
                 // rescan finishes, and the UI is still holding the pre-edit snapshot.
-                onSaved = { scope.launch { scanLibrary() } },
+                onSaved = { result -> afterTagSave(listOf(target), result) },
                 onDismiss = { infoTargetId = null },
+            )
+        }
+        // Resolved once the catalog has hydrated; kept while the sheet is open, since a reload after
+        // a partial save must not restart the sheet's file reading.
+        val bulkTargets = remember(bulkEditIds, tracksById.isNotEmpty()) {
+            bulkEditIds?.mapNotNull { tracksById[TrackId(it)] }?.takeIf { it.isNotEmpty() }
+        }
+        bulkTargets?.let { targets ->
+            BulkTagEditorSheet(
+                tracks = targets,
+                scope = bulkEditScope,
+                onSaved = { saved, result ->
+                    afterTagSave(saved, result)
+                    if (result.notChanged.isEmpty()) {
+                        scope.launch {
+                            snackbar.showSnackbar(
+                                getPluralString(Res.plurals.tags_saved, result.savedCount, result.savedCount),
+                            )
+                        }
+                    }
+                },
+                onDismiss = { bulkEditIds = null },
             )
         }
 
@@ -4903,6 +5034,7 @@ private fun SelectionActionBar(
     onPlay: () -> Unit,
     onAdd: () -> Unit,
     onShare: () -> Unit,
+    onEditTags: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -4937,6 +5069,13 @@ private fun SelectionActionBar(
             label = stringResource(Res.string.action_share),
             enabled = canShare,
             onClick = onShare,
+            modifier = Modifier.weight(1f),
+        )
+        SelectionAction(
+            icon = Icons.Rounded.Edit,
+            label = stringResource(Res.string.info_edit),
+            enabled = canAct,
+            onClick = onEditTags,
             modifier = Modifier.weight(1f),
         )
         SelectionAction(

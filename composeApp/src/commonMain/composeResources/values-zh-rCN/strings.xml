@@ -557,6 +557,22 @@
     </plurals>
     <string name="bulk_done">完成</string>
     <string name="bulk_file_reason">%1$s：%2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="other">已在 %1$d 个文件中保存标签</item>
+    </plurals>
+    <string name="tags_saved_partly">已在 %2$d 个文件中的 %1$d 个中保存标签</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="other">已完成 %1$d 个文件的保存</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="other">已撤销 %1$d 次中断的保存；文件与之前一样</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="other">%1$d 个文件已被其他应用更改，因此保持原样</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="other">%1$d 个文件仍在等待完成保存。请参阅“设置 → 音乐库”。</item>
+    </plurals>
     <string name="lyrics_not_found">未找到此曲目的歌词。</string>
     <string name="cd_scroll_to_top">回到顶部</string>
     <string name="foryou_section_daypart_morning">你的早晨</string>

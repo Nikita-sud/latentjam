@@ -584,6 +584,27 @@
     </plurals>
     <string name="bulk_done">Terminé</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Tags enregistrés dans %1$d fichier</item>
+        <item quantity="other">Tags enregistrés dans %1$d fichiers</item>
+    </plurals>
+    <string name="tags_saved_partly">Tags enregistrés dans %1$d fichiers sur %2$d</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Enregistrement terminé pour %1$d fichier</item>
+        <item quantity="other">Enregistrement terminé pour %1$d fichiers</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d enregistrement interrompu a été annulé ; le fichier est tel qu'il était</item>
+        <item quantity="other">%1$d enregistrements interrompus ont été annulés ; les fichiers sont tels qu'ils étaient</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d fichier a été modifié par une autre application et a été laissé tel quel</item>
+        <item quantity="other">%1$d fichiers ont été modifiés par une autre application et ont été laissés tels quels</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d fichier attend encore d'être terminé. Voir Paramètres → Bibliothèque.</item>
+        <item quantity="other">%1$d fichiers attendent encore d'être terminés. Voir Paramètres → Bibliothèque.</item>
+    </plurals>
     <string name="lyrics_not_found">Aucune parole n’a été trouvée pour ce titre.</string>
     <string name="cd_scroll_to_top">Revenir en haut</string>
     <string name="foryou_section_daypart_morning">Vos matins</string>

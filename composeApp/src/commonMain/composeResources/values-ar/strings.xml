@@ -637,6 +637,47 @@
     </plurals>
     <string name="bulk_done">تم</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="zero">حُفظت الوسوم في %1$d ملف</item>
+        <item quantity="one">حُفظت الوسوم في %1$d ملف</item>
+        <item quantity="two">حُفظت الوسوم في %1$d ملفين</item>
+        <item quantity="few">حُفظت الوسوم في %1$d ملفات</item>
+        <item quantity="many">حُفظت الوسوم في %1$d ملفًا</item>
+        <item quantity="other">حُفظت الوسوم في %1$d ملف</item>
+    </plurals>
+    <string name="tags_saved_partly">حُفظت الوسوم في %1$d من أصل %2$d ملف</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="zero">اكتمل حفظ %1$d ملف</item>
+        <item quantity="one">اكتمل حفظ %1$d ملف</item>
+        <item quantity="two">اكتمل حفظ %1$d ملفين</item>
+        <item quantity="few">اكتمل حفظ %1$d ملفات</item>
+        <item quantity="many">اكتمل حفظ %1$d ملفًا</item>
+        <item quantity="other">اكتمل حفظ %1$d ملف</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="zero">أُلغيت %1$d عملية حفظ متوقفة؛ الملفات كما كانت</item>
+        <item quantity="one">أُلغيت %1$d عملية حفظ متوقفة؛ الملف كما كان</item>
+        <item quantity="two">أُلغيت %1$d عمليتا حفظ متوقفتان؛ الملفان كما كانا</item>
+        <item quantity="few">أُلغيت %1$d عمليات حفظ متوقفة؛ الملفات كما كانت</item>
+        <item quantity="many">أُلغيت %1$d عملية حفظ متوقفة؛ الملفات كما كانت</item>
+        <item quantity="other">أُلغيت %1$d عملية حفظ متوقفة؛ الملفات كما كانت</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="zero">غيّر تطبيق آخر %1$d ملف، لذلك تُركت كما هي</item>
+        <item quantity="one">غيّر تطبيق آخر %1$d ملف، لذلك تُرك كما هو</item>
+        <item quantity="two">غيّر تطبيق آخر %1$d ملفين، لذلك تُركا كما هما</item>
+        <item quantity="few">غيّر تطبيق آخر %1$d ملفات، لذلك تُركت كما هي</item>
+        <item quantity="many">غيّر تطبيق آخر %1$d ملفًا، لذلك تُركت كما هي</item>
+        <item quantity="other">غيّر تطبيق آخر %1$d ملف، لذلك تُركت كما هي</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="zero">لا يزال %1$d ملف بانتظار إكمال حفظه. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="one">لا يزال %1$d ملف بانتظار إكمال حفظه. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="two">لا يزال %1$d ملفان بانتظار إكمال حفظهما. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="few">لا تزال %1$d ملفات بانتظار إكمال حفظها. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="many">لا يزال %1$d ملفًا بانتظار إكمال حفظها. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="other">لا يزال %1$d ملف بانتظار إكمال حفظها. راجع الإعدادات ← المكتبة.</item>
+    </plurals>
     <string name="lyrics_not_found">لم يتم العثور على كلمات لهذه الأغنية.</string>
     <string name="cd_scroll_to_top">العودة إلى الأعلى</string>
     <string name="foryou_section_daypart_morning">صباحاتك</string>

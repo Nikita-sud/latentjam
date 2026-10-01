@@ -608,6 +608,37 @@
     </plurals>
     <string name="bulk_done">Готово</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Теги збережено в %1$d файлі</item>
+        <item quantity="few">Теги збережено в %1$d файлах</item>
+        <item quantity="many">Теги збережено в %1$d файлах</item>
+        <item quantity="other">Теги збережено в %1$d файлу</item>
+    </plurals>
+    <string name="tags_saved_partly">Теги збережено в %1$d з %2$d файлів</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Збереження завершено для %1$d файлу</item>
+        <item quantity="few">Збереження завершено для %1$d файлів</item>
+        <item quantity="many">Збереження завершено для %1$d файлів</item>
+        <item quantity="other">Збереження завершено для %1$d файлу</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d перерване збереження скасовано; файл такий, як був</item>
+        <item quantity="few">%1$d перервані збереження скасовано; файли такі, як були</item>
+        <item quantity="many">%1$d перерваних збережень скасовано; файли такі, як були</item>
+        <item quantity="other">%1$d перерваного збереження скасовано; файли такі, як були</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">Інший застосунок змінив %1$d файл, тому його залишено як є</item>
+        <item quantity="few">Інший застосунок змінив %1$d файли, тому їх залишено як є</item>
+        <item quantity="many">Інший застосунок змінив %1$d файлів, тому їх залишено як є</item>
+        <item quantity="other">Інший застосунок змінив %1$d файлу, тому їх залишено як є</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d файл ще чекає на завершення збереження. Див. Налаштування → Бібліотека.</item>
+        <item quantity="few">%1$d файли ще чекають на завершення збереження. Див. Налаштування → Бібліотека.</item>
+        <item quantity="many">%1$d файлів ще чекають на завершення збереження. Див. Налаштування → Бібліотека.</item>
+        <item quantity="other">%1$d файлу ще чекають на завершення збереження. Див. Налаштування → Бібліотека.</item>
+    </plurals>
     <string name="lyrics_not_found">Текст пісні для цього треку не знайдено.</string>
     <string name="cd_scroll_to_top">Нагору списку</string>
     <string name="foryou_section_daypart_morning">Ваш ранок</string>

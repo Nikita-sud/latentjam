@@ -582,6 +582,27 @@
     </plurals>
     <string name="bulk_done">Fertig</string>
     <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Tags in %1$d Datei gespeichert</item>
+        <item quantity="other">Tags in %1$d Dateien gespeichert</item>
+    </plurals>
+    <string name="tags_saved_partly">Tags in %1$d von %2$d Dateien gespeichert</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Speichern von %1$d Datei abgeschlossen</item>
+        <item quantity="other">Speichern von %1$d Dateien abgeschlossen</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d unterbrochenes Speichern wurde rückgängig gemacht; die Datei ist wie zuvor</item>
+        <item quantity="other">%1$d unterbrochene Speichervorgänge wurden rückgängig gemacht; die Dateien sind wie zuvor</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d Datei wurde von einer anderen App geändert und so belassen</item>
+        <item quantity="other">%1$d Dateien wurden von einer anderen App geändert und so belassen</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d Datei wartet noch auf den Abschluss. Siehe Einstellungen → Bibliothek.</item>
+        <item quantity="other">%1$d Dateien warten noch auf den Abschluss. Siehe Einstellungen → Bibliothek.</item>
+    </plurals>
     <string name="lyrics_not_found">Für diesen Titel wurde kein Songtext gefunden.</string>
     <string name="cd_scroll_to_top">Zurück nach oben</string>
     <string name="foryou_section_daypart_morning">Dein Morgen</string>
