@@ -484,7 +484,7 @@ internal class IosMusicLibrary : MusicLibrary {
                 ?: asset.iTunesPairNumber("trkn"),
             discNumber = TrackNumbers.parse(asset.rawString("DISCNUMBER", "TPOS"))
                 ?: asset.iTunesPairNumber("disk"),
-            albumArtist = asset.rawString("ALBUMARTIST", "ALBUM ARTIST", "TPE2", "aART"),
+            albumArtist = asset.rawString("ALBUMARTIST", "ALBUM ARTIST", "ALBUM_ARTIST", "ALBUM%20ARTIST", "TPE2", "aART"),
         )
     }
 

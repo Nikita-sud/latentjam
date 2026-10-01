@@ -39,13 +39,40 @@ internal class MediaStoreMusicLibrary(
      * Whether MediaStore has an album-artist column. It is public from API 30, but the scanner filled
      * `album_artist` long before. Below 30 it is used only when the provider actually has it;
      * otherwise tag enrichment reads the file (spec §3.5). A query naming a missing column throws.
+     *
+     * Only a definitive answer is remembered: a scan before the storage grant throws a
+     * SecurityException or gets no cursor, and that must not read as "no column" for the life of
+     * the process. Such a scan goes without the column and probes again at the next one.
      */
-    private val albumArtistColumn: Boolean by lazy {
-        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R || runCatching {
-            context.contentResolver.query(
+    @Volatile
+    private var albumArtistColumnKnown: Boolean? = null
+
+    private fun albumArtistColumn(): Boolean {
+        albumArtistColumnKnown?.let { return it }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            albumArtistColumnKnown = true
+            return true
+        }
+        return try {
+            val cursor = context.contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, arrayOf(ALBUM_ARTIST), "0", null, null,
-            )?.use { true } == true
-        }.getOrDefault(false)
+            )
+            if (cursor == null) {
+                false
+            } else {
+                cursor.close()
+                albumArtistColumnKnown = true
+                true
+            }
+        } catch (_: IllegalArgumentException) {
+            albumArtistColumnKnown = false
+            false
+        } catch (_: android.database.sqlite.SQLiteException) {
+            albumArtistColumnKnown = false
+            false
+        } catch (_: Exception) {
+            false
+        }
     }
     private val hiddenFile = java.io.File(context.filesDir, HIDDEN_FILE_NAME)
     private val excludedSourcesFile = java.io.File(context.filesDir, EXCLUDED_SOURCES_FILE_NAME)
@@ -93,7 +120,7 @@ internal class MediaStoreMusicLibrary(
                 add(MediaStore.Audio.Media.DATA)
             }
             if (genreSupported) add(MediaStore.Audio.Media.GENRE)
-            if (albumArtistColumn) add(ALBUM_ARTIST)
+            if (albumArtistColumn()) add(ALBUM_ARTIST)
         }.toTypedArray()
         val cursor = context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
