@@ -88,3 +88,18 @@ internal suspend fun tagReportNoticeText(notice: TagReportNotice): String = when
 
 /** Statuses after which the file's bytes differ from what the library last read. */
 internal val TAG_FILE_CHANGED = setOf(FileWriteStatus.SAVED, FileWriteStatus.RECOVERED, FileWriteStatus.RESTORED)
+
+/** The keys of the files a finished save changed on storage. */
+internal fun TagSaveResult.changedKeys(): Set<String> =
+    entries.filter { it.status in TAG_FILE_CHANGED }.mapTo(HashSet()) { it.key }
+
+/**
+ * The tracks among [tracks] whose files are under [keys]. A report carries only keys, and a
+ * recovered file may come back with no track the app held before, so tracks are found by key.
+ */
+internal fun tracksWithKeys(
+    tracks: List<TrackDescriptor>,
+    keys: Set<String>,
+    keyOf: (TrackDescriptor) -> String?,
+): List<TrackDescriptor> =
+    if (keys.isEmpty()) emptyList() else tracks.filter { track -> keyOf(track)?.let(keys::contains) == true }

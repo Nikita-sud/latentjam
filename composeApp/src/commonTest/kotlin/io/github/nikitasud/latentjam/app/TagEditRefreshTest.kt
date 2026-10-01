@@ -94,4 +94,26 @@ internal class TagEditRefreshTest {
         val cancelled = TagSaveResult(listOf(TagSaveEntry("a", FileWriteStatus.CANCELLED, problem = TagProblem.CANCELLED)))
         assertEquals(emptyList(), tagReportNotices(TagWriteKind.EDIT, cancelled))
     }
+
+    @Test
+    fun onlyFilesWhoseBytesChangedCountAsChanged() {
+        val result = TagSaveResult(
+            listOf(
+                TagSaveEntry("saved", FileWriteStatus.SAVED),
+                TagSaveEntry("same", FileWriteStatus.UNCHANGED),
+                TagSaveEntry("recovered", FileWriteStatus.RECOVERED),
+                TagSaveEntry("restored", FileWriteStatus.RESTORED, problem = TagProblem.UNDONE),
+                TagSaveEntry("foreign", FileWriteStatus.FOREIGN, problem = TagProblem.CHANGED_ELSEWHERE),
+                TagSaveEntry("failed", FileWriteStatus.FAILED, problem = TagProblem.FAILED),
+            ),
+        )
+        assertEquals(setOf("saved", "recovered", "restored"), result.changedKeys())
+    }
+
+    @Test
+    fun aReportsTracksAreFoundByKey() {
+        val tracks = listOf(track("1", "A"), track("2", "A"), track("3", "A").copy(audioUri = null))
+        assertEquals(listOf("2"), tracksWithKeys(tracks, setOf("k2", "gone"), { it.audioUri }).map { it.id.value })
+        assertEquals(emptyList(), tracksWithKeys(tracks, emptySet(), { it.audioUri }))
+    }
 }

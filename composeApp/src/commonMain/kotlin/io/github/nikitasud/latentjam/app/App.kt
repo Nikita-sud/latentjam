@@ -879,41 +879,29 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
 
         /**
-         * Everything a finished save changes outside the file (spec §6.5). First SMART's carry-overs,
-         * before the reload that would otherwise start a sync without them. Then one library reload.
-         * Then the queue and the open page, which hold descriptors by value.
+         * Everything finished saves change outside the files (spec §6.5). [edits] pairs each edit's
+         * tracks, as the library held them before the save, with its result; [results] are all the
+         * saves, recoveries included. First SMART's carry-overs, before the reload that would
+         * otherwise start a sync without them. Then one library reload. Then the queue and the open
+         * page, which hold descriptors by value. Nothing runs when no file changed.
          */
-        fun afterTagSave(saved: List<TrackDescriptor>, result: TagSaveResult) {
-            scope.launch {
-                tagAccess?.let { access ->
-                    AppGraph.audioCarryOvers.add(audioCarryOversOf(saved, result, access::keyOf))
-                }
-                val fresh = scanLibrary()
-                val freshById = fresh.associateBy { it.id }
-                playback.refreshTracks(saved.mapNotNull { freshById[it.id] })
-                refreshOpenCollection(fresh)
+        suspend fun followTagSaves(
+            edits: List<Pair<List<TrackDescriptor>, TagSaveResult>>,
+            results: List<TagSaveResult>,
+        ) {
+            val access = tagAccess ?: return
+            val changedKeys = results.flatMapTo(HashSet()) { it.changedKeys() }
+            if (changedKeys.isEmpty()) return
+            for ((saved, result) in edits) {
+                AppGraph.audioCarryOvers.add(audioCarryOversOf(saved, result, access::keyOf))
             }
+            val fresh = scanLibrary()
+            playback.refreshTracks(tracksWithKeys(fresh, changedKeys, access::keyOf))
+            refreshOpenCollection(fresh)
         }
 
-        val unclaimedTagReports = tagAccess?.coordinator?.unclaimed?.collectAsState()?.value.orEmpty()
-        val tagEditorOpen = infoTargetId != null || bulkEditIds != null
-        // Reports no editor claimed. They are acknowledged at once, because acknowledging restarts this
-        // effect, and shown from the App scope so a restart cannot cut a snackbar short.
-        LaunchedEffect(unclaimedTagReports, tagEditorOpen) {
-            val access = tagAccess ?: return@LaunchedEffect
-            // An open editor claims its own report; the others wait until it closes.
-            if (tagEditorOpen || unclaimedTagReports.isEmpty()) return@LaunchedEffect
-            val reports = unclaimedTagReports
-            reports.forEach(access.coordinator::acknowledge)
-            scope.launch {
-                val results = reports.map { it to TagSaveResult.of(it, access.readOnlyIsMusicLibrary) }
-                if (results.any { (_, result) -> result.entries.any { it.status in TAG_FILE_CHANGED } }) scanLibrary()
-                for ((report, result) in results) {
-                    for (notice in tagReportNotices(report.kind, result)) {
-                        snackbar.showSnackbar(tagReportNoticeText(notice))
-                    }
-                }
-            }
+        fun afterTagSave(saved: List<TrackDescriptor>, result: TagSaveResult) {
+            scope.launch { followTagSaves(listOf(saved to result), listOf(result)) }
         }
         var playlistMutationInProgress by remember { mutableStateOf(false) }
         var playlistMutationFailed by remember { mutableStateOf(false) }
@@ -4499,7 +4487,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
 
         // Restored editor fields are consumed once the catalog has hydrated after rotation.
         // Resolving the saved identity also avoids holding stale metadata after a rescan.
-        infoTargetId?.let { tracksById[TrackId(it)] }?.let { target ->
+        val infoTarget = infoTargetId?.let { tracksById[TrackId(it)] }
+        infoTarget?.let { target ->
             TrackInfoSheet(
                 track = target,
                 // Without this the list keeps the old title until relaunch — the write lands, the
@@ -4529,6 +4518,36 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 },
                 onDismiss = { bulkEditIds = null },
             )
+        }
+
+        val unclaimedTagReports = tagAccess?.coordinator?.unclaimed?.collectAsState()?.value.orEmpty()
+        // An editor shown, or one restored that the catalog has yet to resolve. A saved target that
+        // no longer resolves once it has (the song was deleted) shows nothing, so it holds nothing.
+        val tagEditorOpen = (infoTargetId != null || bulkEditIds != null) &&
+            (catalog == null || infoTarget != null || bulkTargets != null)
+        // Reports no editor claimed. They are acknowledged at once, because acknowledging restarts this
+        // effect, and followed from the App scope so a restart cannot cut a reload or snackbar short.
+        LaunchedEffect(unclaimedTagReports, tagEditorOpen) {
+            val access = tagAccess ?: return@LaunchedEffect
+            // An open editor claims its own report; the others wait until it closes.
+            if (tagEditorOpen || unclaimedTagReports.isEmpty()) return@LaunchedEffect
+            val reports = unclaimedTagReports
+            reports.forEach(access.coordinator::acknowledge)
+            val results = reports.map { it to TagSaveResult.of(it, access.readOnlyIsMusicLibrary) }
+            // Resolved before the reload: the library still holds each file's pre-edit revision,
+            // which SMART's carry-overs are keyed by.
+            val held = tracks.orEmpty()
+            val edits = results
+                .filter { (report, _) -> report.kind == TagWriteKind.EDIT }
+                .map { (_, result) -> tracksWithKeys(held, result.changedKeys(), access::keyOf) to result }
+            scope.launch {
+                followTagSaves(edits, results.map { it.second })
+                for ((report, result) in results) {
+                    for (notice in tagReportNotices(report.kind, result)) {
+                        snackbar.showSnackbar(tagReportNoticeText(notice))
+                    }
+                }
+            }
         }
 
         settingsTransition.AnimatedVisibility(
