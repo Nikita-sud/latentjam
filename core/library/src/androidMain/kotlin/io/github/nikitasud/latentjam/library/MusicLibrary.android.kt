@@ -200,7 +200,7 @@ internal class MediaStoreMusicLibrary(
                 )
             }
         }
-        tracks
+        withAlbumArtVersions(tracks)
     }
 
     override suspend fun hide(trackId: TrackId): Unit = withContext(Dispatchers.IO) {
