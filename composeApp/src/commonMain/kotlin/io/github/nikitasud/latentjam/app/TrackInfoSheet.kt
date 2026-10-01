@@ -103,6 +103,7 @@ import org.jetbrains.compose.resources.stringResource
  * understand. That refusal is shown here in words. The one thing this screen will never do is
  * report success it did not get — the version of this UI that did was removed for it.
  *
+ * @param initiallyEditing opens on the editor, for an "Edit tags" action; Cancel then closes the sheet.
  * @param onSaved runs with the track as it was when Save was tapped, and the save's result, after
  *   the file and the media index both hold the new tags, so the caller can refresh its library
  *   snapshot and see them. That track keeps the revision the library held at the tap even when a
@@ -112,12 +113,13 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun TrackInfoSheet(
     track: TrackDescriptor,
+    initiallyEditing: Boolean = false,
     onSaved: (TrackDescriptor, TagSaveResult) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
 ) {
     val lyricsSource = track.lyricsSourceIdentity()
     val reduceMotion = rememberReduceMotion()
-    var editing by rememberSaveable(track.id.value) { mutableStateOf(false) }
+    var editing by rememberSaveable(track.id.value) { mutableStateOf(initiallyEditing) }
     var lyrics by remember(lyricsSource) { mutableStateOf<String?>(null) }
     val readLyrics = rememberLyricsReader()
     val lyricsSources = rememberLyricsSourcesRevision()
@@ -454,11 +456,16 @@ internal fun TrackInfoSheet(
                     onCancel = {
                         focus.clearFocus()
                         keyboard?.hide()
-                        forgetPickedCover()
-                        form = fileForm
-                        baseline = fileForm
-                        failure = null
-                        editing = false
+                        if (initiallyEditing) {
+                            // Opened to edit: there is no info view to go back to.
+                            discard()
+                        } else {
+                            forgetPickedCover()
+                            form = fileForm
+                            baseline = fileForm
+                            failure = null
+                            editing = false
+                        }
                     },
                     onConfirm = {
                         val current = form

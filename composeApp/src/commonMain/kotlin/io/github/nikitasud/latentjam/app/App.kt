@@ -798,6 +798,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val artistAlbumSortChoice by settings.artistAlbumSort.collectAsState()
         var showSettings by rememberSaveable { mutableStateOf(false) }
         var infoTargetId by rememberSaveable { mutableStateOf<String?>(null) }
+        // An "Edit tags" action opens the sheet on its editor; "Information" opens the info view.
+        var infoStartsEditing by rememberSaveable { mutableStateOf(false) }
+        fun showTrackInfo(id: TrackId, editing: Boolean) {
+            infoStartsEditing = editing
+            infoTargetId = id.value
+        }
         var artistChoices by remember { mutableStateOf<List<ArtistGroup>>(emptyList()) }
         var playerDetailsRequest by remember { mutableStateOf(0) }
         var playerSleepTimerRequest by remember { mutableStateOf(0) }
@@ -857,7 +863,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         fun openTagEditor(targets: List<TrackDescriptor>, editScope: BulkEditScope) {
             when (targets.size) {
                 0 -> Unit
-                1 -> infoTargetId = targets.single().id.value
+                1 -> showTrackInfo(targets.single().id, editing = true)
                 else -> {
                     bulkEditScope = editScope
                     bulkEditIds = targets.map { it.id.value }
@@ -2431,7 +2437,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         onOpenSource = queueSource?.let { source -> { openQueueSource(source) } },
                         smartQueueLength = smartQueueLength,
                         onSmartQueueLength = settings::setSmartQueueLength,
-                        onEditTags = { infoTargetId = it.id.value },
+                        onEditTags = { showTrackInfo(it.id, editing = true) },
                         onShowOnMap = if (StartPage.MAP in visiblePages) {
                             { track -> showTrackOnMap(track) }
                         } else null,
@@ -4049,7 +4055,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 onInfo = {
                     if (request.fromPlayer && target.id == playback.state.value.track?.id) {
                         playerDetailsRequest++
-                    } else infoTargetId = target.id.value
+                    } else showTrackInfo(target.id, editing = false)
                 },
                 // The sleep timer belongs to the player's own sheet; other surfaces keep the
                 // shorter list they always had.
@@ -4509,6 +4515,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         infoTarget?.let { target ->
             TrackInfoSheet(
                 track = target,
+                initiallyEditing = infoStartsEditing,
                 // Without this the list keeps the old title until relaunch — the write lands, the
                 // rescan finishes, and the UI is still holding the pre-edit snapshot.
                 onSaved = { saved, result -> afterTagSave(listOf(saved), result) },
