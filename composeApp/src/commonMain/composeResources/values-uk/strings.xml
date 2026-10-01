@@ -240,6 +240,9 @@
     <string name="info_edit">Змінити теги</string>
     <string name="info_save">Зберегти</string>
     <string name="info_cancel">Скасувати</string>
+    <string name="editor_discard_title">Відкинути зміни?</string>
+    <string name="editor_discard">Відкинути</string>
+    <string name="editor_keep_editing">Продовжити редагування</string>
     <string name="info_saving">Збереження…</string>
     <string name="info_edit_note">Зберігається в сам файл, тому виправлення побачать усі застосунки. Можливо, знадобиться дозвіл на зміну файлу.</string>
     <string name="info_edit_refused">Теги цього файлу записані так, що їх не можна безпечно перезаписати, тому нічого не змінено.</string>

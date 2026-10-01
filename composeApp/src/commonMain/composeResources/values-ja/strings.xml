@@ -218,6 +218,9 @@
     <string name="info_edit">タグを編集</string>
     <string name="info_save">保存</string>
     <string name="info_cancel">キャンセル</string>
+    <string name="editor_discard_title">変更を破棄しますか？</string>
+    <string name="editor_discard">破棄</string>
+    <string name="editor_keep_editing">編集を続ける</string>
     <string name="info_saving">保存中…</string>
     <string name="info_edit_note">ファイル自体に保存されるため、すべてのアプリに修正が反映されます。ファイルの変更許可を求められる場合があります。</string>
     <string name="info_edit_refused">このファイルのタグは安全に書き換えられない形式のため、何も変更されませんでした。</string>

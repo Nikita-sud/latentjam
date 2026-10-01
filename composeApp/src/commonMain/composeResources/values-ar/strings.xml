@@ -253,6 +253,9 @@
     <string name="info_edit">تعديل الوسوم</string>
     <string name="info_save">حفظ</string>
     <string name="info_cancel">إلغاء</string>
+    <string name="editor_discard_title">هل تريد تجاهل التغييرات؟</string>
+    <string name="editor_discard">تجاهل</string>
+    <string name="editor_keep_editing">متابعة التعديل</string>
     <string name="info_saving">جارٍ الحفظ…</string>
     <string name="info_edit_note">يُحفظ في الملف نفسه، فترى كل التطبيقات التصحيح. قد يُطلب منك إذن لتعديل الملف.</string>
     <string name="info_edit_refused">وسوم هذا الملف بصيغة لا يمكن إعادة كتابتها بأمان، لذلك لم يتغير شيء.</string>

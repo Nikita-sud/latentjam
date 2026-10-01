@@ -7,8 +7,6 @@ package io.github.nikitasud.latentjam.app
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.focus.FocusDirection
@@ -195,10 +193,17 @@ internal fun TrackInfoSheet(
 
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        confirmValueChange = { !saving || it != SheetValue.Hidden },
-    )
+    var askDiscard by remember(track.id) { mutableStateOf(false) }
+    // Snapshot state, read when asked: the info view, or an edit left as the file has it, holds nothing.
+    val sheetBusy = { starting || saver?.busy == true }
+    val unsaved = { editing && baseline?.let { form?.hasChanges(it) } == true }
+    val sheetState = rememberEditorSheetState(busy = sheetBusy, unsaved = unsaved, onUnsaved = { askDiscard = true })
+    val discard = {
+        askDiscard = false
+        forgetPickedCover()
+        onDismiss()
+    }
+    if (askDiscard) DiscardChangesDialog(onDiscard = discard, onKeepEditing = { askDiscard = false })
 
     val fileLabel = remember(track.folderPath, track.fileName, track.audioUri) {
         track.fileName?.let { name ->
@@ -212,10 +217,12 @@ internal fun TrackInfoSheet(
     }
 
     ModalBottomSheet(
+        // Back, the scrim, a drag or a stray key: never mid-save, and never past unsaved changes unasked.
         onDismissRequest = {
-            if (!saving) {
-                forgetPickedCover()
-                onDismiss()
+            when {
+                sheetBusy() -> Unit
+                unsaved() -> askDiscard = true
+                else -> discard()
             }
         },
         sheetState = sheetState,

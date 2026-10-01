@@ -224,6 +224,9 @@
     <string name="info_edit">Etiketleri düzenle</string>
     <string name="info_save">Kaydet</string>
     <string name="info_cancel">İptal</string>
+    <string name="editor_discard_title">Değişikliklerden vazgeçilsin mi?</string>
+    <string name="editor_discard">Vazgeç</string>
+    <string name="editor_keep_editing">Düzenlemeye devam et</string>
     <string name="info_saving">Kaydediliyor…</string>
     <string name="info_edit_note">Dosyanın kendisine kaydedilir, böylece düzeltmeyi tüm uygulamalar görür. Dosyayı değiştirmek için izin istenebilir.</string>
     <string name="info_edit_refused">Bu dosyanın etiketleri güvenle yeniden yazılamayacak bir yapıda olduğu için hiçbir şey değiştirilmedi.</string>

@@ -231,6 +231,9 @@
     <string name="info_edit">Editar etiquetas</string>
     <string name="info_save">Guardar</string>
     <string name="info_cancel">Cancelar</string>
+    <string name="editor_discard_title">¿Descartar los cambios?</string>
+    <string name="editor_discard">Descartar</string>
+    <string name="editor_keep_editing">Seguir editando</string>
     <string name="info_saving">Guardando…</string>
     <string name="info_edit_note">Se guarda en el propio archivo, así que todas las aplicaciones ven la corrección. Es posible que se te pida permiso para modificar el archivo.</string>
     <string name="info_edit_refused">Las etiquetas de este archivo tienen un formato que no se puede reescribir de forma segura, así que no se ha cambiado nada.</string>

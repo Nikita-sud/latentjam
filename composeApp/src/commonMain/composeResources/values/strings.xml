@@ -285,6 +285,9 @@
     <string name="info_edit">Edit tags</string>
     <string name="info_save">Save</string>
     <string name="info_cancel">Cancel</string>
+    <string name="editor_discard_title">Discard your changes?</string>
+    <string name="editor_discard">Discard</string>
+    <string name="editor_keep_editing">Keep editing</string>
     <string name="info_saving">Saving…</string>
     <string name="info_edit_note">Saved into the file itself, so every app sees the correction. You may be asked for permission to modify the file.</string>
     <string name="info_edit_refused">This file's tags are in a form that cannot be rewritten safely, so nothing was changed.</string>

@@ -31,9 +31,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -194,17 +192,25 @@ internal fun BulkTagEditorSheet(
 
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        // Both are snapshot state, read when asked, never a value from the last composition.
-        confirmValueChange = { !(starting || saver?.busy == true) || it != SheetValue.Hidden },
-    )
+    var askDiscard by remember { mutableStateOf(false) }
+    // Snapshot state, read when asked. A shown result has nothing left to lose.
+    val sheetBusy = { starting || saver?.busy == true }
+    val unsaved = { result == null && baseline?.let { form.changedFieldCount(it) > 0 } == true }
+    val sheetState = rememberEditorSheetState(busy = sheetBusy, unsaved = unsaved, onUnsaved = { askDiscard = true })
+    val discard = {
+        askDiscard = false
+        forgetPickedCover()
+        onDismiss()
+    }
+    // Back, the scrim, a drag or a stray key: never mid-save, and never past unsaved changes unasked.
     val leave = {
-        if (!(starting || saver?.busy == true)) {
-            forgetPickedCover()
-            onDismiss()
+        when {
+            sheetBusy() -> Unit
+            unsaved() -> askDiscard = true
+            else -> discard()
         }
     }
+    if (askDiscard) DiscardChangesDialog(onDiscard = discard, onKeepEditing = { askDiscard = false })
 
     ModalBottomSheet(
         onDismissRequest = leave,
@@ -316,7 +322,8 @@ internal fun BulkTagEditorSheet(
                         },
                         confirmEnabled = fieldCount > 0 && numbersValid && editable.isNotEmpty(),
                         busy = starting,
-                        onCancel = leave,
+                        // Cancel says what it does: the changes go without a second question.
+                        onCancel = { if (!sheetBusy()) discard() },
                         onConfirm = {
                             // starting and the saver's ids are snapshot state, read here at the tap
                             // rather than taken from the last composition: a second tap before the

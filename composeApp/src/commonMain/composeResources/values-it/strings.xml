@@ -231,6 +231,9 @@
     <string name="info_edit">Modifica i tag</string>
     <string name="info_save">Salva</string>
     <string name="info_cancel">Annulla</string>
+    <string name="editor_discard_title">Ignorare le modifiche?</string>
+    <string name="editor_discard">Ignora</string>
+    <string name="editor_keep_editing">Continua a modificare</string>
     <string name="info_saving">Salvataggio…</string>
     <string name="info_edit_note">Viene salvato nel file stesso, così tutte le app vedono la correzione. Potrebbe essere richiesto il permesso di modificare il file.</string>
     <string name="info_edit_refused">I tag di questo file sono in una forma che non può essere riscritta in modo sicuro, quindi non è stato modificato nulla.</string>

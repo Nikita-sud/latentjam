@@ -234,6 +234,9 @@
     <string name="info_edit">Tags bearbeiten</string>
     <string name="info_save">Speichern</string>
     <string name="info_cancel">Abbrechen</string>
+    <string name="editor_discard_title">Änderungen verwerfen?</string>
+    <string name="editor_discard">Verwerfen</string>
+    <string name="editor_keep_editing">Weiter bearbeiten</string>
     <string name="info_saving">Wird gespeichert…</string>
     <string name="info_edit_note">Wird in die Datei selbst geschrieben, sodass jede App die Korrektur sieht. Möglicherweise wird die Berechtigung zum Ändern der Datei abgefragt.</string>
     <string name="info_edit_refused">Die Tags dieser Datei liegen in einer Form vor, die sich nicht sicher neu schreiben lässt, daher wurde nichts geändert.</string>

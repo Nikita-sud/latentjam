@@ -224,6 +224,9 @@
     <string name="info_edit">टैग संपादित करें</string>
     <string name="info_save">सहेजें</string>
     <string name="info_cancel">रद्द करें</string>
+    <string name="editor_discard_title">बदलाव छोड़ दें?</string>
+    <string name="editor_discard">छोड़ें</string>
+    <string name="editor_keep_editing">संपादन जारी रखें</string>
     <string name="info_saving">सहेजा जा रहा है…</string>
     <string name="info_edit_note">फ़ाइल में ही सहेजा जाता है, इसलिए सुधार हर ऐप को दिखता है। फ़ाइल बदलने की अनुमति माँगी जा सकती है।</string>
     <string name="info_edit_refused">इस फ़ाइल के टैग ऐसे रूप में हैं जिन्हें सुरक्षित रूप से दोबारा नहीं लिखा जा सकता, इसलिए कुछ नहीं बदला गया।</string>

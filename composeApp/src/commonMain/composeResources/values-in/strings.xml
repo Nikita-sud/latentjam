@@ -224,6 +224,9 @@
     <string name="info_edit">Edit tag</string>
     <string name="info_save">Simpan</string>
     <string name="info_cancel">Batal</string>
+    <string name="editor_discard_title">Buang perubahan?</string>
+    <string name="editor_discard">Buang</string>
+    <string name="editor_keep_editing">Lanjutkan mengedit</string>
     <string name="info_saving">Menyimpan…</string>
     <string name="info_edit_note">Disimpan ke dalam file itu sendiri, sehingga semua aplikasi melihat koreksinya. Anda mungkin diminta izin untuk mengubah file.</string>
     <string name="info_edit_refused">Tag file ini dalam bentuk yang tidak dapat ditulis ulang dengan aman, jadi tidak ada yang diubah.</string>

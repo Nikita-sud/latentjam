@@ -231,6 +231,9 @@
     <string name="info_edit">Editar tags</string>
     <string name="info_save">Salvar</string>
     <string name="info_cancel">Cancelar</string>
+    <string name="editor_discard_title">Descartar as alterações?</string>
+    <string name="editor_discard">Descartar</string>
+    <string name="editor_keep_editing">Continuar editando</string>
     <string name="info_saving">Salvando…</string>
     <string name="info_edit_note">Salvo no próprio arquivo, então todos os aplicativos veem a correção. Talvez seja solicitada permissão para modificar o arquivo.</string>
     <string name="info_edit_refused">As tags deste arquivo estão em um formato que não pode ser reescrito com segurança, então nada foi alterado.</string>

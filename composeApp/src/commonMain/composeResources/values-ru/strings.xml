@@ -226,6 +226,9 @@
     <string name="info_edit">Изменить теги</string>
     <string name="info_save">Сохранить</string>
     <string name="info_cancel">Отмена</string>
+    <string name="editor_discard_title">Отбросить изменения?</string>
+    <string name="editor_discard">Отбросить</string>
+    <string name="editor_keep_editing">Продолжить редактирование</string>
     <string name="info_saving">Сохранение…</string>
     <string name="info_edit_note">Сохраняется в сам файл, поэтому исправление увидят все приложения. Возможно, потребуется разрешение на изменение файла.</string>
     <string name="info_edit_refused">Теги этого файла записаны так, что их нельзя перезаписать безопасно — ничего не изменено.</string>

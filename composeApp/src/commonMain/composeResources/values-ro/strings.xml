@@ -223,6 +223,9 @@
     <string name="info_edit">Editează etichetele</string>
     <string name="info_save">Salvează</string>
     <string name="info_cancel">Anulează</string>
+    <string name="editor_discard_title">Renunți la modificări?</string>
+    <string name="editor_discard">Renunță</string>
+    <string name="editor_keep_editing">Continuă editarea</string>
     <string name="info_saving">Se salvează…</string>
     <string name="info_edit_note">Se salvează în fișierul propriu-zis, așa că orice aplicație vede corectura. Este posibil să ți se ceară permisiunea de a modifica fișierul.</string>
     <string name="info_edit_refused">Etichetele acestui fișier sunt într-o formă care nu poate fi rescrisă în siguranță, așa că nimic nu a fost schimbat.</string>

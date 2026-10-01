@@ -240,6 +240,9 @@
     <string name="info_edit">Edytuj tagi</string>
     <string name="info_save">Zapisz</string>
     <string name="info_cancel">Anuluj</string>
+    <string name="editor_discard_title">Odrzucić zmiany?</string>
+    <string name="editor_discard">Odrzuć</string>
+    <string name="editor_keep_editing">Edytuj dalej</string>
     <string name="info_saving">Zapisywanie…</string>
     <string name="info_edit_note">Zapisywane w samym pliku, więc poprawkę zobaczą wszystkie aplikacje. Możesz zostać poproszony o zgodę na modyfikację pliku.</string>
     <string name="info_edit_refused">Tagi tego pliku są zapisane w formie, której nie da się bezpiecznie nadpisać, więc nic nie zostało zmienione.</string>
