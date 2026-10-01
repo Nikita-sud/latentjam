@@ -245,7 +245,7 @@
     <string name="tag_problem_number_unreadable">फ़ाइल का अपना ट्रैक या डिस्क नंबर सामान्य संख्या नहीं है, इसलिए उसका कुल अकेले नहीं बदला जा सकता।</string>
     <string name="tag_problem_bad_image">यह तस्वीर JPEG या PNG नहीं है।</string>
     <string name="tag_problem_read_only_storage">यह फ़ाइल ऐसे स्टोरेज पर है जिसमें लिखा नहीं जा सकता।</string>
-    <string name="tag_problem_music_library">संगीत लाइब्रेरी के गाने संपादित नहीं किए जा सकते, केवल LatentJam में इंपोर्ट किए गए गाने किए जा सकते हैं।</string>
+    <string name="tag_problem_music_library">संगीत लाइब्रेरी के गाने संपादित नहीं किए जा सकते, केवल LatentJam में इंपोर्ट किए गए गाने संपादित किए जा सकते हैं।</string>
     <string name="tag_problem_unreadable">यह फ़ाइल पढ़ी नहीं जा सकी।</string>
     <string name="tag_problem_not_allowed">फ़ाइल बदलने की अनुमति नहीं दी गई।</string>
     <string name="tag_problem_missing">फ़ाइल अब मौजूद नहीं है।</string>

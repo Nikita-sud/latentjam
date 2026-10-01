@@ -234,8 +234,8 @@
     <string name="tag_problem_damaged">このファイルは破損しているようなので、そのままにしています。</string>
     <string name="tag_problem_protected">このファイルはコピー防止されているため、変更できません。</string>
     <string name="tag_problem_tags_too_large">タグがこのファイルには大きすぎます。</string>
-    <string name="tag_problem_bad_number">トラック番号とディスク番号は1〜999の整数にしてください。</string>
-    <string name="tag_problem_number_unreadable">ファイル自体のトラック番号またはディスク番号が通常の数値ではないため、合計数だけを変更することはできません。</string>
+    <string name="tag_problem_bad_number">曲番号とディスク番号は1〜999の整数にしてください。</string>
+    <string name="tag_problem_number_unreadable">ファイル自体の曲番号またはディスク番号が通常の数値ではないため、合計数だけを変更することはできません。</string>
     <string name="tag_problem_bad_image">画像がJPEGまたはPNGではありません。</string>
     <string name="tag_problem_read_only_storage">このファイルは書き込みできないストレージにあります。</string>
     <string name="tag_problem_music_library">ミュージックライブラリの曲は編集できません。LatentJamに読み込んだ曲のみ編集できます。</string>
@@ -520,8 +520,8 @@
     <string name="snack_duplicates_merged">重複を統合しました。プレイリストは残したコピーを指します</string>
     <string name="info_lyrics">歌詞</string>
     <string name="info_album_artist">アルバムアーティスト</string>
-    <string name="info_track_number">トラック番号</string>
-    <string name="info_track_total">総トラック数</string>
+    <string name="info_track_number">曲番号</string>
+    <string name="info_track_total">総曲数</string>
     <string name="info_disc_number">ディスク番号</string>
     <string name="info_disc_total">総ディスク数</string>
     <string name="info_cover">カバー</string>

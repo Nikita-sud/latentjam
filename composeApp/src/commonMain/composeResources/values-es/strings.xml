@@ -248,8 +248,8 @@
     <string name="tag_problem_damaged">Este archivo parece dañado, así que se ha dejado como está.</string>
     <string name="tag_problem_protected">Este archivo está protegido contra copia y no se puede cambiar.</string>
     <string name="tag_problem_tags_too_large">Las etiquetas serían demasiado grandes para este archivo.</string>
-    <string name="tag_problem_bad_number">Los números de pista y de disco deben ser números enteros del 1 al 999.</string>
-    <string name="tag_problem_number_unreadable">El número de pista o de disco del propio archivo no es un número simple, así que su total no se puede cambiar por separado.</string>
+    <string name="tag_problem_bad_number">Los números de canción y de disco deben ser números enteros del 1 al 999.</string>
+    <string name="tag_problem_number_unreadable">El número de canción o de disco del propio archivo no es un número simple, así que su total no se puede cambiar por separado.</string>
     <string name="tag_problem_bad_image">La imagen no es un JPEG ni un PNG.</string>
     <string name="tag_problem_read_only_storage">Este archivo está en un almacenamiento en el que no se puede escribir.</string>
     <string name="tag_problem_music_library">Las canciones de la biblioteca musical no se pueden editar, solo las importadas a LatentJam.</string>
@@ -536,8 +536,8 @@
     <string name="snack_duplicates_merged">Duplicados combinados: las listas ahora apuntan a la copia conservada</string>
     <string name="info_lyrics">Letra</string>
     <string name="info_album_artist">Artista del álbum</string>
-    <string name="info_track_number">N.º de pista</string>
-    <string name="info_track_total">Total de pistas</string>
+    <string name="info_track_number">N.º de canción</string>
+    <string name="info_track_total">Total de canciones</string>
     <string name="info_disc_number">N.º de disco</string>
     <string name="info_disc_total">Total de discos</string>
     <string name="info_cover">Portada</string>

@@ -240,8 +240,8 @@
     <string name="tag_problem_damaged">File ini tampaknya rusak, jadi dibiarkan apa adanya.</string>
     <string name="tag_problem_protected">File ini dilindungi dari penyalinan dan tidak dapat diubah.</string>
     <string name="tag_problem_tags_too_large">Tag akan terlalu besar untuk file ini.</string>
-    <string name="tag_problem_bad_number">Nomor trek dan nomor disk harus berupa bilangan bulat dari 1 sampai 999.</string>
-    <string name="tag_problem_number_unreadable">Nomor trek atau nomor disk bawaan file ini bukan angka biasa, jadi totalnya tidak dapat diubah sendiri.</string>
+    <string name="tag_problem_bad_number">Nomor lagu dan nomor disk harus berupa bilangan bulat dari 1 sampai 999.</string>
+    <string name="tag_problem_number_unreadable">Nomor lagu atau nomor disk bawaan file ini bukan angka biasa, jadi totalnya tidak dapat diubah sendiri.</string>
     <string name="tag_problem_bad_image">Gambar ini bukan gambar JPEG atau PNG.</string>
     <string name="tag_problem_read_only_storage">File ini berada di penyimpanan yang tidak dapat ditulisi.</string>
     <string name="tag_problem_music_library">Lagu dari Pustaka musik tidak dapat diedit, hanya lagu yang diimpor ke LatentJam.</string>
@@ -526,8 +526,8 @@
     <string name="snack_duplicates_merged">Duplikat digabung: playlist kini menunjuk ke salinan yang disimpan</string>
     <string name="info_lyrics">Lirik</string>
     <string name="info_album_artist">Artis album</string>
-    <string name="info_track_number">Nomor trek</string>
-    <string name="info_track_total">Total trek</string>
+    <string name="info_track_number">Nomor lagu</string>
+    <string name="info_track_total">Total lagu</string>
     <string name="info_disc_number">Nomor disk</string>
     <string name="info_disc_total">Total disk</string>
     <string name="info_cover">Sampul</string>

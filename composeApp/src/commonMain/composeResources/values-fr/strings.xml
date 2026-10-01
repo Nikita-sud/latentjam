@@ -253,8 +253,8 @@
     <string name="tag_problem_damaged">Ce fichier semble endommagé ; il est donc laissé tel quel.</string>
     <string name="tag_problem_protected">Ce fichier est protégé contre la copie et ne peut pas être modifié.</string>
     <string name="tag_problem_tags_too_large">Les tags seraient trop volumineux pour ce fichier.</string>
-    <string name="tag_problem_bad_number">Les numéros de piste et de disque doivent être des nombres entiers de 1 à 999.</string>
-    <string name="tag_problem_number_unreadable">Le numéro de piste ou de disque du fichier n'est pas un nombre simple ; son total ne peut donc pas être modifié seul.</string>
+    <string name="tag_problem_bad_number">Les numéros de morceau et de disque doivent être des nombres entiers de 1 à 999.</string>
+    <string name="tag_problem_number_unreadable">Le numéro de morceau ou de disque du fichier n'est pas un nombre simple ; son total ne peut donc pas être modifié seul.</string>
     <string name="tag_problem_bad_image">L'image n'est ni au format JPEG ni au format PNG.</string>
     <string name="tag_problem_read_only_storage">Ce fichier se trouve sur un stockage qui n'est pas accessible en écriture.</string>
     <string name="tag_problem_music_library">Les morceaux de la bibliothèque musicale ne peuvent pas être modifiés, seulement ceux importés dans LatentJam.</string>
@@ -541,8 +541,8 @@
     <string name="snack_duplicates_merged">Doublons fusionnés : les playlists pointent vers la copie conservée</string>
     <string name="info_lyrics">Paroles</string>
     <string name="info_album_artist">Artiste de l'album</string>
-    <string name="info_track_number">N° de piste</string>
-    <string name="info_track_total">Nombre de pistes</string>
+    <string name="info_track_number">N° de morceau</string>
+    <string name="info_track_total">Nombre de morceaux</string>
     <string name="info_disc_number">N° de disque</string>
     <string name="info_disc_total">Nombre de disques</string>
     <string name="info_cover">Pochette</string>
