@@ -536,8 +536,8 @@
     <string name="snack_duplicates_merged">Duplicados combinados: las listas ahora apuntan a la copia conservada</string>
     <string name="info_lyrics">Letra</string>
     <string name="info_album_artist">Artista del álbum</string>
-    <string name="info_track_number">N.º de canción</string>
-    <string name="info_track_total">Total de canciones</string>
+    <string name="info_track_number">N.º de pista</string>
+    <string name="info_track_total">Total de pistas</string>
     <string name="info_disc_number">N.º de disco</string>
     <string name="info_disc_total">Total de discos</string>
     <string name="info_cover">Portada</string>
@@ -553,6 +553,7 @@
     <string name="info_reading_file">Leyendo el archivo…</string>
     <string name="action_edit_album">Editar álbum</string>
     <string name="action_edit_artist">Editar artista</string>
+    <string name="action_edit_short">Editar</string>
     <plurals name="count_files">
         <item quantity="one">%1$d archivo</item>
         <item quantity="other">%1$d archivos</item>
@@ -574,10 +575,10 @@
     <string name="bulk_nothing_editable">Ninguno de estos archivos se puede editar.</string>
     <string name="bulk_different">Valores distintos</string>
     <plurals name="bulk_removed">
-        <item quantity="one">Eliminado de %1$d archivo</item>
-        <item quantity="other">Eliminado de los %1$d</item>
+        <item quantity="one">Quitado de %1$d archivo</item>
+        <item quantity="other">Quitado de los %1$d</item>
     </plurals>
-    <string name="bulk_remove_field">Eliminar de todos los archivos</string>
+    <string name="bulk_remove_field">Quitar de todos los archivos</string>
     <string name="bulk_keep_field">Dejar como está</string>
     <string name="bulk_kept">Se queda como está: %1$s</string>
     <string name="bulk_saving">Guardados %1$d de %2$d</string>
@@ -607,8 +608,8 @@
         <item quantity="other">Otra aplicación cambió %1$d archivos y se han dejado como están</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="one">Falta terminar de guardar %1$d archivo. Consulta Ajustes → Biblioteca.</item>
-        <item quantity="other">Falta terminar de guardar %1$d archivos. Consulta Ajustes → Biblioteca.</item>
+        <item quantity="one">Aún no se pudo terminar de guardar %1$d archivo. Consulta Ajustes → Biblioteca.</item>
+        <item quantity="other">Aún no se pudieron terminar de guardar %1$d archivos. Consulta Ajustes → Biblioteca.</item>
     </plurals>
     <string name="lyrics_not_found">No se encontró letra para esta pista.</string>
     <string name="cd_scroll_to_top">Volver arriba</string>

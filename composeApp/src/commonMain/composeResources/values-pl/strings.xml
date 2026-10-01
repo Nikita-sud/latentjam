@@ -260,7 +260,7 @@
     <string name="tag_problem_protected">Ten plik jest zabezpieczony przed kopiowaniem i nie można go zmienić.</string>
     <string name="tag_problem_tags_too_large">Tagi byłyby zbyt duże dla tego pliku.</string>
     <string name="tag_problem_bad_number">Numery utworu i płyty muszą być liczbami całkowitymi od 1 do 999.</string>
-    <string name="tag_problem_number_unreadable">Numer utworu lub płyty zapisany w samym pliku nie jest zwykłą liczbą, więc jego łącznej liczby nie można zmienić osobno.</string>
+    <string name="tag_problem_number_unreadable">Numer utworu lub płyty zapisany w samym pliku nie jest zwykłą liczbą, więc nie można osobno zmienić łącznej liczby.</string>
     <string name="tag_problem_bad_image">Obraz nie jest w formacie JPEG ani PNG.</string>
     <string name="tag_problem_read_only_storage">Ten plik znajduje się w pamięci, na której nie można zapisywać.</string>
     <string name="tag_problem_music_library">Utworów z biblioteki muzycznej nie można edytować, tylko te zaimportowane do LatentJam.</string>
@@ -452,7 +452,7 @@
     <string name="settings_interrupted_finish">Dokończ teraz</string>
     <string name="settings_interrupted_being_repaired">W naprawie: nie jest odtwarzany, dopóki nie zostanie dokończony</string>
     <string name="settings_interrupted_forget">Zapomnij</string>
-    <string name="settings_interrupted_forget_title">Zapomnieć ten zapis?</string>
+    <string name="settings_interrupted_forget_title">Zapomnieć o tym zapisie?</string>
     <string name="settings_interrupted_forget_body">Plik pozostanie dokładnie taki, jaki jest teraz, a LatentJam przestanie próbować dokończyć lub cofnąć zapis. Tego nie można cofnąć.</string>
     <string name="settings_duplicates">Duplikaty audio</string>
     <string name="settings_duplicates_body">Znajduje kopie tego samego nagrania po dźwięku, niezależnie od tagów</string>
@@ -572,6 +572,7 @@
     <string name="info_reading_file">Odczytywanie pliku…</string>
     <string name="action_edit_album">Edytuj album</string>
     <string name="action_edit_artist">Edytuj wykonawcę</string>
+    <string name="action_edit_short">Edytuj</string>
     <plurals name="count_files">
         <item quantity="one">%1$d plik</item>
         <item quantity="few">%1$d pliki</item>
@@ -646,10 +647,10 @@
         <item quantity="other">Inna aplikacja zmieniła %1$d pliku, więc pozostawiono je tak, jak są</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="one">%1$d plik wciąż czeka na dokończenie zapisu. Zobacz Ustawienia → Biblioteka.</item>
-        <item quantity="few">%1$d pliki wciąż czekają na dokończenie zapisu. Zobacz Ustawienia → Biblioteka.</item>
-        <item quantity="many">%1$d plików wciąż czeka na dokończenie zapisu. Zobacz Ustawienia → Biblioteka.</item>
-        <item quantity="other">%1$d pliku wciąż czeka na dokończenie zapisu. Zobacz Ustawienia → Biblioteka.</item>
+        <item quantity="one">Nie udało się jeszcze dokończyć zapisu %1$d pliku. Zobacz Ustawienia → Biblioteka.</item>
+        <item quantity="few">Nie udało się jeszcze dokończyć zapisu %1$d plików. Zobacz Ustawienia → Biblioteka.</item>
+        <item quantity="many">Nie udało się jeszcze dokończyć zapisu %1$d plików. Zobacz Ustawienia → Biblioteka.</item>
+        <item quantity="other">Nie udało się jeszcze dokończyć zapisu %1$d pliku. Zobacz Ustawienia → Biblioteka.</item>
     </plurals>
     <string name="lyrics_not_found">Nie znaleziono tekstu dla tego utworu.</string>
     <string name="cd_scroll_to_top">Wróć na górę</string>

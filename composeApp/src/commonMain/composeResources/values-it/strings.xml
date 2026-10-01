@@ -248,8 +248,8 @@
     <string name="tag_problem_damaged">Questo file sembra danneggiato, quindi è stato lasciato com'è.</string>
     <string name="tag_problem_protected">Questo file è protetto da copia e non può essere modificato.</string>
     <string name="tag_problem_tags_too_large">I tag sarebbero troppo grandi per questo file.</string>
-    <string name="tag_problem_bad_number">I numeri di traccia e di disco devono essere numeri interi da 1 a 999.</string>
-    <string name="tag_problem_number_unreadable">Il numero di traccia o di disco del file non è un numero semplice, quindi il suo totale non può essere modificato da solo.</string>
+    <string name="tag_problem_bad_number">I numeri di brano e di disco devono essere numeri interi da 1 a 999.</string>
+    <string name="tag_problem_number_unreadable">Il numero di brano o di disco del file non è un numero semplice, quindi il suo totale non può essere modificato da solo.</string>
     <string name="tag_problem_bad_image">L'immagine non è in formato JPEG o PNG.</string>
     <string name="tag_problem_read_only_storage">Questo file si trova su un archivio in cui non si può scrivere.</string>
     <string name="tag_problem_music_library">I brani della libreria musicale non possono essere modificati, solo quelli importati in LatentJam.</string>
@@ -553,6 +553,7 @@
     <string name="info_reading_file">Lettura del file…</string>
     <string name="action_edit_album">Modifica album</string>
     <string name="action_edit_artist">Modifica artista</string>
+    <string name="action_edit_short">Modifica</string>
     <plurals name="count_files">
         <item quantity="one">%1$d file</item>
         <item quantity="other">%1$d file</item>
@@ -607,8 +608,8 @@
         <item quantity="other">%1$d file sono stati modificati da un'altra app e sono stati lasciati come sono</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="one">%1$d file attende ancora di essere completato. Vedi Impostazioni → Libreria.</item>
-        <item quantity="other">%1$d file attendono ancora di essere completati. Vedi Impostazioni → Libreria.</item>
+        <item quantity="one">Non è stato ancora possibile completare %1$d file. Vedi Impostazioni → Libreria.</item>
+        <item quantity="other">Non è stato ancora possibile completare %1$d file. Vedi Impostazioni → Libreria.</item>
     </plurals>
     <string name="lyrics_not_found">Nessun testo trovato per questo brano.</string>
     <string name="cd_scroll_to_top">Torna all'inizio</string>

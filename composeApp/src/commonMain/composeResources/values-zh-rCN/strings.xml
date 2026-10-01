@@ -234,8 +234,8 @@
     <string name="tag_problem_damaged">此文件似乎已损坏，因此保持原样。</string>
     <string name="tag_problem_protected">此文件受复制保护，无法更改。</string>
     <string name="tag_problem_tags_too_large">标签对此文件来说会太大。</string>
-    <string name="tag_problem_bad_number">音轨号和光盘号必须是 1 到 999 之间的整数。</string>
-    <string name="tag_problem_number_unreadable">文件本身的音轨号或光盘号不是普通数字，因此无法单独更改其总数。</string>
+    <string name="tag_problem_bad_number">曲目编号和碟片编号必须是 1 到 999 之间的整数。</string>
+    <string name="tag_problem_number_unreadable">文件本身的曲目编号或碟片编号不是普通数字，因此无法单独更改其总数。</string>
     <string name="tag_problem_bad_image">该图片不是 JPEG 或 PNG 图像。</string>
     <string name="tag_problem_read_only_storage">此文件所在的存储空间无法写入。</string>
     <string name="tag_problem_music_library">音乐资料库中的歌曲无法编辑，只有导入 LatentJam 的歌曲可以编辑。</string>
@@ -244,7 +244,7 @@
     <string name="tag_problem_missing">文件已不存在。</string>
     <string name="tag_problem_stopped">已在处理此文件之前停止。</string>
     <string name="tag_problem_cancelled">权限请求已关闭。</string>
-    <string name="tag_problem_undone">中断的保存已被撤销：文件与之前一样。</string>
+    <string name="tag_problem_undone">中断的保存已被撤销：文件已恢复原状。</string>
     <string name="tag_problem_changed_elsewhere">保存中断后，另一个应用更改了该文件，因此保持原样。</string>
 
     <!-- =========================================================== settings -->
@@ -520,9 +520,9 @@
     <string name="snack_duplicates_merged">已合并重复项：播放列表现在指向保留的副本</string>
     <string name="info_lyrics">歌词</string>
     <string name="info_album_artist">专辑艺人</string>
-    <string name="info_track_number">歌曲序号</string>
-    <string name="info_track_total">歌曲总数</string>
-    <string name="info_disc_number">碟片序号</string>
+    <string name="info_track_number">曲目编号</string>
+    <string name="info_track_total">曲目总数</string>
+    <string name="info_disc_number">碟片编号</string>
     <string name="info_disc_total">碟片总数</string>
     <string name="info_cover">封面</string>
     <string name="info_cover_replace">替换</string>
@@ -536,6 +536,7 @@
     <string name="info_reading_file">正在读取文件…</string>
     <string name="action_edit_album">编辑专辑</string>
     <string name="action_edit_artist">编辑艺人</string>
+    <string name="action_edit_short">编辑</string>
     <plurals name="count_files">
         <item quantity="other">%1$d 个文件</item>
     </plurals>
@@ -569,18 +570,18 @@
     <plurals name="tags_saved">
         <item quantity="other">已在 %1$d 个文件中保存标签</item>
     </plurals>
-    <string name="tags_saved_partly">已在 %2$d 个文件中的 %1$d 个中保存标签</string>
+    <string name="tags_saved_partly">已为 %1$d 个文件保存标签（共 %2$d 个）</string>
     <plurals name="tag_recovery_done">
         <item quantity="other">已完成 %1$d 个文件的保存</item>
     </plurals>
     <plurals name="tag_recovery_undone">
-        <item quantity="other">已撤销 %1$d 次中断的保存；文件与之前一样</item>
+        <item quantity="other">已撤销 %1$d 次中断的保存；文件已恢复原状</item>
     </plurals>
     <plurals name="tag_recovery_left">
         <item quantity="other">%1$d 个文件已被其他应用更改，因此保持原样</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="other">%1$d 个文件仍在等待完成保存。请参阅“设置 → 音乐库”。</item>
+        <item quantity="other">%1$d 个文件暂时无法完成保存。请参阅“设置 → 音乐库”。</item>
     </plurals>
     <string name="lyrics_not_found">未找到此曲目的歌词。</string>
     <string name="cd_scroll_to_top">回到顶部</string>

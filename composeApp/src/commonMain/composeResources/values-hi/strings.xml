@@ -243,7 +243,7 @@
     <string name="tag_problem_tags_too_large">टैग इस फ़ाइल के लिए बहुत बड़े हो जाएँगे।</string>
     <string name="tag_problem_bad_number">ट्रैक और डिस्क नंबर 1 से 999 तक की पूर्ण संख्याएँ होने चाहिए।</string>
     <string name="tag_problem_number_unreadable">फ़ाइल का अपना ट्रैक या डिस्क नंबर सामान्य संख्या नहीं है, इसलिए उसका कुल अकेले नहीं बदला जा सकता।</string>
-    <string name="tag_problem_bad_image">यह चित्र JPEG या PNG छवि नहीं है।</string>
+    <string name="tag_problem_bad_image">यह तस्वीर JPEG या PNG नहीं है।</string>
     <string name="tag_problem_read_only_storage">यह फ़ाइल ऐसे स्टोरेज पर है जिसमें लिखा नहीं जा सकता।</string>
     <string name="tag_problem_music_library">संगीत लाइब्रेरी के गाने संपादित नहीं किए जा सकते, केवल LatentJam में इंपोर्ट किए गए गाने किए जा सकते हैं।</string>
     <string name="tag_problem_unreadable">यह फ़ाइल पढ़ी नहीं जा सकी।</string>
@@ -529,8 +529,8 @@
     <string name="snack_duplicates_merged">डुप्लिकेट मिला दिए गए: प्लेलिस्ट अब रखी गई कॉपी की ओर इशारा करती हैं</string>
     <string name="info_lyrics">गीत के बोल</string>
     <string name="info_album_artist">एल्बम कलाकार</string>
-    <string name="info_track_number">गाना नंबर</string>
-    <string name="info_track_total">कुल गाने</string>
+    <string name="info_track_number">ट्रैक नंबर</string>
+    <string name="info_track_total">कुल ट्रैक</string>
     <string name="info_disc_number">डिस्क नंबर</string>
     <string name="info_disc_total">कुल डिस्क</string>
     <string name="info_cover">कवर</string>
@@ -546,6 +546,7 @@
     <string name="info_reading_file">फ़ाइल पढ़ी जा रही है…</string>
     <string name="action_edit_album">एल्बम संपादित करें</string>
     <string name="action_edit_artist">कलाकार संपादित करें</string>
+    <string name="action_edit_short">संपादित करें</string>
     <plurals name="count_files">
         <item quantity="one">%1$d फ़ाइल</item>
         <item quantity="other">%1$d फ़ाइलें</item>
@@ -561,8 +562,8 @@
         <item quantity="other">%1$d फ़ाइलें संपादित नहीं की जा सकतीं और जैसी हैं वैसी ही रहेंगी:</item>
     </plurals>
     <plurals name="bulk_more_files">
-        <item quantity="one">और %1$d</item>
-        <item quantity="other">और %1$d</item>
+        <item quantity="one">और %1$d अन्य</item>
+        <item quantity="other">और %1$d अन्य</item>
     </plurals>
     <string name="bulk_nothing_editable">इनमें से कोई भी फ़ाइल संपादित नहीं की जा सकती।</string>
     <string name="bulk_different">अलग-अलग मान</string>
@@ -600,8 +601,8 @@
         <item quantity="other">%1$d फ़ाइलें किसी दूसरे ऐप ने बदल दी थीं, इसलिए उन्हें जैसी हैं वैसी ही छोड़ दिया गया</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="one">%1$d फ़ाइल का सहेजना अभी पूरा होना बाकी है। सेटिंग → लाइब्रेरी देखें।</item>
-        <item quantity="other">%1$d फ़ाइलों का सहेजना अभी पूरा होना बाकी है। सेटिंग → लाइब्रेरी देखें।</item>
+        <item quantity="one">%1$d फ़ाइल का सहेजना अभी पूरा नहीं हो सका। सेटिंग → लाइब्रेरी देखें।</item>
+        <item quantity="other">%1$d फ़ाइलों का सहेजना अभी पूरा नहीं हो सका। सेटिंग → लाइब्रेरी देखें।</item>
     </plurals>
     <string name="lyrics_not_found">इस ट्रैक के लिए कोई बोल नहीं मिले।</string>
     <string name="cd_scroll_to_top">ऊपर वापस जाएँ</string>

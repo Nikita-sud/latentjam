@@ -251,8 +251,8 @@
     <string name="tag_problem_damaged">Diese Datei scheint beschädigt zu sein und bleibt deshalb unverändert.</string>
     <string name="tag_problem_protected">Diese Datei ist kopiergeschützt und lässt sich nicht ändern.</string>
     <string name="tag_problem_tags_too_large">Die Tags wären für diese Datei zu groß.</string>
-    <string name="tag_problem_bad_number">Titel- und Disc-Nummern müssen ganze Zahlen von 1 bis 999 sein.</string>
-    <string name="tag_problem_number_unreadable">Die eigene Titel- oder Disc-Nummer der Datei ist keine einfache Zahl, daher lässt sich ihre Gesamtzahl nicht einzeln ändern.</string>
+    <string name="tag_problem_bad_number">Titel- und CD-Nummern müssen ganze Zahlen von 1 bis 999 sein.</string>
+    <string name="tag_problem_number_unreadable">Die eigene Titel- oder CD-Nummer der Datei ist keine einfache Zahl, daher lässt sich ihre Gesamtzahl nicht einzeln ändern.</string>
     <string name="tag_problem_bad_image">Das Bild ist kein JPEG- oder PNG-Bild.</string>
     <string name="tag_problem_read_only_storage">Diese Datei liegt auf einem Speicher, der nicht beschrieben werden kann.</string>
     <string name="tag_problem_music_library">Titel aus der Musikmediathek lassen sich nicht bearbeiten, nur in LatentJam importierte Titel.</string>
@@ -556,6 +556,7 @@
     <string name="info_reading_file">Datei wird gelesen…</string>
     <string name="action_edit_album">Album bearbeiten</string>
     <string name="action_edit_artist">Künstler bearbeiten</string>
+    <string name="action_edit_short">Bearbeiten</string>
     <plurals name="count_files">
         <item quantity="one">%1$d Datei</item>
         <item quantity="other">%1$d Dateien</item>
@@ -610,8 +611,8 @@
         <item quantity="other">%1$d Dateien wurden von einer anderen App geändert und so belassen</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="one">%1$d Datei wartet noch auf den Abschluss. Siehe Einstellungen → Bibliothek.</item>
-        <item quantity="other">%1$d Dateien warten noch auf den Abschluss. Siehe Einstellungen → Bibliothek.</item>
+        <item quantity="one">%1$d Datei konnte noch nicht fertig gespeichert werden. Siehe Einstellungen → Bibliothek.</item>
+        <item quantity="other">%1$d Dateien konnten noch nicht fertig gespeichert werden. Siehe Einstellungen → Bibliothek.</item>
     </plurals>
     <string name="lyrics_not_found">Für diesen Titel wurde kein Songtext gefunden.</string>
     <string name="cd_scroll_to_top">Zurück nach oben</string>

@@ -269,7 +269,7 @@
     <string name="tag_problem_missing">Файлу більше немає.</string>
     <string name="tag_problem_stopped">Зупинено перед цим файлом.</string>
     <string name="tag_problem_cancelled">Запит на дозвіл закрито.</string>
-    <string name="tag_problem_undone">Перерване збереження скасовано: файл такий, як був.</string>
+    <string name="tag_problem_undone">Перерване збереження скасовано: файл у попередньому стані.</string>
     <string name="tag_problem_changed_elsewhere">Інший застосунок змінив файл після перерваного збереження, тому його залишено як є.</string>
 
     <!-- =========================================================== settings -->
@@ -572,6 +572,7 @@
     <string name="info_reading_file">Читання файлу…</string>
     <string name="action_edit_album">Змінити альбом</string>
     <string name="action_edit_artist">Змінити виконавця</string>
+    <string name="action_edit_short">Змінити</string>
     <plurals name="count_files">
         <item quantity="one">%1$d файл</item>
         <item quantity="few">%1$d файли</item>
@@ -634,10 +635,10 @@
         <item quantity="other">Збереження завершено для %1$d файлу</item>
     </plurals>
     <plurals name="tag_recovery_undone">
-        <item quantity="one">%1$d перерване збереження скасовано; файл такий, як був</item>
-        <item quantity="few">%1$d перервані збереження скасовано; файли такі, як були</item>
-        <item quantity="many">%1$d перерваних збережень скасовано; файли такі, як були</item>
-        <item quantity="other">%1$d перерваного збереження скасовано; файли такі, як були</item>
+        <item quantity="one">%1$d перерване збереження скасовано; файл у попередньому стані</item>
+        <item quantity="few">%1$d перервані збереження скасовано; файли в попередньому стані</item>
+        <item quantity="many">%1$d перерваних збережень скасовано; файли в попередньому стані</item>
+        <item quantity="other">%1$d перерваного збереження скасовано; файли в попередньому стані</item>
     </plurals>
     <plurals name="tag_recovery_left">
         <item quantity="one">Інший застосунок змінив %1$d файл, тому його залишено як є</item>
@@ -646,10 +647,10 @@
         <item quantity="other">Інший застосунок змінив %1$d файлу, тому їх залишено як є</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="one">%1$d файл ще чекає на завершення збереження. Див. Налаштування → Бібліотека.</item>
-        <item quantity="few">%1$d файли ще чекають на завершення збереження. Див. Налаштування → Бібліотека.</item>
-        <item quantity="many">%1$d файлів ще чекають на завершення збереження. Див. Налаштування → Бібліотека.</item>
-        <item quantity="other">%1$d файлу ще чекають на завершення збереження. Див. Налаштування → Бібліотека.</item>
+        <item quantity="one">Збереження у %1$d файл поки не вдалося завершити. Див. Налаштування → Бібліотека.</item>
+        <item quantity="few">Збереження у %1$d файли поки не вдалося завершити. Див. Налаштування → Бібліотека.</item>
+        <item quantity="many">Збереження у %1$d файлів поки не вдалося завершити. Див. Налаштування → Бібліотека.</item>
+        <item quantity="other">Збереження у %1$d файлу поки не вдалося завершити. Див. Налаштування → Бібліотека.</item>
     </plurals>
     <string name="lyrics_not_found">Текст пісні для цього треку не знайдено.</string>
     <string name="cd_scroll_to_top">Нагору списку</string>

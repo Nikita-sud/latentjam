@@ -541,8 +541,8 @@
     <string name="snack_duplicates_merged">Doublons fusionnés : les playlists pointent vers la copie conservée</string>
     <string name="info_lyrics">Paroles</string>
     <string name="info_album_artist">Artiste de l'album</string>
-    <string name="info_track_number">N° de morceau</string>
-    <string name="info_track_total">Nombre de morceaux</string>
+    <string name="info_track_number">N° de piste</string>
+    <string name="info_track_total">Nombre de pistes</string>
     <string name="info_disc_number">N° de disque</string>
     <string name="info_disc_total">Nombre de disques</string>
     <string name="info_cover">Pochette</string>
@@ -558,6 +558,7 @@
     <string name="info_reading_file">Lecture du fichier…</string>
     <string name="action_edit_album">Modifier l'album</string>
     <string name="action_edit_artist">Modifier l'artiste</string>
+    <string name="action_edit_short">Modifier</string>
     <plurals name="count_files">
         <item quantity="one">%1$d fichier</item>
         <item quantity="other">%1$d fichiers</item>
@@ -573,16 +574,16 @@
         <item quantity="other">%1$d fichiers ne peuvent pas être modifiés et resteront tels quels :</item>
     </plurals>
     <plurals name="bulk_more_files">
-        <item quantity="one">et %1$d de plus</item>
-        <item quantity="other">et %1$d de plus</item>
+        <item quantity="one">et %1$d autre</item>
+        <item quantity="other">et %1$d autres</item>
     </plurals>
     <string name="bulk_nothing_editable">Aucun de ces fichiers ne peut être modifié.</string>
     <string name="bulk_different">Valeurs différentes</string>
     <plurals name="bulk_removed">
-        <item quantity="one">Supprimé de %1$d fichier</item>
-        <item quantity="other">Supprimé des %1$d</item>
+        <item quantity="one">Retiré de %1$d fichier</item>
+        <item quantity="other">Retiré des %1$d fichiers</item>
     </plurals>
-    <string name="bulk_remove_field">Supprimer de tous les fichiers</string>
+    <string name="bulk_remove_field">Retirer de tous les fichiers</string>
     <string name="bulk_keep_field">Laisser tel quel</string>
     <string name="bulk_kept">Reste tel quel : %1$s</string>
     <string name="bulk_saving">%1$d sur %2$d enregistrés</string>
@@ -612,8 +613,8 @@
         <item quantity="other">%1$d fichiers ont été modifiés par une autre application et ont été laissés tels quels</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="one">%1$d fichier attend encore d'être terminé. Voir Paramètres → Bibliothèque.</item>
-        <item quantity="other">%1$d fichiers attendent encore d'être terminés. Voir Paramètres → Bibliothèque.</item>
+        <item quantity="one">%1$d fichier n'a pas encore pu être terminé. Voir Paramètres → Bibliothèque.</item>
+        <item quantity="other">%1$d fichiers n'ont pas encore pu être terminés. Voir Paramètres → Bibliothèque.</item>
     </plurals>
     <string name="lyrics_not_found">Aucune parole n’a été trouvée pour ce titre.</string>
     <string name="cd_scroll_to_top">Revenir en haut</string>

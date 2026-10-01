@@ -536,8 +536,8 @@
     <string name="snack_duplicates_merged">Duplicatas mescladas: as playlists agora apontam para a cópia mantida</string>
     <string name="info_lyrics">Letra</string>
     <string name="info_album_artist">Artista do álbum</string>
-    <string name="info_track_number">Nº da música</string>
-    <string name="info_track_total">Total de músicas</string>
+    <string name="info_track_number">Nº da faixa</string>
+    <string name="info_track_total">Total de faixas</string>
     <string name="info_disc_number">Nº do disco</string>
     <string name="info_disc_total">Total de discos</string>
     <string name="info_cover">Capa</string>
@@ -553,6 +553,7 @@
     <string name="info_reading_file">Lendo o arquivo…</string>
     <string name="action_edit_album">Editar álbum</string>
     <string name="action_edit_artist">Editar artista</string>
+    <string name="action_edit_short">Editar</string>
     <plurals name="count_files">
         <item quantity="one">%1$d arquivo</item>
         <item quantity="other">%1$d arquivos</item>
@@ -607,8 +608,8 @@
         <item quantity="other">%1$d arquivos foram alterados por outro aplicativo e foram mantidos como estão</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="one">%1$d arquivo ainda aguarda para ser concluído. Veja Configurações → Biblioteca.</item>
-        <item quantity="other">%1$d arquivos ainda aguardam para ser concluídos. Veja Configurações → Biblioteca.</item>
+        <item quantity="one">Ainda não foi possível concluir %1$d arquivo. Veja Configurações → Biblioteca.</item>
+        <item quantity="other">Ainda não foi possível concluir %1$d arquivos. Veja Configurações → Biblioteca.</item>
     </plurals>
     <string name="lyrics_not_found">Nenhuma letra foi encontrada para esta faixa.</string>
     <string name="cd_scroll_to_top">Voltar ao topo</string>

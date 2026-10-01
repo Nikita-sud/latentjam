@@ -177,6 +177,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_add_to_playl
 import io.github.nikitasud.latentjam.app.generated.resources.action_add
 import io.github.nikitasud.latentjam.app.generated.resources.action_create
 import io.github.nikitasud.latentjam.app.generated.resources.action_delete
+import io.github.nikitasud.latentjam.app.generated.resources.action_edit_short
 import io.github.nikitasud.latentjam.app.generated.resources.action_next
 import io.github.nikitasud.latentjam.app.generated.resources.action_pause
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
@@ -194,7 +195,6 @@ import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_progress_eta
 import io.github.nikitasud.latentjam.app.generated.resources.indexing_notification_title
-import io.github.nikitasud.latentjam.app.generated.resources.info_edit
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_journey_title
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_discovery
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_mix_instrumental
@@ -5106,7 +5106,7 @@ private fun SelectionActionBar(
         )
         SelectionAction(
             icon = Icons.Rounded.Edit,
-            label = stringResource(Res.string.info_edit),
+            label = stringResource(Res.string.action_edit_short),
             enabled = canAct,
             onClick = onEditTags,
             modifier = Modifier.weight(1f),

@@ -241,8 +241,8 @@
     <string name="tag_problem_damaged">Acest fișier pare deteriorat, așa că a rămas neschimbat.</string>
     <string name="tag_problem_protected">Acest fișier este protejat la copiere și nu poate fi modificat.</string>
     <string name="tag_problem_tags_too_large">Etichetele ar fi prea mari pentru acest fișier.</string>
-    <string name="tag_problem_bad_number">Numerele pistei și ale discului trebuie să fie numere întregi de la 1 la 999.</string>
-    <string name="tag_problem_number_unreadable">Numărul pistei sau al discului din fișier nu este un număr simplu, așa că totalul lui nu poate fi schimbat separat.</string>
+    <string name="tag_problem_bad_number">Numerele de piesă și de disc trebuie să fie numere întregi de la 1 la 999.</string>
+    <string name="tag_problem_number_unreadable">Numărul de piesă sau de disc din fișier nu este un număr simplu, așa că totalul lui nu poate fi schimbat separat.</string>
     <string name="tag_problem_bad_image">Imaginea nu este de tip JPEG sau PNG.</string>
     <string name="tag_problem_read_only_storage">Acest fișier se află pe un spațiu de stocare pe care nu se poate scrie.</string>
     <string name="tag_problem_music_library">Melodiile din biblioteca muzicală nu pot fi editate, doar cele importate în LatentJam.</string>
@@ -548,6 +548,7 @@
     <string name="info_reading_file">Se citește fișierul…</string>
     <string name="action_edit_album">Editează albumul</string>
     <string name="action_edit_artist">Editează artistul</string>
+    <string name="action_edit_short">Editează</string>
     <plurals name="count_files">
         <item quantity="one">%1$d fișier</item>
         <item quantity="few">%1$d fișiere</item>
@@ -612,9 +613,9 @@
         <item quantity="other">%1$d de fișiere au fost modificate de o altă aplicație și au fost lăsate așa cum sunt</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="one">%1$d fișier încă așteaptă să fie finalizat. Vezi Setări → Bibliotecă.</item>
-        <item quantity="few">%1$d fișiere încă așteaptă să fie finalizate. Vezi Setări → Bibliotecă.</item>
-        <item quantity="other">%1$d de fișiere încă așteaptă să fie finalizate. Vezi Setări → Bibliotecă.</item>
+        <item quantity="one">%1$d fișier nu a putut fi terminat încă. Vezi Setări → Bibliotecă.</item>
+        <item quantity="few">%1$d fișiere nu au putut fi terminate încă. Vezi Setări → Bibliotecă.</item>
+        <item quantity="other">%1$d de fișiere nu au putut fi terminate încă. Vezi Setări → Bibliotecă.</item>
     </plurals>
     <string name="lyrics_not_found">Nu s-au găsit versuri pentru această piesă.</string>
     <string name="cd_scroll_to_top">Înapoi sus</string>

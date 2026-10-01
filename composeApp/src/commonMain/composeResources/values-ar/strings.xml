@@ -591,6 +591,7 @@
     <string name="info_reading_file">جارٍ قراءة الملف…</string>
     <string name="action_edit_album">تعديل الألبوم</string>
     <string name="action_edit_artist">تعديل الفنان</string>
+    <string name="action_edit_short">تعديل</string>
     <plurals name="count_files">
         <item quantity="zero">%1$d ملف</item>
         <item quantity="one">%1$d ملف</item>
@@ -685,12 +686,12 @@
         <item quantity="other">غيّر تطبيق آخر %1$d ملف، لذلك تُركت كما هي</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="zero">لا يزال %1$d ملف بانتظار إكمال حفظه. راجع الإعدادات ← المكتبة.</item>
-        <item quantity="one">لا يزال %1$d ملف بانتظار إكمال حفظه. راجع الإعدادات ← المكتبة.</item>
-        <item quantity="two">لا يزال %1$d ملفان بانتظار إكمال حفظهما. راجع الإعدادات ← المكتبة.</item>
-        <item quantity="few">لا تزال %1$d ملفات بانتظار إكمال حفظها. راجع الإعدادات ← المكتبة.</item>
-        <item quantity="many">لا يزال %1$d ملفًا بانتظار إكمال حفظها. راجع الإعدادات ← المكتبة.</item>
-        <item quantity="other">لا يزال %1$d ملف بانتظار إكمال حفظها. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="zero">تعذّر حتى الآن إكمال حفظ %1$d ملف. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="one">تعذّر حتى الآن إكمال حفظ %1$d ملف. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="two">تعذّر حتى الآن إكمال حفظ %1$d ملفين. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="few">تعذّر حتى الآن إكمال حفظ %1$d ملفات. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="many">تعذّر حتى الآن إكمال حفظ %1$d ملفًا. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="other">تعذّر حتى الآن إكمال حفظ %1$d ملف. راجع الإعدادات ← المكتبة.</item>
     </plurals>
     <string name="lyrics_not_found">لم يتم العثور على كلمات لهذه الأغنية.</string>
     <string name="cd_scroll_to_top">العودة إلى الأعلى</string>

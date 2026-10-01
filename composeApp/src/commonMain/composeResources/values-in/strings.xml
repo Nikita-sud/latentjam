@@ -247,7 +247,7 @@
     <string name="tag_problem_music_library">Lagu dari Pustaka musik tidak dapat diedit, hanya lagu yang diimpor ke LatentJam.</string>
     <string name="tag_problem_unreadable">File ini tidak dapat dibaca.</string>
     <string name="tag_problem_not_allowed">Izin untuk mengubah file tidak diberikan.</string>
-    <string name="tag_problem_missing">File tidak lagi ada.</string>
+    <string name="tag_problem_missing">File sudah tidak ada.</string>
     <string name="tag_problem_stopped">Dihentikan sebelum file ini.</string>
     <string name="tag_problem_cancelled">Permintaan izin ditutup.</string>
     <string name="tag_problem_undone">Penyimpanan yang terhenti telah dibatalkan: file kembali seperti semula.</string>
@@ -526,8 +526,8 @@
     <string name="snack_duplicates_merged">Duplikat digabung: playlist kini menunjuk ke salinan yang disimpan</string>
     <string name="info_lyrics">Lirik</string>
     <string name="info_album_artist">Artis album</string>
-    <string name="info_track_number">Nomor lagu</string>
-    <string name="info_track_total">Total lagu</string>
+    <string name="info_track_number">Nomor trek</string>
+    <string name="info_track_total">Total trek</string>
     <string name="info_disc_number">Nomor disk</string>
     <string name="info_disc_total">Total disk</string>
     <string name="info_cover">Sampul</string>
@@ -542,6 +542,7 @@
     <string name="info_reading_file">Membaca file…</string>
     <string name="action_edit_album">Edit album</string>
     <string name="action_edit_artist">Edit artis</string>
+    <string name="action_edit_short">Edit</string>
     <plurals name="count_files">
         <item quantity="other">%1$d file</item>
     </plurals>
@@ -586,7 +587,7 @@
         <item quantity="other">%1$d file diubah oleh aplikasi lain dan dibiarkan apa adanya</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="other">%1$d file masih menunggu untuk diselesaikan. Lihat Setelan → Pustaka.</item>
+        <item quantity="other">%1$d file belum dapat diselesaikan. Lihat Setelan → Pustaka.</item>
     </plurals>
     <string name="lyrics_not_found">Tidak ada lirik yang ditemukan untuk lagu ini.</string>
     <string name="cd_scroll_to_top">Kembali ke atas</string>

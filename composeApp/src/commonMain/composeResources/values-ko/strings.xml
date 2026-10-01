@@ -236,7 +236,7 @@
     <string name="tag_problem_tags_too_large">태그가 이 파일에 비해 너무 커집니다.</string>
     <string name="tag_problem_bad_number">트랙 번호와 디스크 번호는 1~999 사이의 정수여야 합니다.</string>
     <string name="tag_problem_number_unreadable">파일 자체의 트랙 번호 또는 디스크 번호가 일반 숫자가 아니라서 전체 개수만 따로 변경할 수 없습니다.</string>
-    <string name="tag_problem_bad_image">이 그림은 JPEG 또는 PNG 이미지가 아닙니다.</string>
+    <string name="tag_problem_bad_image">이 이미지는 JPEG 또는 PNG 형식이 아닙니다.</string>
     <string name="tag_problem_read_only_storage">이 파일은 쓸 수 없는 저장소에 있습니다.</string>
     <string name="tag_problem_music_library">음악 보관함의 곡은 편집할 수 없으며, LatentJam으로 가져온 곡만 편집할 수 있습니다.</string>
     <string name="tag_problem_unreadable">이 파일을 읽을 수 없었습니다.</string>
@@ -244,7 +244,7 @@
     <string name="tag_problem_missing">파일이 더 이상 없습니다.</string>
     <string name="tag_problem_stopped">이 파일 전에 중단되었습니다.</string>
     <string name="tag_problem_cancelled">권한 요청이 닫혔습니다.</string>
-    <string name="tag_problem_undone">중단된 저장을 취소했습니다. 파일은 이전 상태 그대로입니다.</string>
+    <string name="tag_problem_undone">중단된 저장을 취소했습니다. 파일이 이전 상태로 돌아갔습니다.</string>
     <string name="tag_problem_changed_elsewhere">저장이 중단된 뒤 다른 앱이 파일을 변경해서 그대로 두었습니다.</string>
 
     <!-- =========================================================== settings -->
@@ -520,8 +520,8 @@
     <string name="snack_duplicates_merged">중복이 병합되었습니다. 재생목록이 유지된 복사본을 가리킵니다</string>
     <string name="info_lyrics">가사</string>
     <string name="info_album_artist">앨범 아티스트</string>
-    <string name="info_track_number">곡 번호</string>
-    <string name="info_track_total">전체 곡 수</string>
+    <string name="info_track_number">트랙 번호</string>
+    <string name="info_track_total">전체 트랙 수</string>
     <string name="info_disc_number">디스크 번호</string>
     <string name="info_disc_total">전체 디스크 수</string>
     <string name="info_cover">커버</string>
@@ -536,6 +536,7 @@
     <string name="info_reading_file">파일을 읽는 중…</string>
     <string name="action_edit_album">앨범 편집</string>
     <string name="action_edit_artist">아티스트 편집</string>
+    <string name="action_edit_short">편집</string>
     <plurals name="count_files">
         <item quantity="other">파일 %1$d개</item>
     </plurals>
@@ -553,9 +554,9 @@
     <string name="bulk_nothing_editable">편집할 수 있는 파일이 없습니다.</string>
     <string name="bulk_different">여러 값</string>
     <plurals name="bulk_removed">
-        <item quantity="other">파일 %1$d개 모두에서 삭제됨</item>
+        <item quantity="other">파일 %1$d개 모두에서 제거됨</item>
     </plurals>
-    <string name="bulk_remove_field">모든 파일에서 삭제</string>
+    <string name="bulk_remove_field">모든 파일에서 제거</string>
     <string name="bulk_keep_field">그대로 유지</string>
     <string name="bulk_kept">그대로 유지: %1$s</string>
     <string name="bulk_saving">%2$d개 중 %1$d개 저장됨</string>
@@ -574,13 +575,13 @@
         <item quantity="other">파일 %1$d개의 저장을 마쳤습니다</item>
     </plurals>
     <plurals name="tag_recovery_undone">
-        <item quantity="other">중단된 저장 %1$d건을 취소했습니다. 파일은 이전 상태 그대로입니다</item>
+        <item quantity="other">중단된 저장 %1$d건을 취소했습니다. 파일이 이전 상태로 돌아갔습니다</item>
     </plurals>
     <plurals name="tag_recovery_left">
         <item quantity="other">다른 앱이 변경한 파일 %1$d개는 그대로 두었습니다</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="other">파일 %1$d개의 저장이 아직 끝나지 않았습니다. 설정 → 라이브러리를 확인하세요.</item>
+        <item quantity="other">파일 %1$d개의 저장을 아직 완료하지 못했습니다. 설정 → 라이브러리를 확인하세요.</item>
     </plurals>
     <string name="lyrics_not_found">이 곡의 가사를 찾을 수 없습니다.</string>
     <string name="cd_scroll_to_top">맨 위로</string>

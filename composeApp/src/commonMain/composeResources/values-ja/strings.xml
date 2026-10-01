@@ -244,7 +244,7 @@
     <string name="tag_problem_missing">ファイルが見つかりません。</string>
     <string name="tag_problem_stopped">このファイルの前で停止しました。</string>
     <string name="tag_problem_cancelled">許可のリクエストが閉じられました。</string>
-    <string name="tag_problem_undone">中断された保存は取り消されました。ファイルは以前の状態のままです。</string>
+    <string name="tag_problem_undone">中断された保存は取り消されました。ファイルは以前の状態に戻っています。</string>
     <string name="tag_problem_changed_elsewhere">保存が中断された後に別のアプリがファイルを変更したため、そのままにしています。</string>
 
     <!-- =========================================================== settings -->
@@ -520,8 +520,8 @@
     <string name="snack_duplicates_merged">重複を統合しました。プレイリストは残したコピーを指します</string>
     <string name="info_lyrics">歌詞</string>
     <string name="info_album_artist">アルバムアーティスト</string>
-    <string name="info_track_number">曲番号</string>
-    <string name="info_track_total">総曲数</string>
+    <string name="info_track_number">トラック番号</string>
+    <string name="info_track_total">総トラック数</string>
     <string name="info_disc_number">ディスク番号</string>
     <string name="info_disc_total">総ディスク数</string>
     <string name="info_cover">カバー</string>
@@ -536,6 +536,7 @@
     <string name="info_reading_file">ファイルを読み取り中…</string>
     <string name="action_edit_album">アルバムを編集</string>
     <string name="action_edit_artist">アーティストを編集</string>
+    <string name="action_edit_short">編集</string>
     <plurals name="count_files">
         <item quantity="other">%1$d件のファイル</item>
     </plurals>
@@ -553,7 +554,7 @@
     <string name="bulk_nothing_editable">これらのファイルはどれも編集できません。</string>
     <string name="bulk_different">複数の値</string>
     <plurals name="bulk_removed">
-        <item quantity="other">%1$d件すべてから削除</item>
+        <item quantity="other">%1$d件のファイルから削除</item>
     </plurals>
     <string name="bulk_remove_field">すべてのファイルから削除</string>
     <string name="bulk_keep_field">そのままにする</string>
@@ -574,13 +575,13 @@
         <item quantity="other">%1$d件のファイルの保存を完了しました</item>
     </plurals>
     <plurals name="tag_recovery_undone">
-        <item quantity="other">中断された保存%1$d件を取り消しました。ファイルは以前の状態のままです</item>
+        <item quantity="other">中断された保存%1$d件を取り消しました。ファイルは以前の状態に戻っています</item>
     </plurals>
     <plurals name="tag_recovery_left">
         <item quantity="other">%1$d件のファイルは別のアプリによって変更されていたため、そのままにしています</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="other">%1$d件のファイルの保存がまだ完了していません。設定 → ライブラリをご覧ください。</item>
+        <item quantity="other">%1$d件のファイルの保存をまだ完了できていません。設定 → ライブラリをご覧ください。</item>
     </plurals>
     <string name="lyrics_not_found">この曲の歌詞が見つかりませんでした。</string>
     <string name="cd_scroll_to_top">先頭に戻る</string>

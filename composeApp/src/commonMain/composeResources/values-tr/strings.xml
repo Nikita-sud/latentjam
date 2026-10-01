@@ -242,8 +242,8 @@
     <string name="tag_problem_protected">Bu dosya kopyalamaya karşı korumalı ve değiştirilemez.</string>
     <string name="tag_problem_tags_too_large">Etiketler bu dosya için çok büyük olurdu.</string>
     <string name="tag_problem_bad_number">Parça ve disk numaraları 1 ile 999 arasında tam sayılar olmalıdır.</string>
-    <string name="tag_problem_number_unreadable">Dosyanın kendi parça veya disk numarası düz bir sayı değil, bu yüzden toplamı tek başına değiştirilemez.</string>
-    <string name="tag_problem_bad_image">Resim bir JPEG veya PNG görüntüsü değil.</string>
+    <string name="tag_problem_number_unreadable">Dosyanın kendi parça veya disk numarası basit bir sayı değil, bu yüzden toplamı tek başına değiştirilemez.</string>
+    <string name="tag_problem_bad_image">Görsel JPEG veya PNG biçiminde değil.</string>
     <string name="tag_problem_read_only_storage">Bu dosya, yazılamayan bir depolama alanında.</string>
     <string name="tag_problem_music_library">Müzik arşivindeki şarkılar düzenlenemez, yalnızca LatentJam'e aktarılan şarkılar düzenlenebilir.</string>
     <string name="tag_problem_unreadable">Bu dosya okunamadı.</string>
@@ -546,6 +546,7 @@
     <string name="info_reading_file">Dosya okunuyor…</string>
     <string name="action_edit_album">Albümü düzenle</string>
     <string name="action_edit_artist">Sanatçıyı düzenle</string>
+    <string name="action_edit_short">Düzenle</string>
     <plurals name="count_files">
         <item quantity="one">%1$d dosya</item>
         <item quantity="other">%1$d dosya</item>
@@ -600,8 +601,8 @@
         <item quantity="other">%1$d dosya başka bir uygulama tarafından değiştirilmişti, bu yüzden olduğu gibi bırakıldı</item>
     </plurals>
     <plurals name="tag_recovery_waiting">
-        <item quantity="one">%1$d dosya hâlâ tamamlanmayı bekliyor. Ayarlar → Kitaplık bölümüne bakın.</item>
-        <item quantity="other">%1$d dosya hâlâ tamamlanmayı bekliyor. Ayarlar → Kitaplık bölümüne bakın.</item>
+        <item quantity="one">%1$d dosya henüz tamamlanamadı. Ayarlar → Kitaplık bölümüne bakın.</item>
+        <item quantity="other">%1$d dosya henüz tamamlanamadı. Ayarlar → Kitaplık bölümüne bakın.</item>
     </plurals>
     <string name="lyrics_not_found">Bu parça için şarkı sözü bulunamadı.</string>
     <string name="cd_scroll_to_top">Başa dön</string>
