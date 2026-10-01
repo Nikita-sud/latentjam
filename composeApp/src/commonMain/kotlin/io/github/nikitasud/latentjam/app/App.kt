@@ -889,25 +889,33 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
          * tracks, as the library held them before the save, with its result; [results] are all the
          * saves, recoveries included. First SMART's carry-overs, before the reload that would
          * otherwise start a sync without them. Then one library reload. Then the queue and the open
-         * page, which hold descriptors by value. Nothing runs when no file changed.
+         * page, which hold descriptors by value. Nothing runs when no file changed; else the job.
+         *
+         * On the app's scope, not this composition's: an Activity recreated within the second this
+         * takes (a rotation) would otherwise cancel it, leaving the carry-overs unstored and the
+         * queue on the old descriptors. Those two are process-wide, so they finish whatever happens
+         * to this composition. The library and the open page are this composition's; a new one
+         * loads its own library at start, after the save, and opens no page from before.
          */
-        suspend fun followTagSaves(
+        fun followTagSaves(
             edits: List<Pair<List<TrackDescriptor>, TagSaveResult>>,
             results: List<TagSaveResult>,
-        ) {
-            val access = tagAccess ?: return
+        ): Job? {
+            val access = tagAccess ?: return null
             val changedKeys = results.flatMapTo(HashSet()) { it.changedKeys() }
-            if (changedKeys.isEmpty()) return
-            for ((saved, result) in edits) {
-                AppGraph.audioCarryOvers.add(audioCarryOversOf(saved, result, access::keyOf))
+            if (changedKeys.isEmpty()) return null
+            return AppGraph.appScope.launch(Dispatchers.Main) {
+                for ((saved, result) in edits) {
+                    AppGraph.audioCarryOvers.add(audioCarryOversOf(saved, result, access::keyOf))
+                }
+                val fresh = scanLibrary()
+                playback.refreshTracks(tracksWithKeys(fresh, changedKeys, access::keyOf))
+                refreshOpenCollection(fresh)
             }
-            val fresh = scanLibrary()
-            playback.refreshTracks(tracksWithKeys(fresh, changedKeys, access::keyOf))
-            refreshOpenCollection(fresh)
         }
 
         fun afterTagSave(saved: List<TrackDescriptor>, result: TagSaveResult) {
-            scope.launch { followTagSaves(listOf(saved to result), listOf(result)) }
+            followTagSaves(listOf(saved to result), listOf(result))
         }
         var playlistMutationInProgress by remember { mutableStateOf(false) }
         var playlistMutationFailed by remember { mutableStateOf(false) }
@@ -4536,7 +4544,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val tagEditorOpen = (infoTargetId != null || bulkEditIds != null) &&
             (catalog == null || infoTarget != null || bulkTargets != null)
         // Reports no editor claimed. They are acknowledged at once, because acknowledging restarts this
-        // effect, and followed from the App scope so a restart cannot cut a reload or snackbar short.
+        // effect, and followed outside it so a restart cannot cut a reload or snackbar short.
         LaunchedEffect(unclaimedTagReports, tagEditorOpen, libraryLoaded) {
             val access = tagAccess ?: return@LaunchedEffect
             // An open editor claims its own report; the others wait until it closes. And until the
@@ -4552,8 +4560,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             val edits = results
                 .filter { (report, _) -> report.kind == TagWriteKind.EDIT }
                 .map { (_, result) -> tracksWithKeys(held, result.changedKeys(), access::keyOf) to result }
+            val follow = followTagSaves(edits, results.map { it.second })
+            // The notices belong to this composition's snackbar host; they wait for the follow-up.
             scope.launch {
-                followTagSaves(edits, results.map { it.second })
+                follow?.join()
                 for ((report, result) in results) {
                     for (notice in tagReportNotices(report.kind, result)) {
                         snackbar.showSnackbar(tagReportNoticeText(notice))
