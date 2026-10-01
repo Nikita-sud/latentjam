@@ -103,14 +103,16 @@ import org.jetbrains.compose.resources.stringResource
  * understand. That refusal is shown here in words. The one thing this screen will never do is
  * report success it did not get — the version of this UI that did was removed for it.
  *
- * @param onSaved runs with the save's result after the file and the media index both hold the new
- *   tags, so the caller can refresh its library snapshot and see them.
+ * @param onSaved runs with the track as it was when Save was tapped, and the save's result, after
+ *   the file and the media index both hold the new tags, so the caller can refresh its library
+ *   snapshot and see them. That track keeps the revision the library held at the tap even when a
+ *   reload during the save has moved [track] on: SMART's carry-over is keyed by the old one.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TrackInfoSheet(
     track: TrackDescriptor,
-    onSaved: (TagSaveResult) -> Unit = {},
+    onSaved: (TrackDescriptor, TagSaveResult) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
 ) {
     val lyricsSource = track.lyricsSourceIdentity()
@@ -159,13 +161,16 @@ internal fun TrackInfoSheet(
         (form?.cover as? CoverChoice.Replace)?.let { AppGraph.appScope.launch { deleteTagCover(it.reference) } }
     }
 
+    // The track's revision when Save was tapped, kept across recreation (see onSaved).
+    var tappedRevision by rememberSaveable(track.id.value) { mutableStateOf<String?>(null) }
+    var revisionTapped by rememberSaveable(track.id.value) { mutableStateOf(false) }
     val saver = rememberTagSaver { result ->
         val entry = result.entries.singleOrNull()
         when {
             entry == null -> failure = if (result.lost) TagProblem.LOST else TagProblem.FAILED
             entry.saved -> {
                 forgetPickedCover()
-                onSaved(result)
+                onSaved(if (revisionTapped) track.asSavedFrom(tappedRevision) else track, result)
                 onDismiss()
             }
             // The user closed the system's permission dialog. They know they did.
@@ -462,6 +467,8 @@ internal fun TrackInfoSheet(
                             focus.clearFocus()
                             keyboard?.hide()
                             failure = null
+                            tappedRevision = track.sourceRevision
+                            revisionTapped = true
                             starting = true
                             scope.launch {
                                 try {

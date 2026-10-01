@@ -1047,7 +1047,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         ) {
             scope.launch {
                 if (selectedTab == StartPage.PLAYLISTS) autoPlaylistClockMs = epochMillis()
-                scanLibrary()
+                // Not while a tag save is queued or running. The return from its consent dialog lands
+                // here just as the writes start, and a reload that already sees a written file's new
+                // revision, before the save's SMART carry-over exists, discards its audio analysis.
+                // The save reloads the library itself once it has finished.
+                if (tagAccess?.coordinator?.active?.value != true) scanLibrary()
                 hasHiddenTracks = library.hasHiddenTracks()
             }
         }
@@ -4499,7 +4503,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 track = target,
                 // Without this the list keeps the old title until relaunch — the write lands, the
                 // rescan finishes, and the UI is still holding the pre-edit snapshot.
-                onSaved = { result -> afterTagSave(listOf(target), result) },
+                onSaved = { saved, result -> afterTagSave(listOf(saved), result) },
                 onDismiss = { infoTargetId = null },
             )
         }
@@ -4533,10 +4537,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             (catalog == null || infoTarget != null || bulkTargets != null)
         // Reports no editor claimed. They are acknowledged at once, because acknowledging restarts this
         // effect, and followed from the App scope so a restart cannot cut a reload or snackbar short.
-        LaunchedEffect(unclaimedTagReports, tagEditorOpen) {
+        LaunchedEffect(unclaimedTagReports, tagEditorOpen, libraryLoaded) {
             val access = tagAccess ?: return@LaunchedEffect
-            // An open editor claims its own report; the others wait until it closes.
-            if (tagEditorOpen || unclaimedTagReports.isEmpty()) return@LaunchedEffect
+            // An open editor claims its own report; the others wait until it closes. And until the
+            // library has loaded: the carry-overs are resolved from it, and a report restored at a
+            // cold start arrives before it.
+            if (tagEditorOpen || unclaimedTagReports.isEmpty() || !libraryLoaded) return@LaunchedEffect
             val reports = unclaimedTagReports
             reports.forEach(access.coordinator::acknowledge)
             val results = reports.map { it to TagSaveResult.of(it, access.readOnlyIsMusicLibrary) }

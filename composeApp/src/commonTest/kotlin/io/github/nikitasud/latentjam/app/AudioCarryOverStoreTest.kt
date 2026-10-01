@@ -63,4 +63,16 @@ internal class AudioCarryOverStoreTest {
         )
         assertEquals(listOf(AudioCarryOver(TrackId("1"), "r1", 100)), audioCarryOversOf(tracks, result) { it.audioUri })
     }
+
+    @Test
+    fun aSaveReloadedMidwayStillCarriesOverFromTheRevisionItBeganAt() {
+        // A reload during the save moved the live descriptor on to the written file's revision.
+        val reloaded = TrackDescriptor(TrackId("1"), audioUri = "k1", sourceRevision = "after")
+        val result = TagSaveResult(listOf(TagSaveEntry("k1", FileWriteStatus.SAVED, newLength = 100)))
+        assertEquals(
+            listOf(AudioCarryOver(TrackId("1"), "before", 100)),
+            audioCarryOversOf(listOf(reloaded.asSavedFrom("before")), result) { it.audioUri },
+        )
+        assertEquals(null, reloaded.asSavedFrom(null).sourceRevision)
+    }
 }

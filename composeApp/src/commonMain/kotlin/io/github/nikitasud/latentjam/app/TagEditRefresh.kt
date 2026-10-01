@@ -89,6 +89,13 @@ internal suspend fun tagReportNoticeText(notice: TagReportNotice): String = when
 /** Statuses after which the file's bytes differ from what the library last read. */
 internal val TAG_FILE_CHANGED = setOf(FileWriteStatus.SAVED, FileWriteStatus.RECOVERED, FileWriteStatus.RESTORED)
 
+/**
+ * This track as a save of it began: the same track at [revision], the revision the library held
+ * when Save was tapped. A reload during the save can move the live descriptor to the written file's
+ * new revision, and SMART's carry-over must name the old one, which its audio analysis was made from.
+ */
+internal fun TrackDescriptor.asSavedFrom(revision: String?): TrackDescriptor = copy(sourceRevision = revision)
+
 /** The keys of the files a finished save changed on storage. */
 internal fun TagSaveResult.changedKeys(): Set<String> =
     entries.filter { it.status in TAG_FILE_CHANGED }.mapTo(HashSet()) { it.key }
