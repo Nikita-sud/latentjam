@@ -274,6 +274,7 @@
     <string name="tag_problem_cancelled">Запит на дозвіл закрито.</string>
     <string name="tag_problem_undone">Перерване збереження скасовано: файл у попередньому стані.</string>
     <string name="tag_problem_changed_elsewhere">Інший застосунок змінив файл після перерваного збереження, тому його залишено як є.</string>
+    <string name="tag_problem_lost">LatentJam не вдалося дізнатися, чим завершилося це збереження. Перевірте теги файлу.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Налаштування</string>

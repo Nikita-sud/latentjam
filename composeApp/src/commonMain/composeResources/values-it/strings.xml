@@ -263,6 +263,7 @@
     <string name="tag_problem_cancelled">La richiesta di permesso è stata chiusa.</string>
     <string name="tag_problem_undone">Un salvataggio interrotto è stato annullato: il file è com'era prima.</string>
     <string name="tag_problem_changed_elsewhere">Un'altra app ha modificato il file dopo l'interruzione del salvataggio, quindi è stato lasciato com'è.</string>
+    <string name="tag_problem_lost">LatentJam non è riuscito a sapere come è finito questo salvataggio. Controlla i tag del file.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Impostazioni</string>

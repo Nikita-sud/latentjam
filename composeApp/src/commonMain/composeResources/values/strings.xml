@@ -317,6 +317,7 @@
     <string name="tag_problem_cancelled">The permission request was closed.</string>
     <string name="tag_problem_undone">An interrupted save was undone: the file is as it was before.</string>
     <string name="tag_problem_changed_elsewhere">Another app changed the file after the save was interrupted, so it was left as it is.</string>
+    <string name="tag_problem_lost">LatentJam could not find out how this save ended. Check the file's tags.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Settings</string>

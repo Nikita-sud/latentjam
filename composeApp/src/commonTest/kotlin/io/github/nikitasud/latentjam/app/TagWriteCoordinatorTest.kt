@@ -722,6 +722,38 @@ internal class TagWriteCoordinatorTest {
     }
 
     @Test
+    fun aRestoredRequestIsKnownOnceTheRestoreIsDoneAndADroppedOneIsNot() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        listOf("a", "b").forEach { backend.files.put(it, testMp3()) }
+        val first = Harness(backend, this)
+        val kept = first.enqueue(listOf("a"), TagEdits(title = "New"))
+        val dropped = first.enqueue(listOf("b"), TagEdits(title = "New"))
+        runCurrent()
+        // The second request's keys were never saved, as after a failed key write.
+        backend.savedKeys.remove(dropped)
+        val restored = first.recreate()
+        // Asked before the restore has run: answered after it, never from the empty start.
+        val answers = ArrayList<Pair<Long, Boolean>>()
+        launch { listOf(kept, dropped).forEach { answers += it to restored.coordinator.knows(it) } }
+        runCurrent()
+        assertEquals(listOf(kept to true, dropped to false), answers)
+    }
+
+    @Test
+    fun anUnclaimedReportIsKnownUntilItIsAcknowledged() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", testMp3())
+        val harness = Harness(backend, this)
+        val id = assertNotNull(harness.coordinator.enqueue(listOf("a"), TagEdits(title = "New")))
+        runCurrent()
+        harness.deliver()
+        val report = harness.coordinator.unclaimed.value.single()
+        assertTrue(harness.coordinator.knows(id))
+        harness.coordinator.acknowledge(report)
+        assertFalse(harness.coordinator.knows(id))
+    }
+
+    @Test
     fun aRestoreWhoseKeysCannotBeReadRestoresNothingAndFinishes() = runTest {
         val backend = TestTagWriteBackend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
         backend.files.put("a", testMp3())

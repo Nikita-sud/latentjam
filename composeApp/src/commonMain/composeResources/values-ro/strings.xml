@@ -256,6 +256,7 @@
     <string name="tag_problem_cancelled">Cererea de permisiune a fost închisă.</string>
     <string name="tag_problem_undone">O salvare întreruptă a fost anulată: fișierul este ca înainte.</string>
     <string name="tag_problem_changed_elsewhere">O altă aplicație a modificat fișierul după întreruperea salvării, așa că a rămas neschimbat.</string>
+    <string name="tag_problem_lost">LatentJam nu a putut afla cum s-a încheiat această salvare. Verifică etichetele fișierului.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Setări</string>

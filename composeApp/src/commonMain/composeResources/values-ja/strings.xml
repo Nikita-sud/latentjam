@@ -249,6 +249,7 @@
     <string name="tag_problem_cancelled">許可のリクエストが閉じられました。</string>
     <string name="tag_problem_undone">中断された保存は取り消されました。ファイルは以前の状態に戻っています。</string>
     <string name="tag_problem_changed_elsewhere">保存が中断された後に別のアプリがファイルを変更したため、そのままにしています。</string>
+    <string name="tag_problem_lost">この保存がどう終わったかを LatentJam は確認できませんでした。ファイルのタグを確認してください。</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">設定</string>

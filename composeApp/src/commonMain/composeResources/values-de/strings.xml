@@ -266,6 +266,7 @@
     <string name="tag_problem_cancelled">Die Berechtigungsanfrage wurde geschlossen.</string>
     <string name="tag_problem_undone">Ein unterbrochenes Speichern wurde rückgängig gemacht: Die Datei ist wie zuvor.</string>
     <string name="tag_problem_changed_elsewhere">Eine andere App hat die Datei geändert, nachdem das Speichern unterbrochen wurde, daher blieb sie unverändert.</string>
+    <string name="tag_problem_lost">LatentJam konnte nicht feststellen, wie dieses Speichern ausgegangen ist. Prüfe die Tags der Datei.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Einstellungen</string>

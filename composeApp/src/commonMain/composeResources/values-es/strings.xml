@@ -263,6 +263,7 @@
     <string name="tag_problem_cancelled">Se cerró la solicitud de permiso.</string>
     <string name="tag_problem_undone">Se deshizo un guardado interrumpido: el archivo está como antes.</string>
     <string name="tag_problem_changed_elsewhere">Otra aplicación cambió el archivo después de interrumpirse el guardado, así que se ha dejado como está.</string>
+    <string name="tag_problem_lost">LatentJam no pudo saber cómo terminó este guardado. Comprueba las etiquetas del archivo.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ajustes</string>

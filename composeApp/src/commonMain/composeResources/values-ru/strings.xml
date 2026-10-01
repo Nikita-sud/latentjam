@@ -260,6 +260,7 @@
     <string name="tag_problem_cancelled">Запрос разрешения был закрыт.</string>
     <string name="tag_problem_undone">Прерванное сохранение отменено: файл в прежнем виде.</string>
     <string name="tag_problem_changed_elsewhere">Другое приложение изменило файл после прерванного сохранения, поэтому он оставлен как есть.</string>
+    <string name="tag_problem_lost">LatentJam не удалось узнать, чем закончилось это сохранение. Проверьте теги файла.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Настройки</string>

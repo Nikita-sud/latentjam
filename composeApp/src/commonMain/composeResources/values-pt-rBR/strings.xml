@@ -263,6 +263,7 @@
     <string name="tag_problem_cancelled">A solicitação de permissão foi fechada.</string>
     <string name="tag_problem_undone">Um salvamento interrompido foi desfeito: o arquivo está como antes.</string>
     <string name="tag_problem_changed_elsewhere">Outro aplicativo alterou o arquivo depois que o salvamento foi interrompido, então ele foi mantido como está.</string>
+    <string name="tag_problem_lost">O LatentJam não conseguiu saber como este salvamento terminou. Confira as tags do arquivo.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Configurações</string>

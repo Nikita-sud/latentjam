@@ -249,6 +249,7 @@
     <string name="tag_problem_cancelled">권한 요청이 닫혔습니다.</string>
     <string name="tag_problem_undone">중단된 저장을 취소했습니다. 파일이 이전 상태로 돌아갔습니다.</string>
     <string name="tag_problem_changed_elsewhere">저장이 중단된 뒤 다른 앱이 파일을 변경해서 그대로 두었습니다.</string>
+    <string name="tag_problem_lost">LatentJam이 이 저장이 어떻게 끝났는지 확인하지 못했습니다. 파일의 태그를 확인하세요.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">설정</string>

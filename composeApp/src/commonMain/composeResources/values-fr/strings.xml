@@ -268,6 +268,7 @@
     <string name="tag_problem_cancelled">La demande d'autorisation a été fermée.</string>
     <string name="tag_problem_undone">Un enregistrement interrompu a été annulé : le fichier est tel qu'il était avant.</string>
     <string name="tag_problem_changed_elsewhere">Une autre application a modifié le fichier après l'interruption de l'enregistrement ; il a donc été laissé tel quel.</string>
+    <string name="tag_problem_lost">LatentJam n'a pas pu savoir comment cet enregistrement s'est terminé. Vérifiez les tags du fichier.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Paramètres</string>

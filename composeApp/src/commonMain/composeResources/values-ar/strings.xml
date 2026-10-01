@@ -289,6 +289,7 @@
     <string name="tag_problem_cancelled">أُغلق طلب الإذن.</string>
     <string name="tag_problem_undone">أُلغي حفظ متوقف: الملف كما كان من قبل.</string>
     <string name="tag_problem_changed_elsewhere">غيّر تطبيق آخر الملف بعد توقف الحفظ، لذلك تُرك كما هو.</string>
+    <string name="tag_problem_lost">تعذّر على LatentJam معرفة كيف انتهى هذا الحفظ. تحقّق من وسوم الملف.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">الإعدادات</string>

@@ -162,7 +162,7 @@ internal fun TrackInfoSheet(
     val saver = rememberTagSaver { result ->
         val entry = result.entries.singleOrNull()
         when {
-            entry == null -> failure = TagProblem.FAILED
+            entry == null -> failure = if (result.lost) TagProblem.LOST else TagProblem.FAILED
             entry.saved -> {
                 forgetPickedCover()
                 onSaved(result)

@@ -26,6 +26,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_bad_num
 import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_cancelled
 import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_changed_elsewhere
 import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_damaged
+import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_lost
 import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_missing
 import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_music_library
 import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_not_allowed
@@ -46,7 +47,7 @@ import org.jetbrains.compose.resources.stringResource
 internal enum class TagProblem {
     UNSUPPORTED_FORMAT, UNUSUAL_LAYOUT, DAMAGED, PROTECTED, TAGS_TOO_LARGE, BAD_NUMBER, NUMBER_UNREADABLE,
     BAD_IMAGE, READ_ONLY_STORAGE, MUSIC_LIBRARY, UNREADABLE, NO_SPACE, INTERRUPTED, NOT_ALLOWED, MISSING,
-    STOPPED, CANCELLED, FAILED, UNDONE, CHANGED_ELSEWHERE,
+    STOPPED, CANCELLED, FAILED, UNDONE, CHANGED_ELSEWHERE, LOST,
 }
 
 /**
@@ -103,8 +104,11 @@ internal data class TagSaveEntry(
     val saved: Boolean get() = problem == null
 }
 
-/** A finished save, file by file: what the editor reports exactly (spec §6.3). */
-internal data class TagSaveResult(val entries: List<TagSaveEntry>) {
+/**
+ * A finished save, file by file: what the editor reports exactly (spec §6.3). [lost]: the editor's
+ * save is one the writer no longer holds and will never report, so nothing is known file by file.
+ */
+internal data class TagSaveResult(val entries: List<TagSaveEntry>, val lost: Boolean = false) {
     val savedCount: Int get() = entries.count { it.saved }
     val notChanged: List<TagSaveEntry> get() = entries.filterNot { it.saved }
 
@@ -213,6 +217,17 @@ internal class TagSaver(
         mine.toList().forEach(access.coordinator::unlisten)
     }
 
+    /**
+     * Drops the saved ids the coordinator turns out not to hold once it has restored, each reported
+     * as a lost save. Without this a recreated editor would show "Saving…" for ever and, since a
+     * sheet cannot be closed mid-save, trap the user in it.
+     */
+    suspend fun forgetLost() {
+        for (id in mine.toList()) {
+            if (!access.coordinator.knows(id) && mine.remove(id)) onFinished(TagSaveResult(emptyList(), lost = true))
+        }
+    }
+
     /** Takes this editor's reports that were handed out while nobody listened. */
     fun claim(unclaimed: List<TagWriteReport>) {
         for (report in unclaimed) {
@@ -246,6 +261,7 @@ internal fun rememberTagSaver(onFinished: (TagSaveResult) -> Unit): TagSaver? {
         saver.attach()
         onDispose { saver.detach() }
     }
+    LaunchedEffect(saver) { saver.forgetLost() }
     val unclaimed by access.coordinator.unclaimed.collectAsState()
     LaunchedEffect(saver, unclaimed) { saver.claim(unclaimed) }
     return saver
@@ -281,5 +297,6 @@ internal fun tagProblemText(problem: TagProblem): String = stringResource(
         TagProblem.FAILED -> Res.string.info_edit_failed
         TagProblem.UNDONE -> Res.string.tag_problem_undone
         TagProblem.CHANGED_ELSEWHERE -> Res.string.tag_problem_changed_elsewhere
+        TagProblem.LOST -> Res.string.tag_problem_lost
     },
 )

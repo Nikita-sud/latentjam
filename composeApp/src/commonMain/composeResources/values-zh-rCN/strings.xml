@@ -249,6 +249,7 @@
     <string name="tag_problem_cancelled">权限请求已关闭。</string>
     <string name="tag_problem_undone">中断的保存已被撤销：文件已恢复原状。</string>
     <string name="tag_problem_changed_elsewhere">保存中断后，另一个应用更改了该文件，因此保持原样。</string>
+    <string name="tag_problem_lost">LatentJam 无法确定此次保存的结果。请检查文件的标签。</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">设置</string>

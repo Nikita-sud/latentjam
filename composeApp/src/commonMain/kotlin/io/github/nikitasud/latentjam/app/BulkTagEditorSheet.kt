@@ -161,6 +161,10 @@ internal fun BulkTagEditorSheet(
     val saver = rememberTagSaver { finished ->
         // The user closed the system's permission dialog. They know they did.
         if (finished.cancelled) return@rememberTagSaver
+        if (finished.lost) {
+            failure = TagProblem.LOST
+            return@rememberTagSaver
+        }
         if (finished.savedCount > 0) {
             // From the result's own keys, so a report claimed after recreation, before the files
             // were read again, still names the right tracks.

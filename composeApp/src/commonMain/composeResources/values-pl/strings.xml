@@ -274,6 +274,7 @@
     <string name="tag_problem_cancelled">Prośba o zgodę została zamknięta.</string>
     <string name="tag_problem_undone">Przerwany zapis został cofnięty: plik jest taki jak wcześniej.</string>
     <string name="tag_problem_changed_elsewhere">Inna aplikacja zmieniła plik po przerwaniu zapisu, więc pozostał bez zmian.</string>
+    <string name="tag_problem_lost">LatentJam nie może ustalić, jak zakończył się ten zapis. Sprawdź tagi pliku.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ustawienia</string>

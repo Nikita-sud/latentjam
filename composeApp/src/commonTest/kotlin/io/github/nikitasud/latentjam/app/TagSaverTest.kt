@@ -124,6 +124,49 @@ internal class TagSaverTest {
     }
 
     @Test
+    fun aSavedIdTheCoordinatorDoesNotHoldIsReportedLostAndNoLongerBusy() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        val results = ArrayList<TagSaveResult>()
+        // A restored editor's id whose request the coordinator lost (or whose report went elsewhere).
+        val saver = saverFor(backend, results, mutableStateListOf(42L))
+        assertTrue(saver.busy)
+        saver.forgetLost()
+        assertTrue(results.single().lost)
+        assertTrue(results.single().entries.isEmpty())
+        assertFalse(saver.busy)
+    }
+
+    @Test
+    fun aSavedIdStillQueuedOrWaitingToBeClaimedIsKept() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        listOf("a", "b").forEach { backend.files.put(it, testMp3()) }
+        val results = ArrayList<TagSaveResult>()
+        val mine = mutableStateListOf<Long>()
+        val saver = saverFor(backend, results, mine)
+        runCurrent()
+        saver.start(listOf(track("a")), TagEdits(title = "New"))
+        runCurrent()
+        // Waiting for consent: queued, so kept.
+        saver.forgetLost()
+        assertTrue(results.isEmpty())
+        assertTrue(saver.busy)
+
+        val coordinator = saver.access.coordinator
+        assertTrue(coordinator.promptLaunched(assertNotNull(coordinator.prompt.value).requestId))
+        backend.granted += "a"
+        coordinator.answer(WriteAnswer.APPROVED)
+        saver.detach()
+        runCurrent()
+        saver.deliverCompleted()
+        // Finished while nobody listened: its report waits in unclaimed, so it is still kept.
+        saver.forgetLost()
+        assertTrue(results.isEmpty())
+        saver.claim(coordinator.unclaimed.value)
+        assertEquals(1, results.single().savedCount)
+        assertFalse(results.single().lost)
+    }
+
+    @Test
     fun aResultSurvivesBeingSavedAsStrings() {
         val result = TagSaveResult(
             listOf(

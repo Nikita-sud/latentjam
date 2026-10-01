@@ -255,6 +255,7 @@
     <string name="tag_problem_cancelled">Permintaan izin ditutup.</string>
     <string name="tag_problem_undone">Penyimpanan yang terhenti telah dibatalkan: file kembali seperti semula.</string>
     <string name="tag_problem_changed_elsewhere">Aplikasi lain mengubah file setelah penyimpanan terhenti, jadi file dibiarkan apa adanya.</string>
+    <string name="tag_problem_lost">LatentJam tidak dapat mengetahui bagaimana penyimpanan ini berakhir. Periksa tag file tersebut.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Setelan</string>

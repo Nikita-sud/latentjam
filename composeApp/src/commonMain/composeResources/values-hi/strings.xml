@@ -256,6 +256,7 @@
     <string name="tag_problem_cancelled">अनुमति का अनुरोध बंद कर दिया गया।</string>
     <string name="tag_problem_undone">बीच में रुका हुआ सहेजना वापस ले लिया गया: फ़ाइल पहले जैसी है।</string>
     <string name="tag_problem_changed_elsewhere">सहेजना रुकने के बाद किसी दूसरे ऐप ने फ़ाइल बदल दी, इसलिए उसे जैसी है वैसी ही छोड़ दिया गया।</string>
+    <string name="tag_problem_lost">LatentJam यह पता नहीं लगा सका कि यह सहेजना कैसे पूरा हुआ। फ़ाइल के टैग जाँचें।</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">सेटिंग</string>

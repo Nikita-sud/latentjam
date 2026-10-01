@@ -256,6 +256,7 @@
     <string name="tag_problem_cancelled">İzin isteği kapatıldı.</string>
     <string name="tag_problem_undone">Yarıda kalan bir kaydetme geri alındı: dosya eskisi gibi.</string>
     <string name="tag_problem_changed_elsewhere">Kaydetme yarıda kesildikten sonra başka bir uygulama dosyayı değiştirdi, bu yüzden olduğu gibi bırakıldı.</string>
+    <string name="tag_problem_lost">LatentJam bu kaydetmenin nasıl sonuçlandığını öğrenemedi. Dosyanın etiketlerini kontrol edin.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ayarlar</string>

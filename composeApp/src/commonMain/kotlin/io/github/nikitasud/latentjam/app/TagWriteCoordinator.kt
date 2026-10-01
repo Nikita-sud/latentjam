@@ -311,6 +311,17 @@ internal class TagWriteCoordinator<C>(
         return forgotten
     }
 
+    /**
+     * Whether [id] is still a request here: queued, running, or finished with its report unclaimed.
+     * Answers only once the restore is done, since before that a restored id is not yet held. An
+     * editor's saved id this says no to will never be reported: a checkpoint that could not be
+     * restored, keys that could not be saved, or a report already taken by someone else.
+     */
+    suspend fun knows(id: Long): Boolean {
+        restoredSignal.await()
+        return requests.any { it.id == id } || mutableUnclaimed.value.any { it.id == id }
+    }
+
     fun listen(id: Long, listener: (TagWriteReport) -> Unit) {
         listeners[id] = listener
     }
