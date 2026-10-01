@@ -331,6 +331,11 @@ object AppGraph {
     val settings: AppSettings
         get() = koin.get()
 
+    /** Verified tag edits whose songs keep their audio analysis at the next index sync (spec §6.5). */
+    internal val audioCarryOvers: AudioCarryOverStore by lazy {
+        AudioCarryOverStore(settings::readAudioCarryOversPayload, settings::writeAudioCarryOversPayload)
+    }
+
     /** Operating-system permission state plus durable recovery destinations. */
     val permissions: AppPermissions
         get() = koin.get()
@@ -428,6 +433,12 @@ object AppGraph {
                 // that ambiguous snapshot erase durable vectors or remembered decode failures.
                 // The authority bit belongs to this exact scan and participates in the dedup key,
                 // so a later granted, genuinely empty rescan still reaches reconciliation.
+                // A verified tag edit left the audio as it was: re-key its vector before the sync
+                // below would discard it for the file's new revision (spec §6.5).
+                val carryOvers = audioCarryOvers.pending()
+                if (carryOvers.isNotEmpty()) {
+                    audioCarryOvers.settle(carryOvers, engine.carryOverAudio(tracks, carryOvers))
+                }
                 engine.synchronizeLibrary(
                     library = tracks,
                     pruneMissing = librarySnapshotAuthoritative,

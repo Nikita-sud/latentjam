@@ -138,6 +138,12 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         preferences.edit().putString(KEY_TRACK_GENRES, payload).apply()
     }
 
+    override fun readAudioCarryOversPayload(): String? = readString(KEY_AUDIO_CARRY_OVERS)
+
+    override fun writeAudioCarryOversPayload(payload: String) {
+        preferences.edit().putString(KEY_AUDIO_CARRY_OVERS, payload).apply()
+    }
+
     override fun readDuplicateDismissalsPayload(): String? = readString(KEY_DUPLICATE_DISMISSALS)
 
     override fun writeDuplicateDismissalsPayload(payload: String) {
@@ -301,6 +307,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_ARTIST_ALBUM_SORT = "artist_album_sort"
         const val KEY_TRACK_LOUDNESS = "track_loudness_v1"
         const val KEY_TRACK_GENRES = "track_genres_v1"
+        const val KEY_AUDIO_CARRY_OVERS = "audio_carry_overs"
         const val KEY_DUPLICATE_DISMISSALS = "duplicate_dismissals_v1"
         const val KEY_RESUME_SOURCE_REFERENCE = "resume_source_reference"
         const val KEY_RESUME_QUEUE_STATE = "resume_queue_state_v2"

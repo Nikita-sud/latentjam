@@ -765,6 +765,8 @@ internal class LocalBackupTest {
         override fun writeTrackGenresPayload(payload: String) {
             trackGenresPayload = payload
         }
+        override fun readAudioCarryOversPayload(): String? = null
+        override fun writeAudioCarryOversPayload(payload: String) = Unit
         private var duplicateDismissalsPayload: String? = null
         override fun readDuplicateDismissalsPayload(): String? = duplicateDismissalsPayload
         override fun writeDuplicateDismissalsPayload(payload: String) {

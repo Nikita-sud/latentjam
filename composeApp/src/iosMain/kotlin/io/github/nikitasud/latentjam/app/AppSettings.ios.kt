@@ -150,6 +150,13 @@ internal class IosAppSettings : AppSettings {
         defaults.setObject(payload, KEY_TRACK_GENRES)
     }
 
+    override fun readAudioCarryOversPayload(): String? =
+        defaults.objectForKey(KEY_AUDIO_CARRY_OVERS) as? String
+
+    override fun writeAudioCarryOversPayload(payload: String) {
+        defaults.setObject(payload, KEY_AUDIO_CARRY_OVERS)
+    }
+
     override fun readDuplicateDismissalsPayload(): String? =
         defaults.objectForKey(KEY_DUPLICATE_DISMISSALS) as? String
 
@@ -309,6 +316,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_ARTIST_ALBUM_SORT = "artist_album_sort"
         const val KEY_TRACK_LOUDNESS = "track_loudness_v1"
         const val KEY_TRACK_GENRES = "track_genres_v1"
+        const val KEY_AUDIO_CARRY_OVERS = "audio_carry_overs"
         const val KEY_DUPLICATE_DISMISSALS = "duplicate_dismissals_v1"
         const val KEY_RESUME_SOURCE_REFERENCE = "resume_source_reference"
         const val KEY_RESUME_QUEUE_STATE = "resume_queue_state_v2"

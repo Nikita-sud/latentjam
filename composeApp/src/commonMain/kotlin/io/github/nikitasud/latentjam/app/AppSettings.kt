@@ -418,6 +418,10 @@ interface AppSettings {
     fun readTrackGenresPayload(): String?
     fun writeTrackGenresPayload(payload: String)
 
+    /** SMART carry-overs from tag edits (see [AudioCarryOverStore]); null when none. */
+    fun readAudioCarryOversPayload(): String?
+    fun writeAudioCarryOversPayload(payload: String)
+
     /** Pairs the listener marked as different recordings; the duplicate finder keeps them apart. */
     fun readDuplicateDismissalsPayload(): String?
     fun writeDuplicateDismissalsPayload(payload: String)

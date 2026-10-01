@@ -1422,4 +1422,58 @@ internal class DefaultSimilarityEngineTest {
         assertEquals(0, harness.engine.missingFromIndex(listOf(indexed.id)))
         assertEquals(0, harness.engine.missingFromIndex(emptyList()))
     }
+
+    // ---------------------------------------------------------------- tag-edit carry-over
+
+    private val edited = TrackId("edited")
+    private val beforeEdit = TrackDescriptor(
+        id = edited,
+        audioUri = "content://media/1",
+        durationMs = 1_000,
+        sourceRevision = "android-mediastore-v1:10:20:30",
+        sizeBytes = 10,
+    )
+    private val afterEdit = beforeEdit.copy(sourceRevision = "android-mediastore-v1:12:25:31", sizeBytes = 12, title = "New")
+
+    @Test
+    fun aVerifiedTagEditKeepsTheAudioVectorAcrossARestart() = runTest {
+        val store = FakeIndexStore()
+        val first = engine(FakeEmbeddingBackend(mutableMapOf(edited to floatArrayOf(1f, 0f, 0f))), store)
+        first.initialize()
+        first.indexLibrary(listOf(beforeEdit))
+
+        val result = first.carryOverAudio(listOf(afterEdit), listOf(AudioCarryOver(edited, beforeEdit.sourceRevision, 12)))
+        assertEquals(setOf(edited), result.applied)
+        assertEquals(setOf(edited), result.settled)
+        assertEquals(0, first.synchronizeLibrary(listOf(afterEdit)))
+        assertContentEquals(floatArrayOf(1f, 0f, 0f), first.embedding(edited))
+
+        val secondBackend = FakeEmbeddingBackend()
+        val restarted = engine(secondBackend, store)
+        restarted.initialize()
+        assertEquals(0, restarted.synchronizeLibrary(listOf(afterEdit)))
+        assertEquals(1, restarted.indexLibrary(listOf(afterEdit)).skipped)
+        assertEquals(0, secondBackend.embedCalls)
+    }
+
+    @Test
+    fun aFileThatChangedAgainIsReanalysed() = runTest {
+        val engine = engine(FakeEmbeddingBackend(mutableMapOf(edited to floatArrayOf(1f, 0f, 0f))), FakeIndexStore())
+        engine.initialize()
+        engine.indexLibrary(listOf(beforeEdit))
+        val changedAgain = afterEdit.copy(sizeBytes = 13)
+        val result = engine.carryOverAudio(listOf(changedAgain), listOf(AudioCarryOver(edited, beforeEdit.sourceRevision, 12)))
+        assertEquals(emptySet(), result.applied)
+        assertEquals(setOf(edited), result.settled)
+        assertEquals(1, engine.synchronizeLibrary(listOf(changedAgain)))
+    }
+
+    @Test
+    fun aCarryOverWaitsWhileItsTrackStillShowsTheOldRevision() = runTest {
+        val engine = engine(FakeEmbeddingBackend(mutableMapOf(edited to floatArrayOf(1f, 0f, 0f))), FakeIndexStore())
+        engine.initialize()
+        engine.indexLibrary(listOf(beforeEdit))
+        val result = engine.carryOverAudio(listOf(beforeEdit), listOf(AudioCarryOver(edited, beforeEdit.sourceRevision, 12)))
+        assertEquals(AudioCarryOverResult(emptySet(), emptySet()), result)
+    }
 }
