@@ -414,6 +414,15 @@
     <string name="settings_hidden_tracks">숨긴 트랙</string>
     <string name="settings_hidden_tracks_body">LatentJam에서만 숨긴 트랙입니다. 파일을 변경하지 않고 트랙을 복원할 수 있습니다.</string>
     <string name="settings_hidden_tracks_empty">LatentJam에 숨긴 트랙이 없습니다.</string>
+    <string name="settings_interrupted_saves">중단된 저장</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="other">파일 %1$d개에 태그를 저장하던 중 중단되었습니다. 파일 쓰기가 허용되면 LatentJam이 저장을 완료하거나 되돌립니다.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">지금 완료</string>
+    <string name="settings_interrupted_being_repaired">복구 중: 완료될 때까지 재생되지 않음</string>
+    <string name="settings_interrupted_forget">포기</string>
+    <string name="settings_interrupted_forget_title">이 저장을 포기할까요?</string>
+    <string name="settings_interrupted_forget_body">파일은 지금 그대로 유지되며, LatentJam은 이 저장을 완료하거나 되돌리려는 시도를 멈춥니다. 되돌릴 수 없습니다.</string>
     <string name="settings_duplicates">오디오 중복</string>
     <string name="settings_duplicates_body">태그와 상관없이 같은 녹음의 복사본을 소리로 찾습니다</string>
     <string name="settings_duplicates_scanning">모든 트랙 쌍을 비교하는 중…</string>

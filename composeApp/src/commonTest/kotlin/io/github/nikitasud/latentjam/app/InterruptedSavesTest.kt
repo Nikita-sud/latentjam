@@ -1,0 +1,36 @@
+/*
+ * Copyright (c) 2026 LatentJam Project
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package io.github.nikitasud.latentjam.app
+
+import io.github.nikitasud.latentjam.library.tags.write.JournalRecord
+import io.github.nikitasud.latentjam.library.tags.write.JournalState
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
+import kotlin.test.Test
+import kotlin.test.assertEquals
+
+internal class InterruptedSavesTest {
+
+    private fun record(id: String, target: String, state: JournalState) = JournalRecord(id, target, state, 10, 10)
+
+    @Test
+    fun eachWaitingFileIsNamedOnceAndMarkedWhenItIsBeingRepaired() {
+        val tracks = listOf(
+            TrackDescriptor(TrackId("1"), title = "Zebra", audioUri = "content://media/external/audio/media/1"),
+            TrackDescriptor(TrackId("2"), title = "Apple", audioUri = "content://media/external/audio/media/2"),
+        )
+        val saves = interruptedSavesOf(
+            listOf(
+                record("w1", "content://media/external/audio/media/1", JournalState.PATCH_PREPARED),
+                record("w2", "content://media/external/audio/media/2", JournalState.REPLACING),
+                record("w3", "content://media/external/audio/media/2", JournalState.REPLACING),
+                record("w4", "Music/gone.flac", JournalState.REPLACE_PREPARED),
+            ),
+            tracks,
+        ) { it.audioUri }
+        assertEquals(listOf("Apple", "gone.flac", "Zebra"), saves.map { it.label })
+        assertEquals(listOf(true, false, false), saves.map { it.underRepair })
+    }
+}

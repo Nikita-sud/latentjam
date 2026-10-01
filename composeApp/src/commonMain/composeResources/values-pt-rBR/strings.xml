@@ -429,6 +429,16 @@
     <string name="settings_hidden_tracks">Faixas ocultas</string>
     <string name="settings_hidden_tracks_body">Faixas ocultas apenas no LatentJam. Restaure qualquer faixa sem alterar o arquivo.</string>
     <string name="settings_hidden_tracks_empty">Não há faixas ocultas no LatentJam.</string>
+    <string name="settings_interrupted_saves">Salvamentos interrompidos</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">O salvamento de tags em %1$d arquivo foi interrompido. O LatentJam vai concluí-lo ou desfazê-lo assim que puder gravar no arquivo.</item>
+        <item quantity="other">O salvamento de tags em %1$d arquivos foi interrompido. O LatentJam vai concluir ou desfazer cada um assim que puder gravar no arquivo.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Concluir agora</string>
+    <string name="settings_interrupted_being_repaired">Em reparo: não é reproduzido até ser concluído</string>
+    <string name="settings_interrupted_forget">Esquecer</string>
+    <string name="settings_interrupted_forget_title">Esquecer este salvamento?</string>
+    <string name="settings_interrupted_forget_body">O arquivo continua exatamente como está agora, e o LatentJam deixa de tentar concluir ou desfazer o salvamento. Isso não pode ser desfeito.</string>
     <string name="settings_duplicates">Duplicatas de áudio</string>
     <string name="settings_duplicates_body">Encontra cópias da mesma gravação pelo som, independentemente das tags</string>
     <string name="settings_duplicates_scanning">Comparando todos os pares de faixas…</string>

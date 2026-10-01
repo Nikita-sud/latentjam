@@ -420,6 +420,15 @@
     <string name="settings_hidden_tracks">Trek tersembunyi</string>
     <string name="settings_hidden_tracks_body">Trek yang disembunyikan hanya di LatentJam. Pulihkan trek tanpa mengubah filenya.</string>
     <string name="settings_hidden_tracks_empty">Tidak ada trek yang disembunyikan di LatentJam.</string>
+    <string name="settings_interrupted_saves">Penyimpanan yang terhenti</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="other">Penyimpanan tag ke %1$d file terhenti. LatentJam akan menyelesaikan atau membatalkannya saat diizinkan menulis ke file.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Selesaikan sekarang</string>
+    <string name="settings_interrupted_being_repaired">Sedang diperbaiki: tidak diputar sampai selesai</string>
+    <string name="settings_interrupted_forget">Lupakan</string>
+    <string name="settings_interrupted_forget_title">Lupakan penyimpanan ini?</string>
+    <string name="settings_interrupted_forget_body">File tetap persis seperti sekarang, dan LatentJam berhenti mencoba menyelesaikan atau membatalkan penyimpanan. Ini tidak dapat dibatalkan.</string>
     <string name="settings_duplicates">Duplikat audio</string>
     <string name="settings_duplicates_body">Menemukan salinan rekaman yang sama dari suaranya, apa pun tag-nya</string>
     <string name="settings_duplicates_scanning">Membandingkan semua pasangan trek…</string>

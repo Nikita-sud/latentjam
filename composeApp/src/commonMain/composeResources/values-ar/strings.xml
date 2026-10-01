@@ -459,6 +459,20 @@
     <string name="settings_hidden_tracks">المقاطع المخفية</string>
     <string name="settings_hidden_tracks_body">مقاطع مخفية في LatentJam فقط. يمكنك استعادة أي مقطع من دون تغيير ملفه.</string>
     <string name="settings_hidden_tracks_empty">لا توجد مقاطع مخفية في LatentJam.</string>
+    <string name="settings_interrupted_saves">عمليات حفظ متوقفة</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="zero">توقّف حفظ الوسوم في %1$d ملف. سيُكمل LatentJam كل حفظ أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+        <item quantity="one">توقّف حفظ الوسوم في ملف واحد (%1$d). سيُكمله LatentJam أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+        <item quantity="two">توقّف حفظ الوسوم في ملفين (%1$d). سيُكمل LatentJam كل حفظ أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+        <item quantity="few">توقّف حفظ الوسوم في %1$d ملفات. سيُكمل LatentJam كل حفظ أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+        <item quantity="many">توقّف حفظ الوسوم في %1$d ملفًا. سيُكمل LatentJam كل حفظ أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+        <item quantity="other">توقّف حفظ الوسوم في %1$d ملف. سيُكمل LatentJam كل حفظ أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">إكمال الآن</string>
+    <string name="settings_interrupted_being_repaired">قيد الإصلاح: لن يُشغَّل حتى يكتمل</string>
+    <string name="settings_interrupted_forget">نسيان</string>
+    <string name="settings_interrupted_forget_title">هل تريد نسيان هذا الحفظ؟</string>
+    <string name="settings_interrupted_forget_body">يبقى الملف كما هو الآن، ويتوقف LatentJam عن محاولة إكمال الحفظ أو التراجع عنه. لا يمكن التراجع عن هذا.</string>
     <string name="settings_duplicates">التكرارات الصوتية</string>
     <string name="settings_duplicates_body">يعثر على نسخ التسجيل نفسه بالصوت، بغض النظر عن الوسوم</string>
     <string name="settings_duplicates_scanning">تتم مقارنة جميع المقاطع…</string>

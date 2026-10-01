@@ -576,6 +576,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
+        // The library as scanned, files under repair included: Settings names them from it.
+        var scannedTracks by remember { mutableStateOf<List<TrackDescriptor>>(emptyList()) }
         // SMART reconciliation needs more than the rows: an unavailable media permission is
         // represented by an empty/partial list, which must not be mistaken for deletion. Keep the
         // authority bit bound to the scan that produced these exact rows so a later permission
@@ -590,6 +592,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             interruptedSaves.filter { it.state == JournalState.REPLACING }.mapTo(HashSet()) { it.target }
         }
         val currentRepairingKeys = rememberUpdatedState(repairingKeys)
+        val interruptedSaveRows = remember(interruptedSaves, scannedTracks, tagAccess) {
+            tagAccess?.let { access -> interruptedSavesOf(interruptedSaves, scannedTracks, access::keyOf) }.orEmpty()
+        }
         // The files under repair the published library was last filtered with.
         var shownRepairingKeys by remember { mutableStateOf(emptySet<String>()) }
         fun publishLibraryTracks(
@@ -611,6 +616,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             val repairing = currentRepairingKeys.value
             val playable = withoutFilesUnderRepair(enriched, repairing) { tagAccess?.keyOf(it) }
             shownRepairingKeys = repairing
+            scannedTracks = enriched
             publishLibraryTracks(
                 value = playable,
                 authoritative = authoritativeLibrarySnapshot(
@@ -4578,6 +4584,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 history = AppGraph.history,
                 recentSearches = AppGraph.recentSearches,
                 tracks = tracks.orEmpty(),
+                interruptedSaves = interruptedSaveRows,
+                onFinishInterruptedSaves = { tagAccess?.coordinator?.enqueueRecovery() },
+                onForgetInterruptedSave = { save ->
+                    scope.launch {
+                        // A file can hold more than one open record; the row stands for all of them.
+                        interruptedSaves.filter { it.target == save.record.target }.forEach { tagAccess?.coordinator?.forget(it) }
+                    }
+                },
                 libraryLoading = tracks == null,
                 libraryRefreshing = libraryRefreshing,
                 hasHiddenTracks = hasHiddenTracks,

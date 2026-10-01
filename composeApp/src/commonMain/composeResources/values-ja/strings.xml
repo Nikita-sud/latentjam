@@ -414,6 +414,15 @@
     <string name="settings_hidden_tracks">非表示の曲</string>
     <string name="settings_hidden_tracks_body">LatentJam 内でのみ非表示にした曲です。ファイルを変更せずに個別に復元できます。</string>
     <string name="settings_hidden_tracks_empty">LatentJam で非表示になっている曲はありません。</string>
+    <string name="settings_interrupted_saves">中断された保存</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="other">%1$d 個のファイルへのタグの保存が中断されました。ファイルへの書き込みが許可され次第、LatentJam が完了するか元に戻します。</item>
+    </plurals>
+    <string name="settings_interrupted_finish">今すぐ完了</string>
+    <string name="settings_interrupted_being_repaired">修復中: 完了するまで再生されません</string>
+    <string name="settings_interrupted_forget">破棄</string>
+    <string name="settings_interrupted_forget_title">この保存を破棄しますか？</string>
+    <string name="settings_interrupted_forget_body">ファイルは今の状態のまま残り、LatentJam は保存の完了や取り消しを試みなくなります。この操作は元に戻せません。</string>
     <string name="settings_duplicates">音声の重複</string>
     <string name="settings_duplicates_body">タグに関係なく、同じ録音のコピーを音で見つけます</string>
     <string name="settings_duplicates_scanning">全トラックを比較中…</string>

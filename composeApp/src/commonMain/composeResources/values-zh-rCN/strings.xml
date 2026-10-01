@@ -414,6 +414,15 @@
     <string name="settings_hidden_tracks">隐藏的曲目</string>
     <string name="settings_hidden_tracks_body">仅在 LatentJam 中隐藏的曲目。恢复曲目不会更改其文件。</string>
     <string name="settings_hidden_tracks_empty">LatentJam 中没有隐藏的曲目。</string>
+    <string name="settings_interrupted_saves">中断的保存</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="other">向 %1$d 个文件保存标签时被中断。获准写入文件后，LatentJam 将完成或撤销保存。</item>
+    </plurals>
+    <string name="settings_interrupted_finish">立即完成</string>
+    <string name="settings_interrupted_being_repaired">修复中：完成前不会播放</string>
+    <string name="settings_interrupted_forget">忘记</string>
+    <string name="settings_interrupted_forget_title">忘记此保存？</string>
+    <string name="settings_interrupted_forget_body">文件将保持现状，LatentJam 不再尝试完成或撤销该保存。此操作无法撤销。</string>
     <string name="settings_duplicates">音频重复</string>
     <string name="settings_duplicates_body">按声音查找同一录音的副本，与标签无关</string>
     <string name="settings_duplicates_scanning">正在比较所有曲目…</string>

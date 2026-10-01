@@ -434,6 +434,16 @@
     <string name="settings_hidden_tracks">Morceaux masqués</string>
     <string name="settings_hidden_tracks_body">Morceaux masqués uniquement dans LatentJam. Restaurez un morceau sans modifier son fichier.</string>
     <string name="settings_hidden_tracks_empty">Aucun morceau n’est masqué dans LatentJam.</string>
+    <string name="settings_interrupted_saves">Enregistrements interrompus</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">L'enregistrement de tags dans %1$d fichier a été interrompu. LatentJam le terminera ou l'annulera dès qu'il pourra écrire dans le fichier.</item>
+        <item quantity="other">L'enregistrement de tags dans %1$d fichiers a été interrompu. LatentJam terminera ou annulera chacun d'eux dès qu'il pourra écrire dans le fichier.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Terminer maintenant</string>
+    <string name="settings_interrupted_being_repaired">En réparation : non lu tant qu'il n'est pas terminé</string>
+    <string name="settings_interrupted_forget">Oublier</string>
+    <string name="settings_interrupted_forget_title">Oublier cet enregistrement ?</string>
+    <string name="settings_interrupted_forget_body">Le fichier reste exactement tel qu'il est maintenant, et LatentJam cesse d'essayer de terminer ou d'annuler l'enregistrement. Cette action est irréversible.</string>
     <string name="settings_duplicates">Doublons audio</string>
     <string name="settings_duplicates_body">Trouve les copies d’un même enregistrement au son, quelles que soient les étiquettes</string>
     <string name="settings_duplicates_scanning">Comparaison de toutes les paires de pistes…</string>

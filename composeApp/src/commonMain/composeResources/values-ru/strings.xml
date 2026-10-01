@@ -433,6 +433,18 @@
     <string name="settings_hidden_tracks">Скрытые треки</string>
     <string name="settings_hidden_tracks_body">Треки, скрытые только в LatentJam. Любой трек можно вернуть, не изменяя его файл.</string>
     <string name="settings_hidden_tracks_empty">В LatentJam нет скрытых треков.</string>
+    <string name="settings_interrupted_saves">Прерванные сохранения</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">Сохранение тегов в %1$d файл было прервано. LatentJam завершит его или отменит, когда ему снова разрешат изменить файл.</item>
+        <item quantity="few">Сохранение тегов в %1$d файла было прервано. LatentJam завершит или отменит каждое сохранение, когда ему снова разрешат изменить файл.</item>
+        <item quantity="many">Сохранение тегов в %1$d файлов было прервано. LatentJam завершит или отменит каждое сохранение, когда ему снова разрешат изменить файл.</item>
+        <item quantity="other">Сохранение тегов в %1$d файла было прервано. LatentJam завершит или отменит каждое сохранение, когда ему снова разрешат изменить файл.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Завершить сейчас</string>
+    <string name="settings_interrupted_being_repaired">Восстанавливается: не воспроизводится, пока не будет завершено</string>
+    <string name="settings_interrupted_forget">Забыть</string>
+    <string name="settings_interrupted_forget_title">Забыть это сохранение?</string>
+    <string name="settings_interrupted_forget_body">Файл останется точно таким, как сейчас, а LatentJam перестанет пытаться завершить или отменить сохранение. Это нельзя отменить.</string>
     <string name="settings_duplicates">Дубликаты по звуку</string>
     <string name="settings_duplicates_body">Ищет копии одной записи по звуку, независимо от тегов</string>
     <string name="settings_duplicates_scanning">Сравниваю треки между собой…</string>

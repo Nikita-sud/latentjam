@@ -484,6 +484,16 @@
     <string name="settings_hidden_tracks">Hidden tracks</string>
     <string name="settings_hidden_tracks_body">Tracks hidden only in LatentJam. Restore any track without changing its file.</string>
     <string name="settings_hidden_tracks_empty">No tracks are hidden in LatentJam.</string>
+    <string name="settings_interrupted_saves">Interrupted saves</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">Saving tags into %1$d file was interrupted. LatentJam finishes or undoes it once it may write the file.</item>
+        <item quantity="other">Saving tags into %1$d files was interrupted. LatentJam finishes or undoes each once it may write the file.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Finish now</string>
+    <string name="settings_interrupted_being_repaired">Being repaired: not played until it is finished</string>
+    <string name="settings_interrupted_forget">Forget</string>
+    <string name="settings_interrupted_forget_title">Forget this save?</string>
+    <string name="settings_interrupted_forget_body">The file stays exactly as it is now, and LatentJam stops trying to finish or undo the save. This can't be undone.</string>
     <string name="settings_duplicates">Audio duplicates</string>
     <string name="settings_duplicates_body">Finds copies of the same recording by sound, whatever their tags say</string>
     <string name="settings_duplicates_scanning">Comparing every pair of tracks…</string>

@@ -432,6 +432,16 @@
     <string name="settings_hidden_tracks">Ausgeblendete Titel</string>
     <string name="settings_hidden_tracks_body">Titel, die nur in LatentJam ausgeblendet sind. Stelle jeden Titel wieder her, ohne seine Datei zu ändern.</string>
     <string name="settings_hidden_tracks_empty">In LatentJam sind keine Titel ausgeblendet.</string>
+    <string name="settings_interrupted_saves">Unterbrochene Speichervorgänge</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">Das Speichern von Tags in %1$d Datei wurde unterbrochen. LatentJam schließt es ab oder macht es rückgängig, sobald es die Datei schreiben darf.</item>
+        <item quantity="other">Das Speichern von Tags in %1$d Dateien wurde unterbrochen. LatentJam schließt jedes ab oder macht es rückgängig, sobald es die Datei schreiben darf.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Jetzt abschließen</string>
+    <string name="settings_interrupted_being_repaired">Wird repariert: wird erst wieder abgespielt, wenn es fertig ist</string>
+    <string name="settings_interrupted_forget">Vergessen</string>
+    <string name="settings_interrupted_forget_title">Dieses Speichern vergessen?</string>
+    <string name="settings_interrupted_forget_body">Die Datei bleibt genau so, wie sie jetzt ist, und LatentJam versucht nicht mehr, das Speichern abzuschließen oder rückgängig zu machen. Das lässt sich nicht rückgängig machen.</string>
     <string name="settings_duplicates">Audio-Duplikate</string>
     <string name="settings_duplicates_body">Findet Kopien derselben Aufnahme am Klang, unabhängig von den Tags</string>
     <string name="settings_duplicates_scanning">Alle Titelpaare werden verglichen…</string>

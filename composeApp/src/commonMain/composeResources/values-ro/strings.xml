@@ -421,6 +421,17 @@
     <string name="settings_hidden_tracks">Piese ascunse</string>
     <string name="settings_hidden_tracks_body">Piese ascunse doar în LatentJam. Restabilește orice piesă fără a-i modifica fișierul.</string>
     <string name="settings_hidden_tracks_empty">Nu există piese ascunse în LatentJam.</string>
+    <string name="settings_interrupted_saves">Salvări întrerupte</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">Salvarea etichetelor în %1$d fișier a fost întreruptă. LatentJam o va termina sau o va anula când va avea voie să scrie fișierul.</item>
+        <item quantity="few">Salvarea etichetelor în %1$d fișiere a fost întreruptă. LatentJam va termina sau va anula fiecare salvare când va avea voie să scrie fișierul.</item>
+        <item quantity="other">Salvarea etichetelor în %1$d de fișiere a fost întreruptă. LatentJam va termina sau va anula fiecare salvare când va avea voie să scrie fișierul.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Termină acum</string>
+    <string name="settings_interrupted_being_repaired">În reparare: nu se redă până nu este terminat</string>
+    <string name="settings_interrupted_forget">Uită</string>
+    <string name="settings_interrupted_forget_title">Uiți această salvare?</string>
+    <string name="settings_interrupted_forget_body">Fișierul rămâne exact cum este acum, iar LatentJam nu mai încearcă să termine sau să anuleze salvarea. Acest lucru nu poate fi anulat.</string>
     <string name="settings_duplicates">Dubluri audio</string>
     <string name="settings_duplicates_body">Găsește copii ale aceleiași înregistrări după sunet, indiferent de etichete</string>
     <string name="settings_duplicates_scanning">Se compară toate perechile de piese…</string>

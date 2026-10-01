@@ -256,6 +256,13 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_color_them
 import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer
 import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer_unavailable
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_being_repaired
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_finish
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget_title
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_saves
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_saves_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_intelligence
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_count
@@ -398,7 +405,7 @@ private fun String.settingsStack(): List<SettingsPage> = split(ROUTE_SEPARATOR)
 /** Every settings action is backed by a real app capability; there are no placeholder toggles. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
+internal fun SettingsScreen(
     settings: AppSettings,
     equalizer: EqualizerController,
     engine: SimilarityEngine,
@@ -421,6 +428,9 @@ fun SettingsScreen(
     onClearListeningHistory: suspend () -> Unit,
     onClearRecentSearches: suspend () -> Unit,
     snackbarHostState: SnackbarHostState,
+    interruptedSaves: List<InterruptedSave> = emptyList(),
+    onFinishInterruptedSaves: () -> Unit = {},
+    onForgetInterruptedSave: (InterruptedSave) -> Unit = {},
     accent: TrackAccent? = null,
     rootOpenProgress: () -> Float = { 1f },
     rootButtonBounds: Rect? = null,
@@ -559,6 +569,9 @@ fun SettingsScreen(
                         permissions = permissions,
                         onRefreshLibrary = onRefreshLibrary,
                         onImportAudio = onImportAudio,
+                        interruptedSaves = interruptedSaves,
+                        onFinishInterruptedSaves = onFinishInterruptedSaves,
+                        onForgetInterruptedSave = onForgetInterruptedSave,
                         onOpen = { open(SettingsPage.LIBRARY, it) },
                     )
                     SettingsPage.SOURCES -> SourcesSettings(
@@ -1073,9 +1086,13 @@ private fun LibrarySettings(
     permissions: AppPermissions,
     onRefreshLibrary: () -> Unit,
     onImportAudio: () -> Unit,
+    interruptedSaves: List<InterruptedSave>,
+    onFinishInterruptedSaves: () -> Unit,
+    onForgetInterruptedSave: (InterruptedSave) -> Unit,
     onOpen: (SettingsPage) -> Unit,
 ) {
     val audioAccess by permissions.audioLibraryStatus.collectAsState()
+    var forgetTarget by remember { mutableStateOf<InterruptedSave?>(null) }
     LaunchedEffect(permissions) { permissions.refresh() }
 
     FadingLazyColumn(
@@ -1106,6 +1123,51 @@ private fun LibrarySettings(
                         subtitle = stringResource(Res.string.permission_audio_settings_rationale),
                         onClick = permissions::openAppSettings,
                     )
+                }
+            }
+        }
+        if (interruptedSaves.isNotEmpty()) {
+            item {
+                SettingsSection(stringResource(Res.string.settings_interrupted_saves)) {
+                    SettingsBody(
+                        pluralStringResource(
+                            Res.plurals.settings_interrupted_saves_body,
+                            interruptedSaves.size,
+                            interruptedSaves.size,
+                        ),
+                    )
+                    SettingsActionRow(
+                        title = stringResource(Res.string.settings_interrupted_finish),
+                        subtitle = null,
+                        onClick = onFinishInterruptedSaves,
+                    )
+                    interruptedSaves.forEach { save ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    save.label,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (save.underRepair) {
+                                    Text(
+                                        stringResource(Res.string.settings_interrupted_being_repaired),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            TextButton(onClick = { forgetTarget = save }) {
+                                Text(stringResource(Res.string.settings_interrupted_forget))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1161,6 +1223,22 @@ private fun LibrarySettings(
                 )
             }
         }
+    }
+
+    forgetTarget?.let { save ->
+        AlertDialog(
+            onDismissRequest = { forgetTarget = null },
+            title = { Text(stringResource(Res.string.settings_interrupted_forget_title)) },
+            text = { Text(stringResource(Res.string.settings_interrupted_forget_body)) },
+            confirmButton = {
+                TextButton(onClick = { forgetTarget = null; onForgetInterruptedSave(save) }) {
+                    Text(stringResource(Res.string.settings_interrupted_forget))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { forgetTarget = null }) { Text(stringResource(Res.string.action_cancel)) }
+            },
+        )
     }
 }
 

@@ -442,6 +442,18 @@
     <string name="settings_hidden_tracks">Ukryte utwory</string>
     <string name="settings_hidden_tracks_body">Utwory ukryte tylko w LatentJam. Przywróć dowolny utwór bez zmiany jego pliku.</string>
     <string name="settings_hidden_tracks_empty">W LatentJam nie ma ukrytych utworów.</string>
+    <string name="settings_interrupted_saves">Przerwane zapisy</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">Zapisywanie tagów w %1$d pliku zostało przerwane. LatentJam dokończy je lub cofnie, gdy znów będzie mógł zapisać plik.</item>
+        <item quantity="few">Zapisywanie tagów w %1$d plikach zostało przerwane. LatentJam dokończy każde z nich lub cofnie, gdy znów będzie mógł zapisać plik.</item>
+        <item quantity="many">Zapisywanie tagów w %1$d plikach zostało przerwane. LatentJam dokończy każde z nich lub cofnie, gdy znów będzie mógł zapisać plik.</item>
+        <item quantity="other">Zapisywanie tagów w %1$d pliku zostało przerwane. LatentJam dokończy każde z nich lub cofnie, gdy znów będzie mógł zapisać plik.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Dokończ teraz</string>
+    <string name="settings_interrupted_being_repaired">W naprawie: nie jest odtwarzany, dopóki nie zostanie dokończony</string>
+    <string name="settings_interrupted_forget">Zapomnij</string>
+    <string name="settings_interrupted_forget_title">Zapomnieć ten zapis?</string>
+    <string name="settings_interrupted_forget_body">Plik pozostanie dokładnie taki, jaki jest teraz, a LatentJam przestanie próbować dokończyć lub cofnąć zapis. Tego nie można cofnąć.</string>
     <string name="settings_duplicates">Duplikaty audio</string>
     <string name="settings_duplicates_body">Znajduje kopie tego samego nagrania po dźwięku, niezależnie od tagów</string>
     <string name="settings_duplicates_scanning">Porównywanie wszystkich par utworów…</string>

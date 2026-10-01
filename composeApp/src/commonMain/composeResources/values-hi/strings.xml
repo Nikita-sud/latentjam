@@ -422,6 +422,16 @@
     <string name="settings_hidden_tracks">छिपाए गए ट्रैक</string>
     <string name="settings_hidden_tracks_body">ट्रैक केवल LatentJam में छिपाए गए हैं। फ़ाइल बदले बिना किसी भी ट्रैक को वापस लाएँ।</string>
     <string name="settings_hidden_tracks_empty">LatentJam में कोई ट्रैक छिपा नहीं है।</string>
+    <string name="settings_interrupted_saves">बीच में रुके सहेजने</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">%1$d फ़ाइल में टैग सहेजना बीच में रुक गया। फ़ाइल लिखने की अनुमति मिलते ही LatentJam इसे पूरा करेगा या वापस ले लेगा।</item>
+        <item quantity="other">%1$d फ़ाइलों में टैग सहेजना बीच में रुक गया। फ़ाइल लिखने की अनुमति मिलते ही LatentJam हर एक को पूरा करेगा या वापस ले लेगा।</item>
+    </plurals>
+    <string name="settings_interrupted_finish">अभी पूरा करें</string>
+    <string name="settings_interrupted_being_repaired">मरम्मत जारी है: पूरा होने तक नहीं चलाया जाएगा</string>
+    <string name="settings_interrupted_forget">भूल जाएँ</string>
+    <string name="settings_interrupted_forget_title">इस सहेजने को भूल जाएँ?</string>
+    <string name="settings_interrupted_forget_body">फ़ाइल ठीक वैसी ही रहेगी जैसी अभी है, और LatentJam सहेजना पूरा करने या वापस लेने की कोशिश बंद कर देगा। इसे पूर्ववत नहीं किया जा सकता।</string>
     <string name="settings_duplicates">ऑडियो डुप्लिकेट</string>
     <string name="settings_duplicates_body">टैग चाहे जो कहें, एक ही रिकॉर्डिंग की प्रतियाँ ध्वनि से खोजता है</string>
     <string name="settings_duplicates_scanning">सभी ट्रैक की तुलना हो रही है…</string>

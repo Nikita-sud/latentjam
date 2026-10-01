@@ -422,6 +422,16 @@
     <string name="settings_hidden_tracks">Gizli parçalar</string>
     <string name="settings_hidden_tracks_body">Yalnızca LatentJam’de gizlenen parçalar. Dosyayı değiştirmeden istediğiniz parçayı geri yükleyin.</string>
     <string name="settings_hidden_tracks_empty">LatentJam’de gizli parça yok.</string>
+    <string name="settings_interrupted_saves">Yarıda kalan kaydetmeler</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">%1$d dosyaya etiket kaydetme yarıda kesildi. LatentJam, dosyaya yazmasına izin verildiğinde bunu tamamlayacak veya geri alacak.</item>
+        <item quantity="other">%1$d dosyaya etiket kaydetme yarıda kesildi. LatentJam, dosyaya yazmasına izin verildiğinde her birini tamamlayacak veya geri alacak.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Şimdi tamamla</string>
+    <string name="settings_interrupted_being_repaired">Onarılıyor: tamamlanana kadar çalınmaz</string>
+    <string name="settings_interrupted_forget">Unut</string>
+    <string name="settings_interrupted_forget_title">Bu kaydetme unutulsun mu?</string>
+    <string name="settings_interrupted_forget_body">Dosya şu anki haliyle kalır ve LatentJam kaydetmeyi tamamlamaya veya geri almaya çalışmayı bırakır. Bu geri alınamaz.</string>
     <string name="settings_duplicates">Ses kopyaları</string>
     <string name="settings_duplicates_body">Aynı kaydın kopyalarını etiketlere bakmadan sesten bulur</string>
     <string name="settings_duplicates_scanning">Tüm parça çiftleri karşılaştırılıyor…</string>
