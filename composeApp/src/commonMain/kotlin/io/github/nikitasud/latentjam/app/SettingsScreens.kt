@@ -1153,7 +1153,7 @@ private fun LibrarySettings(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    save.label,
+                                    save.label ?: stringResource(Res.string.track_untitled),
                                     style = MaterialTheme.typography.bodyLarge,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,

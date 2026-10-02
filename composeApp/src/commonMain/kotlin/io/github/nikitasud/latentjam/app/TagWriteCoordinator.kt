@@ -35,7 +35,8 @@ internal enum class TagWriteStage { READY, WRITING, OFFER_PERMISSION, OFFER_FILE
 internal enum class WriteAnswer { APPROVED, CANCELLED, FAILED }
 
 internal sealed interface WriteOpen<out C> {
-    class Opened(val file: TargetFile, val freeBytes: Long?) : WriteOpen<Nothing>
+    /** [path]: where the file is, where the platform knows; the journal keeps it ([JournalRecord.path]). */
+    class Opened(val file: TargetFile, val freeBytes: Long?, val path: String? = null) : WriteOpen<Nothing>
 
     /**
      * The file is not there. It may be deleted, or only on a volume that is not mounted, so an
@@ -55,6 +56,16 @@ internal interface TagWriteBackend<C> {
     val recovery: TagRecovery
     fun hasWritePermission(): Boolean
     suspend fun batchConsent(keys: List<String>): C
+
+    /**
+     * Looks at each of [keys] read-only, which never creates a file, before a system write request
+     * names them: those that are not there are [WriteOpen.Missing] when certainly gone, and
+     * [WriteOpen.Failed] when they cannot be opened at all. The system dialog for such a file is
+     * blank, and its grant could only fail. A key left out is there, or could not be told. [paths]:
+     * where interrupted saves' records say files were, for proving a file gone once the platform's
+     * index has lost it.
+     */
+    suspend fun absent(keys: List<String>, paths: Map<String, String>): Map<String, WriteOpen<Nothing>> = emptyMap()
     suspend fun open(key: String): WriteOpen<C>
     suspend fun rescan(keys: List<String>)
 
@@ -207,10 +218,15 @@ internal class TagWriteCoordinator<C>(
     private val mutableMissingAtFinish = MutableStateFlow<Set<String>>(emptySet())
 
     /**
-     * Of [couldNotFinish], the files that were not there: Settings says so beside each. Their
-     * records stay (see [WriteOpen.Missing]). Never saved; a new process tries again.
+     * Files with an interrupted save that are not there: Settings says so beside each. Found by a
+     * Finish, and by every [refreshRecovery], which looks again read-only, so the note survives a
+     * restart and goes when the file is back. Their records stay (see [WriteOpen.Missing]); this
+     * alone never makes one forgettable.
      */
     val missingAtFinish = mutableMissingAtFinish.asStateFlow()
+
+    /** Where the open records say their files were ([JournalRecord.path]), by key. */
+    private var recordPaths: Map<String, String> = emptyMap()
 
     private var restoredWait: Long? = null
 
@@ -269,11 +285,25 @@ internal class TagWriteCoordinator<C>(
         mutablePending.value = records.orEmpty().filter { it.target !in busy }
         // A Finish's note on a file lasts only while the file has an open record: one finished by a
         // save, or forgotten, and then interrupted again is a new interruption.
-        if (records != null) {
-            val open = records.mapTo(HashSet()) { it.target }
-            mutableCouldNotFinish.value = mutableCouldNotFinish.value intersect open
-            mutableMissingAtFinish.value = mutableMissingAtFinish.value intersect open
+        if (records == null) return
+        val open = records.mapTo(HashSet()) { it.target }
+        recordPaths = records.mapNotNull { record -> record.path?.let { record.target to it } }.toMap()
+        mutableCouldNotFinish.value = mutableCouldNotFinish.value intersect open
+        mutableMissingAtFinish.value = mutableMissingAtFinish.value intersect open
+        // The few waiting files are looked at again, read-only: whether one is there is not kept
+        // anywhere, and a volume mounted meanwhile brings its file back.
+        val idle = mutablePending.value.map { it.target }.distinct()
+        if (idle.isEmpty()) return
+        val absent = try {
+            backend.absent(idle, recordPaths)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return
         }
+        val gone = absent.filterValues { it == WriteOpen.Missing }.keys
+        val there = idle.filterTo(HashSet()) { it !in absent }
+        mutableMissingAtFinish.value = (mutableMissingAtFinish.value - there + gone) intersect open
     }
 
     /** Stops between files: those written stay written, the rest untouched. */
@@ -661,7 +691,22 @@ internal class TagWriteCoordinator<C>(
                     update(requests.first().copy(consented = false, batch = emptyList()))
                 } else {
                     // Android 16 caps one request at 2,000 items (spec §5.5).
-                    val batch = remaining.take(CONSENT_LIMIT)
+                    val asked = remaining.take(CONSENT_LIMIT)
+                    // A file that is not there gets no blank dialog: it is reported as it is, and an
+                    // interrupted save of it keeps its record and backup.
+                    val absent = try {
+                        backend.absent(asked, recordPaths)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        emptyMap()
+                    }
+                    for ((key, opened) in absent) {
+                        record(FileWriteResult(key, if (opened == WriteOpen.Missing) FileWriteStatus.MISSING else FileWriteStatus.FAILED))
+                    }
+                    val batch = asked.filter { it !in absent }
+                    // Every one absent: the next step completes the request, or asks for the next batch.
+                    if (batch.isEmpty() || requests.first().stopRequested) return
                     val consent = try {
                         backend.batchConsent(batch)
                     } catch (cancelled: CancellationException) {
@@ -765,17 +810,17 @@ internal class TagWriteCoordinator<C>(
 
     private suspend fun attempt(request: TagWriteRequest, key: String): Attempt<C> {
         // A file that is missing is reported MISSING, and its record stays open (see the class notes).
-        if (request.kind == TagWriteKind.RECOVER) return withOpened(key) { file, _ -> recoverKey(key, file) }
-        val first = withOpened(key) { file, free -> saved(key, backend.writer.write(key, file, request.edits, free)) }
+        if (request.kind == TagWriteKind.RECOVER) return withOpened(key) { file, _, _ -> recoverKey(key, file) }
+        val first = withOpened(key) { file, free, path -> saved(key, backend.writer.write(key, file, request.edits, free, path)) }
         if (first !is Attempt.Done || first.result.status != FileWriteStatus.RECOVERY_PENDING) return first
         // An earlier save of this file was interrupted: finish or undo it, then save again on a fresh handle
         // (after an atomic replace the old handle points at the replaced file).
-        val recovered = withOpened(key) { file, _ -> recoverKey(key, file) }
+        val recovered = withOpened(key) { file, _, _ -> recoverKey(key, file) }
         if (recovered !is Attempt.Done || recovered.result.status == FileWriteStatus.RECOVERY_PENDING) return first
-        return withOpened(key) { file, free -> saved(key, backend.writer.write(key, file, request.edits, free)) }
+        return withOpened(key) { file, free, path -> saved(key, backend.writer.write(key, file, request.edits, free, path)) }
     }
 
-    private suspend fun withOpened(key: String, action: (TargetFile, Long?) -> FileWriteResult): Attempt<C> {
+    private suspend fun withOpened(key: String, action: (TargetFile, Long?, String?) -> FileWriteResult): Attempt<C> {
         val opened = try {
             backend.open(key)
         } catch (cancelled: CancellationException) {
@@ -786,7 +831,7 @@ internal class TagWriteCoordinator<C>(
         return when (opened) {
             is WriteOpen.Opened -> Attempt.Done(withContext(io) {
                 try {
-                    opened.file.use { action(it, opened.freeBytes) }
+                    opened.file.use { action(it, opened.freeBytes, opened.path) }
                 } catch (_: Exception) {
                     FileWriteResult(key, FileWriteStatus.FAILED)
                 }

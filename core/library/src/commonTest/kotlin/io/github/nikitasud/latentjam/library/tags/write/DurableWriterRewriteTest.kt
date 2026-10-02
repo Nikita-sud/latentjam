@@ -75,6 +75,15 @@ internal class DurableWriterRewriteTest {
     }
 
     @Test
+    fun anInterruptedRewriteRecordsWhereTheFileWas() {
+        val case = WriteFixtures.rewrites.first()
+        val files = setUp(case).apply { crashAtTrackWrite = 1 }
+        runCatching { writer(files, atomic = false).write(track, files.track(track), case.edits, null, path = "/Music/Long.flac") }
+        files.powerLoss(keep = 100)
+        assertEquals("/Music/Long.flac", Journal(files.directory).open().single().path)
+    }
+
+    @Test
     fun aDamagedStagedCopyIsNotFinishedButTheBackupIsPutBack() {
         val case = WriteFixtures.rewrites.first()
         val files = setUp(case).apply { crashAtTrackWrite = 1 }

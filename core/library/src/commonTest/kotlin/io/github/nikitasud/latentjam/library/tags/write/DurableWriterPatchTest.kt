@@ -118,6 +118,15 @@ internal class DurableWriterPatchTest {
     }
 
     @Test
+    fun anInterruptedSaveRecordsWhereTheFileWas() {
+        val case = WriteFixtures.inPlace.first()
+        val files = setUp(case).apply { crashAtTrackWrite = 1 }
+        runCatching { writer(files).write(track, files.track(track), case.edits, null, path = "/Music/Song.mp3") }
+        files.powerLoss(keep = Long.MAX_VALUE)
+        assertEquals("/Music/Song.mp3", Journal(files.directory).open().single().path)
+    }
+
+    @Test
     fun recoveryRollsBackAnInterruptedPatch() {
         val case = WriteFixtures.inPlace.first()
         val files = setUp(case).apply { crashAtTrackWrite = 1 }

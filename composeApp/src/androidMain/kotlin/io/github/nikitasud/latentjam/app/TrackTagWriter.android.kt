@@ -239,12 +239,76 @@ private class AndroidTagWriteBackend(private val context: Context) : TagWriteBac
         MediaStore.createWriteRequest(context.contentResolver, keys.map(Uri::parse)).intentSender
     }
 
+    override suspend fun absent(keys: List<String>, paths: Map<String, String>): Map<String, WriteOpen<Nothing>> =
+        withContext(Dispatchers.IO) {
+            val rows = rowPaths(keys)
+            val byPath = seesFilesByPath()
+            val absent = HashMap<String, WriteOpen<Nothing>>()
+            for (key in keys) {
+                val row = rows[key]
+                // A file the app sees by path is proven there by a stat; any other is opened read-only.
+                if (byPath && row != null && File(row).exists()) continue
+                val there = try {
+                    context.contentResolver.openFileDescriptor(Uri.parse(key), "r")?.close()
+                    true
+                } catch (_: FileNotFoundException) {
+                    false
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // A refusal or a provider error says nothing about the file: it stays in the request.
+                    true
+                }
+                if (!there) absent[key] = if (isGone(row ?: paths[key])) WriteOpen.Missing else WriteOpen.Failed
+            }
+            absent
+        }
+
+    /**
+     * Each key's DATA path, for the keys MediaStore still has a row for: one query per [ROW_CHUNK]
+     * ids, not one per file. A key that is no audio row's URI has none.
+     */
+    @Suppress("DEPRECATION")
+    private fun rowPaths(keys: List<String>): Map<String, String> {
+        val prefix = "${MediaStore.Audio.Media.EXTERNAL_CONTENT_URI}/"
+        val keyById = HashMap<Long, String>()
+        for (key in keys) {
+            val id = key.takeIf { it.startsWith(prefix) }?.removePrefix(prefix)?.toLongOrNull() ?: continue
+            keyById[id] = key
+        }
+        val paths = HashMap<String, String>()
+        for (chunk in keyById.keys.chunked(ROW_CHUNK)) {
+            runCatching {
+                context.contentResolver.query(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DATA),
+                    "${MediaStore.Audio.Media._ID} IN (${chunk.joinToString(",") { "?" }})",
+                    chunk.map(Long::toString).toTypedArray(),
+                    null,
+                )?.use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val key = keyById[cursor.getLong(0)] ?: continue
+                        cursor.getString(1)?.takeIf(String::isNotBlank)?.let { paths[key] = it }
+                    }
+                }
+            }
+        }
+        return paths
+    }
+
+    /** Where an interrupted save's record says [key]'s file was; only read when MediaStore has lost it. */
+    private fun storedPath(key: String): String? = try {
+        recovery.pending().firstNotNullOfOrNull { record -> record.path?.takeIf { record.target == key } }
+    } catch (_: Exception) {
+        null
+    }
+
     override suspend fun open(key: String): WriteOpen<IntentSender> = withContext(Dispatchers.IO) {
         try {
             // Every save and every recovery opens its file first, so the store is ready before either.
             prepareStore()
-            val file = MediaStoreFile(Uri.parse(key))
-            openExistingForWrite(file, file.path?.let(::freeBytesAt)) { failure ->
+            val file = MediaStoreFile(key)
+            openExistingForWrite(file, file.path?.let(::freeBytesAt), file.path) { failure ->
                 if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && failure is RecoverableSecurityException) {
                     WriteOpen.NeedsConsent(failure.userAction.actionIntent.intentSender)
                 } else WriteOpen.Denied
@@ -257,7 +321,9 @@ private class AndroidTagWriteBackend(private val context: Context) : TagWriteBac
     }
 
     /** One audio row's file. Reading never needs more consent than the library already has. */
-    private inner class MediaStoreFile(private val uri: Uri) : MediaFileAccess {
+    private inner class MediaStoreFile(private val key: String) : MediaFileAccess {
+        private val uri: Uri = Uri.parse(key)
+
         /** Read before any open: the row may go with the file, and this still says where it was. */
         val path: String? = filePathOf(context, uri)
 
@@ -278,7 +344,8 @@ private class AndroidTagWriteBackend(private val context: Context) : TagWriteBac
             return OpenedForWrite(file, size)
         }
 
-        override fun isGone(): Boolean = isGone(filePathOf(context, uri) ?: path)
+        // A row MediaStore has dropped names no path; an interrupted save's record may still.
+        override fun isGone(): Boolean = isGone(filePathOf(context, uri) ?: path ?: storedPath(key))
     }
 
     /**
@@ -366,6 +433,7 @@ private class AndroidTagWriteBackend(private val context: Context) : TagWriteBac
         .distinct()
 
     private companion object {
+        const val ROW_CHUNK = 500
         const val KEYS = ".keys"
         const val PARTIAL = ".partial"
         val KEY_FILE = Regex("""(\d+)\.keys(?:\.partial)?""")
@@ -395,11 +463,12 @@ internal class OpenedForWrite(val file: TargetFile, val size: Long)
  *
  * A file deleted between the probe and the write open is recreated empty by the write open; it is
  * then closed unwritten and reported MISSING too. [refused] maps a SecurityException to the
- * platform's consent or Denied.
+ * platform's consent or Denied. [path], where the file is, goes with the opened file into the journal.
  */
 internal fun <C> openExistingForWrite(
     access: MediaFileAccess,
     freeBytes: Long?,
+    path: String? = null,
     refused: (SecurityException) -> WriteOpen<C>,
 ): WriteOpen<C> {
     return try {
@@ -418,7 +487,7 @@ internal fun <C> openExistingForWrite(
             }
             WriteOpen.Missing
         } else {
-            WriteOpen.Opened(opened.file, freeBytes)
+            WriteOpen.Opened(opened.file, freeBytes, path)
         }
     } catch (failure: FileNotFoundException) {
         when {

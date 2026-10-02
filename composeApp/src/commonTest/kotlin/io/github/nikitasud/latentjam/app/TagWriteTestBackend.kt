@@ -35,6 +35,21 @@ internal class TestTagWriteBackend(override val strategy: TagWriteStrategy) : Ta
     /** Runs before a batch consent is built; a test suspends here to act while it is asked for. */
     var consentGate: suspend () -> Unit = {}
 
+    /** Files there that cannot be opened at all, as a row MediaStore has lost can be. */
+    val unopenable = HashSet<String>()
+
+    /** Where each file is, as the platform reports it with an open handle. */
+    val paths = HashMap<String, String>()
+
+    /** Files whose handle's force() fails, as a process killed mid-save leaves them. */
+    val forceFails = HashSet<String>()
+
+    /** The keys each read-only look before a consent was asked about. */
+    val probes = ArrayList<List<String>>()
+
+    /** False for a test whose keys name no files and that is about something else. */
+    var looks = true
+
     /** Files whose open has begun and whose handle is not yet closed. */
     var inFlight = 0
     private var ids = 0
@@ -50,6 +65,17 @@ internal class TestTagWriteBackend(override val strategy: TagWriteStrategy) : Ta
         consentBatches += keys
         return "batch:${keys.size}"
     }
+    override suspend fun absent(keys: List<String>, paths: Map<String, String>): Map<String, WriteOpen<Nothing>> {
+        probes += keys
+        if (!looks) return emptyMap()
+        return keys.mapNotNull { key ->
+            when {
+                !files.has(key) -> key to WriteOpen.Missing
+                key in unopenable -> key to WriteOpen.Failed
+                else -> null
+            }
+        }.toMap()
+    }
     override suspend fun open(key: String): WriteOpen<String> {
         inFlight++
         gate(key)
@@ -59,6 +85,7 @@ internal class TestTagWriteBackend(override val strategy: TagWriteStrategy) : Ta
     }
     private fun openAllowed(key: String): WriteOpen<String> {
         if (!files.has(key)) return WriteOpen.Missing
+        if (key in unopenable) return WriteOpen.Failed
         val allowed = when (strategy) {
             TagWriteStrategy.NO_CONSENT -> true
             TagWriteStrategy.WRITE_PERMISSION -> permission
@@ -67,11 +94,17 @@ internal class TestTagWriteBackend(override val strategy: TagWriteStrategy) : Ta
         return when {
             allowed -> WriteOpen.Opened(
                 object : TargetFile by files.track(key) {
+                    override fun force() {
+                        if (key in forceFails) throw IllegalStateException("process died")
+                        files.track(key).force()
+                    }
+
                     override fun close() {
                         inFlight--
                     }
                 },
                 freeBytes = null,
+                path = paths[key],
             )
             strategy == TagWriteStrategy.RECOVERABLE_CONSENT -> WriteOpen.NeedsConsent("file:$key")
             else -> WriteOpen.Denied

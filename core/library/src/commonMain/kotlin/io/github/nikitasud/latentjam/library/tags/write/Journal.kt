@@ -44,7 +44,9 @@ public enum class JournalState {
  * One save of one file. [target] is the platform's key: a content URI, or a path under Documents.
  * [originalCrc] is the CRC of the whole original (rewrites only): the backup's checksum when there
  * is one, and in [atomic] mode — no backup, a rename replaces the file — what tells an untouched
- * original from a file someone else has since changed.
+ * original from a file someone else has since changed. [path] is where the file was when the save
+ * began, where the platform knows one: it names the file, and can prove it gone, once the
+ * platform's index has lost it. Records written before it existed have none.
  */
 public data class JournalRecord(
     public val writeId: String,
@@ -55,6 +57,7 @@ public data class JournalRecord(
     public val stagedCrc: Long = -1,
     public val originalCrc: Long = -1,
     public val atomic: Boolean = false,
+    public val path: String? = null,
 ) {
     public val journalName: String get() = "$writeId.journal"
     public val patchName: String get() = "$writeId.patch"
@@ -124,12 +127,17 @@ public class Journal(private val directory: RecoveryDirectory) {
         const val SUFFIX = ".journal"
         private const val NEWLINE = '\n'.code.toByte()
 
+        /**
+         * Version 2 adds [JournalRecord.path]. A record without one is written as version 1, the line
+         * every earlier build reads.
+         */
         fun encode(record: JournalRecord): ByteArray {
-            val body = listOf(
-                "v1", record.writeId, escape(record.target), record.state.name,
+            val fields = listOf(
+                if (record.path == null) "v1" else "v2", record.writeId, escape(record.target), record.state.name,
                 record.originalLength.toString(), record.finalLength.toString(),
                 record.stagedCrc.toString(), record.originalCrc.toString(), record.atomic.toString(),
-            ).joinToString("\t")
+            )
+            val body = (if (record.path == null) fields else fields + escape(record.path)).joinToString("\t")
             val crc = Crc32.of(body.encodeToByteArray())
             return "$body\t${crc.toString(16)}\n".encodeToByteArray()
         }
@@ -141,7 +149,7 @@ public class Journal(private val directory: RecoveryDirectory) {
             val body = line.substring(0, cut)
             check(Crc32.of(body.encodeToByteArray()).toString(16) == line.substring(cut + 1))
             val f = body.split('\t')
-            check(f.size == 9 && f[0] == "v1")
+            check((f.size == 9 && f[0] == "v1") || (f.size == 10 && f[0] == "v2"))
             JournalRecord(
                 writeId = f[1],
                 target = unescape(f[2]),
@@ -151,6 +159,7 @@ public class Journal(private val directory: RecoveryDirectory) {
                 stagedCrc = f[6].toLong(),
                 originalCrc = f[7].toLong(),
                 atomic = f[8].toBooleanStrict(),
+                path = f.getOrNull(9)?.let(::unescape),
             )
         } catch (_: Exception) {
             null

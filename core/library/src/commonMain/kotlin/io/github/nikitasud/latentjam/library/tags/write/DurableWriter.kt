@@ -58,9 +58,16 @@ public class DurableWriter(
 
     /**
      * Saves [edits] into [target], the file the platform knows as [key]. [targetFreeBytes] is the
-     * free space on the file's volume, or null when the platform cannot tell.
+     * free space on the file's volume, or null when the platform cannot tell. [path], where the
+     * platform knows one, goes into the journal ([JournalRecord.path]).
      */
-    public fun write(key: String, target: TargetFile, edits: TagEdits, targetFreeBytes: Long?): WriteResult {
+    public fun write(
+        key: String,
+        target: TargetFile,
+        edits: TagEdits,
+        targetFreeBytes: Long?,
+        path: String? = null,
+    ): WriteResult {
         val seenLength: Long
         val codec: TagCodec
         val baseline: TagVerification.Baseline
@@ -82,8 +89,8 @@ public class DurableWriter(
         return when (plan) {
             WritePlan.NoChange -> WriteResult.NoChange
             is WritePlan.Refused -> WriteResult.Refused(plan.reason)
-            is WritePlan.InPlacePatch -> patch(key, target, codec, baseline, edits, plan, seenLength, targetFreeBytes)
-            is WritePlan.StreamingRewrite -> rewrite(key, target, codec, baseline, edits, plan, seenLength, targetFreeBytes)
+            is WritePlan.InPlacePatch -> patch(key, target, codec, baseline, edits, plan, seenLength, targetFreeBytes, path)
+            is WritePlan.StreamingRewrite -> rewrite(key, target, codec, baseline, edits, plan, seenLength, targetFreeBytes, path)
         }
     }
 
@@ -96,6 +103,7 @@ public class DurableWriter(
         plan: WritePlan.InPlacePatch,
         seenLength: Long,
         targetFreeBytes: Long?,
+        path: String?,
     ): WriteResult {
         val backup = PatchBackup.capture(target, plan) ?: return WriteResult.Failed("the bytes to overwrite could not be read")
         if (backup.originalLength != seenLength) return WriteResult.Failed(CHANGED)
@@ -105,7 +113,7 @@ public class DurableWriter(
         if (lacksRoom(plan.newLength, originalLength, targetFreeBytes)) return WriteResult.NotEnoughSpace
 
         val writeId = freshId() ?: return WriteResult.Failed(ID_TAKEN)
-        val record = JournalRecord(writeId, key, JournalState.PATCH_PREPARED, originalLength, plan.newLength)
+        val record = JournalRecord(writeId, key, JournalState.PATCH_PREPARED, originalLength, plan.newLength, path = path)
         try {
             directory.create(record.patchName).use {
                 it.write(0, saved)
@@ -163,6 +171,7 @@ public class DurableWriter(
         plan: WritePlan.StreamingRewrite,
         seenLength: Long,
         targetFreeBytes: Long?,
+        path: String?,
     ): WriteResult {
         val originalLength = seenLength
         val newLength = plan.newLength
@@ -172,7 +181,7 @@ public class DurableWriter(
         if (!atomic && lacksRoom(newLength, originalLength, targetFreeBytes)) return WriteResult.NotEnoughSpace
 
         val writeId = freshId() ?: return WriteResult.Failed(ID_TAKEN)
-        val draft = JournalRecord(writeId, key, JournalState.REPLACE_PREPARED, originalLength, newLength, atomic = atomic)
+        val draft = JournalRecord(writeId, key, JournalState.REPLACE_PREPARED, originalLength, newLength, atomic = atomic, path = path)
         val prepared = try {
             stage(draft, target, codec, baseline, edits, plan)
         } catch (e: StreamRefusedException) {

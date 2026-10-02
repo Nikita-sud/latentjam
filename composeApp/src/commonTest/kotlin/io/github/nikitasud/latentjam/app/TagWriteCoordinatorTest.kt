@@ -388,6 +388,8 @@ internal class TagWriteCoordinatorTest {
     fun aCheckpointOf10000FilesKeepsTheirKeysOutOfTheSavedState() = runTest {
         val backend = TestTagWriteBackend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
         val keys = List(10_000) { "content://media/external/audio/media/${1_000_000 + it}" }
+        // No file is ever opened here: only the checkpoint is under test.
+        backend.looks = false
         val harness = Harness(backend, this)
         harness.enqueue(keys, TagEdits(title = "New"))
         runCurrent()
@@ -675,6 +677,97 @@ internal class TagWriteCoordinatorTest {
         assertEquals(listOf("a"), harness.coordinator.pendingRecovery.value.map { it.target })
         assertEquals(store, backend.files.directory.names().toSet())
         assertEquals(setOf("a"), harness.coordinator.missingAtFinish.value)
+    }
+
+    @Test
+    fun aSystemRequestNamesOnlyTheFilesThatAreThere() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        listOf("a", "c", "d").forEach { backend.files.put(it, testMp3()) }
+        backend.unopenable += "d"
+        val harness = Harness(backend, this)
+        harness.enqueue(listOf("a", "b", "c", "d"), TagEdits(title = "New"))
+        runCurrent()
+        assertEquals(listOf(listOf("a", "b", "c", "d")), backend.probes)
+        assertEquals(listOf(listOf("a", "c")), backend.consentBatches)
+        harness.approvePrompt()
+        runCurrent()
+        harness.deliver()
+        val statuses = harness.reports.single().results.associate { it.key to it.status }
+        assertEquals(
+            mapOf(
+                "a" to FileWriteStatus.SAVED, "b" to FileWriteStatus.MISSING,
+                "c" to FileWriteStatus.SAVED, "d" to FileWriteStatus.FAILED,
+            ),
+            statuses,
+        )
+        assertFalse(backend.files.has("b"), "never created")
+    }
+
+    @Test
+    fun aFinishOfAFileThatIsGoneAsksForNoConsentAndKeepsItsRecord() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        backend.files.put("a", testMp3())
+        interruptSave(backend, "a")
+        val store = backend.files.directory.names().toSet()
+        backend.files.remove("a")
+        val harness = Harness(backend, this)
+        harness.coordinator.refreshRecovery()
+        assertNotNull(harness.coordinator.enqueueRecovery())
+        runCurrent()
+        assertNull(harness.coordinator.prompt.value, "no dialog for a file that is not there")
+        assertEquals(emptyList(), backend.consentBatches)
+        val completed = assertNotNull(harness.coordinator.completed.value)
+        assertEquals(FileWriteStatus.MISSING, completed.results.single().status)
+        harness.coordinator.deliver(completed.id)
+        harness.coordinator.refreshRecovery()
+        assertEquals(listOf("a"), harness.coordinator.pendingRecovery.value.map { it.target })
+        assertEquals(store, backend.files.directory.names().toSet())
+        assertEquals(setOf("a"), harness.coordinator.missingAtFinish.value)
+        assertEquals(setOf("a"), harness.coordinator.couldNotFinish.value, "so Forget is offered at once")
+    }
+
+    @Test
+    fun aFileThatIsGoneIsSaidToBeGoneAfterARestartAndNoLongerOnceItIsBack() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        backend.files.put("a", testMp3())
+        interruptSave(backend, "a")
+        val bytes = backend.files.bytes("a")
+        backend.files.remove("a")
+        // A new process: no Finish has been tried in it.
+        val harness = Harness(backend, this)
+        harness.coordinator.refreshRecovery()
+        assertEquals(setOf("a"), harness.coordinator.missingAtFinish.value)
+        assertEquals(emptySet(), harness.coordinator.couldNotFinish.value, "Forget still waits for a Finish")
+        assertEquals(listOf("a"), harness.coordinator.pendingRecovery.value.map { it.target }, "never given up")
+        backend.files.put("a", bytes)
+        harness.coordinator.refreshRecovery()
+        assertEquals(emptySet(), harness.coordinator.missingAtFinish.value)
+    }
+
+    @Test
+    fun aPerFileConsentIsNeverAskedForAFileThatIsNotThere() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.RECOVERABLE_CONSENT)
+        backend.files.put("a", testMp3())
+        val harness = Harness(backend, this)
+        harness.enqueue(listOf("b", "a"), TagEdits(title = "New"))
+        runCurrent()
+        assertEquals("file:a", harness.coordinator.prompt.value?.consent)
+        harness.approvePrompt()
+        runCurrent()
+        harness.deliver()
+        assertEquals(listOf(FileWriteStatus.MISSING, FileWriteStatus.SAVED), harness.reports.single().results.map { it.status })
+    }
+
+    @Test
+    fun anInterruptedSaveRecordsWhereItsFileIs() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", testMp3())
+        backend.paths["a"] = "/storage/emulated/0/Music/Song A.mp3"
+        backend.forceFails += "a"
+        val harness = Harness(backend, this)
+        harness.enqueue(listOf("a"), TagEdits(title = "New"))
+        runCurrent()
+        assertEquals("/storage/emulated/0/Music/Song A.mp3", backend.recovery.pending().single().path)
     }
 
     @Test

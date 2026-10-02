@@ -12,11 +12,13 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
  * A file whose save was interrupted, as Settings lists it. [underRepair]: mid-replace, left out of
  * playback. [forgettable]: Settings offers Forget. A file under repair is forgettable only once a
  * Finish could not finish it, since forgetting it leaves it damaged for good. [missing]: the last
- * Finish found the file not there.
+ * Finish found the file not there. [label] is null when nothing names the file any more (a record
+ * from before records kept where the file was, of a song the library no longer holds): Settings
+ * then shows a generic name rather than a bare MediaStore id.
  */
 internal data class InterruptedSave(
     val record: JournalRecord,
-    val label: String,
+    val label: String?,
     val underRepair: Boolean,
     val forgettable: Boolean = !underRepair,
     val missing: Boolean = false,
@@ -25,7 +27,8 @@ internal data class InterruptedSave(
 /**
  * One row per waiting file, named by its song where the library knows it. Pass the library as
  * scanned, before files under repair are left out, or those would lose their names. A file the
- * library does not know is named by the last part of its path. [couldNotFinish]: the files a
+ * library does not know is named by the last part of the path its record kept, else of its key
+ * when that is a path; a `content://` key's last part is only an id, which names nothing. [couldNotFinish]: the files a
  * Finish tried and could not finish (see [TagWriteCoordinator.couldNotFinish]); [missing]: those
  * of them a Finish found not there (see [TagWriteCoordinator.missingAtFinish]).
  */
@@ -42,10 +45,12 @@ internal fun interruptedSavesOf(
         val underRepair = same.any { it.state == JournalState.REPLACING }
         InterruptedSave(
             record = same.first(),
-            label = trackLabel(byKey[target], target.substringAfterLast('/')),
+            label = byKey[target]?.let { trackLabel(it, "") }?.takeIf(String::isNotEmpty)
+                ?: same.firstNotNullOfOrNull { it.path }?.substringAfterLast('/')?.takeIf(String::isNotEmpty)
+                ?: target.takeUnless { it.startsWith("content://") }?.substringAfterLast('/'),
             underRepair = underRepair,
             forgettable = !underRepair || target in couldNotFinish,
             missing = target in missing,
         )
-    }.sortedBy { it.label.lowercase() }
+    }.sortedWith(compareBy(nullsLast()) { it.label?.lowercase() })
 }

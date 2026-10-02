@@ -25,6 +25,26 @@ internal class JournalTest {
     }
 
     @Test
+    fun aRecordKeepsWhereTheFileWasAndOneWithoutItIsWrittenAsBefore() {
+        val files = FaultFiles()
+        val located = record(JournalState.PATCH_PREPARED).copy(path = "/storage/emulated/0/Music/a\tb%.flac")
+        Journal(files.directory).append(located)
+        assertEquals(located, Journal(files.directory).latest("w1"))
+        // Without a path the line is the version-1 one, which every earlier build reads.
+        assertTrue(Journal.encode(record(JournalState.PATCH_PREPARED)).decodeToString().startsWith("v1\t"))
+    }
+
+    @Test
+    fun aVersionOneLineStillReads() {
+        val line = "v1\tw1\tcontent://media/external/audio/media/7\tPATCH_PREPARED\t100\t120\t-1\t-1\tfalse"
+        val crc = io.github.nikitasud.latentjam.library.tags.Crc32.of(line.encodeToByteArray()).toString(16)
+        val bytes = "$line\t$crc\n".encodeToByteArray()
+        val decoded = Journal.decode(bytes, 0, bytes.size - 1)
+        assertEquals(JournalRecord("w1", "content://media/external/audio/media/7", JournalState.PATCH_PREPARED, 100, 120), decoded)
+        assertNull(decoded?.path)
+    }
+
+    @Test
     fun finishedWritesAreNotOpen() {
         val files = FaultFiles()
         val journal = Journal(files.directory)
