@@ -14,6 +14,7 @@ import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TextRepair
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -232,10 +233,11 @@ internal class MediaStoreMusicLibrary(
             val snapshot = TagCodecs.read(ChannelSource(FileInputStream(it.fileDescriptor).channel))
             if (snapshot == null) FileCover.Unrecognised else FileCover.Read(snapshot.cover?.crc32)
         } ?: FileCover.Unreadable
-    } catch (_: Exception) {
-        FileCover.Unreadable
-    } catch (_: OutOfMemoryError) {
-        // A huge picture in a file another app wrote must not fail the scan; checked again next time.
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Throwable) {
+        // A file another app wrote (a huge picture, a pathologically nested tag) must not fail the
+        // scan: its override is kept and checked again next time.
         FileCover.Unreadable
     }
 

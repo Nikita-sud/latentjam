@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.library.tags.Crc32
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -31,10 +32,20 @@ internal class TrackCoverOverridesTest {
     private val embedded = HashMap<String, FileCover>()
     private val reads = ArrayList<String>()
 
-    private fun overrides() = TrackCoverOverrides(directory) { track ->
-        reads += track.id.value
-        embedded[track.id.value] ?: FileCover.Read(null)
-    }
+    /** Set to make reading the index fail as storage can for a moment (EIO, too many open files). */
+    private var indexUnavailable = false
+
+    private fun overrides() = TrackCoverOverrides(
+        directory,
+        readCover = { track ->
+            reads += track.id.value
+            embedded[track.id.value] ?: FileCover.Read(null)
+        },
+        readIndex = { file ->
+            if (indexUnavailable) throw IOException("EIO")
+            file.readText()
+        },
+    )
 
     private fun track(id: String, revision: String = "r1", artwork: String? = album) =
         TrackDescriptor(TrackId(id), title = "song $id", artworkUri = artwork, sourceRevision = revision)
@@ -219,6 +230,43 @@ internal class TrackCoverOverridesTest {
         assertSame(tracks.single(), overrides().apply(tracks).single())
         assertEquals(emptyList(), coverFiles())
         assertFalse(File(directory, "overrides.txt").exists())
+    }
+
+    @Test
+    fun anIndexThatCannotBeReadForAMomentKeepsEveryEntryAndImageThroughAScan() {
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
+        val before = File(directory, "overrides.txt").readText()
+        indexUnavailable = true
+        val tracks = listOf(track("1", revision = "r2"), track("2"))
+        assertSame(tracks[0], overrides().apply(tracks)[0], "shown as the scan made it for now")
+        assertEquals(before, File(directory, "overrides.txt").readText())
+        assertEquals(listOf("%08x.jpg".format(Crc32.of(jpeg))), coverFiles())
+        assertEquals(emptyList(), reads)
+        indexUnavailable = false
+        assertEquals(fileUri(jpeg, "jpg"), overrides().apply(listOf(track("1"))).single().artworkUri)
+    }
+
+    @Test
+    fun aSaveWhileTheIndexCannotBeReadKeepsEveryOtherEntryAndAddsNothing() {
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
+        val before = File(directory, "overrides.txt").readText()
+        indexUnavailable = true
+        overrides().record(listOf(TrackId("2")), CoverEdit.Replace(png, "image/png"))
+        indexUnavailable = false
+        assertEquals(before, File(directory, "overrides.txt").readText())
+        assertEquals(listOf("%08x.jpg".format(Crc32.of(jpeg))), coverFiles())
+        val applied = overrides().apply(listOf(track("1"), track("2")))
+        assertEquals(listOf(fileUri(jpeg, "jpg"), album), applied.map { it.artworkUri })
+    }
+
+    @Test
+    fun aSaveOverACorruptIndexStartsAFreshOne() {
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
+        File(directory, "overrides.txt").writeText("track-covers v1\n1\tnot-a-cover.jpg\t\n")
+        overrides().record(listOf(TrackId("2")), CoverEdit.Replace(png, "image/png"))
+        assertEquals(listOf("%08x.png".format(Crc32.of(png))), coverFiles())
+        val applied = overrides().apply(listOf(track("1"), track("2")))
+        assertEquals(listOf(album, fileUri(png, "png")), applied.map { it.artworkUri })
     }
 
     @Test

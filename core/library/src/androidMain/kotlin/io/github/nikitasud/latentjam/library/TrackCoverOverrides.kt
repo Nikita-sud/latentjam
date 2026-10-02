@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 
 /** What a file's own tags say its cover is, for re-checking a [TrackCoverOverrides] entry. */
 internal sealed interface FileCover {
@@ -38,14 +39,28 @@ internal sealed interface FileCover {
  * then on an entry is trusted at that revision. At any other, another app may have retagged the
  * file, so [readCover] reads its embedded cover: the same one keeps the entry at the new revision,
  * any other drops it. A song that is gone drops its entry. An image no entry names, a temporary
- * file a crash left, and everything under an index this store cannot read are deleted.
+ * file a crash left, and everything under an index this store did not write are deleted. An index
+ * storage cannot read for the moment is left alone, and so is everything it names.
  *
  * Not thread-safe across processes; within one, every call holds the store's lock.
  */
 internal class TrackCoverOverrides(
     private val directory: File,
     private val readCover: (TrackDescriptor) -> FileCover,
+    /** Reads the index file; a seam so tests can make it fail the way storage does. */
+    private val readIndex: (File) -> String = { it.readText() },
 ) {
+    /** What reading the index found. Only [Corrupt] may cost the store its entries. */
+    private sealed interface IndexRead {
+        data class Ok(val entries: Map<String, Entry>) : IndexRead
+
+        /** Content this store did not write: nothing in it can be trusted. */
+        data object Corrupt : IndexRead
+
+        /** Storage refused the read for now (I/O error, too many open files, a vanished file). */
+        data object Unavailable : IndexRead
+    }
+
     private data class Entry(
         /** The image file in [directory], named by its CRC-32; null for a removed cover. */
         val fileName: String?,
@@ -63,6 +78,13 @@ internal class TrackCoverOverrides(
     fun record(trackIds: Collection<TrackId>, cover: CoverEdit) {
         if (cover == CoverEdit.Keep || trackIds.isEmpty()) return
         synchronized(lock) {
+            // An index that cannot be read now must not be overwritten with this save's entries
+            // alone: the save then shows album art, as a cover that could not be kept does.
+            val entries = when (val found = read()) {
+                is IndexRead.Ok -> found.entries.toMutableMap()
+                IndexRead.Corrupt -> HashMap()
+                IndexRead.Unavailable -> return
+            }
             val entry = when (cover) {
                 is CoverEdit.Replace -> {
                     val crc = Crc32.of(cover.bytes)
@@ -73,7 +95,6 @@ internal class TrackCoverOverrides(
                 }
                 else -> Entry(fileName = null, revision = null)
             }
-            val entries = read().orEmpty().toMutableMap()
             for (id in trackIds) entries[id.value] = entry
             write(entries)
         }
@@ -85,11 +106,15 @@ internal class TrackCoverOverrides(
      * it is part of must not fail over a cover.
      */
     fun apply(tracks: List<TrackDescriptor>): List<TrackDescriptor> = synchronized(lock) {
-        val entries = read()
-        if (entries == null) {
-            // Nothing in it can be trusted, and nothing names its images any more.
-            runCatching { write(emptyMap()) }
-            return tracks
+        val entries = when (val found = read()) {
+            is IndexRead.Ok -> found.entries
+            IndexRead.Corrupt -> {
+                // Nothing in it can be trusted, and nothing names its images any more.
+                runCatching { write(emptyMap()) }
+                return tracks
+            }
+            // Asked again at the next scan; nothing is dropped or deleted meanwhile.
+            IndexRead.Unavailable -> return tracks
         }
         if (entries.isEmpty()) return tracks
         val kept = HashMap<String, Entry>(entries.size)
@@ -125,11 +150,18 @@ internal class TrackCoverOverrides(
         }
     }
 
-    /** Every entry: none when the index is missing, null when it is not one this store wrote. */
-    private fun read(): Map<String, Entry>? {
-        if (!index.isFile) return emptyMap()
+    /** Every entry; none when the index is missing. */
+    private fun read(): IndexRead {
+        if (!index.exists()) return IndexRead.Ok(emptyMap())
+        val text = try {
+            readIndex(index)
+        } catch (_: IOException) {
+            return IndexRead.Unavailable
+        } catch (_: SecurityException) {
+            return IndexRead.Unavailable
+        }
         return try {
-            val lines = index.readLines().filter(String::isNotEmpty)
+            val lines = text.lines().filter(String::isNotEmpty)
             check(lines.firstOrNull() == VERSION)
             lines.drop(1).associate { line ->
                 val fields = line.split('\t')
@@ -137,9 +169,11 @@ internal class TrackCoverOverrides(
                 val fileName = fields[1].takeIf { it.isNotEmpty() }
                 check(fileName == null || fileName.matches(FILE_NAME))
                 fields[0] to Entry(fileName = fileName, revision = fields[2].takeIf { it.isNotEmpty() })
-            }
-        } catch (_: Exception) {
-            null
+            }.let(IndexRead::Ok)
+        } catch (_: IllegalStateException) {
+            IndexRead.Corrupt
+        } catch (_: IllegalArgumentException) {
+            IndexRead.Corrupt
         }
     }
 
