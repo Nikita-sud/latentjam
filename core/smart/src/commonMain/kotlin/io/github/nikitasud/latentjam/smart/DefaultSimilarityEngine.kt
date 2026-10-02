@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
 import io.github.nikitasud.latentjam.smart.chain.MetadataFallbackQueue
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
 import io.github.nikitasud.latentjam.smart.chain.SmartChain
@@ -645,7 +646,14 @@ internal class DefaultSimilarityEngine(
                 timeFeatures = clock.timeFeatures(),
                 historyEvents = history,
             )
-            chain.rows.map { snapshot.tracks[it].id }
+            // Marked playlists have positional quota turns; retain their planned order.
+            // Otherwise bridge the selected tracks locally before handing the plan to playback.
+            val rows = if (companionGroups.isEmpty()) {
+                JourneySequencer.order(snapshot, chain.rows)
+            } else {
+                chain.rows
+            }
+            rows.map { snapshot.tracks[it].id }
                 .ifEmpty {
                     metadataFallback(seed, library, length, history, companionGroups)
                 }
