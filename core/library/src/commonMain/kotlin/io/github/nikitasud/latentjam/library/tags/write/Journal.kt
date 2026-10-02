@@ -149,7 +149,9 @@ public class Journal(private val directory: RecoveryDirectory) {
             val body = line.substring(0, cut)
             check(Crc32.of(body.encodeToByteArray()).toString(16) == line.substring(cut + 1))
             val f = body.split('\t')
-            check((f.size == 9 && f[0] == "v1") || (f.size == 10 && f[0] == "v2"))
+            // A later version keeps version 2's fields first; what it adds after them is not read.
+            val version = f[0].removePrefix("v").toIntOrNull()
+            check(f[0].startsWith("v") && version != null && ((version == 1 && f.size == 9) || (version >= 2 && f.size >= 10)))
             JournalRecord(
                 writeId = f[1],
                 target = unescape(f[2]),

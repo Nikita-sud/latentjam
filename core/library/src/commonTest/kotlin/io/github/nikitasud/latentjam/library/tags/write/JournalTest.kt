@@ -45,6 +45,21 @@ internal class JournalTest {
     }
 
     @Test
+    fun aLineFromALaterVersionIsReadForWhatThisOneKnows() {
+        // A later build may add fields; dropping its record would let the sweep delete its backup.
+        val line = "v3\tw1\tcontent://media/external/audio/media/7\tREPLACING\t100\t120\t5\t6\ttrue\t/Music/a.flac\tsomething new"
+        val crc = io.github.nikitasud.latentjam.library.tags.Crc32.of(line.encodeToByteArray()).toString(16)
+        val bytes = "$line\t$crc\n".encodeToByteArray()
+        assertEquals(
+            JournalRecord("w1", "content://media/external/audio/media/7", JournalState.REPLACING, 100, 120, 5, 6, atomic = true, path = "/Music/a.flac"),
+            Journal.decode(bytes, 0, bytes.size - 1),
+        )
+        val short = "v3\tw1\tk\tREPLACING\t100\t120\t5\t6\ttrue"
+        val shortBytes = "$short\t${io.github.nikitasud.latentjam.library.tags.Crc32.of(short.encodeToByteArray()).toString(16)}\n".encodeToByteArray()
+        assertNull(Journal.decode(shortBytes, 0, shortBytes.size - 1), "a later version has at least version 2's fields")
+    }
+
+    @Test
     fun finishedWritesAreNotOpen() {
         val files = FaultFiles()
         val journal = Journal(files.directory)

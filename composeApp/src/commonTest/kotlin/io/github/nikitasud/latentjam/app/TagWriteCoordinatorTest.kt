@@ -745,6 +745,38 @@ internal class TagWriteCoordinatorTest {
     }
 
     @Test
+    fun aFinishsNoteStaysWhenTheBackendCannotLook() = runTest {
+        // As on iOS, or an Android provider error: nothing is known about the file either way.
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", testMp3())
+        interruptSave(backend, "a")
+        backend.files.remove("a")
+        backend.looks = false
+        val harness = Harness(backend, this)
+        harness.coordinator.refreshRecovery()
+        assertNotNull(harness.coordinator.enqueueRecovery())
+        runCurrent()
+        harness.deliver()
+        assertEquals(setOf("a"), harness.coordinator.missingAtFinish.value)
+        harness.coordinator.refreshRecovery()
+        assertEquals(setOf("a"), harness.coordinator.missingAtFinish.value, "a look that saw nothing removes nothing")
+    }
+
+    @Test
+    fun aFileTheLookCannotTellAboutKeepsItsNote() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", testMp3())
+        interruptSave(backend, "a")
+        backend.files.remove("a")
+        val harness = Harness(backend, this)
+        harness.coordinator.refreshRecovery()
+        assertEquals(setOf("a"), harness.coordinator.missingAtFinish.value)
+        backend.cannotTell += "a"
+        harness.coordinator.refreshRecovery()
+        assertEquals(setOf("a"), harness.coordinator.missingAtFinish.value)
+    }
+
+    @Test
     fun aPerFileConsentIsNeverAskedForAFileThatIsNotThere() = runTest {
         val backend = TestTagWriteBackend(TagWriteStrategy.RECOVERABLE_CONSENT)
         backend.files.put("a", testMp3())

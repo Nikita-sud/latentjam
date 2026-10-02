@@ -28,9 +28,10 @@ internal data class InterruptedSave(
  * One row per waiting file, named by its song where the library knows it. Pass the library as
  * scanned, before files under repair are left out, or those would lose their names. A file the
  * library does not know is named by the last part of the path its record kept, else of its key
- * when that is a path; a `content://` key's last part is only an id, which names nothing. [couldNotFinish]: the files a
- * Finish tried and could not finish (see [TagWriteCoordinator.couldNotFinish]); [missing]: those
- * of them a Finish found not there (see [TagWriteCoordinator.missingAtFinish]).
+ * when that is a path; a `content://` key's last part is only an id, which names nothing.
+ * [couldNotFinish]: the files a Finish tried and could not finish (see
+ * [TagWriteCoordinator.couldNotFinish]); [missing]: those found not there (see
+ * [TagWriteCoordinator.missingAtFinish]).
  */
 internal fun interruptedSavesOf(
     records: List<JournalRecord>,
@@ -46,7 +47,8 @@ internal fun interruptedSavesOf(
         InterruptedSave(
             record = same.first(),
             label = byKey[target]?.let { trackLabel(it, "") }?.takeIf(String::isNotEmpty)
-                ?: same.firstNotNullOfOrNull { it.path }?.substringAfterLast('/')?.takeIf(String::isNotEmpty)
+                ?: same.firstNotNullOfOrNull { it.path }
+                    ?.substringAfterLast('/')?.takeIf(String::isNotEmpty)
                 ?: target.takeUnless { it.startsWith("content://") }?.substringAfterLast('/'),
             underRepair = underRepair,
             forgettable = !underRepair || target in couldNotFinish,

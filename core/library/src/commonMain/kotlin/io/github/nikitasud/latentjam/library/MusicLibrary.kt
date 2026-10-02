@@ -132,9 +132,9 @@ public interface MusicLibrary {
      * LatentJam just saved [cover] into the files of [trackIds]; called before the scan that
      * follows the save. A platform whose covers are per album (Android's MediaStore) remembers it,
      * so each of these songs shows its own cover, and returns true when that changes what a scan
-     * shows for one of them. Android also pins the other songs of their albums to the pictures their
-     * own files hold, since MediaStore may regenerate the album's art from a saved file. The default does nothing and returns false, for platforms that already
-     * show each file's own cover.
+     * shows for one of them. Android also pins the other songs of their albums to the pictures
+     * their own files hold, since MediaStore may regenerate the album's art from a saved file. The
+     * default does nothing and returns false, for platforms that already show each file's own cover.
      */
     public suspend fun coverSaved(trackIds: Collection<TrackId>, cover: CoverEdit): Boolean = false
 

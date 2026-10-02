@@ -239,29 +239,27 @@ private class AndroidTagWriteBackend(private val context: Context) : TagWriteBac
         MediaStore.createWriteRequest(context.contentResolver, keys.map(Uri::parse)).intentSender
     }
 
-    override suspend fun absent(keys: List<String>, paths: Map<String, String>): Map<String, WriteOpen<Nothing>> =
+    override suspend fun look(keys: List<String>, paths: Map<String, String>): Map<String, FileLook> =
         withContext(Dispatchers.IO) {
             val rows = rowPaths(keys)
             val byPath = seesFilesByPath()
-            val absent = HashMap<String, WriteOpen<Nothing>>()
-            for (key in keys) {
+            keys.associateWith { key ->
                 val row = rows[key]
                 // A file the app sees by path is proven there by a stat; any other is opened read-only.
-                if (byPath && row != null && File(row).exists()) continue
-                val there = try {
-                    context.contentResolver.openFileDescriptor(Uri.parse(key), "r")?.close()
-                    true
+                if (byPath && row != null && File(row).exists()) return@associateWith FileLook.PRESENT
+                try {
+                    val descriptor = context.contentResolver.openFileDescriptor(Uri.parse(key), "r")
+                    descriptor?.close()
+                    if (descriptor == null) FileLook.UNKNOWN else FileLook.PRESENT
                 } catch (_: FileNotFoundException) {
-                    false
+                    if (isGone(row ?: paths[key])) FileLook.MISSING else FileLook.UNOPENABLE
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
                     // A refusal or a provider error says nothing about the file: it stays in the request.
-                    true
+                    FileLook.UNKNOWN
                 }
-                if (!there) absent[key] = if (isGone(row ?: paths[key])) WriteOpen.Missing else WriteOpen.Failed
             }
-            absent
         }
 
     /**

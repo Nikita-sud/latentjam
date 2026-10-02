@@ -47,8 +47,11 @@ internal class TestTagWriteBackend(override val strategy: TagWriteStrategy) : Ta
     /** The keys each read-only look before a consent was asked about. */
     val probes = ArrayList<List<String>>()
 
-    /** False for a test whose keys name no files and that is about something else. */
+    /** False for a backend that cannot look at all (iOS), or a test whose keys name no files. */
     var looks = true
+
+    /** Files a look cannot tell about, as a provider error leaves them. */
+    val cannotTell = HashSet<String>()
 
     /** Files whose open has begun and whose handle is not yet closed. */
     var inFlight = 0
@@ -65,16 +68,17 @@ internal class TestTagWriteBackend(override val strategy: TagWriteStrategy) : Ta
         consentBatches += keys
         return "batch:${keys.size}"
     }
-    override suspend fun absent(keys: List<String>, paths: Map<String, String>): Map<String, WriteOpen<Nothing>> {
+    override suspend fun look(keys: List<String>, paths: Map<String, String>): Map<String, FileLook>? {
         probes += keys
-        if (!looks) return emptyMap()
-        return keys.mapNotNull { key ->
+        if (!looks) return null
+        return keys.associateWith { key ->
             when {
-                !files.has(key) -> key to WriteOpen.Missing
-                key in unopenable -> key to WriteOpen.Failed
-                else -> null
+                key in cannotTell -> FileLook.UNKNOWN
+                !files.has(key) -> FileLook.MISSING
+                key in unopenable -> FileLook.UNOPENABLE
+                else -> FileLook.PRESENT
             }
-        }.toMap()
+        }
     }
     override suspend fun open(key: String): WriteOpen<String> {
         inFlight++

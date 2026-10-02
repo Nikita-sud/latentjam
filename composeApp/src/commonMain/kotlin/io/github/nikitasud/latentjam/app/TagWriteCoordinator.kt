@@ -34,6 +34,20 @@ internal enum class TagWriteKind { EDIT, RECOVER }
 internal enum class TagWriteStage { READY, WRITING, OFFER_PERMISSION, OFFER_FILE, OFFER_BATCH, WAIT_PERMISSION, WAIT_FILE, WAIT_BATCH, COMPLETE }
 internal enum class WriteAnswer { APPROVED, CANCELLED, FAILED }
 
+/** What a read-only look at a file found ([TagWriteBackend.look]). */
+internal enum class FileLook {
+    PRESENT,
+
+    /** Certainly not there; may only be on a volume that is not mounted, so nothing is given up. */
+    MISSING,
+
+    /** There as far as anyone can tell, but it cannot be opened at all. */
+    UNOPENABLE,
+
+    /** Nothing could be told: a refusal or a provider error. */
+    UNKNOWN,
+}
+
 internal sealed interface WriteOpen<out C> {
     /** [path]: where the file is, where the platform knows; the journal keeps it ([JournalRecord.path]). */
     class Opened(val file: TargetFile, val freeBytes: Long?, val path: String? = null) : WriteOpen<Nothing>
@@ -59,13 +73,12 @@ internal interface TagWriteBackend<C> {
 
     /**
      * Looks at each of [keys] read-only, which never creates a file, before a system write request
-     * names them: those that are not there are [WriteOpen.Missing] when certainly gone, and
-     * [WriteOpen.Failed] when they cannot be opened at all. The system dialog for such a file is
-     * blank, and its grant could only fail. A key left out is there, or could not be told. [paths]:
-     * where interrupted saves' records say files were, for proving a file gone once the platform's
-     * index has lost it.
+     * names them, and when the waiting interrupted saves are listed. The system dialog for a file
+     * that is not there is blank, and its grant could only fail. [paths]: where interrupted saves'
+     * records say files were, for proving a file gone once the platform's index has lost it. Null
+     * when this platform cannot look at all; a key missing from the answer is [FileLook.UNKNOWN].
      */
-    suspend fun absent(keys: List<String>, paths: Map<String, String>): Map<String, WriteOpen<Nothing>> = emptyMap()
+    suspend fun look(keys: List<String>, paths: Map<String, String>): Map<String, FileLook>? = null
     suspend fun open(key: String): WriteOpen<C>
     suspend fun rescan(keys: List<String>)
 
@@ -294,15 +307,16 @@ internal class TagWriteCoordinator<C>(
         // anywhere, and a volume mounted meanwhile brings its file back.
         val idle = mutablePending.value.map { it.target }.distinct()
         if (idle.isEmpty()) return
-        val absent = try {
-            backend.absent(idle, recordPaths)
+        val seen = try {
+            backend.look(idle, recordPaths)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            return
-        }
-        val gone = absent.filterValues { it == WriteOpen.Missing }.keys
-        val there = idle.filterTo(HashSet()) { it !in absent }
+            null
+        } ?: return
+        // Only what a look positively saw changes a note: one that could not tell keeps it.
+        val gone = seen.filterValues { it == FileLook.MISSING }.keys
+        val there = seen.filterValues { it == FileLook.PRESENT }.keys
         mutableMissingAtFinish.value = (mutableMissingAtFinish.value - there + gone) intersect open
     }
 
@@ -694,17 +708,21 @@ internal class TagWriteCoordinator<C>(
                     val asked = remaining.take(CONSENT_LIMIT)
                     // A file that is not there gets no blank dialog: it is reported as it is, and an
                     // interrupted save of it keeps its record and backup.
-                    val absent = try {
-                        backend.absent(asked, recordPaths)
+                    val seen = try {
+                        backend.look(asked, recordPaths)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
-                        emptyMap()
+                        null
+                    }.orEmpty()
+                    for (key in asked) {
+                        when (seen[key]) {
+                            FileLook.MISSING -> record(FileWriteResult(key, FileWriteStatus.MISSING))
+                            FileLook.UNOPENABLE -> record(FileWriteResult(key, FileWriteStatus.FAILED))
+                            else -> Unit
+                        }
                     }
-                    for ((key, opened) in absent) {
-                        record(FileWriteResult(key, if (opened == WriteOpen.Missing) FileWriteStatus.MISSING else FileWriteStatus.FAILED))
-                    }
-                    val batch = asked.filter { it !in absent }
+                    val batch = asked.filter { seen[it] != FileLook.MISSING && seen[it] != FileLook.UNOPENABLE }
                     // Every one absent: the next step completes the request, or asks for the next batch.
                     if (batch.isEmpty() || requests.first().stopRequested) return
                     val consent = try {
