@@ -227,6 +227,23 @@ internal fun queueIdentitySnapshot(queue: List<TrackDescriptor>): QueueIdentityS
     return QueueIdentitySnapshot(hasDuplicateTrackIds = false)
 }
 
+/**
+ * Lyrics as read for one song ([source]) under one revision of the granted lyrics folders. The
+ * player keeps only the last read; it stays valid for its song even while other songs go by.
+ */
+internal class LyricsReading(val source: Any?, val revision: Any?, val lyrics: Lyrics?)
+
+/** The lyrics to show for [source]: the last read if it was for this song, otherwise none yet. */
+internal fun LyricsReading?.lyricsFor(source: Any?): Lyrics? =
+    this?.takeIf { source != null && it.source == source }?.lyrics
+
+/** A read for [source] has finished (with or without lyrics). */
+internal fun LyricsReading?.readFor(source: Any?): Boolean = source != null && this?.source == source
+
+/** Read only while shown, and only when there is no completed read for this song and revision. */
+internal fun LyricsReading?.needsReading(source: Any?, revision: Any?, active: Boolean): Boolean =
+    active && source != null && (this == null || this.source != source || this.revision != revision)
+
 /** Stable IDs animate safely; duplicate queues use guaranteed-unique positional keys instead. */
 internal fun queueLazyItemKey(
     snapshot: QueueIdentitySnapshot,
@@ -278,10 +295,11 @@ fun NowPlayingScreen(
     /** Back closes the player only while it is the open surface, not while merely shown. */
     ownsBack: Boolean = active,
     /**
-     * The player is the open surface. It stays composed after it closes, so closing is where it
-     * forgets what a fresh player would not show: an expanded queue, a turned cover, a scrolled list.
+     * The player has closed all the way and waits hidden below the pill. It stays composed, so this
+     * is where it forgets what a fresh player would not show: an expanded queue, a turned cover, a
+     * scrolled list.
      */
-    shown: Boolean = true,
+    parked: Boolean = false,
     /**
      * A downward drag on the cover or the top bar, in screen px per move. The player sheet turns it
      * into its one expansion progress, so the whole player follows the finger without this screen
@@ -315,8 +333,12 @@ fun NowPlayingScreen(
     // A folder granted for .lrc files while the player stays open can give this song lyrics.
     val lyricsSources = rememberLyricsSourcesRevision()
     val readLyrics = rememberLyricsReader()
-    var lyrics by remember(lyricsSource) { mutableStateOf<Lyrics?>(null) }
-    var lyricsReadComplete by remember(lyricsSource) { mutableStateOf(false) }
+    // The last read, kept with the song and folder revision it was read for: a hidden player can
+    // see several songs go by without reading anything, and a song that comes back keeps the
+    // answer it already had.
+    var lyricsReading by remember { mutableStateOf<LyricsReading?>(null) }
+    val lyrics = lyricsReading.lyricsFor(lyricsSource)
+    val lyricsReadComplete = lyricsReading.readFor(lyricsSource)
     var showLyrics by remember(lyricsSource) { mutableStateOf(false) }
     val reduceMotion = rememberReduceMotion()
     val haptics = LocalHapticFeedback.current
@@ -342,22 +364,23 @@ fun NowPlayingScreen(
     // them once it has settled: a bounded off-main read, delayed past rapid skipping so a run
     // through the queue does not read a tag for every stop on the way. Until the probe answers
     // the button is simply absent, and a song without lyrics never shows it at all.
-    // A hidden player follows track changes too; it reads no tags until it is shown.
-    var lyricsProbedFor by remember { mutableStateOf<Any?>(null) }
+    // A hidden player follows track changes too; it reads no tags until it is shown, and only a
+    // completed read counts as done.
     LaunchedEffect(lyricsSource, lyricsSources, active) {
         val track = currentTrack ?: return@LaunchedEffect
-        val probe = lyricsSource to lyricsSources
-        if (!active || lyricsProbedFor == probe) return@LaunchedEffect
+        if (!lyricsReading.needsReading(lyricsSource, lyricsSources, active)) return@LaunchedEffect
         delay(LYRICS_PROBE_DELAY_MS)
-        lyricsProbedFor = probe
-        lyrics = readLyrics(track)?.takeIf { read -> read.lines.any { it.text.isNotBlank() } }
-        lyricsReadComplete = true
+        val read = readLyrics(track)?.takeIf { read -> read.lines.any { it.text.isNotBlank() } }
+        lyricsReading = LyricsReading(source = lyricsSource, revision = lyricsSources, lyrics = read)
     }
     // While lyrics are open, the modal sheet owns Back so it can finish its exit before the parent
     // removes it. Otherwise Back collapses the full player as usual.
     PlatformBackHandler(enabled = ownsBack && !showLyrics, onBack = onClose)
-    LaunchedEffect(shown) {
-        if (!shown) {
+    // Once it is parked below the pill, out of sight, the player forgets what a fresh player
+    // would not show. Not at the start of the close: an expanded queue would visibly drop while
+    // the player shrinks.
+    LaunchedEffect(parked) {
+        if (parked) {
             flipped = false
             sheetState.bottomSheetState.partialExpand()
         }
@@ -435,7 +458,7 @@ fun NowPlayingScreen(
                             currentIndex = now.queueIndex,
                             // The playing bars are an endless animation; a hidden player keeps none.
                             isPlaying = now.isPlaying && active,
-                            scrollToCurrentKey = shown,
+                            scrollToCurrentKey = parked,
                             showPauseButton = now.showPauseButton,
                             onTogglePlayback = { scope.launch { playback.togglePlayPause() } },
                             canReorder = true,

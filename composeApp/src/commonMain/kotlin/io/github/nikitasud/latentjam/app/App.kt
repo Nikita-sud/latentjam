@@ -2442,7 +2442,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             if (imeUp) keyboard?.hide()
         }
         LaunchedEffect(showNowPlaying) {
-            if (showNowPlaying) beginCover() else coverStart.begun = false
+            if (showNowPlaying) {
+                beginCover()
+            } else {
+                coverStart.begun = false
+                // Focus moved inside the player by a keyboard (Enter on the chevron, Esc) must not
+                // stay on its hidden controls; search takes its field back on its own if it had it.
+                focusManager.clearFocus(force = true)
+            }
         }
 
         // Opaque floor under the whole shell: during the morph the animating
@@ -3946,7 +3953,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         // it is on screen or a finger may be about to bring it there.
                         active = revealed && !showSettings,
                         ownsBack = showNowPlaying && !showSettings,
-                        shown = showNowPlaying,
+                        parked = !revealed,
                         queueSourceLabel = queueSource?.let { source ->
                             source.name ?: source.kind.fallbackLabelRes()?.let { stringResource(it) }
                         },

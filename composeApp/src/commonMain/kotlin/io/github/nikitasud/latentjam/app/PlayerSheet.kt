@@ -303,23 +303,31 @@ internal fun PlayerSheet(
     // The two ends are the only moments that change what is composed.
     val atFull by remember { derivedStateOf { expansion.progress >= 1f && !expansion.dragging } }
     val atMini by remember { derivedStateOf { expansion.progress <= 0f && !expansion.dragging } }
-    // A dragged node stays placed until its finger lifts. Unplaced, Compose would stop sending
-    // it events without a cancel, and the drag would never be released.
-    val pillPlaced = remember { derivedStateOf { expansion.progress < 1f || expansion.dragging } }
-    val inFlight = remember {
-        derivedStateOf { expansion.progress > 0f && (expansion.progress < 1f || expansion.dragging) }
-    }
     // A finger on the pill may be the start of a drag up: the player starts following playback
     // (its own recomposition) now, inside the touch slop, not on the first frame that moves.
     var pillPressed by remember { mutableStateOf(false) }
+    // A dragged (or merely pressed) node stays placed until its finger lifts. Unplaced, Compose
+    // would stop sending it events without a cancel: the drag would never be released, or the
+    // press never lifted.
+    val pillPlaced = remember {
+        derivedStateOf { expansion.progress < 1f || expansion.dragging || pillPressed }
+    }
+    val inFlight = remember {
+        derivedStateOf { expansion.progress > 0f && (expansion.progress < 1f || expansion.dragging) }
+    }
     // The player is on screen or on its way there.
     val revealed = open || !atMini || pillPressed
     // Back while a finger lifts the closed player from the pill: nothing is open to close, so it
     // means "not now", and the release goes back to the mini player instead of leaving the app.
-    // Enabled from the touch, not from the first move: switching a platform back callback costs
-    // a call into the system that must not land on a frame of the drag.
-    PlatformBackHandler(enabled = !open && (pillPressed || !atMini)) {
-        expansion.request(open = false, reduceMotion = currentReduceMotion)
+    // Switched at the touch, not at the first move: registering a platform back callback costs a
+    // call into the system that must not land on a frame of the drag.
+    // Composed only while needed, so it is registered at the touch and outranks every handler
+    // composed before it (search, a collection page, settings): the page under the rising sheet
+    // must not be the one that Back closes.
+    if (!open && (pillPressed || !atMini)) {
+        PlatformBackHandler(enabled = true) {
+            expansion.request(open = false, reduceMotion = currentReduceMotion)
+        }
     }
     // Composing and first drawing the full player is the most expensive thing the sheet does
     // (about 100 ms on an emulator). It happens once, on the first touch of the pill or the first
@@ -354,7 +362,13 @@ internal fun PlayerSheet(
             !opens
         }
     }
-    val collapseAbandon: () -> Unit = remember(expansion) { { expansion.abandonDrag(currentReduceMotion) } }
+    // An abandoned drag is reported like a release: the app hears where the player ends up.
+    val collapseAbandon: () -> Unit = remember(expansion) {
+        {
+            expansion.abandonDrag(currentReduceMotion)
+            currentOnOpenChange(expansion.target)
+        }
+    }
     val artworkModifier = remember(expansion, geometry) {
         Modifier
             .onPlaced {
@@ -480,7 +494,10 @@ internal fun PlayerSheet(
                                     expansion.release(velocity, commitPx, flingPx, currentReduceMotion),
                                 )
                             },
-                            onAbandon = { expansion.abandonDrag(currentReduceMotion) },
+                            onAbandon = {
+                                expansion.abandonDrag(currentReduceMotion)
+                                currentOnOpenChange(expansion.target)
+                            },
                         )
                         // While the player is (becoming) the surface, the fading pill above it
                         // must not take its taps or its place in TalkBack.
