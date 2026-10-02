@@ -475,7 +475,9 @@ object AppGraph {
                 )
 
                 var done = 0
-                tracks.chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
+                // Spread over the library rather than in title order, so the SMART pool is
+                // representative long before a big library finishes (see analysisOrder).
+                analysisOrder(tracks).chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
                     val report = engine.stageLibraryIndex(chunk)
                     failures.putAll(report.errors)
                     done += chunk.size
