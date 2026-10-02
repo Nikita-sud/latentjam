@@ -65,6 +65,10 @@ internal data class BulkTagForm(
 
     fun keep(field: BulkField) = copy(fields = fields - field)
 
+    /**
+     * The edits a save writes into every file. Original-release dates follow a new year only when
+     * every file showed the same year ([TagEdits.originalFollowsYear]).
+     */
     fun edits(baseline: BulkBaseline, cover: CoverEdit = CoverEdit.Keep): TagEdits = TagEdits(
         artist = edit(BulkField.ARTIST, baseline),
         album = edit(BulkField.ALBUM, baseline),
@@ -75,6 +79,9 @@ internal data class BulkTagForm(
         discNumber = edit(BulkField.DISC_NUMBER, baseline),
         discTotal = edit(BulkField.DISC_TOTAL, baseline),
         cover = cover,
+        // A year stamped over files whose years differed is the collection's release year (a
+        // self-made compilation): each file's original year is its own and stays.
+        originalFollowsYear = baseline.shared[BulkField.YEAR] !is SharedValue.Different,
     )
 
     /** How many fields a save would write, the cover included: the "3 fields" of "Change 3 fields in 12 files". */

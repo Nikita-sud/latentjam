@@ -433,6 +433,38 @@ internal class TagWriteCoordinatorTest {
     }
 
     @Test
+    fun anEditThatKeepsOriginalDatesSurvivesACheckpoint() {
+        val keys = listOf("content://a", "content://b")
+        for (follows in listOf(true, false)) {
+            val request = TagWriteRequest(
+                id = 3,
+                kind = TagWriteKind.EDIT,
+                keys = keys,
+                edits = TagEdits(year = "2001", originalFollowsYear = follows),
+            )
+            val restored = decodeTagWriteRequests(encodeTagWriteRequests(listOf(request)), { null }, { keys }).single()
+            assertEquals(request, restored)
+            assertEquals(follows, restored.edits.originalFollowsYear)
+        }
+    }
+
+    @Test
+    fun aCheckpointFromBeforeTheOriginalDateSwitchRestoresAsMovingNone() {
+        val keys = listOf("content://a", "content://b")
+        val request = TagWriteRequest(id = 3, kind = TagWriteKind.EDIT, keys = keys, edits = TagEdits(year = "2001"))
+        val current = encodeTagWriteRequests(listOf(request))
+        // Version 4 had no flag after the cover code: header (2) + seven request fields + eleven edit fields + cover.
+        val flagAt = 2 + 7 + 11 + 1
+        assertEquals("5", current[0])
+        assertEquals("1", current[flagAt])
+        val old = listOf("4") + current.subList(1, flagAt) + current.subList(flagAt + 1, current.size)
+        val restored = decodeTagWriteRequests(old, { null }, { keys }).single()
+        assertEquals("2001", restored.edits.year)
+        assertFalse(restored.edits.originalFollowsYear)
+        assertEquals(request.copy(edits = request.edits.copy(originalFollowsYear = false)), restored)
+    }
+
+    @Test
     fun aFinishedCheckpointOf10000FilesStaysSmall() {
         val keys = List(10_000) { "content://media/external/audio/media/${1_000_000 + it}" }
         val request = TagWriteRequest(

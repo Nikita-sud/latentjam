@@ -16,6 +16,10 @@ internal object Mp4TagCodec : TagCodec {
     private const val PNG = 14
     private const val BMP = 27
     private const val ARTISTS = "ARTISTS"
+    private const val ITUNES_MEAN = "com.apple.iTunes"
+
+    /** Picard's freeform original-release items, matched ignoring case: true for the year-only one. */
+    private val ORIGINAL_NAMES = mapOf("ORIGINALYEAR" to true, "ORIGINALDATE" to false)
     private val MANAGED = setOf("©nam", "©ART", "©alb", "aART", "©gen", "gnre", "©day", "trkn", "disk", "©lyr", "covr")
     private val DRM_ENTRIES = setOf("drms", "drmi", "enca", "encv", "encs", "enct")
     /** Boxes that hold absolute file offsets the codec cannot see or move (`cmov` compresses a whole moov). */
@@ -138,6 +142,23 @@ internal object Mp4TagCodec : TagCodec {
 
     private fun isArtists(item: Mp4Box): Boolean = item.type == "----" && freeformName(item)?.equals(ARTISTS, ignoreCase = true) == true
 
+    /**
+     * For `----:com.apple.iTunes:ORIGINALYEAR` (true) or `ORIGINALDATE` (false), whether it is
+     * year-only; null for any other item. Never written by the editor, only moved ([OriginalDates]).
+     */
+    private fun originalKind(item: Mp4Box): Boolean? {
+        if (item.type != "----") return null
+        val mean = item.child("mean")?.payload?.takeIf { it.size >= 4 }?.let { it.decodeToString(4, it.size) }
+        if (mean != ITUNES_MEAN) return null
+        return freeformName(item)?.uppercase()?.let(ORIGINAL_NAMES::get)
+    }
+
+    /** Every text value of every original-release item, in order: [TagSnapshot.originalDates]. */
+    private fun originalDates(items: List<Mp4Box>): List<OriginalDate> = items.flatMap { item ->
+        val yearOnly = originalKind(item) ?: return@flatMap emptyList()
+        dataBoxes(item).filter { code(it) == TEXT }.mapNotNull(::value).map { OriginalDate(it.decodeToString(), yearOnly) }
+    }
+
     private fun coverInfo(data: Mp4Box): CoverInfo? {
         val bytes = value(data) ?: return null
         val mime = when (code(data)) {
@@ -186,6 +207,7 @@ internal object Mp4TagCodec : TagCodec {
                 .flatMap { dataBoxes(it) }
                 .mapNotNull { value(it)?.decodeToString() }
                 .flatMap { TagFacts.splitArtists(it) },
+            originalDates = originalDates(items),
         )
     }
 
@@ -348,12 +370,34 @@ internal object Mp4TagCodec : TagCodec {
             setText(out, "©gen", edits.genre)
             out.removeAll { it.type == "gnre" }
         }
+        val oldYear = text(out, "©day")
         setText(out, "©day", edits.year)
+        if (edits.originalFollowsYear) moveOriginalDates(out, oldYear, edits.year)
         setPair(out, "trkn", edits.trackNumber, edits.trackTotal, defaultLength = 8)
         setPair(out, "disk", edits.discNumber, edits.discTotal, defaultLength = 6)
         setText(out, "©lyr", edits.lyrics, trimmed = true)
         setCover(out, edits.cover)
         return out
+    }
+
+    /**
+     * Rewrites every original-release text value that said the same year as [oldYear]
+     * ([OriginalDates]), keeping each item's other boxes and each data box's header. A changed
+     * item is a new box, never the old one changed in place: plan() compares the new items with the old.
+     */
+    private fun moveOriginalDates(items: MutableList<Mp4Box>, oldYear: String?, newYear: String?) {
+        for (i in items.indices) {
+            val item = items[i]
+            val yearOnly = originalKind(item) ?: continue
+            var changed = false
+            val children = item.children.orEmpty().map { child ->
+                val text = child.takeIf { it.type == "data" && code(it) == TEXT }?.let(::value)?.decodeToString()
+                val moved = text?.let { OriginalDates.moved(OriginalDate(it, yearOnly), oldYear, newYear) } ?: return@map child
+                changed = true
+                Mp4Box.leaf("data", child.payload.copyOfRange(0, 8) + moved.encodeToByteArray())
+            }
+            if (changed) items[i] = Mp4Box.container("----", children)
+        }
     }
 
     /** Null keeps; "" removes every item of [type]; a value replaces the first and drops duplicates. */
@@ -503,7 +547,7 @@ internal object Mp4TagCodec : TagCodec {
         // Pictures are pinned by TagSnapshot.pictures, which also knows which one an edit changes.
         meta?.child("ilst")?.children
             ?.filterNot { it.type in MANAGED || isArtists(it) }
-            ?.forEach { out += "item:${Crc32.of(it.serialize())}" }
+            ?.forEach { out += (if (originalKind(it) != null) TagVerification.ORIGINAL_ENTRY else "") + "item:${Crc32.of(it.serialize())}" }
         return out
     }
 

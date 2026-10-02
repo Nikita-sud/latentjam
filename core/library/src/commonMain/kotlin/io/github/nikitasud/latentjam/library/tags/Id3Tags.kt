@@ -55,6 +55,9 @@ public object Id3Tags {
     private const val FRAME_ORIGINAL_V23 = "TORY"
     private val ORIGINAL_FRAMES = setOf(FRAME_ORIGINAL_V24, FRAME_ORIGINAL_V23)
 
+    /** Picard's `TXXX` original-release fields, matched ignoring case: true for the year-only one. */
+    private val ORIGINAL_DESCRIPTIONS = mapOf("ORIGINALYEAR" to true, "ORIGINALDATE" to false)
+
     /** ID3v2.3's year frame — exactly four characters. */
     private const val FRAME_YEAR_V23 = "TYER"
 
@@ -145,8 +148,8 @@ public object Id3Tags {
         /** CRC-32 of every APIC's image data (its whole body when unreadable), sorted. */
         val pictures: List<Long>,
         val artists: List<String>,
-        /** The text of every readable TDOR/TORY frame, in file order: [TagSnapshot.originalDates]. */
-        val originalDates: List<String>,
+        /** Every readable TDOR/TORY/TXXX:ORIGINALYEAR/TXXX:ORIGINALDATE, in file order: [TagSnapshot.originalDates]. */
+        val originalDates: List<OriginalDate>,
         /** "ID:crc32(body)" of every frame the editor does not own, in file order (pictures excluded). */
         val unmanaged: List<String>,
     )
@@ -184,7 +187,8 @@ public object Id3Tags {
                 when {
                     frame.id == FRAME_LYRICS -> TagVerification.LYRICS_ENTRY + entry
                     isGenreFrame(version, frame) -> TagVerification.GENRE_ENTRY + entry
-                    frame.id in ORIGINAL_FRAMES -> TagVerification.ORIGINAL_ENTRY + entry
+                    frame.id in ORIGINAL_FRAMES || originalUserText(version, frame) != null ->
+                        TagVerification.ORIGINAL_ENTRY + entry
                     else -> entry
                 }
             }
@@ -210,7 +214,7 @@ public object Id3Tags {
                 .map { (index, frame) -> parsePicture(version, index, frame)?.let { Crc32.of(it.data) } ?: Crc32.of(frame.body) }
                 .sorted(),
             artists = creditedNames(version, frames),
-            originalDates = frames.filter { it.id in ORIGINAL_FRAMES }.mapNotNull { textIn(version, listOf(it), it.id) },
+            originalDates = frames.mapNotNull { originalDateIn(version, it) },
             unmanaged = unmanaged,
         )
     }
@@ -406,7 +410,7 @@ public object Id3Tags {
             // carrying two years that disagree.
             alsoRemove = listOf(staleYear),
         )
-        result = moveOriginalDates(version, result, oldYear, newYear)
+        if (edits.originalFollowsYear) result = moveOriginalDates(version, result, oldYear, newYear)
         result = setText(
             version,
             result,
@@ -431,9 +435,10 @@ public object Id3Tags {
     }
 
     /**
-     * Rewrites, in place, every TDOR/TORY frame that said the same year as [oldYear] to [newYear]
-     * ([OriginalDates]): on either version, whichever of the two the file has. TORY on ID3v2.3 is
-     * four characters like TYER, and [newYear] is already narrowed there. None is ever added.
+     * Rewrites, in place, every original-date frame that said the same year as [oldYear]
+     * ([OriginalDates]): TDOR/TORY on either version, whichever of the two the file has, and
+     * Picard's TXXX:ORIGINALYEAR/ORIGINALDATE. [newYear] is the value the year frame gets (already
+     * narrowed on ID3v2.3); the year-only TORY and ORIGINALYEAR get just its year. None is ever added.
      */
     private fun moveOriginalDates(
         version: Id3Version,
@@ -441,12 +446,28 @@ public object Id3Tags {
         oldYear: String?,
         newYear: String?,
     ): List<Id3RawFrame> = frames.map { frame ->
-        if (frame.id !in ORIGINAL_FRAMES) return@map frame
-        textIn(version, listOf(frame), frame.id)
-            ?.let { OriginalDates.moved(it, oldYear, newYear) }
-            ?.let { newTextFrame(version, frame.id, it) }
-            ?: frame
+        val date = originalDateIn(version, frame) ?: return@map frame
+        val moved = OriginalDates.moved(date, oldYear, newYear) ?: return@map frame
+        if (frame.id == FRAME_USER_TEXT) {
+            userTextFrame(version, userTextParts(version, frame)!!.first, moved)
+        } else {
+            newTextFrame(version, frame.id, moved)
+        }
     }
+
+    /** The original-release date [frame] holds, or null when it is no readable original-date frame. */
+    private fun originalDateIn(version: Id3Version, frame: Id3RawFrame): OriginalDate? = when {
+        frame.id in ORIGINAL_FRAMES ->
+            textIn(version, listOf(frame), frame.id)?.let { OriginalDate(it, yearOnly = frame.id == FRAME_ORIGINAL_V23) }
+        else -> originalUserText(version, frame)?.let { yearOnly ->
+            userTextParts(version, frame)?.let { OriginalDate(it.second, yearOnly) }
+        }
+    }
+
+    /** For `TXXX:ORIGINALYEAR` (true) or `TXXX:ORIGINALDATE` (false), whether it is year-only; else null. */
+    private fun originalUserText(version: Id3Version, frame: Id3RawFrame): Boolean? =
+        if (frame.id != FRAME_USER_TEXT) null
+        else userTextParts(version, frame)?.first?.uppercase()?.let(ORIGINAL_DESCRIPTIONS::get)
 
     /**
      * The "n/total" text for TRCK/TPOS: null leaves the frame alone, "" removes it. Each half can

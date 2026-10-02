@@ -32,9 +32,10 @@ public data class TagEdits(
      * TDRC on ID3v2.4, TYER on ID3v2.3 (narrowed to its leading year there, the frame is defined as
      * four characters), DATE in Vorbis comments, ©day in MP4.
      *
-     * An original-release date the file already has (ID3 `TDOR`/`TORY`, Vorbis `ORIGINALDATE`/
-     * `ORIGINALYEAR`) that said the same year as the old value follows the new one — see
-     * [OriginalDates].
+     * An original-release date the file already has (ID3 `TDOR`/`TORY`/`TXXX:ORIGINALYEAR`/
+     * `TXXX:ORIGINALDATE`, Vorbis `ORIGINALDATE`/`ORIGINALYEAR`, MP4 `----:com.apple.iTunes:`
+     * `ORIGINALYEAR`/`ORIGINALDATE`) that said the same year as the old value follows the new one,
+     * unless [originalFollowsYear] is false — see [OriginalDates].
      */
     public val year: String? = null,
     public val albumArtist: String? = null,
@@ -44,6 +45,13 @@ public data class TagEdits(
     public val discTotal: String? = null,
     public val lyrics: String? = null,
     public val cover: CoverEdit = CoverEdit.Keep,
+    /**
+     * Whether a [year] edit moves the original-release dates that said the same year as the old
+     * one ([OriginalDates]). False leaves every original date exactly as it is: a year stamped over
+     * files whose years differed (a self-made compilation) is a release year for the collection,
+     * and each song's own original year is real information. Changes nothing on its own.
+     */
+    public val originalFollowsYear: Boolean = true,
 ) {
     /** True when applying these edits would change nothing. */
     public val isEmpty: Boolean
@@ -166,6 +174,12 @@ public data class CoverInfo(val mime: String, val size: Int, val crc32: Long) {
 }
 
 /**
+ * One original-release date field as stored. [yearOnly] fields are defined as a four-digit year
+ * (ID3 `TORY`, `ORIGINALYEAR` in every format); the others (ID3 `TDOR`, `ORIGINALDATE`) are dates.
+ */
+public data class OriginalDate(val value: String, val yearOnly: Boolean)
+
+/**
  * Everything the editor shows and the verifier compares, read from the file itself.
  *
  * Text fields are exactly as stored (several Vorbis GENRE values joined with "; "). Numbers are the
@@ -204,11 +218,12 @@ public data class TagSnapshot(
     /** The credited-artists list (`ARTISTS`), empty when the file carries none. */
     val artists: List<String> = emptyList(),
     /**
-     * Every readable original-release date field, as stored, in file order: ID3 `TDOR`/`TORY`,
-     * Vorbis `ORIGINALDATE`/`ORIGINALYEAR`. MP4 has no standard one and reads none. A year edit
-     * moves the ones that said the same year ([OriginalDates]).
+     * Every readable original-release date field, as stored, in file order: ID3 `TDOR`/`TORY` and
+     * `TXXX:ORIGINALYEAR`/`TXXX:ORIGINALDATE`, Vorbis `ORIGINALDATE`/`ORIGINALYEAR`, MP4's
+     * `----:com.apple.iTunes:ORIGINALYEAR`/`ORIGINALDATE` text values. A year edit moves the ones
+     * that said the same year ([OriginalDates]).
      */
-    val originalDates: List<String> = emptyList(),
+    val originalDates: List<OriginalDate> = emptyList(),
     /** Why this file cannot be edited; null when it can. */
     val refusal: TagRefusal? = null,
 ) {
@@ -267,7 +282,11 @@ public data class TagSnapshot(
                 edits.artist == null || artists.isEmpty() -> artists
                 else -> CreditedArtists.fromDisplay(edits.artist)
             },
-            originalDates = originalDates.map { OriginalDates.moved(it, year, expectedYear(edits.year)) ?: it },
+            originalDates = if (!edits.originalFollowsYear) {
+                originalDates
+            } else {
+                originalDates.map { date -> OriginalDates.moved(date, year, expectedYear(edits.year))?.let { date.copy(value = it) } ?: date }
+            },
         )
     }
 
@@ -303,22 +322,28 @@ public data class TagSnapshot(
  * year being replaced, it was a copy of that year rather than an earlier first release, and it
  * follows the edit: otherwise the library, which prefers the original year, would keep showing
  * the old one. A remaster (the years differ) keeps its original. Fields are only ever rewritten,
- * never added, and clearing Year leaves them alone.
+ * never added, and clearing Year leaves them alone. An edit with [TagEdits.originalFollowsYear]
+ * false moves none.
  */
 internal object OriginalDates {
+    /** `yyyy`, `yyyy-MM` or `yyyy-MM-dd`, the last optionally with an ID3v2.4 time (`THH[:mm[:ss]]`). */
+    private val DATE = Regex("""\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01])(T([01]\d|2[0-3])(:[0-5]\d(:[0-5]\d)?)?)?)?)?""")
+
     /**
-     * What an original-date field holding [original] becomes when the year [current] is replaced by
-     * [written] (the value the year field gets); null leaves the field as it is.
+     * What [original] becomes when the year [current] is replaced by [written] (the value the year
+     * field gets); null leaves the field as it is.
      *
      * Years compare by their leading four digits, parsed as [TagFacts] parses them. Nothing moves
      * when [written] is no year at all, or the same year as [current]: restating "1999" must not
-     * flatten an original "1999-05-01".
+     * flatten an original "1999-05-01". A year-only field gets just the four-digit year; a date
+     * field gets [written] when it is a well-formed date, and the four-digit year otherwise.
      */
-    fun moved(original: String, current: String?, written: String?): String? {
+    fun moved(original: OriginalDate, current: String?, written: String?): String? {
         if (written.isNullOrEmpty() || current == null) return null
         val year = TagFacts.parseYear(current) ?: return null
         val wanted = TagFacts.parseYear(written) ?: return null
-        return written.takeIf { wanted != year && TagFacts.parseYear(original) == year }
+        if (wanted == year || TagFacts.parseYear(original.value) != year) return null
+        return if (!original.yearOnly && DATE.matches(written)) written else wanted.toString()
     }
 }
 

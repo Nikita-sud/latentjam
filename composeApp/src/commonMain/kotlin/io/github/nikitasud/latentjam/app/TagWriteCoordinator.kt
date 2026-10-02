@@ -915,7 +915,8 @@ private val STATUS_BY_CODE: Map<Char, FileWriteStatus> = FileWriteStatus.entries
  * - the keys live in the backend's files ([TagWriteBackend.saveKeys]);
  * - results are one string per request that names each key by its index;
  * - the batch is stored as its size, since it is always the first files still to do;
- * - a replaced cover is stashed under [coverName], and only its mime is written here.
+ * - a replaced cover is stashed under [coverName], and only its mime is written here;
+ * - [TagEdits.originalFollowsYear] is "1"/"0" after the cover (version 5 on).
  */
 internal fun encodeTagWriteRequests(
     requests: List<TagWriteRequest>,
@@ -935,6 +936,7 @@ internal fun encodeTagWriteRequests(
             CoverEdit.Remove -> "r"
             is CoverEdit.Replace -> "c${cover.mime}"
         })
+        add(if (r.edits.originalFollowsYear) "1" else "0")
         add(r.keys.size.toString())
         add(r.keysCrc.toString())
         add(r.batch.size.toString())
@@ -953,6 +955,7 @@ internal class SavedTagWrite(
     private val interrupted: Boolean,
     private val fields: List<String?>,
     private val coverCode: String,
+    private val originalFollowsYear: Boolean,
     private val keyCount: Int,
     private val keysCrc: Long,
     private val batchSize: Int,
@@ -976,7 +979,7 @@ internal class SavedTagWrite(
                 else -> null
             }
             val edits = TagEdits(fields[0], fields[1], fields[2], fields[3], fields[4], fields[5], fields[6],
-                fields[7], fields[8], fields[9], fields[10], cover ?: CoverEdit.Keep)
+                fields[7], fields[8], fields[9], fields[10], cover ?: CoverEdit.Keep, originalFollowsYear)
             val request = TagWriteRequest(id, kind, keys, edits, stage, consented, permissionRequested,
                 batch = emptyList(), results = results, stopRequested = stopRequested, interrupted = interrupted, keysCrc = keysCrc)
                 .let { it.copy(batch = it.remaining.take(batchSize)) }
@@ -996,7 +999,8 @@ internal fun parseTagWriteCheckpoint(saved: List<String>?): List<SavedTagWrite> 
     if (saved == null) return emptyList()
     return try {
         val values = saved.iterator()
-        check(values.next() == CHECKPOINT_VERSION)
+        val version = values.next()
+        check(version == CHECKPOINT_VERSION || version == CHECKPOINT_VERSION_WITHOUT_ORIGINALS)
         List(values.next().toInt()) {
             SavedTagWrite(
                 id = values.next().toLong(),
@@ -1008,6 +1012,9 @@ internal fun parseTagWriteCheckpoint(saved: List<String>?): List<SavedTagWrite> 
                 interrupted = values.next().toBooleanStrict(),
                 fields = List(11) { values.next().let { v -> if (v == "0") null else v.removePrefix("1") } },
                 coverCode = values.next(),
+                // Unknown before version 5: a restored request moves no original date rather than
+                // risk overwriting real ones (a bulk year over files whose years differed).
+                originalFollowsYear = if (version == CHECKPOINT_VERSION) values.next().toBooleanFlag() else false,
                 keyCount = values.next().toInt(),
                 keysCrc = values.next().toLong(),
                 batchSize = values.next().toInt(),
@@ -1028,4 +1035,13 @@ internal fun decodeTagWriteRequests(
     it.toRequest(loadKeys(it.id), if (it.replacesCover) unstash(coverName(it.id)) else null)
 }
 
-private const val CHECKPOINT_VERSION = "4"
+private const val CHECKPOINT_VERSION = "5"
+
+/** The checkpoint before [TagEdits.originalFollowsYear] was saved; still read. */
+private const val CHECKPOINT_VERSION_WITHOUT_ORIGINALS = "4"
+
+private fun String.toBooleanFlag(): Boolean = when (this) {
+    "1" -> true
+    "0" -> false
+    else -> throw IllegalArgumentException("not a flag: $this")
+}

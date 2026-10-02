@@ -19,8 +19,9 @@ public object TagVerification {
     internal const val GENRE_ENTRY: String = "genre:"
 
     /**
-     * Inventory entries of the original-release date fields (ID3 `TDOR`/`TORY`, Vorbis
-     * `ORIGINALDATE`/`ORIGINALYEAR`). Pinned byte for byte like any other entry, except by a write
+     * Inventory entries of the original-release date fields (ID3 `TDOR`/`TORY` and
+     * `TXXX:ORIGINALYEAR`/`ORIGINALDATE`, Vorbis `ORIGINALDATE`/`ORIGINALYEAR`, MP4's freeform
+     * `ORIGINALYEAR`/`ORIGINALDATE`). Pinned byte for byte like any other entry, except by a write
      * that moves one ([OriginalDates]): then [TagSnapshot.originalDates] pins their values instead.
      */
     internal const val ORIGINAL_ENTRY: String = "original:"

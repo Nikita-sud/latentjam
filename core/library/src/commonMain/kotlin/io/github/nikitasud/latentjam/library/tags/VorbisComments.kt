@@ -98,7 +98,7 @@ internal class VorbisFieldValues(
     val discTotal: Int?,
     val lyrics: String?,
     val artists: List<String>,
-    val originalDates: List<String>,
+    val originalDates: List<OriginalDate>,
 )
 
 /** The editor's fields mapped onto Vorbis comment names, shared by FLAC, Opus and Vorbis. */
@@ -117,7 +117,10 @@ internal object VorbisFields {
     private const val LYRICS = "LYRICS"
 
     /** The original-release date fields: never written by the editor, only moved ([OriginalDates]). */
-    private val ORIGINAL_KEYS = setOf("ORIGINALDATE", "ORIGINALYEAR")
+    private const val ORIGINAL_YEAR = "ORIGINALYEAR"
+    private val ORIGINAL_KEYS = setOf("ORIGINALDATE", ORIGINAL_YEAR)
+
+    private fun originalDateOf(entry: VorbisEntry): OriginalDate = OriginalDate(entry.value, yearOnly = entry.key == ORIGINAL_YEAR)
 
     /** Other names the same field is found under; read as the field, removed when it is written. */
     private val ALIASES: Map<String, List<String>> = mapOf(
@@ -161,7 +164,7 @@ internal object VorbisFields {
             discTotal = TrackNumbers.parse(first(DISC_TOTAL)) ?: embeddedTotal(discRaw),
             lyrics = first(LYRICS)?.trim()?.ifEmpty { null },
             artists = all(ARTISTS).flatMap { TagFacts.splitArtists(it) },
-            originalDates = entries.filter { it.key in ORIGINAL_KEYS }.map { it.value },
+            originalDates = entries.filter { it.key in ORIGINAL_KEYS }.map(::originalDateOf),
         )
     }
 
@@ -178,9 +181,11 @@ internal object VorbisFields {
         out = setJoined(out, GENRE, edits.genre)
         val oldYear = read(entries).year
         out = set(out, DATE, edits.year)
-        out = out.map { entry ->
-            if (entry.key !in ORIGINAL_KEYS) return@map entry
-            OriginalDates.moved(entry.value, oldYear, edits.year)?.let { entry.withValue(it) } ?: entry
+        if (edits.originalFollowsYear) {
+            out = out.map { entry ->
+                if (entry.key !in ORIGINAL_KEYS) return@map entry
+                OriginalDates.moved(originalDateOf(entry), oldYear, edits.year)?.let { entry.withValue(it) } ?: entry
+            }
         }
         out = numbers(out, TRACK_NUMBER, TRACK_TOTAL, edits.trackNumber, edits.trackTotal)
         out = numbers(out, DISC_NUMBER, DISC_TOTAL, edits.discNumber, edits.discTotal)

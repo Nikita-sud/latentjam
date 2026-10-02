@@ -11,6 +11,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 internal class BulkTagFormTest {
@@ -59,6 +60,35 @@ internal class BulkTagFormTest {
         val form = BulkTagForm().typed(BulkField.ARTIST, "A").typed(BulkField.DISC_TOTAL, "2")
         assertEquals(TagEdits(artist = "A", discTotal = "2"), form.edits(baseline))
         assertEquals(2, form.changedFieldCount(baseline))
+    }
+
+    @Test
+    fun aYearOverFilesWhoseYearsDifferedLeavesTheirOriginalYearsAlone() {
+        val years = BulkBaseline.of(
+            listOf(
+                TagSnapshot(TagFormat.MP3, "ID3v2.4", year = "1985"),
+                TagSnapshot(TagFormat.MP3, "ID3v2.4", year = "1990"),
+            ),
+        )
+        assertEquals(SharedValue.Different, years.shared[BulkField.YEAR])
+        val edits = BulkTagForm().typed(BulkField.YEAR, "2001").edits(years)
+        assertEquals("2001", edits.year)
+        assertFalse(edits.originalFollowsYear)
+    }
+
+    @Test
+    fun aYearOverFilesThatAllHadTheSameYearMovesOriginalsThatSaidIt() {
+        val years = BulkBaseline.of(
+            listOf(
+                TagSnapshot(TagFormat.MP3, "ID3v2.4", year = "1999"),
+                TagSnapshot(TagFormat.FLAC, "FLAC", year = "1999 "),
+            ),
+        )
+        val edits = BulkTagForm().typed(BulkField.YEAR, "2004").edits(years)
+        assertEquals("2004", edits.year)
+        assertTrue(edits.originalFollowsYear)
+        // No year in any file is one shared value too: there is no original year to have copied it.
+        assertTrue(BulkTagForm().typed(BulkField.YEAR, "2004").edits(baseline).originalFollowsYear)
     }
 
     @Test

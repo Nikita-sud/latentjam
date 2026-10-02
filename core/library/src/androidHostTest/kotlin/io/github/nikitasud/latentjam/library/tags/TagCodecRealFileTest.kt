@@ -148,7 +148,7 @@ class TagCodecRealFileTest {
             check("totals-only", original, TagEdits(trackTotal = "12", discTotal = "2"))
             if (before.originalDates.isNotEmpty()) originalWithDates++
             val year = before.year?.let(TagFacts::parseYear)
-            if (year != null && before.originalDates.any { TagFacts.parseYear(it) == year }) originalSameYear++
+            if (year != null && before.originalDates.any { TagFacts.parseYear(it.value) == year }) originalSameYear++
             check("year", original, TagEdits(year = YEAR_EDIT))?.let { written ->
                 if (codec.read(ByteArraySource(written)).originalDates != before.originalDates) originalMoved++
             }
