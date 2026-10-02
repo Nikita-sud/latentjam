@@ -98,6 +98,7 @@ import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -106,6 +107,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -124,6 +126,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
@@ -281,6 +284,12 @@ fun NowPlayingScreen(
     onEditTags: (TrackDescriptor) -> Unit = {},
     onShowOnMap: ((TrackDescriptor) -> Unit)? = null,
     active: Boolean = true,
+    /**
+     * How far the cover has pulled the whole player down, in px. The app owns it because the
+     * library lies under this screen and has to know, in its draw phase only, when a pull uncovers
+     * part of it; nothing but this screen writes it.
+     */
+    collapseOffset: MutableFloatState = remember { mutableFloatStateOf(0f) },
     onClose: () -> Unit,
 ) {
     // Position is intentionally projected out. It changes twice per second, while artwork, queue,
@@ -325,9 +334,21 @@ fun NowPlayingScreen(
         if (flipped && currentTrackId != null) trackStats = AppGraph.history.stats()[currentTrackId]
     }
     // Pulling the cover down carries the whole surface; read only by the layer below, so the
-    // drag never recomposes the screen. On release it springs home or hands over to the morph.
-    val collapseOffset = remember { mutableFloatStateOf(0f) }
+    // drag never recomposes the screen. On release it springs home, or the player leaves from
+    // where the finger let go.
     var collapseJob by remember { mutableStateOf<Job?>(null) }
+    // The offset outlives this screen, and an exit can be cut short mid-slide: the next player
+    // must open at rest, and the library must not read a stale pull as "partly uncovered".
+    DisposableEffect(collapseOffset) {
+        onDispose { collapseOffset.floatValue = 0f }
+    }
+    // A pull that commits does not morph back into the pill. Shared bounds start from the layout
+    // position, which a pull never moves (it is a layer transform), so the morph would first
+    // throw the player back to full size and only then shrink it. Turning the match off for that
+    // one exit lets the player carry on down from the finger while the pill fades in.
+    var pullCommitted by remember { mutableStateOf(false) }
+    val morphConfig = remember { PlayerMorphConfig { !pullCommitted } }
+    val windowInfo = LocalWindowInfo.current
     fun settleCollapse(durationMs: Int) {
         collapseJob?.cancel()
         if (reduceMotion) {
@@ -363,14 +384,16 @@ fun NowPlayingScreen(
         modifier = if (reduceMotion) {
             Modifier.fillMaxSize().collapsePull(collapseOffset)
         } else with(sharedScope) {
+            // The pull sits INSIDE the shared bounds: during a transition the shared content is
+            // drawn from the overlay, which skips any layer outside it.
             Modifier
                 .fillMaxSize()
-                .collapsePull(collapseOffset)
                 .sharedBounds(
-                    rememberSharedContentState(PLAYER_SURFACE_KEY),
+                    rememberSharedContentState(PLAYER_SURFACE_KEY, morphConfig),
                     animatedScope,
                     boundsTransform = motionBoundsTransform(),
                 )
+                .collapsePull(collapseOffset)
         },
     ) {
         Box(
@@ -588,9 +611,25 @@ fun NowPlayingScreen(
                                         collapseOffset.floatValue = pulled
                                     }
                                 },
-                                onCollapse = {
+                                onCollapse = { velocity ->
+                                    pullCommitted = true
                                     onClose()
-                                    settleCollapse(Motion.EMPHASIZED_MS)
+                                    collapseJob?.cancel()
+                                    // Reduced motion only dissolves, in place; otherwise the surface
+                                    // keeps the finger's speed and slides on towards the bottom edge
+                                    // while the exit fades it out.
+                                    if (!reduceMotion) collapseJob = scope.launch {
+                                        animate(
+                                            initialValue = collapseOffset.floatValue,
+                                            targetValue = windowInfo.containerSize.height.toFloat()
+                                                .coerceAtLeast(collapseOffset.floatValue),
+                                            initialVelocity = collapseShown(velocity),
+                                            animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                                stiffness = Spring.StiffnessMediumLow,
+                                            ),
+                                        ) { value, _ -> collapseOffset.floatValue = value }
+                                    }
                                 },
                                 details = {
                                     now.track?.let { track ->
@@ -605,7 +644,7 @@ fun NowPlayingScreen(
                                 },
                                 modifier = if (reduceMotion) Modifier else with(sharedScope) {
                                     Modifier.sharedElement(
-                                        rememberSharedContentState(ARTWORK_KEY),
+                                        rememberSharedContentState(ARTWORK_KEY, morphConfig),
                                         animatedScope,
                                         boundsTransform = motionBoundsTransform(),
                                     )
@@ -1309,6 +1348,15 @@ internal fun queueNeighbour(now: NowPlaying, forward: Boolean): TrackDescriptor?
 /** Natural completion repeats the current track in repeat-one; a manual skip still advances. */
 internal fun nextUpTrack(now: NowPlaying): TrackDescriptor? =
     if (now.repeatMode == RepeatMode.ONE) now.track else queueNeighbour(now, forward = true)
+
+/** Shared player elements that a committed pull switches off for the exit it starts. */
+@OptIn(ExperimentalSharedTransitionApi::class)
+private class PlayerMorphConfig(
+    private val enabled: () -> Boolean,
+) : SharedTransitionScope.SharedContentConfig {
+    override val SharedTransitionScope.SharedContentState.isEnabled: Boolean
+        get() = enabled()
+}
 
 /** The pull-down: the surface follows the finger and shrinks a little towards its bottom edge. */
 private fun Modifier.collapsePull(offset: androidx.compose.runtime.MutableFloatState): Modifier =

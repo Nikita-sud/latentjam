@@ -54,6 +54,19 @@ internal fun collapseCommits(dy: Float, threshold: Float): Boolean = dy > thresh
 internal fun collapsePullScale(pulled: Float): Float =
     1f - (pulled / COLLAPSE_SCALE_DIVISOR).coerceIn(0f, COLLAPSE_MAX_SHRINK)
 
+/**
+ * Whether the library under the full player needs drawing. The player is opaque and fills the
+ * window, so once it has finished opening ([playerOpen] reached [playerOpening] with nothing
+ * running) the library is fully hidden and drawing it would only add overdraw to every frame of
+ * the player's own motion. Any transition, or any pull at all, uncovers part of it again.
+ */
+internal fun libraryDrawnUnderPlayer(
+    playerOpening: Boolean,
+    playerOpen: Boolean,
+    playerIdle: Boolean,
+    pulled: Float,
+): Boolean = !(playerOpening && playerOpen && playerIdle) || pulled > 0f
+
 private const val COLLAPSE_SCALE_DIVISOR = 3_200f
 private const val COLLAPSE_MAX_SHRINK = 0.1f
 

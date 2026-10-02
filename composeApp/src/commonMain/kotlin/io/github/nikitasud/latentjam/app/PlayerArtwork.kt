@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
@@ -100,7 +101,8 @@ internal fun PlayerArtworkCard(
     neighbourTrack: (forward: Boolean) -> TrackDescriptor?,
     /** Called with the resisted pull in px while the finger drags down, and with 0f on release. */
     onCollapseDrag: (Float) -> Unit,
-    onCollapse: () -> Unit,
+    /** Called once a pull passes the threshold, with the finger's downward speed in px/s. */
+    onCollapse: (velocity: Float) -> Unit,
     details: @Composable () -> Unit,
     queueIndex: Int = -1,
     /** Restarts keep the current cover and return it immediately after the skip action. */
@@ -327,7 +329,10 @@ internal fun PlayerArtworkCard(
                                 var thresholdAnnounced = false
                                 // Nothing has moved yet, so this one difference is in screen terms.
                                 var dy = change.position.y - down.position.y
+                                // Fed with dy, the screen-space pull, for the reason given below.
+                                val velocity = VelocityTracker()
                                 while (true) {
+                                    velocity.addPosition(change.uptimeMillis, Offset(0f, dy))
                                     if (change.isConsumed) return@awaitEachGesture
                                     if (collapseCommits(dy, collapseThreshold) && !thresholdAnnounced && change.pressed) {
                                         haptics.play(PlayerHaptic.THRESHOLD)
@@ -349,7 +354,7 @@ internal fun PlayerArtworkCard(
                                 }
                                 if (collapseCommits(dy, collapseThreshold)) {
                                     haptics.play(PlayerHaptic.TAP)
-                                    currentOnCollapse()
+                                    currentOnCollapse(velocity.calculateVelocity().y)
                                 } else {
                                     currentOnCollapseDrag(0f)
                                 }

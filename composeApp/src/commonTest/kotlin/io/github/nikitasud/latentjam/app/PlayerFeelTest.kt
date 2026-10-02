@@ -47,6 +47,21 @@ class PlayerFeelTest {
     }
 
     @Test
+    fun theLibraryIsSkippedOnlyUnderAPlayerThatIsOpenAndAtRest() {
+        // Settled open, not pulled: fully covered.
+        assertFalse(libraryDrawnUnderPlayer(playerOpening = true, playerOpen = true, playerIdle = true, pulled = 0f))
+        // The first pixel of a pull uncovers the page it returns to.
+        assertTrue(libraryDrawnUnderPlayer(playerOpening = true, playerOpen = true, playerIdle = true, pulled = 0.5f))
+        // Still growing out of the pill.
+        assertTrue(libraryDrawnUnderPlayer(playerOpening = true, playerOpen = false, playerIdle = false, pulled = 0f))
+        // Open but a child animation (the shared bounds) is still running.
+        assertTrue(libraryDrawnUnderPlayer(playerOpening = true, playerOpen = true, playerIdle = false, pulled = 0f))
+        // Closing, and closed.
+        assertTrue(libraryDrawnUnderPlayer(playerOpening = false, playerOpen = true, playerIdle = false, pulled = 300f))
+        assertTrue(libraryDrawnUnderPlayer(playerOpening = false, playerOpen = false, playerIdle = true, pulled = 0f))
+    }
+
+    @Test
     fun neighbourRevealIsContinuousDirectionalAndReversible() {
         val outward = listOf(0f, -6f, -30f, -60f, -96f).map {
             artworkNeighbourReveal(it, width = 400f, forward = true)

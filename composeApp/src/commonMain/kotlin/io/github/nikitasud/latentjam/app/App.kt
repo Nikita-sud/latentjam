@@ -30,7 +30,6 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -122,6 +121,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -133,12 +134,12 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -153,6 +154,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -1025,10 +1028,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // own height on top.
         val floatingPlayerInset = (if (currentTrack != null) miniPlayerHeight + dockFadeHeight else 0.dp) +
             (if (selectionMode) selectionActionBarHeight else 0.dp)
-        // AnimatedContent removes the browse branch after the player finishes opening. Keep a
-        // dedicated saveable bucket for that branch so every LazyColumn/Grid/Row returns to its
-        // exact item and pixel offset when the player closes, across every tab and detail screen.
-        val browseStateHolder = rememberSaveableStateHolder()
 
         val importAudio = rememberAudioImporter { result ->
             scope.launch {
@@ -1161,7 +1160,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
 
-        PlatformBackHandler(enabled = selectionMode) { updateTrackSelection(emptySet()) }
+        // A selection survives under the full player; Back there belongs to the player.
+        PlatformBackHandler(enabled = selectionMode && !showNowPlaying) { updateTrackSelection(emptySet()) }
 
         // Arm SMART in the background as soon as the library is known: restore persisted vectors
         // and backfill genuinely new/changed rows. The audio model remains lazy when everything is
@@ -2408,6 +2408,38 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             label = "settings-navigation",
         ) { if (it) 1f else 0f }
 
+        // The full player is an overlay on a library that never leaves composition, the way every
+        // mainstream player does it: pulling the player down shows the very page it returns to,
+        // and closing it costs no rebuild of the browse shell, its scroll positions or its pages.
+        val playerVisibility = remember { MutableTransitionState(showNowPlaying) }
+        playerVisibility.targetState = showNowPlaying
+        val playerMorphMs = if (reduceMotion) Motion.REDUCED_MS else Motion.EMPHASIZED_MS
+        // Written only by the player's pull; read here in the draw phase, never in composition.
+        val playerPull = remember { mutableFloatStateOf(0f) }
+        // A covered library is still composed, so it would still be drawn under every frame of the
+        // player's own motion. Once the opaque player has finished opening and is not pulled, skip
+        // it. Derived, so a drag invalidates the library's draw only when it starts or ends.
+        val libraryDrawn = remember {
+            derivedStateOf {
+                libraryDrawnUnderPlayer(
+                    playerOpening = playerVisibility.targetState,
+                    playerOpen = playerVisibility.currentState,
+                    playerIdle = playerVisibility.isIdle,
+                    pulled = playerPull.floatValue,
+                )
+            }
+        }
+        // A field focused in the library (search, a playlist name) would keep the keyboard up over
+        // the player now that the field is no longer disposed with the library.
+        val focusManager = LocalFocusManager.current
+        val keyboard = LocalSoftwareKeyboardController.current
+        LaunchedEffect(showNowPlaying) {
+            if (showNowPlaying) {
+                focusManager.clearFocus(force = true)
+                keyboard?.hide()
+            }
+        }
+
         // Opaque floor under the whole shell: during the morph the animating
         // content is smaller than the window, and without this the platform
         // window background shows through as a flash.
@@ -2424,66 +2456,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             },
         ) {
             val sharedScope = this
-            AnimatedContent(
-                targetState = showNowPlaying,
-                transitionSpec = {
-                    val duration = if (reduceMotion) Motion.REDUCED_MS else Motion.EMPHASIZED_MS
-                    fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))
-                },
-                modifier = Modifier.fillMaxSize(),
-                label = "player-morph",
-            ) { expanded ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .inactiveDuringTransition(
-                            expanded != showNowPlaying || settingsOverlayActive,
-                        ),
-                ) {
-                if (expanded) {
-                    val queueSource by AppGraph.queueSource.collectAsState()
-                    NowPlayingScreen(
-                        playback = playback,
-                        accent = accent,
-                        active = showNowPlaying && !showSettings,
-                        queueSourceLabel = queueSource?.let { source ->
-                            source.name ?: source.kind.fallbackLabelRes()?.let { stringResource(it) }
-                        },
-                        sharedScope = sharedScope,
-                        animatedScope = this@AnimatedContent,
-                        sleepTimerState = sleepTimerState,
-                        onStartSleepTimer = sleepTimer::startCountdown,
-                        onSleepAtEndOfTrack = sleepTimer::startAtEndOfTrack,
-                        onCancelSleepTimer = sleepTimer::cancel,
-                        onTrackMenu = { track ->
-                            trackMenuRequest = TrackMenuRequest(track, fromPlayer = true)
-                        },
-                        onQueueTrackMenu = { track -> trackMenuRequest = TrackMenuRequest(track) },
-                        detailsRequest = playerDetailsRequest,
-                        sleepTimerRequest = playerSleepTimerRequest,
-                        // Both close the player themselves once the collection is built; closing
-                        // it first would change the root the open is guarded against mid-flight.
-                        onGoToAlbum = { track -> showAlbumOf(track) },
-                        onGoToArtist = { track -> showArtistOf(track) },
-                        onOpenSource = queueSource?.let { source -> { openQueueSource(source) } },
-                        smartQueueLength = smartQueueLength,
-                        onSmartQueueLength = settings::setSmartQueueLength,
-                        onEditTags = { showTrackInfo(it.id, editing = true) },
-                        onShowOnMap = if (StartPage.MAP in visiblePages) {
-                            { track -> showTrackOnMap(track) }
-                        } else null,
-                        onAddQueueToPlaylist = {
-                            playback.state.value.queue
-                                .takeIf { it.isNotEmpty() }
-                                ?.let { addToPlaylistSelection = it }
-                        },
-                        isFavorite = currentTrack?.id?.let { it in favoriteIds } == true,
-                        onToggleFavorite = { currentTrack?.id?.let(::toggleFavorite) },
-                        onClose = { showNowPlaying = false },
-                    )
-                } else {
-                    browseStateHolder.SaveableStateProvider(BROWSE_SHELL_STATE_KEY) {
-                        val animatedScope = this@AnimatedContent
+            val playerTransition = rememberTransition(playerVisibility, label = "player-surface")
+            // The library: always composed, inert and hidden from accessibility while the player is
+            // up (or Settings covers both), so neither a touch through an uncovered gap nor
+            // TalkBack can reach it. Its own layer keeps the per-frame overlay of the morph from
+            // re-recording it, and the gate in front skips drawing it while it is fully covered.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawWithContent { if (libraryDrawn.value) drawContent() }
+                    .graphicsLayer()
+                    .inactiveDuringTransition(showNowPlaying || settingsOverlayActive),
+            ) {
                         // Playlist covers belong to the browsing transition, not the player.
                         // A shared scope promotes every matched element into its overlay while
                         // any match animates. Keeping covers here lets the entire playlist fade
@@ -3631,10 +3615,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         ) {
                         SearchScreen(
                             accent = accent,
-                            active = showSearch,
+                            // Search stays composed under an open player: it must not own Back or
+                            // the keyboard there, and it focuses its field again on return.
+                            active = showSearch && !showNowPlaying,
                             openProgress = { fieldProgress.value },
                             buttonBounds = searchButtonBounds,
-                            readyForInput = showSearch && searchVisibilityState.isIdle,
+                            readyForInput = showSearch && !showNowPlaying && searchVisibilityState.isIdle,
                             songs = catalog?.songs.orEmpty(),
                             currentTrackId = currentTrack?.id,
                             currentTrackPlaying = currentTrackPlaying,
@@ -3885,8 +3871,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 },
                         )
                         (currentTrack ?: lastMiniPresentation.track)?.let { current ->
-                            MiniPlayerPill(
+                            // The pill's half of the morph runs on the player's own transition. It
+                            // leaves composition while the player is up, so its playhead ticker
+                            // does not run behind the player.
+                            playerTransition.AnimatedVisibility(
+                                visible = { open -> !open },
                                 modifier = Modifier.align(Alignment.BottomCenter),
+                                enter = fadeIn(tween(playerMorphMs)),
+                                exit = fadeOut(tween(playerMorphMs)),
+                            ) {
+                            val pillScope = this
+                            MiniPlayerPill(
                                 height = miniPlayerHeight,
                                 track = current,
                                 accent = if (currentTrack != null) {
@@ -3901,19 +3896,73 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                 },
                                 playback = playback,
                                 sharedScope = sharedScope,
-                                animatedScope = animatedScope,
+                                animatedScope = pillScope,
                                 onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
                                 onPrevious = { scope.launch { playback.previous() } },
                                 onNext = { scope.launch { playback.next() } },
                                 onOpen = { showNowPlaying = true },
                             )
+                            }
                     }
                         }
                         }
                     }
                 }
             }
-                        }
+            // The player lies over the library in the same shared scope, so the pill still grows
+            // into it. Inert while it leaves, like any outgoing full-screen surface.
+            playerTransition.AnimatedVisibility(
+                visible = { open -> open },
+                modifier = Modifier.fillMaxSize(),
+                enter = fadeIn(tween(playerMorphMs)),
+                exit = fadeOut(tween(playerMorphMs)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .inactiveDuringTransition(!showNowPlaying || settingsOverlayActive),
+                ) {
+                    val queueSource by AppGraph.queueSource.collectAsState()
+                    NowPlayingScreen(
+                        playback = playback,
+                        accent = accent,
+                        active = showNowPlaying && !showSettings,
+                        queueSourceLabel = queueSource?.let { source ->
+                            source.name ?: source.kind.fallbackLabelRes()?.let { stringResource(it) }
+                        },
+                        sharedScope = sharedScope,
+                        animatedScope = this@AnimatedVisibility,
+                        sleepTimerState = sleepTimerState,
+                        onStartSleepTimer = sleepTimer::startCountdown,
+                        onSleepAtEndOfTrack = sleepTimer::startAtEndOfTrack,
+                        onCancelSleepTimer = sleepTimer::cancel,
+                        onTrackMenu = { track ->
+                            trackMenuRequest = TrackMenuRequest(track, fromPlayer = true)
+                        },
+                        onQueueTrackMenu = { track -> trackMenuRequest = TrackMenuRequest(track) },
+                        detailsRequest = playerDetailsRequest,
+                        sleepTimerRequest = playerSleepTimerRequest,
+                        // Both close the player themselves once the collection is built; closing
+                        // it first would change the root the open is guarded against mid-flight.
+                        onGoToAlbum = { track -> showAlbumOf(track) },
+                        onGoToArtist = { track -> showArtistOf(track) },
+                        onOpenSource = queueSource?.let { source -> { openQueueSource(source) } },
+                        smartQueueLength = smartQueueLength,
+                        onSmartQueueLength = settings::setSmartQueueLength,
+                        onEditTags = { showTrackInfo(it.id, editing = true) },
+                        onShowOnMap = if (StartPage.MAP in visiblePages) {
+                            { track -> showTrackOnMap(track) }
+                        } else null,
+                        onAddQueueToPlaylist = {
+                            playback.state.value.queue
+                                .takeIf { it.isNotEmpty() }
+                                ?.let { addToPlaylistSelection = it }
+                        },
+                        isFavorite = currentTrack?.id?.let { it in favoriteIds } == true,
+                        onToggleFavorite = { currentTrack?.id?.let(::toggleFavorite) },
+                        collapseOffset = playerPull,
+                        onClose = { showNowPlaying = false },
+                    )
                 }
             }
         }
@@ -4848,9 +4897,6 @@ private const val RECENT_EVENTS_FOR_YOU = 4000
 // The full player owns precise seeking; the browse pill updates this glanceable hint less often so
 // playback does not invalidate the browse shell every 500 ms.
 private const val MINI_PLAYER_PROGRESS_STEP_MS = 1_000L
-
-/** Stable saveable-state bucket for the browse stack while the full player owns the screen. */
-private const val BROWSE_SHELL_STATE_KEY = "browse-shell"
 
 /**
  * The pill's own height, above whatever navigation-bar inset it is sitting on.
