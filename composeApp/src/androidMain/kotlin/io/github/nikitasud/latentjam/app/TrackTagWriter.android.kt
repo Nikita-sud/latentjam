@@ -409,6 +409,7 @@ internal fun <C> openExistingForWrite(
             return if (access.isGone()) WriteOpen.Missing else WriteOpen.Failed
         }
         val opened = access.openReadWrite()
+        // Missing or emptied meanwhile: the write open may have just made this empty file.
         if (size > 0 && opened.size == 0L) {
             try {
                 opened.file.close()

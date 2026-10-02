@@ -260,13 +260,20 @@ internal class TagWriteCoordinator<C>(
                 try {
                     backend.recovery.pending()
                 } catch (_: Exception) {
-                    emptyList()
+                    null
                 }
             }
         }
         // A file some queued request is saving right now has an open record that is not an interruption.
         val busy = requests.flatMapTo(HashSet()) { it.keys }
-        mutablePending.value = records.filter { it.target !in busy }
+        mutablePending.value = records.orEmpty().filter { it.target !in busy }
+        // A Finish's note on a file lasts only while the file has an open record: one finished by a
+        // save, or forgotten, and then interrupted again is a new interruption.
+        if (records != null) {
+            val open = records.mapTo(HashSet()) { it.target }
+            mutableCouldNotFinish.value = mutableCouldNotFinish.value intersect open
+            mutableMissingAtFinish.value = mutableMissingAtFinish.value intersect open
+        }
     }
 
     /** Stops between files: those written stay written, the rest untouched. */
@@ -324,6 +331,10 @@ internal class TagWriteCoordinator<C>(
             } catch (_: Exception) {
                 false
             }
+        }
+        if (forgotten) {
+            mutableCouldNotFinish.value = mutableCouldNotFinish.value - record.target
+            mutableMissingAtFinish.value = mutableMissingAtFinish.value - record.target
         }
         refreshRecovery()
         return forgotten

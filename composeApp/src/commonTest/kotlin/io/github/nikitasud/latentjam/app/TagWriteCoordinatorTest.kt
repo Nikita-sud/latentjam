@@ -1020,4 +1020,48 @@ internal class TagWriteCoordinatorTest {
         assertFalse(harness.coordinator.forget(record))
         assertEquals(1, backend.recovery.pending().size)
     }
+
+    /** A Finish that found [key] not there, delivered: both of its notes are set. */
+    private suspend fun TestScope.finishWhileGone(backend: TestTagWriteBackend, key: String): Harness {
+        interruptSave(backend, key)
+        backend.files.remove(key)
+        val harness = Harness(backend, this)
+        harness.coordinator.refreshRecovery()
+        assertNotNull(harness.coordinator.enqueueRecovery())
+        runCurrent()
+        harness.deliver()
+        assertEquals(setOf(key), harness.coordinator.couldNotFinish.value)
+        assertEquals(setOf(key), harness.coordinator.missingAtFinish.value)
+        return harness
+    }
+
+    @Test
+    fun forgettingASaveAFinishFoundGoneClearsItsNotes() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", testMp3())
+        val harness = finishWhileGone(backend, "a")
+        harness.coordinator.refreshRecovery()
+        assertTrue(harness.coordinator.forget(harness.coordinator.pendingRecovery.value.single()))
+        assertEquals(emptySet(), harness.coordinator.couldNotFinish.value)
+        assertEquals(emptySet(), harness.coordinator.missingAtFinish.value)
+    }
+
+    @Test
+    fun aRecordASaveFinishesTakesItsNotesWithIt() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", testMp3())
+        val bytes = testMp3()
+        val harness = finishWhileGone(backend, "a")
+        // The file is back, and an ordinary save finishes the interrupted one before saving.
+        backend.files.put("a", bytes)
+        harness.coordinator.refreshRecovery()
+        harness.enqueue(listOf("a"), TagEdits(title = "New"))
+        runCurrent()
+        harness.deliver()
+        assertEquals(FileWriteStatus.SAVED, harness.reports.single().results.single().status)
+        harness.coordinator.refreshRecovery()
+        assertTrue(harness.coordinator.pendingRecovery.value.isEmpty())
+        assertEquals(emptySet(), harness.coordinator.couldNotFinish.value)
+        assertEquals(emptySet(), harness.coordinator.missingAtFinish.value)
+    }
 }
