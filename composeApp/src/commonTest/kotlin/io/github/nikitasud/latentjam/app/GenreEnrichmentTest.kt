@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.LibraryCatalog
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -218,6 +219,50 @@ internal class GenreEnrichmentTest {
         assertFalse(enrichment.backfill(listOf(track)))
         assertEquals(2, reads)
         assertEquals(1, settings.writeAttempts)
+    }
+
+    private fun albumTrack(id: String, revision: String, year: Int? = null) = TrackDescriptor(
+        TrackId(id),
+        title = "Song $id",
+        artist = "O4 Artist",
+        album = "O4 Album",
+        artworkUri = "art:o4",
+        year = year,
+        sourceRevision = revision,
+    )
+
+    /**
+     * After a save the rescan holds the saved files at new revisions, so what only the files know
+     * waits for the enrichment's re-read. An open album page refreshed from the rescan alone shows
+     * another year than the album card; refreshed from the enrichment's republish, the same one.
+     */
+    @Test
+    fun anAlbumPageShowsTheCardsYearOnceTheEnrichmentRepublishesAfterASave() = runTest {
+        // Android 16: the year is only in the files' DATE, and the scanner reports none.
+        val enrichment = GenreEnrichment(MemorySettings()) { EmbeddedTagFacts(year = 2004, originalYear = 2004) }
+        val pageIds = setOf(TrackId("1"), TrackId("2"))
+        enrichment.backfill(listOf(albumTrack("1", "r1"), albumTrack("2", "r1")))
+        val rescanned = enrichment.apply(listOf(albumTrack("1", "r2"), albumTrack("2", "r2")))
+        assertNull(albumYearLabel(refreshedAlbum(LibraryCatalog.build(rescanned), pageIds)!!.tracks))
+
+        assertTrue(enrichment.backfill(rescanned), "anything learned is republished")
+        val catalog = LibraryCatalog.build(enrichment.apply(rescanned))
+        assertEquals("2004", albumYearLabel(catalog.albums.single().tracks))
+        assertEquals("2004", albumYearLabel(refreshedAlbum(catalog, pageIds)!!.tracks))
+    }
+
+    @Test
+    fun aRemasterPageShowsTheOriginalYearOnceTheEnrichmentRepublishesAfterASave() = runTest {
+        // A 2012 remaster of a 1973 album: the scan says 2012, only the file's TDOR says 1973.
+        val enrichment = GenreEnrichment(MemorySettings()) { EmbeddedTagFacts(originalYear = 1973) }
+        val pageIds = setOf(TrackId("1"))
+        val rescanned = enrichment.apply(listOf(albumTrack("1", "r2", year = 2012)))
+        assertEquals("2012", albumYearLabel(refreshedAlbum(LibraryCatalog.build(rescanned), pageIds)!!.tracks))
+
+        assertTrue(enrichment.backfill(rescanned))
+        val catalog = LibraryCatalog.build(enrichment.apply(rescanned))
+        assertEquals("1973", albumYearLabel(catalog.albums.single().tracks))
+        assertEquals("1973", albumYearLabel(refreshedAlbum(catalog, pageIds)!!.tracks))
     }
 
     private fun String.hex(): String = encodeToByteArray().joinToString("") {

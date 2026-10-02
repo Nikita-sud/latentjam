@@ -299,6 +299,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getPluralString
@@ -648,6 +650,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // Files not yet read (or retagged since) get their embedded genres read in the
         // background; anything learned republishes the same snapshot, richer. The identity
         // check keeps a superseding scan from being overwritten with an older list.
+        // Counts the enrichment's republishes, which an open page follows (see refreshOpenCollection).
+        var enrichedLibraryRevision by remember { mutableLongStateOf(0L) }
         LaunchedEffect(libraryIndexingRequest) {
             val request = libraryIndexingRequest ?: return@LaunchedEffect
             if (request.tracks.isEmpty()) return@LaunchedEffect
@@ -656,6 +660,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     value = genreEnrichment.apply(request.tracks),
                     authoritative = request.librarySnapshotAuthoritative,
                 )
+                enrichedLibraryRevision++
             }
         }
 
@@ -814,6 +819,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         var showNowPlaying by rememberSaveable { mutableStateOf(false) }
         var showSearch by remember { mutableStateOf(false) }
         var selectedCollection by remember { mutableStateOf<CollectionSelection?>(null) }
+        val openPageRefresh = remember { Mutex() }
         var collectionRevision by remember { mutableLongStateOf(0L) }
         var collectionOpenJob by remember { mutableStateOf<Job?>(null) }
         fun applySelectedCollection(value: CollectionSelection?) {
@@ -876,12 +882,16 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
 
         /**
-         * An open page after an edit. An album or artist page follows its tracks to where they now
-         * group. Any other page swaps in fresh descriptors. The route identity is kept, so this is
-         * the same page updated, never a new one pushed.
+         * An open page after an edit, and again once the enrichment republishes the library. An
+         * album or artist page follows its tracks to where they now group. Any other page swaps in
+         * fresh descriptors. The route identity is kept, so this is the same page updated, never a
+         * new one pushed.
          */
-        suspend fun refreshOpenCollection(fresh: List<TrackDescriptor>) {
-            val open = selectedCollection ?: return
+        suspend fun refreshOpenCollection() = openPageRefresh.withLock {
+            // The library as last published, read under the lock: of two refreshes, the later one
+            // builds from the newer library, so an older one can never land over it.
+            val fresh = tracks ?: return@withLock
+            val open = selectedCollection ?: return@withLock
             val pageIds = open.tracks.mapTo(HashSet()) { it.id }
             val rebuilt = when {
                 open.routeId.startsWith("album:") -> refreshedAlbum(buildCatalog(fresh), pageIds)?.toSelection()
@@ -892,6 +902,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             if (selectedCollection === open && rebuilt != null) {
                 updateSelectedCollection(rebuilt.copy(routeId = open.routeId))
             }
+        }
+
+        // A save's rescan has not re-read the saved files yet: their year (which Android 16's
+        // scanner leaves empty) and original year come from the enrichment, which re-reads them and
+        // republishes. An open page follows that too, or it shows another year than its album card.
+        LaunchedEffect(enrichedLibraryRevision) {
+            if (enrichedLibraryRevision > 0) refreshOpenCollection()
         }
 
         /**
@@ -930,7 +947,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 if (!followUp.rescanAfter(recorded)) return@launch
                 val fresh = scanLibrary()
                 playback.refreshTracks(followUp.refreshed(fresh, access::keyOf))
-                refreshOpenCollection(fresh)
+                refreshOpenCollection()
             }
         }
 
