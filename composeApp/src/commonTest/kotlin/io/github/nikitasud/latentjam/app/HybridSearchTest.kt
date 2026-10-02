@@ -210,6 +210,92 @@ class HybridSearchTest {
     )
 
     @Test
+    fun `artist and title terms can match across fields in either order`() {
+        val song = track("song", "Mockingbird", "Eminem")
+        val other = track("other", "Stan", "Eminem")
+        for (query in listOf("eminem mockingbird", "mockingbird eminem", "eminem mock")) {
+            assertEquals(listOf(song.id), hybridSearch(listOf(other, song), query, emptyList()).map { it.id })
+        }
+    }
+
+    @Test
+    fun `combined title match leads songs that only match the album`() {
+        val song = track("song", "Thriller", "Michael Jackson", album = "Thriller")
+        val sibling = track("sibling", "Beat It", "Michael Jackson", album = "Thriller")
+        assertEquals(
+            listOf(song.id, sibling.id),
+            hybridSearch(listOf(sibling, song), "michael jackson thriller", emptyList()).map { it.id },
+        )
+    }
+
+    @Test
+    fun `multiword exact title keeps literal alternatives without typo filler`() {
+        val song = track("song", "Blue Moon", "Singer")
+        val version = track("version", "Blue Moon Live", "Singer")
+        val typo = track("typo", "Blue Mood", "Other")
+        val result = hybridSearch(listOf(typo, version, song), "blue moon", emptyList())
+        assertEquals(listOf(song.id, version.id), result.map { it.id })
+    }
+
+    @Test
+    fun `a bare title that reads as a description keeps its confident semantic matches below it`() {
+        val song = track("song", "Summer Vibes", "Singer")
+        val typo = track("typo", "Summer Vibe", "Other")
+        val result = hybridSearch(
+            listOf(semantic, typo, song), "summer vibes",
+            ranked(listOf(ScoredTrack(semantic.id, 0.8f))),
+        )
+        assertEquals(listOf(song.id, semantic.id), result.map { it.id })
+    }
+
+    @Test
+    fun `naming the artist with the title leaves out semantic matches`() {
+        val song = track("song", "Mockingbird", "Eminem")
+        val result = hybridSearch(
+            listOf(semantic, song), "eminem mockingbird",
+            ranked(listOf(ScoredTrack(semantic.id, 0.8f))),
+        )
+        assertEquals(listOf(song.id), result.map { it.id })
+    }
+
+    @Test
+    fun `combined Cyrillic and Latin metadata use the same fold`() {
+        val song = track("song", "Группа крови", "Кино")
+        assertEquals(
+            listOf(song.id),
+            hybridSearch(listOf(song), "kino gruppa krovi", emptyList()).map { it.id },
+        )
+    }
+
+    @Test
+    fun `unmatched tokens and genre tags cannot complete an identity query`() {
+        val song = track("song", "Mockingbird", "Eminem", genre = "Rock")
+        for (query in listOf("eminem mockingbird missing", "mockingbird rock")) {
+            assertEquals(emptyList(), hybridSearch(listOf(song), query, emptyList()))
+        }
+    }
+
+    @Test
+    fun `artist and album search works without a title match`() {
+        val song = track("song", "Style", "Taylor Swift", album = "1989")
+        assertEquals(
+            listOf(song.id),
+            hybridSearch(listOf(song), "taylor swift 1989", emptyList()).map { it.id },
+        )
+    }
+
+    @Test
+    fun `an exact title outside the requested decade cannot suppress its semantic matches`() {
+        val modern = track("modern", "Heavy Guitars", year = 2020)
+        val old = track("old", "Thunder", year = 1985)
+        val result = hybridSearch(
+            listOf(modern, old), "heavy guitars 80s",
+            ranked(listOf(ScoredTrack(old.id, 0.8f))),
+        )
+        assertEquals(listOf(old.id), result.map { it.id })
+    }
+
+    @Test
     fun `a decade keeps results to its years and a title that is the query still leads`() {
         val takeOnMe = track("take", "Take On Me", "a-ha", year = 1985)
         val rockSong = track("rock", "Rock Song", "Band", genre = "Rock", year = 1987)

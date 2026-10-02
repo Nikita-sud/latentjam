@@ -62,8 +62,8 @@ ML = f"{REPO}/androidApp/src/main/assets/ml"
 # ---- chain constants (mirror ChainConfig / SemanticZ / Reanchor / MetadataRerank) ----
 SCORER_SQUASH, SCORER_TEMP = 1.5, 2.0
 COSINE_BLEND_WEIGHT = 3.0
-CHAIN_SEED_GRAVITY = 2.5
-SEM_CHAIN_SEED_GRAVITY, SEM_CHAIN_PREV_BLEND = 2.0, 1.0
+CHAIN_SEED_GRAVITY = 4.0
+SEM_CHAIN_SEED_GRAVITY, SEM_CHAIN_PREV_BLEND = 3.0, 0.5
 SEM_SOUND_GATE_LOW, SEM_SOUND_GATE_HIGH = -0.05, 0.2
 
 
@@ -74,7 +74,8 @@ def sound_backed_z(z, audio_cos):
     share = (audio_cos - SEM_SOUND_GATE_LOW) / (SEM_SOUND_GATE_HIGH - SEM_SOUND_GATE_LOW)
     return z * min(max(share, 0.0), 1.0)
 HUB_CHAIN_DAMP, HUB_PENALTY_BETA = 0.6, 1.0
-CHAIN_ARTIST_SPACING, CHAIN_ARTIST_QUEUE_CAP = 3, 3
+CHAIN_ARTIST_SPACING, CHAIN_ARTIST_QUEUE_CAP = 2, 6
+CHAIN_ARTIST_REPEAT_PENALTY = 1.5
 ENERGY_DEADBAND, ENERGY_FLOOR = 0.2, 0.7
 MULT_MIN, MULT_MAX = 0.05, 2.0
 POOL_SIZE, AUDIO_DIM, TEXT_DIM, DESC_DIM = 100, 960, 384, 768
@@ -82,7 +83,7 @@ HUB_TOPK, HUB_ANCHOR_SAMPLE = 10, 1024
 
 SEM_Z_CLIP, SEM_STD_FLOOR, SEM_MIN_VALID = 3.0, 0.05, 10
 
-REANCHOR_ENABLED = True
+REANCHOR_ENABLED = False
 REANCHOR_MIN_IDX, REANCHOR_NICHE_COS, REANCHOR_NICHE_MIN, REANCHOR_SEED_KEEP = 8, 0.40, 3, 0.4
 
 SAME_GENRE_BONUS, SAME_ARTIST_BONUS, CROSS_GENRE_MALUS = 1.20, 1.12, 0.90
@@ -527,8 +528,7 @@ def build_chain(lib, seed, length):
     chain, used = [], set()
     anchor = seed
     text_rows = [seed] * ck
-    # recentArtists starts EMPTY: SmartChain deliberately lets the seed lead into one closely
-    # related track by the same artist before the spacing window engages (see SmartChain.kt).
+    # recentArtists starts EMPTY: the seed carries no repeat penalty (see SmartChain.kt).
     recent = deque()
     seen_titles = {seed_key} if seed_key is not None else set()
     artist_plays = {}
@@ -539,10 +539,8 @@ def build_chain(lib, seed, length):
         if i in used:
             return False
         r = pool[i]
-        # An empty artist key supplies no identity: untagged tracks are neither spaced nor capped
-        # as one artist.
-        if lib.makey[r] and lib.makey[r] in recent:
-            return False
+        # An empty artist key supplies no identity: untagged tracks are neither penalised nor
+        # capped as one artist.
         if lib.mtakey[r] is not None and lib.mtakey[r] in seen_titles:
             return False
         if lib.makey[r] and artist_plays.get(lib.makey[r], 0) >= CHAIN_ARTIST_QUEUE_CAP:
@@ -609,6 +607,8 @@ def build_chain(lib, seed, length):
                 m = max(m * HUB_CHAIN_DAMP, MULT_MIN)
             m = max(m * energy_smoothness(lib.energy[anchor], lib.energy[r]), MULT_MIN)
             s += math.log(m)
+            if lib.makey[r]:
+                s -= CHAIN_ARTIST_REPEAT_PENALTY * sum(1 for a in recent if a == lib.makey[r])
             if s > best_score:
                 best_score, best_i = s, i
         if best_i < 0:

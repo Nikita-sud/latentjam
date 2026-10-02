@@ -70,7 +70,7 @@ internal class SmartHistoryContextTest {
     }
 
     @Test
-    fun `seed may lead into one same-artist neighbour before artist spacing applies`() {
+    fun `strong same-artist neighbours beat unrelated tracks despite the repeat penalty`() {
         val tracks = listOf(
             relatedTrack(0, artist = "Band", first = 1f),
             relatedTrack(1, artist = "Band", first = 0.99f, second = 0.10f),
@@ -87,10 +87,7 @@ internal class SmartHistoryContextTest {
         )
 
         assertEquals("Band", snapshot.tracks[result.rows.first()].meta.artist)
-        assertTrue(
-            snapshot.tracks[result.rows[1]].meta.artist != "Band",
-            "the related first hop must not turn into an uninterrupted artist run",
-        )
+        assertEquals("Band", snapshot.tracks[result.rows[1]].meta.artist)
     }
 
     @Test

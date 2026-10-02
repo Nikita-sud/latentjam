@@ -761,6 +761,24 @@ private fun hybridSearch(
         }
     }
 
+    // A complete multi-word title names a recording, so typo-family and alias guesses are noise.
+    // With the artist or album named too ("eminem mockingbird") nothing else is meant. A bare
+    // title can also read as a description ("summer vibes"): a confident semantic cluster still
+    // follows its literal matches. Single-word queries such as "rock" keep every tier.
+    val queryTokens = searchTokens(normalizedNeedle)
+    val titleHits = if (queryTokens.size > 1) {
+        strong.filter { it.rank == 0 && yearFilter?.admits(it.track) != false }
+    } else {
+        emptyList()
+    }
+    val namesRecording = titleHits.isNotEmpty()
+    if (titleHits.any { !searchTokens(normalizeSearchText(it.track.title.orEmpty())).containsAll(queryTokens) }) {
+        return strong.asSequence().map { it.track }
+            .filter { yearFilter?.admits(it) != false }
+            .take(SEARCH_RESULT_LIMIT)
+            .toList()
+    }
+
     val entities = index.songs.asSequence()
         .onEach { checkCancelled() }
         .filter { aliasMatches(needle, it.artist) }
@@ -778,9 +796,9 @@ private fun hybridSearch(
     // fuzz. Confident lexical tiers (exact, prefix, token-prefix) still lead.
     return (
         strong.asSequence().map { it.track } +
-            entities +
+            (if (namesRecording) emptySequence() else entities) +
             index.songs.asSequence().filter { it.id in lyricMatches } +
-            weak.asSequence().map { it.track } +
+            (if (namesRecording) emptySequence() else weak.asSequence().map { it.track }) +
             expanded
         )
         // Constrain candidates before the cap: newer matches must not crowd out older songs
@@ -893,6 +911,22 @@ private fun SearchDocument.lexicalRank(
             ?: continue
         val rank = FIELD_TIERS[fieldIndex] * QUALITY_SPAN + quality
         if (best == null || rank < best) best = rank
+    }
+    // A recording query can span metadata fields: "eminem mockingbird" must match
+    // artist + title. Genre is excluded so an unrelated genre tag cannot identify a song.
+    if (queryTokens.size > 1) {
+        val identityTokens = fieldTokens.take(3).flatten()
+        if (queryTokens.all { query -> identityTokens.any { it.startsWith(query) } }) {
+            val titleTokens = fieldTokens[0]
+            val completeTitle = titleTokens.isNotEmpty() && titleTokens.all { it in queryTokens }
+            val touchesTitle = queryTokens.any { query -> titleTokens.any { it.startsWith(query) } }
+            val rank = when {
+                completeTitle -> 0
+                touchesTitle -> 2
+                else -> QUALITY_SPAN + 2
+            }
+            if (best == null || rank < best) best = rank
+        }
     }
     return best
 }

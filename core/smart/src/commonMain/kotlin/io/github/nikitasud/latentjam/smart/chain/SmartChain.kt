@@ -84,7 +84,7 @@ internal object ChainConfig {
     val COMPANION_QUOTA_MARGIN = Float.POSITIVE_INFINITY
 
     /** Pull toward the seed for the whole walk, so one off-genre hop can't capture the chain. */
-    const val CHAIN_SEED_GRAVITY = 2.5f
+    const val CHAIN_SEED_GRAVITY = 4.0f
 
     /**
      * Semantic gravity/blend: the descriptor+text analogue of [CHAIN_SEED_GRAVITY] and
@@ -93,8 +93,8 @@ internal object ChainConfig {
      * pool that the audio scorer parks near its tanh floor — are lifted exactly where the audio
      * geometry cannot see them. Seed gravity dominates the blend, same shape as the audio terms.
      */
-    const val SEM_CHAIN_SEED_GRAVITY = 2.0f
-    const val SEM_CHAIN_PREV_BLEND = 1.0f
+    const val SEM_CHAIN_SEED_GRAVITY = 3.0f
+    const val SEM_CHAIN_PREV_BLEND = 0.5f
 
     /**
      * Audio cosine range over which a semantic bonus earns its weight: none at or below
@@ -107,8 +107,11 @@ internal object ChainConfig {
     const val HUB_CHAIN_DAMP = 0.6f
     const val HUB_PENALTY_BETA = 1.0f
 
-    const val CHAIN_ARTIST_SPACING = 3
-    const val CHAIN_ARTIST_QUEUE_CAP = 3
+    // Prefer a different artist when scores are close, but let a substantially better musical
+    // neighbour win despite a recent repeat. Repetition alone does not make a song unsuitable.
+    const val CHAIN_ARTIST_SPACING = 2
+    const val CHAIN_ARTIST_REPEAT_PENALTY = 1.5f
+    const val CHAIN_ARTIST_QUEUE_CAP = 6
 
     const val ENERGY_DEADBAND = 0.2f
     const val ENERGY_FLOOR = 0.7f
@@ -269,10 +272,8 @@ internal class SmartChain(
         }
         var nextQuotaGroupPosition = 0
         val recentArtists = ArrayDeque<String>()
-        // The listener's seed is allowed to lead into one closely related track by the same
-        // artist. Once such a track is picked it enters this window normally, preventing an
-        // artist/album dump while avoiding the old behaviour where the best neighbour was
-        // forbidden merely because the user started from it.
+        // The seed establishes intent, so it carries no repeat penalty. Subsequent picks enter
+        // this short window; the penalty accumulates if both recent picks share an artist.
         val seenTitles = HashSet<Pair<String, String>>()
         seedTitle?.let(seenTitles::add)
         val artistPlays = HashMap<String, Int>()
@@ -282,12 +283,11 @@ internal class SmartChain(
         val zSeed = chainSemanticZ(seedRow, poolRows)
 
         // A pool position still in the running this hop: not already picked, and past the artist
-        // spacing/cap and repeated-title filters. Shared by the scoring loop and the tail re-anchor
+        // cap and repeated-title filters. Shared by the scoring loop and the tail re-anchor
         // so the niche count sees exactly the candidates the scorer would.
         fun isEligible(i: Int): Boolean {
             if (i in used) return false
             val meta = snapshot.tracks[pool[i]].meta
-            if (meta.artistKey.isNotEmpty() && meta.artistKey in recentArtists) return false
             if (meta.titleArtistKey in seenTitles) return false
             if (meta.artistKey.isNotEmpty() &&
                 (artistPlays[meta.artistKey] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP
@@ -429,6 +429,10 @@ internal class SmartChain(
                 multiplier = (multiplier * energySmoothness(anchorRow, row))
                     .coerceAtLeast(ChainConfig.MULTIPLIER_MIN)
                 score += ln(multiplier)
+                if (meta.artistKey.isNotEmpty()) {
+                    score -= ChainConfig.CHAIN_ARTIST_REPEAT_PENALTY *
+                        recentArtists.count { it == meta.artistKey }
+                }
 
                 if (score > bestScore) {
                     bestScore = score
@@ -615,7 +619,7 @@ internal class SmartChain(
      * selectable rows are restored, degrading to the previous behaviour rather than returning a
      * stub queue. A skipped track is at least as unwelcome as a completed play, so re-admission
      * must not put it back in front of someone ahead of a track they genuinely listened to. This
-     * count is taken over the whole library, before the per-hop artist-spacing, artist-cap and
+     * count is taken over the whole library, before the per-hop artist-cap and
      * duplicate-title filters run, so it does not guarantee a filled queue of exactly [length]
      * tracks — only that this many rows are eligible to be picked from.
      */

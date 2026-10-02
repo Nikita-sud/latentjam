@@ -18,6 +18,28 @@ class SmartChainMetadataGuardTest {
     }
 
     @Test
+    fun `a focused three-artist collection can fill a queue without repeating recordings`() {
+        val tracks = (0..26).map { row -> track(row, "Song $row", "Artist ${row % 3}") }
+        val snapshot = requireNotNull(SmartSnapshot.build(tracks))
+        val result = SmartChain(snapshot, runtime = null).build(tracks.first().id, 18, FloatArray(5))
+
+        assertEquals(18, result.rows.size)
+        assertEquals(18, result.rows.toSet().size)
+        assertTrue(0 !in result.rows)
+        val artists = result.rows.map { snapshot.tracks[it].meta.artist }
+        assertTrue(artists.zipWithNext().all { (a, b) -> a != b })
+    }
+
+    @Test
+    fun `a one-artist pool continues to the cap instead of stopping after its first song`() {
+        val tracks = (0..12).map { row -> track(row, "Song $row", "Band") }
+        val result = build(tracks)
+        assertEquals(6, result.rows.size)
+        assertEquals(6, result.rows.toSet().size)
+        assertTrue(0 !in result.rows)
+    }
+
+    @Test
     fun `matching titles by different or unknown artists remain distinct songs`() {
         for (unknownArtist in listOf(false, true)) {
             val tracks = (0..12).map { row ->
