@@ -635,6 +635,12 @@ public object Id3Tags {
         return if (target == null) frames + frame else frames.toMutableList().also { it[target.index] = frame }
     }
 
+    /** The picture [readFields] calls the cover, as stored; null when the tag has none or is refused. */
+    internal fun readCover(prefix: ByteArray): CoverPicture? {
+        val tag = (Id3Codec.parse(prefix) as? Id3Parse.Parsed)?.tag ?: return null
+        return coverTarget(tag.version, tag.frames)?.let { CoverPicture(it.data, it.mime) }
+    }
+
     private class PictureFrame(
         val index: Int,
         val type: Int,

@@ -109,6 +109,11 @@ internal object FlacTagCodec : TagCodec {
         )
     }
 
+    override fun readCover(source: RandomAccessSource): CoverPicture? {
+        val layout = (parse(source) as? Parsed.Ok)?.layout ?: return null
+        return parts(layout)?.target?.let { CoverPicture(it.data, it.mime) }
+    }
+
     override fun plan(source: RandomAccessSource, edits: TagEdits): WritePlan {
         val normalized = edits.normalized()
         if (normalized.isEmpty) return WritePlan.NoChange

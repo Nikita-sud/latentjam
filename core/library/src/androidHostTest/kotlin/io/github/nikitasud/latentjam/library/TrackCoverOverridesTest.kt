@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.library
 
 import io.github.nikitasud.latentjam.library.tags.CoverEdit
+import io.github.nikitasud.latentjam.library.tags.CoverPicture
 import io.github.nikitasud.latentjam.library.tags.Crc32
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -31,6 +32,16 @@ internal class TrackCoverOverridesTest {
     /** What each file's tags say its cover is now; a track missing here has none. */
     private val embedded = HashMap<String, FileCover>()
     private val reads = ArrayList<String>()
+
+    /** Each sibling file's own embedded picture, for pinning; a track missing here has none. */
+    private val pictures = HashMap<String, CoverPicture>()
+    private val pictureReads = ArrayList<String>()
+
+    private fun recordWithSiblings(saved: List<String>, cover: CoverEdit, siblings: List<String>): Boolean =
+        overrides().record(saved.map(::TrackId), cover, siblings.map(::TrackId)) { id ->
+            pictureReads += id.value
+            pictures[id.value]
+        }
 
     /** Set to make reading the index fail as storage can for a moment (EIO, too many open files). */
     private var indexUnavailable = false
@@ -381,5 +392,88 @@ internal class TrackCoverOverridesTest {
         overrides().apply(listOf(track("1")))
         assertFalse(File(directory, "overrides.txt").exists())
         assertTrue(reads.isEmpty())
+    }
+
+    // ---- siblings: MediaStore regenerates the album's art from an edited file (Android 11+)
+
+    private val gif = byteArrayOf('G'.code.toByte(), 'I'.code.toByte(), 'F'.code.toByte(), 8, 9)
+
+    @Test
+    fun aCoverEditOnOneTrackPinsEverySiblingToItsOwnPicture() {
+        pictures["2"] = CoverPicture(png, "image/png")
+        pictures["3"] = CoverPicture(gif, "image/gif")
+        assertTrue(recordWithSiblings(listOf("1"), CoverEdit.Replace(jpeg, "image/jpeg"), listOf("2", "3")))
+        val applied = overrides().apply(listOf(track("1"), track("2"), track("3")))
+        assertEquals(listOf(fileUri(jpeg, "jpg"), fileUri(png, "png"), fileUri(gif, "img")), applied.map { it.artworkUri })
+        assertEquals(listOf(album, album, album), applied.map { it.albumArtworkUri }, "the album still groups them")
+        assertEquals(listOf("2", "3"), pictureReads)
+        assertEquals(emptyList(), reads, "trusted at the first scan's revision, like the edited track")
+    }
+
+    @Test
+    fun aRemovedCoverPinsTheSiblingsToo() {
+        pictures["2"] = CoverPicture(png, "image/png")
+        recordWithSiblings(listOf("1"), CoverEdit.Remove, listOf("2"))
+        val applied = overrides().apply(listOf(track("1"), track("2")))
+        assertEquals(listOf(null, fileUri(png, "png")), applied.map { it.artworkUri })
+    }
+
+    @Test
+    fun aSiblingWithoutAPictureKeepsTheAlbumArt() {
+        pictures["2"] = CoverPicture(png, "image/png")
+        recordWithSiblings(listOf("1"), CoverEdit.Replace(jpeg, "image/jpeg"), listOf("2", "3"))
+        val applied = overrides().apply(listOf(track("1"), track("2"), track("3")))
+        assertEquals(album, applied[2].artworkUri)
+        assertNull(applied[2].albumArtworkUri)
+        assertEquals(listOf("2", "3"), pictureReads)
+    }
+
+    @Test
+    fun aSiblingThatAlreadyHasItsOwnCoverIsNeitherReadNorChanged() {
+        saved(CoverEdit.Replace(png, "image/png"), "2")
+        pictures["2"] = CoverPicture(gif, "image/gif")
+        recordWithSiblings(listOf("1"), CoverEdit.Replace(jpeg, "image/jpeg"), listOf("2"))
+        assertEquals(emptyList(), pictureReads)
+        assertEquals(fileUri(png, "png"), overrides().apply(listOf(track("1"), track("2")))[1].artworkUri)
+    }
+
+    @Test
+    fun aSavedTrackListedAsASiblingIsNotPinned() {
+        pictures["1"] = CoverPicture(png, "image/png")
+        recordWithSiblings(listOf("1"), CoverEdit.Replace(jpeg, "image/jpeg"), listOf("1"))
+        assertEquals(emptyList(), pictureReads)
+        assertEquals(fileUri(jpeg, "jpg"), overrides().apply(listOf(track("1"))).single().artworkUri)
+    }
+
+    @Test
+    fun aPinnedSiblingIsReCheckedByItsPictureWhenItsFileChanges() {
+        pictures["2"] = CoverPicture(png, "image/png")
+        pictures["3"] = CoverPicture(gif, "image/gif")
+        recordWithSiblings(listOf("1"), CoverEdit.Replace(jpeg, "image/jpeg"), listOf("2", "3"))
+        overrides().apply(listOf(track("1"), track("2"), track("3")))
+        embedded["2"] = FileCover.Read(Crc32.of(png))
+        embedded["3"] = FileCover.Read(Crc32.of(jpeg))
+        val applied = overrides().apply(listOf(track("1"), track("2", revision = "r2"), track("3", revision = "r2")))
+        assertEquals(listOf(fileUri(jpeg, "jpg"), fileUri(png, "png"), album), applied.map { it.artworkUri })
+        assertEquals(listOf("2", "3"), reads)
+    }
+
+    @Test
+    fun anAlbumWideCoverHasNoSiblingsToPin() {
+        val album = listOf(TrackId("1") to 7L, TrackId("2") to 7L, TrackId("3") to 7L)
+        assertEquals(emptyList(), albumSiblings(album.map { it.first }, album))
+    }
+
+    @Test
+    fun theSiblingsAreTheOtherTracksOfEachSavedTracksAlbum() {
+        val rows = listOf(
+            TrackId("1") to 7L, TrackId("2") to 7L, TrackId("3") to 7L,
+            TrackId("4") to 8L, TrackId("5") to 8L,
+            TrackId("6") to 9L,
+            // No album: no album art to regenerate.
+            TrackId("7") to 0L, TrackId("8") to 0L,
+        )
+        assertEquals(listOf("2", "3", "5"), albumSiblings(listOf(TrackId("1"), TrackId("4"), TrackId("7")), rows).map { it.value })
+        assertEquals(emptyList(), albumSiblings(listOf(TrackId("6")), rows))
     }
 }

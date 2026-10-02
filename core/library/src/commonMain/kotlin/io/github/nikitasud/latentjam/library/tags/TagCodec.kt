@@ -25,6 +25,12 @@ public interface TagCodec {
     /** An identity for everything the editor does not own, in file order; equal before and after any edit. */
     public fun inventory(source: RandomAccessSource): List<String>
 
+    /**
+     * The picture [read]'s [TagSnapshot.cover] describes, as stored; null when there is none or the
+     * tags cannot be read. Reads no more than [read] does.
+     */
+    public fun readCover(source: RandomAccessSource): CoverPicture?
+
     public companion object {
         public const val HEAD_BYTES: Int = 64
     }
@@ -71,6 +77,20 @@ public object TagCodecs {
     }
 
     public fun read(source: RandomAccessSource): TagSnapshot? = forSource(source)?.read(source)
+
+    /** The largest cover [readCover] hands out; a bigger one is no cover anyone should hold in memory. */
+    public const val MAX_COVER_BYTES: Int = 16 shl 20
+
+    /**
+     * The file's cover picture, its bytes named by what they probe as; null when the file has none,
+     * is no container a codec recognises, or holds one over [maxBytes].
+     */
+    public fun readCover(source: RandomAccessSource, maxBytes: Int = MAX_COVER_BYTES): CoverPicture? {
+        val stored = forSource(source)?.readCover(source) ?: return null
+        if (stored.bytes.size > maxBytes) return null
+        val probed = ImageProbe.probe(stored.bytes)?.mime ?: return stored
+        return if (probed == stored.mime) stored else CoverPicture(stored.bytes, probed)
+    }
 
     public fun plan(source: RandomAccessSource, edits: TagEdits): WritePlan =
         forSource(source)?.plan(source, edits) ?: WritePlan.Refused(TagRefusal.UNSUPPORTED_FORMAT)

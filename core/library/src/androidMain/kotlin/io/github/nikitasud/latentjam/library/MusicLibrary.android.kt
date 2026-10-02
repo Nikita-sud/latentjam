@@ -9,6 +9,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import io.github.nikitasud.latentjam.library.tags.CoverEdit
+import io.github.nikitasud.latentjam.library.tags.CoverPicture
 import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
 import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TextRepair
@@ -223,8 +224,45 @@ internal class MediaStoreMusicLibrary(
         withContext(Dispatchers.IO) {
             // A cover that cannot be kept costs only the song's own cover: it shows its album's.
             // A failed write left the index as it was, so nothing a scan shows changed.
-            runCatching { coverOverrides.record(trackIds, cover) }.getOrDefault(false)
+            runCatching {
+                // MediaProvider (Android 11+) regenerates the album's art from the changed file, so
+                // the album's other songs are pinned to their own pictures first: read once each,
+                // here only, and never when the save covered the whole album.
+                val siblings = if (cover == CoverEdit.Keep) emptyList() else albumSiblings(trackIds, albumRows())
+                coverOverrides.record(trackIds, cover, siblings, ::readOwnCover)
+            }.getOrDefault(false)
         }
+
+    /** (id, album id) of every song, for [albumSiblings]; none when MediaStore cannot be asked. */
+    private fun albumRows(): List<Pair<TrackId, Long>> = runCatching {
+        context.contentResolver.query(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.ALBUM_ID),
+            "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+            null,
+            null,
+        )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            buildList(cursor.count) {
+                while (cursor.moveToNext()) add(TrackId(cursor.getLong(idColumn).toString()) to cursor.getLong(albumColumn))
+            }
+        }
+    }.getOrNull().orEmpty()
+
+    /** The picture song [id]'s own file holds, for pinning it; null when none or unreadable. */
+    private fun readOwnCover(id: TrackId): CoverPicture? = try {
+        val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id.value.toLong())
+        context.contentResolver.openFileDescriptor(uri, "r")?.use {
+            // Not closed: closing a stream over this descriptor closes the descriptor itself.
+            TagCodecs.readCover(ChannelSource(FileInputStream(it.fileDescriptor).channel))
+        }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Throwable) {
+        // A sibling that cannot be read keeps its album's art, as before this save.
+        null
+    }
 
     override suspend fun coverKept(saved: Collection<TrackDescriptor>): Unit =
         withContext(Dispatchers.IO) {

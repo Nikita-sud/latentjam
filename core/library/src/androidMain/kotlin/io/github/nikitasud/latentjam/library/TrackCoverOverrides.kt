@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.library
 
 import io.github.nikitasud.latentjam.library.tags.CoverEdit
+import io.github.nikitasud.latentjam.library.tags.CoverPicture
 import io.github.nikitasud.latentjam.library.tags.Crc32
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -39,6 +40,13 @@ internal sealed interface FileCover {
  * then on an entry is trusted at that revision. At any other, another app may have retagged the
  * file, so [readCover] reads its embedded cover: the same one keeps the entry at the new revision,
  * any other drops it. A later LatentJam save that keeps the cover trusts the entry again ([kept]).
+ *
+ * MediaProvider (Android 11+) also regenerates an album's art from a file whose cover changed, so
+ * after a cover saved into some songs of an album every other song of it would show the new one.
+ * [record] therefore pins each such sibling that has no entry yet to the picture its own file holds:
+ * an entry like a saved one, trusted at the first scan's revision and re-checked by CRC after that.
+ * A sibling whose file holds no picture (or one that cannot be read) keeps the album's art, and may
+ * show whatever MediaProvider regenerated it from.
  *
  * A song a scan does not hold keeps its entry and image: a library on a card that is not mounted
  * yet, or a revoked permission, makes a scan look empty, and the songs come back. Entries are tiny,
@@ -85,10 +93,18 @@ internal class TrackCoverOverrides(
 
     /**
      * Remembers that [cover] was just saved into the files of [trackIds]. [CoverEdit.Keep] changes
-     * nothing. True when what a scan shows for one of them changes: a new entry, or another cover
-     * than its entry named. False when every one already had this cover, or nothing could be kept.
+     * nothing. Each of [siblings] (the other songs of their albums) that is not one of them and has
+     * no entry yet is pinned to the picture [siblingCover] reads from its own file; one without a
+     * picture is left alone. True when what a scan shows for one of them changes: a new entry, or
+     * another cover than its entry named. False when every one already had this cover, or nothing
+     * could be kept.
      */
-    fun record(trackIds: Collection<TrackId>, cover: CoverEdit): Boolean {
+    fun record(
+        trackIds: Collection<TrackId>,
+        cover: CoverEdit,
+        siblings: Collection<TrackId> = emptyList(),
+        siblingCover: (TrackId) -> CoverPicture? = { null },
+    ): Boolean {
         if (cover == CoverEdit.Keep || trackIds.isEmpty()) return false
         return synchronized(lock) {
             // An index that cannot be read now must not be overwritten with this save's entries
@@ -99,13 +115,7 @@ internal class TrackCoverOverrides(
                 IndexRead.Unavailable -> return false
             }
             val entry = when (cover) {
-                is CoverEdit.Replace -> {
-                    val crc = Crc32.of(cover.bytes)
-                    val name = crc.toString(16).padStart(8, '0') + "." + extensionOf(cover.mime)
-                    val file = File(directory, name)
-                    if (!file.isFile || file.length() != cover.bytes.size.toLong()) writeAtomically(file, cover.bytes)
-                    Entry(fileName = name, revision = null)
-                }
+                is CoverEdit.Replace -> Entry(fileName = store(cover.bytes, cover.mime), revision = null)
                 else -> Entry(fileName = null, revision = null)
             }
             var shown = false
@@ -113,9 +123,23 @@ internal class TrackCoverOverrides(
                 val before = entries.put(id.value, entry)
                 if (before == null || before.fileName != entry.fileName || before.absentSince != null) shown = true
             }
+            for (sibling in siblings) {
+                if (sibling.value in entries) continue
+                val own = siblingCover(sibling) ?: continue
+                entries[sibling.value] = Entry(fileName = store(own.bytes, own.mime), revision = null)
+                shown = true
+            }
             write(entries)
             shown
         }
+    }
+
+    /** Keeps [bytes] as `<crc32>.<ext>` unless that file is already there; its name. */
+    private fun store(bytes: ByteArray, mime: String): String {
+        val name = Crc32.of(bytes).toString(16).padStart(8, '0') + "." + extensionOf(mime)
+        val file = File(directory, name)
+        if (!file.isFile || file.length() != bytes.size.toLong()) writeAtomically(file, bytes)
+        return name
     }
 
     /**
@@ -294,4 +318,16 @@ internal class TrackCoverOverrides(
             else -> "img"
         }
     }
+}
+
+/**
+ * The songs of [rows] (id, MediaStore album id) that share an album with one of [saved] without
+ * being saved themselves, in [rows]' order: those whose album art MediaProvider may regenerate from
+ * a saved file. Album id 0 is no album, so it has no shared art.
+ */
+internal fun albumSiblings(saved: Collection<TrackId>, rows: List<Pair<TrackId, Long>>): List<TrackId> {
+    val savedIds = saved.toHashSet()
+    val albums = rows.mapNotNullTo(HashSet()) { (id, album) -> album.takeIf { id in savedIds && it > 0 } }
+    if (albums.isEmpty()) return emptyList()
+    return rows.mapNotNull { (id, album) -> id.takeIf { album in albums && it !in savedIds } }
 }

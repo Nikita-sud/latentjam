@@ -159,6 +159,12 @@ internal object OggTagCodec : TagCodec {
         )
     }
 
+    override fun readCover(source: RandomAccessSource): CoverPicture? {
+        val layout = (parse(source) as? Parsed.Ok)?.layout ?: return null
+        val comment = comment(layout) ?: return null
+        return coverEntry(comment.block.entries)?.second?.let { CoverPicture(it.data, it.mime) }
+    }
+
     override fun plan(source: RandomAccessSource, edits: TagEdits): WritePlan {
         val normalized = edits.normalized()
         if (normalized.isEmpty) return WritePlan.NoChange

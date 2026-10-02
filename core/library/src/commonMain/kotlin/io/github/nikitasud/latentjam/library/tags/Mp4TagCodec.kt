@@ -159,7 +159,9 @@ internal object Mp4TagCodec : TagCodec {
         dataBoxes(item).filter { code(it) == TEXT }.mapNotNull(::value).map { OriginalDate(it.decodeToString(), yearOnly) }
     }
 
-    private fun coverInfo(data: Mp4Box): CoverInfo? {
+    private fun coverInfo(data: Mp4Box): CoverInfo? = coverPicture(data)?.let { CoverInfo.of(it.bytes, it.mime) }
+
+    private fun coverPicture(data: Mp4Box): CoverPicture? {
         val bytes = value(data) ?: return null
         val mime = when (code(data)) {
             JPEG -> ImageProbe.JPEG
@@ -167,7 +169,7 @@ internal object Mp4TagCodec : TagCodec {
             BMP -> "image/bmp"
             else -> ImageProbe.probe(bytes)?.mime ?: "application/octet-stream"
         }
-        return CoverInfo.of(bytes, mime)
+        return CoverPicture(bytes, mime)
     }
 
     private fun dataBox(code: Int, value: ByteArray): Mp4Box =
@@ -209,6 +211,12 @@ internal object Mp4TagCodec : TagCodec {
                 .flatMap { TagFacts.splitArtists(it) },
             originalDates = originalDates(items),
         )
+    }
+
+    override fun readCover(source: RandomAccessSource): CoverPicture? {
+        val layout = (parse(source) as? Parsed.Ok)?.layout ?: return null
+        val items = findTags(layout.moov)?.ilst?.children.orEmpty()
+        return items.filter { it.type == "covr" }.flatMap(::dataBoxes).firstOrNull()?.let(::coverPicture)
     }
 
     /** iTunes' old `gnre`: an ID3v1 genre index plus one. */

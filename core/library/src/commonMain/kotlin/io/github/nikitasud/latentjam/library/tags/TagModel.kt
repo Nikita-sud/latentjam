@@ -174,6 +174,12 @@ public data class CoverInfo(val mime: String, val size: Int, val crc32: Long) {
 }
 
 /**
+ * A file's cover picture itself: the image [TagSnapshot.cover] describes. [mime] is what the bytes
+ * probe as when they are a JPEG or PNG, else what the file names them.
+ */
+public class CoverPicture(public val bytes: ByteArray, public val mime: String)
+
+/**
  * One original-release date field as stored. [yearOnly] fields are defined as a four-digit year
  * (ID3 `TORY`, `ORIGINALYEAR` in every format); the others (ID3 `TDOR`, `ORIGINALDATE`) are dates.
  */

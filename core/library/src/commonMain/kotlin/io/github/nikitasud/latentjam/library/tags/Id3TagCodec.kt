@@ -84,6 +84,12 @@ internal object Id3TagCodec : TagCodec {
         )
     }
 
+    override fun readCover(source: RandomAccessSource): CoverPicture? {
+        val head = head(source) ?: return null
+        if (head.tagLength <= 0 || refusal(head) != null) return null
+        return Id3Tags.readCover(head.prefix)
+    }
+
     /** Never mistake bytes inside the v2 tag for a legacy trailer. */
     private fun tail(source: RandomAccessSource, head: Head): ByteArray? {
         val count = minOf(maxOf(0L, source.length - maxOf(head.tagLength, 0)), Id3v1.MAX_TRAILER_SIZE.toLong()).toInt()
