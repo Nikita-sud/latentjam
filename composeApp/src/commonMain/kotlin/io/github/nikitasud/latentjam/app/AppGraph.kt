@@ -405,6 +405,7 @@ object AppGraph {
             val total = tracks.size
             var reportProgress = false
             val eta = IndexingEta(nowMillis())
+            val progress = AnalysisProgress(total)
             val checkpointCadence = AutomaticIndexCheckpointCadence(
                 tracksPerCheckpoint = AUTOMATIC_INDEX_CHECKPOINT_TRACKS,
             )
@@ -450,15 +451,23 @@ object AppGraph {
                 // an already-complete library on every single launch. Promotion still happens
                 // BEFORE the first audio batch, which is the work the service protects; the
                 // window during model loading is seconds and carries no batch to lose.
-                if (total > 0 && engine.missingFromIndex(trackIds) > 0) {
+                val missing = if (total > 0) engine.missingFromIndex(trackIds) else 0
+                // Counted before the metadata phase: a pass that only re-encodes text vectors (a
+                // year learned after an upgrade) must not read as analysis lost.
+                progress.started(missing)
+                mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
+                    done = progress.analysed,
+                    progressKnown = true,
+                )
+                if (missing > 0) {
                     reportProgress = true
                     // This signal only offers a rationale in the active UI. It never waits for or
                     // requires permission: indexing remains fully functional after "Not now".
                     permissions.backgroundAnalysisNeedsNotifications()
                     notifier.show(
                         title = notificationTitle,
-                        text = notificationText(0, total, null),
-                        done = 0,
+                        text = notificationText(progress.analysed, total, null),
+                        done = progress.analysed,
                         total = total,
                     )
                 }
@@ -474,29 +483,32 @@ object AppGraph {
                     metadataReady = true,
                 )
 
-                var done = 0
+                var visited = 0
                 // Spread over the library rather than in title order, so the SMART pool is
                 // representative long before a big library finishes (see analysisOrder).
                 analysisOrder(tracks).chunked(AUTOMATIC_INDEX_CHUNK_SIZE).forEach { chunk ->
+                    val missingBefore = engine.missingFromIndex(chunk.map(TrackDescriptor::id))
                     val report = engine.stageLibraryIndex(chunk)
                     failures.putAll(report.errors)
-                    done += chunk.size
+                    visited += chunk.size
+                    progress.visited(missingBefore)
                     checkpointCadence.afterBatch(chunk.size, engine::persistPendingAnalysis)
-                    val remaining = eta.remainingMs(done, total, nowMillis())
+                    // The pass's own pace: tracks already analysed cost it nothing.
+                    val remaining = eta.remainingMs(visited, total, nowMillis())
                     if (reportProgress) {
                         notifier.show(
                             title = notificationTitle,
                             text = notificationText(
-                                done,
+                                progress.analysed,
                                 total,
                                 remaining?.let(IndexingEta::minutesFrom),
                             ),
-                            done = done,
+                            done = progress.analysed,
                             total = total,
                         )
                     }
                     mutableAutomaticIndexing.value = mutableAutomaticIndexing.value.copy(
-                        done = done,
+                        done = progress.analysed,
                         failures = failures.toMap(),
                     )
                     // A short scheduling gap also gives thermal management a chance to settle;
@@ -585,9 +597,34 @@ data class AutomaticIndexingState(
     val running: Boolean = false,
     val metadataReady: Boolean = false,
     val complete: Boolean = false,
+    /** Tracks of the library analysed so far, those analysed before this pass included ([AnalysisProgress]). */
     val done: Int = 0,
+    /** Whether [done] has been counted yet; until then this pass has nothing true to show. */
+    val progressKnown: Boolean = false,
     val failures: Map<TrackId, EngineError> = emptyMap(),
 )
+
+/**
+ * "N of M tracks analysed" for one analysis pass: the library's tracks that need no more audio
+ * work, whether analysed before this pass or by it. A pass starts from those it finds already
+ * analysed, and each chunk it visits adds only the tracks that still needed work. A new pass (an
+ * upgrade's re-enrichment re-encodes text vectors and visits the library in a spread order) never
+ * restarts the count near zero while every fingerprint is kept; it never drops, and ends at [total].
+ */
+internal class AnalysisProgress(private val total: Int) {
+    var analysed: Int = 0
+        private set
+
+    /** The pass found [missing] tracks still needing audio analysis. */
+    fun started(missing: Int) {
+        analysed = (total - missing).coerceIn(0, total)
+    }
+
+    /** A chunk was visited; [missingBefore] of its tracks still needed analysis. */
+    fun visited(missingBefore: Int) {
+        analysed = (analysed + missingBefore.coerceAtLeast(0)).coerceAtMost(total)
+    }
+}
 
 // The engine serialises a batch under its model/index lock. Eight bounds how long an interactive
 // SMART/search request can wait; the separate cadence coalesces four such batches per snapshot.

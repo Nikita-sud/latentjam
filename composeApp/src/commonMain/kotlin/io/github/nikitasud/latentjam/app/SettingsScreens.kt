@@ -2033,7 +2033,8 @@ private fun IntelligenceSettings(
                         stringResource(Res.string.intelligence_indexed_of, indexed, fingerprintTarget)
                     },
                 )
-                if (!libraryLoading && indexing.running && tracks.isNotEmpty()) {
+                // Shown once the pass has counted what is already analysed, never as a "0 of N" first.
+                if (!libraryLoading && indexing.running && indexing.progressKnown && tracks.isNotEmpty()) {
                     LinearProgressIndicator(
                         progress = { done.toFloat() / tracks.size },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
