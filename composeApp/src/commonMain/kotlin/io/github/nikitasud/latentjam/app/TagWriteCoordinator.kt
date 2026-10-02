@@ -27,6 +27,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import kotlin.random.Random
+import kotlin.time.TimeSource
 
 internal enum class TagWriteStrategy { SYSTEM_WRITE_REQUEST, RECOVERABLE_CONSENT, WRITE_PERMISSION, NO_CONSENT }
 internal enum class TagWriteKind { EDIT, RECOVER }
@@ -658,6 +659,7 @@ internal class TagWriteCoordinator<C>(
 
     private suspend fun writeAll(current: TagWriteRequest, keys: List<String>) {
         update(current.copy(stage = TagWriteStage.WRITING))
+        val started = TimeSource.Monotonic.markNow()
         val permits = Semaphore(concurrency)
         TagWriteStoreLock.withLock {
             // One file's failure must not cancel the others: their saves may have landed, and each is
@@ -686,13 +688,17 @@ internal class TagWriteCoordinator<C>(
             }
         }
         val after = requests.first()
+        // Consent dialogs are outside this span: it times the writing itself, for device benchmarks.
+        println("TAGS: wrote ${keys.size} file(s) in ${started.elapsedNow().inWholeMilliseconds} ms")
         if (after.stage == TagWriteStage.WRITING) update(after.copy(stage = TagWriteStage.READY))
     }
 
     private suspend fun writeWithFileConsent(current: TagWriteRequest, key: String) {
         update(current.copy(stage = TagWriteStage.WRITING))
+        val started = TimeSource.Monotonic.markNow()
         when (val step = TagWriteStoreLock.withLock { attempt(current, key) }) {
             is Attempt.Done -> {
+                println("TAGS: wrote 1 file(s) in ${started.elapsedNow().inWholeMilliseconds} ms")
                 record(step.result)
                 update(requests.first().copy(stage = TagWriteStage.READY, consented = false))
             }
