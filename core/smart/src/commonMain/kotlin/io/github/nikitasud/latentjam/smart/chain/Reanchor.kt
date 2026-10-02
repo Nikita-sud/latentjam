@@ -25,7 +25,9 @@ import kotlin.math.sqrt
  */
 internal object Reanchor {
 
-    const val ENABLED = true
+    // Keep the user's pick authoritative even when artist/title filters thin its neighbours.
+    // Replacing it with the queue centroid can amplify earlier off-theme choices.
+    const val ENABLED = false
     const val MIN_IDX = 8
     const val NICHE_COS = 0.40f
     const val NICHE_MIN = 3
