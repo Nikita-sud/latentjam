@@ -750,6 +750,18 @@ private fun hybridSearch(
         }
     }
 
+    // A complete multi-word title (possibly accompanied by artist/album terms) identifies
+    // a recording. Keep confident literal alternatives, without filling the list with guesses.
+    // Single-word queries such as "rock" can still be a request for a genre or mood.
+    if (searchTokens(normalizedNeedle).size > 1 &&
+        strong.any { it.rank == 0 && yearFilter?.admits(it.track) != false }
+    ) {
+        return strong.asSequence().map { it.track }
+            .filter { yearFilter?.admits(it) != false }
+            .take(SEARCH_RESULT_LIMIT)
+            .toList()
+    }
+
     val entities = index.songs.asSequence()
         .onEach { checkCancelled() }
         .filter { aliasMatches(needle, it.artist) }
@@ -882,6 +894,22 @@ private fun SearchDocument.lexicalRank(
             ?: continue
         val rank = FIELD_TIERS[fieldIndex] * QUALITY_SPAN + quality
         if (best == null || rank < best) best = rank
+    }
+    // A recording query can span metadata fields: "eminem mockingbird" must match
+    // artist + title. Genre is excluded so an unrelated genre tag cannot identify a song.
+    if (queryTokens.size > 1) {
+        val identityTokens = fieldTokens.take(3).flatten()
+        if (queryTokens.all { query -> identityTokens.any { it.startsWith(query) } }) {
+            val titleTokens = fieldTokens[0]
+            val completeTitle = titleTokens.isNotEmpty() && titleTokens.all { it in queryTokens }
+            val touchesTitle = queryTokens.any { query -> titleTokens.any { it.startsWith(query) } }
+            val rank = when {
+                completeTitle -> 0
+                touchesTitle -> 2
+                else -> QUALITY_SPAN + 2
+            }
+            if (best == null || rank < best) best = rank
+        }
     }
     return best
 }
