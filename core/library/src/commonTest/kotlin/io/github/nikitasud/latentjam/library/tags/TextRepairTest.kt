@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.library.tags
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 internal class TextRepairTest {
@@ -277,5 +279,23 @@ internal class TextRepairTest {
         val text = "Grüße"
         val latin1Bytes = ByteArray(text.length) { i -> text[i].code.toByte() }
         assertEquals("Grüße", Id3Text.decode(Id3Text.ISO_8859_1, latin1Bytes, 0, latin1Bytes.size))
+    }
+
+    @Test
+    fun aKnownCleanValueTellsItsManglingsEvenWhereRepairMustGuess() {
+        // Short text through a fallback codepage: repair refuses it, since it reads like a real word.
+        assertEquals("\u0102\u00A9", TextRepair.repair("\u0102\u00A9"))
+        assertTrue(TextRepair.isMangling("\u0102\u00A9", of = "é"), "é through Windows-1250")
+        assertTrue(TextRepair.isMangling("\u0413\u00A9", of = "é"), "é through Windows-1251")
+        assertTrue(TextRepair.isMangling("BeyoncÃ© LumiÃ¨re", of = "Beyoncé Lumière"))
+        assertTrue(TextRepair.isMangling("BeyoncÃ\u0083Â© LumiÃ\u0083Â¨re", of = "Beyoncé Lumière"), "twice")
+    }
+
+    @Test
+    fun aDifferentValueOrTheSameOneIsNoMangling() {
+        assertFalse(TextRepair.isMangling("Beyoncé Lumière", of = "Beyoncé Lumière"))
+        assertFalse(TextRepair.isMangling("Beyonce", of = "Beyoncé"))
+        assertFalse(TextRepair.isMangling("Mötley Crüe", of = "Motley Crue"))
+        assertFalse(TextRepair.isMangling("", of = "é"))
     }
 }

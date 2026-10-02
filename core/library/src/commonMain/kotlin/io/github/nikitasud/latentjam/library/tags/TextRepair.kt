@@ -129,6 +129,22 @@ public object TextRepair {
         return sb.toString()
     }
 
+    /**
+     * Whether [text] is [of] mangled the way [repair] undoes: its UTF-8 read once, or twice, through
+     * one of the same codepages. With the clean value known nothing is guessed, so this also tells
+     * the short manglings [repair] must leave alone ("Ă©" for "é" through Windows-1250). For two
+     * readings of one field, where a clean one must not lose to its own mojibake.
+     */
+    public fun isMangling(text: String, of: String): Boolean {
+        if (text == of || text.none { it.code >= 0x80 }) return false
+        for (codepage in CODEPAGES) {
+            val once = codepage.encode(text)?.let { decodeUtf8Strict(it) } ?: continue
+            if (once == of) return true
+            if (codepage.encode(once)?.let { decodeUtf8Strict(it) } == of) return true
+        }
+        return false
+    }
+
     /** One round through [codepage]: the repaired text, or null if it does not apply. */
     private fun repairWith(codepage: Codepage, text: String): String? {
         val bytes = codepage.encode(text) ?: return null

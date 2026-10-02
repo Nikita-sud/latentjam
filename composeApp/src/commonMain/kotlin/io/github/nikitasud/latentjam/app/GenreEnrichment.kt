@@ -60,29 +60,46 @@ internal class GenreEnrichment(
         library.map { track ->
             val stored = loaded[track.id.value] ?: return@map track
             if (stored.revision != track.revisionKey()) return@map track
-            val genre = stored.joinedGenres.takeIf { it.isNotEmpty() } ?: track.genre
-            val artists = stored.artists.ifEmpty { track.artists }
-            val originalYear = stored.originalYear ?: track.originalYear
-            val language = stored.language ?: track.language
-            val albumArtist = stored.albumArtist ?: track.albumArtist
-            val year = track.year ?: stored.year
-            if (genre == track.genre && artists == track.artists &&
-                originalYear == track.originalYear && language == track.language &&
-                albumArtist == track.albumArtist && year == track.year
-            ) {
-                track
-            } else {
-                track.copy(
-                    genre = genre,
-                    artists = artists,
-                    originalYear = originalYear,
-                    language = language,
-                    albumArtist = albumArtist,
-                    year = year,
-                )
-            }
+            stored.mergedInto(track)
         }
     }
+
+    /**
+     * [track] with these facts. A file's text was repaired as MediaStore's is when it was read, but
+     * a short mojibake repair cannot tell from a real word stays, and it never replaces the clean
+     * value MediaStore holds for the same field: MediaStore's own reading wins over its mangling.
+     * [track] itself when nothing changes.
+     */
+    private fun Stored.mergedInto(track: TrackDescriptor): TrackDescriptor {
+        val genre = joinedGenres.takeIf { it.isNotEmpty() }
+            ?.split(GenreTags.SEPARATOR)
+            ?.joinToString(GenreTags.SEPARATOR) { it.unlessMangling(track.genre) }
+            ?: track.genre
+        val artists = artists.map { it.unlessMangling(track.artist) }.ifEmpty { track.artists }
+        val originalYear = originalYear ?: track.originalYear
+        val language = language ?: track.language
+        val albumArtist = albumArtist?.unlessMangling(track.albumArtist) ?: track.albumArtist
+        val year = track.year ?: year
+        return if (genre == track.genre && artists == track.artists &&
+            originalYear == track.originalYear && language == track.language &&
+            albumArtist == track.albumArtist && year == track.year
+        ) {
+            track
+        } else {
+            track.copy(
+                genre = genre,
+                artists = artists,
+                originalYear = originalYear,
+                language = language,
+                albumArtist = albumArtist,
+                year = year,
+            )
+        }
+    }
+
+    /** [clean] (MediaStore's reading of the same field) where this is only its mojibake, else this. */
+    private fun String.unlessMangling(clean: String?): String =
+        if (clean != null && TextRepair.isMangling(this, of = clean)) clean else this
 
     /**
      * Reads embedded facts for tracks with no fresh cache entry. Returns true when anything
@@ -98,13 +115,15 @@ internal class GenreEnrichment(
             val existing = known[track.id.value]
             if (existing != null && existing.revision == revision) continue
             val facts = readFacts(track) ?: continue
+            // The same repair MediaStore's text gets (issue #7): an older tagger's UTF-8 read as a
+            // Windows codepage is in the file itself, and must not reach the library as "BeyoncÃ©".
             val stored = Stored(
                 revision = revision,
-                joinedGenres = GenreTags.canonical(facts.genres).orEmpty(),
-                artists = facts.artists,
+                joinedGenres = GenreTags.canonical(facts.genres.map(TextRepair::repair)).orEmpty(),
+                artists = facts.artists.map(TextRepair::repair),
                 originalYear = facts.originalYear,
-                language = facts.language,
-                albumArtist = facts.albumArtist,
+                language = facts.language?.let(TextRepair::repair),
+                albumArtist = facts.albumArtist?.let(TextRepair::repair),
                 year = facts.year,
             )
             updates[track.id.value] = stored
@@ -133,13 +152,7 @@ internal class GenreEnrichment(
         return learnedSomething
     }
 
-    private fun Stored.changes(track: TrackDescriptor): Boolean =
-        (joinedGenres.isNotEmpty() && joinedGenres != track.genre) ||
-            (artists.isNotEmpty() && artists != track.artists) ||
-            (originalYear != null && originalYear != track.originalYear) ||
-            (language != null && language != track.language) ||
-            (albumArtist != null && albumArtist != track.albumArtist) ||
-            (year != null && track.year == null)
+    private fun Stored.changes(track: TrackDescriptor): Boolean = mergedInto(track) != track
 
     private fun ensureLoaded(): MutableMap<String, Stored> {
         cache?.let { return it }

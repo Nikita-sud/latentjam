@@ -8,6 +8,8 @@ import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.LibraryCatalog
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
+import io.github.nikitasud.latentjam.library.tags.GenreTags
+import io.github.nikitasud.latentjam.library.tags.TagFacts
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
@@ -263,6 +265,70 @@ internal class GenreEnrichmentTest {
         val catalog = LibraryCatalog.build(enrichment.apply(rescanned))
         assertEquals("1973", albumYearLabel(catalog.albums.single().tracks))
         assertEquals("1973", albumYearLabel(refreshedAlbum(catalog, pageIds)!!.tracks))
+    }
+
+    /** An ID3v2.3 tag whose frames are declared ISO-8859-1 (encoding 0) and hold [text]'s UTF-8 bytes. */
+    private fun latin1DeclaredTag(vararg frames: Pair<String, String>): ByteArray {
+        fun be32(value: Int) = byteArrayOf((value ushr 24).toByte(), (value ushr 16).toByte(), (value ushr 8).toByte(), value.toByte())
+        val body = frames.fold(ByteArray(0)) { all, (id, text) ->
+            val content = byteArrayOf(0) + text.encodeToByteArray()
+            all + id.encodeToByteArray() + be32(content.size) + byteArrayOf(0, 0) + content
+        }
+        val size = body.size
+        val syncsafe = byteArrayOf((size ushr 21 and 0x7F).toByte(), (size ushr 14 and 0x7F).toByte(), (size ushr 7 and 0x7F).toByte(), (size and 0x7F).toByte())
+        return "ID3".encodeToByteArray() + byteArrayOf(3, 0, 0) + syncsafe + body + TEST_MPEG_FRAME + ByteArray(512)
+    }
+
+    private fun factsOf(file: ByteArray): EmbeddedTagFacts? = TagFacts.embedded(object : GenreTags.ByteSource {
+        var at = 0
+        override fun read(count: Int): ByteArray? =
+            if (at + count > file.size) null else file.copyOfRange(at, at + count).also { at += count }
+        override fun readUpTo(count: Int): ByteArray = file.copyOfRange(at, minOf(file.size, at + count)).also { at += it.size }
+        override fun skip(count: Long): Boolean {
+            if (at + count > file.size) return false
+            at += count.toInt()
+            return true
+        }
+    })
+
+    /** A file an older tagger wrote: text already mangled once ("é" read as cp1252), then stored as UTF-8. */
+    private val mangledTag = latin1DeclaredTag(
+        "TPE2" to "BeyoncÃ© LumiÃ¨re",
+        "TCON" to "CafÃ© Pop",
+        "TPE1" to "BeyoncÃ©\u0000LumiÃ¨re",
+    )
+
+    @Test
+    fun textReadFromTagsIsRepairedAsMediaStoresIsFromTheFirstRead() = runTest {
+        // Where MediaStore has no album artist (below Android 11) the tag's is all there is.
+        val track = TrackDescriptor(TrackId("1"), title = "Café Société", sourceRevision = "r1")
+        val enrichment = GenreEnrichment(MemorySettings()) { factsOf(mangledTag) }
+        assertTrue(enrichment.backfill(listOf(track)))
+        val applied = enrichment.apply(listOf(track)).single()
+        assertEquals("Beyoncé Lumière", applied.albumArtist)
+        assertEquals("Café Pop", applied.genre)
+        assertEquals(listOf("Beyoncé", "Lumière"), applied.artists)
+    }
+
+    @Test
+    fun aTagValueThatIsMediaStoresOwnMangledNeverReplacesIt() = runTest {
+        // Short mojibake through Windows-1250 that repair must leave alone; MediaStore read it right.
+        val track = TrackDescriptor(TrackId("1"), albumArtist = "Sé", genre = "Pé", sourceRevision = "r1")
+        val enrichment = GenreEnrichment(MemorySettings()) {
+            factsOf(latin1DeclaredTag("TPE2" to "S\u0102\u00A9", "TCON" to "P\u0102\u00A9"))
+        }
+        enrichment.backfill(listOf(track))
+        val applied = enrichment.apply(listOf(track)).single()
+        assertEquals("Sé", applied.albumArtist)
+        assertEquals("Pé", applied.genre)
+    }
+
+    @Test
+    fun aTagValueThatDiffersFromMediaStoresStillWins() = runTest {
+        val track = TrackDescriptor(TrackId("1"), albumArtist = "Various", sourceRevision = "r1")
+        val enrichment = GenreEnrichment(MemorySettings()) { EmbeddedTagFacts(albumArtist = "Beyoncé Lumière") }
+        enrichment.backfill(listOf(track))
+        assertEquals("Beyoncé Lumière", enrichment.apply(listOf(track)).single().albumArtist)
     }
 
     private fun String.hex(): String = encodeToByteArray().joinToString("") {
