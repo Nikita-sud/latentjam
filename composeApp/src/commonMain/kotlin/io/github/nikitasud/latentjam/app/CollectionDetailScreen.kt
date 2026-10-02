@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
@@ -83,7 +84,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_smart_keep_t
 import io.github.nikitasud.latentjam.app.generated.resources.cd_more_options
 import io.github.nikitasud.latentjam.app.generated.resources.map_action_smart_here
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
+import io.github.nikitasud.latentjam.app.generated.resources.info_edit
 import io.github.nikitasud.latentjam.app.generated.resources.action_close
+import io.github.nikitasud.latentjam.app.generated.resources.action_edit_album
+import io.github.nikitasud.latentjam.app.generated.resources.action_edit_artist
 import io.github.nikitasud.latentjam.app.generated.resources.action_deselect_all
 import io.github.nikitasud.latentjam.app.generated.resources.action_play
 import io.github.nikitasud.latentjam.app.generated.resources.action_select_all
@@ -91,7 +95,9 @@ import io.github.nikitasud.latentjam.app.generated.resources.action_shuffle
 import io.github.nikitasud.latentjam.app.generated.resources.selection_count
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
+import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.SongSorting
+import io.github.nikitasud.latentjam.library.defaultDirection
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import org.jetbrains.compose.resources.pluralStringResource
@@ -286,11 +292,15 @@ fun CollectionDetailScreen(
     onResetCover: (() -> Unit)? = null,
     coverEditBusy: Boolean = false,
     onToggleSmart: (() -> Unit)? = null,
+    onEditTags: (() -> Unit)? = null,
     includeInSmart: Boolean = false,
     active: Boolean = true,
     /** Includes the shared cover transition, which can outlive the page's own entrance. */
     entrySettled: Boolean = true,
     artworkModifier: Modifier = Modifier,
+    /** How an artist's albums are ordered; null where the page has no albums to order. */
+    albumSort: SortChoice<AlbumSort>? = null,
+    onAlbumSortChange: (SortChoice<AlbumSort>) -> Unit = {},
 ) {
     val selectionMode = selection.allowsTrackSelection && selectedTrackIds.isNotEmpty()
     val reduceMotion = rememberReduceMotion()
@@ -403,7 +413,22 @@ fun CollectionDetailScreen(
                                         onClick = { optionsOpen = false; toggleSmart() },
                                     )
                                 }
-                                if (onChangeCover != null) {
+                                onEditTags?.let { editTags ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            val label = when {
+                                                selection.routeId.startsWith("album:") -> Res.string.action_edit_album
+                                                selection.routeId.startsWith("artist:") -> Res.string.action_edit_artist
+                                                else -> Res.string.info_edit
+                                            }
+                                            Text(stringResource(label))
+                                        },
+                                        leadingIcon = { Icon(Icons.Outlined.Edit, null, Modifier.size(20.dp)) },
+                                        enabled = selection.tracks.isNotEmpty(),
+                                        onClick = { optionsOpen = false; editTags() },
+                                    )
+                                }
+                                if (onChangeCover != null || onEditTags != null) {
                                     HorizontalDivider(
                                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
@@ -475,6 +500,8 @@ fun CollectionDetailScreen(
                             onShuffle = onShuffle,
                             onStartSmart = onStartSmart,
                             onTrackMenu = onTrackMenu,
+                            albumSort = albumSort,
+                            onAlbumSortChange = onAlbumSortChange,
                         )
                     }
                 } else {
@@ -499,6 +526,8 @@ fun CollectionDetailScreen(
                         onShuffle = onShuffle,
                         onStartSmart = onStartSmart,
                         onTrackMenu = onTrackMenu,
+                        albumSort = albumSort,
+                        onAlbumSortChange = onAlbumSortChange,
                     )
                 }
                 ScrollToTopButton(
@@ -519,10 +548,10 @@ private fun CollectionHero(
     onShuffle: () -> Unit,
     onStartSmart: (() -> Unit)?,
     onChangeCover: (() -> Unit)?,
+    albumSort: SortChoice<AlbumSort>?,
+    onAlbumSortChange: (SortChoice<AlbumSort>) -> Unit,
 ) {
-    val albumYear = remember(selection.tracks) {
-        selection.tracks.mapNotNull { it.year }.distinct().singleOrNull()?.toString()
-    }
+    val albumYear = remember(selection.tracks) { albumYearLabel(selection.tracks) }
     val metadata = if (selection.routeId.startsWith("album:")) {
         listOfNotNull(selection.subtitle, albumYear,
             pluralStringResource(Res.plurals.count_tracks, selection.tracks.size, selection.tracks.size))
@@ -611,6 +640,19 @@ private fun CollectionHero(
                 Icon(LatentJamMark, stringResource(Res.string.map_action_smart_here), modifier = Modifier.size(24.dp))
             }
         }
+        // Start-aligned with the album headers it orders, the way the Tracks tab's pill heads its list.
+        if (albumSort != null) {
+            SortPill(
+                options = ARTIST_ALBUM_SORTS,
+                choice = albumSort,
+                label = { it.label() },
+                defaultDirection = { it.defaultDirection },
+                enabled = enabled,
+                onChoiceChange = onAlbumSortChange,
+                modifier = Modifier.align(Alignment.Start).padding(top = 18.dp)
+                    .graphicsLayer { alpha = if (enabled) 1f else 0.38f },
+            )
+        }
     }
 }
 
@@ -636,6 +678,8 @@ private fun CollectionTrackLazyColumn(
     onTrackMenu: (TrackDescriptor) -> Unit,
     modifier: Modifier = Modifier,
     onChangeCover: (() -> Unit)? = null,
+    albumSort: SortChoice<AlbumSort>? = null,
+    onAlbumSortChange: (SortChoice<AlbumSort>) -> Unit = {},
 ) {
     val reduceMotion = rememberReduceMotion()
     val unknownTitle = stringResource(Res.string.track_untitled)
@@ -650,6 +694,8 @@ private fun CollectionTrackLazyColumn(
                 onPlay = onPlay,
                 onShuffle = onShuffle,
                 onStartSmart = onStartSmart,
+                albumSort = albumSort,
+                onAlbumSortChange = onAlbumSortChange,
             )
         }
         val sections = selection.sections

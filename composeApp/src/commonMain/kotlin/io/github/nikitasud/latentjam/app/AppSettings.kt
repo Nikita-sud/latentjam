@@ -4,6 +4,10 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.SongSort
+import io.github.nikitasud.latentjam.library.SongSortDirection
+import io.github.nikitasud.latentjam.library.defaultDirection
 import kotlinx.coroutines.flow.StateFlow
 import org.koin.core.module.Module
 import kotlin.math.abs
@@ -125,6 +129,53 @@ internal fun sanitizeSmartQueueLength(value: Int): Int =
 
 internal fun smartQueueLengthFromPersisted(value: Int?): Int =
     value?.let(::sanitizeSmartQueueLength) ?: DEFAULT_SMART_QUEUE_LENGTH
+
+/** A list's chosen order: the field it sorts by and which way that runs. */
+data class SortChoice<S : Enum<S>>(val sort: S, val direction: SongSortDirection)
+
+/** The Tracks tab opens A–Z by title. */
+internal val DEFAULT_SONG_SORT: SortChoice<SongSort> = SortChoice(SongSort.TITLE, SongSortDirection.ASCENDING)
+
+/** The Albums tab opens A–Z by title, the order it has always had. */
+internal val DEFAULT_ALBUM_SORT: SortChoice<AlbumSort> = SortChoice(AlbumSort.TITLE, SongSortDirection.ASCENDING)
+
+/** An artist's page opens as a discography: newest release first. */
+internal val DEFAULT_ARTIST_ALBUM_SORT: SortChoice<AlbumSort> =
+    SortChoice(AlbumSort.YEAR, SongSortDirection.DESCENDING)
+
+/** What an artist's page can sort its albums by. Every album there shares the artist. */
+internal val ARTIST_ALBUM_SORTS: List<AlbumSort> = listOf(AlbumSort.YEAR, AlbumSort.TITLE)
+
+/** `field:direction`, both lowercase names, one value so a write can never pair two choices. */
+internal fun encodeSortChoice(choice: SortChoice<*>): String =
+    "${choice.sort.name.lowercase()}:${choice.direction.name.lowercase()}"
+
+/**
+ * An unknown field — garbage, or an option a later build renamed or dropped — falls back to
+ * [default] whole; a known field with an unreadable direction keeps the field and takes its own
+ * natural direction. A sort order is never worth failing a launch over.
+ */
+private fun <S : Enum<S>> decodeSortChoice(
+    value: String?,
+    options: List<S>,
+    default: SortChoice<S>,
+    naturalDirection: (S) -> SongSortDirection,
+): SortChoice<S> {
+    val fields = value?.split(':')?.takeIf { it.size <= 2 } ?: return default
+    val sort = options.firstOrNull { it.name.lowercase() == fields[0] } ?: return default
+    val direction = SongSortDirection.entries.firstOrNull { it.name.lowercase() == fields.getOrNull(1) }
+        ?: naturalDirection(sort)
+    return SortChoice(sort, direction)
+}
+
+internal fun songSortFromPersisted(value: String?): SortChoice<SongSort> =
+    decodeSortChoice(value, SongSort.entries, DEFAULT_SONG_SORT) { it.defaultDirection }
+
+internal fun albumSortFromPersisted(value: String?): SortChoice<AlbumSort> =
+    decodeSortChoice(value, AlbumSort.entries, DEFAULT_ALBUM_SORT) { it.defaultDirection }
+
+internal fun artistAlbumSortFromPersisted(value: String?): SortChoice<AlbumSort> =
+    decodeSortChoice(value, ARTIST_ALBUM_SORTS, DEFAULT_ARTIST_ALBUM_SORT) { it.defaultDirection }
 
 /** Missing or type-corrupt privacy preferences preserve the historical opt-in default. */
 internal fun recordingPreferenceFromPersisted(value: Boolean?): Boolean = value ?: true
@@ -345,6 +396,20 @@ interface AppSettings {
     val crossfadeSeconds: StateFlow<Int>
     fun setCrossfadeSeconds(seconds: Int)
 
+    /** The Tracks tab's order. */
+    val songSort: StateFlow<SortChoice<SongSort>>
+    fun setSongSort(choice: SortChoice<SongSort>)
+
+    /** The Albums tab's order. */
+    val albumSort: StateFlow<SortChoice<AlbumSort>>
+    fun setAlbumSort(choice: SortChoice<AlbumSort>)
+
+    /** How an artist's page orders their albums; one choice for every artist. */
+    val artistAlbumSort: StateFlow<SortChoice<AlbumSort>>
+
+    /** Ignores a field outside [ARTIST_ALBUM_SORTS]. */
+    fun setArtistAlbumSort(choice: SortChoice<AlbumSort>)
+
     /** Raw persisted loudness measurements (see [encodeTrackLoudness]); null when none exist. */
     fun readTrackLoudnessPayload(): String?
     fun writeTrackLoudnessPayload(payload: String)
@@ -352,6 +417,10 @@ interface AppSettings {
     /** Raw persisted per-track embedded genres (see [GenreEnrichment]); null when none exist. */
     fun readTrackGenresPayload(): String?
     fun writeTrackGenresPayload(payload: String)
+
+    /** SMART carry-overs from tag edits (see [AudioCarryOverStore]); null when none. */
+    fun readAudioCarryOversPayload(): String?
+    fun writeAudioCarryOversPayload(payload: String)
 
     /** Pairs the listener marked as different recordings; the duplicate finder keeps them apart. */
     fun readDuplicateDismissalsPayload(): String?

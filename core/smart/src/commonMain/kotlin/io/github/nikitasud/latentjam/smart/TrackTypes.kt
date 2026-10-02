@@ -85,6 +85,18 @@ public data class TrackDescriptor(
     public val trackNumber: Int? = null,
     /** Disc of a multi-disc release (`TPOS`, `DISCNUMBER`); null when untagged. */
     public val discNumber: Int? = null,
+    /**
+     * The album's own artist (`TPE2`, `ALBUMARTIST`, `aART`): "Various Artists" on a compilation.
+     * Albums group by it when present, so a compilation's tracks stay one album. Null when untagged.
+     */
+    public val albumArtist: String? = null,
+    /**
+     * The album's cover locator when [artworkUri] is this track's own instead: on Android a song
+     * whose cover LatentJam saved gets a cover of its own, while MediaStore keeps one per album.
+     * Album grouping compares this, so one song's new cover does not split its album. Null when
+     * [artworkUri] already is the album's.
+     */
+    public val albumArtworkUri: String? = null,
 )
 
 /**

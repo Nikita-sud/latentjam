@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.rememberSplineBasedDecay
+import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.gestures.snapping.SnapLayoutInfoProvider
@@ -59,12 +60,25 @@ internal fun Modifier.browseHeaderSwipe(pagerState: PagerState, enabled: Boolean
     return scrollable(
         state = pagerState,
         orientation = Orientation.Horizontal,
+        overscrollEffect = null,
         enabled = enabled,
         reverseDirection = LocalLayoutDirection.current == LayoutDirection.Ltr,
         // PagerDefaults depends on pointer history collected inside HorizontalPager. Header
         // gestures never reach it, so use the actual page offset and release velocity instead.
         flingBehavior = fling,
+        bringIntoViewSpec = LabelsNeverScrollThePager,
     )
+}
+
+/**
+ * The strip shares the pager's state, so as an ordinary scrollable it would scroll the pages to
+ * bring a label it holds into view. A label asks whenever it gains focus, and in keyboard
+ * (non-touch) mode Compose focuses one each time the window regains focus, as when a sheet over it
+ * closes: saving a tag edit then switched to Playlists. The strip places its labels around the
+ * current page itself; a focused label never moves the pages.
+ */
+private val LabelsNeverScrollThePager = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
 }
 
 /** Velocity and offset use logical page order; scrollable handles the physical RTL direction. */

@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.library.tags
 
+import io.github.nikitasud.latentjam.library.TrackNumbers
+
 /**
  * Reads and rewrites the ID3v2 tag at the head of a file.
  *
@@ -12,12 +14,12 @@ package io.github.nikitasud.latentjam.library.tags
  *
  * ### Preservation
  *
- * Frames this codec does not understand — album art, ReplayGain, comments,
- * lyrics, anything — are copied to the output byte for byte, in their original
- * order. Only the five managed text frames are ever rewritten. A tag that
- * cannot be fully accounted for is refused rather than partially rewritten,
- * because a partial rewrite is indistinguishable from deleting the frames that
- * were not understood.
+ * Frames this codec does not manage — ReplayGain, comments, credits, anything
+ * an edit does not name — are copied to the output byte for byte, in their
+ * original order. Only the fields [TagEdits] exposes are ever rewritten. A tag
+ * that cannot be fully accounted for is refused rather than partially
+ * rewritten, because a partial rewrite is indistinguishable from deleting the
+ * frames that were not understood.
  *
  * ### How much of the file to pass
  *
@@ -42,14 +44,19 @@ public object Id3Tags {
     private const val FRAME_ALBUM = "TALB"
     private const val FRAME_GENRE = "TCON"
 
-    /** Unsynchronised lyrics. Read-only here: never rewritten, always preserved. */
+    /** Unsynchronised lyrics — the frame [setLyrics] rewrites. */
     private const val FRAME_LYRICS = "USLT"
+    private const val FRAME_COMMENT = "COMM"
 
     private const val FRAME_USER_TEXT = "TXXX"
 
     /** Original release time (v2.4) / original release year (v2.3). */
     private const val FRAME_ORIGINAL_V24 = "TDOR"
     private const val FRAME_ORIGINAL_V23 = "TORY"
+    private val ORIGINAL_FRAMES = setOf(FRAME_ORIGINAL_V24, FRAME_ORIGINAL_V23)
+
+    /** Picard's `TXXX` original-release fields, matched ignoring case: true for the year-only one. */
+    private val ORIGINAL_DESCRIPTIONS = mapOf("ORIGINALYEAR" to true, "ORIGINALDATE" to false)
 
     /** ID3v2.3's year frame — exactly four characters. */
     private const val FRAME_YEAR_V23 = "TYER"
@@ -57,11 +64,19 @@ public object Id3Tags {
     /** ID3v2.4's recording-time frame, which supersedes TYER. */
     private const val FRAME_YEAR_V24 = "TDRC"
 
+    private const val FRAME_ALBUM_ARTIST = "TPE2"
+    private const val FRAME_TRACK = "TRCK"
+    private const val FRAME_DISC = "TPOS"
+    private const val FRAME_PICTURE = "APIC"
+    private const val ARTISTS_DESCRIPTION = "ARTISTS"
+    private const val ARTIST_DESCRIPTION = "ARTIST"
+    private const val GENRE_DESCRIPTION = "GENRE"
+
     /**
      * Slack left at the end of a tag this codec creates or grows, so the next
      * few edits can reuse the same footprint instead of moving the audio.
      */
-    private const val PADDING = 1024
+    private const val PADDING = TagSpace.SPARE_BYTES
 
     /** Bytes a caller must read before [tagLength] can answer. */
     public const val HEADER_SIZE: Int = Id3Codec.HEADER_SIZE
@@ -111,6 +126,126 @@ public object Id3Tags {
         )
     }
 
+    /** Every field the editor shows, plus what verification needs, from one parse. */
+    internal class Id3Fields(
+        val version: Id3Version,
+        val totalLength: Int,
+        val title: String?,
+        val artist: String?,
+        val album: String?,
+        val albumArtist: String?,
+        val genre: String?,
+        val year: String?,
+        /** Raw TRCK text, "3/12" style. */
+        val track: String?,
+        /** Raw TPOS text. */
+        val disc: String?,
+        val lyrics: String?,
+        val cover: CoverInfo?,
+        val otherPictures: Int,
+        /** The picture that would become the cover if [cover] were removed. */
+        val nextCover: CoverInfo?,
+        /** CRC-32 of every APIC's image data (its whole body when unreadable), sorted. */
+        val pictures: List<Long>,
+        val artists: List<String>,
+        /** Every readable TDOR/TORY/TXXX:ORIGINALYEAR/TXXX:ORIGINALDATE, in file order: [TagSnapshot.originalDates]. */
+        val originalDates: List<OriginalDate>,
+        /** "ID:crc32(body)" of every frame the editor does not own, in file order (pictures excluded). */
+        val unmanaged: List<String>,
+    )
+
+    /**
+     * The fields of the tag in [prefix], with what only the ID3v1 trailer at the end of [tail]
+     * holds filled in (see [withLegacy]). Null only for the tag itself: one [refusalOf] refuses, or
+     * no tag in front of data that may not be given one. A trailer that cannot be migrated is
+     * each caller's to refuse ([Id3v1.canMigrate]), so that refusal keeps its own name.
+     */
+    internal fun readFields(prefix: ByteArray, tail: ByteArray = byteArrayOf()): Id3Fields? {
+        val parsed = Id3Codec.parse(prefix)
+        if (parsed is Id3Parse.Refused) return null
+        val tag = (parsed as? Id3Parse.Parsed)?.tag
+        if (tag == null && !canPrependTag(prefix)) return null
+        val version = tag?.version ?: Id3Version.V2_3
+        val frames = withLegacy(tail, version, tag?.frames.orEmpty())
+        val cover = coverTarget(version, frames)
+        val lyricsTarget = frames.withIndex()
+            .filter { it.value.id == FRAME_LYRICS }
+            .let { list -> list.firstOrNull { lyricsParts(version, it.value)?.text?.isNotBlank() == true } ?: list.firstOrNull() }
+        val managedIds = setOf(
+            FRAME_TITLE, FRAME_ARTIST, FRAME_ALBUM, FRAME_ALBUM_ARTIST, FRAME_GENRE,
+            FRAME_YEAR_V23, FRAME_YEAR_V24, FRAME_TRACK, FRAME_DISC,
+        )
+        val unmanaged = frames.withIndex()
+            .filterNot { (index, frame) ->
+                frame.id in managedIds || frame.id == FRAME_PICTURE || index == lyricsTarget?.index ||
+                    isArtistsFrame(version, frame)
+            }
+            // Lyrics frames besides the one the editor shows go when the lyrics are removed, and
+            // TXXX:GENRE copies when the genre is edited; both stay visible to verification.
+            .map { (_, frame) ->
+                val entry = "${frame.id}:${Crc32.of(frame.body)}"
+                when {
+                    frame.id == FRAME_LYRICS -> TagVerification.LYRICS_ENTRY + entry
+                    isGenreFrame(version, frame) -> TagVerification.GENRE_ENTRY + entry
+                    frame.id in ORIGINAL_FRAMES || originalUserText(version, frame) != null ->
+                        TagVerification.ORIGINAL_ENTRY + entry
+                    else -> entry
+                }
+            }
+        return Id3Fields(
+            version = version,
+            totalLength = tag?.totalLength ?: 0,
+            title = textIn(version, frames, FRAME_TITLE),
+            artist = textIn(version, frames, FRAME_ARTIST),
+            album = textIn(version, frames, FRAME_ALBUM),
+            albumArtist = textIn(version, frames, FRAME_ALBUM_ARTIST),
+            genre = textIn(version, frames, FRAME_GENRE),
+            year = yearIn(version, frames),
+            track = textIn(version, frames, FRAME_TRACK),
+            disc = textIn(version, frames, FRAME_DISC),
+            lyrics = lyricsTarget?.let { lyricsParts(version, it.value) }?.text?.trim()?.ifEmpty { null },
+            cover = cover?.let { CoverInfo.of(it.data, it.mime) },
+            otherPictures = frames.count { it.id == FRAME_PICTURE } - (if (cover != null) 1 else 0),
+            nextCover = cover
+                ?.let { target -> coverTarget(version, frames.filterIndexed { index, _ -> index != target.index }) }
+                ?.let { CoverInfo.of(it.data, it.mime) },
+            pictures = frames.withIndex()
+                .filter { it.value.id == FRAME_PICTURE }
+                .map { (index, frame) -> parsePicture(version, index, frame)?.let { Crc32.of(it.data) } ?: Crc32.of(frame.body) }
+                .sorted(),
+            artists = creditedNames(version, frames),
+            originalDates = frames.mapNotNull { originalDateIn(version, it) },
+            unmanaged = unmanaged,
+        )
+    }
+
+    /**
+     * False when [edits] would leave every frame exactly as it is (a "same values" save), the
+     * fields only the ID3v1 trailer in [tail] holds included (see [withLegacy]).
+     */
+    internal fun wouldChange(prefix: ByteArray, edits: TagEdits, tail: ByteArray = byteArrayOf()): Boolean {
+        val parsed = Id3Codec.parse(prefix)
+        if (parsed is Id3Parse.Refused) return true
+        val tag = (parsed as? Id3Parse.Parsed)?.tag
+        val version = tag?.version ?: Id3Version.V2_3
+        val before = withLegacy(tail, version, tag?.frames.orEmpty())
+        val after = applyEdits(version, before, edits)
+        return before.size != after.size || before.indices.any { i ->
+            before[i].id != after[i].id ||
+                !before[i].flags.contentEquals(after[i].flags) ||
+                !before[i].body.contentEquals(after[i].body)
+        }
+    }
+
+    /**
+     * [frames] with the fields only the ID3v1 trailer in [tail] holds, as a rewrite would write
+     * them before dropping the trailer. A trailer [Id3v1.canMigrate] rejects adds nothing: no
+     * rewrite can happen over it ([buildUpdate] refuses), so the file reads as its ID3v2 tag says
+     * and a save that leaves that tag as it is still changes nothing.
+     */
+    private fun withLegacy(tail: ByteArray, version: Id3Version, frames: List<Id3RawFrame>): List<Id3RawFrame> =
+        Id3v1.migrate(tail, version, frames) ?: frames
+
     /**
      * Embedded unsynchronised lyrics (the `USLT` frame): the first non-empty one, or null.
      *
@@ -158,7 +293,8 @@ public object Id3Tags {
      *
      * [prefix] must contain at least the whole existing tag — ask [tagLength]
      * how long that is. Returns null when the tag cannot be rewritten safely;
-     * [refusalOf] says why.
+     * [refusalOf] says why. Streaming callers also pass the bounded [tail] so legacy
+     * fields are migrated before removing the ID3v1 trailer.
      *
      * When there is no tag yet, one is created at [newTagVersion] only when the
      * data starts with a valid MPEG-audio or ADTS frame header. An allowlist is
@@ -169,35 +305,42 @@ public object Id3Tags {
         prefix: ByteArray,
         edits: TagEdits,
         newTagVersion: Id3Version = Id3Version.V2_3,
-    ): Id3TagUpdate? = when (val parsed = Id3Codec.parse(prefix)) {
-        is Id3Parse.Refused -> null
+        tail: ByteArray = byteArrayOf(),
+    ): Id3TagUpdate? {
+        // Legacy fields must be migrated before the caller removes the trailer.
+        if (!edits.isEmpty && !Id3v1.canMigrate(tail)) return null
+        return when (val parsed = Id3Codec.parse(prefix)) {
+            is Id3Parse.Refused -> null
 
-        is Id3Parse.Parsed -> {
-            val tag = parsed.tag
-            if (edits.isEmpty) {
-                // Besides being cheaper, this preserves optional extended headers,
-                // footers, non-canonical frame-size encodings, and every padding byte.
-                Id3TagUpdate(prefix.copyOfRange(0, tag.totalLength), tag.totalLength)
-            } else {
-                val frames = applyEdits(tag.version, tag.frames, edits)
-                val needed = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames)
-                // Keep the original footprint whenever the new frames still fit:
-                // the surplus becomes padding, the audio never moves, and the caller
-                // may patch just the head of the file instead of rewriting it.
-                val total = if (needed <= tag.totalLength) tag.totalLength else needed + PADDING
-                Id3Codec.serialize(tag.version, tag.isExperimental, frames, total)
-                    ?.let { Id3TagUpdate(it, tag.totalLength) }
+            is Id3Parse.Parsed -> {
+                val tag = parsed.tag
+                if (edits.isEmpty) {
+                    // Besides being cheaper, this preserves optional extended headers,
+                    // footers, non-canonical frame-size encodings, and every padding byte.
+                    Id3TagUpdate(prefix.copyOfRange(0, tag.totalLength), tag.totalLength)
+                } else if (erasesUnreadableNumber(tag.version, tag.frames, edits)) {
+                    null
+                } else {
+                    val frames = applyEdits(tag.version, Id3v1.migrate(tail, tag.version, tag.frames) ?: return null, edits)
+                    val needed = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames)
+                    // Keep the original footprint whenever the new frames still fit:
+                    // the surplus becomes padding, the audio never moves, and the caller
+                    // may patch just the head of the file instead of rewriting it.
+                    val total = if (needed <= tag.totalLength) tag.totalLength else needed + PADDING
+                    Id3Codec.serialize(tag.version, tag.isExperimental, frames, total)
+                        ?.let { Id3TagUpdate(it, tag.totalLength) }
+                }
             }
-        }
 
-        Id3Parse.Absent -> when {
-            !canPrependTag(prefix) -> null
-            edits.isEmpty -> Id3TagUpdate(prefix.copyOf(), prefix.size)
-            else -> {
-                val frames = applyEdits(newTagVersion, emptyList(), edits)
-                val total = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames) + PADDING
-                Id3Codec.serialize(newTagVersion, experimental = false, frames = frames, totalLength = total)
-                    ?.let { Id3TagUpdate(it, 0) }
+            Id3Parse.Absent -> when {
+                !canPrependTag(prefix) -> null
+                edits.isEmpty -> Id3TagUpdate(prefix.copyOf(), prefix.size)
+                else -> {
+                    val frames = applyEdits(newTagVersion, Id3v1.migrate(tail, newTagVersion, emptyList()) ?: return null, edits)
+                    val total = Id3Codec.HEADER_SIZE + Id3Codec.frameBytesLength(frames) + PADDING
+                    Id3Codec.serialize(newTagVersion, experimental = false, frames = frames, totalLength = total)
+                        ?.let { Id3TagUpdate(it, 0) }
+                }
             }
         }
     }
@@ -214,7 +357,9 @@ public object Id3Tags {
         edits: TagEdits,
         newTagVersion: Id3Version = Id3Version.V2_3,
     ): ByteArray? {
-        val update = buildUpdate(original, edits, newTagVersion) ?: return null
+        val oldLength = tagLength(original) ?: return null
+        val tail = original.copyOfRange(maxOf(oldLength.coerceAtMost(original.size), original.size - Id3v1.MAX_TRAILER_SIZE), original.size)
+        val update = buildUpdate(original, edits, newTagVersion, tail) ?: return null
         // A trailer that would reach back into the tag just rebuilt is a false
         // positive — `TAG` happening to fall 128 bytes from the end of a file
         // that is almost entirely tag. Keep every byte rather than cut audio on
@@ -246,21 +391,367 @@ public object Id3Tags {
         var result = frames
         result = setText(version, result, FRAME_TITLE, edits.title)
         result = setText(version, result, FRAME_ARTIST, edits.artist)
+        if (edits.artist != null) result = setCreditedArtists(version, result, edits.artist)
         result = setText(version, result, FRAME_ALBUM, edits.album)
+        result = setText(version, result, FRAME_ALBUM_ARTIST, edits.albumArtist)
         result = setText(version, result, FRAME_GENRE, edits.genre)
+        if (edits.genre != null) result = result.filterNot { isGenreFrame(version, it) }
 
         val yearFrame = if (version == Id3Version.V2_4) FRAME_YEAR_V24 else FRAME_YEAR_V23
         val staleYear = if (version == Id3Version.V2_4) FRAME_YEAR_V23 else FRAME_YEAR_V24
+        val oldYear = yearIn(version, result)
+        val newYear = edits.year?.let { normaliseYear(it, version) }
         result = setText(
             version = version,
             frames = result,
             id = yearFrame,
-            value = edits.year?.let { normaliseYear(it, version) },
+            value = newYear,
             // Drop the other version's year frame so the file cannot end up
             // carrying two years that disagree.
             alsoRemove = listOf(staleYear),
         )
+        if (edits.originalFollowsYear) result = moveOriginalDates(version, result, oldYear, newYear)
+        result = setText(
+            version,
+            result,
+            FRAME_TRACK,
+            composeNumber(textIn(version, result, FRAME_TRACK), edits.trackNumber, edits.trackTotal),
+        )
+        result = setText(
+            version,
+            result,
+            FRAME_DISC,
+            composeNumber(textIn(version, result, FRAME_DISC), edits.discNumber, edits.discTotal),
+        )
+        edits.lyrics?.let { result = setLyrics(version, result, it.trim()) }
+        result = setCover(version, result, edits.cover)
         return result
+    }
+
+    /** The year the editor shows: the version's own year frame, else the other version's. */
+    private fun yearIn(version: Id3Version, frames: List<Id3RawFrame>): String? = when (version) {
+        Id3Version.V2_4 -> textIn(version, frames, FRAME_YEAR_V24) ?: textIn(version, frames, FRAME_YEAR_V23)
+        Id3Version.V2_3 -> textIn(version, frames, FRAME_YEAR_V23) ?: textIn(version, frames, FRAME_YEAR_V24)
+    }
+
+    /**
+     * Rewrites, in place, every original-date frame that said the same year as [oldYear]
+     * ([OriginalDates]): TDOR/TORY on either version, whichever of the two the file has, and
+     * Picard's TXXX:ORIGINALYEAR/ORIGINALDATE. [newYear] is the value the year frame gets (already
+     * narrowed on ID3v2.3); the year-only TORY and ORIGINALYEAR get just its year. None is ever added.
+     */
+    private fun moveOriginalDates(
+        version: Id3Version,
+        frames: List<Id3RawFrame>,
+        oldYear: String?,
+        newYear: String?,
+    ): List<Id3RawFrame> = frames.map { frame ->
+        val date = originalDateIn(version, frame) ?: return@map frame
+        val moved = OriginalDates.moved(date, oldYear, newYear) ?: return@map frame
+        if (frame.id == FRAME_USER_TEXT) {
+            userTextFrame(version, userTextParts(version, frame)!!.first, moved)
+        } else {
+            newTextFrame(version, frame.id, moved)
+        }
+    }
+
+    /** The original-release date [frame] holds, or null when it is no readable original-date frame. */
+    private fun originalDateIn(version: Id3Version, frame: Id3RawFrame): OriginalDate? = when {
+        frame.id in ORIGINAL_FRAMES ->
+            textIn(version, listOf(frame), frame.id)?.let { OriginalDate(it, yearOnly = frame.id == FRAME_ORIGINAL_V23) }
+        else -> originalUserText(version, frame)?.let { yearOnly ->
+            userTextParts(version, frame)?.let { OriginalDate(it.second, yearOnly) }
+        }
+    }
+
+    /** For `TXXX:ORIGINALYEAR` (true) or `TXXX:ORIGINALDATE` (false), whether it is year-only; else null. */
+    private fun originalUserText(version: Id3Version, frame: Id3RawFrame): Boolean? =
+        if (frame.id != FRAME_USER_TEXT) null
+        else userTextParts(version, frame)?.first?.uppercase()?.let(ORIGINAL_DESCRIPTIONS::get)
+
+    /**
+     * The "n/total" text for TRCK/TPOS: null leaves the frame alone, "" removes it. Each half can
+     * change alone; without a number there is nothing for a total to belong to, so the frame goes.
+     * A pair that already reads as the requested numbers ("03/09" for 3 and 9) is kept as written.
+     * Callers refuse first when a total alone would erase an unreadable number (see
+     * [erasesUnreadableNumber]).
+     */
+    internal fun composeNumber(current: String?, number: String?, total: String?): String? {
+        if (number == null && total == null) return null
+        val currentNumber = TrackNumbers.parse(current)
+        val currentTotal = current?.substringAfter('/', "")?.takeIf { it.isNotEmpty() }?.let(TrackNumbers::parse)
+        val n = if (number == null) currentNumber else TagNumbers.strict(number)
+        val t = if (total == null) currentTotal else TagNumbers.strict(total)
+        return when {
+            current != null && n != null && n == currentNumber && t == currentTotal -> current
+            n == null -> ""
+            t == null -> "$n"
+            else -> "$n/$t"
+        }
+    }
+
+    /**
+     * True when [edits] change a total but not its number, and the number in the same TRCK/TPOS frame
+     * is text no reader takes as one ("A1", or past 999): [composeNumber] would erase it.
+     */
+    private fun erasesUnreadableNumber(version: Id3Version, frames: List<Id3RawFrame>, edits: TagEdits): Boolean =
+        erasesUnreadableNumber(textIn(version, frames, FRAME_TRACK), edits.trackNumber, edits.trackTotal) ||
+            erasesUnreadableNumber(textIn(version, frames, FRAME_DISC), edits.discNumber, edits.discTotal)
+
+    private fun erasesUnreadableNumber(current: String?, number: String?, total: String?): Boolean {
+        if (number != null || total == null || current == null) return false
+        val written = current.substringBefore('/').trim()
+        // Blank and zero are no number at all; there is nothing to lose.
+        return written.any { it != '0' } && TrackNumbers.parse(current) == null
+    }
+
+    /** Why [edits] cannot be applied to the tag in [prefix] although the tag itself is fine; null when they can. */
+    internal fun editRefusal(prefix: ByteArray, edits: TagEdits): TagRefusal? {
+        val tag = (Id3Codec.parse(prefix) as? Id3Parse.Parsed)?.tag ?: return null
+        return TagRefusal.UNREADABLE_NUMBER.takeIf { erasesUnreadableNumber(tag.version, tag.frames, edits) }
+    }
+
+    /**
+     * Rewrites `TXXX:ARTISTS` from a new display credit — only when the file already credits names
+     * in one (or in a `TXXX:ARTIST`, which it replaces), exactly when [TagSnapshot.artists] is not
+     * empty. A single name removes every such frame. Frames that credit no name are left as they
+     * are, as [TagSnapshot.expectedAfter] predicts for a file whose list reads empty.
+     */
+    private fun setCreditedArtists(version: Id3Version, frames: List<Id3RawFrame>, artist: String): List<Id3RawFrame> {
+        if (creditedNames(version, frames).isEmpty()) return frames
+        val first = frames.indexOfFirst { isArtistsFrame(version, it) }
+        val names = CreditedArtists.fromDisplay(artist)
+        val out = ArrayList<Id3RawFrame>(frames.size)
+        for ((index, frame) in frames.withIndex()) {
+            when {
+                index == first && names.isNotEmpty() -> out += userTextFrame(
+                    version,
+                    ARTISTS_DESCRIPTION,
+                    names.joinToString(if (version == Id3Version.V2_4) "\u0000" else "; "),
+                )
+                isArtistsFrame(version, frame) -> Unit
+                else -> out += frame
+            }
+        }
+        return out
+    }
+
+    /** Every name the `TXXX:ARTISTS` / `TXXX:ARTIST` frames credit, in file order: [TagSnapshot.artists]. */
+    private fun creditedNames(version: Id3Version, frames: List<Id3RawFrame>): List<String> =
+        frames.filter { isArtistsFrame(version, it) }
+            .flatMap { frame -> userTextParts(version, frame)?.second?.let(TagFacts::splitArtists).orEmpty() }
+
+    /** `TXXX:ARTISTS`, or `TXXX:ARTIST`, which the library reads as another credit for the same names. */
+    private fun isArtistsFrame(version: Id3Version, frame: Id3RawFrame): Boolean =
+        frame.id == FRAME_USER_TEXT && userTextParts(version, frame)?.first?.uppercase().let {
+            it == ARTISTS_DESCRIPTION || it == ARTIST_DESCRIPTION
+        }
+
+    /** `TXXX:GENRE`, which the library reads alongside `TCON`; a genre edit removes it. */
+    private fun isGenreFrame(version: Id3Version, frame: Id3RawFrame): Boolean =
+        frame.id == FRAME_USER_TEXT &&
+            userTextParts(version, frame)?.first?.equals(GENRE_DESCRIPTION, ignoreCase = true) == true
+
+    /** (description, value) of a TXXX frame, or null when its body is unreadable. */
+    private fun userTextParts(version: Id3Version, frame: Id3RawFrame): Pair<String, String>? {
+        val body = frameTextBody(frame, version) ?: return null
+        if (body.size < 2) return null
+        val encoding = body[0].toInt() and 0xFF
+        val end = terminatorIndex(body, 1, encoding)
+        val description = Id3Text.decode(encoding, body, 1, end)?.trim('\u0000')?.trim() ?: return null
+        val valueStart = minOf(body.size, end + terminatorLength(encoding))
+        val value = Id3Text.decode(encoding, body, valueStart, body.size)?.trim('\u0000') ?: return null
+        return description to value
+    }
+
+    private fun userTextFrame(version: Id3Version, description: String, value: String): Id3RawFrame {
+        // A NUL in the description would be read back as its own terminator, splitting the frame
+        // on the next parse. The value is left alone: TXXX:ARTISTS deliberately NUL-joins its
+        // names on ID3v2.4, and that separator must survive.
+        val cleanDescription = description.replace("\u0000", "")
+        val encoding = chooseEncoding(version, cleanDescription, value)
+        val body = byteArrayOf(encoding.toByte()) + encodeText(encoding, cleanDescription) + terminator(encoding) +
+            encodeText(encoding, value)
+        return Id3RawFrame(FRAME_USER_TEXT, byteArrayOf(0, 0), body)
+    }
+
+    /**
+     * The text of every readable `COMM` frame in [frames]. A comment has the lyrics frame's layout
+     * (encoding, language, descriptor, text), so it is read the same way; a compressed or
+     * encrypted one is skipped.
+     */
+    internal fun commentTexts(version: Id3Version, frames: List<Id3RawFrame>): List<String> =
+        frames.filter { it.id == FRAME_COMMENT }.mapNotNull { lyricsParts(version, it)?.text }
+
+    /**
+     * A `COMM` frame holding [text], encoded as [chooseEncoding] picks for any other text, so a
+     * comment that is not plain Latin-1 reads back as itself.
+     */
+    internal fun commentFrame(version: Id3Version, language: String, description: String, text: String): Id3RawFrame {
+        val encoding = chooseEncoding(version, description, text)
+        val body = byteArrayOf(encoding.toByte()) + ByteArray(3) { language[it].code.toByte() } +
+            encodeText(encoding, description) + terminator(encoding) + encodeText(encoding, text)
+        return Id3RawFrame(FRAME_COMMENT, byteArrayOf(0, 0), body)
+    }
+
+    private class LyricsParts(val language: String, val descriptor: String, val text: String)
+
+    private fun lyricsParts(version: Id3Version, frame: Id3RawFrame): LyricsParts? {
+        val body = frameTextBody(frame, version) ?: return null
+        if (body.size < 4) return null
+        val encoding = body[0].toInt() and 0xFF
+        val language = CharArray(3) { (body[1 + it].toInt() and 0xFF).toChar() }.concatToString()
+        val end = terminatorIndex(body, 4, encoding)
+        val descriptor = Id3Text.decode(encoding, body, 4, end)?.trim('\u0000') ?: return null
+        val textStart = minOf(body.size, end + terminatorLength(encoding))
+        val text = Id3Text.decode(encoding, body, textStart, body.size)?.trim('\u0000') ?: return null
+        return LyricsParts(language, descriptor, text)
+    }
+
+    /**
+     * Replaces the lyrics frame [lyrics] reads (the first non-blank USLT, else the first USLT),
+     * keeping its language and descriptor. Other-language frames stay. "" removes every USLT: "no
+     * lyrics" means none, not another language's frame taking the removed one's place.
+     *
+     * A target that already holds exactly [lyrics] is left byte for byte as it is — a UTF-16
+     * frame is not rewritten as Latin-1 just because the user saved without changing the words.
+     */
+    private fun setLyrics(version: Id3Version, frames: List<Id3RawFrame>, lyrics: String): List<Id3RawFrame> {
+        val candidates = frames.withIndex().filter { it.value.id == FRAME_LYRICS }
+        val target = candidates.firstOrNull { lyricsParts(version, it.value)?.text?.isNotBlank() == true }
+            ?: candidates.firstOrNull()
+        if (lyrics.isEmpty()) return frames.filter { it.id != FRAME_LYRICS }
+        val parts = target?.let { lyricsParts(version, it.value) }
+        if (parts != null && parts.text.trim() == lyrics) return frames
+        val language = parts?.language ?: "XXX"
+        // An embedded NUL in either string would be read back as its own terminator, splitting
+        // the frame on the next parse.
+        val descriptor = (parts?.descriptor ?: "").replace("\u0000", "")
+        val cleanLyrics = lyrics.replace("\u0000", "")
+        val encoding = chooseEncoding(version, descriptor, cleanLyrics)
+        val body = byteArrayOf(encoding.toByte()) + ByteArray(3) { language[it].code.toByte() } +
+            encodeText(encoding, descriptor) + terminator(encoding) + encodeText(encoding, cleanLyrics)
+        val frame = Id3RawFrame(FRAME_LYRICS, byteArrayOf(0, 0), body)
+        return if (target == null) frames + frame else frames.toMutableList().also { it[target.index] = frame }
+    }
+
+    /** The picture [readFields] calls the cover, as stored; null when the tag has none or is refused. */
+    internal fun readCover(prefix: ByteArray): CoverPicture? {
+        val tag = (Id3Codec.parse(prefix) as? Id3Parse.Parsed)?.tag ?: return null
+        return coverTarget(tag.version, tag.frames)?.let { CoverPicture(it.data, it.mime) }
+    }
+
+    private class PictureFrame(
+        val index: Int,
+        val type: Int,
+        val mime: String,
+        /** Encoding byte, description and its terminator, exactly as stored. */
+        val descriptionBytes: ByteArray,
+        val data: ByteArray,
+    )
+
+    private fun pictures(version: Id3Version, frames: List<Id3RawFrame>): List<PictureFrame> =
+        frames.withIndex()
+            .filter { it.value.id == FRAME_PICTURE }
+            .mapNotNull { (index, frame) -> parsePicture(version, index, frame) }
+
+    private fun parsePicture(version: Id3Version, index: Int, frame: Id3RawFrame): PictureFrame? {
+        val body = frameTextBody(frame, version) ?: return null
+        if (body.isEmpty()) return null
+        val encoding = body[0].toInt() and 0xFF
+        var p = 1
+        while (p < body.size && body[p] != 0.toByte()) p++
+        if (p + 1 >= body.size) return null
+        val mime = CharArray(p - 1) { (body[1 + it].toInt() and 0xFF).toChar() }.concatToString()
+        p += 1
+        val type = body[p].toInt() and 0xFF
+        p += 1
+        val descriptionEnd = terminatorIndex(body, p, encoding)
+        val dataStart = descriptionEnd + terminatorLength(encoding)
+        if (dataStart > body.size) return null
+        return PictureFrame(
+            index = index,
+            type = type,
+            mime = mime,
+            descriptionBytes = byteArrayOf(encoding.toByte()) + body.copyOfRange(p, dataStart),
+            data = body.copyOfRange(dataStart, body.size),
+        )
+    }
+
+    private fun coverTarget(version: Id3Version, frames: List<Id3RawFrame>): PictureFrame? {
+        val pictures = pictures(version, frames)
+        return CoverTarget.index(pictures.map { it.type })?.let { pictures[it] }
+    }
+
+    private fun setCover(version: Id3Version, frames: List<Id3RawFrame>, edit: CoverEdit): List<Id3RawFrame> {
+        if (edit == CoverEdit.Keep) return frames
+        val target = coverTarget(version, frames)
+        return when (edit) {
+            CoverEdit.Keep -> frames
+            CoverEdit.Remove ->
+                if (target == null) frames else frames.filterIndexed { index, _ -> index != target.index }
+            is CoverEdit.Replace -> {
+                val description = target?.descriptionBytes ?: byteArrayOf(0, 0)
+                val body = byteArrayOf(description[0]) +
+                    ByteArray(edit.mime.length) { edit.mime[it].code.toByte() } +
+                    byteArrayOf(0, FlacPicture.FRONT_COVER.toByte()) +
+                    description.copyOfRange(1, description.size) +
+                    edit.bytes
+                val frame = Id3RawFrame(FRAME_PICTURE, byteArrayOf(0, 0), body)
+                if (target == null) frames + frame else frames.toMutableList().also { it[target.index] = frame }
+            }
+        }
+    }
+
+    /**
+     * Latin-1 when every text fits and reads back as itself (see [Id3Text.isUnambiguousLatin1]);
+     * otherwise UTF-8 on 2.4 and UTF-16 with BOM on 2.3.
+     */
+    private fun chooseEncoding(version: Id3Version, vararg texts: String): Int = when {
+        texts.all(Id3Text::isUnambiguousLatin1) -> 0
+        version == Id3Version.V2_4 -> 3
+        else -> 1
+    }
+
+    private fun encodeText(encoding: Int, text: String): ByteArray = when (encoding) {
+        0 -> ByteArray(text.length) { text[it].code.toByte() }
+        3 -> text.encodeToByteArray()
+        1 -> {
+            val out = ByteArray(2 + text.length * 2)
+            out[0] = 0xFF.toByte()
+            out[1] = 0xFE.toByte()
+            for ((i, c) in text.withIndex()) {
+                out[2 + i * 2] = (c.code and 0xFF).toByte()
+                out[3 + i * 2] = (c.code shr 8).toByte()
+            }
+            out
+        }
+        else -> error("encoding $encoding is never chosen for writing")
+    }
+
+    private fun terminator(encoding: Int): ByteArray =
+        if (encoding == 1 || encoding == 2) byteArrayOf(0, 0) else byteArrayOf(0)
+
+    private fun terminatorLength(encoding: Int): Int = if (encoding == 1 || encoding == 2) 2 else 1
+
+    /** Index of the string terminator starting the search at [from]; [body].size when there is none. */
+    private fun terminatorIndex(body: ByteArray, from: Int, encoding: Int): Int {
+        var i = from
+        if (encoding == 1 || encoding == 2) {
+            while (i + 1 < body.size && !(body[i] == 0.toByte() && body[i + 1] == 0.toByte())) i += 2
+            return minOf(i, body.size)
+        }
+        while (i < body.size && body[i] != 0.toByte()) i++
+        return i
+    }
+
+    /** Decoded text of the first frame with [id] in [frames], NUL-separated values joined by "; ". */
+    private fun textIn(version: Id3Version, frames: List<Id3RawFrame>, id: String): String? {
+        val frame = frames.firstOrNull { it.id == id } ?: return null
+        val body = frameTextBody(frame, version) ?: return null
+        if (body.isEmpty()) return null
+        val raw = Id3Text.decode(body[0].toInt() and 0xFF, body, 1, body.size) ?: return null
+        return raw.split('\u0000').filter { it.isNotEmpty() }.joinToString("; ").ifEmpty { null }
     }
 
     /**
@@ -279,6 +770,10 @@ public object Id3Tags {
     ): List<Id3RawFrame> {
         if (value == null) return frames
         val doomed = alsoRemove + id
+        // A frame that already says exactly this stays as it is — a UTF-16 "Song" is not rewritten
+        // as Latin-1 "Song" just because the user saved without changing it.
+        val same = frames.firstOrNull { it.id == id }
+            ?.takeIf { value.isNotEmpty() && textIn(version, listOf(it), id) == value }
         val out = ArrayList<Id3RawFrame>(frames.size + 1)
         var placed = false
         for (frame in frames) {
@@ -287,7 +782,7 @@ public object Id3Tags {
                 continue
             }
             if (frame.id == id && !placed && value.isNotEmpty()) {
-                out.add(newTextFrame(version, id, value))
+                out.add(same ?: newTextFrame(version, id, value))
                 placed = true
             }
             // Every other match is dropped: duplicates of the frame we just
@@ -377,18 +872,7 @@ public object Id3Tags {
     /** Artist and genre frame texts for the comment mapping; null-joined values flattened. */
     internal fun artistValues(prefix: ByteArray): List<String> = textValues(prefix, FRAME_ARTIST)
 
-    private fun text(tag: Id3RawTag, id: String): String? {
-        val frame = tag.frames.firstOrNull { it.id == id } ?: return null
-        val body = frameTextBody(frame, tag.version) ?: return null
-        if (body.isEmpty()) return null
-        val raw = Id3Text.decode(body[0].toInt() and 0xFF, body, 1, body.size) ?: return null
-        // ID3v2.4 allows several NUL-separated values in one text frame. They
-        // are flattened for display; the frame is only ever rewritten wholesale.
-        return raw.split('\u0000')
-            .filter { it.isNotEmpty() }
-            .joinToString("; ")
-            .ifEmpty { null }
-    }
+    private fun text(tag: Id3RawTag, id: String): String? = textIn(tag.version, tag.frames, id)
 
     /**
      * Strips the optional per-frame prefixes so the encoding byte is really the
@@ -425,7 +909,7 @@ public object Id3Tags {
      * and routinely supported. A filename or a non-match against a list of known
      * containers is not evidence that prepending bytes is safe.
      */
-    private fun canPrependTag(data: ByteArray): Boolean =
+    internal fun canPrependTag(data: ByteArray): Boolean =
         looksLikeMpegAudioFrame(data) || looksLikeAdtsFrame(data)
 
     /** Validates the fixed fields of an MPEG-1/2/2.5 audio frame header. */

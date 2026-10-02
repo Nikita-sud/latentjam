@@ -253,11 +253,43 @@
     <string name="info_edit">تعديل الوسوم</string>
     <string name="info_save">حفظ</string>
     <string name="info_cancel">إلغاء</string>
+    <string name="editor_discard_title">هل تريد تجاهل التغييرات؟</string>
+    <string name="editor_discard">تجاهل</string>
+    <string name="editor_keep_editing">متابعة التعديل</string>
     <string name="info_saving">جارٍ الحفظ…</string>
-    <string name="info_edit_note">يُحفظ في الملف نفسه، فترى كل التطبيقات التصحيح. سيطلب Android الإذن لتعديل الملف.</string>
+    <string name="info_edit_note">يُحفظ في الملف نفسه، فترى كل التطبيقات التصحيح. قد يُطلب منك إذن لتعديل الملف.</string>
     <string name="info_edit_refused">وسوم هذا الملف بصيغة لا يمكن إعادة كتابتها بأمان، لذلك لم يتغير شيء.</string>
     <string name="info_edit_failed">تعذّرت الكتابة إلى هذا الملف. تُرك كما كان.</string>
-    <string name="info_edit_unavailable">تعديل الوسوم غير متاح على هذا الجهاز.</string>
+    <string name="info_edit_no_space">لا توجد مساحة فارغة كافية لحفظ هذه الوسوم بأمان. لم يتغير شيء.</string>
+    <string name="info_edit_recovery_pending">توقّف الحفظ. سيُكمله LatentJam أو يتراجع عنه في المرة التالية التي يُسمح له فيها بالكتابة إلى الملف.</string>
+    <string name="tag_recovery_title">إكمال حفظ الوسوم</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="zero">توقّف LatentJam أثناء حفظ الوسوم في %1$d ملف. يمكنه إكمال التغييرات الآن، أو التراجع عنها حيث يتعذر إكمال الملف.</item>
+        <item quantity="one">توقّف LatentJam أثناء حفظ الوسوم في ملف واحد (%1$d). يمكنه إكمال التغيير الآن، أو التراجع عنه إذا تعذر إكمال الملف.</item>
+        <item quantity="two">توقّف LatentJam أثناء حفظ الوسوم في ملفين (%1$d). يمكنه إكمال التغييرين الآن، أو التراجع عنهما حيث يتعذر إكمال ملف.</item>
+        <item quantity="few">توقّف LatentJam أثناء حفظ الوسوم في %1$d ملفات. يمكنه إكمال التغييرات الآن، أو التراجع عنها حيث يتعذر إكمال ملف.</item>
+        <item quantity="many">توقّف LatentJam أثناء حفظ الوسوم في %1$d ملفًا. يمكنه إكمال التغييرات الآن، أو التراجع عنها حيث يتعذر إكمال ملف.</item>
+        <item quantity="other">توقّف LatentJam أثناء حفظ الوسوم في %1$d ملف. يمكنه إكمال التغييرات الآن، أو التراجع عنها حيث يتعذر إكمال ملف.</item>
+    </plurals>
+    <string name="tag_recovery_finish">إكمال</string>
+    <string name="tag_recovery_later">لاحقًا</string>
+    <string name="tag_problem_unsupported_format">لا يستطيع LatentJam تعديل هذا النوع من الملفات.</string>
+    <string name="tag_problem_damaged">يبدو هذا الملف تالفًا، لذلك تُرك كما هو.</string>
+    <string name="tag_problem_protected">هذا الملف محمي من النسخ ولا يمكن تغييره.</string>
+    <string name="tag_problem_tags_too_large">ستكون الوسوم أكبر من أن يتسع لها هذا الملف.</string>
+    <string name="tag_problem_bad_number">يجب أن يكون رقم المقطع ورقم القرص عددين صحيحين من 1 إلى 999.</string>
+    <string name="tag_problem_number_unreadable">رقم المقطع أو القرص المكتوب في الملف ليس رقمًا عاديًا، لذلك لا يمكن تغيير إجماليه وحده.</string>
+    <string name="tag_problem_bad_image">الصورة ليست بصيغة JPEG أو PNG.</string>
+    <string name="tag_problem_read_only_storage">هذا الملف موجود على وحدة تخزين لا يمكن الكتابة إليها.</string>
+    <string name="tag_problem_music_library">لا يمكن تعديل الأغاني من مكتبة الموسيقى، بل فقط الأغاني المستوردة إلى LatentJam.</string>
+    <string name="tag_problem_unreadable">تعذّرت قراءة هذا الملف.</string>
+    <string name="tag_problem_not_allowed">لم يُمنح الإذن بتغيير الملف.</string>
+    <string name="tag_problem_missing">الملف لم يعد موجودًا.</string>
+    <string name="tag_problem_stopped">تم الإيقاف قبل الوصول إلى هذا الملف.</string>
+    <string name="tag_problem_cancelled">أُغلق طلب الإذن.</string>
+    <string name="tag_problem_undone">أُلغي حفظ متوقف: الملف كما كان من قبل.</string>
+    <string name="tag_problem_changed_elsewhere">غيّر تطبيق آخر الملف بعد توقف الحفظ، لذلك تُرك كما هو.</string>
+    <string name="tag_problem_lost">تعذّر على LatentJam معرفة كيف انتهى هذا الحفظ. تحقّق من وسوم الملف.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">الإعدادات</string>
@@ -431,6 +463,21 @@
     <string name="settings_hidden_tracks">المقاطع المخفية</string>
     <string name="settings_hidden_tracks_body">مقاطع مخفية في LatentJam فقط. يمكنك استعادة أي مقطع من دون تغيير ملفه.</string>
     <string name="settings_hidden_tracks_empty">لا توجد مقاطع مخفية في LatentJam.</string>
+    <string name="settings_interrupted_saves">عمليات حفظ متوقفة</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="zero">توقّف حفظ الوسوم في %1$d ملف. سيُكمل LatentJam كل حفظ أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+        <item quantity="one">توقّف حفظ الوسوم في ملف واحد (%1$d). سيُكمله LatentJam أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+        <item quantity="two">توقّف حفظ الوسوم في ملفين (%1$d). سيُكمل LatentJam كل حفظ أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+        <item quantity="few">توقّف حفظ الوسوم في %1$d ملفات. سيُكمل LatentJam كل حفظ أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+        <item quantity="many">توقّف حفظ الوسوم في %1$d ملفًا. سيُكمل LatentJam كل حفظ أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+        <item quantity="other">توقّف حفظ الوسوم في %1$d ملف. سيُكمل LatentJam كل حفظ أو يتراجع عنه عندما يُسمح له بالكتابة إلى الملف.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">إكمال الآن</string>
+    <string name="settings_interrupted_being_repaired">قيد الإصلاح: لن يُشغَّل حتى يكتمل</string>
+    <string name="settings_interrupted_forget">نسيان</string>
+    <string name="settings_interrupted_forget_title">هل تريد نسيان هذا الحفظ؟</string>
+    <string name="settings_interrupted_forget_body">يبقى الملف كما هو الآن، ويتوقف LatentJam عن محاولة إكمال الحفظ أو التراجع عنه. لا يمكن التراجع عن هذا.</string>
+    <string name="settings_interrupted_forget_damaged_body">توقّف هذا الحفظ في منتصفه. قد يكون الملف تالفًا وقد لا يُشغَّل، ونسيانه يحذف النسخ التي يمكن لـ LatentJam إصلاحه منها. لا يمكن التراجع عن هذا.</string>
     <string name="settings_duplicates">التكرارات الصوتية</string>
     <string name="settings_duplicates_body">يعثر على نسخ التسجيل نفسه بالصوت، بغض النظر عن الوسوم</string>
     <string name="settings_duplicates_scanning">تتم مقارنة جميع المقاطع…</string>
@@ -438,6 +485,11 @@
     <string name="settings_restore">استعادة</string>
     <string name="settings_restore_all">استعادة الكل</string>
     <string name="settings_library_manage_failed">تعذر تحديث المكتبة. حاول مرة أخرى.</string>
+    <string name="settings_lyrics_folders">مجلدات ملفات LRC</string>
+    <string name="settings_lyrics_folders_body">يسألك Android عن المجلد المسموح به. بعدها يُستخدم ملف LRC الذي يحمل اسم الأغنية لعرض كلماتها.</string>
+    <string name="settings_lyrics_folders_add">إضافة مجلد</string>
+    <string name="settings_lyrics_folders_remove">إزالة</string>
+    <string name="settings_lyrics_folders_failed">لا يمكن استخدام هذا المجلد. اختر مجلدًا في مساحة تخزين هذا الجهاز.</string>
 
     <string name="settings_licenses">تراخيص المصادر المفتوحة</string>
     <string name="settings_licenses_body">إشعارات LatentJam والنماذج المضمّنة وبرامج الجهات الخارجية</string>
@@ -522,7 +574,131 @@
     <string name="duplicates_keep_this">احتفظ بهذه</string>
     <string name="snack_duplicates_merged">تم دمج التكرارات: تشير قوائم التشغيل الآن إلى النسخة المحتفَظ بها</string>
     <string name="info_lyrics">كلمات الأغنية</string>
-    <string name="lyrics_not_found">لم يتم العثور على كلمات مضمّنة لهذه الأغنية.</string>
+    <string name="info_album_artist">فنان الألبوم</string>
+    <string name="info_track_number">رقم المقطع</string>
+    <string name="info_track_total">إجمالي المقاطع</string>
+    <string name="info_disc_number">رقم القرص</string>
+    <string name="info_disc_total">إجمالي الأقراص</string>
+    <string name="info_cover">الغلاف</string>
+    <string name="info_cover_replace">استبدال</string>
+    <string name="info_cover_remove">إزالة</string>
+    <string name="info_cover_keep">الإبقاء على الحالي</string>
+    <string name="info_cover_new">غلاف جديد</string>
+    <string name="info_cover_removed">ستتم إزالة الغلاف.</string>
+    <plurals name="info_cover_more">
+        <item quantity="zero">+%1$d صورة أخرى في الملف، ستبقى كما هي</item>
+        <item quantity="one">+%1$d صورة أخرى في الملف، ستبقى كما هي</item>
+        <item quantity="two">+%1$d صورتان أخريان في الملف، ستبقيان كما هما</item>
+        <item quantity="few">+%1$d صور أخرى في الملف، ستبقى كما هي</item>
+        <item quantity="many">+%1$d صورة أخرى في الملف، ستبقى كما هي</item>
+        <item quantity="other">+%1$d صورة أخرى في الملف، ستبقى كما هي</item>
+    </plurals>
+    <string name="info_reading_file">جارٍ قراءة الملف…</string>
+    <string name="action_edit_album">تعديل الألبوم</string>
+    <string name="action_edit_artist">تعديل الفنان</string>
+    <string name="action_edit_short">تعديل</string>
+    <plurals name="count_files">
+        <item quantity="zero">%1$d ملف</item>
+        <item quantity="one">%1$d ملف</item>
+        <item quantity="two">%1$d ملفان</item>
+        <item quantity="few">%1$d ملفات</item>
+        <item quantity="many">%1$d ملفًا</item>
+        <item quantity="other">%1$d ملف</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="zero">%1$d حقل</item>
+        <item quantity="one">%1$d حقل</item>
+        <item quantity="two">%1$d حقلان</item>
+        <item quantity="few">%1$d حقول</item>
+        <item quantity="many">%1$d حقلًا</item>
+        <item quantity="other">%1$d حقل</item>
+    </plurals>
+    <string name="bulk_save">تعديل %1$s في %2$s</string>
+    <string name="bulk_reading">جارٍ قراءة %1$d من %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="zero">لا يمكن تعديل %1$d ملف، وسيبقى كما هو:</item>
+        <item quantity="one">لا يمكن تعديل %1$d ملف، وسيبقى كما هو:</item>
+        <item quantity="two">لا يمكن تعديل %1$d ملفين، وسيبقيان كما هما:</item>
+        <item quantity="few">لا يمكن تعديل %1$d ملفات، وستبقى كما هي:</item>
+        <item quantity="many">لا يمكن تعديل %1$d ملفًا، وستبقى كما هي:</item>
+        <item quantity="other">لا يمكن تعديل %1$d ملف، وستبقى كما هي:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="zero">و%1$d أخرى</item>
+        <item quantity="one">و%1$d أخرى</item>
+        <item quantity="two">و%1$d أخرى</item>
+        <item quantity="few">و%1$d أخرى</item>
+        <item quantity="many">و%1$d أخرى</item>
+        <item quantity="other">و%1$d أخرى</item>
+    </plurals>
+    <string name="bulk_nothing_editable">لا يمكن تعديل أي من هذه الملفات.</string>
+    <string name="bulk_different">قيم مختلفة</string>
+    <plurals name="bulk_removed">
+        <item quantity="zero">أُزيل من %1$d ملف</item>
+        <item quantity="one">أُزيل من %1$d ملف</item>
+        <item quantity="two">أُزيل من جميع الملفات (%1$d)</item>
+        <item quantity="few">أُزيل من جميع الملفات (%1$d)</item>
+        <item quantity="many">أُزيل من جميع الملفات (%1$d)</item>
+        <item quantity="other">أُزيل من جميع الملفات (%1$d)</item>
+    </plurals>
+    <string name="bulk_remove_field">إزالة من كل الملفات</string>
+    <string name="bulk_keep_field">الإبقاء كما هو</string>
+    <string name="bulk_kept">سيبقى كما هو: %1$s</string>
+    <string name="bulk_saving">تم حفظ %1$d من %2$d</string>
+    <string name="bulk_stop">إيقاف</string>
+    <string name="bulk_result">تم حفظ %1$d من %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="zero">%1$d ملف لم يتغيّر:</item>
+        <item quantity="one">%1$d ملف لم يتغيّر:</item>
+        <item quantity="two">%1$d ملفان لم يتغيّرا:</item>
+        <item quantity="few">%1$d ملفات لم تتغيّر:</item>
+        <item quantity="many">%1$d ملفًا لم تتغيّر:</item>
+        <item quantity="other">%1$d ملف لم تتغيّر:</item>
+    </plurals>
+    <string name="bulk_done">تم</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="zero">حُفظت الوسوم في %1$d ملف</item>
+        <item quantity="one">حُفظت الوسوم في %1$d ملف</item>
+        <item quantity="two">حُفظت الوسوم في %1$d ملفين</item>
+        <item quantity="few">حُفظت الوسوم في %1$d ملفات</item>
+        <item quantity="many">حُفظت الوسوم في %1$d ملفًا</item>
+        <item quantity="other">حُفظت الوسوم في %1$d ملف</item>
+    </plurals>
+    <string name="tags_saved_partly">حُفظت الوسوم في %1$d من أصل %2$d ملف</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="zero">اكتمل حفظ %1$d ملف</item>
+        <item quantity="one">اكتمل حفظ %1$d ملف</item>
+        <item quantity="two">اكتمل حفظ %1$d ملفين</item>
+        <item quantity="few">اكتمل حفظ %1$d ملفات</item>
+        <item quantity="many">اكتمل حفظ %1$d ملفًا</item>
+        <item quantity="other">اكتمل حفظ %1$d ملف</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="zero">أُلغيت %1$d عملية حفظ متوقفة؛ الملفات كما كانت</item>
+        <item quantity="one">أُلغيت %1$d عملية حفظ متوقفة؛ الملف كما كان</item>
+        <item quantity="two">أُلغيت %1$d عمليتا حفظ متوقفتان؛ الملفان كما كانا</item>
+        <item quantity="few">أُلغيت %1$d عمليات حفظ متوقفة؛ الملفات كما كانت</item>
+        <item quantity="many">أُلغيت %1$d عملية حفظ متوقفة؛ الملفات كما كانت</item>
+        <item quantity="other">أُلغيت %1$d عملية حفظ متوقفة؛ الملفات كما كانت</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="zero">غيّر تطبيق آخر %1$d ملف، لذلك تُركت كما هي</item>
+        <item quantity="one">غيّر تطبيق آخر %1$d ملف، لذلك تُرك كما هو</item>
+        <item quantity="two">غيّر تطبيق آخر %1$d ملفين، لذلك تُركا كما هما</item>
+        <item quantity="few">غيّر تطبيق آخر %1$d ملفات، لذلك تُركت كما هي</item>
+        <item quantity="many">غيّر تطبيق آخر %1$d ملفًا، لذلك تُركت كما هي</item>
+        <item quantity="other">غيّر تطبيق آخر %1$d ملف، لذلك تُركت كما هي</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="zero">تعذّر حتى الآن إكمال حفظ %1$d ملف. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="one">تعذّر حتى الآن إكمال حفظ %1$d ملف. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="two">تعذّر حتى الآن إكمال حفظ %1$d ملفين. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="few">تعذّر حتى الآن إكمال حفظ %1$d ملفات. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="many">تعذّر حتى الآن إكمال حفظ %1$d ملفًا. راجع الإعدادات ← المكتبة.</item>
+        <item quantity="other">تعذّر حتى الآن إكمال حفظ %1$d ملف. راجع الإعدادات ← المكتبة.</item>
+    </plurals>
+    <string name="lyrics_not_found">لم يتم العثور على كلمات لهذه الأغنية.</string>
     <string name="cd_scroll_to_top">العودة إلى الأعلى</string>
     <string name="foryou_section_daypart_morning">صباحاتك</string>
     <string name="foryou_section_daypart_day">فترات ظهيرتك</string>

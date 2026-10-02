@@ -231,11 +231,39 @@
     <string name="info_edit">Editar etiquetas</string>
     <string name="info_save">Guardar</string>
     <string name="info_cancel">Cancelar</string>
+    <string name="editor_discard_title">¿Descartar los cambios?</string>
+    <string name="editor_discard">Descartar</string>
+    <string name="editor_keep_editing">Seguir editando</string>
     <string name="info_saving">Guardando…</string>
-    <string name="info_edit_note">Se guarda en el propio archivo, así que todas las aplicaciones ven la corrección. Android pedirá permiso para modificar el archivo.</string>
+    <string name="info_edit_note">Se guarda en el propio archivo, así que todas las aplicaciones ven la corrección. Es posible que se te pida permiso para modificar el archivo.</string>
     <string name="info_edit_refused">Las etiquetas de este archivo tienen un formato que no se puede reescribir de forma segura, así que no se ha cambiado nada.</string>
     <string name="info_edit_failed">No se pudo escribir en este archivo. Se ha dejado como estaba.</string>
-    <string name="info_edit_unavailable">La edición de etiquetas no está disponible en este dispositivo.</string>
+    <string name="info_edit_no_space">No hay suficiente espacio libre para guardar estas etiquetas de forma segura. No se ha cambiado nada.</string>
+    <string name="info_edit_recovery_pending">Se interrumpió el guardado. LatentJam lo terminará o lo deshará la próxima vez que pueda escribir en el archivo.</string>
+    <string name="tag_recovery_title">Terminar de guardar las etiquetas</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam se interrumpió mientras guardaba etiquetas en %1$d archivo. Puede terminar el cambio ahora, o deshacerlo si el archivo no se puede terminar.</item>
+        <item quantity="other">LatentJam se interrumpió mientras guardaba etiquetas en %1$d archivos. Puede terminar los cambios ahora, o deshacerlos donde un archivo no se pueda terminar.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Terminar</string>
+    <string name="tag_recovery_later">Más tarde</string>
+    <string name="tag_problem_unsupported_format">LatentJam no puede editar este tipo de archivo.</string>
+    <string name="tag_problem_damaged">Este archivo parece dañado, así que se ha dejado como está.</string>
+    <string name="tag_problem_protected">Este archivo está protegido contra copia y no se puede cambiar.</string>
+    <string name="tag_problem_tags_too_large">Las etiquetas serían demasiado grandes para este archivo.</string>
+    <string name="tag_problem_bad_number">Los números de canción y de disco deben ser números enteros del 1 al 999.</string>
+    <string name="tag_problem_number_unreadable">El número de canción o de disco del propio archivo no es un número simple, así que su total no se puede cambiar por separado.</string>
+    <string name="tag_problem_bad_image">La imagen no es un JPEG ni un PNG.</string>
+    <string name="tag_problem_read_only_storage">Este archivo está en un almacenamiento en el que no se puede escribir.</string>
+    <string name="tag_problem_music_library">Las canciones de la biblioteca musical no se pueden editar, solo las importadas a LatentJam.</string>
+    <string name="tag_problem_unreadable">No se pudo leer este archivo.</string>
+    <string name="tag_problem_not_allowed">No se concedió permiso para cambiar el archivo.</string>
+    <string name="tag_problem_missing">El archivo ya no está.</string>
+    <string name="tag_problem_stopped">Detenido antes de este archivo.</string>
+    <string name="tag_problem_cancelled">Se cerró la solicitud de permiso.</string>
+    <string name="tag_problem_undone">Se deshizo un guardado interrumpido: el archivo está como antes.</string>
+    <string name="tag_problem_changed_elsewhere">Otra aplicación cambió el archivo después de interrumpirse el guardado, así que se ha dejado como está.</string>
+    <string name="tag_problem_lost">LatentJam no pudo saber cómo terminó este guardado. Comprueba las etiquetas del archivo.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ajustes</string>
@@ -405,6 +433,17 @@
     <string name="settings_hidden_tracks">Canciones ocultas</string>
     <string name="settings_hidden_tracks_body">Canciones ocultas solo en LatentJam. Restaura cualquier canción sin modificar su archivo.</string>
     <string name="settings_hidden_tracks_empty">No hay canciones ocultas en LatentJam.</string>
+    <string name="settings_interrupted_saves">Guardados interrumpidos</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">Se interrumpió el guardado de etiquetas en %1$d archivo. LatentJam lo terminará o lo deshará en cuanto pueda escribir en el archivo.</item>
+        <item quantity="other">Se interrumpió el guardado de etiquetas en %1$d archivos. LatentJam terminará o deshará cada uno en cuanto pueda escribir en el archivo.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Terminar ahora</string>
+    <string name="settings_interrupted_being_repaired">En reparación: no se reproduce hasta que termine</string>
+    <string name="settings_interrupted_forget">Olvidar</string>
+    <string name="settings_interrupted_forget_title">¿Olvidar este guardado?</string>
+    <string name="settings_interrupted_forget_body">El archivo se queda exactamente como está ahora y LatentJam deja de intentar terminar o deshacer el guardado. No se puede deshacer.</string>
+    <string name="settings_interrupted_forget_damaged_body">Este guardado se detuvo a medias. Puede que el archivo esté dañado y no se reproduzca, y al olvidarlo se borran las copias con las que LatentJam podría repararlo. No se puede deshacer.</string>
     <string name="settings_duplicates">Duplicados de audio</string>
     <string name="settings_duplicates_body">Encuentra copias de la misma grabación por el sonido, digan lo que digan las etiquetas</string>
     <string name="settings_duplicates_scanning">Comparando todos los pares de pistas…</string>
@@ -412,6 +451,11 @@
     <string name="settings_restore">Restaurar</string>
     <string name="settings_restore_all">Restaurar todo</string>
     <string name="settings_library_manage_failed">No se pudo actualizar la biblioteca. Inténtalo de nuevo.</string>
+    <string name="settings_lyrics_folders">Carpetas con archivos .lrc</string>
+    <string name="settings_lyrics_folders_body">Android te pregunta qué carpeta permitir. Después se usa como letra el archivo .lrc con el mismo nombre que la canción.</string>
+    <string name="settings_lyrics_folders_add">Añadir carpeta</string>
+    <string name="settings_lyrics_folders_remove">Quitar</string>
+    <string name="settings_lyrics_folders_failed">No se puede usar esta carpeta. Elige una del almacenamiento de este dispositivo.</string>
 
     <string name="settings_licenses">Licencias de código abierto</string>
     <string name="settings_licenses_body">Avisos de LatentJam, los modelos incluidos y el software de terceros</string>
@@ -496,7 +540,83 @@
     <string name="duplicates_keep_this">Conservar esta</string>
     <string name="snack_duplicates_merged">Duplicados combinados: las listas ahora apuntan a la copia conservada</string>
     <string name="info_lyrics">Letra</string>
-    <string name="lyrics_not_found">No se encontró letra incrustada para esta pista.</string>
+    <string name="info_album_artist">Artista del álbum</string>
+    <string name="info_track_number">N.º de canción</string>
+    <string name="info_track_total">Total de canciones</string>
+    <string name="info_disc_number">N.º de disco</string>
+    <string name="info_disc_total">Total de discos</string>
+    <string name="info_cover">Portada</string>
+    <string name="info_cover_replace">Reemplazar</string>
+    <string name="info_cover_remove">Quitar</string>
+    <string name="info_cover_keep">Mantener la actual</string>
+    <string name="info_cover_new">Nueva portada</string>
+    <string name="info_cover_removed">Se quitará la portada.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d imagen más en el archivo, se conserva</item>
+        <item quantity="other">+%1$d imágenes más en el archivo, se conservan</item>
+    </plurals>
+    <string name="info_reading_file">Leyendo el archivo…</string>
+    <string name="action_edit_album">Editar álbum</string>
+    <string name="action_edit_artist">Editar artista</string>
+    <string name="action_edit_short">Editar</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d archivo</item>
+        <item quantity="other">%1$d archivos</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d campo</item>
+        <item quantity="other">%1$d campos</item>
+    </plurals>
+    <string name="bulk_save">Cambiar %1$s en %2$s</string>
+    <string name="bulk_reading">Leyendo %1$d de %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d archivo no se puede editar y se dejará como está:</item>
+        <item quantity="other">%1$d archivos no se pueden editar y se dejarán como están:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">y %1$d más</item>
+        <item quantity="other">y %1$d más</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Ninguno de estos archivos se puede editar.</string>
+    <string name="bulk_different">Valores distintos</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Quitado de %1$d archivo</item>
+        <item quantity="other">Quitado de los %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Quitar de todos los archivos</string>
+    <string name="bulk_keep_field">Dejar como está</string>
+    <string name="bulk_kept">Se queda como está: %1$s</string>
+    <string name="bulk_saving">Guardados %1$d de %2$d</string>
+    <string name="bulk_stop">Detener</string>
+    <string name="bulk_result">Guardados %1$d de %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d archivo sin cambios:</item>
+        <item quantity="other">%1$d archivos sin cambios:</item>
+    </plurals>
+    <string name="bulk_done">Listo</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Etiquetas guardadas en %1$d archivo</item>
+        <item quantity="other">Etiquetas guardadas en %1$d archivos</item>
+    </plurals>
+    <string name="tags_saved_partly">Etiquetas guardadas en %1$d de %2$d archivos</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Se terminó de guardar %1$d archivo</item>
+        <item quantity="other">Se terminaron de guardar %1$d archivos</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">Se deshizo %1$d guardado interrumpido; el archivo está como antes</item>
+        <item quantity="other">Se deshicieron %1$d guardados interrumpidos; los archivos están como antes</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">Otra aplicación cambió %1$d archivo y se ha dejado como está</item>
+        <item quantity="other">Otra aplicación cambió %1$d archivos y se han dejado como están</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">Aún no se pudo terminar de guardar %1$d archivo. Consulta Ajustes → Biblioteca.</item>
+        <item quantity="other">Aún no se pudieron terminar de guardar %1$d archivos. Consulta Ajustes → Biblioteca.</item>
+    </plurals>
+    <string name="lyrics_not_found">No se encontró letra para esta pista.</string>
     <string name="cd_scroll_to_top">Volver arriba</string>
     <string name="foryou_section_daypart_morning">Tus mañanas</string>
     <string name="foryou_section_daypart_day">Tus tardes</string>

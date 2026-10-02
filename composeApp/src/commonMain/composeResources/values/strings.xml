@@ -285,11 +285,39 @@
     <string name="info_edit">Edit tags</string>
     <string name="info_save">Save</string>
     <string name="info_cancel">Cancel</string>
+    <string name="editor_discard_title">Discard your changes?</string>
+    <string name="editor_discard">Discard</string>
+    <string name="editor_keep_editing">Keep editing</string>
     <string name="info_saving">Saving…</string>
-    <string name="info_edit_note">Saved into the file itself, so every app sees the correction. Android will ask permission to modify the file.</string>
+    <string name="info_edit_note">Saved into the file itself, so every app sees the correction. You may be asked for permission to modify the file.</string>
     <string name="info_edit_refused">This file's tags are in a form that cannot be rewritten safely, so nothing was changed.</string>
     <string name="info_edit_failed">Could not write to this file. It was left as it was.</string>
-    <string name="info_edit_unavailable">Editing tags is not available on this device.</string>
+    <string name="info_edit_no_space">Not enough free space to save these tags safely. Nothing was changed.</string>
+    <string name="info_edit_recovery_pending">Saving was interrupted. LatentJam will finish or undo it the next time it is allowed to write the file.</string>
+    <string name="tag_recovery_title">Finish saving tags</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam was interrupted while saving tags to %1$d file. It can finish the change now, or undo it if the file cannot be finished.</item>
+        <item quantity="other">LatentJam was interrupted while saving tags to %1$d files. It can finish the changes now, or undo them where a file cannot be finished.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Finish</string>
+    <string name="tag_recovery_later">Later</string>
+    <string name="tag_problem_unsupported_format">LatentJam can't edit this kind of file.</string>
+    <string name="tag_problem_damaged">This file looks damaged, so it is left as it is.</string>
+    <string name="tag_problem_protected">This file is copy-protected and can't be changed.</string>
+    <string name="tag_problem_tags_too_large">The tags would be too large for this file.</string>
+    <string name="tag_problem_bad_number">Track and disc numbers must be whole numbers from 1 to 999.</string>
+    <string name="tag_problem_number_unreadable">The file's own track or disc number is not a plain number, so its total can't be changed on its own.</string>
+    <string name="tag_problem_bad_image">The picture is not a JPEG or PNG image.</string>
+    <string name="tag_problem_read_only_storage">This file is on storage that can't be written to.</string>
+    <string name="tag_problem_music_library">Songs from the Music library can't be edited, only songs imported into LatentJam.</string>
+    <string name="tag_problem_unreadable">This file could not be read.</string>
+    <string name="tag_problem_not_allowed">Permission to change the file was not given.</string>
+    <string name="tag_problem_missing">The file is no longer there.</string>
+    <string name="tag_problem_stopped">Stopped before this file.</string>
+    <string name="tag_problem_cancelled">The permission request was closed.</string>
+    <string name="tag_problem_undone">An interrupted save was undone: the file is as it was before.</string>
+    <string name="tag_problem_changed_elsewhere">Another app changed the file after the save was interrupted, so it was left as it is.</string>
+    <string name="tag_problem_lost">LatentJam could not find out how this save ended. Check the file's tags.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Settings</string>
@@ -460,6 +488,17 @@
     <string name="settings_hidden_tracks">Hidden tracks</string>
     <string name="settings_hidden_tracks_body">Tracks hidden only in LatentJam. Restore any track without changing its file.</string>
     <string name="settings_hidden_tracks_empty">No tracks are hidden in LatentJam.</string>
+    <string name="settings_interrupted_saves">Interrupted saves</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">Saving tags into %1$d file was interrupted. LatentJam finishes or undoes it once it may write the file.</item>
+        <item quantity="other">Saving tags into %1$d files was interrupted. LatentJam finishes or undoes each once it may write the file.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Finish now</string>
+    <string name="settings_interrupted_being_repaired">Being repaired: not played until it is finished</string>
+    <string name="settings_interrupted_forget">Forget</string>
+    <string name="settings_interrupted_forget_title">Forget this save?</string>
+    <string name="settings_interrupted_forget_body">The file stays exactly as it is now, and LatentJam stops trying to finish or undo the save. This can't be undone.</string>
+    <string name="settings_interrupted_forget_damaged_body">This save stopped partway through. The file may be damaged and may not play, and forgetting deletes the copies LatentJam could repair it from. This can't be undone.</string>
     <string name="settings_duplicates">Audio duplicates</string>
     <string name="settings_duplicates_body">Finds copies of the same recording by sound, whatever their tags say</string>
     <string name="settings_duplicates_scanning">Comparing every pair of tracks…</string>
@@ -467,6 +506,11 @@
     <string name="settings_restore">Restore</string>
     <string name="settings_restore_all">Restore all</string>
     <string name="settings_library_manage_failed">Could not update the library. Try again.</string>
+    <string name="settings_lyrics_folders">Folders with .lrc files</string>
+    <string name="settings_lyrics_folders_body">Android asks which folder to allow. A .lrc file named like the song is then used for its lyrics.</string>
+    <string name="settings_lyrics_folders_add">Add folder</string>
+    <string name="settings_lyrics_folders_remove">Remove</string>
+    <string name="settings_lyrics_folders_failed">This folder can’t be used. Choose one on this device’s storage.</string>
 
     <string name="settings_licenses">Open-source licenses</string>
     <string name="settings_licenses_body">Notices for LatentJam, bundled models and third-party software</string>
@@ -551,7 +595,87 @@
     <string name="duplicates_keep_this">Keep this one</string>
     <string name="snack_duplicates_merged">Duplicates merged: playlists now point at the kept copy</string>
     <string name="info_lyrics">Lyrics</string>
-    <string name="lyrics_not_found">No embedded lyrics were found for this track.</string>
+    <string name="info_album_artist">Album artist</string>
+    <string name="info_track_number">Track</string>
+    <string name="info_track_total">Total tracks</string>
+    <string name="info_disc_number">Disc</string>
+    <string name="info_disc_total">Total discs</string>
+    <string name="info_cover">Cover</string>
+    <string name="info_cover_replace">Replace</string>
+    <string name="info_cover_remove">Remove</string>
+    <string name="info_cover_keep">Keep current</string>
+    <string name="info_cover_new">New cover</string>
+    <string name="info_cover_removed">The cover will be removed.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d more image in the file, kept</item>
+        <item quantity="other">+%1$d more images in the file, kept</item>
+    </plurals>
+    <string name="info_reading_file">Reading the file…</string>
+    <string name="action_edit_album">Edit album</string>
+    <string name="action_edit_artist">Edit artist</string>
+    <!-- The selection bar's Edit tags button: it shares the bar with four others, so one short word. -->
+    <string name="action_edit_short">Edit</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d field</item>
+        <item quantity="other">%1$d fields</item>
+    </plurals>
+    <!-- %1$s is a count_fields fragment, %2$s a count_files fragment, both already pluralized. -->
+    <string name="bulk_save">Change %1$s in %2$s</string>
+    <string name="bulk_reading">Reading %1$d of %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d file can't be edited and will be left as it is:</item>
+        <item quantity="other">%1$d files can't be edited and will be left as they are:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
+    <string name="bulk_nothing_editable">None of these files can be edited.</string>
+    <string name="bulk_different">Different values</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Removed from this file</item>
+        <item quantity="other">Removed from all %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Remove from every file</string>
+    <string name="bulk_keep_field">Keep as it is</string>
+    <!-- Under a field whose box the user emptied: an empty box keeps what the files hold, %1$s. -->
+    <string name="bulk_kept">Stays as it is: %1$s</string>
+    <string name="bulk_saving">Saved %1$d of %2$d</string>
+    <string name="bulk_stop">Stop</string>
+    <string name="bulk_result">Saved %1$d of %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d file not changed:</item>
+        <item quantity="other">%1$d files not changed:</item>
+    </plurals>
+    <string name="bulk_done">Done</string>
+    <!-- One line of a result list: %1$s the song, %2$s why it was not changed. -->
+    <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Tags saved in %1$d file</item>
+        <item quantity="other">Tags saved in %1$d files</item>
+    </plurals>
+    <string name="tags_saved_partly">Tags saved in %1$d of %2$d files</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Finished saving %1$d file</item>
+        <item quantity="other">Finished saving %1$d files</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d interrupted save was undone; the file is as it was</item>
+        <item quantity="other">%1$d interrupted saves were undone; the files are as they were</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d file was changed by another app and was left as it is</item>
+        <item quantity="other">%1$d files were changed by another app and were left as they are</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d file could not be finished yet. See Settings → Library.</item>
+        <item quantity="other">%1$d files could not be finished yet. See Settings → Library.</item>
+    </plurals>
+    <string name="lyrics_not_found">No lyrics were found for this track.</string>
     <string name="cd_scroll_to_top">Back to top</string>
     <string name="foryou_section_daypart_morning">Your mornings</string>
     <string name="foryou_section_daypart_day">Your afternoons</string>

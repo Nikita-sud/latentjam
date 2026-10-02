@@ -81,6 +81,19 @@ public interface SimilarityEngine {
     ): Int
 
     /**
+     * Re-keys audio vectors across verified tag-only writes, before [synchronizeLibrary] would
+     * discard them for their file's new revision. A carry-over settles when its track appears in
+     * [library] with a revision other than its old one. It applies when the stored vector was made
+     * from that old revision and the file is exactly the expected length; otherwise the track is
+     * re-analysed as usual. One whose track still shows the old revision stays unsettled: the
+     * rescan has not landed yet.
+     */
+    public suspend fun carryOverAudio(
+        library: List<TrackDescriptor>,
+        carryOvers: List<AudioCarryOver>,
+    ): AudioCarryOverResult = AudioCarryOverResult(emptySet(), emptySet())
+
+    /**
      * Embeds and indexes the given tracks, replacing any previous vector for
      * the same [TrackId] (upsert semantics). Requires [EngineState.Ready].
      *

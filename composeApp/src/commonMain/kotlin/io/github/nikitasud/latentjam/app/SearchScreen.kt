@@ -145,11 +145,22 @@ internal fun SearchScreen(
     var indexingLyrics by remember(songs) { mutableStateOf(true) }
     val lyricsReader = rememberLyricsReader(reportReadFailures = true)
     val lyricsStorage = rememberLyricsSearchStorage()
-    LaunchedEffect(songs, readyForInput, active) {
+    val lyricsSources = rememberLyricsSourcesRevision()
+    val sidecarFingerprints = rememberSidecarFingerprints()
+    LaunchedEffect(songs, readyForInput, active, lyricsSources) {
         if (!active || !readyForInput) return@LaunchedEffect
         indexingLyrics = true
         withContext(Dispatchers.Default) {
-            AppGraph.lyricsSearchCache.load(songs, lyricsStorage, lyricsReader) { snapshot ->
+            AppGraph.lyricsSearchCache.load(
+                songs,
+                lyricsStorage,
+                lyricsReader,
+                lyricsSources,
+                sidecarFingerprints,
+                // Pending only while songs are read: the cached index answers at once, and the
+                // sidecar check behind it must not hold a query at "Loading".
+                reading = { indexingLyrics = it },
+            ) { snapshot ->
                 lyricDocuments = snapshot
             }
         }

@@ -224,11 +224,39 @@
     <string name="info_edit">Etiketleri düzenle</string>
     <string name="info_save">Kaydet</string>
     <string name="info_cancel">İptal</string>
+    <string name="editor_discard_title">Değişikliklerden vazgeçilsin mi?</string>
+    <string name="editor_discard">Vazgeç</string>
+    <string name="editor_keep_editing">Düzenlemeye devam et</string>
     <string name="info_saving">Kaydediliyor…</string>
-    <string name="info_edit_note">Dosyanın kendisine kaydedilir, böylece düzeltmeyi tüm uygulamalar görür. Android dosyayı değiştirmek için izin isteyecek.</string>
+    <string name="info_edit_note">Dosyanın kendisine kaydedilir, böylece düzeltmeyi tüm uygulamalar görür. Dosyayı değiştirmek için izin istenebilir.</string>
     <string name="info_edit_refused">Bu dosyanın etiketleri güvenle yeniden yazılamayacak bir yapıda olduğu için hiçbir şey değiştirilmedi.</string>
     <string name="info_edit_failed">Bu dosyaya yazılamadı. Olduğu gibi bırakıldı.</string>
-    <string name="info_edit_unavailable">Etiket düzenleme bu cihazda kullanılamıyor.</string>
+    <string name="info_edit_no_space">Bu etiketleri güvenle kaydetmek için yeterli boş alan yok. Hiçbir şey değiştirilmedi.</string>
+    <string name="info_edit_recovery_pending">Kaydetme yarıda kesildi. LatentJam, dosyaya yazmasına yeniden izin verildiğinde bunu tamamlayacak veya geri alacak.</string>
+    <string name="tag_recovery_title">Etiketlerin kaydedilmesini tamamla</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam, %1$d dosyaya etiket kaydederken yarıda kesildi. Değişikliği şimdi tamamlayabilir veya dosya tamamlanamıyorsa geri alabilir.</item>
+        <item quantity="other">LatentJam, %1$d dosyaya etiket kaydederken yarıda kesildi. Değişiklikleri şimdi tamamlayabilir veya tamamlanamayan dosyalarda geri alabilir.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Tamamla</string>
+    <string name="tag_recovery_later">Sonra</string>
+    <string name="tag_problem_unsupported_format">LatentJam bu tür bir dosyayı düzenleyemez.</string>
+    <string name="tag_problem_damaged">Bu dosya hasarlı görünüyor, bu yüzden olduğu gibi bırakıldı.</string>
+    <string name="tag_problem_protected">Bu dosya kopyalamaya karşı korumalı ve değiştirilemez.</string>
+    <string name="tag_problem_tags_too_large">Etiketler bu dosya için çok büyük olurdu.</string>
+    <string name="tag_problem_bad_number">Parça ve disk numaraları 1 ile 999 arasında tam sayılar olmalıdır.</string>
+    <string name="tag_problem_number_unreadable">Dosyanın kendi parça veya disk numarası basit bir sayı değil, bu yüzden toplamı tek başına değiştirilemez.</string>
+    <string name="tag_problem_bad_image">Görsel JPEG veya PNG biçiminde değil.</string>
+    <string name="tag_problem_read_only_storage">Bu dosya, yazılamayan bir depolama alanında.</string>
+    <string name="tag_problem_music_library">Müzik arşivindeki şarkılar düzenlenemez, yalnızca LatentJam'e aktarılan şarkılar düzenlenebilir.</string>
+    <string name="tag_problem_unreadable">Bu dosya okunamadı.</string>
+    <string name="tag_problem_not_allowed">Dosyayı değiştirme izni verilmedi.</string>
+    <string name="tag_problem_missing">Dosya artık yok.</string>
+    <string name="tag_problem_stopped">Bu dosyadan önce durduruldu.</string>
+    <string name="tag_problem_cancelled">İzin isteği kapatıldı.</string>
+    <string name="tag_problem_undone">Yarıda kalan bir kaydetme geri alındı: dosya eskisi gibi.</string>
+    <string name="tag_problem_changed_elsewhere">Kaydetme yarıda kesildikten sonra başka bir uygulama dosyayı değiştirdi, bu yüzden olduğu gibi bırakıldı.</string>
+    <string name="tag_problem_lost">LatentJam bu kaydetmenin nasıl sonuçlandığını öğrenemedi. Dosyanın etiketlerini kontrol edin.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Ayarlar</string>
@@ -398,6 +426,17 @@
     <string name="settings_hidden_tracks">Gizli parçalar</string>
     <string name="settings_hidden_tracks_body">Yalnızca LatentJam’de gizlenen parçalar. Dosyayı değiştirmeden istediğiniz parçayı geri yükleyin.</string>
     <string name="settings_hidden_tracks_empty">LatentJam’de gizli parça yok.</string>
+    <string name="settings_interrupted_saves">Yarıda kalan kaydetmeler</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">%1$d dosyaya etiket kaydetme yarıda kesildi. LatentJam, dosyaya yazmasına izin verildiğinde bunu tamamlayacak veya geri alacak.</item>
+        <item quantity="other">%1$d dosyaya etiket kaydetme yarıda kesildi. LatentJam, dosyaya yazmasına izin verildiğinde her birini tamamlayacak veya geri alacak.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Şimdi tamamla</string>
+    <string name="settings_interrupted_being_repaired">Onarılıyor: tamamlanana kadar çalınmaz</string>
+    <string name="settings_interrupted_forget">Unut</string>
+    <string name="settings_interrupted_forget_title">Bu kaydetme unutulsun mu?</string>
+    <string name="settings_interrupted_forget_body">Dosya şu anki haliyle kalır ve LatentJam kaydetmeyi tamamlamaya veya geri almaya çalışmayı bırakır. Bu geri alınamaz.</string>
+    <string name="settings_interrupted_forget_damaged_body">Bu kaydetme yarıda kesildi. Dosya hasar görmüş olabilir ve çalınmayabilir; unutmak, LatentJam'in dosyayı onarabileceği kopyaları siler. Bu geri alınamaz.</string>
     <string name="settings_duplicates">Ses kopyaları</string>
     <string name="settings_duplicates_body">Aynı kaydın kopyalarını etiketlere bakmadan sesten bulur</string>
     <string name="settings_duplicates_scanning">Tüm parça çiftleri karşılaştırılıyor…</string>
@@ -405,6 +444,11 @@
     <string name="settings_restore">Geri yükle</string>
     <string name="settings_restore_all">Tümünü geri yükle</string>
     <string name="settings_library_manage_failed">Arşiv güncellenemedi. Yeniden deneyin.</string>
+    <string name="settings_lyrics_folders">.lrc dosyası olan klasörler</string>
+    <string name="settings_lyrics_folders_body">Android hangi klasöre izin verileceğini sorar. Şarkıyla aynı adı taşıyan .lrc dosyası o şarkının sözleri olarak kullanılır.</string>
+    <string name="settings_lyrics_folders_add">Klasör ekle</string>
+    <string name="settings_lyrics_folders_remove">Kaldır</string>
+    <string name="settings_lyrics_folders_failed">Bu klasör kullanılamaz. Bu cihazın depolama alanından bir klasör seçin.</string>
 
     <string name="settings_licenses">Açık kaynak lisansları</string>
     <string name="settings_licenses_body">LatentJam, paketli modeller ve üçüncü taraf yazılımlara ait bildirimler</string>
@@ -489,7 +533,83 @@
     <string name="duplicates_keep_this">Bunu tut</string>
     <string name="snack_duplicates_merged">Kopyalar birleştirildi: çalma listeleri artık tutulan kopyayı gösteriyor</string>
     <string name="info_lyrics">Şarkı sözleri</string>
-    <string name="lyrics_not_found">Bu parça için gömülü şarkı sözü bulunamadı.</string>
+    <string name="info_album_artist">Albüm sanatçısı</string>
+    <string name="info_track_number">Parça no</string>
+    <string name="info_track_total">Toplam parça</string>
+    <string name="info_disc_number">Disk no</string>
+    <string name="info_disc_total">Toplam disk</string>
+    <string name="info_cover">Kapak</string>
+    <string name="info_cover_replace">Değiştir</string>
+    <string name="info_cover_remove">Kaldır</string>
+    <string name="info_cover_keep">Mevcut olanı koru</string>
+    <string name="info_cover_new">Yeni kapak</string>
+    <string name="info_cover_removed">Kapak kaldırılacak.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">Dosyada +%1$d görsel daha var, korunacak</item>
+        <item quantity="other">Dosyada +%1$d görsel daha var, korunacak</item>
+    </plurals>
+    <string name="info_reading_file">Dosya okunuyor…</string>
+    <string name="action_edit_album">Albümü düzenle</string>
+    <string name="action_edit_artist">Sanatçıyı düzenle</string>
+    <string name="action_edit_short">Düzenle</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d dosya</item>
+        <item quantity="other">%1$d dosya</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d alan</item>
+        <item quantity="other">%1$d alan</item>
+    </plurals>
+    <string name="bulk_save">%1$s değiştir (%2$s)</string>
+    <string name="bulk_reading">Okunuyor: %1$d / %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d dosya düzenlenemiyor ve olduğu gibi bırakılacak:</item>
+        <item quantity="other">%1$d dosya düzenlenemiyor ve olduğu gibi bırakılacak:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">ve %1$d tane daha</item>
+        <item quantity="other">ve %1$d tane daha</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Bu dosyaların hiçbiri düzenlenemiyor.</string>
+    <string name="bulk_different">Farklı değerler</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">%1$d dosyadan kaldırıldı</item>
+        <item quantity="other">Tüm %1$d dosyadan kaldırıldı</item>
+    </plurals>
+    <string name="bulk_remove_field">Tüm dosyalardan kaldır</string>
+    <string name="bulk_keep_field">Olduğu gibi bırak</string>
+    <string name="bulk_kept">Olduğu gibi kalır: %1$s</string>
+    <string name="bulk_saving">%1$d / %2$d kaydedildi</string>
+    <string name="bulk_stop">Durdur</string>
+    <string name="bulk_result">%1$d / %2$d kaydedildi.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d dosya değiştirilmedi:</item>
+        <item quantity="other">%1$d dosya değiştirilmedi:</item>
+    </plurals>
+    <string name="bulk_done">Tamam</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Etiketler %1$d dosyaya kaydedildi</item>
+        <item quantity="other">Etiketler %1$d dosyaya kaydedildi</item>
+    </plurals>
+    <string name="tags_saved_partly">Etiketler %2$d dosyanın %1$d tanesine kaydedildi</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">%1$d dosyanın kaydedilmesi tamamlandı</item>
+        <item quantity="other">%1$d dosyanın kaydedilmesi tamamlandı</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">Yarıda kalan %1$d kaydetme geri alındı; dosya eskisi gibi</item>
+        <item quantity="other">Yarıda kalan %1$d kaydetme geri alındı; dosyalar eskisi gibi</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d dosya başka bir uygulama tarafından değiştirilmişti, bu yüzden olduğu gibi bırakıldı</item>
+        <item quantity="other">%1$d dosya başka bir uygulama tarafından değiştirilmişti, bu yüzden olduğu gibi bırakıldı</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d dosya henüz tamamlanamadı. Ayarlar → Kitaplık bölümüne bakın.</item>
+        <item quantity="other">%1$d dosya henüz tamamlanamadı. Ayarlar → Kitaplık bölümüne bakın.</item>
+    </plurals>
+    <string name="lyrics_not_found">Bu parça için şarkı sözü bulunamadı.</string>
     <string name="cd_scroll_to_top">Başa dön</string>
     <string name="foryou_section_daypart_morning">Sabahların</string>
     <string name="foryou_section_daypart_day">Öğleden sonraların</string>

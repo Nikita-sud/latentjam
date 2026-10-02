@@ -93,6 +93,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Rotation, resizing and night mode no longer recreate this activity (see the manifest);
+     * Compose follows the new configuration itself, system bars included ([PlatformThemeEffect]).
+     * The window behind it is painted once at start, so a night-mode switch under the system theme
+     * repaints it here.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyStoredWindowTheme(systemBars = false)
+    }
+
     override fun onResume() {
         super.onResume()
         // Returning from the system settings page is a normal part of permission recovery.
@@ -109,8 +120,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Applies the persisted palette before Compose draws, avoiding a wrong-colour launch frame. */
-private fun ComponentActivity.applyStoredWindowTheme() {
+/**
+ * Applies the persisted palette before Compose draws, avoiding a wrong-colour launch frame. Once
+ * Compose runs, it owns the [systemBars].
+ */
+private fun ComponentActivity.applyStoredWindowTheme(systemBars: Boolean = true) {
     val stored = runCatching {
         getSharedPreferences(APP_SETTINGS_FILE, Context.MODE_PRIVATE).getString(APP_THEME_KEY, null)
     }.getOrNull()
@@ -121,6 +135,7 @@ private fun ComponentActivity.applyStoredWindowTheme() {
             Configuration.UI_MODE_NIGHT_YES
     }
     window.setBackgroundDrawable(ColorDrawable(if (dark) 0xFF0C0C0C.toInt() else 0xFFFAFAFA.toInt()))
+    if (!systemBars) return
     WindowCompat.getInsetsController(window, window.decorView).apply {
         isAppearanceLightStatusBars = !dark
         isAppearanceLightNavigationBars = !dark

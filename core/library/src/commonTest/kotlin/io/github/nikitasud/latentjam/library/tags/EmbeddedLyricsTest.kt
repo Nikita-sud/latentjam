@@ -6,30 +6,12 @@ package io.github.nikitasud.latentjam.library.tags
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class EmbeddedLyricsTest {
-
-    private class ArraySource(private val bytes: ByteArray) : GenreTags.ByteSource {
-        private var position = 0
-        override fun read(count: Int): ByteArray? {
-            if (position + count > bytes.size) return null
-            return bytes.copyOfRange(position, position + count).also { position += count }
-        }
-
-        override fun readUpTo(count: Int): ByteArray {
-            val end = minOf(bytes.size, position + count)
-            return bytes.copyOfRange(position, end).also { position = end }
-        }
-
-        override fun skip(count: Long): Boolean {
-            if (position + count > bytes.size) return false
-            position += count.toInt()
-            return true
-        }
-    }
 
     private fun leU32(value: Int) = byteArrayOf(
         (value and 0xFF).toByte(),
@@ -56,7 +38,7 @@ class EmbeddedLyricsTest {
     fun opusPlainLyricsComeThrough() {
         // The Смешарики shape: a LYRICS field plus a SYNCEDLYRICS sibling — plain wins.
         val lyrics = EmbeddedLyrics.read(
-            ArraySource(
+            ByteArraySource(
                 oggPrefix(
                     listOf(
                         "TITLE=От винта!",
@@ -75,7 +57,7 @@ class EmbeddedLyricsTest {
     @Test
     fun syncedOnlyLyricsAreUnstamped() {
         val lyrics = EmbeddedLyrics.read(
-            ArraySource(
+            ByteArraySource(
                 oggPrefix(
                     listOf(
                         "SYNCEDLYRICS=[00:14.23] первая строка\n[00:16.05] вторая строка\n[00:39.25] ",
@@ -90,7 +72,7 @@ class EmbeddedLyricsTest {
     @Test
     fun aPlainFieldCarryingLrcIsUnstampedToo() {
         val lyrics = EmbeddedLyrics.read(
-            ArraySource(oggPrefix(listOf("LYRICS=[00:01.00] слова\n[00:02.00] ещё слова"))),
+            ByteArraySource(oggPrefix(listOf("LYRICS=[00:01.00] слова\n[00:02.00] ещё слова"))),
         )
         assertEquals("слова\nещё слова", lyrics?.text)
         assertEquals(listOf(1_000L, 2_000L), lyrics?.lines?.map { it.timeMs })
@@ -105,15 +87,15 @@ class EmbeddedLyricsTest {
             ((comment.size shr 8) and 0xFF).toByte(),
             (comment.size and 0xFF).toByte(),
         ) + comment
-        val lyrics = EmbeddedLyrics.read(ArraySource(file))
+        val lyrics = EmbeddedLyrics.read(ByteArraySource(file))
         assertEquals("text of the song", lyrics?.text)
         assertFalse(lyrics!!.synced)
     }
 
     @Test
     fun lyricslessAndUnknownContainersDecline() {
-        assertNull(EmbeddedLyrics.read(ArraySource(oggPrefix(listOf("TITLE=No words here")))))
-        assertNull(EmbeddedLyrics.read(ArraySource("RIFFjunkjunk".encodeToByteArray())))
+        assertNull(EmbeddedLyrics.read(ByteArraySource(oggPrefix(listOf("TITLE=No words here")))))
+        assertNull(EmbeddedLyrics.read(ByteArraySource("RIFFjunkjunk".encodeToByteArray())))
     }
 
     /** Wraps a payload into real Ogg pages (27-byte header + segment table), like encoders do. */
@@ -149,7 +131,7 @@ class EmbeddedLyricsTest {
             listOf(padding, "LYRICS=слова за границей страницы"),
         )
         val file = pagedOgg(packet, pageSize = 4080)
-        assertEquals("слова за границей страницы", EmbeddedLyrics.read(ArraySource(file))?.text)
+        assertEquals("слова за границей страницы", EmbeddedLyrics.read(ByteArraySource(file))?.text)
     }
 
     @Test
@@ -224,5 +206,69 @@ class EmbeddedLyricsTest {
         val lyrics = EmbeddedLyrics.parse("[00:10]".repeat(10_000) + "Chorus")!!
         assertEquals(10_000, lyrics.lines.size)
         assertTrue(lyrics.lines.all { it.timeMs == 10_000L && it.text == "Chorus" })
+    }
+
+    // ------------------------------------------------------------------ MP4 (©lyr)
+
+    @Test
+    fun m4aPlainLyricsComeFromTheLyrAtom() {
+        val file = Mp4Fixtures.file(listOf(Mp4Fixtures.text("©lyr", "Plain words, no timing")))
+        val lyrics = EmbeddedLyrics.read(ByteArraySource(file))
+        assertEquals("Plain words, no timing", lyrics?.text)
+        assertFalse(lyrics!!.synced)
+    }
+
+    @Test
+    fun m4aLrcLyricsInTheLyrAtomComeOutSynced() {
+        val file = Mp4Fixtures.file(
+            listOf(Mp4Fixtures.text("©lyr", "[00:01.00]First line\n[00:02.00]Second line")),
+        )
+        val lyrics = EmbeddedLyrics.read(ByteArraySource(file))
+        assertTrue(lyrics!!.synced)
+        assertEquals(listOf(1_000L, 2_000L), lyrics.lines.map { it.timeMs })
+        assertEquals(listOf("First line", "Second line"), lyrics.lines.map { it.text })
+    }
+
+    @Test
+    fun m4aWithoutALyrAtomHasNoLyrics() {
+        val file = Mp4Fixtures.file(listOf(Mp4Fixtures.text("©nam", "Song")))
+        assertNull(EmbeddedLyrics.read(ByteArraySource(file)))
+    }
+
+    @Test
+    fun m4aLyricsComeThroughRegardlessOfMoovMdatOrder() {
+        val items = listOf(Mp4Fixtures.text("©lyr", "Lyrics after the audio atom"))
+        val file = Mp4Fixtures.file(items, moovFirst = false)
+        assertEquals("Lyrics after the audio atom", EmbeddedLyrics.read(ByteArraySource(file))?.text)
+    }
+
+    @Test
+    fun aMalformedMp4BoxYieldsNoLyricsWithoutThrowing() {
+        // A trak child claiming a size that runs past its parent moov: Mp4Boxes.parse refuses it,
+        // and the codec's read() answers with a refusal snapshot rather than throwing.
+        val badMoov = Mp4Fixtures.leaf("moov", Mp4Fixtures.be32(100) + Mp4Fixtures.type("trak") + ByteArray(10))
+        val file = Mp4Fixtures.ftyp() + badMoov
+        assertNull(EmbeddedLyrics.read(ByteArraySource(file)))
+    }
+
+    /** Answers the initial 8-byte `ftyp` sniff, then fails every later read — an I/O error, not a
+     *  malformed file. */
+    private class ThrowingAfterSniffSource(private val bytes: ByteArray) : RandomAccessSource {
+        override val length: Long get() = bytes.size.toLong()
+
+        override fun read(offset: Long, count: Int): ByteArray? {
+            if (offset == 0L && count == 8) return bytes.copyOfRange(0, 8)
+            throw IllegalStateException("simulated read failure")
+        }
+    }
+
+    @Test
+    fun aReadFailureOnAnMp4SourcePropagatesRatherThanBeingSwallowed() {
+        // The lyrics search index relies on this: reportReadFailures = true must see a genuine
+        // I/O failure so an unreadable file is retried, never cached as "no lyrics".
+        val file = Mp4Fixtures.file(listOf(Mp4Fixtures.text("©lyr", "text")))
+        assertFailsWith<IllegalStateException> {
+            EmbeddedLyrics.read(ThrowingAfterSniffSource(file))
+        }
     }
 }

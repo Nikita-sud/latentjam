@@ -9,6 +9,9 @@ import io.github.nikitasud.latentjam.library.tags.Lyrics
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.io.encoding.Base64
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -26,21 +29,42 @@ internal interface LyricsSearchStorage {
 internal expect fun rememberLyricsSearchStorage(): LyricsSearchStorage
 
 /** Lives for the process; reopening Search neither reopens files nor renormalizes known lyrics. */
-internal class LyricsSearchCache {
-    private data class Entry(val revision: String, val document: LyricSearchDocument?)
+internal class LyricsSearchCache(private val clock: TimeSource = TimeSource.Monotonic) {
+    /** [sidecar] is the fingerprint the song's `.lrc` files had when [document] was read. */
+    private data class Entry(val revision: String, val sidecar: String, val document: LyricSearchDocument?)
     private val mutex = Mutex()
     private var entries: MutableMap<String, Entry>? = null
     private var dirty = false
+    private var lastSidecarPass: TimeMark? = null
 
     /**
      * Cancellation stops between files, retaining completed work in memory. Missing lyrics are
-     * cached; failed reads are retried next time. A revision/URI change invalidates either result.
-     * Batches publish useful results while a large library is being scanned for the first time.
+     * cached; failed reads are retried next time. A revision/URI change invalidates either result,
+     * and so does a change of [sourcesRevision] (see [rememberLyricsSourcesRevision]): lyrics can
+     * come from outside the song's file, and granting a folder must re-read the songs cached as
+     * having none. Batches publish useful results while a large library is being scanned for the
+     * first time.
+     *
+     * A `.lrc` added, edited or deleted beside a song changes none of that, so each entry also
+     * keeps the song's [sidecarFingerprints] value from when it was read, and a song whose
+     * fingerprint differs now is read again — that song alone. The fingerprints are metadata
+     * lookups (see [rememberSidecarFingerprints]), never a read of the audio, but over a whole
+     * library they are still work, so the batch runs after the cached results are published and
+     * [reading] has said false, and at most once per [SIDECAR_RECHECK] in this process; between
+     * those passes only the songs about to be read are fingerprinted. When the fingerprints
+     * cannot be taken, or one song's is missing from the answer, the entry stays as it is: a
+     * failed lookup is not a changed file.
+     *
+     * [reading] is true only while songs are actually being read, so Search does not show a
+     * lyrics search as pending while the index merely checks its sidecars.
      */
     suspend fun load(
         songs: List<TrackDescriptor>,
         storage: LyricsSearchStorage,
         readLyrics: suspend (TrackDescriptor) -> Lyrics?,
+        sourcesRevision: String,
+        sidecarFingerprints: suspend (List<TrackDescriptor>) -> Map<TrackId, String> = { emptyMap() },
+        reading: (Boolean) -> Unit = {},
         publish: (Map<TrackId, LyricSearchDocument>) -> Unit,
     ) = mutex.withLock {
         val cache = entries ?: try {
@@ -54,7 +78,7 @@ internal class LyricsSearchCache {
         if (cache.keys.retainAll(ids)) dirty = true
         // Don't publish a stale lyric match while the replacement file is being read.
         songs.forEach { track ->
-            if (cache[track.id.value]?.revision != track.lyricsRevision()) {
+            if (cache[track.id.value]?.revision != track.lyricsRevision(sourcesRevision)) {
                 if (cache.remove(track.id.value) != null) dirty = true
             }
         }
@@ -62,14 +86,49 @@ internal class LyricsSearchCache {
             cache[track.id.value]?.document?.let { track.id to it }
         }.toMap()
         publish(snapshot())
+        // Songs already known to need a read keep "Loading" on through the sidecar check before it,
+        // rather than flashing "No matches" for its length.
+        reading(songs.any { it.id.value !in cache })
+        suspend fun fingerprints(of: List<TrackDescriptor>): Map<TrackId, String>? = try {
+            sidecarFingerprints(of)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+        val due = lastSidecarPass?.let { it.elapsedNow() >= SIDECAR_RECHECK } ?: true
+        var sidecars = if (due) fingerprints(songs) else null
+        if (sidecars != null) {
+            lastSidecarPass = clock.markNow()
+            var shown = false
+            songs.forEach { track ->
+                val entry = cache[track.id.value] ?: return@forEach
+                val now = sidecars[track.id] ?: return@forEach
+                if (entry.sidecar != now) {
+                    cache.remove(track.id.value)
+                    dirty = true
+                    if (entry.document != null) shown = true
+                }
+            }
+            if (shown) publish(snapshot())
+        }
+        val pending = songs.filter { it.id.value !in cache }
+        if (pending.isEmpty()) {
+            save(storage, cache)
+            return@withLock
+        }
+        if (!due) sidecars = fingerprints(pending)
+        reading(true)
         var scanned = 0
-        for (track in songs) {
+        for (track in pending) {
             currentCoroutineContext().ensureActive()
-            if (track.id.value in cache) continue
             try {
                 val lyrics = readLyrics(track)
                 cache[track.id.value] = Entry(
-                    track.lyricsRevision(),
+                    track.lyricsRevision(sourcesRevision),
+                    // Without a fingerprint, the entry records no sidecar; a later pass that sees
+                    // one reads the song once more.
+                    sidecars?.get(track.id).orEmpty(),
                     lyrics?.let { LyricSearchDocument.build(it.text) },
                 )
                 dirty = true
@@ -86,6 +145,7 @@ internal class LyricsSearchCache {
             yield()
         }
         publish(snapshot())
+        reading(false)
         save(storage, cache)
     }
 
@@ -102,25 +162,33 @@ internal class LyricsSearchCache {
     }
 
     private fun encode(cache: Map<String, Entry>): String = buildString {
-        append("lyrics-v1\n")
+        append("lyrics-v2\n")
         cache.forEach { (id, entry) ->
             append(Base64.encode(id.encodeToByteArray())).append('\t')
             append(Base64.encode(entry.revision.encodeToByteArray())).append('\t')
-            append(Base64.encode(entry.document?.text.orEmpty().encodeToByteArray())).append('\n')
+            append(Base64.encode(entry.document?.text.orEmpty().encodeToByteArray())).append('\t')
+            append(Base64.encode(entry.sidecar.encodeToByteArray())).append('\n')
         }
     }
 
     private fun decode(payload: String?): MutableMap<String, Entry> {
         val result = mutableMapOf<String, Entry>()
-        if (payload == null || !payload.startsWith("lyrics-v1\n")) return result
+        // v1 predates sidecar fingerprints: its entries read as having seen no `.lrc`.
+        val columns = when {
+            payload == null -> return result
+            payload.startsWith("lyrics-v2\n") -> 4
+            payload.startsWith("lyrics-v1\n") -> 3
+            else -> return result
+        }
         payload.lineSequence().drop(1).forEach { line ->
             val fields = line.split('\t')
-            if (fields.size != 3) return@forEach
+            if (fields.size != columns) return@forEach
             try {
                 val id = Base64.decode(fields[0]).decodeToString()
                 val revision = Base64.decode(fields[1]).decodeToString()
                 val text = Base64.decode(fields[2]).decodeToString()
-                result[id] = Entry(revision, LyricSearchDocument.build(text))
+                val sidecar = if (columns == 4) Base64.decode(fields[3]).decodeToString() else ""
+                result[id] = Entry(revision, sidecar, LyricSearchDocument.build(text))
             } catch (_: IllegalArgumentException) {
                 // An individual corrupt entry is rebuilt without discarding the whole library.
             }
@@ -129,8 +197,28 @@ internal class LyricsSearchCache {
     }
 }
 
-private fun TrackDescriptor.lyricsRevision(): String =
-    "${audioUri.orEmpty()}\u0000${sourceRevision ?: "${sizeBytes.orEmptyRevision()}:${durationMs.orEmptyRevision()}"}"
+/**
+ * How long a sidecar check of the whole library stays fresh in this process. Opening Search again
+ * sooner reuses it: a `.lrc` copied in is found within minutes, and flipping between tabs does not
+ * cost a pass over every song each time.
+ */
+private val SIDECAR_RECHECK = 5.minutes
+
+/**
+ * Bumped when reading a file's own lyrics changes what it finds, so every entry cached by the
+ * older reader is read again once. "read2": M4A lyrics, and UTF-8 text in Latin-1 ID3 frames
+ * decoded as such — 0.6.0 cached those songs as having no lyrics, or with garbled ones.
+ */
+private const val LYRICS_READER_VERSION = "read2"
+
+/**
+ * The file's identity, [LYRICS_READER_VERSION], and [sourcesRevision] when anything beyond the
+ * file can supply lyrics.
+ */
+private fun TrackDescriptor.lyricsRevision(sourcesRevision: String): String =
+    "${audioUri.orEmpty()}\u0000${sourceRevision ?: "${sizeBytes.orEmptyRevision()}:${durationMs.orEmptyRevision()}"}" +
+        "\u0000$LYRICS_READER_VERSION" +
+        (if (sourcesRevision.isEmpty()) "" else "\u0000$sourcesRevision")
 
 private fun Long?.orEmptyRevision(): String = this?.toString().orEmpty()
 

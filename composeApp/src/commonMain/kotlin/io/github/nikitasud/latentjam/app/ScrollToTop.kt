@@ -20,10 +20,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
@@ -103,3 +107,54 @@ private const val SCROLL_TO_TOP_THRESHOLD = 12
 
 /** Beyond this the return snaps close first, then settles — animation, not a journey. */
 private const val SCROLL_TO_TOP_SNAP_FROM = 30
+
+/**
+ * What a sort control calls with the listener's new order, so the list then starts at its top.
+ *
+ * A lazy list follows its first visible item's key through a re-sort, so without this the row
+ * the listener was looking at stays on screen and the new order looks as if nothing happened.
+ * [shown] is the order the list displays right now: the request waits until it is the chosen
+ * one, because a scroll made while the old order is still on screen is undone by that same key
+ * following once the new order arrives (the Albums tab may derive its order off the main thread).
+ *
+ * [requestScrollToTop] must be a `requestScrollToItem(0)`: it runs as a side effect of the very
+ * composition that first shows the new order, and so reaches the list's next measure, the one
+ * that lays that order out, which then starts at the top instead of following the old first
+ * row. A suspending `scrollToItem` launched from an effect would land a frame or more later,
+ * after one frame of the new order scrolled to wherever the old top row went.
+ *
+ * Only a listener's choice scrolls; a restored setting, a rescan or a return to the tab keeps
+ * the position.
+ */
+@Composable
+internal fun <T : Any> rememberScrollToTopOnSort(
+    shown: T?,
+    requestScrollToTop: () -> Unit,
+): (T) -> Unit {
+    val scroll = remember { PendingSortScroll<T>() }
+    val currentRequest by rememberUpdatedState(requestScrollToTop)
+    // Read in composition so the arrival of the chosen order recomposes this scope.
+    val pending = scroll.pending
+    SideEffect {
+        if (pending != null && scroll.takeIfShown(shown)) currentRequest()
+    }
+    return remember(scroll) { { choice -> scroll.request(choice) } }
+}
+
+/** The order a listener chose and is waiting to see from the top. */
+internal class PendingSortScroll<T : Any> {
+    var pending: T? by mutableStateOf(null)
+        private set
+
+    fun request(choice: T) {
+        pending = choice
+    }
+
+    /** True exactly once: the first time [shown] is the chosen order. */
+    fun takeIfShown(shown: T?): Boolean {
+        val chosen = pending ?: return false
+        if (chosen != shown) return false
+        pending = null
+        return true
+    }
+}

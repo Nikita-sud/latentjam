@@ -6,15 +6,25 @@ package io.github.nikitasud.latentjam.library
 
 import android.content.ContentUris
 import android.content.Context
+import android.net.Uri
 import android.provider.MediaStore
+import io.github.nikitasud.latentjam.library.tags.CoverEdit
+import io.github.nikitasud.latentjam.library.tags.CoverPicture
+import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
+import io.github.nikitasud.latentjam.library.tags.TagCodecs
+import io.github.nikitasud.latentjam.library.tags.TextRepair
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import java.io.FileInputStream
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 
 /**
  * [MusicLibrary] backed by Android's [MediaStore].
@@ -33,8 +43,52 @@ internal class MediaStoreMusicLibrary(
 ) : MusicLibrary {
 
     private val visibilityMutex = Mutex()
+
+    /**
+     * Whether MediaStore has an album-artist column. It is public from API 30, but the scanner filled
+     * `album_artist` long before. Below 30 it is used only when the provider actually has it;
+     * otherwise tag enrichment reads the file (spec §3.5). A query naming a missing column throws.
+     *
+     * Only a definitive answer is remembered: a scan before the storage grant throws a
+     * SecurityException or gets no cursor, and that must not read as "no column" for the life of
+     * the process. Such a scan goes without the column and probes again at the next one.
+     */
+    @Volatile
+    private var albumArtistColumnKnown: Boolean? = null
+
+    private fun albumArtistColumn(): Boolean {
+        albumArtistColumnKnown?.let { return it }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            albumArtistColumnKnown = true
+            return true
+        }
+        return try {
+            val cursor = context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, arrayOf(ALBUM_ARTIST), "0", null, null,
+            )
+            if (cursor == null) {
+                false
+            } else {
+                cursor.close()
+                albumArtistColumnKnown = true
+                true
+            }
+        } catch (_: IllegalArgumentException) {
+            albumArtistColumnKnown = false
+            false
+        } catch (_: android.database.sqlite.SQLiteException) {
+            albumArtistColumnKnown = false
+            false
+        } catch (_: Exception) {
+            false
+        }
+    }
     private val hiddenFile = java.io.File(context.filesDir, HIDDEN_FILE_NAME)
     private val excludedSourcesFile = java.io.File(context.filesDir, EXCLUDED_SOURCES_FILE_NAME)
+    private val coverOverrides = TrackCoverOverrides(
+        directory = java.io.File(context.filesDir, TRACK_COVERS_DIRECTORY),
+        readCover = ::readEmbeddedCover,
+    )
 
     override suspend fun scan(): LibraryScan = withContext(Dispatchers.IO) {
         val hidden = visibilityMutex.withLock { readHiddenIds() }
@@ -79,6 +133,7 @@ internal class MediaStoreMusicLibrary(
                 add(MediaStore.Audio.Media.DATA)
             }
             if (genreSupported) add(MediaStore.Audio.Media.GENRE)
+            if (albumArtistColumn()) add(ALBUM_ARTIST)
         }.toTypedArray()
         val cursor = context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -112,6 +167,7 @@ internal class MediaStoreMusicLibrary(
                 cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
             }
             val genreColumn = if (genreSupported) cursor.getColumnIndex(MediaStore.Audio.Media.GENRE) else -1
+            val albumArtistIndex = cursor.getColumnIndex(ALBUM_ARTIST)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val albumId = cursor.getLong(albumIdColumn)
@@ -122,10 +178,11 @@ internal class MediaStoreMusicLibrary(
                 }
                 tracks += TrackDescriptor(
                     id = TrackId(id.toString()),
-                    title = cursor.getString(titleColumn).knownOrNull(),
-                    artist = cursor.getString(artistColumn).knownOrNull(),
-                    album = cursor.getString(albumColumn).knownOrNull(),
-                    genre = if (genreColumn >= 0) cursor.getString(genreColumn).knownOrNull() else null,
+                    title = cursor.getString(titleColumn).knownTagOrNull(),
+                    artist = cursor.getString(artistColumn).knownTagOrNull(),
+                    album = cursor.getString(albumColumn).knownTagOrNull(),
+                    genre = if (genreColumn >= 0) cursor.getString(genreColumn).knownTagOrNull() else null,
+                    albumArtist = if (albumArtistIndex >= 0) cursor.getString(albumArtistIndex).knownTagOrNull() else null,
                     durationMs = cursor.getLong(durationColumn).takeIf { it > 0 },
                     audioUri = ContentUris
                         .withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
@@ -156,7 +213,79 @@ internal class MediaStoreMusicLibrary(
                 )
             }
         }
-        tracks
+        // Only a complete scan reaches here: an incomplete one returned or threw above, and must
+        // not read as "these songs are gone" to the overrides.
+        coverOverrides.apply(withAlbumArtVersions(tracks))
+    }
+
+    override val recordsCovers: Boolean get() = true
+
+    override suspend fun coverSaved(trackIds: Collection<TrackId>, cover: CoverEdit): Boolean =
+        withContext(Dispatchers.IO) {
+            // A cover that cannot be kept costs only the song's own cover: it shows its album's.
+            // A failed write left the index as it was, so nothing a scan shows changed.
+            runCatching {
+                // MediaProvider (Android 11+) regenerates the album's art from the changed file, so
+                // the album's other songs are pinned to their own pictures first: read once each,
+                // here only, and never when the save covered the whole album.
+                val siblings = if (cover == CoverEdit.Keep) emptyList() else albumSiblings(trackIds, albumRows())
+                coverOverrides.record(trackIds, cover, siblings, ::readOwnCover)
+            }.getOrDefault(false)
+        }
+
+    /** (id, album id) of every song, for [albumSiblings]; none when MediaStore cannot be asked. */
+    private fun albumRows(): List<Pair<TrackId, Long>> = runCatching {
+        context.contentResolver.query(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.ALBUM_ID),
+            "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+            null,
+            null,
+        )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            buildList(cursor.count) {
+                while (cursor.moveToNext()) add(TrackId(cursor.getLong(idColumn).toString()) to cursor.getLong(albumColumn))
+            }
+        }
+    }.getOrNull().orEmpty()
+
+    /** The picture song [id]'s own file holds, for pinning it; null when none or unreadable. */
+    private fun readOwnCover(id: TrackId): CoverPicture? = try {
+        val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id.value.toLong())
+        context.contentResolver.openFileDescriptor(uri, "r")?.use {
+            // Not closed: closing a stream over this descriptor closes the descriptor itself.
+            TagCodecs.readCover(ChannelSource(FileInputStream(it.fileDescriptor).channel))
+        }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Throwable) {
+        // A sibling that cannot be read keeps its album's art, as before this save.
+        null
+    }
+
+    override suspend fun coverKept(saved: Collection<TrackDescriptor>): Unit =
+        withContext(Dispatchers.IO) {
+            // Not trusting an entry costs one read of its file at the next scan, nothing more.
+            runCatching { coverOverrides.kept(saved) }
+        }
+
+    /** The cover [track]'s file holds now, for re-checking its override after the file changed. */
+    private fun readEmbeddedCover(track: TrackDescriptor): FileCover = try {
+        val uri = track.audioUri?.takeIf(String::isNotBlank)?.let(Uri::parse)
+        val descriptor = uri?.let { context.contentResolver.openFileDescriptor(it, "r") }
+        descriptor?.use {
+            // Not closed: closing a stream over this descriptor closes the descriptor itself, which
+            // is the ParcelFileDescriptor's job.
+            val snapshot = TagCodecs.read(ChannelSource(FileInputStream(it.fileDescriptor).channel))
+            if (snapshot == null) FileCover.Unrecognised else FileCover.Read(snapshot.cover?.crc32)
+        } ?: FileCover.Unreadable
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Throwable) {
+        // A file another app wrote (a huge picture, a pathologically nested tag) must not fail the
+        // scan: its override is kept and checked again next time.
+        FileCover.Unreadable
     }
 
     override suspend fun hide(trackId: TrackId): Unit = withContext(Dispatchers.IO) {
@@ -296,12 +425,44 @@ internal class MediaStoreMusicLibrary(
     private fun String?.knownOrNull(): String? =
         this?.takeIf { it.isNotBlank() && it != MediaStore.UNKNOWN_STRING }
 
+    /**
+     * As [knownOrNull], plus mojibake repair.
+     *
+     * MediaStore's title/artist/album/genre columns are UTF-8 bytes read back
+     * as if they were Latin-1 whenever the underlying tag reader on the
+     * device made that mistake, so "üß" comes back as "Ã¼ÃŸ". File names are
+     * deliberately left to [knownOrNull] alone: they are not tag text, and
+     * "repairing" one could point at the wrong file.
+     */
+    private fun String?.knownTagOrNull(): String? = knownOrNull()?.let(TextRepair::repair)
+
     private companion object {
         /** Base of the classic per-album artwork content URIs. */
         val ALBUM_ART_URI: android.net.Uri = android.net.Uri.parse("content://media/external/audio/albumart")
+
+        /** MediaStore.Audio.AudioColumns.ALBUM_ARTIST, whose constant is hidden below API 30. */
+        const val ALBUM_ARTIST = "album_artist"
         const val HIDDEN_FILE_NAME = "hidden_tracks.txt"
         const val EXCLUDED_SOURCES_FILE_NAME = "excluded_music_sources.txt"
         const val SOURCE_PREFIX = "folder:"
+        const val TRACK_COVERS_DIRECTORY = "track-covers"
+    }
+}
+
+/** Positional reads over a `ParcelFileDescriptor`'s channel, for the tag codecs. */
+private class ChannelSource(private val channel: FileChannel) : RandomAccessSource {
+    override val length: Long = channel.size()
+
+    override fun read(offset: Long, count: Int): ByteArray? {
+        if (offset < 0 || count < 0 || offset + count > length) return null
+        val buffer = ByteBuffer.allocate(count)
+        var position = offset
+        while (buffer.hasRemaining()) {
+            val read = channel.read(buffer, position)
+            if (read < 0) return null
+            position += read
+        }
+        return buffer.array()
     }
 }
 

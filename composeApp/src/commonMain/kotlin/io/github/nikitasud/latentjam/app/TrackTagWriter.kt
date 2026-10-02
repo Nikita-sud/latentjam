@@ -4,42 +4,11 @@
  */
 package io.github.nikitasud.latentjam.app
 
-import androidx.compose.runtime.Composable
-import io.github.nikitasud.latentjam.library.tags.Id3Refusal
-import io.github.nikitasud.latentjam.library.tags.TagEdits
-import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.library.tags.CoverEdit
+import io.github.nikitasud.latentjam.library.tags.TagRefusal
 
 /**
- * What became of a save.
- *
- * Every one of these except [Saved] leaves the file exactly as it was, and all
- * of them are shown to the user. A tag editor that fails quietly is worse than
- * one that is not offered — the user walks away believing the correction stuck.
- */
-sealed interface TagWriteOutcome {
-
-    /** The file's tags now say what the user asked, and the media index knows it. */
-    data object Saved : TagWriteOutcome
-
-    /** The system's write-permission dialog was dismissed. Not an error. */
-    data object Cancelled : TagWriteOutcome
-
-    /**
-     * The tag writer would not rewrite this file — see [Id3Refusal]. Every
-     * reason is a case where writing anyway risked destroying data, so this is
-     * the writer working, not failing.
-     */
-    data class Refused(val reason: Id3Refusal?) : TagWriteOutcome
-
-    /** The file could not be read or written. */
-    data object Failed : TagWriteOutcome
-
-    /** This platform or OS version has no path to writing the file at all. */
-    data object Unavailable : TagWriteOutcome
-}
-
-/**
- * Applies [TagEdits] to a track's underlying file.
+ * What became of one file in a save.
  *
  * ### Why the file and not the index
  *
@@ -57,14 +26,43 @@ sealed interface TagWriteOutcome {
  *
  * ### Consent
  *
- * Modifying media the app does not own needs the user's agreement, so a save
- * raises a system dialog before anything is written. That is why this is a
- * `@Composable` seam returning a callback rather than a plain suspend function:
- * the consent round trip is an activity result.
- *
- * [onOutcome] runs exactly once per invocation of the returned callback.
+ * Modifying media the app does not own needs the user's agreement on every
+ * Android version, and it is asked before anything is written: a system dialog
+ * covering many files at once on 11+, a dialog per file on 10, and the storage
+ * permission on 7–9. iOS needs none — the app writes only files imported into
+ * its own Documents. That is why saving is a `@Composable` seam (see
+ * [rememberTagSaver]) rather than a plain suspend function: the consent round
+ * trip is an activity result.
  */
-@Composable
-expect fun rememberTagWriter(
-    onOutcome: (TagWriteOutcome) -> Unit,
-): (TrackDescriptor, TagEdits) -> Unit
+internal enum class FileWriteStatus {
+    SAVED, UNCHANGED, REFUSED, NO_SPACE, FAILED, RECOVERY_PENDING, DENIED, CANCELLED, MISSING, READ_ONLY,
+    STOPPED,
+
+    /** An interrupted save of this file was finished: the edit is in it. */
+    RECOVERED,
+
+    /** An interrupted save of this file was undone: it is its original again. */
+    RESTORED,
+
+    /** The file had been changed by another app since the interruption; it was left as found. */
+    FOREIGN,
+}
+
+internal data class FileWriteResult(
+    val key: String,
+    val status: FileWriteStatus,
+    val refusal: TagRefusal? = null,
+    val newLength: Long? = null,
+)
+
+/**
+ * A finished request: what became of each file, and the request [id] its editor listens on. [cover]
+ * is the request's cover edit, which the files that hold the edit now have; a request restored
+ * after process death carries its stashed cover, so a report nobody claims still knows it.
+ */
+internal data class TagWriteReport(
+    val kind: TagWriteKind,
+    val results: List<FileWriteResult>,
+    val id: Long = 0,
+    val cover: CoverEdit = CoverEdit.Keep,
+)

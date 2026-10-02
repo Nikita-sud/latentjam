@@ -231,6 +231,7 @@ internal class PlaybackHistoryRecorderTest {
         ) = Unit
         override suspend fun cycleRepeatMode() = RepeatMode.OFF
         override suspend fun retainQueue(trackIds: Set<TrackId>) = Unit
+        override suspend fun refreshTracks(tracks: List<TrackDescriptor>) = Unit
         override suspend fun playNext(track: TrackDescriptor) = Unit
         override suspend fun addToQueue(track: TrackDescriptor) = Unit
         override suspend fun moveQueueItem(from: Int, to: Int) = Unit

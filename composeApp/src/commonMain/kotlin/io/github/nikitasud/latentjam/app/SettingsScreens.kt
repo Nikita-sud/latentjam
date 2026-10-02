@@ -48,6 +48,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Checkbox
@@ -130,6 +131,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.duplicates_summary_
 import io.github.nikitasud.latentjam.app.generated.resources.duplicates_copy_count
 import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.snack_duplicates_dismissed
+import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_missing
 import io.github.nikitasud.latentjam.app.generated.resources.unit_megabytes
 import io.github.nikitasud.latentjam.app.generated.resources.duplicates_kbps
 import io.github.nikitasud.latentjam.app.generated.resources.duplicates_reclaimable
@@ -256,6 +258,14 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_color_them
 import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer
 import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer_subtitle
 import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer_unavailable
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_being_repaired
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_finish
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget_damaged_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget_title
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_saves
+import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_saves_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_intelligence
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library
 import io.github.nikitasud.latentjam.app.generated.resources.settings_library_count
@@ -284,6 +294,11 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_license_te
 import io.github.nikitasud.latentjam.app.generated.resources.settings_license_text_model_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_licenses
 import io.github.nikitasud.latentjam.app.generated.resources.settings_licenses_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lyrics_folders
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lyrics_folders_add
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lyrics_folders_body
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lyrics_folders_failed
+import io.github.nikitasud.latentjam.app.generated.resources.settings_lyrics_folders_remove
 import io.github.nikitasud.latentjam.app.generated.resources.settings_audio_access
 import io.github.nikitasud.latentjam.app.generated.resources.settings_audio_access_allowed
 import io.github.nikitasud.latentjam.app.generated.resources.settings_audio_access_blocked
@@ -372,6 +387,7 @@ private enum class SettingsPage {
     PAGES,
     LIBRARY,
     SOURCES,
+    LYRICS_FOLDERS,
     HIDDEN_TRACKS,
     DUPLICATES,
     STATS,
@@ -392,7 +408,7 @@ private fun String.settingsStack(): List<SettingsPage> = split(ROUTE_SEPARATOR)
 /** Every settings action is backed by a real app capability; there are no placeholder toggles. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
+internal fun SettingsScreen(
     settings: AppSettings,
     equalizer: EqualizerController,
     engine: SimilarityEngine,
@@ -415,6 +431,9 @@ fun SettingsScreen(
     onClearListeningHistory: suspend () -> Unit,
     onClearRecentSearches: suspend () -> Unit,
     snackbarHostState: SnackbarHostState,
+    interruptedSaves: List<InterruptedSave> = emptyList(),
+    onFinishInterruptedSaves: () -> Unit = {},
+    onForgetInterruptedSave: (InterruptedSave) -> Unit = {},
     accent: TrackAccent? = null,
     rootOpenProgress: () -> Float = { 1f },
     rootButtonBounds: Rect? = null,
@@ -553,6 +572,9 @@ fun SettingsScreen(
                         permissions = permissions,
                         onRefreshLibrary = onRefreshLibrary,
                         onImportAudio = onImportAudio,
+                        interruptedSaves = interruptedSaves,
+                        onFinishInterruptedSaves = onFinishInterruptedSaves,
+                        onForgetInterruptedSave = onForgetInterruptedSave,
                         onOpen = { open(SettingsPage.LIBRARY, it) },
                     )
                     SettingsPage.SOURCES -> SourcesSettings(
@@ -560,6 +582,7 @@ fun SettingsScreen(
                         onRefreshLibrary = onRefreshLibrary,
                         snackbarHostState = snackbarHostState,
                     )
+                    SettingsPage.LYRICS_FOLDERS -> LyricsFoldersSettings(snackbarHostState)
                     SettingsPage.HIDDEN_TRACKS -> HiddenTracksSettings(
                         library = library,
                         onRefreshLibrary = onRefreshLibrary,
@@ -638,6 +661,7 @@ private fun SettingsPage.titleResource(): StringResource = when (this) {
     SettingsPage.PAGES -> Res.string.settings_pages
     SettingsPage.LIBRARY -> Res.string.settings_library
     SettingsPage.SOURCES -> Res.string.settings_sources
+    SettingsPage.LYRICS_FOLDERS -> Res.string.settings_lyrics_folders
     SettingsPage.HIDDEN_TRACKS -> Res.string.settings_hidden_tracks
     SettingsPage.DUPLICATES -> Res.string.settings_duplicates
     SettingsPage.STATS -> Res.string.settings_stats
@@ -1065,9 +1089,13 @@ private fun LibrarySettings(
     permissions: AppPermissions,
     onRefreshLibrary: () -> Unit,
     onImportAudio: () -> Unit,
+    interruptedSaves: List<InterruptedSave>,
+    onFinishInterruptedSaves: () -> Unit,
+    onForgetInterruptedSave: (InterruptedSave) -> Unit,
     onOpen: (SettingsPage) -> Unit,
 ) {
     val audioAccess by permissions.audioLibraryStatus.collectAsState()
+    var forgetTarget by remember { mutableStateOf<InterruptedSave?>(null) }
     LaunchedEffect(permissions) { permissions.refresh() }
 
     FadingLazyColumn(
@@ -1101,6 +1129,61 @@ private fun LibrarySettings(
                 }
             }
         }
+        if (interruptedSaves.isNotEmpty()) {
+            item {
+                SettingsSection(stringResource(Res.string.settings_interrupted_saves)) {
+                    SettingsBody(
+                        pluralStringResource(
+                            Res.plurals.settings_interrupted_saves_body,
+                            interruptedSaves.size,
+                            interruptedSaves.size,
+                        ),
+                    )
+                    SettingsActionRow(
+                        title = stringResource(Res.string.settings_interrupted_finish),
+                        subtitle = null,
+                        onClick = onFinishInterruptedSaves,
+                    )
+                    interruptedSaves.forEach { save ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    save.label ?: stringResource(Res.string.track_untitled),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (save.missing) {
+                                    Text(
+                                        stringResource(Res.string.tag_problem_missing),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                if (save.underRepair) {
+                                    Text(
+                                        stringResource(Res.string.settings_interrupted_being_repaired),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            // A file under repair only after Finish failed: Finish is its way back.
+                            if (save.forgettable) {
+                                TextButton(onClick = { forgetTarget = save }) {
+                                    Text(stringResource(Res.string.settings_interrupted_forget))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         item {
             SettingsSection(stringResource(Res.string.settings_section_library)) {
                 SettingsActionRow(
@@ -1128,6 +1211,13 @@ private fun LibrarySettings(
                     subtitle = stringResource(Res.string.settings_sources_body),
                     onClick = { onOpen(SettingsPage.SOURCES) },
                 )
+                if (lyricsFoldersNeedGrants) {
+                    SettingsRow(
+                        title = stringResource(Res.string.settings_lyrics_folders),
+                        subtitle = stringResource(Res.string.settings_lyrics_folders_body),
+                        onClick = { onOpen(SettingsPage.LYRICS_FOLDERS) },
+                    )
+                }
                 SettingsRow(
                     title = stringResource(Res.string.settings_hidden_tracks),
                     subtitle = stringResource(
@@ -1146,6 +1236,40 @@ private fun LibrarySettings(
                 )
             }
         }
+    }
+
+    forgetTarget?.let { save ->
+        AlertDialog(
+            onDismissRequest = { forgetTarget = null },
+            title = { Text(stringResource(Res.string.settings_interrupted_forget_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        // Mid-replace the file holds part old bytes, part new: it may not play at all.
+                        if (save.underRepair) {
+                            Res.string.settings_interrupted_forget_damaged_body
+                        } else {
+                            Res.string.settings_interrupted_forget_body
+                        },
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { forgetTarget = null; onForgetInterruptedSave(save) },
+                    colors = if (save.underRepair) {
+                        ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    } else {
+                        ButtonDefaults.textButtonColors()
+                    },
+                ) {
+                    Text(stringResource(Res.string.settings_interrupted_forget))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { forgetTarget = null }) { Text(stringResource(Res.string.action_cancel)) }
+            },
+        )
     }
 }
 
@@ -1282,6 +1406,55 @@ private fun SourceSwitchRow(
             enabled = enabled,
             onCheckedChange = null,
         )
+    }
+}
+
+/**
+ * Android 10+ only: the folders whose `.lrc` files the lyrics reader may open. Each is granted
+ * once through the system folder picker; removing one gives its access back to the system.
+ */
+@Composable
+private fun LyricsFoldersSettings(snackbarHostState: SnackbarHostState) {
+    val scope = rememberCoroutineScope()
+    val refusedMessage = stringResource(Res.string.settings_lyrics_folders_failed)
+    val controls = rememberLyricsFolderControls(
+        onRefused = { scope.launch { snackbarHostState.showSnackbar(refusedMessage) } },
+    )
+
+    FadingLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
+        item {
+            SettingsSection(stringResource(Res.string.settings_lyrics_folders)) {
+                SettingsBody(stringResource(Res.string.settings_lyrics_folders_body))
+                SettingsActionRow(
+                    title = stringResource(Res.string.settings_lyrics_folders_add),
+                    subtitle = null,
+                    onClick = controls.add,
+                )
+            }
+        }
+        items(items = controls.folders, key = LyricsFolder::id) { folder ->
+            LyricsFolderRow(folder = folder, onRemove = { controls.remove(folder) })
+        }
+    }
+}
+
+@Composable
+private fun LyricsFolderRow(folder: LyricsFolder, onRemove: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = folder.label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f).padding(end = 12.dp),
+        )
+        TextButton(onClick = onRemove) {
+            Text(stringResource(Res.string.settings_lyrics_folders_remove))
+        }
     }
 }
 
@@ -1860,7 +2033,8 @@ private fun IntelligenceSettings(
                         stringResource(Res.string.intelligence_indexed_of, indexed, fingerprintTarget)
                     },
                 )
-                if (!libraryLoading && indexing.running && tracks.isNotEmpty()) {
+                // Shown once the pass has counted what is already analysed, never as a "0 of N" first.
+                if (!libraryLoading && indexing.running && indexing.progressKnown && tracks.isNotEmpty()) {
                     LinearProgressIndicator(
                         progress = { done.toFloat() / tracks.size },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),

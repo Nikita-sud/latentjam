@@ -224,11 +224,38 @@
     <string name="info_edit">Edit tag</string>
     <string name="info_save">Simpan</string>
     <string name="info_cancel">Batal</string>
+    <string name="editor_discard_title">Buang perubahan?</string>
+    <string name="editor_discard">Buang</string>
+    <string name="editor_keep_editing">Lanjutkan mengedit</string>
     <string name="info_saving">Menyimpan…</string>
-    <string name="info_edit_note">Disimpan ke dalam file itu sendiri, sehingga semua aplikasi melihat koreksinya. Android akan meminta izin untuk mengubah file.</string>
+    <string name="info_edit_note">Disimpan ke dalam file itu sendiri, sehingga semua aplikasi melihat koreksinya. Anda mungkin diminta izin untuk mengubah file.</string>
     <string name="info_edit_refused">Tag file ini dalam bentuk yang tidak dapat ditulis ulang dengan aman, jadi tidak ada yang diubah.</string>
     <string name="info_edit_failed">Tidak dapat menulis ke file ini. File dibiarkan apa adanya.</string>
-    <string name="info_edit_unavailable">Pengeditan tag tidak tersedia di perangkat ini.</string>
+    <string name="info_edit_no_space">Ruang kosong tidak cukup untuk menyimpan tag ini dengan aman. Tidak ada yang diubah.</string>
+    <string name="info_edit_recovery_pending">Penyimpanan terhenti. LatentJam akan menyelesaikan atau membatalkannya saat berikutnya diizinkan menulis ke file.</string>
+    <string name="tag_recovery_title">Selesaikan penyimpanan tag</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="other">LatentJam terhenti saat menyimpan tag ke %1$d file. LatentJam dapat menyelesaikan perubahan sekarang, atau membatalkannya jika file tidak dapat diselesaikan.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Selesaikan</string>
+    <string name="tag_recovery_later">Nanti</string>
+    <string name="tag_problem_unsupported_format">LatentJam tidak dapat mengedit jenis file ini.</string>
+    <string name="tag_problem_damaged">File ini tampaknya rusak, jadi dibiarkan apa adanya.</string>
+    <string name="tag_problem_protected">File ini dilindungi dari penyalinan dan tidak dapat diubah.</string>
+    <string name="tag_problem_tags_too_large">Tag akan terlalu besar untuk file ini.</string>
+    <string name="tag_problem_bad_number">Nomor lagu dan nomor disk harus berupa bilangan bulat dari 1 sampai 999.</string>
+    <string name="tag_problem_number_unreadable">Nomor lagu atau nomor disk bawaan file ini bukan angka biasa, jadi totalnya tidak dapat diubah sendiri.</string>
+    <string name="tag_problem_bad_image">Gambar ini bukan gambar JPEG atau PNG.</string>
+    <string name="tag_problem_read_only_storage">File ini berada di penyimpanan yang tidak dapat ditulisi.</string>
+    <string name="tag_problem_music_library">Lagu dari Pustaka musik tidak dapat diedit, hanya lagu yang diimpor ke LatentJam.</string>
+    <string name="tag_problem_unreadable">File ini tidak dapat dibaca.</string>
+    <string name="tag_problem_not_allowed">Izin untuk mengubah file tidak diberikan.</string>
+    <string name="tag_problem_missing">File sudah tidak ada.</string>
+    <string name="tag_problem_stopped">Dihentikan sebelum file ini.</string>
+    <string name="tag_problem_cancelled">Permintaan izin ditutup.</string>
+    <string name="tag_problem_undone">Penyimpanan yang terhenti telah dibatalkan: file kembali seperti semula.</string>
+    <string name="tag_problem_changed_elsewhere">Aplikasi lain mengubah file setelah penyimpanan terhenti, jadi file dibiarkan apa adanya.</string>
+    <string name="tag_problem_lost">LatentJam tidak dapat mengetahui bagaimana penyimpanan ini berakhir. Periksa tag file tersebut.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Setelan</string>
@@ -397,6 +424,16 @@
     <string name="settings_hidden_tracks">Trek tersembunyi</string>
     <string name="settings_hidden_tracks_body">Trek yang disembunyikan hanya di LatentJam. Pulihkan trek tanpa mengubah filenya.</string>
     <string name="settings_hidden_tracks_empty">Tidak ada trek yang disembunyikan di LatentJam.</string>
+    <string name="settings_interrupted_saves">Penyimpanan yang terhenti</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="other">Penyimpanan tag ke %1$d file terhenti. LatentJam akan menyelesaikan atau membatalkannya saat diizinkan menulis ke file.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Selesaikan sekarang</string>
+    <string name="settings_interrupted_being_repaired">Sedang diperbaiki: tidak diputar sampai selesai</string>
+    <string name="settings_interrupted_forget">Lupakan</string>
+    <string name="settings_interrupted_forget_title">Lupakan penyimpanan ini?</string>
+    <string name="settings_interrupted_forget_body">File tetap persis seperti sekarang, dan LatentJam berhenti mencoba menyelesaikan atau membatalkan penyimpanan. Ini tidak dapat dibatalkan.</string>
+    <string name="settings_interrupted_forget_damaged_body">Penyimpanan ini berhenti di tengah jalan. File mungkin rusak dan tidak dapat diputar, dan melupakannya akan menghapus salinan yang dapat digunakan LatentJam untuk memperbaikinya. Ini tidak dapat dibatalkan.</string>
     <string name="settings_duplicates">Duplikat audio</string>
     <string name="settings_duplicates_body">Menemukan salinan rekaman yang sama dari suaranya, apa pun tag-nya</string>
     <string name="settings_duplicates_scanning">Membandingkan semua pasangan trek…</string>
@@ -404,6 +441,11 @@
     <string name="settings_restore">Pulihkan</string>
     <string name="settings_restore_all">Pulihkan semua</string>
     <string name="settings_library_manage_failed">Tidak dapat memperbarui pustaka. Coba lagi.</string>
+    <string name="settings_lyrics_folders">Folder berisi file .lrc</string>
+    <string name="settings_lyrics_folders_body">Android akan menanyakan folder mana yang diizinkan. File .lrc bernama sama dengan lagu lalu dipakai sebagai liriknya.</string>
+    <string name="settings_lyrics_folders_add">Tambah folder</string>
+    <string name="settings_lyrics_folders_remove">Hapus</string>
+    <string name="settings_lyrics_folders_failed">Folder ini tidak dapat digunakan. Pilih folder di penyimpanan perangkat ini.</string>
 
     <string name="settings_licenses">Lisensi sumber terbuka</string>
     <string name="settings_licenses_body">Pemberitahuan untuk LatentJam, model bawaan, dan perangkat lunak pihak ketiga</string>
@@ -488,7 +530,71 @@
     <string name="duplicates_keep_this">Simpan yang ini</string>
     <string name="snack_duplicates_merged">Duplikat digabung: playlist kini menunjuk ke salinan yang disimpan</string>
     <string name="info_lyrics">Lirik</string>
-    <string name="lyrics_not_found">Tidak ada lirik tertanam yang ditemukan untuk lagu ini.</string>
+    <string name="info_album_artist">Artis album</string>
+    <string name="info_track_number">Nomor lagu</string>
+    <string name="info_track_total">Total lagu</string>
+    <string name="info_disc_number">Nomor disk</string>
+    <string name="info_disc_total">Total disk</string>
+    <string name="info_cover">Sampul</string>
+    <string name="info_cover_replace">Ganti</string>
+    <string name="info_cover_remove">Hapus</string>
+    <string name="info_cover_keep">Pertahankan yang sekarang</string>
+    <string name="info_cover_new">Sampul baru</string>
+    <string name="info_cover_removed">Sampul akan dihapus.</string>
+    <plurals name="info_cover_more">
+        <item quantity="other">+%1$d gambar lain di file, tetap disimpan</item>
+    </plurals>
+    <string name="info_reading_file">Membaca file…</string>
+    <string name="action_edit_album">Edit album</string>
+    <string name="action_edit_artist">Edit artis</string>
+    <string name="action_edit_short">Edit</string>
+    <plurals name="count_files">
+        <item quantity="other">%1$d file</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="other">%1$d kolom</item>
+    </plurals>
+    <string name="bulk_save">Ubah %1$s di %2$s</string>
+    <string name="bulk_reading">Membaca %1$d dari %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="other">%1$d file tidak dapat diedit dan akan dibiarkan apa adanya:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="other">dan %1$d lainnya</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Tak satu pun dari file ini dapat diedit.</string>
+    <string name="bulk_different">Nilai berbeda</string>
+    <plurals name="bulk_removed">
+        <item quantity="other">Dihapus dari %1$d file</item>
+    </plurals>
+    <string name="bulk_remove_field">Hapus dari semua file</string>
+    <string name="bulk_keep_field">Biarkan apa adanya</string>
+    <string name="bulk_kept">Tetap seperti semula: %1$s</string>
+    <string name="bulk_saving">Tersimpan %1$d dari %2$d</string>
+    <string name="bulk_stop">Hentikan</string>
+    <string name="bulk_result">Tersimpan %1$d dari %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="other">%1$d file tidak diubah:</item>
+    </plurals>
+    <string name="bulk_done">Selesai</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="other">Tag disimpan di %1$d file</item>
+    </plurals>
+    <string name="tags_saved_partly">Tag disimpan di %1$d dari %2$d file</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="other">Selesai menyimpan %1$d file</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="other">%1$d penyimpanan yang terhenti dibatalkan; file kembali seperti semula</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="other">%1$d file diubah oleh aplikasi lain dan dibiarkan apa adanya</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="other">%1$d file belum dapat diselesaikan. Lihat Setelan → Pustaka.</item>
+    </plurals>
+    <string name="lyrics_not_found">Tidak ada lirik yang ditemukan untuk lagu ini.</string>
     <string name="cd_scroll_to_top">Kembali ke atas</string>
     <string name="foryou_section_daypart_morning">Pagi Anda</string>
     <string name="foryou_section_daypart_day">Siang Anda</string>

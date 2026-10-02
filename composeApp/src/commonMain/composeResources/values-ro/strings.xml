@@ -223,11 +223,40 @@
     <string name="info_edit">Editează etichetele</string>
     <string name="info_save">Salvează</string>
     <string name="info_cancel">Anulează</string>
+    <string name="editor_discard_title">Renunți la modificări?</string>
+    <string name="editor_discard">Renunță</string>
+    <string name="editor_keep_editing">Continuă editarea</string>
     <string name="info_saving">Se salvează…</string>
-    <string name="info_edit_note">Se salvează în fișierul propriu-zis, așa că orice aplicație vede corectura. Android va cere permisiunea de a modifica fișierul.</string>
+    <string name="info_edit_note">Se salvează în fișierul propriu-zis, așa că orice aplicație vede corectura. Este posibil să ți se ceară permisiunea de a modifica fișierul.</string>
     <string name="info_edit_refused">Etichetele acestui fișier sunt într-o formă care nu poate fi rescrisă în siguranță, așa că nimic nu a fost schimbat.</string>
     <string name="info_edit_failed">Fișierul nu a putut fi scris. A rămas neschimbat.</string>
-    <string name="info_edit_unavailable">Editarea etichetelor nu este disponibilă pe acest dispozitiv.</string>
+    <string name="info_edit_no_space">Nu există suficient spațiu liber pentru a salva aceste etichete în siguranță. Nu s-a modificat nimic.</string>
+    <string name="info_edit_recovery_pending">Salvarea a fost întreruptă. LatentJam o va termina sau o va anula data viitoare când va avea voie să scrie fișierul.</string>
+    <string name="tag_recovery_title">Termină salvarea etichetelor</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam a fost întrerupt în timp ce salva etichete în %1$d fișier. Poate termina modificarea acum sau o poate anula dacă fișierul nu poate fi terminat.</item>
+        <item quantity="few">LatentJam a fost întrerupt în timp ce salva etichete în %1$d fișiere. Poate termina modificările acum sau le poate anula acolo unde un fișier nu poate fi terminat.</item>
+        <item quantity="other">LatentJam a fost întrerupt în timp ce salva etichete în %1$d de fișiere. Poate termina modificările acum sau le poate anula acolo unde un fișier nu poate fi terminat.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Termină</string>
+    <string name="tag_recovery_later">Mai târziu</string>
+    <string name="tag_problem_unsupported_format">LatentJam nu poate edita acest tip de fișier.</string>
+    <string name="tag_problem_damaged">Acest fișier pare deteriorat, așa că a rămas neschimbat.</string>
+    <string name="tag_problem_protected">Acest fișier este protejat la copiere și nu poate fi modificat.</string>
+    <string name="tag_problem_tags_too_large">Etichetele ar fi prea mari pentru acest fișier.</string>
+    <string name="tag_problem_bad_number">Numerele de piesă și de disc trebuie să fie numere întregi de la 1 la 999.</string>
+    <string name="tag_problem_number_unreadable">Numărul de piesă sau de disc din fișier nu este un număr simplu, așa că totalul lui nu poate fi schimbat separat.</string>
+    <string name="tag_problem_bad_image">Imaginea nu este de tip JPEG sau PNG.</string>
+    <string name="tag_problem_read_only_storage">Acest fișier se află pe un spațiu de stocare pe care nu se poate scrie.</string>
+    <string name="tag_problem_music_library">Melodiile din biblioteca muzicală nu pot fi editate, doar cele importate în LatentJam.</string>
+    <string name="tag_problem_unreadable">Acest fișier nu a putut fi citit.</string>
+    <string name="tag_problem_not_allowed">Permisiunea de a modifica fișierul nu a fost acordată.</string>
+    <string name="tag_problem_missing">Fișierul nu mai există.</string>
+    <string name="tag_problem_stopped">Oprit înainte de acest fișier.</string>
+    <string name="tag_problem_cancelled">Cererea de permisiune a fost închisă.</string>
+    <string name="tag_problem_undone">O salvare întreruptă a fost anulată: fișierul este ca înainte.</string>
+    <string name="tag_problem_changed_elsewhere">O altă aplicație a modificat fișierul după întreruperea salvării, așa că a rămas neschimbat.</string>
+    <string name="tag_problem_lost">LatentJam nu a putut afla cum s-a încheiat această salvare. Verifică etichetele fișierului.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Setări</string>
@@ -396,6 +425,18 @@
     <string name="settings_hidden_tracks">Piese ascunse</string>
     <string name="settings_hidden_tracks_body">Piese ascunse doar în LatentJam. Restabilește orice piesă fără a-i modifica fișierul.</string>
     <string name="settings_hidden_tracks_empty">Nu există piese ascunse în LatentJam.</string>
+    <string name="settings_interrupted_saves">Salvări întrerupte</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">Salvarea etichetelor în %1$d fișier a fost întreruptă. LatentJam o va termina sau o va anula când va avea voie să scrie fișierul.</item>
+        <item quantity="few">Salvarea etichetelor în %1$d fișiere a fost întreruptă. LatentJam va termina sau va anula fiecare salvare când va avea voie să scrie fișierul.</item>
+        <item quantity="other">Salvarea etichetelor în %1$d de fișiere a fost întreruptă. LatentJam va termina sau va anula fiecare salvare când va avea voie să scrie fișierul.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Termină acum</string>
+    <string name="settings_interrupted_being_repaired">În reparare: nu se redă până nu este terminat</string>
+    <string name="settings_interrupted_forget">Uită</string>
+    <string name="settings_interrupted_forget_title">Uiți această salvare?</string>
+    <string name="settings_interrupted_forget_body">Fișierul rămâne exact cum este acum, iar LatentJam nu mai încearcă să termine sau să anuleze salvarea. Acest lucru nu poate fi anulat.</string>
+    <string name="settings_interrupted_forget_damaged_body">Această salvare s-a oprit la jumătate. Fișierul poate fi deteriorat și s-ar putea să nu se redea, iar dacă o uiți se șterg copiile din care LatentJam l-ar putea repara. Acest lucru nu poate fi anulat.</string>
     <string name="settings_duplicates">Dubluri audio</string>
     <string name="settings_duplicates_body">Găsește copii ale aceleiași înregistrări după sunet, indiferent de etichete</string>
     <string name="settings_duplicates_scanning">Se compară toate perechile de piese…</string>
@@ -403,6 +444,11 @@
     <string name="settings_restore">Restabilește</string>
     <string name="settings_restore_all">Restabilește tot</string>
     <string name="settings_library_manage_failed">Biblioteca nu a putut fi actualizată. Încearcă din nou.</string>
+    <string name="settings_lyrics_folders">Dosare cu fișiere .lrc</string>
+    <string name="settings_lyrics_folders_body">Android întreabă ce dosar să permită. Un fișier .lrc cu același nume ca piesa este apoi folosit pentru versurile ei.</string>
+    <string name="settings_lyrics_folders_add">Adaugă dosar</string>
+    <string name="settings_lyrics_folders_remove">Elimină</string>
+    <string name="settings_lyrics_folders_failed">Acest dosar nu poate fi folosit. Alege unul din spațiul de stocare al acestui dispozitiv.</string>
 
     <string name="settings_licenses">Licențe open-source</string>
     <string name="settings_licenses_body">Notificări pentru LatentJam, modelele incluse și software-ul terț</string>
@@ -488,7 +534,95 @@
     <string name="duplicates_keep_this">Păstrează-l pe acesta</string>
     <string name="snack_duplicates_merged">Duplicatele au fost unite: playlisturile indică acum copia păstrată</string>
     <string name="info_lyrics">Versuri</string>
-    <string name="lyrics_not_found">Nu s-au găsit versuri încorporate pentru această piesă.</string>
+    <string name="info_album_artist">Artistul albumului</string>
+    <string name="info_track_number">Nr. piesă</string>
+    <string name="info_track_total">Total piese</string>
+    <string name="info_disc_number">Nr. disc</string>
+    <string name="info_disc_total">Total discuri</string>
+    <string name="info_cover">Copertă</string>
+    <string name="info_cover_replace">Înlocuiește</string>
+    <string name="info_cover_remove">Elimină</string>
+    <string name="info_cover_keep">Păstrează coperta actuală</string>
+    <string name="info_cover_new">Copertă nouă</string>
+    <string name="info_cover_removed">Coperta va fi eliminată.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d altă imagine în fișier, păstrată</item>
+        <item quantity="few">+%1$d alte imagini în fișier, păstrate</item>
+        <item quantity="other">+%1$d de alte imagini în fișier, păstrate</item>
+    </plurals>
+    <string name="info_reading_file">Se citește fișierul…</string>
+    <string name="action_edit_album">Editează albumul</string>
+    <string name="action_edit_artist">Editează artistul</string>
+    <string name="action_edit_short">Editează</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d fișier</item>
+        <item quantity="few">%1$d fișiere</item>
+        <item quantity="other">%1$d de fișiere</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d câmp</item>
+        <item quantity="few">%1$d câmpuri</item>
+        <item quantity="other">%1$d de câmpuri</item>
+    </plurals>
+    <string name="bulk_save">Modifică %1$s în %2$s</string>
+    <string name="bulk_reading">Se citesc fișierele: %1$d din %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d fișier nu poate fi editat și va rămâne neschimbat:</item>
+        <item quantity="few">%1$d fișiere nu pot fi editate și vor rămâne neschimbate:</item>
+        <item quantity="other">%1$d de fișiere nu pot fi editate și vor rămâne neschimbate:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">și încă %1$d</item>
+        <item quantity="few">și încă %1$d</item>
+        <item quantity="other">și încă %1$d</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Niciunul dintre aceste fișiere nu poate fi editat.</string>
+    <string name="bulk_different">Valori diferite</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Eliminat din %1$d fișier</item>
+        <item quantity="few">Eliminat din toate cele %1$d</item>
+        <item quantity="other">Eliminat din toate cele %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Elimină din toate fișierele</string>
+    <string name="bulk_keep_field">Lasă neschimbat</string>
+    <string name="bulk_kept">Rămâne neschimbat: %1$s</string>
+    <string name="bulk_saving">Salvate: %1$d din %2$d</string>
+    <string name="bulk_stop">Oprește</string>
+    <string name="bulk_result">Salvate: %1$d din %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d fișier nemodificat:</item>
+        <item quantity="few">%1$d fișiere nemodificate:</item>
+        <item quantity="other">%1$d de fișiere nemodificate:</item>
+    </plurals>
+    <string name="bulk_done">Gata</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Etichete salvate în %1$d fișier</item>
+        <item quantity="few">Etichete salvate în %1$d fișiere</item>
+        <item quantity="other">Etichete salvate în %1$d de fișiere</item>
+    </plurals>
+    <string name="tags_saved_partly">Etichete salvate în %1$d din %2$d fișiere</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Salvare finalizată pentru %1$d fișier</item>
+        <item quantity="few">Salvare finalizată pentru %1$d fișiere</item>
+        <item quantity="other">Salvare finalizată pentru %1$d de fișiere</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d salvare întreruptă a fost anulată; fișierul este ca înainte</item>
+        <item quantity="few">%1$d salvări întrerupte au fost anulate; fișierele sunt ca înainte</item>
+        <item quantity="other">%1$d de salvări întrerupte au fost anulate; fișierele sunt ca înainte</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d fișier a fost modificat de o altă aplicație și a fost lăsat așa cum este</item>
+        <item quantity="few">%1$d fișiere au fost modificate de o altă aplicație și au fost lăsate așa cum sunt</item>
+        <item quantity="other">%1$d de fișiere au fost modificate de o altă aplicație și au fost lăsate așa cum sunt</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d fișier nu a putut fi terminat încă. Vezi Setări → Bibliotecă.</item>
+        <item quantity="few">%1$d fișiere nu au putut fi terminate încă. Vezi Setări → Bibliotecă.</item>
+        <item quantity="other">%1$d de fișiere nu au putut fi terminate încă. Vezi Setări → Bibliotecă.</item>
+    </plurals>
+    <string name="lyrics_not_found">Nu s-au găsit versuri pentru această piesă.</string>
     <string name="cd_scroll_to_top">Înapoi sus</string>
     <string name="foryou_section_daypart_morning">Diminețile tale</string>
     <string name="foryou_section_daypart_day">După-amiezile tale</string>

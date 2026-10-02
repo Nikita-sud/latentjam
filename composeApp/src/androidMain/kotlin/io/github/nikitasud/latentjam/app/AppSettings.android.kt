@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.app
 
 import android.content.Context
+import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.playback.sanitizeCrossfadeSeconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +46,14 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         ),
     )
     override val crossfadeSeconds: StateFlow<Int> = mutableCrossfadeSeconds.asStateFlow()
+    private val mutableSongSort = MutableStateFlow(songSortFromPersisted(readString(KEY_SONG_SORT)))
+    override val songSort: StateFlow<SortChoice<SongSort>> = mutableSongSort.asStateFlow()
+    private val mutableAlbumSort = MutableStateFlow(albumSortFromPersisted(readString(KEY_ALBUM_SORT)))
+    override val albumSort: StateFlow<SortChoice<AlbumSort>> = mutableAlbumSort.asStateFlow()
+    private val mutableArtistAlbumSort = MutableStateFlow(
+        artistAlbumSortFromPersisted(readString(KEY_ARTIST_ALBUM_SORT)),
+    )
+    override val artistAlbumSort: StateFlow<SortChoice<AlbumSort>> = mutableArtistAlbumSort.asStateFlow()
     private val mutableSaveListeningHistory = MutableStateFlow(readRecordingPreference(KEY_SAVE_HISTORY))
     override val saveListeningHistory: StateFlow<Boolean> = mutableSaveListeningHistory.asStateFlow()
     private val mutableRememberSearches = MutableStateFlow(readRecordingPreference(KEY_REMEMBER_SEARCHES))
@@ -100,6 +110,22 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         mutableCrossfadeSeconds.value = sanitized
     }
 
+    override fun setSongSort(choice: SortChoice<SongSort>) {
+        preferences.edit().putString(KEY_SONG_SORT, encodeSortChoice(choice)).apply()
+        mutableSongSort.value = choice
+    }
+
+    override fun setAlbumSort(choice: SortChoice<AlbumSort>) {
+        preferences.edit().putString(KEY_ALBUM_SORT, encodeSortChoice(choice)).apply()
+        mutableAlbumSort.value = choice
+    }
+
+    override fun setArtistAlbumSort(choice: SortChoice<AlbumSort>) {
+        if (choice.sort !in ARTIST_ALBUM_SORTS) return
+        preferences.edit().putString(KEY_ARTIST_ALBUM_SORT, encodeSortChoice(choice)).apply()
+        mutableArtistAlbumSort.value = choice
+    }
+
     override fun readTrackLoudnessPayload(): String? = readString(KEY_TRACK_LOUDNESS)
 
     override fun writeTrackLoudnessPayload(payload: String) {
@@ -110,6 +136,12 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
 
     override fun writeTrackGenresPayload(payload: String) {
         preferences.edit().putString(KEY_TRACK_GENRES, payload).apply()
+    }
+
+    override fun readAudioCarryOversPayload(): String? = readString(KEY_AUDIO_CARRY_OVERS)
+
+    override fun writeAudioCarryOversPayload(payload: String) {
+        preferences.edit().putString(KEY_AUDIO_CARRY_OVERS, payload).apply()
     }
 
     override fun readDuplicateDismissalsPayload(): String? = readString(KEY_DUPLICATE_DISMISSALS)
@@ -270,8 +302,12 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
         const val KEY_NORMALIZE_VOLUME = "normalize_volume"
         const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
+        const val KEY_SONG_SORT = "song_sort"
+        const val KEY_ALBUM_SORT = "album_sort"
+        const val KEY_ARTIST_ALBUM_SORT = "artist_album_sort"
         const val KEY_TRACK_LOUDNESS = "track_loudness_v1"
         const val KEY_TRACK_GENRES = "track_genres_v1"
+        const val KEY_AUDIO_CARRY_OVERS = "audio_carry_overs"
         const val KEY_DUPLICATE_DISMISSALS = "duplicate_dismissals_v1"
         const val KEY_RESUME_SOURCE_REFERENCE = "resume_source_reference"
         const val KEY_RESUME_QUEUE_STATE = "resume_queue_state_v2"

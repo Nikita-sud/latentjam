@@ -25,25 +25,7 @@ class EmbeddedLyricsReplay {
             return
         }
         val bytes = file.readBytes()
-        val source = object : GenreTags.ByteSource {
-            private var position = 0
-            override fun read(count: Int): ByteArray? {
-                if (position + count > bytes.size) return null
-                return bytes.copyOfRange(position, position + count).also { position += count }
-            }
-
-            override fun readUpTo(count: Int): ByteArray {
-                val end = minOf(bytes.size, position + count)
-                return bytes.copyOfRange(position, end).also { position = end }
-            }
-
-            override fun skip(count: Long): Boolean {
-                if (position + count > bytes.size) return false
-                position += count.toInt()
-                return true
-            }
-        }
-        val lyrics = EmbeddedLyrics.read(source)
+        val lyrics = EmbeddedLyrics.read(ByteArraySource(bytes))
         println("lyrics: ${lyrics?.lines?.size ?: "NULL"} lines, synced=${lyrics?.synced}")
         println(lyrics?.lines?.take(6)?.joinToString("\n") { "${it.timeMs ?: "-"}\t${it.text}" })
         check(lyrics != null && lyrics.text.isNotBlank()) { "expected lyrics in $path" }

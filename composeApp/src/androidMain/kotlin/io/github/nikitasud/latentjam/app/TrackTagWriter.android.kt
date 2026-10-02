@@ -4,325 +4,561 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import android.Manifest
 import android.app.Activity
-import android.content.ContentResolver
+import android.app.RecoverableSecurityException
 import android.content.Context
+import android.content.IntentSender
+import android.content.pm.PackageManager
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.os.StatFs
 import android.provider.MediaStore
+import android.system.Os
+import android.system.OsConstants
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.platform.LocalContext
-import io.github.nikitasud.latentjam.library.tags.Id3Refusal
-import io.github.nikitasud.latentjam.library.tags.Id3Tags
-import io.github.nikitasud.latentjam.library.tags.Id3v1
-import io.github.nikitasud.latentjam.library.tags.TagEdits
-import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import io.github.nikitasud.latentjam.library.tags.write.ChannelTargetFile
+import io.github.nikitasud.latentjam.library.tags.write.DurableWriter
+import io.github.nikitasud.latentjam.library.tags.write.FileRecoveryDirectory
+import io.github.nikitasud.latentjam.library.tags.write.TagRecovery
+import io.github.nikitasud.latentjam.library.tags.write.TargetFile
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
-import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 
+internal fun tagWriteStrategy(sdkInt: Int): TagWriteStrategy = when {
+    sdkInt >= Build.VERSION_CODES.R -> TagWriteStrategy.SYSTEM_WRITE_REQUEST
+    sdkInt >= Build.VERSION_CODES.Q -> TagWriteStrategy.RECOVERABLE_CONSENT
+    else -> TagWriteStrategy.WRITE_PERMISSION
+}
+
 /**
- * Asks the system for write consent, rewrites the file's ID3v2 tag, then makes
- * the media index re-read it.
- *
- * The consent step is [MediaStore.createWriteRequest], the same
- * system-owns-the-decision pattern the delete path uses. It only exists from
- * API 30. The tag editor does not implement the older per-file consent or storage-permission
- * flows, so editing reports [TagWriteOutcome.Unavailable] below API 30.
+ * The one coordinator over the store, for the life of the process. An Activity that finishes no
+ * longer stops a batch. A second MainActivity (started into another task) shares this coordinator
+ * instead of starting one whose restore would delete this one's key and cover files. Checkpoints
+ * still go to every live Activity's saved state, so process death restores a batch as before.
+ * Main thread only, like every coordinator call.
  */
+internal object AndroidTagWrites {
+    private const val CHECKPOINT = "tag-writes"
+    private val checkpoints = CheckpointFanOut()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var coordinator: TagWriteCoordinator<IntentSender>? = null
+
+    /** [handle]'s checkpoint restores only the coordinator it creates; a later handle just receives checkpoints. */
+    fun attach(context: Context, handle: SavedStateHandle, owner: Any): TagWriteCoordinator<IntentSender> {
+        checkpoints.attach(owner) { handle[CHECKPOINT] = ArrayList(it) }
+        coordinator?.let { return it }
+        val backend = AndroidTagWriteBackend(context.applicationContext)
+        val created = TagWriteCoordinator(
+            backend = backend,
+            scope = scope,
+            io = Dispatchers.IO,
+            restored = handle.get<ArrayList<String>>(CHECKPOINT),
+            save = checkpoints::save,
+        )
+        coordinator = created
+        // Eagerly but off the main thread. A save that comes first prepares the store itself.
+        scope.launch(Dispatchers.IO) {
+            try {
+                backend.prepareStore()
+            } catch (_: Exception) {
+                // Retried by the first save, which fails if it fails again.
+            }
+        }
+        return created
+    }
+
+    fun detach(owner: Any) = checkpoints.detach(owner)
+}
+
+/** Connects an Activity's saved state to [AndroidTagWrites]; it owns nothing itself. */
+internal class TagWriteViewModel(context: Context, handle: SavedStateHandle) : ViewModel() {
+    val coordinator = AndroidTagWrites.attach(context, handle, this)
+
+    override fun onCleared() {
+        AndroidTagWrites.detach(this)
+    }
+}
+
 @Composable
-actual fun rememberTagWriter(
-    onOutcome: (TagWriteOutcome) -> Unit,
-): (TrackDescriptor, TagEdits) -> Unit {
-    val context = LocalContext.current
+private fun tagWriteCoordinator(): TagWriteCoordinator<IntentSender>? {
+    val activity = LocalActivity.current as? ComponentActivity ?: return null
+    return remember(activity) {
+        val factory = viewModelFactory {
+            initializer { TagWriteViewModel(activity.applicationContext, createSavedStateHandle()) }
+        }
+        ViewModelProvider(activity, factory)[TagWriteViewModel::class.java]
+    }.coordinator
+}
+
+@Composable
+internal actual fun rememberTagWriteAccess(): TagWriteAccess? {
+    val coordinator = tagWriteCoordinator() ?: return null
+    return remember(coordinator) {
+        TagWriteAccess(coordinator, readOnlyIsMusicLibrary = false) { track ->
+            track.audioUri?.takeIf(String::isNotBlank)
+        }
+    }
+}
+
+@Composable
+actual fun TagWriteHost() {
+    val activity = LocalActivity.current as? ComponentActivity ?: return
+    val coordinator = tagWriteCoordinator() ?: return
     val scope = rememberCoroutineScope()
-    val currentOnOutcome by rememberUpdatedState(onOutcome)
-    // Consent arrives asynchronously, so the edit has to survive the round trip
-    // to the system dialog and back. Held here rather than passed through the
-    // Intent, which cannot carry it.
-    val pending = remember { arrayOfNulls<Pair<Uri, TagEdits>>(1) }
-
-    val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartIntentSenderForResult(),
-    ) { result ->
-        val (uri, edits) = pending[0] ?: return@rememberLauncherForActivityResult
-        pending[0] = null
-        if (result.resultCode != Activity.RESULT_OK) {
-            currentOnOutcome(TagWriteOutcome.Cancelled)
-        } else {
-            scope.launch { currentOnOutcome(saveTags(context, uri, edits)) }
+    val consentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        coordinator.answer(when {
+            result.data?.hasExtra(ActivityResultContracts.StartIntentSenderForResult.EXTRA_SEND_INTENT_EXCEPTION) == true -> WriteAnswer.FAILED
+            result.resultCode == Activity.RESULT_OK -> WriteAnswer.APPROVED
+            else -> WriteAnswer.CANCELLED
+        })
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        coordinator.answer(if (granted) WriteAnswer.APPROVED else WriteAnswer.CANCELLED)
+    }
+    var resumed by remember(activity) { mutableStateOf(activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
+    DisposableEffect(activity) {
+        val observer = LifecycleEventObserver { _, _ ->
+            resumed = activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        }
+        activity.lifecycle.addObserver(observer)
+        onDispose { activity.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(coordinator, resumed) {
+        if (resumed) {
+            coordinator.onHostResumed()
+            coordinator.refreshRecovery()
         }
     }
-
-    return { track, edits ->
-        val uri = track.audioUri?.let(Uri::parse)
-        when {
-            uri == null -> currentOnOutcome(TagWriteOutcome.Unavailable)
-            edits.isEmpty -> currentOnOutcome(TagWriteOutcome.Saved)
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.R -> {
-                currentOnOutcome(TagWriteOutcome.Unavailable)
-            }
-            else -> {
-                // Ask first: on scoped storage the open throws without consent,
-                // and catching a RecoverableSecurityException after the fact is
-                // the messier of the two paths.
-                pending[0] = uri to edits
-                val request = MediaStore.createWriteRequest(context.contentResolver, listOf(uri))
-                launcher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+    val prompt by coordinator.prompt.collectAsState()
+    LaunchedEffect(prompt, resumed) {
+        val pending = prompt
+        if (resumed && pending != null && coordinator.promptLaunched(pending.requestId)) {
+            try {
+                val sender = pending.consent
+                if (sender == null) permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                else consentLauncher.launch(IntentSenderRequest.Builder(sender).build())
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                coordinator.answer(WriteAnswer.FAILED)
             }
         }
     }
-}
-
-private suspend fun saveTags(context: Context, uri: Uri, edits: TagEdits): TagWriteOutcome {
-    val outcome = withContext(Dispatchers.IO) { rewriteFile(context, uri, edits) }
-    // Only after the bytes are on disk, and before the caller is told, so a
-    // library refresh triggered by [TagWriteOutcome.Saved] reads the new values
-    // instead of racing the scanner for them.
-    if (outcome == TagWriteOutcome.Saved) rescan(context, uri)
-    return outcome
+    val completed by coordinator.completed.collectAsState()
+    LaunchedEffect(completed, resumed) {
+        val request = completed
+        if (resumed && request != null) {
+            // Delivered synchronously so recomposition cannot hand the same report out twice.
+            coordinator.deliver(request.id)
+            // Outside this effect: delivering clears `completed`, which restarts it and would cancel the refresh.
+            scope.launch { coordinator.refreshRecovery() }
+        }
+    }
+    TagRecoveryPrompt(coordinator)
 }
 
 /**
- * Everything about the rewrite that is decided before the file is touched.
- *
- * @property tag the complete replacement ID3v2 tag.
- * @property replacedLength bytes at the head of the file [tag] stands in for.
- * @property trailerLength bytes of ID3v1 at the end to drop.
- * @property size the file's current length.
+ * Tag saves through MediaStore. The recovery store is `noBackupFilesDir/tag-write`. Each request's
+ * keys and replacement cover live beside it in `tag-write-requests`, never inside the store, whose
+ * sweep deletes every name it does not know.
  */
-private class Rewrite(
-    val tag: ByteArray,
-    val replacedLength: Long,
-    val trailerLength: Long,
-    val size: Long,
-) {
+private class AndroidTagWriteBackend(private val context: Context) : TagWriteBackend<IntentSender> {
+    override val strategy = tagWriteStrategy(Build.VERSION.SDK_INT)
+    private val root = File(context.noBackupFilesDir, "tag-write")
+    private val store = FileRecoveryDirectory(root, ::syncDirectory)
+    private val requestFiles = File(context.noBackupFilesDir, "tag-write-requests")
+    private val keyDirectory = File(requestFiles, "keys")
+    private val coverDirectory = File(requestFiles, "covers")
+    override val writer = DurableWriter(store, { UUID.randomUUID().toString() })
+    override val recovery = TagRecovery(store)
+
     /**
-     * True when the new tag occupies exactly the old one's footprint, so the
-     * audio does not move.
-     *
-     * This is the case worth separating out: the write becomes a few kilobytes
-     * at the head of the file plus, at most, a truncation of the trailer. The
-     * audio is never opened for writing at all, so nothing that goes wrong
-     * mid-write can reach it.
+     * The store's directory, synced into its parent: a journal record inside it is only as durable
+     * as the directory's own entry. Not cached when it throws, so the next call tries again.
      */
-    val audioStaysPut: Boolean get() = tag.size.toLong() == replacedLength
+    private val storeReady = lazy {
+        if (!root.mkdirs() && !root.isDirectory) throw IOException("cannot create $root")
+        syncDirectory(context.noBackupFilesDir)
+    }
 
-    val newSize: Long get() = tag.size + (size - replacedLength - trailerLength)
-}
+    fun prepareStore() {
+        storeReady.value
+    }
 
-private sealed interface Plan {
-    class Ready(val rewrite: Rewrite) : Plan
-    class Refused(val reason: Id3Refusal?) : Plan
-}
+    override fun hasWritePermission() = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.WRITE_EXTERNAL_STORAGE,
+    ) == PackageManager.PERMISSION_GRANTED
 
-/**
- * Rewrites the tag, leaving the file untouched unless the whole new content is
- * known to be good.
- *
- * There is no atomic path here to reach for: an atomic replace means writing a
- * sibling file and renaming over the original, and a `content://` URI grants
- * access to one file, not to the directory it lives in. What is possible is to
- * make the destructive step as small and as late as it can be, which is what
- * the two branches below do.
- */
-private fun rewriteFile(context: Context, uri: Uri, edits: TagEdits): TagWriteOutcome {
-    val resolver = context.contentResolver
-    var staged: File? = null
-    return try {
-        val source = resolver.openFileDescriptor(uri, "r") ?: return TagWriteOutcome.Failed
-        val rewrite = source.use { pfd ->
-            // Not closed here: closing any stream over this descriptor closes the
-            // descriptor itself, which is the ParcelFileDescriptor's job.
-            val channel = FileInputStream(pfd.fileDescriptor).channel
-            when (val plan = planRewrite(channel, edits)) {
-                is Plan.Refused -> return TagWriteOutcome.Refused(plan.reason)
-                is Plan.Ready -> plan.rewrite.also {
-                    // When the audio has to move there is no small write to be
-                    // had, so the entire new file is built in the cache first.
-                    // Nothing of the original is touched until a complete,
-                    // fsynced copy of its replacement exists.
-                    if (!it.audioStaysPut) {
-                        staged = stage(context, channel, it) ?: return TagWriteOutcome.Failed
-                    }
+    override suspend fun batchConsent(keys: List<String>): IntentSender = withContext(Dispatchers.IO) {
+        check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+        MediaStore.createWriteRequest(context.contentResolver, keys.map(Uri::parse)).intentSender
+    }
+
+    override suspend fun look(keys: List<String>, paths: Map<String, String>): Map<String, FileLook> =
+        withContext(Dispatchers.IO) {
+            val rows = rowPaths(keys)
+            val byPath = seesFilesByPath()
+            keys.associateWith { key ->
+                val row = rows[key]
+                // A file the app sees by path is proven there by a stat; any other is opened read-only.
+                if (byPath && row != null && File(row).exists()) return@associateWith FileLook.PRESENT
+                try {
+                    val descriptor = context.contentResolver.openFileDescriptor(Uri.parse(key), "r")
+                    descriptor?.close()
+                    if (descriptor == null) FileLook.UNKNOWN else FileLook.PRESENT
+                } catch (_: FileNotFoundException) {
+                    if (isGone(row ?: paths[key])) FileLook.MISSING else FileLook.UNOPENABLE
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // A refusal or a provider error says nothing about the file: it stays in the request.
+                    FileLook.UNKNOWN
                 }
             }
         }
 
-        val written = when (val file = staged) {
-            null -> patchHead(resolver, uri, rewrite)
-            else -> replaceContents(resolver, uri, file)
+    /**
+     * Each key's DATA path, for the keys MediaStore still has a row for: one query per [ROW_CHUNK]
+     * ids, not one per file. A key that is no audio row's URI has none.
+     */
+    @Suppress("DEPRECATION")
+    private fun rowPaths(keys: List<String>): Map<String, String> {
+        val prefix = "${MediaStore.Audio.Media.EXTERNAL_CONTENT_URI}/"
+        val keyById = HashMap<Long, String>()
+        for (key in keys) {
+            val id = key.takeIf { it.startsWith(prefix) }?.removePrefix(prefix)?.toLongOrNull() ?: continue
+            keyById[id] = key
         }
-        if (written) TagWriteOutcome.Saved else TagWriteOutcome.Failed
-    } catch (e: Exception) {
-        TagWriteOutcome.Failed
+        val paths = HashMap<String, String>()
+        for (chunk in keyById.keys.chunked(ROW_CHUNK)) {
+            runCatching {
+                context.contentResolver.query(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DATA),
+                    "${MediaStore.Audio.Media._ID} IN (${chunk.joinToString(",") { "?" }})",
+                    chunk.map(Long::toString).toTypedArray(),
+                    null,
+                )?.use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val key = keyById[cursor.getLong(0)] ?: continue
+                        cursor.getString(1)?.takeIf(String::isNotBlank)?.let { paths[key] = it }
+                    }
+                }
+            }
+        }
+        return paths
+    }
+
+    /** Where an interrupted save's record says [key]'s file was; only read when MediaStore has lost it. */
+    private fun storedPath(key: String): String? = try {
+        recovery.pending().firstNotNullOfOrNull { record -> record.path?.takeIf { record.target == key } }
+    } catch (_: Exception) {
+        null
+    }
+
+    override suspend fun open(key: String): WriteOpen<IntentSender> = withContext(Dispatchers.IO) {
+        try {
+            // Every save and every recovery opens its file first, so the store is ready before either.
+            prepareStore()
+            val file = MediaStoreFile(key)
+            openExistingForWrite(file, file.path?.let(::freeBytesAt), file.path) { failure ->
+                if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && failure is RecoverableSecurityException) {
+                    WriteOpen.NeedsConsent(failure.userAction.actionIntent.intentSender)
+                } else WriteOpen.Denied
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            WriteOpen.Failed
+        }
+    }
+
+    /** One audio row's file. Reading never needs more consent than the library already has. */
+    private inner class MediaStoreFile(private val key: String) : MediaFileAccess {
+        private val uri: Uri = Uri.parse(key)
+
+        /** Read before any open: the row may go with the file, and this still says where it was. */
+        val path: String? = filePathOf(context, uri)
+
+        override fun probe(): Long {
+            val descriptor = context.contentResolver.openFileDescriptor(uri, "r") ?: throw IOException("no descriptor for $uri")
+            return descriptor.use { it.statSize }
+        }
+
+        override fun openReadWrite(): OpenedForWrite {
+            val descriptor = context.contentResolver.openFileDescriptor(uri, "rw") ?: throw IOException("no descriptor for $uri")
+            val size = descriptor.statSize
+            // Neither stream is closed: on Android a stream over a descriptor it did not open leaves the
+            // descriptor open, and closing it is the ParcelFileDescriptor's job, done once on close.
+            val file = ChannelTargetFile(
+                FileInputStream(descriptor.fileDescriptor).channel,
+                FileOutputStream(descriptor.fileDescriptor).channel,
+            ) { descriptor.close() }
+            return OpenedForWrite(file, size)
+        }
+
+        // A row MediaStore has dropped names no path; an interrupted save's record may still.
+        override fun isGone(): Boolean = isGone(filePathOf(context, uri) ?: path ?: storedPath(key))
+    }
+
+    /**
+     * True only when the file is certainly not there, so its save may be reported MISSING. An
+     * unmounted volume, a path the app cannot see files by, or a file still at its path proves
+     * nothing: those are FAILED.
+     */
+    private fun isGone(path: String?): Boolean {
+        if (path == null) return false
+        val file = File(path)
+        if (Environment.getExternalStorageState(file) != Environment.MEDIA_MOUNTED) return false
+        if (!seesFilesByPath()) return false
+        return !file.exists()
+    }
+
+    /** Whether `File` sees other apps' audio: not under Android 10's scoped storage, nor without read access. */
+    private fun seesFilesByPath(): Boolean {
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) return Environment.isExternalStorageLegacy()
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun freeBytesAt(path: String): Long? = try {
+        File(path).parent?.let { StatFs(it).availableBytes }
+    } catch (_: Exception) {
+        // Unknown is allowed: the writer then relies on the disk-full error itself.
+        null
+    }
+
+    /** One scan for the whole batch, waited for so a library refresh after it reads the new tags. */
+    override suspend fun rescan(keys: List<String>) {
+        val paths = withContext(Dispatchers.IO) { keys.mapNotNull { filePathOf(context, Uri.parse(it)) } }
+        if (paths.isEmpty()) return
+        withTimeoutOrNull(maxOf(SCAN_TIMEOUT_MS, paths.size * 50L)) {
+            suspendCancellableCoroutine { continuation ->
+                // The callbacks arrive on the scanner's thread, not this one.
+                val remaining = AtomicInteger(paths.size)
+                MediaScannerConnection.scanFile(context, paths.toTypedArray(), null) { _, _ ->
+                    if (remaining.decrementAndGet() == 0 && continuation.isActive) continuation.resume(Unit)
+                }
+            }
+        }
+    }
+
+    override fun stash(name: String, bytes: ByteArray) {
+        coverDirectory.mkdirs()
+        val partial = File(coverDirectory, name + PARTIAL)
+        partial.writeBytes(bytes)
+        replace(partial, File(coverDirectory, name))
+    }
+
+    override fun unstash(name: String): ByteArray? = File(coverDirectory, name).takeIf { it.isFile }?.readBytes()
+
+    override fun drop(name: String) {
+        File(coverDirectory, name).delete()
+    }
+
+    /** Leftover partial files too: no request names them, so the restore's prune deletes them. */
+    override fun stashNames(): List<String> = coverDirectory.list()?.toList().orEmpty()
+
+    override fun saveKeys(id: Long, keys: List<String>) {
+        keyDirectory.mkdirs()
+        val partial = File(keyDirectory, "$id$KEYS$PARTIAL")
+        FileOutputStream(partial).use { writeTagWriteKeys(it, keys) }
+        replace(partial, File(keyDirectory, "$id$KEYS"))
+    }
+
+    override fun loadKeys(id: Long): List<String>? {
+        val file = File(keyDirectory, "$id$KEYS").takeIf { it.isFile } ?: return null
+        return FileInputStream(file).use { readTagWriteKeys(it, file.length()) }
+    }
+
+    override fun dropKeys(id: Long) {
+        File(keyDirectory, "$id$KEYS").delete()
+        File(keyDirectory, "$id$KEYS$PARTIAL").delete()
+    }
+
+    /** Ids with a partial file count too, so the restore's prune deletes those as well. */
+    override fun savedKeyIds(): List<Long> = keyDirectory.list().orEmpty()
+        .mapNotNull { KEY_FILE.matchEntire(it)?.groupValues?.get(1)?.toLongOrNull() }
+        .distinct()
+
+    private companion object {
+        const val ROW_CHUNK = 500
+        const val KEYS = ".keys"
+        const val PARTIAL = ".partial"
+        val KEY_FILE = Regex("""(\d+)\.keys(?:\.partial)?""")
+    }
+}
+
+/**
+ * One file as [openExistingForWrite] opens it: MediaStore on a device, a fake in host tests.
+ * [probe] opens read-only, which never creates a file, and answers its size (-1 when unknown); it
+ * throws FileNotFoundException when the file cannot be opened. [openReadWrite] creates a file that
+ * is not there, as every MediaStore write mode does ("w", "rw" and "rwt" all carry MODE_CREATE).
+ * [isGone] is true only when the file is certainly not there.
+ */
+internal interface MediaFileAccess {
+    fun probe(): Long
+    fun openReadWrite(): OpenedForWrite
+    fun isGone(): Boolean
+}
+
+internal class OpenedForWrite(val file: TargetFile, val size: Long)
+
+/**
+ * Opens a file to save tags into, never creating one. A save or a Finish of a file deleted
+ * meanwhile would otherwise make an empty file at its path, and with it a ghost track, and never
+ * say the file is gone. So the file is proven there by a read-only open first, and one that is
+ * certainly gone is MISSING: an interrupted save of it keeps its record and backup.
+ *
+ * A file deleted between the probe and the write open is recreated empty by the write open; it is
+ * then closed unwritten and reported MISSING too. [refused] maps a SecurityException to the
+ * platform's consent or Denied. [path], where the file is, goes with the opened file into the journal.
+ */
+internal fun <C> openExistingForWrite(
+    access: MediaFileAccess,
+    freeBytes: Long?,
+    path: String? = null,
+    refused: (SecurityException) -> WriteOpen<C>,
+): WriteOpen<C> {
+    return try {
+        val size = try {
+            access.probe()
+        } catch (failure: FileNotFoundException) {
+            return if (access.isGone()) WriteOpen.Missing else WriteOpen.Failed
+        }
+        val opened = access.openReadWrite()
+        // Missing or emptied meanwhile: the write open may have just made this empty file.
+        if (size > 0 && opened.size == 0L) {
+            try {
+                opened.file.close()
+            } catch (_: Exception) {
+                // Nothing was written through it.
+            }
+            WriteOpen.Missing
+        } else {
+            WriteOpen.Opened(opened.file, freeBytes, path)
+        }
+    } catch (failure: FileNotFoundException) {
+        when {
+            failure.isReadOnly() -> WriteOpen.ReadOnly
+            // The row may have gone with the file; the path it named a moment ago still says where.
+            access.isGone() -> WriteOpen.Missing
+            else -> WriteOpen.Failed
+        }
+    } catch (failure: SecurityException) {
+        refused(failure)
+    }
+}
+
+/**
+ * A request's keys as a count, then each key's length and UTF-16 code units as they are, so a key
+ * survives exactly, lone surrogates included.
+ */
+internal fun writeTagWriteKeys(stream: OutputStream, keys: List<String>) {
+    val out = DataOutputStream(BufferedOutputStream(stream))
+    out.writeInt(keys.size)
+    for (key in keys) {
+        out.writeInt(key.length)
+        out.writeChars(key)
+    }
+    out.flush()
+}
+
+/** The keys [writeTagWriteKeys] wrote to a file of [size] bytes; throws when they are damaged. */
+internal fun readTagWriteKeys(stream: InputStream, size: Long): List<String> {
+    val input = DataInputStream(BufferedInputStream(stream))
+    val count = input.readInt()
+    // Bounded by the file, so a damaged count cannot ask for more memory than the file could fill.
+    check(count >= 0 && count <= size / Int.SIZE_BYTES)
+    val keys = List(count) {
+        val length = input.readInt()
+        check(length >= 0 && length <= size / Char.SIZE_BYTES)
+        String(CharArray(length) { input.readChar() })
+    }
+    check(input.read() == -1)
+    return keys
+}
+
+/** A rename replaces atomically, so a process killed mid-write never leaves a torn file under [target]'s name. */
+private fun replace(partial: File, target: File) {
+    if (!partial.renameTo(target)) {
+        partial.delete()
+        throw IOException("cannot replace $target")
+    }
+}
+
+/** A read-only volume refuses the open outright, and its message is the only place that says so. */
+private fun FileNotFoundException.isReadOnly(): Boolean =
+    message?.let { "EROFS" in it || "Read-only file system" in it } == true
+
+/** fsync of a directory, so the entries created and deleted in it survive a power cut (API 21+). */
+private fun syncDirectory(directory: File) {
+    val descriptor = Os.open(directory.path, OsConstants.O_RDONLY, 0)
+    try {
+        Os.fsync(descriptor)
     } finally {
-        staged?.delete()
+        Os.close(descriptor)
     }
-}
-
-private fun planRewrite(channel: FileChannel, edits: TagEdits): Plan {
-    val size = channel.size()
-    val header = readAt(channel, 0, minOf(size, Id3Tags.HEADER_SIZE.toLong()).toInt())
-    // A null length means the header is unusable; buildUpdate is left to say so.
-    val tagLength = Id3Tags.tagLength(header) ?: 0
-    // Enough bytes either to hold the whole existing tag, or for an untagged
-    // file to be recognised as a container that must not be given one.
-    val prefixLength = minOf(size, maxOf(tagLength, CONTAINER_PROBE_BYTES).toLong()).toInt()
-    val prefix = readAt(channel, 0, prefixLength)
-
-    val update = Id3Tags.buildUpdate(prefix, edits)
-        ?: return Plan.Refused(Id3Tags.refusalOf(prefix))
-
-    val tailLength = minOf(size, Id3v1.MAX_TRAILER_SIZE.toLong()).toInt()
-    val tail = readAt(channel, size - tailLength, tailLength)
-    val trailer = Id3Tags.droppedTrailerLength(tail, edits).toLong()
-        // A trailer reaching back into the tag just built is a coincidence, not
-        // a trailer. Matches what the whole-file path does with the same case.
-        .let { if (size - it >= update.replacedLength) it else 0L }
-
-    return Plan.Ready(Rewrite(update.tag, update.replacedLength.toLong(), trailer, size))
-}
-
-/** Builds the complete new file in the cache directory. Null if it came out short. */
-private fun stage(context: Context, source: FileChannel, rewrite: Rewrite): File? {
-    val file = File.createTempFile("tagwrite", ".tmp", context.cacheDir)
-    FileOutputStream(file).use { out ->
-        val target = out.channel
-        writeAt(target, 0, rewrite.tag)
-        // transferTo appends at the target's position, so say where that is.
-        target.position(rewrite.tag.size.toLong())
-        var pos = rewrite.replacedLength
-        val end = rewrite.size - rewrite.trailerLength
-        while (pos < end) {
-            val moved = source.transferTo(pos, end - pos, target)
-            if (moved <= 0L) return null
-            pos += moved
-        }
-        out.fd.sync()
-    }
-    return file.takeIf { it.length() == rewrite.newSize }
 }
 
 /**
- * Overwrites just the head of the file, and drops the ID3v1 trailer if there
- * was one. The audio is not read, written, or moved.
+ * DATA is deprecated and still the only way to name a file to the scanner — and the only way to
+ * find the `.lrc` beside it.
  */
-private fun patchHead(resolver: ContentResolver, uri: Uri, rewrite: Rewrite): Boolean {
-    val target = resolver.openFileDescriptor(uri, "rw") ?: return false
-    target.use { pfd ->
-        val channel = FileOutputStream(pfd.fileDescriptor).channel
-        writeAt(channel, 0, rewrite.tag)
-        if (rewrite.trailerLength > 0L) channel.truncate(rewrite.newSize)
-        pfd.fileDescriptor.sync()
-    }
-    return true
-}
-
-/**
- * Copies a staged file over the original.
- *
- * This is the one step that cannot be made atomic, so it is also the only step
- * that can leave a file half-written — and it is attempted twice, because a
- * failure part-way leaves the staged file still holding the complete, correct
- * bytes. That makes the retry a real second chance rather than a formality.
- */
-private fun replaceContents(resolver: ContentResolver, uri: Uri, staged: File): Boolean {
-    repeat(2) { if (copyOver(resolver, uri, staged)) return true }
-    return false
-}
-
-private fun copyOver(resolver: ContentResolver, uri: Uri, staged: File): Boolean = try {
-    val target = resolver.openFileDescriptor(uri, "rwt") ?: return false
-    target.use { pfd ->
-        val channel = FileOutputStream(pfd.fileDescriptor).channel
-        FileInputStream(staged).use { input ->
-            val length = staged.length()
-            var pos = 0L
-            while (pos < length) {
-                val moved = channel.transferFrom(input.channel, pos, length - pos)
-                if (moved <= 0L) return false
-                pos += moved
-            }
-            channel.truncate(length)
-        }
-        pfd.fileDescriptor.sync()
-    }
-    true
-} catch (e: Exception) {
-    false
-}
-
-/**
- * Makes the media index re-read the file.
- *
- * Without this the edit is invisible. MediaStore's metadata columns are a cache
- * of what the scanner last read out of the file, and writing through a
- * descriptor does not invalidate it — every screen in the app would keep
- * showing the old tags, which is indistinguishable from the write having failed.
- *
- * Suspends until the scan finishes, so whatever the caller does with
- * [TagWriteOutcome.Saved] sees the new values. The scan matches the file by
- * path, so the row keeps its `_id` and the track keeps its identity everywhere
- * the app has recorded it.
- */
-private suspend fun rescan(context: Context, uri: Uri) {
-    val path = filePathOf(context, uri) ?: return
-    withTimeoutOrNull(SCAN_TIMEOUT_MS) {
-        suspendCancellableCoroutine { continuation ->
-            MediaScannerConnection.scanFile(context, arrayOf(path), null) { _, _ ->
-                if (continuation.isActive) continuation.resume(Unit)
-            }
-        }
-    }
-}
-
-/** DATA is deprecated and still the only way to name a file to the scanner. */
 @Suppress("DEPRECATION")
-private fun filePathOf(context: Context, uri: Uri): String? = runCatching {
+internal fun filePathOf(context: Context, uri: Uri): String? = runCatching {
     context.contentResolver
         .query(uri, arrayOf(MediaStore.Audio.Media.DATA), null, null, null)
         ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
 }.getOrNull()
-
-private fun readAt(channel: FileChannel, position: Long, length: Int): ByteArray {
-    if (length <= 0) return ByteArray(0)
-    val buffer = ByteBuffer.allocate(length)
-    var pos = position
-    while (buffer.hasRemaining()) {
-        val read = channel.read(buffer, pos)
-        if (read < 0) break
-        pos += read
-    }
-    val filled = buffer.position()
-    return if (filled == length) buffer.array() else buffer.array().copyOf(filled)
-}
-
-private fun writeAt(channel: FileChannel, position: Long, bytes: ByteArray) {
-    val buffer = ByteBuffer.wrap(bytes)
-    var pos = position
-    while (buffer.hasRemaining()) {
-        pos += channel.write(buffer, pos)
-    }
-}
-
-/** Enough of an untagged file for the writer to spot a FLAC, WAV or M4A. */
-private const val CONTAINER_PROBE_BYTES = 64
 
 private const val SCAN_TIMEOUT_MS = 10_000L

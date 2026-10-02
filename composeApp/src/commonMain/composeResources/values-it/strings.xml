@@ -231,11 +231,39 @@
     <string name="info_edit">Modifica i tag</string>
     <string name="info_save">Salva</string>
     <string name="info_cancel">Annulla</string>
+    <string name="editor_discard_title">Ignorare le modifiche?</string>
+    <string name="editor_discard">Ignora</string>
+    <string name="editor_keep_editing">Continua a modificare</string>
     <string name="info_saving">Salvataggio…</string>
-    <string name="info_edit_note">Viene salvato nel file stesso, così tutte le app vedono la correzione. Android chiederà il permesso di modificare il file.</string>
+    <string name="info_edit_note">Viene salvato nel file stesso, così tutte le app vedono la correzione. Potrebbe essere richiesto il permesso di modificare il file.</string>
     <string name="info_edit_refused">I tag di questo file sono in una forma che non può essere riscritta in modo sicuro, quindi non è stato modificato nulla.</string>
     <string name="info_edit_failed">Impossibile scrivere su questo file. È rimasto com'era.</string>
-    <string name="info_edit_unavailable">La modifica dei tag non è disponibile su questo dispositivo.</string>
+    <string name="info_edit_no_space">Spazio libero insufficiente per salvare questi tag in sicurezza. Non è stato modificato nulla.</string>
+    <string name="info_edit_recovery_pending">Il salvataggio è stato interrotto. LatentJam lo completerà o lo annullerà la prossima volta che potrà scrivere il file.</string>
+    <string name="tag_recovery_title">Completa il salvataggio dei tag</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam è stato interrotto mentre salvava i tag in %1$d file. Può completare la modifica ora, oppure annullarla se il file non può essere completato.</item>
+        <item quantity="other">LatentJam è stato interrotto mentre salvava i tag in %1$d file. Può completare le modifiche ora, oppure annullarle dove un file non può essere completato.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Completa</string>
+    <string name="tag_recovery_later">Più tardi</string>
+    <string name="tag_problem_unsupported_format">LatentJam non può modificare questo tipo di file.</string>
+    <string name="tag_problem_damaged">Questo file sembra danneggiato, quindi è stato lasciato com'è.</string>
+    <string name="tag_problem_protected">Questo file è protetto da copia e non può essere modificato.</string>
+    <string name="tag_problem_tags_too_large">I tag sarebbero troppo grandi per questo file.</string>
+    <string name="tag_problem_bad_number">I numeri di brano e di disco devono essere numeri interi da 1 a 999.</string>
+    <string name="tag_problem_number_unreadable">Il numero di brano o di disco del file non è un numero semplice, quindi il suo totale non può essere modificato da solo.</string>
+    <string name="tag_problem_bad_image">L'immagine non è in formato JPEG o PNG.</string>
+    <string name="tag_problem_read_only_storage">Questo file si trova su un archivio in cui non si può scrivere.</string>
+    <string name="tag_problem_music_library">I brani della libreria musicale non possono essere modificati, solo quelli importati in LatentJam.</string>
+    <string name="tag_problem_unreadable">Non è stato possibile leggere questo file.</string>
+    <string name="tag_problem_not_allowed">Il permesso di modificare il file non è stato concesso.</string>
+    <string name="tag_problem_missing">Il file non c'è più.</string>
+    <string name="tag_problem_stopped">Interrotto prima di questo file.</string>
+    <string name="tag_problem_cancelled">La richiesta di permesso è stata chiusa.</string>
+    <string name="tag_problem_undone">Un salvataggio interrotto è stato annullato: il file è com'era prima.</string>
+    <string name="tag_problem_changed_elsewhere">Un'altra app ha modificato il file dopo l'interruzione del salvataggio, quindi è stato lasciato com'è.</string>
+    <string name="tag_problem_lost">LatentJam non è riuscito a sapere come è finito questo salvataggio. Controlla i tag del file.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Impostazioni</string>
@@ -405,6 +433,17 @@
     <string name="settings_hidden_tracks">Brani nascosti</string>
     <string name="settings_hidden_tracks_body">Brani nascosti solo in LatentJam. Ripristina un brano senza modificarne il file.</string>
     <string name="settings_hidden_tracks_empty">Nessun brano è nascosto in LatentJam.</string>
+    <string name="settings_interrupted_saves">Salvataggi interrotti</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">Il salvataggio dei tag in %1$d file è stato interrotto. LatentJam lo completerà o lo annullerà appena potrà scrivere il file.</item>
+        <item quantity="other">Il salvataggio dei tag in %1$d file è stato interrotto. LatentJam completerà o annullerà ciascun salvataggio appena potrà scrivere il file.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Completa ora</string>
+    <string name="settings_interrupted_being_repaired">In riparazione: non viene riprodotto finché non è completato</string>
+    <string name="settings_interrupted_forget">Dimentica</string>
+    <string name="settings_interrupted_forget_title">Dimenticare questo salvataggio?</string>
+    <string name="settings_interrupted_forget_body">Il file resta esattamente com'è ora e LatentJam smette di provare a completare o annullare il salvataggio. L'operazione non può essere annullata.</string>
+    <string name="settings_interrupted_forget_damaged_body">Questo salvataggio si è interrotto a metà. Il file potrebbe essere danneggiato e non essere riprodotto, e dimenticarlo elimina le copie da cui LatentJam potrebbe ripararlo. L'operazione non può essere annullata.</string>
     <string name="settings_duplicates">Duplicati audio</string>
     <string name="settings_duplicates_body">Trova copie della stessa registrazione dal suono, qualunque cosa dicano i tag</string>
     <string name="settings_duplicates_scanning">Confronto di tutte le coppie di brani…</string>
@@ -412,6 +451,11 @@
     <string name="settings_restore">Ripristina</string>
     <string name="settings_restore_all">Ripristina tutto</string>
     <string name="settings_library_manage_failed">Impossibile aggiornare la libreria. Riprova.</string>
+    <string name="settings_lyrics_folders">Cartelle con file .lrc</string>
+    <string name="settings_lyrics_folders_body">Android chiede quale cartella consentire. Un file .lrc con lo stesso nome del brano ne fornisce poi il testo.</string>
+    <string name="settings_lyrics_folders_add">Aggiungi cartella</string>
+    <string name="settings_lyrics_folders_remove">Rimuovi</string>
+    <string name="settings_lyrics_folders_failed">Questa cartella non può essere usata. Scegline una nella memoria di questo dispositivo.</string>
 
     <string name="settings_licenses">Licenze open source</string>
     <string name="settings_licenses_body">Avvisi per LatentJam, modelli inclusi e software di terze parti</string>
@@ -496,7 +540,83 @@
     <string name="duplicates_keep_this">Tieni questo</string>
     <string name="snack_duplicates_merged">Duplicati uniti: le playlist ora puntano alla copia conservata</string>
     <string name="info_lyrics">Testo</string>
-    <string name="lyrics_not_found">Nessun testo incorporato trovato per questo brano.</string>
+    <string name="info_album_artist">Artista dell'album</string>
+    <string name="info_track_number">Numero brano</string>
+    <string name="info_track_total">Totale brani</string>
+    <string name="info_disc_number">Numero disco</string>
+    <string name="info_disc_total">Totale dischi</string>
+    <string name="info_cover">Copertina</string>
+    <string name="info_cover_replace">Sostituisci</string>
+    <string name="info_cover_remove">Rimuovi</string>
+    <string name="info_cover_keep">Mantieni l'attuale</string>
+    <string name="info_cover_new">Nuova copertina</string>
+    <string name="info_cover_removed">La copertina verrà rimossa.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d altra immagine nel file, mantenuta</item>
+        <item quantity="other">+%1$d altre immagini nel file, mantenute</item>
+    </plurals>
+    <string name="info_reading_file">Lettura del file…</string>
+    <string name="action_edit_album">Modifica album</string>
+    <string name="action_edit_artist">Modifica artista</string>
+    <string name="action_edit_short">Modifica</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d file</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d campo</item>
+        <item quantity="other">%1$d campi</item>
+    </plurals>
+    <string name="bulk_save">Modifica %1$s in %2$s</string>
+    <string name="bulk_reading">Lettura di %1$d su %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d file non può essere modificato e resterà com'è:</item>
+        <item quantity="other">%1$d file non possono essere modificati e resteranno come sono:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">e altri %1$d</item>
+        <item quantity="other">e altri %1$d</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Nessuno di questi file può essere modificato.</string>
+    <string name="bulk_different">Valori diversi</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Rimosso da %1$d file</item>
+        <item quantity="other">Rimosso da tutti i %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Rimuovi da tutti i file</string>
+    <string name="bulk_keep_field">Lascia com'è</string>
+    <string name="bulk_kept">Resta com'è: %1$s</string>
+    <string name="bulk_saving">Salvati %1$d su %2$d</string>
+    <string name="bulk_stop">Interrompi</string>
+    <string name="bulk_result">Salvati %1$d su %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d file non modificato:</item>
+        <item quantity="other">%1$d file non modificati:</item>
+    </plurals>
+    <string name="bulk_done">Fine</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Tag salvati in %1$d file</item>
+        <item quantity="other">Tag salvati in %1$d file</item>
+    </plurals>
+    <string name="tags_saved_partly">Tag salvati in %1$d file su %2$d</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Salvataggio completato per %1$d file</item>
+        <item quantity="other">Salvataggio completato per %1$d file</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d salvataggio interrotto è stato annullato; il file è com'era</item>
+        <item quantity="other">%1$d salvataggi interrotti sono stati annullati; i file sono com'erano</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d file è stato modificato da un'altra app ed è stato lasciato com'è</item>
+        <item quantity="other">%1$d file sono stati modificati da un'altra app e sono stati lasciati come sono</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">Non è stato ancora possibile completare %1$d file. Vedi Impostazioni → Libreria.</item>
+        <item quantity="other">Non è stato ancora possibile completare %1$d file. Vedi Impostazioni → Libreria.</item>
+    </plurals>
+    <string name="lyrics_not_found">Nessun testo trovato per questo brano.</string>
     <string name="cd_scroll_to_top">Torna all'inizio</string>
     <string name="foryou_section_daypart_morning">Le tue mattine</string>
     <string name="foryou_section_daypart_day">I tuoi pomeriggi</string>

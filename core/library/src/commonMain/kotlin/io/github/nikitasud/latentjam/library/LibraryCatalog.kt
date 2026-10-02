@@ -88,7 +88,8 @@ public data class LibraryCatalog(
                     AlbumGroup(
                         key = identity.stableKey(),
                         title = grouped.firstNotNullOfOrNull { it.album },
-                        artist = grouped.firstNotNullOfOrNull { it.artist },
+                        artist = grouped.firstNotNullOfOrNull { it.albumArtist?.takeIf(String::isNotBlank) }
+                            ?: grouped.firstNotNullOfOrNull { it.artist },
                         artworkUri = grouped.firstNotNullOfOrNull { it.artworkUri },
                         tracks = inAlbumOrder(grouped),
                     )
@@ -202,6 +203,25 @@ public data class LibraryCatalog(
                 .sortedWith(ALBUM_PLACE_ORDER)
                 .map { it.track }
 
+        /**
+         * The year an album came out: the year most of its [tracks] state, the earliest on a tie,
+         * null when none states one. A track's original year wins over its edition year, so a 2011
+         * remaster of a 1973 album sits in 1973 in a discography. A majority rather than the minimum
+         * keeps one bonus track tagged with its reissue year from moving the whole album.
+         *
+         * The Year sort orders albums by it. Album cards and the album page show it too, but only
+         * when at least half of the dated tracks agree on it, so a compilation's earliest single
+         * vote is never shown as the album's year.
+         */
+        public fun releaseYear(tracks: List<TrackDescriptor>): Int? =
+            tracks
+                .mapNotNull { it.originalYear ?: it.year }
+                .groupingBy { it }
+                .eachCount()
+                .entries
+                .minWithOrNull(compareByDescending<Map.Entry<Int, Int>> { it.value }.thenBy { it.key })
+                ?.key
+
         private class AlbumPlace(
             val track: TrackDescriptor,
             val unnumbered: Boolean,
@@ -230,8 +250,8 @@ public data class LibraryCatalog(
         /**
          * Builds album groups without treating a cache-file URI as album identity.
          *
-         * One artist + one normalized title is unambiguously one album even if
-         * each file exposes a different extracted-art URI. If the same title is
+         * One album artist (or, untagged, one artist) + one normalized title is unambiguously one
+         * album even if each file exposes a different extracted-art URI. If the same title is
          * owned by multiple artists, shared artwork still joins compilations;
          * otherwise artwork/artist separates genuinely different releases.
          */
@@ -245,8 +265,8 @@ public data class LibraryCatalog(
                     continue
                 }
 
-                val artists = sameTitle.mapNotNull { it.artist.normalizedKey() }.toSet()
-                val artwork = sameTitle.mapNotNull { it.artworkUri }.toSet()
+                val artists = sameTitle.mapNotNull { it.albumOwner().normalizedKey() }.toSet()
+                val artwork = sameTitle.mapNotNull { it.albumArtwork() }.toSet()
                 when {
                     artists.size <= 1 -> {
                         val artist = artists.firstOrNull()
@@ -301,10 +321,23 @@ public data class LibraryCatalog(
             "year" to { it.year?.toString() },
         )
 
+        /**
+         * Whose album a track belongs to: its album artist when tagged ("Various Artists" on a
+         * compilation), otherwise its artist. Same-named albums are told apart by this, so a
+         * compilation's per-track artists no longer split it.
+         */
+        private fun TrackDescriptor.albumOwner(): String? = albumArtist?.takeIf { it.isNotBlank() } ?: artist
+
+        /**
+         * The album's artwork, never a song's own cover (see [TrackDescriptor.albumArtworkUri]): one
+         * song whose cover was edited, or removed, stays in its album.
+         */
+        private fun TrackDescriptor.albumArtwork(): String? = albumArtworkUri ?: artworkUri
+
         /** Artwork and artist are different identity domains even when their strings happen to match. */
         private fun TrackDescriptor.albumDiscriminator(): AlbumDiscriminator =
-            artworkUri?.let(AlbumDiscriminator::Artwork)
-                ?: AlbumDiscriminator.Artist(artist.normalizedKey())
+            albumArtwork()?.let(AlbumDiscriminator::Artwork)
+                ?: AlbumDiscriminator.Artist(albumOwner().normalizedKey())
 
         /**
          * Album grouping is deliberately structural. Concatenating title, artist and artwork with

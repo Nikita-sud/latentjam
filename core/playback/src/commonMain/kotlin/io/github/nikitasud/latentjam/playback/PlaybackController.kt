@@ -282,6 +282,14 @@ public interface PlaybackController {
      */
     public suspend fun retainQueue(trackIds: Set<TrackId>)
 
+    /**
+     * Swaps in fresh descriptors for queued tracks whose tags changed (a tag edit). What plays is
+     * untouched: queue, order, position and play state stay. The current track's title, artist,
+     * album and artwork update in the player, the notification and the lock screen. Tracks that
+     * are not queued are ignored.
+     */
+    public suspend fun refreshTracks(tracks: List<TrackDescriptor>)
+
     /** Inserts [track] directly after the current one. */
     public suspend fun playNext(track: TrackDescriptor)
 

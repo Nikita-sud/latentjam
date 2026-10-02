@@ -6,21 +6,20 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
+import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
 import io.github.nikitasud.latentjam.library.tags.TagFacts
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import platform.Foundation.NSData
 import platform.Foundation.NSFileHandle
 import platform.Foundation.NSURL
 import platform.Foundation.closeFile
 import platform.Foundation.fileHandleForReadingAtPath
 import platform.Foundation.readDataOfLength
-import platform.posix.memcpy
+import platform.Foundation.seekToEndOfFile
+import platform.Foundation.seekToFileOffset
 
 internal actual suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedTagFacts? =
     withContext(Dispatchers.Default) {
@@ -77,11 +76,18 @@ internal class FileHandleByteSource(
     }
 }
 
+/** Adapts [NSFileHandle]'s seek-then-read pair to [RandomAccessSource]. */
 @OptIn(ExperimentalForeignApi::class)
-private fun NSData.toByteArray(): ByteArray {
-    val size = length.toInt()
-    if (size == 0) return ByteArray(0)
-    return ByteArray(size).also { output ->
-        output.usePinned { pinned -> memcpy(pinned.addressOf(0), bytes, length) }
+internal class FileHandleSource(
+    private val handle: NSFileHandle,
+) : RandomAccessSource {
+    override val length: Long = handle.seekToEndOfFile().toLong()
+
+    override fun read(offset: Long, count: Int): ByteArray? {
+        if (offset < 0 || count < 0 || offset + count > length) return null
+        if (count == 0) return ByteArray(0)
+        handle.seekToFileOffset(offset.toULong())
+        val bytes = handle.readDataOfLength(count.toULong()).toByteArray()
+        return bytes.takeIf { it.size == count }
     }
 }

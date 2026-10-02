@@ -234,11 +234,39 @@
     <string name="info_edit">Tags bearbeiten</string>
     <string name="info_save">Speichern</string>
     <string name="info_cancel">Abbrechen</string>
+    <string name="editor_discard_title">Änderungen verwerfen?</string>
+    <string name="editor_discard">Verwerfen</string>
+    <string name="editor_keep_editing">Weiter bearbeiten</string>
     <string name="info_saving">Wird gespeichert…</string>
-    <string name="info_edit_note">Wird in die Datei selbst geschrieben, sodass jede App die Korrektur sieht. Android fragt nach der Berechtigung, die Datei zu ändern.</string>
+    <string name="info_edit_note">Wird in die Datei selbst geschrieben, sodass jede App die Korrektur sieht. Möglicherweise wird die Berechtigung zum Ändern der Datei abgefragt.</string>
     <string name="info_edit_refused">Die Tags dieser Datei liegen in einer Form vor, die sich nicht sicher neu schreiben lässt, daher wurde nichts geändert.</string>
     <string name="info_edit_failed">Die Datei konnte nicht geschrieben werden. Sie blieb unverändert.</string>
-    <string name="info_edit_unavailable">Das Bearbeiten von Tags ist auf diesem Gerät nicht verfügbar.</string>
+    <string name="info_edit_no_space">Nicht genug freier Speicherplatz, um diese Tags sicher zu speichern. Es wurde nichts geändert.</string>
+    <string name="info_edit_recovery_pending">Das Speichern wurde unterbrochen. LatentJam schließt es ab oder macht es rückgängig, sobald es die Datei wieder schreiben darf.</string>
+    <string name="tag_recovery_title">Speichern der Tags abschließen</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">LatentJam wurde beim Speichern von Tags in %1$d Datei unterbrochen. Die Änderung kann jetzt abgeschlossen oder, falls die Datei nicht fertiggestellt werden kann, rückgängig gemacht werden.</item>
+        <item quantity="other">LatentJam wurde beim Speichern von Tags in %1$d Dateien unterbrochen. Die Änderungen können jetzt abgeschlossen oder, wo eine Datei nicht fertiggestellt werden kann, rückgängig gemacht werden.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Abschließen</string>
+    <string name="tag_recovery_later">Später</string>
+    <string name="tag_problem_unsupported_format">LatentJam kann diese Art von Datei nicht bearbeiten.</string>
+    <string name="tag_problem_damaged">Diese Datei scheint beschädigt zu sein und bleibt deshalb unverändert.</string>
+    <string name="tag_problem_protected">Diese Datei ist kopiergeschützt und lässt sich nicht ändern.</string>
+    <string name="tag_problem_tags_too_large">Die Tags wären für diese Datei zu groß.</string>
+    <string name="tag_problem_bad_number">Titel- und CD-Nummern müssen ganze Zahlen von 1 bis 999 sein.</string>
+    <string name="tag_problem_number_unreadable">Die eigene Titel- oder CD-Nummer der Datei ist keine einfache Zahl, daher lässt sich ihre Gesamtzahl nicht einzeln ändern.</string>
+    <string name="tag_problem_bad_image">Das Bild ist kein JPEG- oder PNG-Bild.</string>
+    <string name="tag_problem_read_only_storage">Diese Datei liegt auf einem Speicher, der nicht beschrieben werden kann.</string>
+    <string name="tag_problem_music_library">Titel aus der Musikmediathek lassen sich nicht bearbeiten, nur in LatentJam importierte Titel.</string>
+    <string name="tag_problem_unreadable">Diese Datei konnte nicht gelesen werden.</string>
+    <string name="tag_problem_not_allowed">Die Berechtigung zum Ändern der Datei wurde nicht erteilt.</string>
+    <string name="tag_problem_missing">Die Datei ist nicht mehr vorhanden.</string>
+    <string name="tag_problem_stopped">Vor dieser Datei angehalten.</string>
+    <string name="tag_problem_cancelled">Die Berechtigungsanfrage wurde geschlossen.</string>
+    <string name="tag_problem_undone">Ein unterbrochenes Speichern wurde rückgängig gemacht: Die Datei ist wie zuvor.</string>
+    <string name="tag_problem_changed_elsewhere">Eine andere App hat die Datei geändert, nachdem das Speichern unterbrochen wurde, daher blieb sie unverändert.</string>
+    <string name="tag_problem_lost">LatentJam konnte nicht feststellen, wie dieses Speichern ausgegangen ist. Prüfe die Tags der Datei.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Einstellungen</string>
@@ -408,6 +436,17 @@
     <string name="settings_hidden_tracks">Ausgeblendete Titel</string>
     <string name="settings_hidden_tracks_body">Titel, die nur in LatentJam ausgeblendet sind. Stelle jeden Titel wieder her, ohne seine Datei zu ändern.</string>
     <string name="settings_hidden_tracks_empty">In LatentJam sind keine Titel ausgeblendet.</string>
+    <string name="settings_interrupted_saves">Unterbrochene Speichervorgänge</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">Das Speichern von Tags in %1$d Datei wurde unterbrochen. LatentJam schließt es ab oder macht es rückgängig, sobald es die Datei schreiben darf.</item>
+        <item quantity="other">Das Speichern von Tags in %1$d Dateien wurde unterbrochen. LatentJam schließt jedes ab oder macht es rückgängig, sobald es die Datei schreiben darf.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Jetzt abschließen</string>
+    <string name="settings_interrupted_being_repaired">Wird repariert: wird erst wieder abgespielt, wenn es fertig ist</string>
+    <string name="settings_interrupted_forget">Vergessen</string>
+    <string name="settings_interrupted_forget_title">Dieses Speichern vergessen?</string>
+    <string name="settings_interrupted_forget_body">Die Datei bleibt genau so, wie sie jetzt ist, und LatentJam versucht nicht mehr, das Speichern abzuschließen oder rückgängig zu machen. Das lässt sich nicht rückgängig machen.</string>
+    <string name="settings_interrupted_forget_damaged_body">Dieses Speichern wurde mittendrin unterbrochen. Die Datei ist möglicherweise beschädigt und lässt sich vielleicht nicht abspielen, und Vergessen löscht die Kopien, aus denen LatentJam sie reparieren könnte. Das lässt sich nicht rückgängig machen.</string>
     <string name="settings_duplicates">Audio-Duplikate</string>
     <string name="settings_duplicates_body">Findet Kopien derselben Aufnahme am Klang, unabhängig von den Tags</string>
     <string name="settings_duplicates_scanning">Alle Titelpaare werden verglichen…</string>
@@ -415,6 +454,11 @@
     <string name="settings_restore">Wiederherstellen</string>
     <string name="settings_restore_all">Alle wiederherstellen</string>
     <string name="settings_library_manage_failed">Die Mediathek konnte nicht aktualisiert werden. Versuche es erneut.</string>
+    <string name="settings_lyrics_folders">Ordner mit .lrc-Dateien</string>
+    <string name="settings_lyrics_folders_body">Android fragt, welcher Ordner freigegeben werden soll. Eine .lrc-Datei mit dem Namen des Titels liefert dann seinen Songtext.</string>
+    <string name="settings_lyrics_folders_add">Ordner hinzufügen</string>
+    <string name="settings_lyrics_folders_remove">Entfernen</string>
+    <string name="settings_lyrics_folders_failed">Dieser Ordner kann nicht verwendet werden. Wähle einen Ordner im Speicher dieses Geräts.</string>
 
     <string name="settings_licenses">Open-Source-Lizenzen</string>
     <string name="settings_licenses_body">Hinweise zu LatentJam, gebündelten Modellen und Drittanbieter-Software</string>
@@ -499,7 +543,83 @@
     <string name="duplicates_keep_this">Diesen behalten</string>
     <string name="snack_duplicates_merged">Duplikate zusammengeführt: Playlists zeigen jetzt auf die behaltene Kopie</string>
     <string name="info_lyrics">Songtext</string>
-    <string name="lyrics_not_found">Für diesen Titel wurde kein eingebetteter Songtext gefunden.</string>
+    <string name="info_album_artist">Albumkünstler</string>
+    <string name="info_track_number">Titelnummer</string>
+    <string name="info_track_total">Titel gesamt</string>
+    <string name="info_disc_number">CD-Nummer</string>
+    <string name="info_disc_total">CDs gesamt</string>
+    <string name="info_cover">Cover</string>
+    <string name="info_cover_replace">Ersetzen</string>
+    <string name="info_cover_remove">Entfernen</string>
+    <string name="info_cover_keep">Aktuelles behalten</string>
+    <string name="info_cover_new">Neues Cover</string>
+    <string name="info_cover_removed">Das Cover wird entfernt.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d weiteres Bild in der Datei, bleibt erhalten</item>
+        <item quantity="other">+%1$d weitere Bilder in der Datei, bleiben erhalten</item>
+    </plurals>
+    <string name="info_reading_file">Datei wird gelesen…</string>
+    <string name="action_edit_album">Album bearbeiten</string>
+    <string name="action_edit_artist">Künstler bearbeiten</string>
+    <string name="action_edit_short">Bearbeiten</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d Datei</item>
+        <item quantity="other">%1$d Dateien</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d Feld</item>
+        <item quantity="other">%1$d Felder</item>
+    </plurals>
+    <string name="bulk_save">%1$s in %2$s ändern</string>
+    <string name="bulk_reading">Dateien werden gelesen: %1$d von %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d Datei kann nicht bearbeitet werden und bleibt unverändert:</item>
+        <item quantity="other">%1$d Dateien können nicht bearbeitet werden und bleiben unverändert:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">und %1$d weitere</item>
+        <item quantity="other">und %1$d weitere</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Keine dieser Dateien kann bearbeitet werden.</string>
+    <string name="bulk_different">Unterschiedliche Werte</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Aus %1$d Datei entfernt</item>
+        <item quantity="other">Aus allen %1$d entfernt</item>
+    </plurals>
+    <string name="bulk_remove_field">Aus jeder Datei entfernen</string>
+    <string name="bulk_keep_field">Unverändert lassen</string>
+    <string name="bulk_kept">Bleibt unverändert: %1$s</string>
+    <string name="bulk_saving">%1$d von %2$d gespeichert</string>
+    <string name="bulk_stop">Anhalten</string>
+    <string name="bulk_result">%1$d von %2$d gespeichert.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d Datei nicht geändert:</item>
+        <item quantity="other">%1$d Dateien nicht geändert:</item>
+    </plurals>
+    <string name="bulk_done">Fertig</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Tags in %1$d Datei gespeichert</item>
+        <item quantity="other">Tags in %1$d Dateien gespeichert</item>
+    </plurals>
+    <string name="tags_saved_partly">Tags in %1$d von %2$d Dateien gespeichert</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Speichern von %1$d Datei abgeschlossen</item>
+        <item quantity="other">Speichern von %1$d Dateien abgeschlossen</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d unterbrochenes Speichern wurde rückgängig gemacht; die Datei ist wie zuvor</item>
+        <item quantity="other">%1$d unterbrochene Speichervorgänge wurden rückgängig gemacht; die Dateien sind wie zuvor</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d Datei wurde von einer anderen App geändert und so belassen</item>
+        <item quantity="other">%1$d Dateien wurden von einer anderen App geändert und so belassen</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d Datei konnte noch nicht fertig gespeichert werden. Siehe Einstellungen → Bibliothek.</item>
+        <item quantity="other">%1$d Dateien konnten noch nicht fertig gespeichert werden. Siehe Einstellungen → Bibliothek.</item>
+    </plurals>
+    <string name="lyrics_not_found">Für diesen Titel wurde kein Songtext gefunden.</string>
     <string name="cd_scroll_to_top">Zurück nach oben</string>
     <string name="foryou_section_daypart_morning">Dein Morgen</string>
     <string name="foryou_section_daypart_day">Dein Nachmittag</string>

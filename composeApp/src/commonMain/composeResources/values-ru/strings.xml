@@ -226,11 +226,41 @@
     <string name="info_edit">Изменить теги</string>
     <string name="info_save">Сохранить</string>
     <string name="info_cancel">Отмена</string>
+    <string name="editor_discard_title">Отбросить изменения?</string>
+    <string name="editor_discard">Отбросить</string>
+    <string name="editor_keep_editing">Продолжить редактирование</string>
     <string name="info_saving">Сохранение…</string>
-    <string name="info_edit_note">Сохраняется в сам файл, поэтому исправление увидят все приложения. Android запросит разрешение на изменение файла.</string>
+    <string name="info_edit_note">Сохраняется в сам файл, поэтому исправление увидят все приложения. Возможно, потребуется разрешение на изменение файла.</string>
     <string name="info_edit_refused">Теги этого файла записаны так, что их нельзя перезаписать безопасно — ничего не изменено.</string>
     <string name="info_edit_failed">Не удалось записать файл. Он остался прежним.</string>
-    <string name="info_edit_unavailable">Изменение тегов недоступно на этом устройстве.</string>
+    <string name="info_edit_no_space">Недостаточно свободного места, чтобы безопасно сохранить теги. Ничего не изменено.</string>
+    <string name="info_edit_recovery_pending">Сохранение было прервано. LatentJam завершит или отменит его, когда ему снова разрешат изменить файл.</string>
+    <string name="tag_recovery_title">Завершить сохранение тегов</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">Сохранение тегов в %1$d файл было прервано. LatentJam может завершить его сейчас, а если файл завершить нельзя — вернуть как было.</item>
+        <item quantity="few">Сохранение тегов в %1$d файла было прервано. LatentJam может завершить его сейчас, а если какой-то файл завершить нельзя — вернуть его как было.</item>
+        <item quantity="many">Сохранение тегов в %1$d файлов было прервано. LatentJam может завершить его сейчас, а если какой-то файл завершить нельзя — вернуть его как было.</item>
+        <item quantity="other">Сохранение тегов в %1$d файла было прервано. LatentJam может завершить его сейчас, а если какой-то файл завершить нельзя — вернуть его как было.</item>
+    </plurals>
+    <string name="tag_recovery_finish">Завершить</string>
+    <string name="tag_recovery_later">Позже</string>
+    <string name="tag_problem_unsupported_format">LatentJam не может изменять файлы такого типа.</string>
+    <string name="tag_problem_damaged">Этот файл выглядит повреждённым, поэтому оставлен как есть.</string>
+    <string name="tag_problem_protected">Этот файл защищён от копирования, его нельзя изменить.</string>
+    <string name="tag_problem_tags_too_large">Теги были бы слишком велики для этого файла.</string>
+    <string name="tag_problem_bad_number">Номера трека и диска должны быть целыми числами от 1 до 999.</string>
+    <string name="tag_problem_number_unreadable">Номер трека или диска в самом файле не является обычным числом, поэтому общее количество нельзя изменить отдельно.</string>
+    <string name="tag_problem_bad_image">Изображение не в формате JPEG или PNG.</string>
+    <string name="tag_problem_read_only_storage">Этот файл находится на носителе, на который нельзя записывать.</string>
+    <string name="tag_problem_music_library">Песни из медиатеки изменять нельзя, только импортированные в LatentJam.</string>
+    <string name="tag_problem_unreadable">Не удалось прочитать этот файл.</string>
+    <string name="tag_problem_not_allowed">Разрешение на изменение файла не было дано.</string>
+    <string name="tag_problem_missing">Файла больше нет.</string>
+    <string name="tag_problem_stopped">Остановлено перед этим файлом.</string>
+    <string name="tag_problem_cancelled">Запрос разрешения был закрыт.</string>
+    <string name="tag_problem_undone">Прерванное сохранение отменено: файл в прежнем виде.</string>
+    <string name="tag_problem_changed_elsewhere">Другое приложение изменило файл после прерванного сохранения, поэтому он оставлен как есть.</string>
+    <string name="tag_problem_lost">LatentJam не удалось узнать, чем закончилось это сохранение. Проверьте теги файла.</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">Настройки</string>
@@ -407,6 +437,19 @@
     <string name="settings_hidden_tracks">Скрытые треки</string>
     <string name="settings_hidden_tracks_body">Треки, скрытые только в LatentJam. Любой трек можно вернуть, не изменяя его файл.</string>
     <string name="settings_hidden_tracks_empty">В LatentJam нет скрытых треков.</string>
+    <string name="settings_interrupted_saves">Прерванные сохранения</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">Сохранение тегов в %1$d файл было прервано. LatentJam завершит его или отменит, когда ему снова разрешат изменить файл.</item>
+        <item quantity="few">Сохранение тегов в %1$d файла было прервано. LatentJam завершит или отменит каждое сохранение, когда ему снова разрешат изменить файл.</item>
+        <item quantity="many">Сохранение тегов в %1$d файлов было прервано. LatentJam завершит или отменит каждое сохранение, когда ему снова разрешат изменить файл.</item>
+        <item quantity="other">Сохранение тегов в %1$d файла было прервано. LatentJam завершит или отменит каждое сохранение, когда ему снова разрешат изменить файл.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">Завершить сейчас</string>
+    <string name="settings_interrupted_being_repaired">Восстанавливается: не воспроизводится, пока не будет завершено</string>
+    <string name="settings_interrupted_forget">Забыть</string>
+    <string name="settings_interrupted_forget_title">Забыть это сохранение?</string>
+    <string name="settings_interrupted_forget_body">Файл останется точно таким, как сейчас, а LatentJam перестанет пытаться завершить или отменить сохранение. Это нельзя отменить.</string>
+    <string name="settings_interrupted_forget_damaged_body">Это сохранение прервалось на середине. Файл может быть повреждён и не воспроизводиться, а если забыть сохранение, будут удалены копии, по которым LatentJam мог бы его восстановить. Это нельзя отменить.</string>
     <string name="settings_duplicates">Дубликаты по звуку</string>
     <string name="settings_duplicates_body">Ищет копии одной записи по звуку, независимо от тегов</string>
     <string name="settings_duplicates_scanning">Сравниваю треки между собой…</string>
@@ -414,6 +457,11 @@
     <string name="settings_restore">Восстановить</string>
     <string name="settings_restore_all">Восстановить все</string>
     <string name="settings_library_manage_failed">Не удалось обновить медиатеку. Повторите попытку.</string>
+    <string name="settings_lyrics_folders">Папки с файлами .lrc</string>
+    <string name="settings_lyrics_folders_body">Android спросит, к какой папке дать доступ. Файл .lrc с тем же именем, что и трек, станет его текстом.</string>
+    <string name="settings_lyrics_folders_add">Добавить папку</string>
+    <string name="settings_lyrics_folders_remove">Убрать</string>
+    <string name="settings_lyrics_folders_failed">Эту папку нельзя использовать. Выберите папку в памяти этого устройства.</string>
 
     <string name="settings_licenses">Лицензии открытого ПО</string>
     <string name="settings_licenses_body">Сведения о LatentJam, встроенных моделях и стороннем ПО</string>
@@ -500,7 +548,107 @@
     <string name="duplicates_keep_this">Оставить этот</string>
     <string name="snack_duplicates_merged">Дубликаты объединены: плейлисты теперь указывают на оставленную копию</string>
     <string name="info_lyrics">Текст песни</string>
-    <string name="lyrics_not_found">В этом треке нет встроенного текста песни.</string>
+    <string name="info_album_artist">Исполнитель альбома</string>
+    <string name="info_track_number">Номер трека</string>
+    <string name="info_track_total">Всего треков</string>
+    <string name="info_disc_number">Номер диска</string>
+    <string name="info_disc_total">Всего дисков</string>
+    <string name="info_cover">Обложка</string>
+    <string name="info_cover_replace">Заменить</string>
+    <string name="info_cover_remove">Удалить</string>
+    <string name="info_cover_keep">Оставить текущую</string>
+    <string name="info_cover_new">Новая обложка</string>
+    <string name="info_cover_removed">Обложка будет удалена.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">+%1$d другое изображение в файле, сохранится</item>
+        <item quantity="few">+%1$d других изображения в файле, сохранятся</item>
+        <item quantity="many">+%1$d других изображений в файле, сохранятся</item>
+        <item quantity="other">+%1$d другого изображения в файле, сохранятся</item>
+    </plurals>
+    <string name="info_reading_file">Чтение файла…</string>
+    <string name="action_edit_album">Изменить альбом</string>
+    <string name="action_edit_artist">Изменить исполнителя</string>
+    <string name="action_edit_short">Изменить</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d файл</item>
+        <item quantity="few">%1$d файла</item>
+        <item quantity="many">%1$d файлов</item>
+        <item quantity="other">%1$d файла</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d поле</item>
+        <item quantity="few">%1$d поля</item>
+        <item quantity="many">%1$d полей</item>
+        <item quantity="other">%1$d поля</item>
+    </plurals>
+    <string name="bulk_save">Изменить %1$s (%2$s)</string>
+    <string name="bulk_reading">Чтение: %1$d из %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d файл нельзя изменить, он останется как есть:</item>
+        <item quantity="few">%1$d файла нельзя изменить, они останутся как есть:</item>
+        <item quantity="many">%1$d файлов нельзя изменить, они останутся как есть:</item>
+        <item quantity="other">%1$d файла нельзя изменить, они останутся как есть:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">и ещё %1$d</item>
+        <item quantity="few">и ещё %1$d</item>
+        <item quantity="many">и ещё %1$d</item>
+        <item quantity="other">и ещё %1$d</item>
+    </plurals>
+    <string name="bulk_nothing_editable">Ни один из этих файлов нельзя изменить.</string>
+    <string name="bulk_different">Разные значения</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">Удалено из %1$d файла</item>
+        <item quantity="few">Удалено из всех %1$d</item>
+        <item quantity="many">Удалено из всех %1$d</item>
+        <item quantity="other">Удалено из всех %1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">Удалить из всех файлов</string>
+    <string name="bulk_keep_field">Оставить как есть</string>
+    <string name="bulk_kept">Останется как есть: %1$s</string>
+    <string name="bulk_saving">Сохранено %1$d из %2$d</string>
+    <string name="bulk_stop">Остановить</string>
+    <string name="bulk_result">Сохранено %1$d из %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d файл не изменён:</item>
+        <item quantity="few">%1$d файла не изменены:</item>
+        <item quantity="many">%1$d файлов не изменены:</item>
+        <item quantity="other">%1$d файла не изменены:</item>
+    </plurals>
+    <string name="bulk_done">Готово</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">Теги сохранены в %1$d файле</item>
+        <item quantity="few">Теги сохранены в %1$d файлах</item>
+        <item quantity="many">Теги сохранены в %1$d файлах</item>
+        <item quantity="other">Теги сохранены в %1$d файла</item>
+    </plurals>
+    <string name="tags_saved_partly">Теги сохранены в %1$d из %2$d файлов</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">Сохранение завершено для %1$d файла</item>
+        <item quantity="few">Сохранение завершено для %1$d файлов</item>
+        <item quantity="many">Сохранение завершено для %1$d файлов</item>
+        <item quantity="other">Сохранение завершено для %1$d файла</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d прерванное сохранение отменено; файл в прежнем виде</item>
+        <item quantity="few">%1$d прерванных сохранения отменены; файлы в прежнем виде</item>
+        <item quantity="many">%1$d прерванных сохранений отменено; файлы в прежнем виде</item>
+        <item quantity="other">%1$d прерванного сохранения отменено; файлы в прежнем виде</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d файл изменён другим приложением и оставлен как есть</item>
+        <item quantity="few">%1$d файла изменены другим приложением и оставлены как есть</item>
+        <item quantity="many">%1$d файлов изменено другим приложением и оставлено как есть</item>
+        <item quantity="other">%1$d файла изменено другим приложением и оставлено как есть</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">Сохранение в %1$d файл пока не удалось завершить. См. Настройки → Медиатека.</item>
+        <item quantity="few">Сохранение в %1$d файла пока не удалось завершить. См. Настройки → Медиатека.</item>
+        <item quantity="many">Сохранение в %1$d файлов пока не удалось завершить. См. Настройки → Медиатека.</item>
+        <item quantity="other">Сохранение в %1$d файла пока не удалось завершить. См. Настройки → Медиатека.</item>
+    </plurals>
+    <string name="lyrics_not_found">Текст песни для этого трека не найден.</string>
     <string name="cd_scroll_to_top">Наверх списка</string>
     <string name="foryou_section_daypart_morning">Ваше утро</string>
     <string name="foryou_section_daypart_day">Ваш день</string>

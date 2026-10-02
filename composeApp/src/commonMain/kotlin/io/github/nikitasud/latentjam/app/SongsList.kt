@@ -94,13 +94,13 @@ internal fun SectionedSongsList(
     onTrackMenu: (TrackDescriptor) -> Unit,
     currentAccent: Color? = null,
     onRailScrubbingChange: (Boolean) -> Unit = {},
+    listState: LazyListState = rememberLazyListState(),
 ) {
     val sections = remember(songs, sort, sortDirection) {
         SongSorting.sections(songs, sort, sortDirection)
     }
     val displayOrder = remember(sections) { sections.flatMap { it.tracks } }
     val indexed = remember(sections) { indexSections(sections) }
-    val listState = rememberLazyListState()
     val showIndex = sort != SongSort.RECENT && sections.size > 1
     val sectionStarts = remember(indexed) { indexed.map(IndexedSection::emitStartIndex) }
     val sectionBuckets = remember(indexed) { indexed.map(IndexedSection::bucket) }

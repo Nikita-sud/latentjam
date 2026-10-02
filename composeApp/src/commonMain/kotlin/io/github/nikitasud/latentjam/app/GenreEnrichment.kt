@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
+import io.github.nikitasud.latentjam.library.tags.TextRepair
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -14,11 +15,15 @@ import kotlinx.coroutines.yield
 
 /**
  * Upgrades descriptors with the tag facts the system scanner loses: the FULL genre list, the
- * credited-artists list, the original release year, and the language.
+ * credited-artists list, the original release year, the language, the album artist, and the
+ * file's own year when the scanner reported none.
  *
  * Android's media scanner keeps one genre and one display-artist string per track, and reports
  * the edition year. The files themselves know more — five separate `GENRE` fields, a Picard
- * `ARTISTS` list, `ORIGINALDATE`. This pass reads each file once per revision, remembers the
+ * `ARTISTS` list, `ORIGINALDATE`. Android 16's scanner also leaves the year empty for every
+ * MP3, FLAC and Opus file (only M4A keeps one), so decade search, album years and SMART's era
+ * term would see no year at all; the file's `TDRC`/`TYER`/`DATE` fills in, while a year the
+ * scanner did report always wins. This pass reads each file once per revision, remembers the
  * result durably, and rewrites descriptors. Every consumer downstream reacts on its own: the
  * genre tab lists a track under each genre, the artists tab under each credit, the chain's
  * artist spacing recognises collaborations, its era term keeps a remaster in its real decade,
@@ -40,6 +45,9 @@ internal class GenreEnrichment(
         val artists: List<String>,
         val originalYear: Int?,
         val language: String?,
+        val albumArtist: String?,
+        /** The file's own year; applied only where the scanner reported none. */
+        val year: Int?,
     )
 
     private val mutex = Mutex()
@@ -52,24 +60,46 @@ internal class GenreEnrichment(
         library.map { track ->
             val stored = loaded[track.id.value] ?: return@map track
             if (stored.revision != track.revisionKey()) return@map track
-            val genre = stored.joinedGenres.takeIf { it.isNotEmpty() } ?: track.genre
-            val artists = stored.artists.ifEmpty { track.artists }
-            val originalYear = stored.originalYear ?: track.originalYear
-            val language = stored.language ?: track.language
-            if (genre == track.genre && artists == track.artists &&
-                originalYear == track.originalYear && language == track.language
-            ) {
-                track
-            } else {
-                track.copy(
-                    genre = genre,
-                    artists = artists,
-                    originalYear = originalYear,
-                    language = language,
-                )
-            }
+            stored.mergedInto(track)
         }
     }
+
+    /**
+     * [track] with these facts. A file's text was repaired as MediaStore's is when it was read, but
+     * a short mojibake repair cannot tell from a real word stays, and it never replaces the clean
+     * value MediaStore holds for the same field: MediaStore's own reading wins over its mangling.
+     * [track] itself when nothing changes.
+     */
+    private fun Stored.mergedInto(track: TrackDescriptor): TrackDescriptor {
+        val genre = joinedGenres.takeIf { it.isNotEmpty() }
+            ?.split(GenreTags.SEPARATOR)
+            ?.joinToString(GenreTags.SEPARATOR) { it.unlessMangling(track.genre) }
+            ?: track.genre
+        val artists = artists.map { it.unlessMangling(track.artist) }.ifEmpty { track.artists }
+        val originalYear = originalYear ?: track.originalYear
+        val language = language ?: track.language
+        val albumArtist = albumArtist?.unlessMangling(track.albumArtist) ?: track.albumArtist
+        val year = track.year ?: year
+        return if (genre == track.genre && artists == track.artists &&
+            originalYear == track.originalYear && language == track.language &&
+            albumArtist == track.albumArtist && year == track.year
+        ) {
+            track
+        } else {
+            track.copy(
+                genre = genre,
+                artists = artists,
+                originalYear = originalYear,
+                language = language,
+                albumArtist = albumArtist,
+                year = year,
+            )
+        }
+    }
+
+    /** [clean] (MediaStore's reading of the same field) where this is only its mojibake, else this. */
+    private fun String.unlessMangling(clean: String?): String =
+        if (clean != null && TextRepair.isMangling(this, of = clean)) clean else this
 
     /**
      * Reads embedded facts for tracks with no fresh cache entry. Returns true when anything
@@ -85,12 +115,16 @@ internal class GenreEnrichment(
             val existing = known[track.id.value]
             if (existing != null && existing.revision == revision) continue
             val facts = readFacts(track) ?: continue
+            // The same repair MediaStore's text gets (issue #7): an older tagger's UTF-8 read as a
+            // Windows codepage is in the file itself, and must not reach the library as "BeyoncÃ©".
             val stored = Stored(
                 revision = revision,
-                joinedGenres = GenreTags.canonical(facts.genres).orEmpty(),
-                artists = facts.artists,
+                joinedGenres = GenreTags.canonical(facts.genres.map(TextRepair::repair)).orEmpty(),
+                artists = facts.artists.map(TextRepair::repair),
                 originalYear = facts.originalYear,
-                language = facts.language,
+                language = facts.language?.let(TextRepair::repair),
+                albumArtist = facts.albumArtist?.let(TextRepair::repair),
+                year = facts.year,
             )
             updates[track.id.value] = stored
             if (stored.changes(track)) learnedSomething = true
@@ -118,11 +152,7 @@ internal class GenreEnrichment(
         return learnedSomething
     }
 
-    private fun Stored.changes(track: TrackDescriptor): Boolean =
-        (joinedGenres.isNotEmpty() && joinedGenres != track.genre) ||
-            (artists.isNotEmpty() && artists != track.artists) ||
-            (originalYear != null && originalYear != track.originalYear) ||
-            (language != null && language != track.language)
+    private fun Stored.changes(track: TrackDescriptor): Boolean = mergedInto(track) != track
 
     private fun ensureLoaded(): MutableMap<String, Stored> {
         cache?.let { return it }
@@ -133,11 +163,14 @@ internal class GenreEnrichment(
 
     private companion object {
         /**
-         * v2 added artists and the original year, v3 the language tag. Older lines are
-         * deliberately dropped on decode: those files must be re-read once anyway to learn the
-         * new facts.
+         * v2 added artists and the original year, v3 the language tag, v4 the album artist, v5 the
+         * file's own year. Older lines are deliberately dropped on decode: those files must be
+         * re-read once anyway to learn the new facts. That is one tag read per track, the same
+         * pass every earlier bump cost; SMART's audio analysis is keyed on the audio's identity
+         * (URI, duration, revision) and is untouched — only the cheap text vector re-encodes
+         * where a year appears.
          */
-        const val FORMAT = "v3"
+        const val FORMAT = "v5"
 
         /** Joins the artist list inside one hex field; NUL never appears in a real name. */
         const val ARTIST_JOIN = "\u0000"
@@ -160,6 +193,8 @@ internal class GenreEnrichment(
                     stored.artists.joinToString(ARTIST_JOIN).hex(),
                     stored.originalYear?.toString() ?: "",
                     stored.language.orEmpty().hex(),
+                    stored.albumArtist.orEmpty().hex(),
+                    stored.year?.toString() ?: "",
                 ).joinToString("|")
             }
 
@@ -167,34 +202,28 @@ internal class GenreEnrichment(
             val result = HashMap<String, Stored>()
             payload?.lineSequence()?.forEach { line ->
                 val parts = line.split('|')
-                if (parts.size != 7 || parts[0] != FORMAT) return@forEach
+                if (parts.size != 9 || parts[0] != FORMAT) return@forEach
                 val id = parts[1].unhex() ?: return@forEach
                 val revision = parts[2].unhex() ?: return@forEach
                 val genres = parts[3].unhex() ?: return@forEach
                 val artistsJoined = parts[4].unhex() ?: return@forEach
                 val language = parts[6].unhex() ?: return@forEach
+                val albumArtist = parts[7].unhex() ?: return@forEach
+                // Entries written before the ID3 reader learned to read UTF-8 in Latin-1 frames
+                // hold "HÃ¶rspiel" for an unchanged file. TextRepair recovers the names a re-read
+                // would find without opening the file, and leaves a sound name as it is.
                 result[id] = Stored(
                     revision = revision,
-                    joinedGenres = genres,
-                    artists = artistsJoined.split(ARTIST_JOIN).filter { it.isNotEmpty() },
+                    joinedGenres = genres.split(GenreTags.SEPARATOR)
+                        .joinToString(GenreTags.SEPARATOR, transform = TextRepair::repair),
+                    artists = artistsJoined.split(ARTIST_JOIN).filter { it.isNotEmpty() }.map(TextRepair::repair),
                     originalYear = parts[5].toIntOrNull(),
-                    language = language.takeIf { it.isNotEmpty() },
+                    language = language.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
+                    albumArtist = albumArtist.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
+                    year = parts[8].toIntOrNull(),
                 )
             }
             return result
-        }
-
-        fun String.hex(): String = encodeToByteArray().joinToString("") { byte ->
-            (byte.toInt() and 0xff).toString(16).padStart(2, '0')
-        }
-
-        fun String.unhex(): String? {
-            if (length % 2 != 0) return null
-            return runCatching {
-                ByteArray(length / 2) { index ->
-                    substring(index * 2, index * 2 + 2).toInt(16).toByte()
-                }.decodeToString(throwOnInvalidSequence = true)
-            }.getOrNull()
         }
     }
 }

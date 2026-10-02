@@ -4,7 +4,10 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.Playlist
+import io.github.nikitasud.latentjam.library.SongSort
+import io.github.nikitasud.latentjam.library.SongSortDirection
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -35,6 +38,59 @@ class AppSettingsTest {
         assertEquals(TrackColorMode.THEME, trackColorModeFromPersisted("theme"))
         assertEquals(TrackColorMode.DYNAMIC, trackColorModeFromPersisted(null))
         assertEquals(TrackColorMode.DYNAMIC, trackColorModeFromPersisted("renamed-or-corrupt"))
+    }
+
+    @Test
+    fun everySortChoiceSurvivesTheRoundTrip() {
+        for (sort in SongSort.entries) for (direction in SongSortDirection.entries) {
+            val choice = SortChoice(sort, direction)
+            assertEquals(choice, songSortFromPersisted(encodeSortChoice(choice)))
+        }
+        for (sort in AlbumSort.entries) for (direction in SongSortDirection.entries) {
+            val choice = SortChoice(sort, direction)
+            assertEquals(choice, albumSortFromPersisted(encodeSortChoice(choice)))
+        }
+        for (sort in ARTIST_ALBUM_SORTS) for (direction in SongSortDirection.entries) {
+            val choice = SortChoice(sort, direction)
+            assertEquals(choice, artistAlbumSortFromPersisted(encodeSortChoice(choice)))
+        }
+    }
+
+    @Test
+    fun sortChoicesPersistAsStableLowercaseNames() {
+        assertEquals("year:descending", encodeSortChoice(SortChoice(AlbumSort.YEAR, SongSortDirection.DESCENDING)))
+        assertEquals(
+            SortChoice(SongSort.RECENT, SongSortDirection.ASCENDING),
+            songSortFromPersisted("recent:ascending"),
+        )
+    }
+
+    @Test
+    fun missingSortChoicesUseEachListsDefault() {
+        assertEquals(SortChoice(SongSort.TITLE, SongSortDirection.ASCENDING), songSortFromPersisted(null))
+        assertEquals(SortChoice(AlbumSort.TITLE, SongSortDirection.ASCENDING), albumSortFromPersisted(null))
+        assertEquals(SortChoice(AlbumSort.YEAR, SongSortDirection.DESCENDING), artistAlbumSortFromPersisted(null))
+    }
+
+    @Test
+    fun garbageSortChoicesDecodeToTheDefaults() {
+        for (garbage in listOf("", ":", "TITLE:ASCENDING", "shuffle:ascending", "title:ascending:extra", "\u0000")) {
+            assertEquals(DEFAULT_SONG_SORT, songSortFromPersisted(garbage), garbage)
+            assertEquals(DEFAULT_ALBUM_SORT, albumSortFromPersisted(garbage), garbage)
+            assertEquals(DEFAULT_ARTIST_ALBUM_SORT, artistAlbumSortFromPersisted(garbage), garbage)
+        }
+        // A song-only field is garbage to the album lists, and the artist page offers no artist sort.
+        assertEquals(DEFAULT_ALBUM_SORT, albumSortFromPersisted("unknown:ascending"))
+        assertEquals(DEFAULT_ARTIST_ALBUM_SORT, artistAlbumSortFromPersisted("artist:ascending"))
+        assertEquals(DEFAULT_ARTIST_ALBUM_SORT, artistAlbumSortFromPersisted("recent:descending"))
+    }
+
+    @Test
+    fun aKnownSortWithAnUnreadableDirectionKeepsTheSortAndItsNaturalDirection() {
+        assertEquals(SortChoice(AlbumSort.YEAR, SongSortDirection.DESCENDING), albumSortFromPersisted("year"))
+        assertEquals(SortChoice(AlbumSort.ARTIST, SongSortDirection.ASCENDING), albumSortFromPersisted("artist:sideways"))
+        assertEquals(SortChoice(SongSort.RECENT, SongSortDirection.DESCENDING), songSortFromPersisted("recent:"))
+        assertEquals(SortChoice(AlbumSort.TITLE, SongSortDirection.ASCENDING), artistAlbumSortFromPersisted("title"))
     }
 
     @Test

@@ -272,6 +272,36 @@ internal class DefaultSimilarityEngine(
         }
     }
 
+    override suspend fun carryOverAudio(
+        library: List<TrackDescriptor>,
+        carryOvers: List<AudioCarryOver>,
+    ): AudioCarryOverResult = withContext(dispatcher) {
+        mutex.withLock {
+            val none = AudioCarryOverResult(emptySet(), emptySet())
+            if (carryOvers.isEmpty() || mutableState.value !is EngineState.Ready) return@withLock none
+            val byId = library.associateBy { it.id }
+            val applied = HashSet<TrackId>()
+            val settled = HashSet<TrackId>()
+            for (carry in carryOvers) {
+                val track = byId[carry.trackId] ?: continue
+                if (track.sourceRevision == carry.oldRevision) continue
+                settled += carry.trackId
+                // The identity the vector was made under, had the file kept its old revision.
+                val before = track.copy(sourceRevision = carry.oldRevision).audioVectorIdentity()
+                val unchanged = carry.trackId in index && audioVectorIdentities[carry.trackId] == before
+                if (unchanged && track.sizeBytes == carry.newLength) {
+                    audioVectorIdentities[carry.trackId] = track.audioVectorIdentity()
+                    applied += carry.trackId
+                }
+            }
+            if (applied.isNotEmpty()) {
+                audioIndexDirty = true
+                persistAudioIndex()
+            }
+            AudioCarryOverResult(applied, settled)
+        }
+    }
+
     override suspend fun synchronizeLibrary(
         library: List<TrackDescriptor>,
         pruneMissing: Boolean,

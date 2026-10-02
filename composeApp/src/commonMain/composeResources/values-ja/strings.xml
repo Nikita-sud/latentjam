@@ -218,11 +218,38 @@
     <string name="info_edit">タグを編集</string>
     <string name="info_save">保存</string>
     <string name="info_cancel">キャンセル</string>
+    <string name="editor_discard_title">変更を破棄しますか？</string>
+    <string name="editor_discard">破棄</string>
+    <string name="editor_keep_editing">編集を続ける</string>
     <string name="info_saving">保存中…</string>
-    <string name="info_edit_note">ファイル自体に保存されるため、すべてのアプリに修正が反映されます。Android がファイルの変更許可を求めます。</string>
+    <string name="info_edit_note">ファイル自体に保存されるため、すべてのアプリに修正が反映されます。ファイルの変更許可を求められる場合があります。</string>
     <string name="info_edit_refused">このファイルのタグは安全に書き換えられない形式のため、何も変更されませんでした。</string>
     <string name="info_edit_failed">このファイルに書き込めませんでした。元のままです。</string>
-    <string name="info_edit_unavailable">このデバイスではタグの編集を利用できません。</string>
+    <string name="info_edit_no_space">空き容量が足りず、これらのタグを安全に保存できません。何も変更されていません。</string>
+    <string name="info_edit_recovery_pending">保存が中断されました。次にファイルへの書き込みが許可されたときに、LatentJam が完了するか元に戻します。</string>
+    <string name="tag_recovery_title">タグの保存を完了</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="other">%1$d 個のファイルへのタグの保存中に LatentJam が中断されました。今すぐ変更を完了するか、完了できないファイルは元に戻せます。</item>
+    </plurals>
+    <string name="tag_recovery_finish">完了</string>
+    <string name="tag_recovery_later">後で</string>
+    <string name="tag_problem_unsupported_format">LatentJamはこの種類のファイルを編集できません。</string>
+    <string name="tag_problem_damaged">このファイルは破損しているようなので、そのままにしています。</string>
+    <string name="tag_problem_protected">このファイルはコピー防止されているため、変更できません。</string>
+    <string name="tag_problem_tags_too_large">タグがこのファイルには大きすぎます。</string>
+    <string name="tag_problem_bad_number">曲番号とディスク番号は1〜999の整数にしてください。</string>
+    <string name="tag_problem_number_unreadable">ファイル自体の曲番号またはディスク番号が通常の数値ではないため、合計数だけを変更することはできません。</string>
+    <string name="tag_problem_bad_image">画像がJPEGまたはPNGではありません。</string>
+    <string name="tag_problem_read_only_storage">このファイルは書き込みできないストレージにあります。</string>
+    <string name="tag_problem_music_library">ミュージックライブラリの曲は編集できません。LatentJamに読み込んだ曲のみ編集できます。</string>
+    <string name="tag_problem_unreadable">このファイルを読み取れませんでした。</string>
+    <string name="tag_problem_not_allowed">ファイルの変更が許可されませんでした。</string>
+    <string name="tag_problem_missing">ファイルが見つかりません。</string>
+    <string name="tag_problem_stopped">このファイルの前で停止しました。</string>
+    <string name="tag_problem_cancelled">許可のリクエストが閉じられました。</string>
+    <string name="tag_problem_undone">中断された保存は取り消されました。ファイルは以前の状態に戻っています。</string>
+    <string name="tag_problem_changed_elsewhere">保存が中断された後に別のアプリがファイルを変更したため、そのままにしています。</string>
+    <string name="tag_problem_lost">この保存がどう終わったかを LatentJam は確認できませんでした。ファイルのタグを確認してください。</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">設定</string>
@@ -391,6 +418,16 @@
     <string name="settings_hidden_tracks">非表示の曲</string>
     <string name="settings_hidden_tracks_body">LatentJam 内でのみ非表示にした曲です。ファイルを変更せずに個別に復元できます。</string>
     <string name="settings_hidden_tracks_empty">LatentJam で非表示になっている曲はありません。</string>
+    <string name="settings_interrupted_saves">中断された保存</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="other">%1$d 個のファイルへのタグの保存が中断されました。ファイルへの書き込みが許可され次第、LatentJam が完了するか元に戻します。</item>
+    </plurals>
+    <string name="settings_interrupted_finish">今すぐ完了</string>
+    <string name="settings_interrupted_being_repaired">修復中: 完了するまで再生されません</string>
+    <string name="settings_interrupted_forget">破棄</string>
+    <string name="settings_interrupted_forget_title">この保存を破棄しますか？</string>
+    <string name="settings_interrupted_forget_body">ファイルは今の状態のまま残り、LatentJam は保存の完了や取り消しを試みなくなります。この操作は元に戻せません。</string>
+    <string name="settings_interrupted_forget_damaged_body">この保存は途中で止まりました。ファイルが壊れていて再生できない可能性があります。破棄すると、LatentJam が修復に使えるコピーも削除されます。この操作は元に戻せません。</string>
     <string name="settings_duplicates">音声の重複</string>
     <string name="settings_duplicates_body">タグに関係なく、同じ録音のコピーを音で見つけます</string>
     <string name="settings_duplicates_scanning">全トラックを比較中…</string>
@@ -398,6 +435,11 @@
     <string name="settings_restore">復元</string>
     <string name="settings_restore_all">すべて復元</string>
     <string name="settings_library_manage_failed">ライブラリを更新できませんでした。もう一度お試しください。</string>
+    <string name="settings_lyrics_folders">.lrc ファイルのフォルダ</string>
+    <string name="settings_lyrics_folders_body">許可するフォルダを Android が尋ねます。曲と同じ名前の .lrc ファイルがその曲の歌詞として使われます。</string>
+    <string name="settings_lyrics_folders_add">フォルダを追加</string>
+    <string name="settings_lyrics_folders_remove">解除</string>
+    <string name="settings_lyrics_folders_failed">このフォルダは使用できません。このデバイスのストレージ内のフォルダを選んでください。</string>
 
     <string name="settings_licenses">オープンソースライセンス</string>
     <string name="settings_licenses_body">LatentJam、同梱モデル、サードパーティ製ソフトウェアに関する表示</string>
@@ -482,7 +524,71 @@
     <string name="duplicates_keep_this">これを残す</string>
     <string name="snack_duplicates_merged">重複を統合しました。プレイリストは残したコピーを指します</string>
     <string name="info_lyrics">歌詞</string>
-    <string name="lyrics_not_found">この曲には埋め込み歌詞がありません。</string>
+    <string name="info_album_artist">アルバムアーティスト</string>
+    <string name="info_track_number">曲番号</string>
+    <string name="info_track_total">総曲数</string>
+    <string name="info_disc_number">ディスク番号</string>
+    <string name="info_disc_total">総ディスク数</string>
+    <string name="info_cover">カバー</string>
+    <string name="info_cover_replace">置き換え</string>
+    <string name="info_cover_remove">削除</string>
+    <string name="info_cover_keep">現在のものを維持</string>
+    <string name="info_cover_new">新しいカバー</string>
+    <string name="info_cover_removed">カバーは削除されます。</string>
+    <plurals name="info_cover_more">
+        <item quantity="other">ファイル内の他の画像 +%1$d 枚はそのまま残ります</item>
+    </plurals>
+    <string name="info_reading_file">ファイルを読み取り中…</string>
+    <string name="action_edit_album">アルバムを編集</string>
+    <string name="action_edit_artist">アーティストを編集</string>
+    <string name="action_edit_short">編集</string>
+    <plurals name="count_files">
+        <item quantity="other">%1$d件のファイル</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="other">%1$d項目</item>
+    </plurals>
+    <string name="bulk_save">%2$sで%1$sを変更</string>
+    <string name="bulk_reading">%2$d件中%1$d件を読み取り中…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="other">%1$d件のファイルは編集できないため、そのまま残します：</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="other">ほか%1$d件</item>
+    </plurals>
+    <string name="bulk_nothing_editable">これらのファイルはどれも編集できません。</string>
+    <string name="bulk_different">複数の値</string>
+    <plurals name="bulk_removed">
+        <item quantity="other">%1$d件のファイルから削除</item>
+    </plurals>
+    <string name="bulk_remove_field">すべてのファイルから削除</string>
+    <string name="bulk_keep_field">そのままにする</string>
+    <string name="bulk_kept">そのまま：%1$s</string>
+    <string name="bulk_saving">%2$d件中%1$d件を保存済み</string>
+    <string name="bulk_stop">停止</string>
+    <string name="bulk_result">%2$d件中%1$d件を保存しました。</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="other">%1$d件のファイルは変更されませんでした：</item>
+    </plurals>
+    <string name="bulk_done">完了</string>
+    <string name="bulk_file_reason">%1$s：%2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="other">%1$d件のファイルにタグを保存しました</item>
+    </plurals>
+    <string name="tags_saved_partly">%2$d件中%1$d件のファイルにタグを保存しました</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="other">%1$d件のファイルの保存を完了しました</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="other">中断された保存%1$d件を取り消しました。ファイルは以前の状態に戻っています</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="other">%1$d件のファイルは別のアプリによって変更されていたため、そのままにしています</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="other">%1$d件のファイルの保存をまだ完了できていません。設定 → ライブラリをご覧ください。</item>
+    </plurals>
+    <string name="lyrics_not_found">この曲の歌詞が見つかりませんでした。</string>
     <string name="cd_scroll_to_top">先頭に戻る</string>
     <string name="foryou_section_daypart_morning">あなたの朝</string>
     <string name="foryou_section_daypart_day">あなたの昼</string>

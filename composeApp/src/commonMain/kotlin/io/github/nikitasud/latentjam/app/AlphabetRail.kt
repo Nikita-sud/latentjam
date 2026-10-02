@@ -384,6 +384,7 @@ internal fun GridListWithRail(
     catalogKey: Any,
     artworkKeys: List<ArtworkLoadKey?>,
     contentPadding: PaddingValues,
+    gridState: LazyGridState = rememberLazyGridState(),
     onScrubbingChange: (Boolean) -> Unit = {},
     content: @Composable BoxScope.(
         railPadding: PaddingValues,
@@ -395,7 +396,6 @@ internal fun GridListWithRail(
     require(rail.buckets.size == rail.startIndexes.size) {
         "rail buckets and anchors must stay aligned"
     }
-    val gridState = rememberLazyGridState()
     val railCandidate = rail.buckets.size > 1
     val showRail by remember(railCandidate, gridState) {
         derivedStateOf {

@@ -35,7 +35,7 @@ internal object Id3Text {
     fun decode(encoding: Int, bytes: ByteArray, from: Int, to: Int): String? {
         if (from >= to) return ""
         return when (encoding) {
-            ISO_8859_1 -> decodeLatin1(bytes, from, to)
+            ISO_8859_1 -> decodeIso8859_1(bytes, from, to)
             UTF_16_WITH_BOM -> decodeUtf16WithBom(bytes, from, to)
             UTF_16BE -> decodeUtf16(bytes, from, to, bigEndian = true)
             // throwOnInvalidSequence = false: a mangled byte becomes U+FFFD.
@@ -52,7 +52,10 @@ internal object Id3Text {
      * this file exists:
      *
      * - Text that fits ISO-8859-1 goes out as encoding 0 in both versions. It is
-     *   the most compact form and the one every decoder ever written handles.
+     *   the most compact form and the one every decoder ever written handles —
+     *   unless its Latin-1 bytes also happen to be well-formed UTF-8 ("É" and a
+     *   no-break space are C9 A0, UTF-8 for "ɠ"). The reader takes such bytes as
+     *   UTF-8 (see [decodeIso8859_1]), so that text is treated as non-Latin.
      * - Otherwise, **2.4 gets UTF-8 and 2.3 gets UTF-16 with a BOM**. UTF-8 is
      *   not a legal ID3v2.3 encoding; writing it anyway is the single most
      *   common way a tagger destroys a Cyrillic or Japanese title, because
@@ -67,7 +70,7 @@ internal object Id3Text {
         // would silently split the field into two values on the next read.
         val clean = if (text.indexOf('\u0000') >= 0) text.replace("\u0000", "") else text
 
-        if (isLatin1(clean)) {
+        if (isUnambiguousLatin1(clean)) {
             val out = ByteArray(1 + clean.length)
             out[0] = ISO_8859_1.toByte()
             for (i in clean.indices) out[i + 1] = clean[i].code.toByte()
@@ -104,6 +107,18 @@ internal object Id3Text {
     fun isLatin1(text: String): Boolean = text.all { it.code <= 0xFF }
 
     /**
+     * True when [text] can go out as encoding 0 and read back as itself: it fits
+     * ISO-8859-1, and its bytes are not also well-formed UTF-8, which the reader
+     * would prefer (see [decodeIso8859_1]). Pure ASCII always qualifies.
+     */
+    fun isUnambiguousLatin1(text: String): Boolean {
+        if (!isLatin1(text)) return false
+        if (text.none { it.code >= 0x80 }) return true
+        val bytes = ByteArray(text.length) { text[it].code.toByte() }
+        return TextRepair.decodeUtf8Strict(bytes) == null
+    }
+
+    /**
      * Reverses ID3 unsynchronisation: every `$FF $00` pair becomes a lone `$FF`.
      *
      * Used only on the read path, for ID3v2.4 frames that carry the frame-level
@@ -121,6 +136,30 @@ internal object Id3Text {
             if (b == 0xFF.toByte() && i < to && bytes[i] == 0.toByte()) i++
         }
         return if (n == out.size) out else out.copyOf(n)
+    }
+
+    /**
+     * Decodes an encoding-0 frame body.
+     *
+     * ID3v2 defines encoding 0 as ISO-8859-1, but plenty of writers (and
+     * MediaStore, for the same tags read a second way) store UTF-8 bytes
+     * under that encoding byte instead. A byte ≥ 0x80 that also decodes as
+     * strict UTF-8 almost certainly is UTF-8 — genuine Latin-1 text with a
+     * high byte practically never also happens to be well-formed UTF-8 — so
+     * that reading wins; otherwise the bytes are decoded as Latin-1 as usual.
+     */
+    private fun decodeIso8859_1(bytes: ByteArray, from: Int, to: Int): String {
+        var hasHighByte = false
+        for (i in from until to) {
+            if (bytes[i].toInt() and 0xFF >= 0x80) {
+                hasHighByte = true
+                break
+            }
+        }
+        if (hasHighByte) {
+            TextRepair.decodeUtf8Strict(bytes, from, to)?.let { return it }
+        }
+        return decodeLatin1(bytes, from, to)
     }
 
     private fun decodeLatin1(bytes: ByteArray, from: Int, to: Int): String {

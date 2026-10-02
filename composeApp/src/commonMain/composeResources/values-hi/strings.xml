@@ -224,11 +224,39 @@
     <string name="info_edit">टैग संपादित करें</string>
     <string name="info_save">सहेजें</string>
     <string name="info_cancel">रद्द करें</string>
+    <string name="editor_discard_title">बदलाव छोड़ दें?</string>
+    <string name="editor_discard">छोड़ें</string>
+    <string name="editor_keep_editing">संपादन जारी रखें</string>
     <string name="info_saving">सहेजा जा रहा है…</string>
-    <string name="info_edit_note">फ़ाइल में ही सहेजा जाता है, इसलिए सुधार हर ऐप को दिखता है। Android फ़ाइल बदलने की अनुमति माँगेगा।</string>
+    <string name="info_edit_note">फ़ाइल में ही सहेजा जाता है, इसलिए सुधार हर ऐप को दिखता है। फ़ाइल बदलने की अनुमति माँगी जा सकती है।</string>
     <string name="info_edit_refused">इस फ़ाइल के टैग ऐसे रूप में हैं जिन्हें सुरक्षित रूप से दोबारा नहीं लिखा जा सकता, इसलिए कुछ नहीं बदला गया।</string>
     <string name="info_edit_failed">इस फ़ाइल में नहीं लिखा जा सका। इसे जैसा था वैसा ही छोड़ दिया गया।</string>
-    <string name="info_edit_unavailable">इस डिवाइस पर टैग संपादित करना उपलब्ध नहीं है।</string>
+    <string name="info_edit_no_space">इन टैग को सुरक्षित रूप से सहेजने के लिए पर्याप्त खाली जगह नहीं है। कुछ भी नहीं बदला गया।</string>
+    <string name="info_edit_recovery_pending">सहेजना बीच में रुक गया। LatentJam अगली बार फ़ाइल लिखने की अनुमति मिलने पर इसे पूरा करेगा या वापस ले लेगा।</string>
+    <string name="tag_recovery_title">टैग सहेजना पूरा करें</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">%1$d फ़ाइल में टैग सहेजते समय LatentJam बीच में रुक गया। यह बदलाव अभी पूरा कर सकता है, या फ़ाइल पूरी न हो सके तो उसे वापस ले सकता है।</item>
+        <item quantity="other">%1$d फ़ाइलों में टैग सहेजते समय LatentJam बीच में रुक गया। यह बदलाव अभी पूरे कर सकता है, या जो फ़ाइल पूरी न हो सके उसमें उन्हें वापस ले सकता है।</item>
+    </plurals>
+    <string name="tag_recovery_finish">पूरा करें</string>
+    <string name="tag_recovery_later">बाद में</string>
+    <string name="tag_problem_unsupported_format">LatentJam इस तरह की फ़ाइल को संपादित नहीं कर सकता।</string>
+    <string name="tag_problem_damaged">यह फ़ाइल खराब लगती है, इसलिए इसे जैसी है वैसी ही छोड़ दिया गया।</string>
+    <string name="tag_problem_protected">यह फ़ाइल कॉपी-सुरक्षित है और इसे बदला नहीं जा सकता।</string>
+    <string name="tag_problem_tags_too_large">टैग इस फ़ाइल के लिए बहुत बड़े हो जाएँगे।</string>
+    <string name="tag_problem_bad_number">ट्रैक और डिस्क नंबर 1 से 999 तक की पूर्ण संख्याएँ होने चाहिए।</string>
+    <string name="tag_problem_number_unreadable">फ़ाइल का अपना ट्रैक या डिस्क नंबर सामान्य संख्या नहीं है, इसलिए उसका कुल अकेले नहीं बदला जा सकता।</string>
+    <string name="tag_problem_bad_image">यह तस्वीर JPEG या PNG नहीं है।</string>
+    <string name="tag_problem_read_only_storage">यह फ़ाइल ऐसे स्टोरेज पर है जिसमें लिखा नहीं जा सकता।</string>
+    <string name="tag_problem_music_library">संगीत लाइब्रेरी के गाने संपादित नहीं किए जा सकते, केवल LatentJam में इंपोर्ट किए गए गाने संपादित किए जा सकते हैं।</string>
+    <string name="tag_problem_unreadable">यह फ़ाइल पढ़ी नहीं जा सकी।</string>
+    <string name="tag_problem_not_allowed">फ़ाइल बदलने की अनुमति नहीं दी गई।</string>
+    <string name="tag_problem_missing">फ़ाइल अब मौजूद नहीं है।</string>
+    <string name="tag_problem_stopped">इस फ़ाइल से पहले रोक दिया गया।</string>
+    <string name="tag_problem_cancelled">अनुमति का अनुरोध बंद कर दिया गया।</string>
+    <string name="tag_problem_undone">बीच में रुका हुआ सहेजना वापस ले लिया गया: फ़ाइल पहले जैसी है।</string>
+    <string name="tag_problem_changed_elsewhere">सहेजना रुकने के बाद किसी दूसरे ऐप ने फ़ाइल बदल दी, इसलिए उसे जैसी है वैसी ही छोड़ दिया गया।</string>
+    <string name="tag_problem_lost">LatentJam यह पता नहीं लगा सका कि यह सहेजना कैसे पूरा हुआ। फ़ाइल के टैग जाँचें।</string>
 
     <!-- =========================================================== settings -->
     <string name="settings_title">सेटिंग</string>
@@ -398,6 +426,17 @@
     <string name="settings_hidden_tracks">छिपाए गए ट्रैक</string>
     <string name="settings_hidden_tracks_body">ट्रैक केवल LatentJam में छिपाए गए हैं। फ़ाइल बदले बिना किसी भी ट्रैक को वापस लाएँ।</string>
     <string name="settings_hidden_tracks_empty">LatentJam में कोई ट्रैक छिपा नहीं है।</string>
+    <string name="settings_interrupted_saves">बीच में रुके सहेजने</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">%1$d फ़ाइल में टैग सहेजना बीच में रुक गया। फ़ाइल लिखने की अनुमति मिलते ही LatentJam इसे पूरा करेगा या वापस ले लेगा।</item>
+        <item quantity="other">%1$d फ़ाइलों में टैग सहेजना बीच में रुक गया। फ़ाइल लिखने की अनुमति मिलते ही LatentJam हर एक को पूरा करेगा या वापस ले लेगा।</item>
+    </plurals>
+    <string name="settings_interrupted_finish">अभी पूरा करें</string>
+    <string name="settings_interrupted_being_repaired">मरम्मत जारी है: पूरा होने तक नहीं चलाया जाएगा</string>
+    <string name="settings_interrupted_forget">भूल जाएँ</string>
+    <string name="settings_interrupted_forget_title">इस सहेजने को भूल जाएँ?</string>
+    <string name="settings_interrupted_forget_body">फ़ाइल ठीक वैसी ही रहेगी जैसी अभी है, और LatentJam सहेजना पूरा करने या वापस लेने की कोशिश बंद कर देगा। इसे पूर्ववत नहीं किया जा सकता।</string>
+    <string name="settings_interrupted_forget_damaged_body">यह सहेजना बीच में ही रुक गया। फ़ाइल खराब हो सकती है और शायद न चले, और इसे भूलने से वे कॉपी मिट जाती हैं जिनसे LatentJam इसे ठीक कर सकता है। इसे पूर्ववत नहीं किया जा सकता।</string>
     <string name="settings_duplicates">ऑडियो डुप्लिकेट</string>
     <string name="settings_duplicates_body">टैग चाहे जो कहें, एक ही रिकॉर्डिंग की प्रतियाँ ध्वनि से खोजता है</string>
     <string name="settings_duplicates_scanning">सभी ट्रैक की तुलना हो रही है…</string>
@@ -405,6 +444,11 @@
     <string name="settings_restore">वापस लाएँ</string>
     <string name="settings_restore_all">सभी वापस लाएँ</string>
     <string name="settings_library_manage_failed">लाइब्रेरी अपडेट नहीं की जा सकी। फिर से कोशिश करें।</string>
+    <string name="settings_lyrics_folders">.lrc फ़ाइलों वाले फ़ोल्डर</string>
+    <string name="settings_lyrics_folders_body">Android पूछता है कि किस फ़ोल्डर की अनुमति देनी है। फिर गाने के नाम वाली .lrc फ़ाइल उसके बोल के लिए इस्तेमाल होती है।</string>
+    <string name="settings_lyrics_folders_add">फ़ोल्डर जोड़ें</string>
+    <string name="settings_lyrics_folders_remove">हटाएँ</string>
+    <string name="settings_lyrics_folders_failed">यह फ़ोल्डर इस्तेमाल नहीं किया जा सकता। इस डिवाइस के स्टोरेज से कोई फ़ोल्डर चुनें।</string>
 
     <string name="settings_licenses">ओपन-सोर्स लाइसेंस</string>
     <string name="settings_licenses_body">LatentJam, साथ दिए गए मॉडल और तीसरे पक्ष के सॉफ़्टवेयर की सूचनाएँ</string>
@@ -489,7 +533,83 @@
     <string name="duplicates_keep_this">इसे रखें</string>
     <string name="snack_duplicates_merged">डुप्लिकेट मिला दिए गए: प्लेलिस्ट अब रखी गई कॉपी की ओर इशारा करती हैं</string>
     <string name="info_lyrics">गीत के बोल</string>
-    <string name="lyrics_not_found">इस ट्रैक में एम्बेड किए गए बोल नहीं मिले।</string>
+    <string name="info_album_artist">एल्बम कलाकार</string>
+    <string name="info_track_number">ट्रैक नंबर</string>
+    <string name="info_track_total">कुल ट्रैक</string>
+    <string name="info_disc_number">डिस्क नंबर</string>
+    <string name="info_disc_total">कुल डिस्क</string>
+    <string name="info_cover">कवर</string>
+    <string name="info_cover_replace">बदलें</string>
+    <string name="info_cover_remove">हटाएँ</string>
+    <string name="info_cover_keep">मौजूदा रखें</string>
+    <string name="info_cover_new">नया कवर</string>
+    <string name="info_cover_removed">कवर हटा दिया जाएगा।</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">फ़ाइल में +%1$d और तस्वीर है, वह बनी रहेगी</item>
+        <item quantity="other">फ़ाइल में +%1$d और तस्वीरें हैं, वे बनी रहेंगी</item>
+    </plurals>
+    <string name="info_reading_file">फ़ाइल पढ़ी जा रही है…</string>
+    <string name="action_edit_album">एल्बम संपादित करें</string>
+    <string name="action_edit_artist">कलाकार संपादित करें</string>
+    <string name="action_edit_short">संपादित करें</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d फ़ाइल</item>
+        <item quantity="other">%1$d फ़ाइलें</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d फ़ील्ड</item>
+        <item quantity="other">%1$d फ़ील्ड</item>
+    </plurals>
+    <string name="bulk_save">%1$s बदलें (%2$s)</string>
+    <string name="bulk_reading">पढ़ा जा रहा है: %2$d में से %1$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">%1$d फ़ाइल संपादित नहीं की जा सकती और जैसी है वैसी ही रहेगी:</item>
+        <item quantity="other">%1$d फ़ाइलें संपादित नहीं की जा सकतीं और जैसी हैं वैसी ही रहेंगी:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">और %1$d अन्य</item>
+        <item quantity="other">और %1$d अन्य</item>
+    </plurals>
+    <string name="bulk_nothing_editable">इनमें से कोई भी फ़ाइल संपादित नहीं की जा सकती।</string>
+    <string name="bulk_different">अलग-अलग मान</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">%1$d फ़ाइल से हटाया गया</item>
+        <item quantity="other">सभी %1$d से हटाया गया</item>
+    </plurals>
+    <string name="bulk_remove_field">हर फ़ाइल से हटाएँ</string>
+    <string name="bulk_keep_field">जैसा है वैसा रखें</string>
+    <string name="bulk_kept">जैसा है वैसा रहेगा: %1$s</string>
+    <string name="bulk_saving">%2$d में से %1$d सहेजी गईं</string>
+    <string name="bulk_stop">रोकें</string>
+    <string name="bulk_result">%2$d में से %1$d सहेजी गईं।</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d फ़ाइल नहीं बदली गई:</item>
+        <item quantity="other">%1$d फ़ाइलें नहीं बदली गईं:</item>
+    </plurals>
+    <string name="bulk_done">हो गया</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">%1$d फ़ाइल में टैग सहेजे गए</item>
+        <item quantity="other">%1$d फ़ाइलों में टैग सहेजे गए</item>
+    </plurals>
+    <string name="tags_saved_partly">%2$d में से %1$d फ़ाइलों में टैग सहेजे गए</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">%1$d फ़ाइल का सहेजना पूरा हुआ</item>
+        <item quantity="other">%1$d फ़ाइलों का सहेजना पूरा हुआ</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">बीच में रुका %1$d सहेजना वापस ले लिया गया; फ़ाइल पहले जैसी है</item>
+        <item quantity="other">बीच में रुके %1$d सहेजने वापस ले लिए गए; फ़ाइलें पहले जैसी हैं</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d फ़ाइल किसी दूसरे ऐप ने बदल दी थी, इसलिए उसे जैसी है वैसी ही छोड़ दिया गया</item>
+        <item quantity="other">%1$d फ़ाइलें किसी दूसरे ऐप ने बदल दी थीं, इसलिए उन्हें जैसी हैं वैसी ही छोड़ दिया गया</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">%1$d फ़ाइल का सहेजना अभी पूरा नहीं हो सका। सेटिंग → लाइब्रेरी देखें।</item>
+        <item quantity="other">%1$d फ़ाइलों का सहेजना अभी पूरा नहीं हो सका। सेटिंग → लाइब्रेरी देखें।</item>
+    </plurals>
+    <string name="lyrics_not_found">इस ट्रैक के लिए कोई बोल नहीं मिले।</string>
     <string name="cd_scroll_to_top">ऊपर वापस जाएँ</string>
     <string name="foryou_section_daypart_morning">आपकी सुबहें</string>
     <string name="foryou_section_daypart_day">आपकी दोपहरें</string>

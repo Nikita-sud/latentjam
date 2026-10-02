@@ -13,10 +13,12 @@ import io.github.nikitasud.latentjam.history.ListenStart
 import io.github.nikitasud.latentjam.history.RecentSearchStore
 import io.github.nikitasud.latentjam.history.SmartExclusionStore
 import io.github.nikitasud.latentjam.history.SmartExclusions
+import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.DefaultPlaylists
 import io.github.nikitasud.latentjam.library.LibrarySource
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.PlaylistStore
+import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -747,6 +749,13 @@ internal class LocalBackupTest {
         override fun setNormalizeVolume(enabled: Boolean) { normalizeVolume.value = enabled }
         override val crossfadeSeconds: MutableStateFlow<Int> = MutableStateFlow(0)
         override fun setCrossfadeSeconds(seconds: Int) { crossfadeSeconds.value = seconds }
+        override val songSort: MutableStateFlow<SortChoice<SongSort>> = MutableStateFlow(DEFAULT_SONG_SORT)
+        override fun setSongSort(choice: SortChoice<SongSort>) { songSort.value = choice }
+        override val albumSort: MutableStateFlow<SortChoice<AlbumSort>> = MutableStateFlow(DEFAULT_ALBUM_SORT)
+        override fun setAlbumSort(choice: SortChoice<AlbumSort>) { albumSort.value = choice }
+        override val artistAlbumSort: MutableStateFlow<SortChoice<AlbumSort>> =
+            MutableStateFlow(DEFAULT_ARTIST_ALBUM_SORT)
+        override fun setArtistAlbumSort(choice: SortChoice<AlbumSort>) { artistAlbumSort.value = choice }
         private var trackLoudnessPayload: String? = null
         private var trackGenresPayload: String? = null
         override fun readTrackLoudnessPayload(): String? = trackLoudnessPayload
@@ -756,6 +765,8 @@ internal class LocalBackupTest {
         override fun writeTrackGenresPayload(payload: String) {
             trackGenresPayload = payload
         }
+        override fun readAudioCarryOversPayload(): String? = null
+        override fun writeAudioCarryOversPayload(payload: String) = Unit
         private var duplicateDismissalsPayload: String? = null
         override fun readDuplicateDismissalsPayload(): String? = duplicateDismissalsPayload
         override fun writeDuplicateDismissalsPayload(payload: String) {

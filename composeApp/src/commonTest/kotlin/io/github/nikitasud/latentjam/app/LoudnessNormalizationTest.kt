@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.library.AlbumSort
+import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.smart.Loudness
 import io.github.nikitasud.latentjam.playback.NowPlaying
 import io.github.nikitasud.latentjam.playback.PlaybackController
@@ -138,6 +140,12 @@ internal class LoudnessNormalizationTest {
         override fun setNormalizeVolume(enabled: Boolean) { normalizeVolume.value = enabled }
         override val crossfadeSeconds = MutableStateFlow(0)
         override fun setCrossfadeSeconds(seconds: Int) { crossfadeSeconds.value = seconds }
+        override val songSort = MutableStateFlow(DEFAULT_SONG_SORT)
+        override fun setSongSort(choice: SortChoice<SongSort>) { songSort.value = choice }
+        override val albumSort = MutableStateFlow(DEFAULT_ALBUM_SORT)
+        override fun setAlbumSort(choice: SortChoice<AlbumSort>) { albumSort.value = choice }
+        override val artistAlbumSort = MutableStateFlow(DEFAULT_ARTIST_ALBUM_SORT)
+        override fun setArtistAlbumSort(choice: SortChoice<AlbumSort>) { artistAlbumSort.value = choice }
         override fun readTrackLoudnessPayload(): String? = null
         var writeAttempts = 0
         override fun writeTrackLoudnessPayload(payload: String) {
@@ -150,6 +158,8 @@ internal class LoudnessNormalizationTest {
         override fun writeTrackGenresPayload(payload: String) {
             trackGenresPayload = payload
         }
+        override fun readAudioCarryOversPayload(): String? = null
+        override fun writeAudioCarryOversPayload(payload: String) = Unit
         private var duplicateDismissalsPayload: String? = null
         override fun readDuplicateDismissalsPayload(): String? = duplicateDismissalsPayload
         override fun writeDuplicateDismissalsPayload(payload: String) {
@@ -200,6 +210,7 @@ internal class LoudnessNormalizationTest {
         ) = Unit
         override suspend fun cycleRepeatMode(): RepeatMode = RepeatMode.OFF
         override suspend fun retainQueue(trackIds: Set<TrackId>) = Unit
+        override suspend fun refreshTracks(tracks: List<TrackDescriptor>) = Unit
         override suspend fun playNext(track: TrackDescriptor) = Unit
         override suspend fun addToQueue(track: TrackDescriptor) = Unit
         override suspend fun moveQueueItem(from: Int, to: Int) = Unit

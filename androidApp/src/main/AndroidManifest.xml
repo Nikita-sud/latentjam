@@ -12,9 +12,10 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
-    <!-- Deleting a track's file. Android 10 asks the owner for consent per file and Android 11+
-         runs the delete itself, so this is needed only up to Android 9 — where no such mechanism
-         exists — and is requested at the moment of a delete, never at launch. -->
+    <!-- Deleting a track's file or saving its tags. Android 10 asks the owner for consent per file
+         and Android 11+ asks for many files at once, so this is needed only up to Android 9 — where
+         no such mechanism exists — and is requested at the moment of a delete or a save, never at
+         launch. -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
@@ -56,9 +57,13 @@
             android:resource="@xml/automotive_app_desc" />
 
         <!-- Fully-qualified: the activity class is compiled in :composeApp
-             (androidMain), not in this zero-source packaging module. -->
+             (androidMain), not in this zero-source packaging module.
+             Rotation, resizing, keyboards and night mode reach Compose as a new configuration
+             instead of recreating the activity, which closed the open page and the player. A new
+             per-app language (locale, layoutDirection) still recreates it. -->
         <activity
             android:name="io.github.nikitasud.latentjam.app.MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode"
             android:exported="true"
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">

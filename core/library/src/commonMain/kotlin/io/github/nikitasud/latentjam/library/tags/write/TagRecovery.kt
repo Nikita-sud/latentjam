@@ -1,0 +1,228 @@
+/*
+ * Copyright (c) 2026 LatentJam Project
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package io.github.nikitasud.latentjam.library.tags.write
+
+import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
+
+/**
+ * Finishes saves a crash interrupted (spec §5.4).
+ *
+ * - An interrupted patch is rolled back from its saved bytes.
+ * - An interrupted rewrite is finished forward from its verified staged copy, or put back from its
+ *   verified backup.
+ *
+ * Every action amounts to "make the file equal these checksummed bytes", so a crash during
+ * recovery is recovered by running recovery again.
+ *
+ * After a killed process (not a power loss), reads still see writes that never reached storage.
+ * Recovery forces the record and the track before it reads either. Otherwise it could close a
+ * record, and delete the only copy, on the word of bytes that a later power loss takes back.
+ *
+ * A file that has since been changed by someone else is left exactly as found ([Outcome.FOREIGN]).
+ * Recovery never writes stale bytes over another app's edit.
+ *
+ * Preconditions, which the caller (the tag-write coordinator) enforces:
+ * - [recover] never runs on a record whose file has a [DurableWriter.write] in flight: a live save
+ *   looks exactly like an interrupted one, and would be rolled back mid-write. Recovering other
+ *   files' records while a save runs is fine — closing a record touches only that record's files.
+ * - [sweep] never runs while any save is in flight on the same store: a save's patch file exists
+ *   before its record does, and would be deleted as stale.
+ */
+public class TagRecovery(
+    private val directory: RecoveryDirectory,
+    private val replacer: AtomicReplacer? = null,
+) {
+    public enum class Outcome {
+        /** The edit is in the file, verified. */
+        COMPLETED,
+
+        /** The file is its original again; the edit was not saved. */
+        ROLLED_BACK,
+
+        /** The original was copied back from its backup; the edit was not saved. */
+        RESTORED,
+
+        /** Someone else changed the file after the crash. It was left exactly as found. */
+        FOREIGN,
+
+        /** Neither finished nor undone — the store or the file could not be read or written. Kept for another try. */
+        STUCK,
+    }
+
+    private val journal = Journal(directory)
+
+    public fun pending(): List<JournalRecord> = journal.open()
+
+    /**
+     * Finishes [record] on [target], which must be the file the record names, opened for writing.
+     * No save of that file may be in flight (see the class notes); saves of other files may.
+     */
+    public fun recover(record: JournalRecord, target: TargetFile): Outcome {
+        // A killed process leaves its last record readable before it is on storage: forced, and its
+        // file listed durably, before anything is done on its word. Otherwise a power loss during
+        // this recovery could take the record, and with it the only way back, from under the track.
+        try {
+            directory.open(record.journalName)?.use { it.force() } ?: return Outcome.STUCK
+            directory.sync()
+        } catch (_: Exception) {
+            return Outcome.STUCK
+        }
+        return when (record.state) {
+            JournalState.PATCH_PREPARED, JournalState.ROLLING_BACK -> rollBackPatch(record, target, known = null)
+            JournalState.REPLACE_PREPARED, JournalState.REPLACING ->
+                if (record.atomic) finishAtomic(record, target) else finishCopyOver(record, target)
+            else -> Outcome.COMPLETED
+        }
+    }
+
+    /**
+     * Gives up on [record]: journals [JournalState.ABANDONED] and deletes the save's files, so the
+     * file no longer shows as interrupted. The same precondition as [recover] applies. A failure
+     * leaves the record open for another try.
+     *
+     * Only for an explicit user action (forgetting a file). Nothing calls it on its own, because a
+     * file that looks gone may only be on a volume that is not mounted, and this deletes its only
+     * way back.
+     */
+    public fun abandon(record: JournalRecord) {
+        try {
+            close(record, JournalState.ABANDONED, Outcome.FOREIGN)
+        } catch (_: Exception) {
+            // Still open: the next recovery asks again.
+        }
+    }
+
+    /**
+     * Deletes every store file that no open save needs. Safe after any crash and between
+     * recoveries, but never while any save is in flight on this store: a save's patch file exists
+     * before its record does (see the class notes).
+     *
+     * The store is listed once, and both what is open and what to delete come from that one
+     * listing. Two listings could disagree: one that flickered empty would make every open save
+     * look finished, and the other would then delete its only way back. A listing that fails
+     * deletes nothing.
+     */
+    public fun sweep() {
+        try {
+            val names = directory.names()
+            val open = journal.openAmong(names).mapTo(HashSet()) { it.writeId }
+            for (name in names) {
+                if (name.substringBefore('.') in open) continue
+                try {
+                    directory.delete(name)
+                } catch (_: Exception) {
+                    // One file that will not go must not keep the others, or the sync, from happening.
+                }
+            }
+            // Even with nothing to delete: a killed process may have left a delete that is not durable.
+            directory.sync()
+        } catch (_: Exception) {
+            // The next sweep repeats it.
+        }
+    }
+
+    internal fun rollBackPatch(record: JournalRecord, target: TargetFile, known: PatchBackup?): Outcome = try {
+        target.force() // What is read next must be what storage holds (see the class notes).
+        val backup = known
+            ?: directory.open(record.patchName)?.use { file -> FileOps.readAll(file)?.let(PatchBackup::decode) }
+        when {
+            backup == null -> Outcome.STUCK
+            backup.matches(target) -> close(record, JournalState.ROLLED_BACK, Outcome.ROLLED_BACK)
+            // After a crash, recovery asks whose change this is — for a roll-back the writer began
+            // (ROLLING_BACK) too, since another app may have rewritten the file before recovery ran.
+            // Every state our own patch or roll-back leaves passes explains(). Only the writer's
+            // in-process roll-back ([known] given) skips it: it undoes what it has just written.
+            known == null && !backup.explains(target) ->
+                close(record, JournalState.ABANDONED, Outcome.FOREIGN)
+            else -> {
+                backup.restore(target)
+                if (backup.matches(target)) close(record, JournalState.ROLLED_BACK, Outcome.ROLLED_BACK) else Outcome.STUCK
+            }
+        }
+    } catch (_: Exception) {
+        Outcome.STUCK
+    }
+
+    /** §5.3 steps 5–7 and their recovery: finish forward from the staged copy, else put the backup back. */
+    internal fun finishCopyOver(record: JournalRecord, target: TargetFile): Outcome = try {
+        target.force() // What is read next must be what storage holds (see the class notes).
+        when {
+            matches(target, record.finalLength, record.stagedCrc) -> close(record, JournalState.DONE, Outcome.COMPLETED)
+            // Not one byte of ours was written before REPLACING; a different file is someone else's.
+            record.state == JournalState.REPLACE_PREPARED && !matches(target, record.originalLength, record.originalCrc) ->
+                close(record, JournalState.ABANDONED, Outcome.FOREIGN)
+            copyVerified(record.stagedName, record.finalLength, record.stagedCrc, record, target) ->
+                close(record, JournalState.DONE, Outcome.COMPLETED)
+            matches(target, record.originalLength, record.originalCrc) ->
+                close(record, JournalState.ROLLED_BACK, Outcome.ROLLED_BACK)
+            copyVerified(record.backupName, record.originalLength, record.originalCrc, record, target) ->
+                close(record, JournalState.RESTORED, Outcome.RESTORED)
+            else -> Outcome.STUCK
+        }
+    } catch (_: Exception) {
+        Outcome.STUCK
+    }
+
+    /** An atomic replace (iOS): the rename either happened or it did not. */
+    internal fun finishAtomic(record: JournalRecord, target: TargetFile): Outcome = try {
+        target.force() // What is read next must be what storage holds (see the class notes).
+        when {
+            matches(target, record.finalLength, record.stagedCrc) -> close(record, JournalState.DONE, Outcome.COMPLETED)
+            !matches(target, record.originalLength, record.originalCrc) -> close(record, JournalState.ABANDONED, Outcome.FOREIGN)
+            replacer != null && storeFileMatches(record.stagedName, record.finalLength, record.stagedCrc) ->
+                replacer.replace(record.target, record.stagedName).use { replaced ->
+                    if (matches(replaced, record.finalLength, record.stagedCrc)) {
+                        close(record, JournalState.DONE, Outcome.COMPLETED)
+                    } else {
+                        Outcome.STUCK
+                    }
+                }
+            else -> close(record, JournalState.ROLLED_BACK, Outcome.ROLLED_BACK)
+        }
+    } catch (_: Exception) {
+        Outcome.STUCK
+    }
+
+    /**
+     * Journals [state], then deletes the save's files and its journal under one directory sync.
+     *
+     * One sync is enough because the finished state is already forced: whichever of these deletes a
+     * power loss takes back, what comes back is a finished record or files no record needs, and
+     * [sweep] deletes both. (The two syncs while a save is prepared must stay: a durable record
+     * whose saved bytes are not could never be finished.)
+     */
+    internal fun close(record: JournalRecord, state: JournalState, outcome: Outcome): Outcome {
+        journal.append(record.copy(state = state))
+        try {
+            val names = directory.names()
+            for (name in listOf(record.patchName, record.stagedName, record.backupName, record.journalName)) {
+                if (name in names) directory.delete(name)
+            }
+            directory.sync()
+        } catch (_: Exception) {
+            // Finished records and their files are removed by sweep().
+        }
+        return outcome
+    }
+
+    private fun matches(file: RandomAccessSource, length: Long, crc: Long): Boolean =
+        crc >= 0 && file.length == length && FileOps.crc(file) == crc
+
+    private fun storeFileMatches(name: String, length: Long, crc: Long): Boolean =
+        directory.open(name)?.use { matches(it, length, crc) } ?: false
+
+    /** Copies store file [name] over [target] if it still is what the record says, and checks the result. */
+    private fun copyVerified(name: String, length: Long, crc: Long, record: JournalRecord, target: TargetFile): Boolean = try {
+        directory.open(name)?.use { source ->
+            if (!matches(source, length, crc)) return@use false
+            if (record.state != JournalState.REPLACING) journal.append(record.copy(state = JournalState.REPLACING))
+            FileOps.copyOver(source, target)
+            target.force()
+            matches(target, length, crc)
+        } ?: false
+    } catch (_: Exception) {
+        false
+    }
+}
