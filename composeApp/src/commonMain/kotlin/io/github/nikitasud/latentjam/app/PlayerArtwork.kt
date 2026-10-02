@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
@@ -324,10 +325,10 @@ internal fun PlayerArtworkCard(
                             ArtworkDragAxis.VERTICAL -> {
                                 collapsing = true
                                 var thresholdAnnounced = false
-                                var dy: Float
+                                // Nothing has moved yet, so this one difference is in screen terms.
+                                var dy = change.position.y - down.position.y
                                 while (true) {
                                     if (change.isConsumed) return@awaitEachGesture
-                                    dy = change.position.y - down.position.y
                                     if (collapseCommits(dy, collapseThreshold) && !thresholdAnnounced && change.pressed) {
                                         haptics.play(PlayerHaptic.THRESHOLD)
                                         thresholdAnnounced = true
@@ -337,6 +338,14 @@ internal fun PlayerArtworkCard(
                                     if (change.changedToUpIgnoreConsumed()) break
                                     change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
                                         ?: return@awaitEachGesture
+                                    // This handler sits inside the layer the pull moves and shrinks, so
+                                    // positions arrive in a frame that has already followed the finger.
+                                    // Position minus the down point fed that motion back and made the
+                                    // player jump between the pull and rest every frame (#9); an event's
+                                    // own delta cancels the move, and the scale turns it back into
+                                    // screen distance.
+                                    dy += change.positionChangeIgnoreConsumed().y *
+                                        collapsePullScale(collapseShown(dy))
                                 }
                                 if (collapseCommits(dy, collapseThreshold)) {
                                     haptics.play(PlayerHaptic.TAP)

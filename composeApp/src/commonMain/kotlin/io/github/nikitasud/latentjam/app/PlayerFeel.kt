@@ -50,6 +50,13 @@ internal fun collapseShown(dy: Float): Float = dy.coerceAtLeast(0f) * COLLAPSE_F
 
 internal fun collapseCommits(dy: Float, threshold: Float): Boolean = dy > threshold
 
+/** How much the full player shrinks while pulled down by [pulled] px (toward its bottom edge). */
+internal fun collapsePullScale(pulled: Float): Float =
+    1f - (pulled / COLLAPSE_SCALE_DIVISOR).coerceIn(0f, COLLAPSE_MAX_SHRINK)
+
+private const val COLLAPSE_SCALE_DIVISOR = 3_200f
+private const val COLLAPSE_MAX_SHRINK = 0.1f
+
 /**
  * Sliding the finger below the bar slows scrubbing: half speed past [halfAt], a quarter past
  * [quarterAt]. Above the bar the finger is still on the slider, so nothing slows down.

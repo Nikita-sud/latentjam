@@ -39,6 +39,14 @@ class PlayerFeelTest {
     }
 
     @Test
+    fun thePulledPlayerShrinksAtMostATenthTowardItsBottomEdge() {
+        assertEquals(1f, collapsePullScale(pulled = 0f))
+        assertEquals(1f, collapsePullScale(pulled = -40f))
+        assertEquals(0.95f, collapsePullScale(pulled = 160f))
+        assertEquals(0.9f, collapsePullScale(pulled = 5_000f))
+    }
+
+    @Test
     fun neighbourRevealIsContinuousDirectionalAndReversible() {
         val outward = listOf(0f, -6f, -30f, -60f, -96f).map {
             artworkNeighbourReveal(it, width = 400f, forward = true)

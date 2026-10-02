@@ -1315,14 +1315,11 @@ private fun Modifier.collapsePull(offset: androidx.compose.runtime.MutableFloatS
     graphicsLayer {
         val pulled = offset.floatValue
         translationY = pulled
-        val scale = 1f - (pulled / COLLAPSE_SCALE_DIVISOR).coerceIn(0f, COLLAPSE_MAX_SHRINK)
+        val scale = collapsePullScale(pulled)
         scaleX = scale
         scaleY = scale
         transformOrigin = TransformOrigin(0.5f, 1f)
     }
-
-private const val COLLAPSE_SCALE_DIVISOR = 3_200f
-private const val COLLAPSE_MAX_SHRINK = 0.1f
 
 @Composable
 private fun SleepTimerDialog(
