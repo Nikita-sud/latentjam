@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -2416,15 +2417,32 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val libraryDrawn = remember {
             derivedStateOf { libraryDrawnUnderPlayer(playerExpansion.progress) }
         }
+        // The library's row badges hold still while the player covers them.
+        val libraryCovered = remember {
+            derivedStateOf { playerExpansion.progress >= 1f && !playerExpansion.dragging }
+        }
         // A field focused in the library (search, a playlist name) would keep the keyboard up over
-        // the player now that the field is no longer disposed with the library.
+        // the player now that the field is no longer disposed with the library. It goes as soon as
+        // the player starts to cover the page, on a tap or at the first move of a drag. Search
+        // takes the keyboard back when the player closes only if it had it.
         val focusManager = LocalFocusManager.current
         val keyboard = LocalSoftwareKeyboardController.current
+        val imeInsets = WindowInsets.ime
+        val imeDensity = LocalDensity.current
+        var searchWantsInput by remember { mutableStateOf(true) }
+        LaunchedEffect(showSearch) { if (showSearch) searchWantsInput = true }
+        val coverStart = remember { CoverStart() }
+        fun beginCover() {
+            if (coverStart.begun) return
+            coverStart.begun = true
+            // This runs on the first frame of a drag: the keyboard is only asked to go if it is up.
+            val imeUp = imeInsets.getBottom(imeDensity) > 0
+            if (showSearch && searchWantsInput != imeUp) searchWantsInput = imeUp
+            focusManager.clearFocus(force = true)
+            if (imeUp) keyboard?.hide()
+        }
         LaunchedEffect(showNowPlaying) {
-            if (showNowPlaying) {
-                focusManager.clearFocus(force = true)
-                keyboard?.hide()
-            }
+            if (showNowPlaying) beginCover() else coverStart.begun = false
         }
 
         // Opaque floor under the whole shell: during the morph the animating
@@ -2458,8 +2476,12 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         if (scrim > 0f) drawRect(Color.Black, alpha = scrim)
                     }
                     .graphicsLayer()
+                    // Inert from the first move of a drag up too: a second finger must not reach
+                    // the page under the rising sheet.
+                    .blockTouchesWhile { playerExpansion.dragging }
                     .inactiveDuringTransition(showNowPlaying || settingsOverlayActive),
             ) {
+                CompositionLocalProvider(LocalEndlessMotionHeld provides libraryCovered) {
                         // Playlist covers belong to the browsing transition, not the player.
                         // A shared scope promotes every matched element into its overlay while
                         // any match animates. Keeping covers here lets the entire playlist fade
@@ -3613,6 +3635,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             openProgress = { fieldProgress.value },
                             buttonBounds = searchButtonBounds,
                             readyForInput = showSearch && !showNowPlaying && searchVisibilityState.isIdle,
+                            focusOnReady = searchWantsInput,
                             songs = catalog?.songs.orEmpty(),
                             currentTrackId = currentTrack?.id,
                             currentTrackPlaying = currentTrackPlaying,
@@ -3866,20 +3889,25 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         }
                     }
                 }
+                }
             }
             // The mini player and the full player are one surface over the library, moved by one
             // progress: dragged by the finger, settled by a fling, animated by a tap or Back.
             PlayerSheet(
                 expansion = playerExpansion,
                 open = showNowPlaying,
-                onOpenChange = { showNowPlaying = it },
+                onOpenChange = { opens ->
+                    showNowPlaying = opens
+                    if (!opens) coverStart.begun = false
+                },
+                onCoverStart = { beginCover() },
                 hasTrack = currentTrack != null,
                 pillHeight = miniPlayerHeight,
                 pillColor = miniPlayerSurfaceColor(
                     if (currentTrack != null) accent else lastMiniPresentation.accent,
                 ),
                 coverUri = (currentTrack ?: lastMiniPresentation.track)?.artworkUri,
-                mini = { thumbnailAlpha ->
+                mini = { live, thumbnailAlpha ->
                     (currentTrack ?: lastMiniPresentation.track)?.let { current ->
                         MiniPlayerPill(
                             height = miniPlayerHeight,
@@ -3896,6 +3924,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             },
                             playback = playback,
                             artworkAlpha = thumbnailAlpha,
+                            live = live,
                             onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
                             onPrevious = { scope.launch { playback.previous() } },
                             onNext = { scope.launch { playback.next() } },
@@ -3903,7 +3932,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         )
                     }
                 },
-                full = { revealed, artworkModifier, onCollapseDrag, onCollapseRelease ->
+                full = { revealed, artworkModifier, onCollapseDrag, onCollapseRelease, onCollapseAbandon ->
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -3917,6 +3946,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         // it is on screen or a finger may be about to bring it there.
                         active = revealed && !showSettings,
                         ownsBack = showNowPlaying && !showSettings,
+                        shown = showNowPlaying,
                         queueSourceLabel = queueSource?.let { source ->
                             source.name ?: source.kind.fallbackLabelRes()?.let { stringResource(it) }
                         },
@@ -3950,6 +3980,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         onToggleFavorite = { currentTrack?.id?.let(::toggleFavorite) },
                         onCollapseDrag = onCollapseDrag,
                         onCollapseRelease = onCollapseRelease,
+                        onCollapseAbandon = onCollapseAbandon,
                         artworkModifier = artworkModifier,
                         onClose = { showNowPlaying = false },
                     )
@@ -4830,11 +4861,27 @@ private fun EmptyLibraryPage(
     }
 }
 
+/** Whether the player has already begun to cover the library for the current open. */
+private class CoverStart {
+    var begun = false
+}
+
+/** Swallows every touch while [blocked] holds; read per event, so it never recomposes. */
+private fun Modifier.blockTouchesWhile(blocked: () -> Boolean): Modifier = pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            if (blocked()) event.changes.forEach { it.consume() }
+        }
+    }
+}
+
 /** Outgoing full-screen content stays drawable but cannot retain focus or receive a late tap. */
 private fun Modifier.inactiveDuringTransition(inactive: Boolean): Modifier = if (!inactive) {
     this
 } else {
-    clearAndSetSemantics { }
+    unfocusable()
+        .clearAndSetSemantics { }
         .pointerInput(Unit) {
             awaitPointerEventScope {
                 while (true) {
@@ -5731,6 +5778,8 @@ private fun MiniPlayerPill(
     height: androidx.compose.ui.unit.Dp = MINI_PLAYER_HEIGHT,
     /** Zero while the cover's copy flies out of (or back into) this thumbnail. */
     artworkAlpha: () -> Float = { 1f },
+    /** False while the full player covers the pill: its playhead stops following. */
+    live: Boolean = true,
 ) {
     val reduceMotion = rememberReduceMotion()
     // Only queue-entry changes cancel a swipe; playback-position ticks stay out of this UI.
@@ -5856,6 +5905,7 @@ private fun MiniPlayerPill(
                 MiniPlayerProgress(
                     playback = playback,
                     accent = accent,
+                    live = live,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
@@ -5878,6 +5928,8 @@ private fun MiniPlayerProgress(
     playback: PlaybackController,
     accent: TrackAccent,
     modifier: Modifier = Modifier,
+    /** Behind the full player the pill is kept composed; its playhead does not tick there. */
+    live: Boolean = true,
 ) {
     val liveProgressSample by remember(playback) {
         playback.state.map { now ->
@@ -5889,7 +5941,7 @@ private fun MiniPlayerProgress(
                 0f
             }
         }.distinctUntilChanged()
-    }.collectAsState(
+    }.collectPlayerState(
         playback.state.value.let { now ->
             now.track?.id to if (now.durationMs > 0) {
                 val coarsePosition =
@@ -5899,6 +5951,7 @@ private fun MiniPlayerProgress(
                 0f
             }
         },
+        active = live,
     )
     var progressSample by remember { mutableStateOf(liveProgressSample) }
     LaunchedEffect(liveProgressSample) {

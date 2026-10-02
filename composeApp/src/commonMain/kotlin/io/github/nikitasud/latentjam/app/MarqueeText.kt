@@ -31,7 +31,7 @@ internal fun MarqueeText(
     textDecoration: TextDecoration? = null,
     enabled: Boolean = true,
 ) {
-    val animate = enabled && !rememberReduceMotion()
+    val animate = enabled && !rememberReduceMotion() && !LocalEndlessMotionHeld.current.value
     // A new name starts at its beginning even when its measured width matches the old one.
     key(text) {
         Text(

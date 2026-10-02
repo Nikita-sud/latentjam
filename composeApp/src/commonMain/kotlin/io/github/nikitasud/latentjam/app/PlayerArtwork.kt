@@ -104,6 +104,8 @@ internal fun PlayerArtworkCard(
     onCollapseDrag: (deltaPx: Float) -> Unit,
     /** The pull ended with the finger's downward speed in px/s; true when the player closes. */
     onCollapseRelease: (velocity: Float) -> Boolean,
+    /** The pull ended without an up: cancelled, or the card was rebuilt under the finger. */
+    onCollapseAbandon: () -> Unit,
     details: @Composable () -> Unit,
     queueIndex: Int = -1,
     /** Restarts keep the current cover and return it immediately after the skip action. */
@@ -144,6 +146,7 @@ internal fun PlayerArtworkCard(
     val currentSkipChangesTrack by rememberUpdatedState(skipChangesTrack)
     val currentOnCollapseDrag by rememberUpdatedState(onCollapseDrag)
     val currentOnCollapseRelease by rememberUpdatedState(onCollapseRelease)
+    val currentOnCollapseAbandon by rememberUpdatedState(onCollapseAbandon)
     val currentCanForward by rememberUpdatedState(canSkipForward)
     val currentCanBackward by rememberUpdatedState(canSkipBackward)
 
@@ -368,7 +371,7 @@ internal fun PlayerArtworkCard(
                     } finally {
                         settlePress()
                         if (!finished) {
-                            if (collapsing) currentOnCollapseRelease(0f)
+                            if (collapsing) currentOnCollapseAbandon()
                             val shown = dragTravel
                             dragTravel = null
                             if (shown != null) {

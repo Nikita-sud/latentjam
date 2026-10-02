@@ -111,6 +111,8 @@ internal fun SearchScreen(
     accent: TrackAccent? = null,
     active: Boolean = true,
     readyForInput: Boolean = true,
+    /** Take focus (and the keyboard) once ready; false when returning to a search left without it. */
+    focusOnReady: Boolean = true,
     openProgress: () -> Float = { 1f },
     buttonBounds: Rect? = null,
     /** Whether the player is audibly running; animates the current row's badge. */
@@ -251,7 +253,7 @@ internal fun SearchScreen(
         if (!active) {
             focusManager.clearFocus(force = true)
             keyboard?.hide()
-        } else if (readyForInput) {
+        } else if (readyForInput && focusOnReady) {
             withFrameNanos { }
             focusRequester.requestFocus()
         }

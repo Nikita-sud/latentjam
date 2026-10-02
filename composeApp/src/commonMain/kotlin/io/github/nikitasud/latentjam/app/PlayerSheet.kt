@@ -34,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -52,6 +53,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -83,22 +85,40 @@ internal class PlayerExpansion(open: Boolean, private val scope: CoroutineScope)
     private val value = mutableFloatStateOf(if (open) 1f else 0f)
     val progress: Float get() = value.floatValue
 
+    /** The end the player belongs at: what the app shows as open, and where every settle goes. */
+    var target by mutableStateOf(open)
+        private set
+
     /** True from a drag's first move to its release: the ends must not be torn down under a finger. */
     var dragging by mutableStateOf(false)
         private set
 
-    /**
-     * A finger is down on the pill or the player. Whatever a drag would need first (the player
-     * behind the pill, the pill and the flying cover behind the player) is composed now, while the
-     * finger is still inside the touch slop, so the first frame that moves pays no composition.
-     */
-    var armed by mutableStateOf(false)
+    /** An animation towards [target] is running. */
+    var settling by mutableStateOf(false)
+        private set
 
     /** How far the surface's top edge travels between the two ends, in px; set by the sheet's layout. */
     var travelPx = 0f
 
     private var job: Job? = null
     private var heading: Boolean? = null
+
+    /** An explicit open or close (Back, a "go to" action) that arrived while a finger was down. */
+    private var requestedWhileDragging: Boolean? = null
+
+    /**
+     * The app asks for an end: a tap on the pill, Back, a navigation action. Mid-drag it is only
+     * remembered, so it neither fights the finger nor is lost when the finger lifts.
+     */
+    fun request(open: Boolean, reduceMotion: Boolean) {
+        if (dragging) {
+            requestedWhileDragging = open
+            target = open
+            return
+        }
+        target = open
+        settle(open, reduceMotion)
+    }
 
     /** Follows the finger one-to-one: [downPx] down moves the surface's top edge exactly that far. */
     fun dragBy(downPx: Float) {
@@ -108,63 +128,104 @@ internal class PlayerExpansion(open: Boolean, private val scope: CoroutineScope)
         value.floatValue = (progress - downPx / travelPx).coerceIn(0f, 1f)
     }
 
-    /** Settles a released drag by distance or fling; returns whether the player ends up open. */
-    fun release(
-        downVelocity: Float,
-        wasOpen: Boolean,
-        commitPx: Float,
-        flingPx: Float,
-        reduceMotion: Boolean,
-    ): Boolean {
+    /**
+     * Settles a released drag and returns the end it goes to, which the caller must report to the
+     * app whichever way it went. A request made during the drag wins; otherwise distance or fling
+     * decides, measured from the end the player belonged to when the finger came down.
+     */
+    fun release(downVelocity: Float, commitPx: Float, flingPx: Float, reduceMotion: Boolean): Boolean {
+        if (!dragging) return target
         dragging = false
         val travel = travelPx
-        if (travel <= 0f) return wasOpen
-        val velocity = -downVelocity / travel
-        val open = expansionSettlesOpen(progress, velocity, wasOpen, commitPx / travel, flingPx / travel)
-        settle(open, reduceMotion, velocity, fromGesture = true)
+        val velocity = if (travel > 0f) -downVelocity / travel else 0f
+        val requested = requestedWhileDragging
+        requestedWhileDragging = null
+        val open = requested ?: if (travel <= 0f) {
+            target
+        } else {
+            expansionSettlesOpen(progress, velocity, target, commitPx / travel, flingPx / travel)
+        }
+        target = open
+        settle(open, reduceMotion, velocity, fromGesture = requested == null)
         return open
     }
+
+    /**
+     * A gesture that vanished without an up or a cancel (its node was removed, its coroutine was
+     * cancelled). Nothing was decided, so the player goes back to the end it belongs at.
+     */
+    fun abandonDrag(reduceMotion: Boolean) {
+        if (!dragging) return
+        dragging = false
+        requestedWhileDragging = null
+        settle(target, reduceMotion)
+    }
+
+    /**
+     * The safety net: whenever no finger and no animation is moving the progress, it must sit
+     * exactly at [target]. No sequence of gestures and requests can leave a drawn-but-closed (or
+     * open-but-hidden) player behind.
+     */
+    fun reconcile(reduceMotion: Boolean) {
+        if (dragging || settling) return
+        if (progress != endOf(target)) settle(target, reduceMotion)
+    }
+
+    /** Whether [reconcile] has anything to do; read through snapshotFlow. */
+    val outOfPlace: Boolean get() = !dragging && !settling && progress != endOf(target)
 
     /**
      * Animates to an end. A gesture hands over its speed to a spring; a tap or Back uses the same
      * finite clock the morph always had. Reduced motion jumps.
      */
-    fun settle(open: Boolean, reduceMotion: Boolean, velocity: Float = 0f, fromGesture: Boolean = false) {
-        val target = if (open) 1f else 0f
+    private fun settle(open: Boolean, reduceMotion: Boolean, velocity: Float = 0f, fromGesture: Boolean = false) {
+        val end = endOf(open)
         if (heading == open && job?.isActive == true) return
         stop()
-        if (reduceMotion || progress == target) {
-            value.floatValue = target
+        if (reduceMotion || progress == end) {
+            value.floatValue = end
             return
         }
         heading = open
-        job = scope.launch {
-            animate(
-                initialValue = progress,
-                targetValue = target,
-                initialVelocity = velocity,
-                animationSpec = if (fromGesture) {
-                    spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow,
-                        // Progress spans the whole screen: the default 0.01 would end with a jump.
-                        visibilityThreshold = 0.0005f,
-                    )
-                } else {
-                    tween(Motion.EMPHASIZED_MS, easing = Motion.NavigationEasing)
-                },
-            ) { x, _ -> value.floatValue = x }
-            // Exactly at the end, so "fully open" and "fully closed" are exact comparisons.
-            value.floatValue = target
-            heading = null
+        settling = true
+        val launched = scope.launch {
+            try {
+                animate(
+                    initialValue = progress,
+                    targetValue = end,
+                    initialVelocity = velocity,
+                    animationSpec = if (fromGesture) {
+                        spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow,
+                            // Progress spans the whole screen: the default 0.01 would end with a jump.
+                            visibilityThreshold = 0.0005f,
+                        )
+                    } else {
+                        tween(Motion.EMPHASIZED_MS, easing = Motion.NavigationEasing)
+                    },
+                ) { x, _ -> value.floatValue = x }
+                // Exactly at the end, so "fully open" and "fully closed" are exact comparisons.
+                value.floatValue = end
+            } finally {
+                if (job === coroutineContext[Job]) {
+                    job = null
+                    heading = null
+                    settling = false
+                }
+            }
         }
+        job = launched
     }
 
     private fun stop() {
         job?.cancel()
         job = null
         heading = null
+        settling = false
     }
+
+    private fun endOf(open: Boolean): Float = if (open) 1f else 0f
 }
 
 /** Set once the full player has been composed; plain, because only composition writes it. */
@@ -207,12 +268,15 @@ internal fun PlayerSheet(
     pillHeight: Dp,
     pillColor: Color,
     coverUri: String?,
-    mini: @Composable (thumbnailAlpha: () -> Float) -> Unit,
+    /** The player is about to cover the library: a drag up from the pill has begun. */
+    onCoverStart: () -> Unit,
+    mini: @Composable (live: Boolean, thumbnailAlpha: () -> Float) -> Unit,
     full: @Composable (
         revealed: Boolean,
         artworkModifier: Modifier,
         onCollapseDrag: (Float) -> Unit,
         onCollapseRelease: (Float) -> Boolean,
+        onCollapseAbandon: () -> Unit,
     ) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -223,30 +287,49 @@ internal fun PlayerSheet(
     val floorColor = MaterialTheme.colorScheme.surface
     val darkFloor = floorColor.luminance() < 0.5f
     val currentOnOpenChange by rememberUpdatedState(onOpenChange)
+    val currentOnCoverStart by rememberUpdatedState(onCoverStart)
+    val currentReduceMotion by rememberUpdatedState(reduceMotion)
     val geometry = remember { PlayerSheetGeometry() }
 
     // Taps on the pill, Back, and every "go to" action only change [open]; this moves the progress.
-    LaunchedEffect(open, reduceMotion) { expansion.settle(open, reduceMotion) }
+    LaunchedEffect(open, reduceMotion) { expansion.request(open, reduceMotion) }
+    // Whatever happened to a gesture, a resting progress always ends up at the open state.
+    LaunchedEffect(expansion) {
+        snapshotFlow { expansion.outOfPlace }.collect { stray ->
+            if (stray) expansion.reconcile(currentReduceMotion)
+        }
+    }
 
     // The two ends are the only moments that change what is composed.
     val atFull by remember { derivedStateOf { expansion.progress >= 1f && !expansion.dragging } }
     val atMini by remember { derivedStateOf { expansion.progress <= 0f && !expansion.dragging } }
-    // Composed ahead of a possible drag, but only placed (seen, touched, read by TalkBack) between
-    // the ends.
-    val belowFull = remember { derivedStateOf { expansion.progress < 1f } }
-    val aboveMini = remember { derivedStateOf { expansion.progress > 0f } }
-    val armed = expansion.armed
-    // The player is on screen, or a finger is down and may be about to bring it there.
-    val revealed = open || !atMini || armed
+    // A dragged node stays placed until its finger lifts. Unplaced, Compose would stop sending
+    // it events without a cancel, and the drag would never be released.
+    val pillPlaced = remember { derivedStateOf { expansion.progress < 1f || expansion.dragging } }
+    val inFlight = remember {
+        derivedStateOf { expansion.progress > 0f && (expansion.progress < 1f || expansion.dragging) }
+    }
+    // A finger on the pill may be the start of a drag up: the player starts following playback
+    // (its own recomposition) now, inside the touch slop, not on the first frame that moves.
+    var pillPressed by remember { mutableStateOf(false) }
+    // The player is on screen or on its way there.
+    val revealed = open || !atMini || pillPressed
+    // Back while a finger lifts the closed player from the pill: nothing is open to close, so it
+    // means "not now", and the release goes back to the mini player instead of leaving the app.
+    // Enabled from the touch, not from the first move: switching a platform back callback costs
+    // a call into the system that must not land on a frame of the drag.
+    PlatformBackHandler(enabled = !open && (pillPressed || !atMini)) {
+        expansion.request(open = false, reduceMotion = currentReduceMotion)
+    }
     // Composing and first drawing the full player is the most expensive thing the sheet does
-    // (about 100 ms on an emulator). Once done it is kept: below the pill, inactive (no ticker,
-    // no cloud) and drawn at zero alpha, it costs nothing per frame, and no later press pays
-    // that frame again.
+    // (about 100 ms on an emulator). It happens once, on the first touch of the pill or the first
+    // open, and is then kept: below the pill, inactive and drawn at zero alpha it costs nothing
+    // per frame. The pill and the flying cover are kept with it, so no drag ever starts by
+    // composing anything.
+    var warmRequested by remember { mutableStateOf(false) }
     val warmth = remember { PlayerWarmth() }
-    if (revealed) warmth.warm = true
-    val fullComposed = warmth.warm
-    val miniComposed = !atFull || armed
-    val flightComposed = (!atMini && !atFull) || (armed && open)
+    if (revealed || warmRequested) warmth.warm = true
+    val warm = warmth.warm
 
     fun Density.pill(size: Size): Rect = miniPlayerBounds(
         width = size.width,
@@ -262,11 +345,29 @@ internal fun PlayerSheet(
 
     val commitPx = with(density) { PLAYER_COMMIT_DISTANCE.toPx() }
     val flingPx = with(density) { PLAYER_FLING_VELOCITY.toPx() }
-    val collapseDrag: (Float) -> Unit = { expansion.dragBy(it) }
-    val collapseRelease: (Float) -> Boolean = { velocity ->
-        val stays = expansion.release(velocity, wasOpen = true, commitPx, flingPx, reduceMotion)
-        if (!stays) currentOnOpenChange(false)
-        !stays
+    // Stable across the recompositions at the ends, so the player and the pill skip them.
+    val collapseDrag: (Float) -> Unit = remember(expansion) { { expansion.dragBy(it) } }
+    val collapseRelease: (Float) -> Boolean = remember(expansion, commitPx, flingPx) {
+        { velocity ->
+            val opens = expansion.release(velocity, commitPx, flingPx, currentReduceMotion)
+            currentOnOpenChange(opens)
+            !opens
+        }
+    }
+    val collapseAbandon: () -> Unit = remember(expansion) { { expansion.abandonDrag(currentReduceMotion) } }
+    val artworkModifier = remember(expansion, geometry) {
+        Modifier
+            .onPlaced {
+                geometry.artwork = it
+                geometry.refresh()
+            }
+            // Between the ends the flying copy is the cover.
+            .graphicsLayer {
+                alpha = if (expansion.progress >= 1f || geometry.cover == null) 1f else 0f
+            }
+    }
+    val thumbnailAlpha: () -> Float = remember(expansion, geometry) {
+        { if (expansion.progress > 0f && geometry.cover != null) 0f else 1f }
     }
 
     AnimatedVisibility(
@@ -312,7 +413,7 @@ internal fun PlayerSheet(
                         )
                     },
             )
-            if (fullComposed) {
+            if (warm) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -337,61 +438,60 @@ internal fun PlayerSheet(
                         .onPlaced {
                             geometry.content = it
                             geometry.refresh()
-                        }
-                        .armsExpansion(expansion),
+                        },
                 ) {
-                    full(
-                        revealed,
-                        Modifier
-                            .onPlaced {
-                                geometry.artwork = it
-                                geometry.refresh()
+                    full(revealed, artworkModifier, collapseDrag, collapseRelease, collapseAbandon)
+                }
+            }
+            Box(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .placedWhile(pillPlaced)
+                        .graphicsLayer {
+                            val progress = expansion.progress
+                            translationY = -expansion.travelPx * progress
+                            alpha = miniPlayerContentAlpha(progress)
+                        }
+                        // The first touch of a session composes the player behind the pill, and every
+                        // touch wakes it, while the finger is still inside the touch slop. It watches
+                        // and never consumes.
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                if (!warmRequested) warmRequested = true
+                                pillPressed = true
+                                try {
+                                    do {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    } while (event.changes.any { it.pressed })
+                                } finally {
+                                    pillPressed = false
+                                }
                             }
-                            // Between the ends the flying copy is the cover.
-                            .graphicsLayer {
-                                alpha = if (expansion.progress >= 1f || geometry.cover == null) 1f else 0f
+                        }
+                        .playerExpansionDrag(
+                            onDrag = { downPx ->
+                                if (!expansion.dragging) currentOnCoverStart()
+                                expansion.dragBy(downPx)
                             },
-                        collapseDrag,
-                        collapseRelease,
-                    )
+                            onRelease = { velocity ->
+                                currentOnOpenChange(
+                                    expansion.release(velocity, commitPx, flingPx, currentReduceMotion),
+                                )
+                            },
+                            onAbandon = { expansion.abandonDrag(currentReduceMotion) },
+                        )
+                        // While the player is (becoming) the surface, the fading pill above it
+                        // must not take its taps or its place in TalkBack.
+                        .inactiveForMotion(open),
+                ) {
+                    mini(!atFull, thumbnailAlpha)
                 }
             }
-            if (miniComposed) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .placedWhile(belowFull)
-                            .armsExpansion(expansion)
-                            .graphicsLayer {
-                                val progress = expansion.progress
-                                translationY = -expansion.travelPx * progress
-                                alpha = miniPlayerContentAlpha(progress)
-                            }
-                            .playerExpansionDrag(
-                                onDrag = { expansion.dragBy(it) },
-                                onRelease = { velocity ->
-                                    val opened = expansion.release(
-                                        velocity,
-                                        wasOpen = false,
-                                        commitPx,
-                                        flingPx,
-                                        reduceMotion,
-                                    )
-                                    if (opened) currentOnOpenChange(true)
-                                },
-                            )
-                            // While the player is (becoming) the surface, the fading pill above it
-                            // must not take its taps or its place in TalkBack.
-                            .inactiveForMotion(open),
-                    ) {
-                        mini { if (expansion.progress > 0f && geometry.cover != null) 0f else 1f }
-                    }
-                }
-            }
-            if (flightComposed) {
+            if (warm) {
                 FlyingCover(
-                    shown = { aboveMini.value && belowFull.value },
+                    shown = { inFlight.value },
                     uri = coverUri,
                     cover = { geometry.cover },
                     thumbnail = { size ->
@@ -475,31 +575,52 @@ private class SheetWindowShape(private val rect: Rect, private val radius: Float
 internal fun Modifier.playerExpansionDrag(
     onDrag: (downPx: Float) -> Unit,
     onRelease: (downVelocity: Float) -> Unit,
+    /** The gesture ended with neither an up nor a decision: cancelled, or its node went away. */
+    onAbandon: () -> Unit,
 ): Modifier {
     val currentOnDrag by rememberUpdatedState(onDrag)
     val currentOnRelease by rememberUpdatedState(onRelease)
+    val currentOnAbandon by rememberUpdatedState(onAbandon)
     val placed = remember { PlacedCoordinates() }
     return onPlaced { placed.coordinates = it }.pointerInput(Unit) {
         val tracker = VelocityTracker()
         var lastY = Float.NaN
+        var lastPointer: PointerId? = null
         var travelled = 0f
-        detectVerticalDragGestures(
-            onDragStart = {
-                tracker.resetTracking()
-                lastY = Float.NaN
-                travelled = 0f
-            },
-            onDragEnd = { currentOnRelease(tracker.calculateVelocity().y) },
-            onDragCancel = { currentOnRelease(0f) },
-        ) { change, amount ->
-            change.consume()
-            val y = placed.windowY(change.position)
-            // The first move carries what is left of the slop; later ones are window deltas.
-            val step = if (lastY.isNaN()) amount else y - lastY
-            lastY = y
-            travelled += step
-            tracker.addPosition(change.uptimeMillis, Offset(0f, travelled))
-            currentOnDrag(step)
+        var inDrag = false
+        try {
+            detectVerticalDragGestures(
+                onDragStart = {
+                    tracker.resetTracking()
+                    lastY = Float.NaN
+                    lastPointer = null
+                    travelled = 0f
+                    inDrag = true
+                },
+                onDragEnd = {
+                    inDrag = false
+                    currentOnRelease(tracker.calculateVelocity().y)
+                },
+                onDragCancel = {
+                    inDrag = false
+                    currentOnAbandon()
+                },
+            ) { change, amount ->
+                change.consume()
+                val y = placed.windowY(change.position)
+                // The first move carries what is left of the slop, and when the tracked finger
+                // lifts the detector follows another one: both continue from the detector's own
+                // amount instead of jumping by the distance between two fingers.
+                val step = if (lastY.isNaN() || change.id != lastPointer) amount else y - lastY
+                lastY = y
+                lastPointer = change.id
+                travelled += step
+                tracker.addPosition(change.uptimeMillis, Offset(0f, travelled))
+                currentOnDrag(step)
+            }
+        } finally {
+            // Removed or restarted mid-drag: no up will ever arrive.
+            if (inDrag) currentOnAbandon()
         }
     }
 }
@@ -510,22 +631,6 @@ private fun Modifier.placedWhile(placed: androidx.compose.runtime.State<Boolean>
         val placeable = measurable.measure(constraints)
         layout(placeable.width, placeable.height) {
             if (placed.value) placeable.place(0, 0)
-        }
-    }
-
-/** Arms [PlayerExpansion] while any finger is down here; it watches and never consumes. */
-private fun Modifier.armsExpansion(expansion: PlayerExpansion): Modifier =
-    pointerInput(expansion) {
-        awaitEachGesture {
-            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-            expansion.armed = true
-            try {
-                do {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                } while (event.changes.any { it.pressed })
-            } finally {
-                expansion.armed = false
-            }
         }
     }
 

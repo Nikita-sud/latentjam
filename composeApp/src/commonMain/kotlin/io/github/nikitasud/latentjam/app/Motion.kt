@@ -26,7 +26,9 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -79,6 +81,13 @@ internal fun chromeNavigationSpec(reduceMotion: Boolean, opening: Boolean): Fini
         easing = if (opening) Motion.NavigationEasing else
             Easing { 1f - Motion.NavigationEasing.transform(1f - it) },
     )
+
+/**
+ * A hardware keyboard or D-pad must not move focus into content that cannot be seen or touched:
+ * entering the group is refused, so Tab and the arrows skip over it.
+ */
+internal fun Modifier.unfocusable(): Modifier =
+    focusProperties { onEnter = { cancelFocusChange() } }.focusGroup()
 
 /** Standard enter for content that arrives in place (sections, pages, results). */
 @Composable
@@ -211,7 +220,8 @@ internal fun motionBoundsTransform(): BoundsTransform = BoundsTransform { _, _ -
 internal fun Modifier.inactiveForMotion(inactive: Boolean): Modifier = if (!inactive) {
     this
 } else {
-    clearAndSetSemantics { }
+    unfocusable()
+        .clearAndSetSemantics { }
         .pointerInput(Unit) {
             awaitPointerEventScope {
                 while (true) {

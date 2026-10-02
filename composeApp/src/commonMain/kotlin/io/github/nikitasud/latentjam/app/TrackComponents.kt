@@ -45,6 +45,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -402,7 +404,9 @@ internal fun formatDuration(durationMs: Long): String {
 @Composable
 internal fun NowPlayingIndicator(animating: Boolean, tint: Color) {
     val reduceMotion = rememberReduceMotion()
-    val transition = if (animating && !reduceMotion) {
+    // Read here, not by the rows: only the badge recomposes when its page is covered or shown.
+    val held = LocalEndlessMotionHeld.current.value
+    val transition = if (animating && !reduceMotion && !held) {
         rememberInfiniteTransition(label = "now-playing")
     } else null
     Row(
@@ -434,6 +438,14 @@ internal fun NowPlayingIndicator(animating: Boolean, tint: Color) {
         }
     }
 }
+
+/**
+ * True while the surface showing this content cannot be seen: the library under the full player,
+ * or the player waiting below the pill. Endless animations (the playing badge, scrolling names)
+ * hold their pose instead of asking for frames nobody sees.
+ */
+internal val LocalEndlessMotionHeld = staticCompositionLocalOf<State<Boolean>> { RowMotionFree }
+private val RowMotionFree: State<Boolean> = mutableStateOf(false)
 
 /** Staggered starts keep the three bars out of phase, like a level meter rather than a blink. */
 private val BAR_PHASES_MS = listOf(0, 140, 280)

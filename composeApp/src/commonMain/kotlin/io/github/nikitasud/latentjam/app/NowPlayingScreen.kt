@@ -93,6 +93,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -104,6 +105,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -276,26 +278,35 @@ fun NowPlayingScreen(
     /** Back closes the player only while it is the open surface, not while merely shown. */
     ownsBack: Boolean = active,
     /**
+     * The player is the open surface. It stays composed after it closes, so closing is where it
+     * forgets what a fresh player would not show: an expanded queue, a turned cover, a scrolled list.
+     */
+    shown: Boolean = true,
+    /**
      * A downward drag on the cover or the top bar, in screen px per move. The player sheet turns it
      * into its one expansion progress, so the whole player follows the finger without this screen
      * recomposing; [onCollapseRelease] settles it and answers whether the player closes.
      */
     onCollapseDrag: (deltaPx: Float) -> Unit = {},
     onCollapseRelease: (velocity: Float) -> Boolean = { false },
+    /** The pull vanished without an up (cancelled, or the cover was replaced mid-gesture). */
+    onCollapseAbandon: () -> Unit = {},
     /** Lets the sheet find the cover's place and hide it while a copy flies to the mini player. */
     artworkModifier: Modifier = Modifier,
     onClose: () -> Unit,
 ) {
     // Position is intentionally projected out. It changes twice per second, while artwork, queue,
     // sheet and transport controls normally do not; rebuilding this whole screen for each tick was
-    // the largest steady-state source of Compose work during playback.
+    // the largest steady-state source of Compose work during playback. Without ticks this follows
+    // playback even while the player waits hidden below the pill, so a drag up never reveals the
+    // previous song, and nothing that runs off [active] can be left running on a stale "playing".
     val now by remember(playback) {
         playback.state.map { it.copy(positionMs = 0L) }.distinctUntilChanged()
-    }.collectPlayerState(playback.state.value.copy(positionMs = 0L), active)
+    }.collectPlayerState(playback.state.value.copy(positionMs = 0L), active = true)
     // Only the threshold crossing matters for the backward gesture, never each position tick.
     val previousRestarts by remember(playback) {
         playback.state.map { it.positionMs > PREVIOUS_RESTART_THRESHOLD_MS }.distinctUntilChanged()
-    }.collectPlayerState(playback.state.value.positionMs > PREVIOUS_RESTART_THRESHOLD_MS, active)
+    }.collectPlayerState(playback.state.value.positionMs > PREVIOUS_RESTART_THRESHOLD_MS, active = true)
     val scope = rememberCoroutineScope()
     val sheetState = rememberBottomSheetScaffoldState()
     var showSleepTimer by remember { mutableStateOf(false) }
@@ -331,431 +342,451 @@ fun NowPlayingScreen(
     // them once it has settled: a bounded off-main read, delayed past rapid skipping so a run
     // through the queue does not read a tag for every stop on the way. Until the probe answers
     // the button is simply absent, and a song without lyrics never shows it at all.
-    LaunchedEffect(lyricsSource, lyricsSources) {
+    // A hidden player follows track changes too; it reads no tags until it is shown.
+    var lyricsProbedFor by remember { mutableStateOf<Any?>(null) }
+    LaunchedEffect(lyricsSource, lyricsSources, active) {
         val track = currentTrack ?: return@LaunchedEffect
+        val probe = lyricsSource to lyricsSources
+        if (!active || lyricsProbedFor == probe) return@LaunchedEffect
         delay(LYRICS_PROBE_DELAY_MS)
+        lyricsProbedFor = probe
         lyrics = readLyrics(track)?.takeIf { read -> read.lines.any { it.text.isNotBlank() } }
         lyricsReadComplete = true
     }
     // While lyrics are open, the modal sheet owns Back so it can finish its exit before the parent
     // removes it. Otherwise Back collapses the full player as usual.
     PlatformBackHandler(enabled = ownsBack && !showLyrics, onBack = onClose)
+    LaunchedEffect(shown) {
+        if (!shown) {
+            flipped = false
+            sheetState.bottomSheetState.partialExpand()
+        }
+    }
 
     // The player sheet grows this screen out of the mini-player pill and carries it while it is
     // dragged; nothing here moves for that, so a drag never recomposes the screen.
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface)
-                .playerCloud(accent = accent, playing = active && now.isPlaying),
-        ) {
-            // Continues the sheet's own colour through the system-bar strip beneath it.
-            //
-            // The scaffold below is lifted by navigationBarsPadding(), so without this the gradient
-            // painted by the enclosing Box shows through in the gap — an artwork-tinted band that
-            // changes colour every track. Behind Android's three-button bar that passes for a tinted
-            // nav bar, but under an iPhone's home indicator it reads as a stray stripe.
-            //
-            // This is the rule the mini-player pill already follows: the SURFACE runs to the physical
-            // edge, only the CONTENT is inset. Sizing from the same WindowInsets the scaffold pads by
-            // means the two cannot drift — a home-button iPhone reports no inset and this draws
-            // nothing at all, while a three-button Android phone gets the full 48dp.
+    // Kept composed below the pill, the player must not keep endless animations (its scrolling
+    // names, the queue's playing bars) asking for frames while it is hidden.
+    val motionHeld = rememberUpdatedState(!active)
+    CompositionLocalProvider(LocalEndlessMotionHeld provides motionHeld) {
+        Surface(modifier = Modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .windowInsetsBottomHeight(WindowInsets.navigationBars)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-            )
-
-            // The inset belongs on the SCAFFOLD, and it takes both modifiers to work. The app
-            // draws edge to edge (no opting out from Android 15) and BottomSheetScaffold applies no
-            // insets of its own, so the sheet was anchored to the raw bottom of the window and its
-            // peek — the "Queue · n" label — sat behind the system buttons.
-            //
-            // Padding the sheet CONTENT cannot fix that, which is worth recording because it is the
-            // obvious thing to reach for: a peeking sheet is taller than its container and
-            // translated downwards, so the foot of its content is already far below the window and
-            // padding there is invisible. navigationBarsPadding() moves the anchor the sheet hangs
-            // from, which lifts the peek; clipToBounds() then cuts the part of the sheet that still
-            // overhangs the container, which is what keeps queue rows out of the bar in both the
-            // collapsed and the expanded state. The gradient behind the bar is unaffected — it is
-            // painted by the Box outside this.
-            BottomSheetScaffold(
-                // Bound the sheet itself, not just the player behind it: its expanded anchor must
-                // stay below the status bar/camera throughout a drag. The outer background still
-                // draws to the edge, and the inset is consumed once for both player and queue.
-                modifier = Modifier
-                    .windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-                    )
-                    .navigationBarsPadding()
-                    .clipToBounds(),
-                scaffoldState = sheetState,
-                sheetPeekHeight = QueuePeekHeight,
-                sheetShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                sheetShadowElevation = 0.dp,
-                containerColor = Color.Transparent,
-                // The stock handle pads itself to 48 dp; the peek is a strip, not a toolbar.
-                sheetDragHandle = { CompactDragHandle() },
-                sheetContent = {
-                    QueueSheetContent(
-                        accent = accent,
-                        queue = now.queue,
-                        continuationIds = now.smartContinuationIds,
-                        onExpand = { scope.launch { sheetState.bottomSheetState.expand() } },
-                        currentIndex = now.queueIndex,
-                        isPlaying = now.isPlaying,
-                        showPauseButton = now.showPauseButton,
-                        onTogglePlayback = { scope.launch { playback.togglePlayPause() } },
-                        canReorder = true,
-                        onPlayAt = { index -> scope.launch { playback.playAt(index) } },
-                        onTrackMenu = onQueueTrackMenu,
-                        onRemoveAt = { index -> scope.launch { playback.removeQueueItem(index) } },
-                        onMove = { from, to ->
-                            scope.launch { playback.moveQueueItem(from, to) }
-                        },
-                        onSaveQueue = onAddQueueToPlaylist,
-                    )
-                },
-            ) { sheetPadding ->
-                Column(
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .playerCloud(accent = accent, playing = active && now.isPlaying),
+            ) {
+                // Continues the sheet's own colour through the system-bar strip beneath it.
+                //
+                // The scaffold below is lifted by navigationBarsPadding(), so without this the gradient
+                // painted by the enclosing Box shows through in the gap — an artwork-tinted band that
+                // changes colour every track. Behind Android's three-button bar that passes for a tinted
+                // nav bar, but under an iPhone's home indicator it reads as a stray stripe.
+                //
+                // This is the rule the mini-player pill already follows: the SURFACE runs to the physical
+                // edge, only the CONTENT is inset. Sizing from the same WindowInsets the scaffold pads by
+                // means the two cannot drift — a home-button iPhone reports no inset and this draws
+                // nothing at all, while a three-button Android phone gets the full 48dp.
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = sheetPadding.calculateBottomPadding()),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    // Matches the library's top bar geometry exactly, so the
-                    // overflow lands in the same place before and after the morph. The bar is a
-                    // handle too: pulling it down carries the player like the cover does.
-                    Row(
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                )
+
+                // The inset belongs on the SCAFFOLD, and it takes both modifiers to work. The app
+                // draws edge to edge (no opting out from Android 15) and BottomSheetScaffold applies no
+                // insets of its own, so the sheet was anchored to the raw bottom of the window and its
+                // peek — the "Queue · n" label — sat behind the system buttons.
+                //
+                // Padding the sheet CONTENT cannot fix that, which is worth recording because it is the
+                // obvious thing to reach for: a peeking sheet is taller than its container and
+                // translated downwards, so the foot of its content is already far below the window and
+                // padding there is invisible. navigationBarsPadding() moves the anchor the sheet hangs
+                // from, which lifts the peek; clipToBounds() then cuts the part of the sheet that still
+                // overhangs the container, which is what keeps queue rows out of the bar in both the
+                // collapsed and the expanded state. The gradient behind the bar is unaffected — it is
+                // painted by the Box outside this.
+                BottomSheetScaffold(
+                    // Bound the sheet itself, not just the player behind it: its expanded anchor must
+                    // stay below the status bar/camera throughout a drag. The outer background still
+                    // draws to the edge, and the inset is consumed once for both player and queue.
+                    modifier = Modifier
+                        .windowInsetsPadding(
+                            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                        )
+                        .navigationBarsPadding()
+                        .clipToBounds(),
+                    scaffoldState = sheetState,
+                    sheetPeekHeight = QueuePeekHeight,
+                    sheetShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    sheetShadowElevation = 0.dp,
+                    containerColor = Color.Transparent,
+                    // The stock handle pads itself to 48 dp; the peek is a strip, not a toolbar.
+                    sheetDragHandle = { CompactDragHandle() },
+                    sheetContent = {
+                        QueueSheetContent(
+                            accent = accent,
+                            queue = now.queue,
+                            continuationIds = now.smartContinuationIds,
+                            onExpand = { scope.launch { sheetState.bottomSheetState.expand() } },
+                            currentIndex = now.queueIndex,
+                            // The playing bars are an endless animation; a hidden player keeps none.
+                            isPlaying = now.isPlaying && active,
+                            scrollToCurrentKey = shown,
+                            showPauseButton = now.showPauseButton,
+                            onTogglePlayback = { scope.launch { playback.togglePlayPause() } },
+                            canReorder = true,
+                            onPlayAt = { index -> scope.launch { playback.playAt(index) } },
+                            onTrackMenu = onQueueTrackMenu,
+                            onRemoveAt = { index -> scope.launch { playback.removeQueueItem(index) } },
+                            onMove = { from, to ->
+                                scope.launch { playback.moveQueueItem(from, to) }
+                            },
+                            onSaveQueue = onAddQueueToPlaylist,
+                        )
+                    },
+                ) { sheetPadding ->
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(64.dp)
-                            .playerExpansionDrag(
-                                onDrag = onCollapseDrag,
-                                onRelease = { velocity -> onCollapseRelease(velocity) },
-                            )
-                            .padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                            .fillMaxSize()
+                            .padding(bottom = sheetPadding.calculateBottomPadding()),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        IconButton(onClick = onClose) {
-                            Icon(
-                                Icons.Rounded.KeyboardArrowDown,
-                                contentDescription = stringResource(Res.string.action_close),
-                            )
-                        }
-                        // Where the sound is going, before the first note says so.
-                        val outputRoute = rememberAudioOutputRoute()
-                        if (outputRoute != null) {
-                            AudioOutputStatus(
-                                route = outputRoute,
-                                onOpen = rememberAudioOutputChooser(),
-                            )
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-                        if (now.track != null) {
-                            AnimatedVisibility(
-                                visible = lyrics != null,
-                                enter = fadeIn(tween(if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS)),
-                                exit = fadeOut(tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS)),
-                            ) {
-                                IconButton(onClick = { showLyrics = true }) {
+                        // Matches the library's top bar geometry exactly, so the
+                        // overflow lands in the same place before and after the morph. The bar is a
+                        // handle too: pulling it down carries the player like the cover does.
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(64.dp)
+                                .playerExpansionDrag(
+                                    onDrag = onCollapseDrag,
+                                    onRelease = { velocity -> onCollapseRelease(velocity) },
+                                    onAbandon = onCollapseAbandon,
+                                )
+                                .padding(horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(onClick = onClose) {
+                                Icon(
+                                    Icons.Rounded.KeyboardArrowDown,
+                                    contentDescription = stringResource(Res.string.action_close),
+                                )
+                            }
+                            // Where the sound is going, before the first note says so.
+                            val outputRoute = rememberAudioOutputRoute()
+                            if (outputRoute != null) {
+                                AudioOutputStatus(
+                                    route = outputRoute,
+                                    onOpen = rememberAudioOutputChooser(),
+                                )
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+                            if (now.track != null) {
+                                AnimatedVisibility(
+                                    visible = lyrics != null,
+                                    enter = fadeIn(tween(if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS)),
+                                    exit = fadeOut(tween(if (reduceMotion) Motion.REDUCED_MS else Motion.QUICK_MS)),
+                                ) {
+                                    IconButton(onClick = { showLyrics = true }) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Lyrics,
+                                            contentDescription = stringResource(Res.string.info_lyrics),
+                                        )
+                                    }
+                                }
+                                IconButton(onClick = onToggleFavorite) {
+                                    // A like bounces once under the finger; removing one stays calm,
+                                    // and entering the screen with an old favourite stays still too.
+                                    val trackId = checkNotNull(now.track).id
+                                    val heartScale = remember(trackId) { Animatable(1f) }
+                                    var wasFavorite by remember(trackId) { mutableStateOf(isFavorite) }
+                                    LaunchedEffect(trackId, isFavorite, reduceMotion) {
+                                        val turnedOn = isFavorite && !wasFavorite
+                                        wasFavorite = isFavorite
+                                        if (turnedOn && !reduceMotion) {
+                                            heartScale.snapTo(0.6f)
+                                            heartScale.animateTo(
+                                                targetValue = 1f,
+                                                animationSpec = spring(
+                                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                    stiffness = Spring.StiffnessMedium,
+                                                ),
+                                            )
+                                        } else {
+                                            // An unlike, a canceled bounce, or Reduce Motion changing
+                                            // mid-flight always restores the stable resting scale.
+                                            heartScale.snapTo(1f)
+                                        }
+                                    }
                                     Icon(
-                                        imageVector = Icons.Rounded.Lyrics,
-                                        contentDescription = stringResource(Res.string.info_lyrics),
+                                        modifier = Modifier.graphicsLayer {
+                                            scaleX = heartScale.value
+                                            scaleY = heartScale.value
+                                        },
+                                        imageVector = if (isFavorite) {
+                                            Icons.Rounded.Favorite
+                                        } else {
+                                            Icons.Rounded.FavoriteBorder
+                                        },
+                                        contentDescription = stringResource(
+                                            if (isFavorite) {
+                                                Res.string.action_remove_favorite
+                                            } else {
+                                                Res.string.action_add_favorite
+                                            },
+                                        ),
+                                        tint = if (isFavorite) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            LocalContentColor.current
+                                        },
                                     )
                                 }
                             }
-                            IconButton(onClick = onToggleFavorite) {
-                                // A like bounces once under the finger; removing one stays calm,
-                                // and entering the screen with an old favourite stays still too.
-                                val trackId = checkNotNull(now.track).id
-                                val heartScale = remember(trackId) { Animatable(1f) }
-                                var wasFavorite by remember(trackId) { mutableStateOf(isFavorite) }
-                                LaunchedEffect(trackId, isFavorite, reduceMotion) {
-                                    val turnedOn = isFavorite && !wasFavorite
-                                    wasFavorite = isFavorite
-                                    if (turnedOn && !reduceMotion) {
-                                        heartScale.snapTo(0.6f)
-                                        heartScale.animateTo(
-                                            targetValue = 1f,
-                                            animationSpec = spring(
-                                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                stiffness = Spring.StiffnessMedium,
-                                            ),
+                            // One tap to the full list of actions; the sleep timer lives there too.
+                            OverflowButton(
+                                onClick = {
+                                    haptics.play(PlayerHaptic.TAP)
+                                    now.track?.let(onTrackMenu)
+                                },
+                            )
+                        }
+
+                        AdaptivePlayerContent(
+                            modifier = Modifier.weight(1f),
+                            artwork = {
+                                PlayerArtworkCard(
+                                    track = now.track,
+                                    queueIndex = now.queueIndex,
+                                    skipChangesTrack = { forward ->
+                                        val live = playback.state.value
+                                        if (forward) live.queue.size > 1 || live.shuffleMode == ShuffleMode.SMART
+                                        else live.positionMs <= PREVIOUS_RESTART_THRESHOLD_MS && live.queue.size > 1
+                                    },
+                                    flipped = flipped,
+                                    onFlip = { flipped = it },
+                                    onHold = { now.track?.let(onTrackMenu) },
+                                    onSkip = { forward ->
+                                        scope.launch { if (forward) playback.next() else playback.previous() }
+                                    },
+                                    canSkipForward = now.queueIndex in 0 until now.queue.lastIndex ||
+                                        now.repeatMode == RepeatMode.ALL ||
+                                        now.shuffleMode == ShuffleMode.SMART,
+                                    canSkipBackward = now.track != null &&
+                                        (previousRestarts || now.queueIndex > 0 || now.repeatMode == RepeatMode.ALL),
+                                    neighbourTrack = { forward ->
+                                        // Use the same snapshot as the main cover; the live controller
+                                        // can already be one entry ahead while Compose catches up.
+                                        queueNeighbour(now, forward)
+                                    },
+                                    onCollapseDrag = onCollapseDrag,
+                                    onCollapseRelease = onCollapseRelease,
+                                    onCollapseAbandon = onCollapseAbandon,
+                                    details = {
+                                        now.track?.let { track ->
+                                            TrackDetailsFace(
+                                                track = track,
+                                                stats = trackStats,
+                                                onEditTags = { onEditTags(track) },
+                                                onShowOnMap = onShowOnMap?.let { show -> { show(track) } },
+                                                onClose = { flipped = false },
+                                            )
+                                        }
+                                    },
+                                    modifier = artworkModifier,
+                                )
+                            },
+                            controls = { compact ->
+                                // Cover, colour and words now change as one event when the queue advances.
+                                // The small fade-through keeps a skip legible without sending the whole
+                                // player sideways like another page navigation.
+                                AnimatedContent(
+                                    targetState = TrackMetadataPresentation(
+                                        track = now.track,
+                                        sourceLabel = queueSourceLabel,
+                                    ),
+                                    contentKey = { it.track?.id },
+                                    transitionSpec = { motionFadeThrough(reduceMotion) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = "track-metadata",
+                                ) { shown ->
+                                    val shownTrack = shown.track
+                                    Column(
+                                        modifier = Modifier.inactiveForMotion(
+                                            shownTrack?.id != now.track?.id,
+                                        ),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        MarqueeText(
+                                            text = shownTrack?.title
+                                                ?: stringResource(Res.string.now_playing_nothing),
+                                            style = MaterialTheme.typography.headlineSmall,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            enabled = shownTrack?.id == now.track?.id,
                                         )
-                                    } else {
-                                        // An unlike, a canceled bounce, or Reduce Motion changing
-                                        // mid-flight always restores the stable resting scale.
-                                        heartScale.snapTo(1f)
+                                        // Artist and album are places, so they are links: each opens
+                                        // its own collection. The dash between them stays plain.
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 8.dp),
+                                        ) {
+                                            val artist = shownTrack?.artist
+                                            val album = shownTrack?.album?.takeIf { it.isNotBlank() }
+                                            MetadataLink(
+                                                text = artist,
+                                                onClick = if (shownTrack != null && artist != null) {
+                                                    onGoToArtist?.let { go -> { go(shownTrack) } }
+                                                } else null,
+                                                modifier = Modifier.weight(1f, fill = false),
+                                            )
+                                            if (artist != null && album != null) {
+                                                Text(
+                                                    text = " — ",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                            if (album != null) {
+                                                MetadataLink(
+                                                    text = album,
+                                                    onClick = onGoToAlbum?.let { go -> { go(shownTrack) } },
+                                                    modifier = Modifier.weight(1f, fill = false),
+                                                )
+                                            }
+                                        }
+                                        if (shown.sourceLabel != null && shownTrack != null) {
+                                            // A quiet chip: the source reads as "where this track came
+                                            // from", and a tap goes there. A source that cannot be found
+                                            // again raises the queue it produced instead.
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                modifier = Modifier
+                                                    .padding(top = 2.dp)
+                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .clickable(role = Role.Button) {
+                                                        haptics.play(PlayerHaptic.TAP)
+                                                        if (onOpenSource?.invoke() != true) {
+                                                            scope.launch { sheetState.bottomSheetState.expand() }
+                                                        }
+                                                    }
+                                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(14.dp),
+                                                )
+                                                Text(
+                                                    text = stringResource(
+                                                        Res.string.now_playing_source,
+                                                        shown.sourceLabel,
+                                                    ),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
+                                        }
                                     }
                                 }
-                                Icon(
-                                    modifier = Modifier.graphicsLayer {
-                                        scaleX = heartScale.value
-                                        scaleY = heartScale.value
-                                    },
-                                    imageVector = if (isFavorite) {
-                                        Icons.Rounded.Favorite
-                                    } else {
-                                        Icons.Rounded.FavoriteBorder
-                                    },
-                                    contentDescription = stringResource(
-                                        if (isFavorite) {
-                                            Res.string.action_remove_favorite
+
+                                Spacer(modifier = Modifier.height(if (compact) 8.dp else 12.dp))
+
+                                PlayerSeekBar(playback = playback, durationMs = now.durationMs, lyrics = lyrics, active = active)
+
+                                // The transport follows the time labels directly: the labels sit at the
+                                // edges and the play button in the middle, so nothing touches. What matters
+                                // is the line-to-button distance, kept equal to the button-to-next-up one.
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    RepeatButton(mode = now.repeatMode) {
+                                        scope.launch { playback.cycleRepeatMode() }
+                                    }
+                                    SkipButton(forward = false, playback = playback, durationMs = now.durationMs, active = active)
+                                    val playPauseDescription = stringResource(
+                                        if (now.showPauseButton) {
+                                            Res.string.action_pause
                                         } else {
-                                            Res.string.action_add_favorite
+                                            Res.string.action_play
                                         },
-                                    ),
-                                    tint = if (isFavorite) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        LocalContentColor.current
+                                    )
+                                    // The button says what it is doing with its shape: a circle waits,
+                                    // a rounded square plays. Colour stays the same, so the state never
+                                    // depends on it.
+                                    val playInteraction = remember { MutableInteractionSource() }
+                                    val playCorner by animateDpAsState(
+                                        targetValue = if (now.showPauseButton) PLAY_PLAYING_RADIUS else PLAY_PAUSED_RADIUS,
+                                        animationSpec = tween(
+                                            if (reduceMotion) Motion.REDUCED_MS else Motion.EMPHASIZED_MS,
+                                        ),
+                                        label = "play-shape",
+                                    )
+                                    FilledIconButton(
+                                        onClick = {
+                                            haptics.play(PlayerHaptic.TAP)
+                                            scope.launch { playback.togglePlayPause() }
+                                        },
+                                        shape = RoundedCornerShape(playCorner),
+                                        interactionSource = playInteraction,
+                                        modifier = Modifier
+                                            .size(72.dp)
+                                            .scaleOnPress(playInteraction)
+                                            .semantics { contentDescription = playPauseDescription },
+                                    ) {
+                                        AnimatedContent(
+                                            targetState = now.showPauseButton,
+                                            transitionSpec = { motionIconTransform(reduceMotion) },
+                                            label = "play-pause",
+                                        ) { playing ->
+                                        Icon(
+                                            imageVector = if (playing) {
+                                                Icons.Rounded.Pause
+                                            } else {
+                                                Icons.Rounded.PlayArrow
+                                            },
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .inactiveForMotion(playing != now.showPauseButton),
+                                        )
+                                        }
+                                    }
+                                    SkipButton(forward = true, playback = playback, durationMs = now.durationMs, active = active)
+                                    ModeButton(
+                                        mode = now.shuffleMode,
+                                        onCycle = { scope.launch { playback.cycleShuffleMode() } },
+                                        onSelect = { chosen -> scope.launch { playback.setShuffleMode(chosen) } },
+                                        smartQueueLength = smartQueueLength,
+                                        onSmartQueueLength = onSmartQueueLength,
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(if (compact) 12.dp else 34.dp))
+
+                                // What comes next, without opening the queue; a tap opens it anyway.
+                                NextUpRow(
+                                    next = nextUpTrack(now),
+                                    onOpenQueue = {
+                                        haptics.play(PlayerHaptic.TAP)
+                                        scope.launch { sheetState.bottomSheetState.expand() }
                                     },
                                 )
-                            }
-                        }
-                        // One tap to the full list of actions; the sleep timer lives there too.
-                        OverflowButton(
-                            onClick = {
-                                haptics.play(PlayerHaptic.TAP)
-                                now.track?.let(onTrackMenu)
+
+                                Spacer(modifier = Modifier.height(6.dp))
                             },
                         )
                     }
-
-                    AdaptivePlayerContent(
-                        modifier = Modifier.weight(1f),
-                        artwork = {
-                            PlayerArtworkCard(
-                                track = now.track,
-                                queueIndex = now.queueIndex,
-                                skipChangesTrack = { forward ->
-                                    val live = playback.state.value
-                                    if (forward) live.queue.size > 1 || live.shuffleMode == ShuffleMode.SMART
-                                    else live.positionMs <= PREVIOUS_RESTART_THRESHOLD_MS && live.queue.size > 1
-                                },
-                                flipped = flipped,
-                                onFlip = { flipped = it },
-                                onHold = { now.track?.let(onTrackMenu) },
-                                onSkip = { forward ->
-                                    scope.launch { if (forward) playback.next() else playback.previous() }
-                                },
-                                canSkipForward = now.queueIndex in 0 until now.queue.lastIndex ||
-                                    now.repeatMode == RepeatMode.ALL ||
-                                    now.shuffleMode == ShuffleMode.SMART,
-                                canSkipBackward = now.track != null &&
-                                    (previousRestarts || now.queueIndex > 0 || now.repeatMode == RepeatMode.ALL),
-                                neighbourTrack = { forward ->
-                                    // Use the same snapshot as the main cover; the live controller
-                                    // can already be one entry ahead while Compose catches up.
-                                    queueNeighbour(now, forward)
-                                },
-                                onCollapseDrag = onCollapseDrag,
-                                onCollapseRelease = onCollapseRelease,
-                                details = {
-                                    now.track?.let { track ->
-                                        TrackDetailsFace(
-                                            track = track,
-                                            stats = trackStats,
-                                            onEditTags = { onEditTags(track) },
-                                            onShowOnMap = onShowOnMap?.let { show -> { show(track) } },
-                                            onClose = { flipped = false },
-                                        )
-                                    }
-                                },
-                                modifier = artworkModifier,
-                            )
-                        },
-                        controls = { compact ->
-                            // Cover, colour and words now change as one event when the queue advances.
-                            // The small fade-through keeps a skip legible without sending the whole
-                            // player sideways like another page navigation.
-                            AnimatedContent(
-                                targetState = TrackMetadataPresentation(
-                                    track = now.track,
-                                    sourceLabel = queueSourceLabel,
-                                ),
-                                contentKey = { it.track?.id },
-                                transitionSpec = { motionFadeThrough(reduceMotion) },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = "track-metadata",
-                            ) { shown ->
-                                val shownTrack = shown.track
-                                Column(
-                                    modifier = Modifier.inactiveForMotion(
-                                        shownTrack?.id != now.track?.id,
-                                    ),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
-                                    MarqueeText(
-                                        text = shownTrack?.title
-                                            ?: stringResource(Res.string.now_playing_nothing),
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        enabled = shownTrack?.id == now.track?.id,
-                                    )
-                                    // Artist and album are places, so they are links: each opens
-                                    // its own collection. The dash between them stays plain.
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 8.dp),
-                                    ) {
-                                        val artist = shownTrack?.artist
-                                        val album = shownTrack?.album?.takeIf { it.isNotBlank() }
-                                        MetadataLink(
-                                            text = artist,
-                                            onClick = if (shownTrack != null && artist != null) {
-                                                onGoToArtist?.let { go -> { go(shownTrack) } }
-                                            } else null,
-                                            modifier = Modifier.weight(1f, fill = false),
-                                        )
-                                        if (artist != null && album != null) {
-                                            Text(
-                                                text = " — ",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                        if (album != null) {
-                                            MetadataLink(
-                                                text = album,
-                                                onClick = onGoToAlbum?.let { go -> { go(shownTrack) } },
-                                                modifier = Modifier.weight(1f, fill = false),
-                                            )
-                                        }
-                                    }
-                                    if (shown.sourceLabel != null && shownTrack != null) {
-                                        // A quiet chip: the source reads as "where this track came
-                                        // from", and a tap goes there. A source that cannot be found
-                                        // again raises the queue it produced instead.
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            modifier = Modifier
-                                                .padding(top = 2.dp)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .clickable(role = Role.Button) {
-                                                    haptics.play(PlayerHaptic.TAP)
-                                                    if (onOpenSource?.invoke() != true) {
-                                                        scope.launch { sheetState.bottomSheetState.expand() }
-                                                    }
-                                                }
-                                                .padding(horizontal = 10.dp, vertical = 5.dp),
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(14.dp),
-                                            )
-                                            Text(
-                                                text = stringResource(
-                                                    Res.string.now_playing_source,
-                                                    shown.sourceLabel,
-                                                ),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(if (compact) 8.dp else 12.dp))
-
-                            PlayerSeekBar(playback = playback, durationMs = now.durationMs, lyrics = lyrics, active = active)
-
-                            // The transport follows the time labels directly: the labels sit at the
-                            // edges and the play button in the middle, so nothing touches. What matters
-                            // is the line-to-button distance, kept equal to the button-to-next-up one.
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                RepeatButton(mode = now.repeatMode) {
-                                    scope.launch { playback.cycleRepeatMode() }
-                                }
-                                SkipButton(forward = false, playback = playback, durationMs = now.durationMs, active = active)
-                                val playPauseDescription = stringResource(
-                                    if (now.showPauseButton) {
-                                        Res.string.action_pause
-                                    } else {
-                                        Res.string.action_play
-                                    },
-                                )
-                                // The button says what it is doing with its shape: a circle waits,
-                                // a rounded square plays. Colour stays the same, so the state never
-                                // depends on it.
-                                val playInteraction = remember { MutableInteractionSource() }
-                                val playCorner by animateDpAsState(
-                                    targetValue = if (now.showPauseButton) PLAY_PLAYING_RADIUS else PLAY_PAUSED_RADIUS,
-                                    animationSpec = tween(
-                                        if (reduceMotion) Motion.REDUCED_MS else Motion.EMPHASIZED_MS,
-                                    ),
-                                    label = "play-shape",
-                                )
-                                FilledIconButton(
-                                    onClick = {
-                                        haptics.play(PlayerHaptic.TAP)
-                                        scope.launch { playback.togglePlayPause() }
-                                    },
-                                    shape = RoundedCornerShape(playCorner),
-                                    interactionSource = playInteraction,
-                                    modifier = Modifier
-                                        .size(72.dp)
-                                        .scaleOnPress(playInteraction)
-                                        .semantics { contentDescription = playPauseDescription },
-                                ) {
-                                    AnimatedContent(
-                                        targetState = now.showPauseButton,
-                                        transitionSpec = { motionIconTransform(reduceMotion) },
-                                        label = "play-pause",
-                                    ) { playing ->
-                                    Icon(
-                                        imageVector = if (playing) {
-                                            Icons.Rounded.Pause
-                                        } else {
-                                            Icons.Rounded.PlayArrow
-                                        },
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .inactiveForMotion(playing != now.showPauseButton),
-                                    )
-                                    }
-                                }
-                                SkipButton(forward = true, playback = playback, durationMs = now.durationMs, active = active)
-                                ModeButton(
-                                    mode = now.shuffleMode,
-                                    onCycle = { scope.launch { playback.cycleShuffleMode() } },
-                                    onSelect = { chosen -> scope.launch { playback.setShuffleMode(chosen) } },
-                                    smartQueueLength = smartQueueLength,
-                                    onSmartQueueLength = onSmartQueueLength,
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(if (compact) 12.dp else 34.dp))
-
-                            // What comes next, without opening the queue; a tap opens it anyway.
-                            NextUpRow(
-                                next = nextUpTrack(now),
-                                onOpenQueue = {
-                                    haptics.play(PlayerHaptic.TAP)
-                                    scope.launch { sheetState.bottomSheetState.expand() }
-                                },
-                            )
-
-                            Spacer(modifier = Modifier.height(6.dp))
-                        },
-                    )
                 }
             }
         }
@@ -1547,10 +1578,16 @@ private fun QueueSheetContent(
     onMove: (from: Int, to: Int) -> Unit,
     onSaveQueue: () -> Unit,
     onExpand: () -> Unit = {},
+    /** Each change brings the list back to the current track, as a freshly opened player shows it. */
+    scrollToCurrentKey: Any? = null,
 ) {
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = currentIndex.coerceAtLeast(0),
     )
+    val latestCurrentIndex by rememberUpdatedState(currentIndex)
+    LaunchedEffect(scrollToCurrentKey) {
+        if (latestCurrentIndex >= 0) listState.scrollToItem(latestCurrentIndex)
+    }
     val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
     val queueIdentity = remember(queue) { queueIdentitySnapshot(queue) }
