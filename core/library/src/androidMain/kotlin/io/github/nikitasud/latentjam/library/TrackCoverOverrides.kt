@@ -33,10 +33,12 @@ internal sealed interface FileCover {
  * keeps the album's in [TrackDescriptor.albumArtworkUri], which grouping compares. Every other
  * song is left exactly as the scan made it, so no other file is read.
  *
- * An entry is trusted at the revision it was last checked at. At any other revision another app
- * may have retagged the file, so [readCover] reads its embedded cover: the same one keeps the entry
- * at the new revision, any other drops it. A song that is gone drops its entry, and a file no entry
- * names any more is deleted.
+ * A new entry is trusted at whatever revision the first scan after its save sees: the save itself
+ * verified the file holds the cover, so a cover saved into thousands of files costs no reads. From
+ * then on an entry is trusted at that revision. At any other, another app may have retagged the
+ * file, so [readCover] reads its embedded cover: the same one keeps the entry at the new revision,
+ * any other drops it. A song that is gone drops its entry. An image no entry names, a temporary
+ * file a crash left, and everything under an index this store cannot read are deleted.
  *
  * Not thread-safe across processes; within one, every call holds the store's lock.
  */
@@ -47,7 +49,7 @@ internal class TrackCoverOverrides(
     private data class Entry(
         /** The image file in [directory], named by its CRC-32; null for a removed cover. */
         val fileName: String?,
-        /** The revision the song's file was last checked at; null when not yet checked. */
+        /** The revision the song's file was last checked at; null until the first scan after its save. */
         val revision: String?,
     ) {
         /** The CRC-32 of the cover the song's file must still hold; null for a removed cover. */
@@ -71,7 +73,7 @@ internal class TrackCoverOverrides(
                 }
                 else -> Entry(fileName = null, revision = null)
             }
-            val entries = read().toMutableMap()
+            val entries = read().orEmpty().toMutableMap()
             for (id in trackIds) entries[id.value] = entry
             write(entries)
         }
@@ -84,14 +86,19 @@ internal class TrackCoverOverrides(
      */
     fun apply(tracks: List<TrackDescriptor>): List<TrackDescriptor> = synchronized(lock) {
         val entries = read()
+        if (entries == null) {
+            // Nothing in it can be trusted, and nothing names its images any more.
+            runCatching { write(emptyMap()) }
+            return tracks
+        }
         if (entries.isEmpty()) return tracks
         val kept = HashMap<String, Entry>(entries.size)
         val byId = tracks.associateBy { it.id.value }
         for ((id, entry) in entries) {
             val track = byId[id] ?: continue
             if (entry.fileName != null && !File(directory, entry.fileName).isFile) continue
-            if (entry.revision != null && entry.revision == track.sourceRevision) {
-                kept[id] = entry
+            if (entry.revision == null || entry.revision == track.sourceRevision) {
+                kept[id] = entry.copy(revision = track.sourceRevision)
                 continue
             }
             when (val found = readCover(track)) {
@@ -118,8 +125,8 @@ internal class TrackCoverOverrides(
         }
     }
 
-    /** Every entry, or none when the index is missing or not one this store wrote. */
-    private fun read(): Map<String, Entry> {
+    /** Every entry: none when the index is missing, null when it is not one this store wrote. */
+    private fun read(): Map<String, Entry>? {
         if (!index.isFile) return emptyMap()
         return try {
             val lines = index.readLines().filter(String::isNotEmpty)
@@ -132,11 +139,11 @@ internal class TrackCoverOverrides(
                 fields[0] to Entry(fileName = fileName, revision = fields[2].takeIf { it.isNotEmpty() })
             }
         } catch (_: Exception) {
-            emptyMap()
+            null
         }
     }
 
-    /** Writes [entries], then deletes every image none of them names. */
+    /** Writes [entries], then deletes every image none of them names and every leftover temporary file. */
     private fun write(entries: Map<String, Entry>) {
         if (entries.isEmpty()) {
             index.delete()
@@ -155,7 +162,11 @@ internal class TrackCoverOverrides(
         }
         val named = entries.values.mapNotNullTo(HashSet()) { it.fileName }
         directory.listFiles()?.forEach { file ->
-            if (file.name != INDEX_NAME && file.name.matches(FILE_NAME) && file.name !in named) file.delete()
+            val name = file.name
+            val stray = name.matches(FILE_NAME) && name !in named
+            // Only this store writes here, and only under its lock: no temporary file is in use now.
+            val leftover = name.startsWith(".") && name.endsWith(".tmp")
+            if (stray || leftover) file.delete()
         }
     }
 

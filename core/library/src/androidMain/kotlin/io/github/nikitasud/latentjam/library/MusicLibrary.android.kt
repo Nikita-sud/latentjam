@@ -234,6 +234,9 @@ internal class MediaStoreMusicLibrary(
         } ?: FileCover.Unreadable
     } catch (_: Exception) {
         FileCover.Unreadable
+    } catch (_: OutOfMemoryError) {
+        // A huge picture in a file another app wrote must not fail the scan; checked again next time.
+        FileCover.Unreadable
     }
 
     override suspend fun hide(trackId: TrackId): Unit = withContext(Dispatchers.IO) {

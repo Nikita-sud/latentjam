@@ -50,10 +50,15 @@ internal class TrackCoverOverridesTest {
         root.deleteRecursively()
     }
 
+    /** Records [cover] for [ids] and lets the first scan after the save stamp them at revision r1. */
+    private fun saved(cover: CoverEdit, vararg ids: String) {
+        overrides().record(ids.map(::TrackId), cover)
+        overrides().apply(ids.map { track(it) })
+    }
+
     @Test
     fun aNewCoverIsTheSongsOwnFileAndTheAlbumKeepsItsArt() {
         overrides().record(listOf(TrackId("2")), CoverEdit.Replace(jpeg, "image/jpeg"))
-        embedded["2"] = FileCover.Read(Crc32.of(jpeg))
         val applied = overrides().apply(listOf(track("1"), track("2"), track("3")))
         assertEquals(listOf(album, fileUri(jpeg, "jpg"), album), applied.map { it.artworkUri })
         assertEquals(listOf(null, album, null), applied.map { it.albumArtworkUri })
@@ -64,7 +69,6 @@ internal class TrackCoverOverridesTest {
     fun theOverridesSurviveANewStoreOverTheSameFiles() {
         overrides().record(listOf(TrackId("1")), CoverEdit.Replace(png, "image/png"))
         overrides().record(listOf(TrackId("2")), CoverEdit.Remove)
-        embedded["1"] = FileCover.Read(Crc32.of(png))
         val applied = overrides().apply(listOf(track("1"), track("2")))
         assertEquals(listOf(fileUri(png, "png"), null), applied.map { it.artworkUri })
         assertEquals(listOf(album, album), applied.map { it.albumArtworkUri })
@@ -92,47 +96,45 @@ internal class TrackCoverOverridesTest {
     }
 
     @Test
-    fun aRecordedCoverIsCheckedOnceAgainstTheFileThenTrustedAtItsRevision() {
-        val store = overrides()
-        store.record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
-        embedded["1"] = FileCover.Read(Crc32.of(jpeg))
-        store.apply(listOf(track("1", revision = "r2")))
-        assertEquals(listOf("1"), reads)
-        val again = overrides().apply(listOf(track("1", revision = "r2")))
-        assertEquals(listOf("1"), reads, "the same revision is not read again, even by a new store")
-        assertEquals(fileUri(jpeg, "jpg"), again.single().artworkUri)
+    fun aNewEntryIsStampedWithTheFirstScansRevisionWithoutReadingAnyFile() {
+        val ids = List(500) { "$it" }
+        overrides().record(ids.map(::TrackId), CoverEdit.Replace(jpeg, "image/jpeg"))
+        val applied = overrides().apply(ids.map { track(it, revision = "r2") })
+        assertTrue(applied.all { it.artworkUri == fileUri(jpeg, "jpg") })
+        assertEquals(emptyList(), reads)
+        overrides().apply(ids.map { track(it, revision = "r2") })
+        assertEquals(emptyList(), reads, "the stamped revision is trusted, even by a new store")
+        overrides().apply(ids.take(1).map { track(it, revision = "r3") } + ids.drop(1).map { track(it, revision = "r2") })
+        assertEquals(listOf("0"), reads, "only a known revision that differs is read")
     }
 
     @Test
     fun aNewRevisionWithTheSameCoverKeepsTheOverride() {
-        overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
         embedded["1"] = FileCover.Read(Crc32.of(jpeg))
-        overrides().apply(listOf(track("1", revision = "r2")))
         // A title edit elsewhere: the file changes, its cover does not.
-        val applied = overrides().apply(listOf(track("1", revision = "r3")))
+        val applied = overrides().apply(listOf(track("1", revision = "r2")))
         assertEquals(fileUri(jpeg, "jpg"), applied.single().artworkUri)
-        assertEquals(listOf("1", "1"), reads)
-        overrides().apply(listOf(track("1", revision = "r3")))
-        assertEquals(listOf("1", "1"), reads, "the new revision was recorded")
+        assertEquals(listOf("1"), reads)
+        overrides().apply(listOf(track("1", revision = "r2")))
+        assertEquals(listOf("1"), reads, "the new revision was recorded")
     }
 
     @Test
     fun anotherAppsNewCoverDropsTheOverrideAndItsFile() {
-        overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
-        embedded["1"] = FileCover.Read(Crc32.of(jpeg))
-        overrides().apply(listOf(track("1", revision = "r2")))
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
         embedded["1"] = FileCover.Read(Crc32.of(png))
-        val applied = overrides().apply(listOf(track("1", revision = "r3")))
+        val applied = overrides().apply(listOf(track("1", revision = "r2")))
         assertEquals(album, applied.single().artworkUri)
         assertNull(applied.single().albumArtworkUri)
         assertEquals(emptyList(), coverFiles())
-        overrides().apply(listOf(track("1", revision = "r4")))
-        assertEquals(listOf("1", "1"), reads, "a dropped override is not checked again")
+        overrides().apply(listOf(track("1", revision = "r3")))
+        assertEquals(listOf("1"), reads, "a dropped override is not checked again")
     }
 
     @Test
     fun anotherAppRemovingTheCoverDropsTheOverride() {
-        overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
         embedded["1"] = FileCover.Read(null)
         assertEquals(album, overrides().apply(listOf(track("1", revision = "r2"))).single().artworkUri)
         assertEquals(emptyList(), coverFiles())
@@ -140,15 +142,16 @@ internal class TrackCoverOverridesTest {
 
     @Test
     fun aCoverAddedByAnotherAppDropsARemoval() {
-        overrides().record(listOf(TrackId("1")), CoverEdit.Remove)
-        overrides().apply(listOf(track("1", revision = "r2")))
+        saved(CoverEdit.Remove, "1")
+        embedded["1"] = FileCover.Read(null)
+        assertNull(overrides().apply(listOf(track("1", revision = "r2"))).single().artworkUri, "still no cover")
         embedded["1"] = FileCover.Read(Crc32.of(png))
         assertEquals(album, overrides().apply(listOf(track("1", revision = "r3"))).single().artworkUri)
     }
 
     @Test
     fun aFileTheTagReadersNoLongerRecogniseDropsTheOverride() {
-        overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
         embedded["1"] = FileCover.Unrecognised
         assertEquals(album, overrides().apply(listOf(track("1", revision = "r2"))).single().artworkUri)
         assertEquals(emptyList(), coverFiles())
@@ -156,7 +159,7 @@ internal class TrackCoverOverridesTest {
 
     @Test
     fun aFileThatCannotBeOpenedKeepsTheOverrideAndIsCheckedAgainNextScan() {
-        overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
         embedded["1"] = FileCover.Unreadable
         assertEquals(fileUri(jpeg, "jpg"), overrides().apply(listOf(track("1", revision = "r2"))).single().artworkUri)
         embedded["1"] = FileCover.Read(Crc32.of(jpeg))
@@ -176,27 +179,26 @@ internal class TrackCoverOverridesTest {
 
     @Test
     fun aCoverSharedBySeveralSongsStaysWhileOneStillUsesIt() {
-        overrides().record(listOf(TrackId("1"), TrackId("2")), CoverEdit.Replace(jpeg, "image/jpeg"))
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1", "2")
         embedded["1"] = FileCover.Read(Crc32.of(png))
         embedded["2"] = FileCover.Read(Crc32.of(jpeg))
-        val applied = overrides().apply(listOf(track("1"), track("2")))
+        val applied = overrides().apply(listOf(track("1", revision = "r2"), track("2", revision = "r2")))
         assertEquals(listOf(album, fileUri(jpeg, "jpg")), applied.map { it.artworkUri })
         assertEquals(listOf("%08x.jpg".format(Crc32.of(jpeg))), coverFiles())
     }
 
     @Test
     fun aSecondNewCoverReplacesTheFirstAndItsFile() {
-        overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
         overrides().record(listOf(TrackId("1")), CoverEdit.Replace(png, "image/png"))
-        embedded["1"] = FileCover.Read(Crc32.of(png))
-        assertEquals(fileUri(png, "png"), overrides().apply(listOf(track("1"))).single().artworkUri)
+        assertEquals(fileUri(png, "png"), overrides().apply(listOf(track("1", revision = "r2"))).single().artworkUri)
         assertEquals(listOf("%08x.png".format(Crc32.of(png))), coverFiles())
+        assertEquals(emptyList(), reads, "a new save is trusted, not checked")
     }
 
     @Test
     fun aMissingCoverFileDropsTheOverride() {
         overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
-        embedded["1"] = FileCover.Read(Crc32.of(jpeg))
         File(directory, "%08x.jpg".format(Crc32.of(jpeg))).delete()
         assertEquals(album, overrides().apply(listOf(track("1"))).single().artworkUri)
     }
@@ -204,18 +206,29 @@ internal class TrackCoverOverridesTest {
     @Test
     fun aSongWithoutAlbumArtGetsNoOverrideSoItsGroupingCannotChange() {
         overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
-        embedded["1"] = FileCover.Read(Crc32.of(jpeg))
         val applied = overrides().apply(listOf(track("1", artwork = null))).single()
         assertNull(applied.artworkUri)
         assertNull(applied.albumArtworkUri)
     }
 
     @Test
-    fun aDamagedIndexIsAnEmptyOne() {
-        directory.mkdirs()
+    fun aDamagedIndexIsAnEmptyOneAndItsImagesAreDeleted() {
+        overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
         File(directory, "overrides.txt").writeText("not\tan index\n\u0000")
         val tracks = listOf(track("1"))
         assertSame(tracks.single(), overrides().apply(tracks).single())
+        assertEquals(emptyList(), coverFiles())
+        assertFalse(File(directory, "overrides.txt").exists())
+    }
+
+    @Test
+    fun temporaryFilesACrashLeftAreSweptAtTheNextWrite() {
+        directory.mkdirs()
+        val leftovers = listOf(File(directory, ".0a1b2c3d.jpg.tmp"), File(directory, ".overrides.txt.tmp"))
+        leftovers.forEach { it.writeBytes(byteArrayOf(1)) }
+        overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
+        assertTrue(leftovers.none(File::exists))
+        assertEquals(listOf("%08x.jpg".format(Crc32.of(jpeg))), coverFiles())
     }
 
     @Test

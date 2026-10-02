@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -140,5 +141,36 @@ internal class TagEditRefreshTest {
         val cover = CoverEdit.Replace(byteArrayOf(1), "image/png")
         val report = TagWriteReport(TagWriteKind.EDIT, listOf(FileWriteResult("k1", FileWriteStatus.SAVED)), id = 7, cover = cover)
         assertSame(cover, TagSaveResult.of(report, readOnlyIsMusicLibrary = false).cover)
+    }
+
+    @Test
+    fun aCoverSavedOnlyIntoFilesThatAlreadyHeldItIsStillRecordedAndRefreshed() {
+        val tracks = listOf(track("1", "A"), track("2", "A"))
+        val cover = CoverEdit.Replace(byteArrayOf(1), "image/png")
+        val result = TagSaveResult(listOf(TagSaveEntry("k1", FileWriteStatus.UNCHANGED)), cover = cover)
+        val followUp = TagSaveFollowUp(listOf(tracks to result), listOf(result), { it.audioUri })
+        assertTrue(followUp.needed)
+        assertEquals(listOf(listOf(TrackId("1")) to cover), followUp.covers)
+        assertEquals(listOf("1"), followUp.refreshed(tracks, { it.audioUri }).map { it.id.value })
+    }
+
+    @Test
+    fun aFollowUpRefreshesChangedFilesAndNothingWithoutAChangeOrACover() {
+        val tracks = listOf(track("1", "A"), track("2", "A"), track("3", "A"))
+        val written = TagSaveResult(listOf(TagSaveEntry("k1", FileWriteStatus.SAVED), TagSaveEntry("k2", FileWriteStatus.UNCHANGED)))
+        val followUp = TagSaveFollowUp(listOf(tracks to written), listOf(written), { it.audioUri })
+        assertTrue(followUp.needed)
+        assertEquals(emptyList(), followUp.covers)
+        assertEquals(listOf("1"), followUp.refreshed(tracks, { it.audioUri }).map { it.id.value })
+        val same = TagSaveResult(listOf(TagSaveEntry("k1", FileWriteStatus.UNCHANGED)))
+        assertFalse(TagSaveFollowUp(listOf(tracks to same), listOf(same), { it.audioUri }).needed)
+    }
+
+    @Test
+    fun aReportNamesEveryFileItsSaveTouched() {
+        val result = TagSaveResult(
+            listOf(TagSaveEntry("a", FileWriteStatus.SAVED), TagSaveEntry("b", FileWriteStatus.UNCHANGED), TagSaveEntry("c", FileWriteStatus.FAILED, problem = TagProblem.FAILED)),
+        )
+        assertEquals(setOf("a", "b", "c"), result.keys())
     }
 }

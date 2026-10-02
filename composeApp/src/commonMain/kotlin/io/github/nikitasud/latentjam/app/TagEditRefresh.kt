@@ -114,7 +114,9 @@ internal fun tracksWithKeys(
 
 /**
  * The tracks among [saved] whose files now hold this save's new or removed cover: every file that
- * holds the edit, one already so included. None when the save kept the cover.
+ * holds the edit. One that already held it (UNCHANGED) is included: its bytes did not change, but
+ * the cover shown for it may have been its album's, and from now on it is its own. None when the
+ * save kept the cover.
  */
 internal fun TagSaveResult.coverSavedTracks(
     saved: List<TrackDescriptor>,
@@ -123,4 +125,32 @@ internal fun TagSaveResult.coverSavedTracks(
     if (cover == CoverEdit.Keep) return emptyList()
     val holding = entries.filter { it.saved }.mapTo(HashSet()) { it.key }
     return tracksWithKeys(saved, holding, keyOf).map { it.id }
+}
+
+/** Every file a finished save names, whatever became of it. */
+internal fun TagSaveResult.keys(): Set<String> = entries.mapTo(HashSet()) { it.key }
+
+/**
+ * What finished saves leave to do outside the files: the files whose bytes changed, and each edit's
+ * saved cover with the tracks that now hold it. [edits] pairs each edit's tracks with its result,
+ * [results] are all the saves. A cover saved only into files that already held it still has its
+ * tracks recorded and refreshed, though no file changed.
+ */
+internal class TagSaveFollowUp(
+    edits: List<Pair<List<TrackDescriptor>, TagSaveResult>>,
+    results: List<TagSaveResult>,
+    keyOf: (TrackDescriptor) -> String?,
+) {
+    val changedKeys: Set<String> = results.flatMapTo(HashSet()) { it.changedKeys() }
+    val covers: List<Pair<List<TrackId>, CoverEdit>> = edits
+        .map { (saved, result) -> result.coverSavedTracks(saved, keyOf) to result.cover }
+        .filter { (ids, _) -> ids.isNotEmpty() }
+    private val coveredIds: Set<TrackId> = covers.flatMapTo(HashSet()) { it.first }
+
+    /** False when nothing changed: no file, and no cover to record. */
+    val needed: Boolean get() = changedKeys.isNotEmpty() || coveredIds.isNotEmpty()
+
+    /** The tracks of [fresh] whose queued copies the follow-up refreshes. */
+    fun refreshed(fresh: List<TrackDescriptor>, keyOf: (TrackDescriptor) -> String?): List<TrackDescriptor> =
+        fresh.filter { track -> track.id in coveredIds || keyOf(track)?.let(changedKeys::contains) == true }
 }

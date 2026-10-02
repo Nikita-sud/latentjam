@@ -900,7 +900,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
          * otherwise start a sync without them. Then the saved covers, which the library must know of
          * before it reloads: Android's covers are per album, and only a recorded one is the song's
          * own. Then one library reload. Then the queue and the open page, which hold descriptors by
-         * value. Nothing runs when no file changed; else the job.
+         * value. Nothing runs when no file changed and no cover is to be recorded; else the job.
          *
          * On the app's scope, not this composition's: an Activity recreated within the second this
          * takes (a rotation) would otherwise cancel it, leaving the carry-overs and covers unstored
@@ -913,18 +913,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             results: List<TagSaveResult>,
         ): Job? {
             val access = tagAccess ?: return null
-            val changedKeys = results.flatMapTo(HashSet()) { it.changedKeys() }
-            if (changedKeys.isEmpty()) return null
+            val followUp = TagSaveFollowUp(edits, results, access::keyOf)
+            if (!followUp.needed) return null
             return AppGraph.appScope.launch(Dispatchers.Main) {
                 for ((saved, result) in edits) {
                     AppGraph.audioCarryOvers.add(audioCarryOversOf(saved, result, access::keyOf))
                 }
-                for ((saved, result) in edits) {
-                    val covered = result.coverSavedTracks(saved, access::keyOf)
-                    if (covered.isNotEmpty()) library.coverSaved(covered, result.cover)
-                }
+                for ((ids, cover) in followUp.covers) library.coverSaved(ids, cover)
                 val fresh = scanLibrary()
-                playback.refreshTracks(tracksWithKeys(fresh, changedKeys, access::keyOf))
+                playback.refreshTracks(followUp.refreshed(fresh, access::keyOf))
                 refreshOpenCollection(fresh)
             }
         }
@@ -4575,7 +4572,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             val held = tracks.orEmpty()
             val edits = results
                 .filter { (report, _) -> report.kind == TagWriteKind.EDIT }
-                .map { (_, result) -> tracksWithKeys(held, result.changedKeys(), access::keyOf) to result }
+                // Every file the report names, as the editors pass theirs: one that already held a
+                // new cover gets it recorded too. The carry-overs pick the written files themselves.
+                .map { (_, result) -> tracksWithKeys(held, result.keys(), access::keyOf) to result }
             val follow = followTagSaves(edits, results.map { it.second })
             // The notices belong to this composition's snackbar host; they wait for the follow-up.
             scope.launch {
