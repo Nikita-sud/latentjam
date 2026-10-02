@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.ui.geometry.Rect
 import io.github.nikitasud.latentjam.playback.NowPlaying
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -45,30 +46,82 @@ internal fun artworkNeighbourReveal(travel: Float, width: Float, forward: Boolea
     return progress * progress * (3f - 2f * progress)
 }
 
-/** Pulling the player down moves it three quarters of the way, so the release still feels light. */
-internal fun collapseShown(dy: Float): Float = dy.coerceAtLeast(0f) * COLLAPSE_FOLLOW
-
+/** Past this pull a release would close the player; the cover announces it with one tick. */
 internal fun collapseCommits(dy: Float, threshold: Float): Boolean = dy > threshold
 
-/** How much the full player shrinks while pulled down by [pulled] px (toward its bottom edge). */
-internal fun collapsePullScale(pulled: Float): Float =
-    1f - (pulled / COLLAPSE_SCALE_DIVISOR).coerceIn(0f, COLLAPSE_MAX_SHRINK)
+/**
+ * Whether the library under the player needs drawing. The full player is opaque and fills the
+ * window, so only at [progress] 1 (fully expanded, which no drag or settle can leave untouched) is
+ * the library hidden, and drawing it would only add overdraw to every frame of the player's own
+ * motion. Any pull at all uncovers part of it again.
+ */
+internal fun libraryDrawnUnderPlayer(progress: Float): Boolean = progress < 1f
 
 /**
- * Whether the library under the full player needs drawing. The player is opaque and fills the
- * window, so once it has finished opening ([playerOpen] reached [playerOpening] with nothing
- * running) the library is fully hidden and drawing it would only add overdraw to every frame of
- * the player's own motion. Any transition, or any pull at all, uncovers part of it again.
+ * Where a released drag of the player settles. A fling decides by its direction alone; a slow
+ * release stays where it started unless the finger carried it past [commitFraction] of the way,
+ * the same distance in both directions. [velocity] is in expansions per second, positive opening.
  */
-internal fun libraryDrawnUnderPlayer(
-    playerOpening: Boolean,
-    playerOpen: Boolean,
-    playerIdle: Boolean,
-    pulled: Float,
-): Boolean = !(playerOpening && playerOpen && playerIdle) || pulled > 0f
+internal fun expansionSettlesOpen(
+    progress: Float,
+    velocity: Float,
+    wasOpen: Boolean,
+    commitFraction: Float,
+    flingVelocity: Float,
+): Boolean = when {
+    velocity > flingVelocity -> true
+    velocity < -flingVelocity -> false
+    wasOpen -> progress > 1f - commitFraction
+    else -> progress > commitFraction
+}
 
-private const val COLLAPSE_SCALE_DIVISOR = 3_200f
-private const val COLLAPSE_MAX_SHRINK = 0.1f
+/** The mini player's own content leaves early, before the full player's begins to show. */
+internal fun miniPlayerContentAlpha(progress: Float): Float =
+    (1f - progress / MINI_CONTENT_FADE).coerceIn(0f, 1f)
+
+/** The full player's content arrives over the middle of the travel and is whole well before the top. */
+internal fun fullPlayerContentAlpha(progress: Float): Float =
+    ((progress - FULL_CONTENT_FADE_START) / FULL_CONTENT_FADE_SPAN).coerceIn(0f, 1f)
+
+/** The pill's colour turns into the player's floor over the first half of the travel. */
+internal fun playerSurfaceColorFraction(progress: Float): Float =
+    (progress / SURFACE_COLOR_SPAN).coerceIn(0f, 1f)
+
+/** The page under the player dims with it, so the growing surface reads as being in front. */
+internal fun libraryScrimAlpha(progress: Float): Float =
+    LIBRARY_SCRIM_MAX * progress.coerceIn(0f, 1f)
+
+/**
+ * The mini player's card in the window: inside the navigation bars, [margin] from the edges,
+ * [height] tall. Mirrors the pill's own padding so the surface that grows out of it starts exactly
+ * on top of it.
+ */
+internal fun miniPlayerBounds(
+    width: Float,
+    height: Float,
+    insetLeft: Float,
+    insetRight: Float,
+    insetBottom: Float,
+    margin: Float,
+    pillHeight: Float,
+): Rect {
+    val bottom = height - insetBottom - margin
+    return Rect(insetLeft + margin, bottom - pillHeight, width - insetRight - margin, bottom)
+}
+
+/** The 48 dp thumbnail inside the pill, at its start edge and vertically centred. */
+internal fun miniPlayerThumbnailBounds(pill: Rect, startPadding: Float, size: Float, rtl: Boolean): Rect {
+    val left = if (rtl) pill.right - startPadding - size else pill.left + startPadding
+    val top = pill.center.y - size / 2f
+    return Rect(left, top, left + size, top + size)
+}
+
+private const val MINI_CONTENT_FADE = 0.25f
+private const val FULL_CONTENT_FADE_START = 0.1f
+private const val FULL_CONTENT_FADE_SPAN = 0.5f
+private const val SURFACE_COLOR_SPAN = 0.5f
+private const val LIBRARY_SCRIM_MAX = 0.32f
+
 
 /**
  * Sliding the finger below the bar slows scrubbing: half speed past [halfAt], a quarter past
@@ -157,7 +210,6 @@ private fun groupThousands(value: Int): String {
 private const val SWIPE_FOLLOW = 0.92f
 private const val SWIPE_BLOCKED_FOLLOW = 0.3f
 private const val SWIPE_COMMIT_FRACTION = 0.3f
-private const val COLLAPSE_FOLLOW = 0.75f
 private const val SKIP_HOLD_STEP_MS = 1_500L
 private const val SKIP_HOLD_BASE = 4
 private const val SKIP_HOLD_MAX_STEPS = 3

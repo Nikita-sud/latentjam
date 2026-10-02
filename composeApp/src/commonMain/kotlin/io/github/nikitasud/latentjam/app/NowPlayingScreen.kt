@@ -8,7 +8,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -20,11 +19,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -98,7 +94,6 @@ import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -106,8 +101,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -126,7 +119,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
@@ -188,7 +180,6 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlin.time.TimeMark
@@ -251,15 +242,13 @@ internal fun queueLazyItemKey(
  * is visible without discovery. The transport keeps repeat and shuffle at the
  * outer edges with play/pause largest and centred (Fitts's law).
  */
-@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NowPlayingScreen(
     playback: PlaybackController,
     accent: TrackAccent,
     /** Resolved "Playing from" name — collection title, search query, or a surface label. */
     queueSourceLabel: String? = null,
-    sharedScope: SharedTransitionScope,
-    animatedScope: AnimatedVisibilityScope,
     sleepTimerState: SleepTimerState,
     onStartSleepTimer: (minutes: Int) -> Unit,
     onSleepAtEndOfTrack: () -> Unit,
@@ -285,11 +274,14 @@ fun NowPlayingScreen(
     onShowOnMap: ((TrackDescriptor) -> Unit)? = null,
     active: Boolean = true,
     /**
-     * How far the cover has pulled the whole player down, in px. The app owns it because the
-     * library lies under this screen and has to know, in its draw phase only, when a pull uncovers
-     * part of it; nothing but this screen writes it.
+     * A downward drag on the cover or the top bar, in screen px per move. The player sheet turns it
+     * into its one expansion progress, so the whole player follows the finger without this screen
+     * recomposing; [onCollapseRelease] settles it and answers whether the player closes.
      */
-    collapseOffset: MutableFloatState = remember { mutableFloatStateOf(0f) },
+    onCollapseDrag: (deltaPx: Float) -> Unit = {},
+    onCollapseRelease: (velocity: Float) -> Boolean = { false },
+    /** Lets the sheet find the cover's place and hide it while a copy flies to the mini player. */
+    artworkModifier: Modifier = Modifier,
     onClose: () -> Unit,
 ) {
     // Position is intentionally projected out. It changes twice per second, while artwork, queue,
@@ -333,37 +325,6 @@ fun NowPlayingScreen(
     LaunchedEffect(flipped, currentTrackId) {
         if (flipped && currentTrackId != null) trackStats = AppGraph.history.stats()[currentTrackId]
     }
-    // Pulling the cover down carries the whole surface; read only by the layer below, so the
-    // drag never recomposes the screen. On release it springs home, or the player leaves from
-    // where the finger let go.
-    var collapseJob by remember { mutableStateOf<Job?>(null) }
-    // The offset outlives this screen, and an exit can be cut short mid-slide: the next player
-    // must open at rest, and the library must not read a stale pull as "partly uncovered".
-    DisposableEffect(collapseOffset) {
-        onDispose { collapseOffset.floatValue = 0f }
-    }
-    // A pull that commits does not morph back into the pill. Shared bounds start from the layout
-    // position, which a pull never moves (it is a layer transform), so the morph would first
-    // throw the player back to full size and only then shrink it. Turning the match off for that
-    // one exit lets the player carry on down from the finger while the pill fades in.
-    var pullCommitted by remember { mutableStateOf(false) }
-    val morphConfig = remember { PlayerMorphConfig { !pullCommitted } }
-    val windowInfo = LocalWindowInfo.current
-    fun settleCollapse(durationMs: Int) {
-        collapseJob?.cancel()
-        if (reduceMotion) {
-            collapseOffset.floatValue = 0f
-            return
-        }
-        if (collapseOffset.floatValue == 0f) return
-        collapseJob = scope.launch {
-            animate(
-                initialValue = collapseOffset.floatValue,
-                targetValue = 0f,
-                animationSpec = tween(durationMs),
-            ) { value, _ -> collapseOffset.floatValue = value }
-        }
-    }
     // The lyrics button exists only for songs that carry lyrics, so every track is probed for
     // them once it has settled: a bounded off-main read, delayed past rapid skipping so a run
     // through the queue does not read a tag for every stop on the way. Until the probe answers
@@ -378,24 +339,9 @@ fun NowPlayingScreen(
     // removes it. Otherwise Back collapses the full player as usual.
     PlatformBackHandler(enabled = active && !showLyrics, onBack = onClose)
 
-    Surface(
-        // Same shared container as the mini-player pill: the pill grows into
-        // this screen instead of being swapped for it.
-        modifier = if (reduceMotion) {
-            Modifier.fillMaxSize().collapsePull(collapseOffset)
-        } else with(sharedScope) {
-            // The pull sits INSIDE the shared bounds: during a transition the shared content is
-            // drawn from the overlay, which skips any layer outside it.
-            Modifier
-                .fillMaxSize()
-                .sharedBounds(
-                    rememberSharedContentState(PLAYER_SURFACE_KEY, morphConfig),
-                    animatedScope,
-                    boundsTransform = motionBoundsTransform(),
-                )
-                .collapsePull(collapseOffset)
-        },
-    ) {
+    // The player sheet grows this screen out of the mini-player pill and carries it while it is
+    // dragged; nothing here moves for that, so a drag never recomposes the screen.
+    Surface(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -480,11 +426,16 @@ fun NowPlayingScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     // Matches the library's top bar geometry exactly, so the
-                    // overflow lands in the same place before and after the morph.
+                    // overflow lands in the same place before and after the morph. The bar is a
+                    // handle too: pulling it down carries the player like the cover does.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(64.dp)
+                            .playerExpansionDrag(
+                                onDrag = onCollapseDrag,
+                                onRelease = { velocity -> onCollapseRelease(velocity) },
+                            )
                             .padding(horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -567,8 +518,6 @@ fun NowPlayingScreen(
                         }
                         // One tap to the full list of actions; the sleep timer lives there too.
                         OverflowButton(
-                            sharedScope = sharedScope,
-                            animatedScope = animatedScope,
                             onClick = {
                                 haptics.play(PlayerHaptic.TAP)
                                 now.track?.let(onTrackMenu)
@@ -603,34 +552,8 @@ fun NowPlayingScreen(
                                     // can already be one entry ahead while Compose catches up.
                                     queueNeighbour(now, forward)
                                 },
-                                onCollapseDrag = { pulled ->
-                                    if (pulled == 0f) {
-                                        settleCollapse(Motion.APPEAR_MS)
-                                    } else {
-                                        collapseJob?.cancel()
-                                        collapseOffset.floatValue = pulled
-                                    }
-                                },
-                                onCollapse = { velocity ->
-                                    pullCommitted = true
-                                    onClose()
-                                    collapseJob?.cancel()
-                                    // Reduced motion only dissolves, in place; otherwise the surface
-                                    // keeps the finger's speed and slides on towards the bottom edge
-                                    // while the exit fades it out.
-                                    if (!reduceMotion) collapseJob = scope.launch {
-                                        animate(
-                                            initialValue = collapseOffset.floatValue,
-                                            targetValue = windowInfo.containerSize.height.toFloat()
-                                                .coerceAtLeast(collapseOffset.floatValue),
-                                            initialVelocity = collapseShown(velocity),
-                                            animationSpec = spring(
-                                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                                stiffness = Spring.StiffnessMediumLow,
-                                            ),
-                                        ) { value, _ -> collapseOffset.floatValue = value }
-                                    }
-                                },
+                                onCollapseDrag = onCollapseDrag,
+                                onCollapseRelease = onCollapseRelease,
                                 details = {
                                     now.track?.let { track ->
                                         TrackDetailsFace(
@@ -642,13 +565,7 @@ fun NowPlayingScreen(
                                         )
                                     }
                                 },
-                                modifier = if (reduceMotion) Modifier else with(sharedScope) {
-                                    Modifier.sharedElement(
-                                        rememberSharedContentState(ARTWORK_KEY, morphConfig),
-                                        animatedScope,
-                                        boundsTransform = motionBoundsTransform(),
-                                    )
-                                },
+                                modifier = artworkModifier,
                             )
                         },
                         controls = { compact ->
@@ -1348,26 +1265,6 @@ internal fun queueNeighbour(now: NowPlaying, forward: Boolean): TrackDescriptor?
 /** Natural completion repeats the current track in repeat-one; a manual skip still advances. */
 internal fun nextUpTrack(now: NowPlaying): TrackDescriptor? =
     if (now.repeatMode == RepeatMode.ONE) now.track else queueNeighbour(now, forward = true)
-
-/** Shared player elements that a committed pull switches off for the exit it starts. */
-@OptIn(ExperimentalSharedTransitionApi::class)
-private class PlayerMorphConfig(
-    private val enabled: () -> Boolean,
-) : SharedTransitionScope.SharedContentConfig {
-    override val SharedTransitionScope.SharedContentState.isEnabled: Boolean
-        get() = enabled()
-}
-
-/** The pull-down: the surface follows the finger and shrinks a little towards its bottom edge. */
-private fun Modifier.collapsePull(offset: androidx.compose.runtime.MutableFloatState): Modifier =
-    graphicsLayer {
-        val pulled = offset.floatValue
-        translationY = pulled
-        val scale = collapsePullScale(pulled)
-        scaleX = scale
-        scaleY = scale
-        transformOrigin = TransformOrigin(0.5f, 1f)
-    }
 
 @Composable
 private fun SleepTimerDialog(

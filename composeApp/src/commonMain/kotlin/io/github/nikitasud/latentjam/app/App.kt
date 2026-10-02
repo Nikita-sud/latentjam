@@ -121,7 +121,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -311,9 +310,7 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
-/** Shared-element keys for the mini-player → now-playing morph. */
-internal const val ARTWORK_KEY = "now-playing-artwork"
-internal const val PLAYER_SURFACE_KEY = "now-playing-surface"
+/** Shared-element key of the overflow button. */
 internal const val OVERFLOW_KEY = "overflow-button"
 
 /**
@@ -2411,23 +2408,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // The full player is an overlay on a library that never leaves composition, the way every
         // mainstream player does it: pulling the player down shows the very page it returns to,
         // and closing it costs no rebuild of the browse shell, its scroll positions or its pages.
-        val playerVisibility = remember { MutableTransitionState(showNowPlaying) }
-        playerVisibility.targetState = showNowPlaying
-        val playerMorphMs = if (reduceMotion) Motion.REDUCED_MS else Motion.EMPHASIZED_MS
-        // Written only by the player's pull; read here in the draw phase, never in composition.
-        val playerPull = remember { mutableFloatStateOf(0f) }
+        // One progress, 0 for the mini player and 1 for the full one, carries the whole way.
+        val playerExpansion = remember { PlayerExpansion(showNowPlaying, scope) }
         // A covered library is still composed, so it would still be drawn under every frame of the
-        // player's own motion. Once the opaque player has finished opening and is not pulled, skip
-        // it. Derived, so a drag invalidates the library's draw only when it starts or ends.
+        // player's own motion. At full expansion skip it. Derived, so a drag invalidates the
+        // library's draw only when it leaves or reaches the top.
         val libraryDrawn = remember {
-            derivedStateOf {
-                libraryDrawnUnderPlayer(
-                    playerOpening = playerVisibility.targetState,
-                    playerOpen = playerVisibility.currentState,
-                    playerIdle = playerVisibility.isIdle,
-                    pulled = playerPull.floatValue,
-                )
-            }
+            derivedStateOf { libraryDrawnUnderPlayer(playerExpansion.progress) }
         }
         // A field focused in the library (search, a playlist name) would keep the keyboard up over
         // the player now that the field is no longer disposed with the library.
@@ -2448,23 +2435,28 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.surface),
         ) {
-        SharedTransitionLayout(
+        Box(
             modifier = Modifier.graphicsLayer {
                 // Leave the initiating icon anchored while its destination unfolds over it.
                 val p = settingsOpenProgress.value
                 alpha = 1f - 0.18f * 4f * p * (1f - p)
             },
         ) {
-            val sharedScope = this
-            val playerTransition = rememberTransition(playerVisibility, label = "player-surface")
             // The library: always composed, inert and hidden from accessibility while the player is
             // up (or Settings covers both), so neither a touch through an uncovered gap nor
-            // TalkBack can reach it. Its own layer keeps the per-frame overlay of the morph from
-            // re-recording it, and the gate in front skips drawing it while it is fully covered.
+            // TalkBack can reach it. The scrim that dims it as the player rises is drawn in a small
+            // layer of its own, so a frame of motion re-records that and not the library, and the
+            // gate skips the library entirely while the player covers it.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .drawWithContent { if (libraryDrawn.value) drawContent() }
+                    .graphicsLayer()
+                    .drawWithContent {
+                        if (!libraryDrawn.value) return@drawWithContent
+                        drawContent()
+                        val scrim = libraryScrimAlpha(playerExpansion.progress)
+                        if (scrim > 0f) drawRect(Color.Black, alpha = scrim)
+                    }
                     .graphicsLayer()
                     .inactiveDuringTransition(showNowPlaying || settingsOverlayActive),
             ) {
@@ -3870,53 +3862,48 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                     }
                                 },
                         )
-                        (currentTrack ?: lastMiniPresentation.track)?.let { current ->
-                            // The pill's half of the morph runs on the player's own transition. It
-                            // leaves composition while the player is up, so its playhead ticker
-                            // does not run behind the player.
-                            playerTransition.AnimatedVisibility(
-                                visible = { open -> !open },
-                                modifier = Modifier.align(Alignment.BottomCenter),
-                                enter = fadeIn(tween(playerMorphMs)),
-                                exit = fadeOut(tween(playerMorphMs)),
-                            ) {
-                            val pillScope = this
-                            MiniPlayerPill(
-                                height = miniPlayerHeight,
-                                track = current,
-                                accent = if (currentTrack != null) {
-                                    accent
-                                } else {
-                                    lastMiniPresentation.accent
-                                },
-                                isPlaying = if (currentTrack != null) {
-                                    showPauseButton
-                                } else {
-                                    lastMiniPresentation.isPlaying
-                                },
-                                playback = playback,
-                                sharedScope = sharedScope,
-                                animatedScope = pillScope,
-                                onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
-                                onPrevious = { scope.launch { playback.previous() } },
-                                onNext = { scope.launch { playback.next() } },
-                                onOpen = { showNowPlaying = true },
-                            )
-                            }
-                    }
                         }
                         }
                     }
                 }
             }
-            // The player lies over the library in the same shared scope, so the pill still grows
-            // into it. Inert while it leaves, like any outgoing full-screen surface.
-            playerTransition.AnimatedVisibility(
-                visible = { open -> open },
-                modifier = Modifier.fillMaxSize(),
-                enter = fadeIn(tween(playerMorphMs)),
-                exit = fadeOut(tween(playerMorphMs)),
-            ) {
+            // The mini player and the full player are one surface over the library, moved by one
+            // progress: dragged by the finger, settled by a fling, animated by a tap or Back.
+            PlayerSheet(
+                expansion = playerExpansion,
+                open = showNowPlaying,
+                onOpenChange = { showNowPlaying = it },
+                hasTrack = currentTrack != null,
+                pillHeight = miniPlayerHeight,
+                pillColor = miniPlayerSurfaceColor(
+                    if (currentTrack != null) accent else lastMiniPresentation.accent,
+                ),
+                coverUri = (currentTrack ?: lastMiniPresentation.track)?.artworkUri,
+                mini = { thumbnailAlpha ->
+                    (currentTrack ?: lastMiniPresentation.track)?.let { current ->
+                        MiniPlayerPill(
+                            height = miniPlayerHeight,
+                            track = current,
+                            accent = if (currentTrack != null) {
+                                accent
+                            } else {
+                                lastMiniPresentation.accent
+                            },
+                            isPlaying = if (currentTrack != null) {
+                                showPauseButton
+                            } else {
+                                lastMiniPresentation.isPlaying
+                            },
+                            playback = playback,
+                            artworkAlpha = thumbnailAlpha,
+                            onTogglePlayPause = { scope.launch { playback.togglePlayPause() } },
+                            onPrevious = { scope.launch { playback.previous() } },
+                            onNext = { scope.launch { playback.next() } },
+                            onOpen = { showNowPlaying = true },
+                        )
+                    }
+                },
+                full = { artworkModifier, onCollapseDrag, onCollapseRelease ->
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -3930,8 +3917,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         queueSourceLabel = queueSource?.let { source ->
                             source.name ?: source.kind.fallbackLabelRes()?.let { stringResource(it) }
                         },
-                        sharedScope = sharedScope,
-                        animatedScope = this@AnimatedVisibility,
                         sleepTimerState = sleepTimerState,
                         onStartSleepTimer = sleepTimer::startCountdown,
                         onSleepAtEndOfTrack = sleepTimer::startAtEndOfTrack,
@@ -3960,11 +3945,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         },
                         isFavorite = currentTrack?.id?.let { it in favoriteIds } == true,
                         onToggleFavorite = { currentTrack?.id?.let(::toggleFavorite) },
-                        collapseOffset = playerPull,
+                        onCollapseDrag = onCollapseDrag,
+                        onCollapseRelease = onCollapseRelease,
+                        artworkModifier = artworkModifier,
                         onClose = { showNowPlaying = false },
                     )
                 }
-            }
+                },
+            )
         }
             // One host above both AnimatedContent branches: collection/search surfaces and the
             // full player otherwise cover the Scaffold-owned host, making Undo technically exist
@@ -5276,8 +5264,9 @@ private fun SelectionAction(
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun OverflowButton(
-    sharedScope: SharedTransitionScope,
-    animatedScope: AnimatedVisibilityScope,
+    /** Both null (as in the player, which no longer morphs) leave the button unshared. */
+    sharedScope: SharedTransitionScope? = null,
+    animatedScope: AnimatedVisibilityScope? = null,
     /** Set, the button goes straight to this instead of dropping a menu. */
     onClick: (() -> Unit)? = null,
     menuItems: @Composable ColumnScope.(dismiss: () -> Unit) -> Unit = {},
@@ -5287,7 +5276,7 @@ internal fun OverflowButton(
     Box {
         IconButton(
             onClick = { if (onClick != null) onClick() else open = true },
-            modifier = if (reduceMotion) {
+            modifier = if (reduceMotion || sharedScope == null || animatedScope == null) {
                 Modifier
             } else with(sharedScope) {
                 Modifier.sharedElement(
@@ -5722,24 +5711,23 @@ private fun FolderRow(
 
 /**
  * A floating, artwork-tinted mini-player with an adaptive height for larger text.
- * Shell insets and selection actions use the same measured text-height budget. Artwork and
- * container remain shared elements, so opening the player grows this card into the full screen.
+ * Shell insets and selection actions use the same measured text-height budget. The player sheet
+ * draws the surface that grows out of this card and flies its thumbnail to the full cover.
  */
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun MiniPlayerPill(
     track: TrackDescriptor,
     accent: TrackAccent,
     isPlaying: Boolean,
     playback: PlaybackController,
-    sharedScope: SharedTransitionScope,
-    animatedScope: AnimatedVisibilityScope,
     onTogglePlayPause: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
     height: androidx.compose.ui.unit.Dp = MINI_PLAYER_HEIGHT,
+    /** Zero while the cover's copy flies out of (or back into) this thumbnail. */
+    artworkAlpha: () -> Float = { 1f },
 ) {
     val reduceMotion = rememberReduceMotion()
     // Only queue-entry changes cancel a swipe; playback-position ticks stay out of this UI.
@@ -5747,7 +5735,7 @@ private fun MiniPlayerPill(
         playback.state.map { it.queueIndex }.distinctUntilChanged()
     }.collectAsState(playback.state.value.queueIndex)
     val playerShape = RoundedCornerShape(24.dp)
-    val miniSurface = lerp(MaterialTheme.colorScheme.surfaceContainer, accent.container, 0.72f)
+    val miniSurface = miniPlayerSurfaceColor(accent)
     val miniInk = MaterialTheme.colorScheme.onSurface
     val fontScale = LocalDensity.current.fontScale
     val previousDescription = stringResource(Res.string.action_previous)
@@ -5758,15 +5746,6 @@ private fun MiniPlayerPill(
                 .navigationBarsPadding()
                 .padding(horizontal = 8.dp, vertical = 8.dp)
                 .height(height - 16.dp)
-                .then(
-                    if (reduceMotion) Modifier else with(sharedScope) {
-                        Modifier.sharedBounds(
-                            rememberSharedContentState(PLAYER_SURFACE_KEY),
-                            animatedScope,
-                            boundsTransform = motionBoundsTransform(),
-                        )
-                    },
-                )
                 // Material Surface still creates a separate rendered surface at zero elevation. On
                 // some Android renderers its boundary is visible as a full-width grey hairline.
                 // A shaped background paints the pill without that extra surface boundary.
@@ -5805,13 +5784,7 @@ private fun MiniPlayerPill(
                         uri = track.artworkUri,
                         size = 48.dp,
                         cornerRadius = 12.dp,
-                        modifier = if (reduceMotion) Modifier else with(sharedScope) {
-                            Modifier.sharedElement(
-                                rememberSharedContentState(ARTWORK_KEY),
-                                animatedScope,
-                                boundsTransform = motionBoundsTransform(),
-                            )
-                        },
+                        modifier = Modifier.graphicsLayer { alpha = artworkAlpha() },
                     )
                     Spacer(Modifier.width(4.dp))
                     AnimatedContent(
@@ -5890,6 +5863,11 @@ private fun MiniPlayerPill(
         }
     }
 }
+
+/** The pill's card: the track's colour over the container tone; the player sheet grows from it. */
+@Composable
+internal fun miniPlayerSurfaceColor(accent: TrackAccent): Color =
+    lerp(MaterialTheme.colorScheme.surfaceContainer, accent.container, 0.72f)
 
 /** Isolates the playhead ticker from the rest of the browse hierarchy. */
 @Composable

@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import androidx.compose.ui.geometry.Rect
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -31,34 +32,82 @@ class PlayerFeelTest {
     }
 
     @Test
-    fun collapseResistsAndCommitsPastTheThreshold() {
-        assertEquals(0f, collapseShown(dy = -50f))
-        assertEquals(75f, collapseShown(dy = 100f))
+    fun theCoverAnnouncesACommitOnlyPastTheThreshold() {
         assertTrue(collapseCommits(dy = 141f, threshold = 140f))
         assertFalse(collapseCommits(dy = 140f, threshold = 140f))
     }
 
     @Test
-    fun thePulledPlayerShrinksAtMostATenthTowardItsBottomEdge() {
-        assertEquals(1f, collapsePullScale(pulled = 0f))
-        assertEquals(1f, collapsePullScale(pulled = -40f))
-        assertEquals(0.95f, collapsePullScale(pulled = 160f))
-        assertEquals(0.9f, collapsePullScale(pulled = 5_000f))
+    fun theLibraryIsSkippedOnlyUnderAFullyExpandedPlayer() {
+        assertFalse(libraryDrawnUnderPlayer(progress = 1f))
+        // The first pixel of a pull uncovers the page it returns to.
+        assertTrue(libraryDrawnUnderPlayer(progress = 0.9999f))
+        assertTrue(libraryDrawnUnderPlayer(progress = 0.5f))
+        assertTrue(libraryDrawnUnderPlayer(progress = 0f))
     }
 
     @Test
-    fun theLibraryIsSkippedOnlyUnderAPlayerThatIsOpenAndAtRest() {
-        // Settled open, not pulled: fully covered.
-        assertFalse(libraryDrawnUnderPlayer(playerOpening = true, playerOpen = true, playerIdle = true, pulled = 0f))
-        // The first pixel of a pull uncovers the page it returns to.
-        assertTrue(libraryDrawnUnderPlayer(playerOpening = true, playerOpen = true, playerIdle = true, pulled = 0.5f))
-        // Still growing out of the pill.
-        assertTrue(libraryDrawnUnderPlayer(playerOpening = true, playerOpen = false, playerIdle = false, pulled = 0f))
-        // Open but a child animation (the shared bounds) is still running.
-        assertTrue(libraryDrawnUnderPlayer(playerOpening = true, playerOpen = true, playerIdle = false, pulled = 0f))
-        // Closing, and closed.
-        assertTrue(libraryDrawnUnderPlayer(playerOpening = false, playerOpen = true, playerIdle = false, pulled = 300f))
-        assertTrue(libraryDrawnUnderPlayer(playerOpening = false, playerOpen = false, playerIdle = true, pulled = 0f))
+    fun aSlowReleaseSettlesByDistanceTheSameWayInBothDirections() {
+        // From the mini player: a short lift falls back, one past the commit distance opens.
+        assertFalse(expansionSettlesOpen(0.15f, velocity = 0f, wasOpen = false, commitFraction = 0.2f, flingVelocity = 1f))
+        assertTrue(expansionSettlesOpen(0.25f, velocity = 0f, wasOpen = false, commitFraction = 0.2f, flingVelocity = 1f))
+        // From the full player: the same distance down closes it, less springs back.
+        assertTrue(expansionSettlesOpen(0.85f, velocity = 0f, wasOpen = true, commitFraction = 0.2f, flingVelocity = 1f))
+        assertFalse(expansionSettlesOpen(0.75f, velocity = 0f, wasOpen = true, commitFraction = 0.2f, flingVelocity = 1f))
+        // Drifting slowly the wrong way does not override the distance.
+        assertTrue(expansionSettlesOpen(0.85f, velocity = -0.9f, wasOpen = true, commitFraction = 0.2f, flingVelocity = 1f))
+    }
+
+    @Test
+    fun aFlingSettlesByItsDirectionWhereverItIsReleased() {
+        assertTrue(expansionSettlesOpen(0.02f, velocity = 1.5f, wasOpen = false, commitFraction = 0.2f, flingVelocity = 1f))
+        assertFalse(expansionSettlesOpen(0.98f, velocity = -1.5f, wasOpen = true, commitFraction = 0.2f, flingVelocity = 1f))
+        // A fling back towards where it started cancels a long drag.
+        assertFalse(expansionSettlesOpen(0.7f, velocity = -1.5f, wasOpen = false, commitFraction = 0.2f, flingVelocity = 1f))
+        assertTrue(expansionSettlesOpen(0.3f, velocity = 1.5f, wasOpen = true, commitFraction = 0.2f, flingVelocity = 1f))
+    }
+
+    @Test
+    fun theTwoContentsHandOverWithoutAGapOrAnOverlapAtTheEnds() {
+        assertEquals(1f, miniPlayerContentAlpha(0f))
+        assertEquals(0f, miniPlayerContentAlpha(0.25f))
+        assertEquals(0f, miniPlayerContentAlpha(1f))
+        assertEquals(0f, fullPlayerContentAlpha(0f))
+        assertEquals(0f, fullPlayerContentAlpha(0.1f))
+        assertEquals(0.5f, fullPlayerContentAlpha(0.35f), absoluteTolerance = 0.0001f)
+        assertEquals(1f, fullPlayerContentAlpha(0.6f), absoluteTolerance = 0.0001f)
+        assertEquals(1f, fullPlayerContentAlpha(1f))
+        val steps = (0..100).map { it / 100f }
+        assertTrue(steps.map(::miniPlayerContentAlpha).zipWithNext().all { (a, b) -> b <= a })
+        assertTrue(steps.map(::fullPlayerContentAlpha).zipWithNext().all { (a, b) -> b >= a })
+    }
+
+    @Test
+    fun theSurfaceColourAndTheScrimFollowTheProgress() {
+        assertEquals(0f, playerSurfaceColorFraction(0f))
+        assertEquals(0.5f, playerSurfaceColorFraction(0.25f))
+        assertEquals(1f, playerSurfaceColorFraction(0.8f))
+        assertEquals(0f, libraryScrimAlpha(0f))
+        assertEquals(0.16f, libraryScrimAlpha(0.5f), absoluteTolerance = 0.0001f)
+        assertEquals(0.32f, libraryScrimAlpha(1f), absoluteTolerance = 0.0001f)
+        assertEquals(0.32f, libraryScrimAlpha(1.4f), absoluteTolerance = 0.0001f)
+    }
+
+    @Test
+    fun thePillSitsInsideTheNavigationBarsAndItsThumbnailAtTheStartEdge() {
+        val pill = miniPlayerBounds(
+            width = 1440f, height = 3120f, insetLeft = 0f, insetRight = 0f, insetBottom = 168f,
+            margin = 28f, pillHeight = 252f,
+        )
+        assertEquals(Rect(28f, 2672f, 1412f, 2924f), pill)
+        // Landscape three-button navigation sits on a side.
+        val side = miniPlayerBounds(
+            width = 3120f, height = 1440f, insetLeft = 0f, insetRight = 168f, insetBottom = 0f,
+            margin = 28f, pillHeight = 252f,
+        )
+        assertEquals(Rect(28f, 1160f, 2924f, 1412f), side)
+        assertEquals(Rect(63f, 2714f, 231f, 2882f), miniPlayerThumbnailBounds(pill, 35f, 168f, rtl = false))
+        assertEquals(Rect(1209f, 2714f, 1377f, 2882f), miniPlayerThumbnailBounds(pill, 35f, 168f, rtl = true))
     }
 
     @Test

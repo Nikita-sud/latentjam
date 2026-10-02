@@ -49,10 +49,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -99,10 +100,10 @@ internal fun PlayerArtworkCard(
     canSkipBackward: Boolean,
     /** Track a swipe in that direction would reach; a missing image still gets a cover face. */
     neighbourTrack: (forward: Boolean) -> TrackDescriptor?,
-    /** Called with the resisted pull in px while the finger drags down, and with 0f on release. */
-    onCollapseDrag: (Float) -> Unit,
-    /** Called once a pull passes the threshold, with the finger's downward speed in px/s. */
-    onCollapse: (velocity: Float) -> Unit,
+    /** Each move of a downward pull, in screen px (positive down), one-to-one with the finger. */
+    onCollapseDrag: (deltaPx: Float) -> Unit,
+    /** The pull ended with the finger's downward speed in px/s; true when the player closes. */
+    onCollapseRelease: (velocity: Float) -> Boolean,
     details: @Composable () -> Unit,
     queueIndex: Int = -1,
     /** Restarts keep the current cover and return it immediately after the skip action. */
@@ -142,7 +143,7 @@ internal fun PlayerArtworkCard(
     val currentOnSkip by rememberUpdatedState(onSkip)
     val currentSkipChangesTrack by rememberUpdatedState(skipChangesTrack)
     val currentOnCollapseDrag by rememberUpdatedState(onCollapseDrag)
-    val currentOnCollapse by rememberUpdatedState(onCollapse)
+    val currentOnCollapseRelease by rememberUpdatedState(onCollapseRelease)
     val currentCanForward by rememberUpdatedState(canSkipForward)
     val currentCanBackward by rememberUpdatedState(canSkipBackward)
 
@@ -179,6 +180,8 @@ internal fun PlayerArtworkCard(
     val actionsDescription = stringResource(Res.string.action_track_options)
     val ringColor = MaterialTheme.colorScheme.onSurface
     val ringTrack = ringColor.copy(alpha = 0.18f)
+    // Where this card is, layers included, as of the latest placement; see the vertical pull.
+    val placed = remember { PlacedCoordinates() }
     Box(
         // Square, as tall as the space allows and never wider than the screen: the column above
         // hands the cover the spare height, and this is what lets it shrink.
@@ -202,6 +205,7 @@ internal fun PlayerArtworkCard(
                 onClick { currentOnFlip(!currentFlipped); true }
                 onLongClick(label = actionsDescription) { currentOnHold(); true }
             }
+            .onPlaced { placed.coordinates = it }
             .pointerInput(track?.id, queueIndex, reduceMotion, haptics) {
                 val slop = ARTWORK_SLOP.toPx()
                 val collapseThreshold = COLLAPSE_THRESHOLD.toPx()
@@ -327,10 +331,17 @@ internal fun PlayerArtworkCard(
                             ArtworkDragAxis.VERTICAL -> {
                                 collapsing = true
                                 var thresholdAnnounced = false
-                                // Nothing has moved yet, so this one difference is in screen terms.
-                                var dy = change.position.y - down.position.y
-                                // Fed with dy, the screen-space pull, for the reason given below.
+                                // This handler sits inside the layer the pull moves, so its local
+                                // positions arrive in a frame that has already followed the finger,
+                                // and even an event's own delta loses whatever the layer moved since
+                                // the last one (#9: first the player jumped between the pull and
+                                // rest every frame, then it trailed the finger at half speed).
+                                // Measured in the window instead, through the layer as it is now,
+                                // the pull is exactly the finger's travel.
+                                val downY = placed.windowY(down.position)
+                                var dy = placed.windowY(change.position) - downY
                                 val velocity = VelocityTracker()
+                                currentOnCollapseDrag(dy)
                                 while (true) {
                                     velocity.addPosition(change.uptimeMillis, Offset(0f, dy))
                                     if (change.isConsumed) return@awaitEachGesture
@@ -338,25 +349,17 @@ internal fun PlayerArtworkCard(
                                         haptics.play(PlayerHaptic.THRESHOLD)
                                         thresholdAnnounced = true
                                     }
-                                    currentOnCollapseDrag(collapseShown(dy))
                                     change.consume()
                                     if (change.changedToUpIgnoreConsumed()) break
                                     change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
                                         ?: return@awaitEachGesture
-                                    // This handler sits inside the layer the pull moves and shrinks, so
-                                    // positions arrive in a frame that has already followed the finger.
-                                    // Position minus the down point fed that motion back and made the
-                                    // player jump between the pull and rest every frame (#9); an event's
-                                    // own delta cancels the move, and the scale turns it back into
-                                    // screen distance.
-                                    dy += change.positionChangeIgnoreConsumed().y *
-                                        collapsePullScale(collapseShown(dy))
+                                    val now = placed.windowY(change.position) - downY
+                                    currentOnCollapseDrag(now - dy)
+                                    dy = now
                                 }
-                                if (collapseCommits(dy, collapseThreshold)) {
+                                collapsing = false
+                                if (currentOnCollapseRelease(velocity.calculateVelocity().y)) {
                                     haptics.play(PlayerHaptic.TAP)
-                                    currentOnCollapse(velocity.calculateVelocity().y)
-                                } else {
-                                    currentOnCollapseDrag(0f)
                                 }
                                 finished = true
                             }
@@ -365,7 +368,7 @@ internal fun PlayerArtworkCard(
                     } finally {
                         settlePress()
                         if (!finished) {
-                            if (collapsing) currentOnCollapseDrag(0f)
+                            if (collapsing) currentOnCollapseRelease(0f)
                             val shown = dragTravel
                             dragTravel = null
                             if (shown != null) {
@@ -501,16 +504,7 @@ private fun FlipCard(
 private fun CoverFace(uri: String?, fadeIn: Boolean = false) {
     val context = LocalPlatformContext.current
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val request = remember(context, uri, fadeIn) {
-        ImageRequest.Builder(context)
-            .data(uri)
-            // The incoming preview already decoded this image. Reuse it synchronously when
-            // AnimatedContent installs the real card, including its first loading frame.
-            .memoryCacheKey("player-cover:$uri")
-            .placeholderMemoryCacheKey("player-cover:$uri")
-            .crossfade(if (fadeIn) 120 else 0)
-            .build()
-    }
+    val request = remember(context, uri, fadeIn) { playerCoverRequest(context, uri, fadeIn) }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -542,6 +536,58 @@ private fun CoverFace(uri: String?, fadeIn: Boolean = false) {
     }
 }
 
+private fun playerCoverRequest(context: coil3.PlatformContext, uri: String?, fadeIn: Boolean) =
+    ImageRequest.Builder(context)
+        .data(uri)
+        // The incoming preview already decoded this image. Reuse it synchronously when
+        // AnimatedContent installs the real card, including its first loading frame.
+        .memoryCacheKey("player-cover:$uri")
+        .placeholderMemoryCacheKey("player-cover:$uri")
+        .crossfade(if (fadeIn) 120 else 0)
+        .build()
+
+/**
+ * The cover's face without its own corners or shadow, for the copy that flies between the mini
+ * player's thumbnail and the full cover; the caller's layer clips and lifts it. Same image request
+ * as the real cover, so the bitmap is the one already decoded for it.
+ */
+@Composable
+internal fun PlayerCoverFace(uri: String?, modifier: Modifier = Modifier) {
+    val context = LocalPlatformContext.current
+    val request = remember(context, uri) { playerCoverRequest(context, uri, fadeIn = false) }
+    Box(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.MusicNote,
+            contentDescription = null,
+            modifier = Modifier.size(96.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (uri != null) {
+            AsyncImage(
+                model = request,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        }
+    }
+}
+
+/**
+ * The latest placement of a gesture's own node. [windowY] maps a pointer position through every
+ * layer above it as they are at this moment, which is how a handler riding a moving layer still
+ * measures the finger in screen terms.
+ */
+internal class PlacedCoordinates {
+    var coordinates: LayoutCoordinates? = null
+
+    fun windowY(local: Offset): Float =
+        coordinates?.takeIf { it.isAttached }?.localToRoot(local)?.y ?: local.y
+}
+
 /** Prepared offscreen; distance-driven opacity makes both reveal and cancellation continuous. */
 @Composable
 private fun GhostCover(
@@ -571,8 +617,8 @@ private val ARTWORK_SLOP: Dp = 12.dp
 private val COLLAPSE_THRESHOLD: Dp = 140.dp
 private val REJECT_TRAVEL: Dp = 40.dp
 private val GHOST_GAP: Dp = 24.dp
-private val COVER_RADIUS: Dp = 24.dp
-private val COVER_ELEVATION: Dp = 18.dp
+internal val COVER_RADIUS: Dp = 24.dp
+internal val COVER_ELEVATION: Dp = 18.dp
 private val HOLD_RING_RADIUS: Dp = 27.dp
 private val HOLD_RING_STROKE: Dp = 3.dp
 private const val HOLD_MS = 450
