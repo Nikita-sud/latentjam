@@ -18,6 +18,13 @@ public object TagVerification {
     /** Inventory entries that repeat the genre (ID3 `TXXX:GENRE`): any genre edit removes every one of them. */
     internal const val GENRE_ENTRY: String = "genre:"
 
+    /**
+     * Inventory entries of the original-release date fields (ID3 `TDOR`/`TORY`, Vorbis
+     * `ORIGINALDATE`/`ORIGINALYEAR`). Pinned byte for byte like any other entry, except by a write
+     * that moves one ([OriginalDates]): then [TagSnapshot.originalDates] pins their values instead.
+     */
+    internal const val ORIGINAL_ENTRY: String = "original:"
+
     public enum class Check {
         /** The file was not editable to begin with; nothing written to it can verify. */
         EDITABLE,
@@ -51,8 +58,10 @@ public object TagVerification {
     public fun verifyTags(codec: TagCodec, baseline: Baseline, after: RandomAccessSource, edits: TagEdits): List<Failure> {
         baseline.snapshot.refusal?.let { return listOf(Failure(Check.EDITABLE, "the original was refused: $it")) }
         val failures = ArrayList(readBackFailures(baseline.snapshot, edits, codec.read(after)))
-        val expected = expectedInventory(baseline.inventory, edits)
-        val actual = codec.inventory(after)
+        val movesOriginal = baseline.snapshot.expectedAfter(edits).originalDates != baseline.snapshot.originalDates
+        fun List<String>.comparable() = if (movesOriginal) filterNot { it.startsWith(ORIGINAL_ENTRY) } else this
+        val expected = expectedInventory(baseline.inventory, edits).comparable()
+        val actual = codec.inventory(after).comparable()
         if (expected != actual) failures += Failure(Check.INVENTORY, "expected $expected\nactual   $actual")
         return failures
     }

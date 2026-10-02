@@ -308,7 +308,7 @@ internal object OggTagCodec : TagCodec {
         // Pictures are pinned by TagSnapshot.pictures, which also knows which one an edit changes.
         comment.block.entries
             .filter { it.key !in VorbisFields.MANAGED && it.key != PICTURE_KEY }
-            .forEach { out += "comment:${Crc32.of(it.raw)}" }
+            .forEach { out += VorbisFields.inventoryEntry(it) }
         if (!comment.tailIsPadding) out += "tail:${Crc32.of(comment.tail)}"
         return out
     }

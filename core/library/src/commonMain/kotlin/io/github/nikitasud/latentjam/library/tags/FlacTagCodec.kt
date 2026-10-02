@@ -224,7 +224,7 @@ internal object FlacTagCodec : TagCodec {
         val parts = parts(layout) ?: return emptyList()
         val out = ArrayList<String>()
         // The vendor string is checked by its own test: a file without comments gains one on its first edit.
-        parts.comments?.entries?.filter { it.key !in VorbisFields.MANAGED }?.forEach { out += "comment:${Crc32.of(it.raw)}" }
+        parts.comments?.entries?.filter { it.key !in VorbisFields.MANAGED }?.forEach { out += VorbisFields.inventoryEntry(it) }
         // Pictures are pinned by TagSnapshot.pictures, which also knows which one an edit changes.
         layout.blocks
             .filter { it.type != PADDING && it.type != VORBIS_COMMENT && it.type != PICTURE }

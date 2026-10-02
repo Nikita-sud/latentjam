@@ -53,6 +53,7 @@ public object Id3Tags {
     /** Original release time (v2.4) / original release year (v2.3). */
     private const val FRAME_ORIGINAL_V24 = "TDOR"
     private const val FRAME_ORIGINAL_V23 = "TORY"
+    private val ORIGINAL_FRAMES = setOf(FRAME_ORIGINAL_V24, FRAME_ORIGINAL_V23)
 
     /** ID3v2.3's year frame — exactly four characters. */
     private const val FRAME_YEAR_V23 = "TYER"
@@ -144,6 +145,8 @@ public object Id3Tags {
         /** CRC-32 of every APIC's image data (its whole body when unreadable), sorted. */
         val pictures: List<Long>,
         val artists: List<String>,
+        /** The text of every readable TDOR/TORY frame, in file order: [TagSnapshot.originalDates]. */
+        val originalDates: List<String>,
         /** "ID:crc32(body)" of every frame the editor does not own, in file order (pictures excluded). */
         val unmanaged: List<String>,
     )
@@ -181,13 +184,10 @@ public object Id3Tags {
                 when {
                     frame.id == FRAME_LYRICS -> TagVerification.LYRICS_ENTRY + entry
                     isGenreFrame(version, frame) -> TagVerification.GENRE_ENTRY + entry
+                    frame.id in ORIGINAL_FRAMES -> TagVerification.ORIGINAL_ENTRY + entry
                     else -> entry
                 }
             }
-        val year = when (version) {
-            Id3Version.V2_4 -> textIn(version, frames, FRAME_YEAR_V24) ?: textIn(version, frames, FRAME_YEAR_V23)
-            Id3Version.V2_3 -> textIn(version, frames, FRAME_YEAR_V23) ?: textIn(version, frames, FRAME_YEAR_V24)
-        }
         return Id3Fields(
             version = version,
             totalLength = tag?.totalLength ?: 0,
@@ -196,7 +196,7 @@ public object Id3Tags {
             album = textIn(version, frames, FRAME_ALBUM),
             albumArtist = textIn(version, frames, FRAME_ALBUM_ARTIST),
             genre = textIn(version, frames, FRAME_GENRE),
-            year = year,
+            year = yearIn(version, frames),
             track = textIn(version, frames, FRAME_TRACK),
             disc = textIn(version, frames, FRAME_DISC),
             lyrics = lyricsTarget?.let { lyricsParts(version, it.value) }?.text?.trim()?.ifEmpty { null },
@@ -210,6 +210,7 @@ public object Id3Tags {
                 .map { (index, frame) -> parsePicture(version, index, frame)?.let { Crc32.of(it.data) } ?: Crc32.of(frame.body) }
                 .sorted(),
             artists = creditedNames(version, frames),
+            originalDates = frames.filter { it.id in ORIGINAL_FRAMES }.mapNotNull { textIn(version, listOf(it), it.id) },
             unmanaged = unmanaged,
         )
     }
@@ -394,15 +395,18 @@ public object Id3Tags {
 
         val yearFrame = if (version == Id3Version.V2_4) FRAME_YEAR_V24 else FRAME_YEAR_V23
         val staleYear = if (version == Id3Version.V2_4) FRAME_YEAR_V23 else FRAME_YEAR_V24
+        val oldYear = yearIn(version, result)
+        val newYear = edits.year?.let { normaliseYear(it, version) }
         result = setText(
             version = version,
             frames = result,
             id = yearFrame,
-            value = edits.year?.let { normaliseYear(it, version) },
+            value = newYear,
             // Drop the other version's year frame so the file cannot end up
             // carrying two years that disagree.
             alsoRemove = listOf(staleYear),
         )
+        result = moveOriginalDates(version, result, oldYear, newYear)
         result = setText(
             version,
             result,
@@ -418,6 +422,30 @@ public object Id3Tags {
         edits.lyrics?.let { result = setLyrics(version, result, it.trim()) }
         result = setCover(version, result, edits.cover)
         return result
+    }
+
+    /** The year the editor shows: the version's own year frame, else the other version's. */
+    private fun yearIn(version: Id3Version, frames: List<Id3RawFrame>): String? = when (version) {
+        Id3Version.V2_4 -> textIn(version, frames, FRAME_YEAR_V24) ?: textIn(version, frames, FRAME_YEAR_V23)
+        Id3Version.V2_3 -> textIn(version, frames, FRAME_YEAR_V23) ?: textIn(version, frames, FRAME_YEAR_V24)
+    }
+
+    /**
+     * Rewrites, in place, every TDOR/TORY frame that said the same year as [oldYear] to [newYear]
+     * ([OriginalDates]): on either version, whichever of the two the file has. TORY on ID3v2.3 is
+     * four characters like TYER, and [newYear] is already narrowed there. None is ever added.
+     */
+    private fun moveOriginalDates(
+        version: Id3Version,
+        frames: List<Id3RawFrame>,
+        oldYear: String?,
+        newYear: String?,
+    ): List<Id3RawFrame> = frames.map { frame ->
+        if (frame.id !in ORIGINAL_FRAMES) return@map frame
+        textIn(version, listOf(frame), frame.id)
+            ?.let { OriginalDates.moved(it, oldYear, newYear) }
+            ?.let { newTextFrame(version, frame.id, it) }
+            ?: frame
     }
 
     /**

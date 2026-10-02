@@ -20,6 +20,9 @@ internal class VorbisEntry(val raw: ByteArray) {
 
     val value: String get() = raw.decodeToString(separator + 1, raw.size)
 
+    /** This entry saying [value] instead, its key spelled exactly as it was. */
+    fun withValue(value: String): VorbisEntry = VorbisEntry(raw.copyOfRange(0, separator + 1) + value.encodeToByteArray())
+
     companion object {
         fun of(key: String, value: String): VorbisEntry = VorbisEntry("$key=$value".encodeToByteArray())
     }
@@ -95,6 +98,7 @@ internal class VorbisFieldValues(
     val discTotal: Int?,
     val lyrics: String?,
     val artists: List<String>,
+    val originalDates: List<String>,
 )
 
 /** The editor's fields mapped onto Vorbis comment names, shared by FLAC, Opus and Vorbis. */
@@ -112,6 +116,9 @@ internal object VorbisFields {
     private const val DISC_TOTAL = "DISCTOTAL"
     private const val LYRICS = "LYRICS"
 
+    /** The original-release date fields: never written by the editor, only moved ([OriginalDates]). */
+    private val ORIGINAL_KEYS = setOf("ORIGINALDATE", "ORIGINALYEAR")
+
     /** Other names the same field is found under; read as the field, removed when it is written. */
     private val ALIASES: Map<String, List<String>> = mapOf(
         ALBUM_ARTIST to listOf("ALBUM ARTIST", "ALBUM_ARTIST"),
@@ -127,6 +134,12 @@ internal object VorbisFields {
             ALIASES.values.flatten()
 
     private fun names(key: String): List<String> = listOf(key) + ALIASES[key].orEmpty()
+
+    /** The inventory entry of a comment the editor does not own (see [TagVerification.ORIGINAL_ENTRY]). */
+    fun inventoryEntry(entry: VorbisEntry): String {
+        val name = "comment:${Crc32.of(entry.raw)}"
+        return if (entry.key in ORIGINAL_KEYS) TagVerification.ORIGINAL_ENTRY + name else name
+    }
 
     fun read(entries: List<VorbisEntry>): VorbisFieldValues {
         fun all(key: String): List<String> =
@@ -148,6 +161,7 @@ internal object VorbisFields {
             discTotal = TrackNumbers.parse(first(DISC_TOTAL)) ?: embeddedTotal(discRaw),
             lyrics = first(LYRICS)?.trim()?.ifEmpty { null },
             artists = all(ARTISTS).flatMap { TagFacts.splitArtists(it) },
+            originalDates = entries.filter { it.key in ORIGINAL_KEYS }.map { it.value },
         )
     }
 
@@ -162,7 +176,12 @@ internal object VorbisFields {
         out = set(out, ALBUM, edits.album)
         out = set(out, ALBUM_ARTIST, edits.albumArtist)
         out = setJoined(out, GENRE, edits.genre)
+        val oldYear = read(entries).year
         out = set(out, DATE, edits.year)
+        out = out.map { entry ->
+            if (entry.key !in ORIGINAL_KEYS) return@map entry
+            OriginalDates.moved(entry.value, oldYear, edits.year)?.let { entry.withValue(it) } ?: entry
+        }
         out = numbers(out, TRACK_NUMBER, TRACK_TOTAL, edits.trackNumber, edits.trackTotal)
         out = numbers(out, DISC_NUMBER, DISC_TOTAL, edits.discNumber, edits.discTotal)
         out = setLyrics(out, edits.lyrics?.trim())
@@ -299,4 +318,5 @@ internal fun VorbisFieldValues.toSnapshot(
     nextCover = nextCover,
     pictures = pictures,
     artists = artists,
+    originalDates = originalDates,
 )

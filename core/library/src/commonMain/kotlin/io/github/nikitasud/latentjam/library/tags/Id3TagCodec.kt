@@ -80,6 +80,7 @@ internal object Id3TagCodec : TagCodec {
             nextCover = fields.nextCover,
             pictures = fields.pictures,
             artists = fields.artists,
+            originalDates = fields.originalDates,
         )
     }
 

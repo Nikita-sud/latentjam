@@ -15,6 +15,11 @@ import kotlin.test.fail
  */
 class TagCodecRealFileTest {
 
+    private companion object {
+        /** A year no file in a real library is likely to carry already, so every matching original moves. */
+        const val YEAR_EDIT = "1901"
+    }
+
     private val extensions = setOf("mp3", "flac", "opus", "ogg", "oga", "m4a", "mp4", "aac")
 
     private fun files(): List<File>? =
@@ -56,6 +61,11 @@ class TagCodecRealFileTest {
         // Reported, not failed: the ID3v1 fields a real edit carries into the ID3v2 tag before dropping the trailer.
         val legacy = HashMap<String, Int>()
         val migratedFiles = ArrayList<String>()
+        // Reported, not failed: files whose original-release date said the same year as the year, and
+        // the year-only edit that moved it (OriginalDates).
+        var originalWithDates = 0
+        var originalSameYear = 0
+        var originalMoved = 0
 
         files.forEachIndexed { index, file ->
             val original = file.readBytes()
@@ -136,6 +146,12 @@ class TagCodecRealFileTest {
             check("remove-cover", original, TagEdits(cover = CoverEdit.Remove))
             check("clear-fields", original, TagEdits(album = "", genre = "", year = ""))
             check("totals-only", original, TagEdits(trackTotal = "12", discTotal = "2"))
+            if (before.originalDates.isNotEmpty()) originalWithDates++
+            val year = before.year?.let(TagFacts::parseYear)
+            if (year != null && before.originalDates.any { TagFacts.parseYear(it) == year }) originalSameYear++
+            check("year", original, TagEdits(year = YEAR_EDIT))?.let { written ->
+                if (codec.read(ByteArraySource(written)).originalDates != before.originalDates) originalMoved++
+            }
             if (edited != null) {
                 val second = check("second", edited, TagEdits(title = "Second"))
                 if (second != null && codec.plan(ByteArraySource(edited), TagEdits(title = "Second")) !is WritePlan.InPlacePatch) {
@@ -154,6 +170,7 @@ class TagCodecRealFileTest {
         println("  restating every field is not a no-op: ${restateNotNoOp.size}")
         restateNotNoOp.take(20).forEach { println("    $it") }
         afterTag.toSortedMap().forEach { (where, count) -> println("  ID3 audio after tag: $where: $count") }
+        println("  original date present: $originalWithDates, same year as the year: $originalSameYear, moved by year=$YEAR_EDIT: $originalMoved")
         println("  ID3v1 fields migrated: ${migratedFiles.size} files")
         legacy.toSortedMap().forEach { (id, count) -> println("    $id: $count") }
         migratedFiles.take(20).forEach { println("    $it") }
