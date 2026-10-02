@@ -229,15 +229,33 @@ class HybridSearchTest {
     }
 
     @Test
-    fun `multiword exact title keeps literal alternatives without fuzzy or semantic filler`() {
+    fun `multiword exact title keeps literal alternatives without typo filler`() {
         val song = track("song", "Blue Moon", "Singer")
         val version = track("version", "Blue Moon Live", "Singer")
         val typo = track("typo", "Blue Mood", "Other")
+        val result = hybridSearch(listOf(typo, version, song), "blue moon", emptyList())
+        assertEquals(listOf(song.id, version.id), result.map { it.id })
+    }
+
+    @Test
+    fun `a bare title that reads as a description keeps its confident semantic matches below it`() {
+        val song = track("song", "Summer Vibes", "Singer")
+        val typo = track("typo", "Summer Vibe", "Other")
         val result = hybridSearch(
-            listOf(semantic, typo, version, song), "blue moon",
+            listOf(semantic, typo, song), "summer vibes",
             ranked(listOf(ScoredTrack(semantic.id, 0.8f))),
         )
-        assertEquals(listOf(song.id, version.id), result.map { it.id })
+        assertEquals(listOf(song.id, semantic.id), result.map { it.id })
+    }
+
+    @Test
+    fun `naming the artist with the title leaves out semantic matches`() {
+        val song = track("song", "Mockingbird", "Eminem")
+        val result = hybridSearch(
+            listOf(semantic, song), "eminem mockingbird",
+            ranked(listOf(ScoredTrack(semantic.id, 0.8f))),
+        )
+        assertEquals(listOf(song.id), result.map { it.id })
     }
 
     @Test

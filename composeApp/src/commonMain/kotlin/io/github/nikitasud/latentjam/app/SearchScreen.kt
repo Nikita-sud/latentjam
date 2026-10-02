@@ -750,12 +750,18 @@ private fun hybridSearch(
         }
     }
 
-    // A complete multi-word title (possibly accompanied by artist/album terms) identifies
-    // a recording. Keep confident literal alternatives, without filling the list with guesses.
-    // Single-word queries such as "rock" can still be a request for a genre or mood.
-    if (searchTokens(normalizedNeedle).size > 1 &&
-        strong.any { it.rank == 0 && yearFilter?.admits(it.track) != false }
-    ) {
+    // A complete multi-word title names a recording, so typo-family and alias guesses are noise.
+    // With the artist or album named too ("eminem mockingbird") nothing else is meant. A bare
+    // title can also read as a description ("summer vibes"): a confident semantic cluster still
+    // follows its literal matches. Single-word queries such as "rock" keep every tier.
+    val queryTokens = searchTokens(normalizedNeedle)
+    val titleHits = if (queryTokens.size > 1) {
+        strong.filter { it.rank == 0 && yearFilter?.admits(it.track) != false }
+    } else {
+        emptyList()
+    }
+    val namesRecording = titleHits.isNotEmpty()
+    if (titleHits.any { !searchTokens(normalizeSearchText(it.track.title.orEmpty())).containsAll(queryTokens) }) {
         return strong.asSequence().map { it.track }
             .filter { yearFilter?.admits(it) != false }
             .take(SEARCH_RESULT_LIMIT)
@@ -779,9 +785,9 @@ private fun hybridSearch(
     // fuzz. Confident lexical tiers (exact, prefix, token-prefix) still lead.
     return (
         strong.asSequence().map { it.track } +
-            entities +
+            (if (namesRecording) emptySequence() else entities) +
             index.songs.asSequence().filter { it.id in lyricMatches } +
-            weak.asSequence().map { it.track } +
+            (if (namesRecording) emptySequence() else weak.asSequence().map { it.track }) +
             expanded
         )
         // Constrain candidates before the cap: newer matches must not crowd out older songs
