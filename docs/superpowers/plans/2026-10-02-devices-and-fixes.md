@@ -127,9 +127,9 @@ Also: every written file passes `TagVerification`, and audio bytes stay identica
 
 ### Task 3: Release-candidate branch
 
-- [ ] Create worktree `~/Documents/LJ/latentjam-rc` on new branch `rc/0.7.0` from `feat/tag-writing` (after Tasks 1–2), then `git merge --no-ff feat/smart-journey`. Resolve conflicts if any; record each.
+- [ ] Create worktree `~/Documents/LJ/latentjam-rc` on new branch `rc/0.7.0` from `feat/tag-writing` (after Tasks 1–2), then `git merge --no-ff feat/smart-journey` and `git merge --no-ff build/reduced-ort`. Resolve conflicts if any; record each.
 - [ ] Run all four suites and the parity test against `feat/smart-journey`'s regenerated fixture (`SMART_PARITY_FIXTURE=~/Documents/LJ/latentjam-smartjourney/tools/research/output/parity-fixture-journey … --tests '*SmartChainParityTest*' --rerun`). Check the XML for "parity: 10 seeds".
-- [ ] Build the debug-key release APK (arm64) the way 0.6.0 was built (see the memory `latentjam-release-plan.md`), and the iOS simulator app. Do not bump versions.
+- [ ] Build the debug-key release APKs the way 0.6.0 was built (`./gradlew :androidApp:assembleRelease`, see the memory `latentjam-release-plan.md`). Build the arm64 APK WITH the reduced ONNX Runtime: `./gradlew --no-daemon --no-configuration-cache :androidApp:assembleRelease -I tools/runtime/use-reduced-ort.init.gradle -Platentjam.reducedOrtRepo=$HOME/Documents/LJ/ort-reduced/1.26.0-20261001/maven`. Confirm with `unzip -l` that `lib/arm64-v8a/libonnxruntime.so` is 11,723,184 bytes. All Android checks below use this APK. Also build the iOS simulator app. Do not bump versions.
 
 ### Task 4: Android 16 verification (`LJ-tagtest3`)
 
@@ -189,7 +189,7 @@ Create the four AVDs from the downloaded `google_apis;arm64-v8a` images. Report 
 
 ### Task 8: Real phone (needs the user; prepared, not executed)
 
-- [ ] Prepare the fsync timing build/instructions from spec §8.4 and a one-page checklist for the user, including the 4-format edit, a bulk album edit and a recovery. Do NOT install anything on the phone; hand it to the user.
+- [ ] Prepare the fsync timing build/instructions from spec §8.4 and a one-page checklist for the user, including the 4-format edit, a bulk album edit and a recovery, plus SMART on the reduced ONNX Runtime: background analysis progresses and a SMART queue plays (the reduced runtime has emulator coverage only). Do NOT install anything on the phone; hand it to the user.
 
 ### Task 9: Close-out
 
