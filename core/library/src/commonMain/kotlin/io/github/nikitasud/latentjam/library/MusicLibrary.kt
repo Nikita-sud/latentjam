@@ -123,12 +123,27 @@ public interface MusicLibrary {
     public suspend fun setSourceEnabled(sourceId: String, enabled: Boolean)
 
     /**
+     * Whether [coverSaved] keeps anything: true where covers are per album (Android's MediaStore).
+     * Where it is false, a cover saved into files that already held it changes nothing a scan shows.
+     */
+    public val recordsCovers: Boolean get() = false
+
+    /**
      * LatentJam just saved [cover] into the files of [trackIds]; called before the scan that
      * follows the save. A platform whose covers are per album (Android's MediaStore) remembers it,
-     * so each of these songs shows its own cover. The default does nothing, for platforms that
-     * already show each file's own cover.
+     * so each of these songs shows its own cover, and returns true when that changes what a scan
+     * shows for one of them. The default does nothing and returns false, for platforms that already
+     * show each file's own cover.
      */
-    public suspend fun coverSaved(trackIds: Collection<TrackId>, cover: CoverEdit) {}
+    public suspend fun coverSaved(trackIds: Collection<TrackId>, cover: CoverEdit): Boolean = false
+
+    /**
+     * LatentJam just saved edits that kept the cover into the files of [saved], as the library held
+     * them when the save began; called before the scan that follows the save. A platform that
+     * remembers covers ([recordsCovers]) need not re-read those files to know their cover is still
+     * the one it remembers. The default does nothing.
+     */
+    public suspend fun coverKept(saved: Collection<TrackDescriptor>) {}
 }
 
 /**

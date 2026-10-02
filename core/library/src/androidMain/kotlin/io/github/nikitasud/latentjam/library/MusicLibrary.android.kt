@@ -217,10 +217,19 @@ internal class MediaStoreMusicLibrary(
         coverOverrides.apply(withAlbumArtVersions(tracks))
     }
 
-    override suspend fun coverSaved(trackIds: Collection<TrackId>, cover: CoverEdit): Unit =
+    override val recordsCovers: Boolean get() = true
+
+    override suspend fun coverSaved(trackIds: Collection<TrackId>, cover: CoverEdit): Boolean =
         withContext(Dispatchers.IO) {
             // A cover that cannot be kept costs only the song's own cover: it shows its album's.
-            runCatching { coverOverrides.record(trackIds, cover) }
+            // A failed write left the index as it was, so nothing a scan shows changed.
+            runCatching { coverOverrides.record(trackIds, cover) }.getOrDefault(false)
+        }
+
+    override suspend fun coverKept(saved: Collection<TrackDescriptor>): Unit =
+        withContext(Dispatchers.IO) {
+            // Not trusting an entry costs one read of its file at the next scan, nothing more.
+            runCatching { coverOverrides.kept(saved) }
         }
 
     /** The cover [track]'s file holds now, for re-checking its override after the file changed. */

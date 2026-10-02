@@ -899,8 +899,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
          * saves, recoveries included. First SMART's carry-overs, before the reload that would
          * otherwise start a sync without them. Then the saved covers, which the library must know of
          * before it reloads: Android's covers are per album, and only a recorded one is the song's
-         * own. Then one library reload. Then the queue and the open page, which hold descriptors by
-         * value. Nothing runs when no file changed and no cover is to be recorded; else the job.
+         * own; and the kept ones, so the reload need not re-read those files. Then one library
+         * reload, unless no file changed and no recorded cover changed what it shows. Then the queue
+         * and the open page, which hold descriptors by value. Nothing runs when no file changed and
+         * no cover is to be recorded; else the job.
          *
          * On the app's scope, not this composition's: an Activity recreated within the second this
          * takes (a rotation) would otherwise cancel it, leaving the carry-overs and covers unstored
@@ -913,13 +915,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             results: List<TagSaveResult>,
         ): Job? {
             val access = tagAccess ?: return null
-            val followUp = TagSaveFollowUp(edits, results, access::keyOf)
+            val followUp = TagSaveFollowUp(edits, results, access::keyOf, library.recordsCovers)
             if (!followUp.needed) return null
             return AppGraph.appScope.launch(Dispatchers.Main) {
                 for ((saved, result) in edits) {
                     AppGraph.audioCarryOvers.add(audioCarryOversOf(saved, result, access::keyOf))
                 }
-                for ((ids, cover) in followUp.covers) library.coverSaved(ids, cover)
+                var recorded = false
+                for ((ids, cover) in followUp.covers) {
+                    if (library.coverSaved(ids, cover)) recorded = true
+                }
+                if (followUp.kept.isNotEmpty()) library.coverKept(followUp.kept)
+                if (!followUp.rescanAfter(recorded)) return@launch
                 val fresh = scanLibrary()
                 playback.refreshTracks(followUp.refreshed(fresh, access::keyOf))
                 refreshOpenCollection(fresh)

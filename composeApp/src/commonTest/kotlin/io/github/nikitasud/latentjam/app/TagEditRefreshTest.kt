@@ -148,22 +148,60 @@ internal class TagEditRefreshTest {
         val tracks = listOf(track("1", "A"), track("2", "A"))
         val cover = CoverEdit.Replace(byteArrayOf(1), "image/png")
         val result = TagSaveResult(listOf(TagSaveEntry("k1", FileWriteStatus.UNCHANGED)), cover = cover)
-        val followUp = TagSaveFollowUp(listOf(tracks to result), listOf(result), { it.audioUri })
+        val followUp = TagSaveFollowUp(listOf(tracks to result), listOf(result), { it.audioUri }, recordsCovers = true)
         assertTrue(followUp.needed)
         assertEquals(listOf(listOf(TrackId("1")) to cover), followUp.covers)
         assertEquals(listOf("1"), followUp.refreshed(tracks, { it.audioUri }).map { it.id.value })
+        // Rescanned only when recording the cover changed what a scan shows.
+        assertTrue(followUp.rescanAfter(recorded = true))
+        assertFalse(followUp.rescanAfter(recorded = false))
+    }
+
+    @Test
+    fun aCoverSavedOnlyIntoFilesThatAlreadyHeldItChangesNothingWhereCoversAreNotRecorded() {
+        val tracks = listOf(track("1", "A"), track("2", "A"))
+        val cover = CoverEdit.Replace(byteArrayOf(1), "image/png")
+        val result = TagSaveResult(listOf(TagSaveEntry("k1", FileWriteStatus.UNCHANGED)), cover = cover)
+        val followUp = TagSaveFollowUp(listOf(tracks to result), listOf(result), { it.audioUri }, recordsCovers = false)
+        assertFalse(followUp.needed)
+        assertEquals(emptyList(), followUp.refreshed(tracks, { it.audioUri }))
+        // A file that changed still needs the rescan everywhere.
+        val written = TagSaveResult(listOf(TagSaveEntry("k1", FileWriteStatus.SAVED)), cover = cover)
+        val changed = TagSaveFollowUp(listOf(tracks to written), listOf(written), { it.audioUri }, recordsCovers = false)
+        assertTrue(changed.needed)
+        assertTrue(changed.rescanAfter(recorded = false))
+    }
+
+    @Test
+    fun aSaveThatKeptTheCoverNamesTheFilesThatHoldItAsTheyWereHeld() {
+        val tracks = listOf(track("1", "A"), track("2", "A"), track("3", "A"), track("4", "A"), track("5", "A"))
+            .map { it.copy(sourceRevision = "before-${it.id.value}") }
+        val entries = listOf(
+            TagSaveEntry("k1", FileWriteStatus.SAVED),
+            TagSaveEntry("k2", FileWriteStatus.UNCHANGED),
+            TagSaveEntry("k3", FileWriteStatus.REFUSED, problem = TagProblem.DAMAGED),
+            TagSaveEntry("k4", FileWriteStatus.RECOVERED),
+            TagSaveEntry("k5", FileWriteStatus.FAILED, problem = TagProblem.FAILED),
+        )
+        val keptCover = TagSaveResult(entries)
+        assertEquals(listOf("1", "2"), keptCover.coverKeptTracks(tracks, { it.audioUri }).map { it.id.value })
+        val followUp = TagSaveFollowUp(listOf(tracks to keptCover), listOf(keptCover), { it.audioUri }, recordsCovers = true)
+        assertEquals(listOf("before-1", "before-2"), followUp.kept.map { it.sourceRevision })
+        val replaced = TagSaveResult(entries, cover = CoverEdit.Replace(byteArrayOf(1), "image/png"))
+        assertEquals(emptyList(), replaced.coverKeptTracks(tracks, { it.audioUri }))
+        assertEquals(emptyList(), TagSaveResult(entries, cover = CoverEdit.Remove).coverKeptTracks(tracks, { it.audioUri }))
     }
 
     @Test
     fun aFollowUpRefreshesChangedFilesAndNothingWithoutAChangeOrACover() {
         val tracks = listOf(track("1", "A"), track("2", "A"), track("3", "A"))
         val written = TagSaveResult(listOf(TagSaveEntry("k1", FileWriteStatus.SAVED), TagSaveEntry("k2", FileWriteStatus.UNCHANGED)))
-        val followUp = TagSaveFollowUp(listOf(tracks to written), listOf(written), { it.audioUri })
+        val followUp = TagSaveFollowUp(listOf(tracks to written), listOf(written), { it.audioUri }, recordsCovers = true)
         assertTrue(followUp.needed)
         assertEquals(emptyList(), followUp.covers)
         assertEquals(listOf("1"), followUp.refreshed(tracks, { it.audioUri }).map { it.id.value })
         val same = TagSaveResult(listOf(TagSaveEntry("k1", FileWriteStatus.UNCHANGED)))
-        assertFalse(TagSaveFollowUp(listOf(tracks to same), listOf(same), { it.audioUri }).needed)
+        assertFalse(TagSaveFollowUp(listOf(tracks to same), listOf(same), { it.audioUri }, recordsCovers = true).needed)
     }
 
     @Test

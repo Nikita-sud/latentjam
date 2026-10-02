@@ -35,6 +35,9 @@ internal class TrackCoverOverridesTest {
     /** Set to make reading the index fail as storage can for a moment (EIO, too many open files). */
     private var indexUnavailable = false
 
+    /** The store's clock, which dates when a song went missing from the scans. */
+    private var clock = 1_000L
+
     private fun overrides() = TrackCoverOverrides(
         directory,
         readCover = { track ->
@@ -45,6 +48,7 @@ internal class TrackCoverOverridesTest {
             if (indexUnavailable) throw IOException("EIO")
             file.readText()
         },
+        now = { clock },
     )
 
     private fun track(id: String, revision: String = "r1", artwork: String? = album) =
@@ -180,12 +184,105 @@ internal class TrackCoverOverridesTest {
     }
 
     @Test
-    fun aSongThatIsGoneDropsItsOverrideAndItsFile() {
-        overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
-        overrides().apply(listOf(track("2")))
+    fun aSongMissingFromAScanKeepsItsOverrideAndGetsItBackWhenItReturns() {
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
+        val absent = overrides().apply(listOf(track("2")))
+        assertEquals(listOf(album), absent.map { it.artworkUri })
+        assertEquals(listOf("%08x.jpg".format(Crc32.of(jpeg))), coverFiles())
+        // Back (the card was mounted after all): its own cover again, trusted at the revision it was checked at.
+        assertEquals(fileUri(jpeg, "jpg"), overrides().apply(listOf(track("1"), track("2"))).single { it.id.value == "1" }.artworkUri)
+        assertEquals(emptyList(), reads)
+    }
+
+    @Test
+    fun anEmptyScanKeepsEveryEntryAndImage() {
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
+        saved(CoverEdit.Replace(png, "image/png"), "2")
+        saved(CoverEdit.Remove, "3")
+        assertEquals(emptyList(), overrides().apply(emptyList()))
+        overrides().apply(emptyList())
+        assertEquals(listOf("%08x.jpg".format(Crc32.of(jpeg)), "%08x.png".format(Crc32.of(png))), coverFiles())
+        val back = overrides().apply(listOf(track("1"), track("2"), track("3")))
+        assertEquals(listOf(fileUri(jpeg, "jpg"), fileUri(png, "png"), null), back.map { it.artworkUri })
+        assertEquals(emptyList(), reads)
+    }
+
+    @Test
+    fun aSongThatComesBackAtANewRevisionIsCheckedLikeAnyOther() {
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
+        overrides().apply(emptyList())
+        embedded["1"] = FileCover.Read(Crc32.of(png))
+        assertEquals(album, overrides().apply(listOf(track("1", revision = "r2"))).single().artworkUri)
+        assertEquals(listOf("1"), reads)
         assertEquals(emptyList(), coverFiles())
-        // Back with the same id (a restored file): album art, as for any other song.
-        assertEquals(album, overrides().apply(listOf(track("1"))).single().artworkUri)
+    }
+
+    @Test
+    fun pastTwoThousandAbsentEntriesTheLongestMissingArePruned() {
+        val ids = List(2_002) { "$it" }
+        overrides().record(ids.map(::TrackId), CoverEdit.Replace(jpeg, "image/jpeg"))
+        clock = 2_000L
+        // Two songs go missing first...
+        overrides().apply(ids.drop(2).map { track(it) })
+        clock = 3_000L
+        // ...then every one: 2,002 absent, two past the cap.
+        overrides().apply(emptyList())
+        val back = overrides().apply(listOf(track("0"), track("1"), track("2"), track("2001")))
+        assertEquals(listOf(album, album, fileUri(jpeg, "jpg"), fileUri(jpeg, "jpg")), back.map { it.artworkUri })
+    }
+
+    @Test
+    fun aMissingImageDropsAnAbsentEntryToo() {
+        overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg"))
+        overrides().apply(emptyList())
+        File(directory, "%08x.jpg".format(Crc32.of(jpeg))).delete()
+        overrides().apply(emptyList())
+        assertFalse(File(directory, "overrides.txt").exists())
+    }
+
+    @Test
+    fun anIndexFromBeforeAbsenceDatesIsStillRead() {
+        directory.mkdirs()
+        val name = "%08x.jpg".format(Crc32.of(jpeg))
+        File(directory, name).writeBytes(jpeg)
+        File(directory, "overrides.txt").writeText("track-covers v1\n1\t$name\tr1\n")
+        assertEquals(fileUri(jpeg, "jpg"), overrides().apply(listOf(track("1"))).single().artworkUri)
+        assertEquals(emptyList(), reads)
+    }
+
+    @Test
+    fun aSaveThatKeptTheCoverTrustsItsEntriesAgainSoTheNextScanReadsNothing() {
+        val ids = List(300) { "$it" }
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), *ids.toTypedArray())
+        // A genre edit of every one of them, as the library held them at r1: each file is now at r2.
+        overrides().kept(ids.map { track(it, revision = "r1") })
+        val applied = overrides().apply(ids.map { track(it, revision = "r2") })
+        assertTrue(applied.all { it.artworkUri == fileUri(jpeg, "jpg") })
+        assertEquals(emptyList(), reads)
+        overrides().apply(ids.map { track(it, revision = "r2") })
+        assertEquals(emptyList(), reads, "stamped at r2")
+    }
+
+    @Test
+    fun aKeptCoverDoesNotVouchForAnEntryCheckedAtAnotherRevision() {
+        saved(CoverEdit.Replace(jpeg, "image/jpeg"), "1")
+        // The library held the file at r0, not the r1 its entry was checked at: it may have been retagged since.
+        overrides().kept(listOf(track("1", revision = "r0"), track("2", revision = "r1")))
+        embedded["1"] = FileCover.Read(Crc32.of(jpeg))
+        overrides().apply(listOf(track("1", revision = "r2")))
+        assertEquals(listOf("1"), reads)
+    }
+
+    @Test
+    fun recordingSaysWhetherWhatAScanShowsChanged() {
+        assertTrue(overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg")))
+        overrides().apply(listOf(track("1")))
+        assertFalse(overrides().record(listOf(TrackId("1")), CoverEdit.Replace(jpeg, "image/jpeg")), "the same cover again")
+        assertTrue(overrides().record(listOf(TrackId("1"), TrackId("2")), CoverEdit.Replace(jpeg, "image/jpeg")), "a new song")
+        assertTrue(overrides().record(listOf(TrackId("1")), CoverEdit.Remove))
+        assertFalse(overrides().record(listOf(TrackId("1")), CoverEdit.Keep))
+        indexUnavailable = true
+        assertFalse(overrides().record(listOf(TrackId("3")), CoverEdit.Remove), "nothing could be kept")
     }
 
     @Test

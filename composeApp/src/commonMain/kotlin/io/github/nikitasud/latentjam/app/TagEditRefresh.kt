@@ -127,28 +127,57 @@ internal fun TagSaveResult.coverSavedTracks(
     return tracksWithKeys(saved, holding, keyOf).map { it.id }
 }
 
+/**
+ * The tracks among [saved], as the library held them when the save began, whose files hold this
+ * save's edits while it kept the cover (SAVED or UNCHANGED): their cover is byte for byte the one
+ * they had. None when the save changed the cover. A recovered file is not one: its cover is the
+ * recovery's, which verification did not pin.
+ */
+internal fun TagSaveResult.coverKeptTracks(
+    saved: List<TrackDescriptor>,
+    keyOf: (TrackDescriptor) -> String?,
+): List<TrackDescriptor> {
+    if (cover != CoverEdit.Keep) return emptyList()
+    val holding = entries.filter { it.saved && it.status in COVER_PINNED }.mapTo(HashSet()) { it.key }
+    return tracksWithKeys(saved, holding, keyOf)
+}
+
+/** Statuses after which the file holds exactly the save's edits, its pictures verified byte for byte. */
+private val COVER_PINNED = setOf(FileWriteStatus.SAVED, FileWriteStatus.UNCHANGED)
+
 /** Every file a finished save names, whatever became of it. */
 internal fun TagSaveResult.keys(): Set<String> = entries.mapTo(HashSet()) { it.key }
 
 /**
- * What finished saves leave to do outside the files: the files whose bytes changed, and each edit's
- * saved cover with the tracks that now hold it. [edits] pairs each edit's tracks with its result,
- * [results] are all the saves. A cover saved only into files that already held it still has its
- * tracks recorded and refreshed, though no file changed.
+ * What finished saves leave to do outside the files: the files whose bytes changed, each edit's
+ * saved cover with the tracks that now hold it, and the tracks whose cover a save kept. [edits]
+ * pairs each edit's tracks with its result, [results] are all the saves. Where the library records
+ * covers ([recordsCovers], Android), a cover saved only into files that already held it still has
+ * its tracks recorded and refreshed, though no file changed; elsewhere such a save changes nothing.
  */
 internal class TagSaveFollowUp(
     edits: List<Pair<List<TrackDescriptor>, TagSaveResult>>,
     results: List<TagSaveResult>,
     keyOf: (TrackDescriptor) -> String?,
+    recordsCovers: Boolean,
 ) {
     val changedKeys: Set<String> = results.flatMapTo(HashSet()) { it.changedKeys() }
     val covers: List<Pair<List<TrackId>, CoverEdit>> = edits
         .map { (saved, result) -> result.coverSavedTracks(saved, keyOf) to result.cover }
         .filter { (ids, _) -> ids.isNotEmpty() }
-    private val coveredIds: Set<TrackId> = covers.flatMapTo(HashSet()) { it.first }
 
-    /** False when nothing changed: no file, and no cover to record. */
+    /** The tracks, as held before their saves, whose cover a save kept ([coverKeptTracks]). */
+    val kept: List<TrackDescriptor> = edits.flatMap { (saved, result) -> result.coverKeptTracks(saved, keyOf) }
+    private val coveredIds: Set<TrackId> = if (recordsCovers) covers.flatMapTo(HashSet()) { it.first } else emptySet()
+
+    /** False when nothing changed: no file, and no cover the library records. */
     val needed: Boolean get() = changedKeys.isNotEmpty() || coveredIds.isNotEmpty()
+
+    /**
+     * Whether the library must be rescanned once the covers are recorded: a file changed, or
+     * [recorded] (some `MusicLibrary.coverSaved` said what a scan shows changed).
+     */
+    fun rescanAfter(recorded: Boolean): Boolean = changedKeys.isNotEmpty() || recorded
 
     /** The tracks of [fresh] whose queued copies the follow-up refreshes. */
     fun refreshed(fresh: List<TrackDescriptor>, keyOf: (TrackDescriptor) -> String?): List<TrackDescriptor> =
