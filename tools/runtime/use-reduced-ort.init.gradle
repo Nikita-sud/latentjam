@@ -1,0 +1,46 @@
+/* Opt-in only. Validates model fingerprints before substituting the local ORT candidate. */
+import groovy.json.JsonSlurper
+import java.security.MessageDigest
+
+gradle.settingsEvaluated { settings ->
+    // Init scripts are also applied to included builds such as build-logic.
+    if (!new File(settings.settingsDir, 'androidApp/src/main/assets/ml').isDirectory()) return
+    def path = settings.providers.gradleProperty('latentjam.reducedOrtRepo').orNull
+    if (!path) throw new GradleException('Pass -Platentjam.reducedOrtRepo=/absolute/path/to/generated/maven')
+    def repo = new File(path)
+    if (!repo.absolute) throw new GradleException('latentjam.reducedOrtRepo must be an absolute path')
+    def manifestFile = new File(repo, 'manifest.json')
+    if (!manifestFile.isFile()) throw new GradleException('Reduced ORT manifest is missing')
+    def manifest = new JsonSlurper().parse(manifestFile)
+    def hash = { File file -> MessageDigest.getInstance('SHA-256').digest(file.bytes).encodeHex().toString() }
+    def catalog = new File(settings.settingsDir, 'gradle/libs.versions.toml').text
+    def matcher = catalog =~ /(?m)^onnxruntime\s*=\s*"([^"]+)"/
+    if (!matcher.find() || matcher.group(1) != manifest.ort_version) {
+        throw new GradleException('Reduced ORT version differs from the app; rebuild the candidate')
+    }
+    def models = new File(settings.settingsDir, 'androidApp/src/main/assets/ml')
+        .listFiles().findAll { it.name.endsWith('.onnx') }.collectEntries { [(it.name): hash(it)] }
+    if (models != manifest.models) {
+        throw new GradleException('ML models changed; regenerate operators, rebuild and validate reduced ORT')
+    }
+    def version = manifest.candidate_version
+    if (version != "${manifest.ort_version}-latentjam-arm64") {
+        throw new GradleException('Unexpected reduced ORT candidate version')
+    }
+    def artifact = new File(repo, "com/microsoft/onnxruntime/onnxruntime-android/${version}/onnxruntime-android-${version}.aar")
+    if (!artifact.isFile() || hash(artifact) != manifest.candidate_aar_sha256) {
+        throw new GradleException('Reduced ORT AAR is missing or differs from its manifest')
+    }
+    settings.dependencyResolutionManagement.repositories.maven {
+        url = repo.toURI()
+        content { includeModule('com.microsoft.onnxruntime', 'onnxruntime-android') }
+    }
+    gradle.beforeProject { project ->
+        project.configurations.configureEach {
+            resolutionStrategy.dependencySubstitution {
+                substitute(module("com.microsoft.onnxruntime:onnxruntime-android:${manifest.ort_version}"))
+                    .using(module("com.microsoft.onnxruntime:onnxruntime-android:${version}"))
+            }
+        }
+    }
+}
