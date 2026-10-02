@@ -593,9 +593,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
         val currentRepairingKeys = rememberUpdatedState(repairingKeys)
         val couldNotFinish = tagAccess?.coordinator?.couldNotFinish?.collectAsState()?.value.orEmpty()
-        val interruptedSaveRows = remember(interruptedSaves, scannedTracks, tagAccess, couldNotFinish) {
+        val missingAtFinish = tagAccess?.coordinator?.missingAtFinish?.collectAsState()?.value.orEmpty()
+        val interruptedSaveRows = remember(interruptedSaves, scannedTracks, tagAccess, couldNotFinish, missingAtFinish) {
             tagAccess?.let { access ->
-                interruptedSavesOf(interruptedSaves, scannedTracks, couldNotFinish, access::keyOf)
+                interruptedSavesOf(interruptedSaves, scannedTracks, couldNotFinish, missingAtFinish, access::keyOf)
             }.orEmpty()
         }
         // The files under repair the published library was last filtered with.

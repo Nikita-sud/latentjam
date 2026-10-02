@@ -45,6 +45,7 @@ import io.github.nikitasud.latentjam.library.tags.write.ChannelTargetFile
 import io.github.nikitasud.latentjam.library.tags.write.DurableWriter
 import io.github.nikitasud.latentjam.library.tags.write.FileRecoveryDirectory
 import io.github.nikitasud.latentjam.library.tags.write.TagRecovery
+import io.github.nikitasud.latentjam.library.tags.write.TargetFile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -239,37 +240,45 @@ private class AndroidTagWriteBackend(private val context: Context) : TagWriteBac
     }
 
     override suspend fun open(key: String): WriteOpen<IntentSender> = withContext(Dispatchers.IO) {
-        val uri = Uri.parse(key)
-        var path: String? = null
         try {
             // Every save and every recovery opens its file first, so the store is ready before either.
             prepareStore()
-            path = filePathOf(context, uri)
-            val freeBytes = path?.let(::freeBytesAt)
-            val descriptor = context.contentResolver.openFileDescriptor(uri, "rw") ?: return@withContext WriteOpen.Failed
+            val file = MediaStoreFile(Uri.parse(key))
+            openExistingForWrite(file, file.path?.let(::freeBytesAt)) { failure ->
+                if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && failure is RecoverableSecurityException) {
+                    WriteOpen.NeedsConsent(failure.userAction.actionIntent.intentSender)
+                } else WriteOpen.Denied
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            WriteOpen.Failed
+        }
+    }
+
+    /** One audio row's file. Reading never needs more consent than the library already has. */
+    private inner class MediaStoreFile(private val uri: Uri) : MediaFileAccess {
+        /** Read before any open: the row may go with the file, and this still says where it was. */
+        val path: String? = filePathOf(context, uri)
+
+        override fun probe(): Long {
+            val descriptor = context.contentResolver.openFileDescriptor(uri, "r") ?: throw IOException("no descriptor for $uri")
+            return descriptor.use { it.statSize }
+        }
+
+        override fun openReadWrite(): OpenedForWrite {
+            val descriptor = context.contentResolver.openFileDescriptor(uri, "rw") ?: throw IOException("no descriptor for $uri")
+            val size = descriptor.statSize
             // Neither stream is closed: on Android a stream over a descriptor it did not open leaves the
             // descriptor open, and closing it is the ParcelFileDescriptor's job, done once on close.
             val file = ChannelTargetFile(
                 FileInputStream(descriptor.fileDescriptor).channel,
                 FileOutputStream(descriptor.fileDescriptor).channel,
             ) { descriptor.close() }
-            WriteOpen.Opened(file, freeBytes)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: FileNotFoundException) {
-            when {
-                failure.isReadOnly() -> WriteOpen.ReadOnly
-                // The row may have gone with the file; the path it named a moment ago still says where.
-                isGone(filePathOf(context, uri) ?: path) -> WriteOpen.Missing
-                else -> WriteOpen.Failed
-            }
-        } catch (failure: SecurityException) {
-            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && failure is RecoverableSecurityException) {
-                WriteOpen.NeedsConsent(failure.userAction.actionIntent.intentSender)
-            } else WriteOpen.Denied
-        } catch (_: Exception) {
-            WriteOpen.Failed
+            return OpenedForWrite(file, size)
         }
+
+        override fun isGone(): Boolean = isGone(filePathOf(context, uri) ?: path)
     }
 
     /**
@@ -360,6 +369,65 @@ private class AndroidTagWriteBackend(private val context: Context) : TagWriteBac
         const val KEYS = ".keys"
         const val PARTIAL = ".partial"
         val KEY_FILE = Regex("""(\d+)\.keys(?:\.partial)?""")
+    }
+}
+
+/**
+ * One file as [openExistingForWrite] opens it: MediaStore on a device, a fake in host tests.
+ * [probe] opens read-only, which never creates a file, and answers its size (-1 when unknown); it
+ * throws FileNotFoundException when the file cannot be opened. [openReadWrite] creates a file that
+ * is not there, as every MediaStore write mode does ("w", "rw" and "rwt" all carry MODE_CREATE).
+ * [isGone] is true only when the file is certainly not there.
+ */
+internal interface MediaFileAccess {
+    fun probe(): Long
+    fun openReadWrite(): OpenedForWrite
+    fun isGone(): Boolean
+}
+
+internal class OpenedForWrite(val file: TargetFile, val size: Long)
+
+/**
+ * Opens a file to save tags into, never creating one. A save or a Finish of a file deleted
+ * meanwhile would otherwise make an empty file at its path, and with it a ghost track, and never
+ * say the file is gone. So the file is proven there by a read-only open first, and one that is
+ * certainly gone is MISSING: an interrupted save of it keeps its record and backup.
+ *
+ * A file deleted between the probe and the write open is recreated empty by the write open; it is
+ * then closed unwritten and reported MISSING too. [refused] maps a SecurityException to the
+ * platform's consent or Denied.
+ */
+internal fun <C> openExistingForWrite(
+    access: MediaFileAccess,
+    freeBytes: Long?,
+    refused: (SecurityException) -> WriteOpen<C>,
+): WriteOpen<C> {
+    return try {
+        val size = try {
+            access.probe()
+        } catch (failure: FileNotFoundException) {
+            return if (access.isGone()) WriteOpen.Missing else WriteOpen.Failed
+        }
+        val opened = access.openReadWrite()
+        if (size > 0 && opened.size == 0L) {
+            try {
+                opened.file.close()
+            } catch (_: Exception) {
+                // Nothing was written through it.
+            }
+            WriteOpen.Missing
+        } else {
+            WriteOpen.Opened(opened.file, freeBytes)
+        }
+    } catch (failure: FileNotFoundException) {
+        when {
+            failure.isReadOnly() -> WriteOpen.ReadOnly
+            // The row may have gone with the file; the path it named a moment ago still says where.
+            access.isGone() -> WriteOpen.Missing
+            else -> WriteOpen.Failed
+        }
+    } catch (failure: SecurityException) {
+        refused(failure)
     }
 }
 

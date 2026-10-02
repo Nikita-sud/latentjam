@@ -131,6 +131,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.duplicates_summary_
 import io.github.nikitasud.latentjam.app.generated.resources.duplicates_copy_count
 import io.github.nikitasud.latentjam.app.generated.resources.action_cancel
 import io.github.nikitasud.latentjam.app.generated.resources.snack_duplicates_dismissed
+import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_missing
 import io.github.nikitasud.latentjam.app.generated.resources.unit_megabytes
 import io.github.nikitasud.latentjam.app.generated.resources.duplicates_kbps
 import io.github.nikitasud.latentjam.app.generated.resources.duplicates_reclaimable
@@ -1157,6 +1158,13 @@ private fun LibrarySettings(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
+                                if (save.missing) {
+                                    Text(
+                                        stringResource(Res.string.tag_problem_missing),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                                 if (save.underRepair) {
                                     Text(
                                         stringResource(Res.string.settings_interrupted_being_repaired),

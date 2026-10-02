@@ -674,6 +674,7 @@ internal class TagWriteCoordinatorTest {
         harness.coordinator.refreshRecovery()
         assertEquals(listOf("a"), harness.coordinator.pendingRecovery.value.map { it.target })
         assertEquals(store, backend.files.directory.names().toSet())
+        assertEquals(setOf("a"), harness.coordinator.missingAtFinish.value)
     }
 
     @Test
@@ -696,6 +697,7 @@ internal class TagWriteCoordinatorTest {
         runCurrent()
         harness.deliver()
         assertEquals(emptySet(), harness.coordinator.couldNotFinish.value)
+        assertEquals(emptySet(), harness.coordinator.missingAtFinish.value)
     }
 
     @Test

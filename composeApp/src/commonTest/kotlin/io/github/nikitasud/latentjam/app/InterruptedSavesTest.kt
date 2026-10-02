@@ -45,4 +45,14 @@ internal class InterruptedSavesTest {
         val after = interruptedSavesOf(records, emptyList(), couldNotFinish = setOf("replacing")) { null }
         assertEquals(listOf(true, true), after.map { it.forgettable })
     }
+
+    @Test
+    fun aFileAFinishFoundNotThereSaysSo() {
+        val records = listOf(
+            record("w1", "gone", JournalState.PATCH_PREPARED),
+            record("w2", "here", JournalState.PATCH_PREPARED),
+        )
+        val saves = interruptedSavesOf(records, emptyList(), couldNotFinish = setOf("gone", "here"), missing = setOf("gone")) { null }
+        assertEquals(mapOf("gone" to true, "here" to false), saves.associate { it.label to it.missing })
+    }
 }

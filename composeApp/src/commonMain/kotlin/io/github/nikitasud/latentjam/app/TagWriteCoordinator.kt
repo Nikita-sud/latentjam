@@ -204,6 +204,14 @@ internal class TagWriteCoordinator<C>(
      */
     val couldNotFinish = mutableCouldNotFinish.asStateFlow()
 
+    private val mutableMissingAtFinish = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * Of [couldNotFinish], the files that were not there: Settings says so beside each. Their
+     * records stay (see [WriteOpen.Missing]). Never saved; a new process tries again.
+     */
+    val missingAtFinish = mutableMissingAtFinish.asStateFlow()
+
     private var restoredWait: Long? = null
 
     init {
@@ -363,6 +371,9 @@ internal class TagWriteCoordinator<C>(
             mutableCouldNotFinish.value = mutableCouldNotFinish.value -
                 tried.filter { it.status in FINISHED }.mapTo(HashSet()) { it.key } +
                 tried.filter { it.status !in FINISHED }.map { it.key }
+            mutableMissingAtFinish.value = mutableMissingAtFinish.value -
+                tried.mapTo(HashSet()) { it.key } +
+                tried.filter { it.status == FileWriteStatus.MISSING }.map { it.key }
         }
         val listener = listeners.remove(id)
         if (listener != null) listener(report) else mutableUnclaimed.value = mutableUnclaimed.value + report
