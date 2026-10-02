@@ -167,6 +167,11 @@ internal class PlayerExpansion(open: Boolean, private val scope: CoroutineScope)
     }
 }
 
+/** Set once the full player has been composed; plain, because only composition writes it. */
+private class PlayerWarmth {
+    var warm = false
+}
+
 /** Where the full cover sits inside the player, for the copy that flies to and from the pill. */
 private class PlayerSheetGeometry {
     var content: LayoutCoordinates? = null
@@ -204,6 +209,7 @@ internal fun PlayerSheet(
     coverUri: String?,
     mini: @Composable (thumbnailAlpha: () -> Float) -> Unit,
     full: @Composable (
+        revealed: Boolean,
         artworkModifier: Modifier,
         onCollapseDrag: (Float) -> Unit,
         onCollapseRelease: (Float) -> Boolean,
@@ -230,7 +236,15 @@ internal fun PlayerSheet(
     val belowFull = remember { derivedStateOf { expansion.progress < 1f } }
     val aboveMini = remember { derivedStateOf { expansion.progress > 0f } }
     val armed = expansion.armed
-    val fullComposed = open || !atMini || armed
+    // The player is on screen, or a finger is down and may be about to bring it there.
+    val revealed = open || !atMini || armed
+    // Composing and first drawing the full player is the most expensive thing the sheet does
+    // (about 100 ms on an emulator). Once done it is kept: below the pill, inactive (no ticker,
+    // no cloud) and drawn at zero alpha, it costs nothing per frame, and no later press pays
+    // that frame again.
+    val warmth = remember { PlayerWarmth() }
+    if (revealed) warmth.warm = true
+    val fullComposed = warmth.warm
     val miniComposed = !atFull || armed
     val flightComposed = (!atMini && !atFull) || (armed && open)
 
@@ -256,7 +270,7 @@ internal fun PlayerSheet(
     }
 
     AnimatedVisibility(
-        visible = hasTrack || fullComposed,
+        visible = hasTrack || revealed,
         modifier = modifier.fillMaxSize(),
         enter = if (reduceMotion) {
             fadeIn(tween(Motion.REDUCED_MS))
@@ -327,6 +341,7 @@ internal fun PlayerSheet(
                         .armsExpansion(expansion),
                 ) {
                     full(
+                        revealed,
                         Modifier
                             .onPlaced {
                                 geometry.artwork = it

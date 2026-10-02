@@ -3903,7 +3903,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         )
                     }
                 },
-                full = { artworkModifier, onCollapseDrag, onCollapseRelease ->
+                full = { revealed, artworkModifier, onCollapseDrag, onCollapseRelease ->
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -3913,7 +3913,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     NowPlayingScreen(
                         playback = playback,
                         accent = accent,
-                        active = showNowPlaying && !showSettings,
+                        // Kept composed below the pill once used; it follows playback only while
+                        // it is on screen or a finger may be about to bring it there.
+                        active = revealed && !showSettings,
+                        ownsBack = showNowPlaying && !showSettings,
                         queueSourceLabel = queueSource?.let { source ->
                             source.name ?: source.kind.fallbackLabelRes()?.let { stringResource(it) }
                         },

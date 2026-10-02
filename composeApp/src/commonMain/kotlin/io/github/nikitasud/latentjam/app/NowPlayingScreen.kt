@@ -273,6 +273,8 @@ fun NowPlayingScreen(
     onEditTags: (TrackDescriptor) -> Unit = {},
     onShowOnMap: ((TrackDescriptor) -> Unit)? = null,
     active: Boolean = true,
+    /** Back closes the player only while it is the open surface, not while merely shown. */
+    ownsBack: Boolean = active,
     /**
      * A downward drag on the cover or the top bar, in screen px per move. The player sheet turns it
      * into its one expansion progress, so the whole player follows the finger without this screen
@@ -337,7 +339,7 @@ fun NowPlayingScreen(
     }
     // While lyrics are open, the modal sheet owns Back so it can finish its exit before the parent
     // removes it. Otherwise Back collapses the full player as usual.
-    PlatformBackHandler(enabled = active && !showLyrics, onBack = onClose)
+    PlatformBackHandler(enabled = ownsBack && !showLyrics, onBack = onClose)
 
     // The player sheet grows this screen out of the mini-player pill and carries it while it is
     // dragged; nothing here moves for that, so a drag never recomposes the screen.
