@@ -15,11 +15,15 @@ import kotlinx.coroutines.yield
 
 /**
  * Upgrades descriptors with the tag facts the system scanner loses: the FULL genre list, the
- * credited-artists list, the original release year, the language, and the album artist.
+ * credited-artists list, the original release year, the language, the album artist, and the
+ * file's own year when the scanner reported none.
  *
  * Android's media scanner keeps one genre and one display-artist string per track, and reports
  * the edition year. The files themselves know more — five separate `GENRE` fields, a Picard
- * `ARTISTS` list, `ORIGINALDATE`. This pass reads each file once per revision, remembers the
+ * `ARTISTS` list, `ORIGINALDATE`. Android 16's scanner also leaves the year empty for every
+ * MP3, FLAC and Opus file (only M4A keeps one), so decade search, album years and SMART's era
+ * term would see no year at all; the file's `TDRC`/`TYER`/`DATE` fills in, while a year the
+ * scanner did report always wins. This pass reads each file once per revision, remembers the
  * result durably, and rewrites descriptors. Every consumer downstream reacts on its own: the
  * genre tab lists a track under each genre, the artists tab under each credit, the chain's
  * artist spacing recognises collaborations, its era term keeps a remaster in its real decade,
@@ -42,6 +46,8 @@ internal class GenreEnrichment(
         val originalYear: Int?,
         val language: String?,
         val albumArtist: String?,
+        /** The file's own year; applied only where the scanner reported none. */
+        val year: Int?,
     )
 
     private val mutex = Mutex()
@@ -59,9 +65,10 @@ internal class GenreEnrichment(
             val originalYear = stored.originalYear ?: track.originalYear
             val language = stored.language ?: track.language
             val albumArtist = stored.albumArtist ?: track.albumArtist
+            val year = track.year ?: stored.year
             if (genre == track.genre && artists == track.artists &&
                 originalYear == track.originalYear && language == track.language &&
-                albumArtist == track.albumArtist
+                albumArtist == track.albumArtist && year == track.year
             ) {
                 track
             } else {
@@ -71,6 +78,7 @@ internal class GenreEnrichment(
                     originalYear = originalYear,
                     language = language,
                     albumArtist = albumArtist,
+                    year = year,
                 )
             }
         }
@@ -97,6 +105,7 @@ internal class GenreEnrichment(
                 originalYear = facts.originalYear,
                 language = facts.language,
                 albumArtist = facts.albumArtist,
+                year = facts.year,
             )
             updates[track.id.value] = stored
             if (stored.changes(track)) learnedSomething = true
@@ -129,7 +138,8 @@ internal class GenreEnrichment(
             (artists.isNotEmpty() && artists != track.artists) ||
             (originalYear != null && originalYear != track.originalYear) ||
             (language != null && language != track.language) ||
-            (albumArtist != null && albumArtist != track.albumArtist)
+            (albumArtist != null && albumArtist != track.albumArtist) ||
+            (year != null && track.year == null)
 
     private fun ensureLoaded(): MutableMap<String, Stored> {
         cache?.let { return it }
@@ -140,11 +150,14 @@ internal class GenreEnrichment(
 
     private companion object {
         /**
-         * v2 added artists and the original year, v3 the language tag, v4 the album artist. Older lines are
-         * deliberately dropped on decode: those files must be re-read once anyway to learn the
-         * new facts.
+         * v2 added artists and the original year, v3 the language tag, v4 the album artist, v5 the
+         * file's own year. Older lines are deliberately dropped on decode: those files must be
+         * re-read once anyway to learn the new facts. That is one tag read per track, the same
+         * pass every earlier bump cost; SMART's audio analysis is keyed on the audio's identity
+         * (URI, duration, revision) and is untouched — only the cheap text vector re-encodes
+         * where a year appears.
          */
-        const val FORMAT = "v4"
+        const val FORMAT = "v5"
 
         /** Joins the artist list inside one hex field; NUL never appears in a real name. */
         const val ARTIST_JOIN = "\u0000"
@@ -168,6 +181,7 @@ internal class GenreEnrichment(
                     stored.originalYear?.toString() ?: "",
                     stored.language.orEmpty().hex(),
                     stored.albumArtist.orEmpty().hex(),
+                    stored.year?.toString() ?: "",
                 ).joinToString("|")
             }
 
@@ -175,7 +189,7 @@ internal class GenreEnrichment(
             val result = HashMap<String, Stored>()
             payload?.lineSequence()?.forEach { line ->
                 val parts = line.split('|')
-                if (parts.size != 8 || parts[0] != FORMAT) return@forEach
+                if (parts.size != 9 || parts[0] != FORMAT) return@forEach
                 val id = parts[1].unhex() ?: return@forEach
                 val revision = parts[2].unhex() ?: return@forEach
                 val genres = parts[3].unhex() ?: return@forEach
@@ -193,6 +207,7 @@ internal class GenreEnrichment(
                     originalYear = parts[5].toIntOrNull(),
                     language = language.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
                     albumArtist = albumArtist.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
+                    year = parts[8].toIntOrNull(),
                 )
             }
             return result

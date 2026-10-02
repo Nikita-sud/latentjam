@@ -33,6 +33,7 @@ class TagFactsTest {
                 val facts = assertNotNull(TagFacts.embedded(source))
                 assertEquals(listOf("rus/eng", "rus", "русский")[index], facts.language)
                 assertEquals(1987, facts.originalYear)
+                assertEquals(2012, facts.year)
                 assertEquals(tag.size, source.position, "Only the ID3 prefix is needed")
             }
         }
@@ -55,6 +56,7 @@ class TagFactsTest {
         val facts = assertNotNull(TagFacts.embedded(ArraySource("fLaC".encodeToByteArray() + header + body)))
         assertEquals("ron", facts.language)
         assertEquals(1987, facts.originalYear)
+        assertEquals(2012, facts.year)
         assertEquals(listOf("Pop"), facts.genres)
         assertEquals(listOf("First", "Second"), facts.artists)
     }
@@ -123,6 +125,37 @@ class TagFactsTest {
         assertNull(TagFacts.fromComments(listOf("TDOR" to "next year")).originalYear)
         // Classical tagging puts the composition year here; that intent survives.
         assertEquals(1707, TagFacts.fromComments(listOf("ORIGINALDATE" to "1707")).originalYear)
+    }
+
+    @Test
+    fun theFilesOwnYearComesFromItsDateFieldInAnySpelling() {
+        assertEquals(1997, TagFacts.fromComments(listOf("DATE" to "1997")).year)
+        assertEquals(2001, TagFacts.fromComments(listOf("TDRC" to "2001-06-20")).year)
+        assertEquals(1979, TagFacts.fromComments(listOf("YEAR" to "1979")).year)
+        assertEquals(1984, TagFacts.fromComments(listOf("TYER" to "1984")).year)
+        // The first sane value wins; a placeholder does not block a later real one.
+        assertEquals(1999, TagFacts.fromComments(listOf("DATE" to "1999", "YEAR" to "2005")).year)
+        assertEquals(2005, TagFacts.fromComments(listOf("DATE" to "0000", "YEAR" to "2005")).year)
+        assertNull(TagFacts.fromComments(listOf("DATE" to "someday")).year)
+        // The original year is a different fact and never stands in for the edition year.
+        assertNull(TagFacts.fromComments(listOf("ORIGINALDATE" to "1987")).year)
+        assertEquals(EmbeddedTagFacts(year = 2012), TagFacts.fromComments(listOf("DATE" to "2012")))
+    }
+
+    @Test
+    fun anId3v23YearFrameIsReadAsTheFilesYear() {
+        val tag = Id3TestTags.build(
+            major = 3,
+            frames = listOf(TestFrame("TYER", Id3TestTags.latin1Body("1983"))),
+        )
+        val facts = assertNotNull(TagFacts.embedded(ArraySource(tag + Id3TestTags.mp3Payload())))
+        assertEquals(1983, facts.year)
+        assertNull(facts.originalYear)
+    }
+
+    @Test
+    fun aYearAloneMakesTheFactsNonEmpty() {
+        assertEquals(false, EmbeddedTagFacts(year = 1990).isEmpty)
     }
 
     @Test

@@ -32,6 +32,8 @@ internal class GenreEnrichmentTest {
         originalYear = 1987,
         language = "русский",
         albumArtist = "Various Artists",
+        // MediaStore said 2012 for [track]; its year wins, so [enriched] keeps 2012.
+        year = 1999,
     )
     private val enriched = track.copy(
         genre = "Rock; Pop",
@@ -96,7 +98,7 @@ internal class GenreEnrichmentTest {
         val settings = MemorySettings()
         GenreEnrichment(settings) { facts }.backfill(listOf(track))
         settings.trackGenresPayload = settings.trackGenresPayload!!
-            .replaceFirst("v4|", "v2|").substringBeforeLast('|').substringBeforeLast('|')
+            .replaceFirst("v5|", "v2|").substringBeforeLast('|').substringBeforeLast('|').substringBeforeLast('|')
         var reads = 0
         val upgraded = GenreEnrichment(settings) { reads++; facts }
         assertEquals(listOf(track), upgraded.apply(listOf(track)))
@@ -112,12 +114,54 @@ internal class GenreEnrichmentTest {
         val settings = MemorySettings()
         GenreEnrichment(settings) { facts }.backfill(listOf(track))
         settings.trackGenresPayload = settings.trackGenresPayload!!
-            .replaceFirst("v4|", "v3|").substringBeforeLast('|')
+            .replaceFirst("v5|", "v3|").substringBeforeLast('|').substringBeforeLast('|')
         var reads = 0
         val upgraded = GenreEnrichment(settings) { reads++; facts }
         assertTrue(upgraded.backfill(listOf(track)))
         assertEquals(listOf(enriched), upgraded.apply(listOf(track)))
         assertEquals(1, reads)
+    }
+
+    @Test
+    fun aV4CacheIsReadAgainOnceToLearnTheFilesYear() = runTest {
+        val settings = MemorySettings()
+        val undated = track.copy(year = null)
+        GenreEnrichment(settings) { facts }.backfill(listOf(undated))
+        settings.trackGenresPayload = settings.trackGenresPayload!!
+            .replaceFirst("v5|", "v4|").substringBeforeLast('|')
+        var reads = 0
+        val upgraded = GenreEnrichment(settings) { reads++; facts }
+        assertEquals(listOf(undated), upgraded.apply(listOf(undated)))
+        assertTrue(upgraded.backfill(listOf(undated)))
+        assertEquals(listOf(enriched.copy(year = 1999)), upgraded.apply(listOf(undated)))
+        assertEquals(1, reads)
+        val restarted = GenreEnrichment(settings) { error("upgrade already persisted") }
+        assertEquals(listOf(enriched.copy(year = 1999)), restarted.apply(listOf(undated)))
+        assertFalse(restarted.backfill(listOf(enriched.copy(year = 1999))))
+    }
+
+    @Test
+    fun theFilesYearFillsInWhenTheSystemScannerHasNone() = runTest {
+        // Android 16's MediaStore leaves YEAR empty for every MP3, FLAC and Opus file.
+        val settings = MemorySettings()
+        val undated = track.copy(year = null)
+        val yearOnly = EmbeddedTagFacts(year = 1997)
+        val enrichment = GenreEnrichment(settings) { yearOnly }
+        assertTrue(enrichment.backfill(listOf(undated)))
+        assertEquals(listOf(undated.copy(year = 1997)), enrichment.apply(listOf(undated)))
+        val restarted = GenreEnrichment(settings) { error("the year is remembered") }
+        assertEquals(listOf(undated.copy(year = 1997)), restarted.apply(listOf(undated)))
+        assertFalse(restarted.backfill(listOf(undated.copy(year = 1997))))
+    }
+
+    @Test
+    fun theSystemScannersYearWinsOverTheFilesYear() = runTest {
+        val settings = MemorySettings()
+        val enrichment = GenreEnrichment(settings) { EmbeddedTagFacts(year = 1997) }
+        // Nothing new is learned, so no reload is requested.
+        assertFalse(enrichment.backfill(listOf(track)))
+        assertEquals(listOf(track), enrichment.apply(listOf(track)))
+        assertEquals(2012, enrichment.apply(listOf(track)).single().year)
     }
 
     @Test

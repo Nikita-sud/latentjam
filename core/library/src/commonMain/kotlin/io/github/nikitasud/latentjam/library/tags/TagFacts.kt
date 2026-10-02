@@ -17,6 +17,9 @@ package io.github.nikitasud.latentjam.library.tags
  *   ID3 `TDOR`/`TORY`), as opposed to the edition year the scanner reports — a 2012 remaster
  *   of a 1987 song is a 1987 song to anything reasoning about eras.
  * - [albumArtist]: the album's artist verbatim (`ALBUMARTIST`, ID3 `TPE2`); null when absent.
+ * - [year]: the file's own (edition) year — Vorbis `DATE`/`YEAR`, ID3 `TDRC`/`TYER`. The system
+ *   scanner normally reports it, but Android 16's MediaStore leaves it empty for every MP3, FLAC
+ *   and Opus file, so this is the fallback when it does.
  */
 public data class EmbeddedTagFacts(
     public val genres: List<String> = emptyList(),
@@ -26,10 +29,12 @@ public data class EmbeddedTagFacts(
     public val language: String? = null,
     /** The album's artist verbatim (`ALBUMARTIST`, ID3 `TPE2`); null when absent. */
     public val albumArtist: String? = null,
+    /** The file's own year (`DATE`/`YEAR`, ID3 `TDRC`/`TYER`); null when absent or unreadable. */
+    public val year: Int? = null,
 ) {
     public val isEmpty: Boolean
         get() = genres.isEmpty() && artists.isEmpty() && originalYear == null && language == null &&
-            albumArtist == null
+            albumArtist == null && year == null
 }
 
 public object TagFacts {
@@ -64,6 +69,7 @@ public object TagFacts {
         var originalYear: Int? = null
         var language: String? = null
         var albumArtist: String? = null
+        var year: Int? = null
         for ((rawKey, value) in comments) {
             when (rawKey.uppercase()) {
                 "GENRE" -> genres.add(value)
@@ -71,6 +77,8 @@ public object TagFacts {
                 "ARTIST" -> artistFields.add(value.trim())
                 "ORIGINALYEAR", "ORIGINALDATE", "TDOR", "TORY" ->
                     if (originalYear == null) originalYear = parseYear(value)
+                "DATE", "YEAR", "TDRC", "TYER" ->
+                    if (year == null) year = parseYear(value)
                 "ALBUMARTIST", "ALBUM ARTIST", "ALBUM_ARTIST", "TPE2" ->
                     if (albumArtist == null) albumArtist = value.trim().takeIf { it.isNotEmpty() }
                 "LANGUAGE", "TLAN" ->
@@ -94,6 +102,7 @@ public object TagFacts {
             originalYear = originalYear,
             language = language,
             albumArtist = albumArtist,
+            year = year,
         )
     }
 
