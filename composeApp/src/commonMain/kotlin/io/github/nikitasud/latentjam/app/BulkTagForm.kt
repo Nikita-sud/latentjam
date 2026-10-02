@@ -18,7 +18,14 @@ internal sealed interface SharedValue {
     data object Different : SharedValue
 }
 
-internal class BulkBaseline(val shared: Map<BulkField, SharedValue>) {
+internal class BulkBaseline(
+    val shared: Map<BulkField, SharedValue>,
+    /**
+     * Whether the files that carry a year agree on which year it is: "1999" and "1999-05-01" do, and
+     * a file with no year abstains. Only then can a new year also move the original release years.
+     */
+    val yearsAgree: Boolean = shared[BulkField.YEAR] !is SharedValue.Different,
+) {
 
     /** What a field shows before the user touches it: the shared value, or empty over different ones. */
     fun initialText(field: BulkField): String = (shared[field] as? SharedValue.Same)?.value.orEmpty()
@@ -29,7 +36,12 @@ internal class BulkBaseline(val shared: Map<BulkField, SharedValue>) {
                 val values = snapshots.map { valueOf(it, field)?.trim().orEmpty() }.distinct()
                 values.singleOrNull()?.let(SharedValue::Same) ?: SharedValue.Different
             },
+            yearsAgree = snapshots.mapNotNull { snapshot -> snapshot.year?.let(::leadingYear) }.distinct().size <= 1,
         )
+
+        private val LEADING_YEAR = Regex("""^\s*(\d{4})""")
+
+        private fun leadingYear(value: String): String? = LEADING_YEAR.find(value)?.groupValues?.get(1)
 
         private fun valueOf(snapshot: TagSnapshot, field: BulkField): String? = when (field) {
             BulkField.ARTIST -> snapshot.artist
@@ -81,7 +93,7 @@ internal data class BulkTagForm(
         cover = cover,
         // A year stamped over files whose years differed is the collection's release year (a
         // self-made compilation): each file's original year is its own and stays.
-        originalFollowsYear = baseline.shared[BulkField.YEAR] !is SharedValue.Different,
+        originalFollowsYear = baseline.yearsAgree,
     )
 
     /** How many fields a save would write, the cover included: the "3 fields" of "Change 3 fields in 12 files". */

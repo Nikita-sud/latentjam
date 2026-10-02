@@ -92,6 +92,19 @@ internal class BulkTagFormTest {
     }
 
     @Test
+    fun filesThatSpellTheSameYearDifferentlyOrLackOneStillAgree() {
+        val years = BulkBaseline.of(
+            listOf(
+                TagSnapshot(TagFormat.MP3, "ID3v2.4", year = "1999"),
+                TagSnapshot(TagFormat.FLAC, "FLAC", year = "1999-05-01"),
+                TagSnapshot(TagFormat.OPUS, "Opus"),
+            ),
+        )
+        assertEquals(SharedValue.Different, years.shared[BulkField.YEAR])
+        assertTrue(BulkTagForm().typed(BulkField.YEAR, "2004").edits(years).originalFollowsYear)
+    }
+
+    @Test
     fun theCoverCountsAsAField() {
         assertEquals(1, BulkTagForm(cover = CoverChoice.Remove).changedFieldCount(baseline))
     }
