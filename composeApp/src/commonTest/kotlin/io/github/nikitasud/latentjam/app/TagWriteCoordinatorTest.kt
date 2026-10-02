@@ -317,6 +317,39 @@ internal class TagWriteCoordinatorTest {
     }
 
     @Test
+    fun aReportCarriesItsRequestsCover() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        listOf("a", "b").forEach { backend.files.put(it, testMp3()) }
+        val harness = Harness(backend, this)
+        harness.enqueue(listOf("a"), TagEdits(cover = CoverEdit.Remove))
+        harness.enqueue(listOf("b"), TagEdits(title = "New"))
+        runCurrent()
+        harness.deliver()
+        runCurrent()
+        harness.deliver()
+        assertEquals(listOf<CoverEdit>(CoverEdit.Remove, CoverEdit.Keep), harness.reports.map { it.cover })
+    }
+
+    @Test
+    fun aNewCoverRestoredAfterProcessDeathReachesItsUnclaimedReport() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
+        backend.files.put("a", testMp3())
+        val first = Harness(backend, this)
+        val png = byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte())
+        first.enqueue(listOf("a"), TagEdits(cover = CoverEdit.Replace(png, "image/png")))
+        runCurrent()
+        val restored = first.recreate()
+        runCurrent()
+        restored.coordinator.onHostResumed()
+        runCurrent()
+        restored.approvePrompt()
+        runCurrent()
+        restored.deliver()
+        val cover = restored.coordinator.unclaimed.value.single().cover
+        assertContentEquals(png, assertIs<CoverEdit.Replace>(cover).bytes)
+    }
+
+    @Test
     fun aStopWhileTheBatchConsentIsBuiltOffersNothing() = runTest {
         val backend = TestTagWriteBackend(TagWriteStrategy.SYSTEM_WRITE_REQUEST)
         listOf("a", "b").forEach { backend.files.put(it, testMp3()) }

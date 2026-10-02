@@ -14,6 +14,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.tags_saved_partly
 import io.github.nikitasud.latentjam.library.AlbumGroup
 import io.github.nikitasud.latentjam.library.ArtistGroup
 import io.github.nikitasud.latentjam.library.LibraryCatalog
+import io.github.nikitasud.latentjam.library.tags.CoverEdit
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import org.jetbrains.compose.resources.getPluralString
@@ -110,3 +111,16 @@ internal fun tracksWithKeys(
     keyOf: (TrackDescriptor) -> String?,
 ): List<TrackDescriptor> =
     if (keys.isEmpty()) emptyList() else tracks.filter { track -> keyOf(track)?.let(keys::contains) == true }
+
+/**
+ * The tracks among [saved] whose files now hold this save's new or removed cover: every file that
+ * holds the edit, one already so included. None when the save kept the cover.
+ */
+internal fun TagSaveResult.coverSavedTracks(
+    saved: List<TrackDescriptor>,
+    keyOf: (TrackDescriptor) -> String?,
+): List<TrackId> {
+    if (cover == CoverEdit.Keep) return emptyList()
+    val holding = entries.filter { it.saved }.mapTo(HashSet()) { it.key }
+    return tracksWithKeys(saved, holding, keyOf).map { it.id }
+}

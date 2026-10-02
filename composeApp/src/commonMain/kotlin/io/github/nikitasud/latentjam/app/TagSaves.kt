@@ -38,6 +38,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_tags_to
 import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_undone
 import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_unreadable
 import io.github.nikitasud.latentjam.app.generated.resources.tag_problem_unsupported_format
+import io.github.nikitasud.latentjam.library.tags.CoverEdit
 import io.github.nikitasud.latentjam.library.tags.TagEdits
 import io.github.nikitasud.latentjam.library.tags.TagRefusal
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -107,8 +108,14 @@ internal data class TagSaveEntry(
 /**
  * A finished save, file by file: what the editor reports exactly (spec §6.3). [lost]: the editor's
  * save is one the writer no longer holds and will never report, so nothing is known file by file.
+ * [cover]: the save's cover edit, which every saved file now holds. Not kept by [toSaveable]: it is
+ * acted on when the save finishes, never by an editor restored afterwards.
  */
-internal data class TagSaveResult(val entries: List<TagSaveEntry>, val lost: Boolean = false) {
+internal data class TagSaveResult(
+    val entries: List<TagSaveEntry>,
+    val lost: Boolean = false,
+    val cover: CoverEdit = CoverEdit.Keep,
+) {
     val savedCount: Int get() = entries.count { it.saved }
     val notChanged: List<TagSaveEntry> get() = entries.filterNot { it.saved }
 
@@ -137,6 +144,7 @@ internal data class TagSaveResult(val entries: List<TagSaveEntry>, val lost: Boo
                     problem = tagProblemOf(result.status, result.refusal, readOnlyIsMusicLibrary),
                 )
             },
+            cover = report.cover,
         )
     }
 }

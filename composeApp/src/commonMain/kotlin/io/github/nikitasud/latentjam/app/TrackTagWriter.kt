@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.library.tags.CoverEdit
 import io.github.nikitasud.latentjam.library.tags.TagRefusal
 
 /**
@@ -54,5 +55,14 @@ internal data class FileWriteResult(
     val newLength: Long? = null,
 )
 
-/** A finished request: what became of each file, and the request [id] its editor listens on. */
-internal data class TagWriteReport(val kind: TagWriteKind, val results: List<FileWriteResult>, val id: Long = 0)
+/**
+ * A finished request: what became of each file, and the request [id] its editor listens on. [cover]
+ * is the request's cover edit, which the files that hold the edit now have; a request restored
+ * after process death carries its stashed cover, so a report nobody claims still knows it.
+ */
+internal data class TagWriteReport(
+    val kind: TagWriteKind,
+    val results: List<FileWriteResult>,
+    val id: Long = 0,
+    val cover: CoverEdit = CoverEdit.Keep,
+)

@@ -6,7 +6,11 @@ package io.github.nikitasud.latentjam.library
 
 import android.content.ContentUris
 import android.content.Context
+import android.net.Uri
 import android.provider.MediaStore
+import io.github.nikitasud.latentjam.library.tags.CoverEdit
+import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
+import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TextRepair
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -16,6 +20,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import java.io.FileInputStream
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 
 /**
  * [MusicLibrary] backed by Android's [MediaStore].
@@ -76,6 +83,10 @@ internal class MediaStoreMusicLibrary(
     }
     private val hiddenFile = java.io.File(context.filesDir, HIDDEN_FILE_NAME)
     private val excludedSourcesFile = java.io.File(context.filesDir, EXCLUDED_SOURCES_FILE_NAME)
+    private val coverOverrides = TrackCoverOverrides(
+        directory = java.io.File(context.filesDir, TRACK_COVERS_DIRECTORY),
+        readCover = ::readEmbeddedCover,
+    )
 
     override suspend fun scan(): LibraryScan = withContext(Dispatchers.IO) {
         val hidden = visibilityMutex.withLock { readHiddenIds() }
@@ -200,7 +211,29 @@ internal class MediaStoreMusicLibrary(
                 )
             }
         }
-        withAlbumArtVersions(tracks)
+        // Only a complete scan reaches here: an incomplete one returned or threw above, and must
+        // not read as "these songs are gone" to the overrides.
+        coverOverrides.apply(withAlbumArtVersions(tracks))
+    }
+
+    override suspend fun coverSaved(trackIds: Collection<TrackId>, cover: CoverEdit): Unit =
+        withContext(Dispatchers.IO) {
+            // A cover that cannot be kept costs only the song's own cover: it shows its album's.
+            runCatching { coverOverrides.record(trackIds, cover) }
+        }
+
+    /** The cover [track]'s file holds now, for re-checking its override after the file changed. */
+    private fun readEmbeddedCover(track: TrackDescriptor): FileCover = try {
+        val uri = track.audioUri?.takeIf(String::isNotBlank)?.let(Uri::parse)
+        val descriptor = uri?.let { context.contentResolver.openFileDescriptor(it, "r") }
+        descriptor?.use {
+            // Not closed: closing a stream over this descriptor closes the descriptor itself, which
+            // is the ParcelFileDescriptor's job.
+            val snapshot = TagCodecs.read(ChannelSource(FileInputStream(it.fileDescriptor).channel))
+            if (snapshot == null) FileCover.Unrecognised else FileCover.Read(snapshot.cover?.crc32)
+        } ?: FileCover.Unreadable
+    } catch (_: Exception) {
+        FileCover.Unreadable
     }
 
     override suspend fun hide(trackId: TrackId): Unit = withContext(Dispatchers.IO) {
@@ -360,6 +393,24 @@ internal class MediaStoreMusicLibrary(
         const val HIDDEN_FILE_NAME = "hidden_tracks.txt"
         const val EXCLUDED_SOURCES_FILE_NAME = "excluded_music_sources.txt"
         const val SOURCE_PREFIX = "folder:"
+        const val TRACK_COVERS_DIRECTORY = "track-covers"
+    }
+}
+
+/** Positional reads over a `ParcelFileDescriptor`'s channel, for the tag codecs. */
+private class ChannelSource(private val channel: FileChannel) : RandomAccessSource {
+    override val length: Long = channel.size()
+
+    override fun read(offset: Long, count: Int): ByteArray? {
+        if (offset < 0 || count < 0 || offset + count > length) return null
+        val buffer = ByteBuffer.allocate(count)
+        var position = offset
+        while (buffer.hasRemaining()) {
+            val read = channel.read(buffer, position)
+            if (read < 0) return null
+            position += read
+        }
+        return buffer.array()
     }
 }
 

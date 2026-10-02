@@ -803,12 +803,10 @@ internal class AndroidPlaybackController(
         // has; the durable resume snapshot stores ids and is resolved against the live library.
         val player = controller
         if (player != null) {
-            for (index in 0 until player.mediaItemCount) {
+            val queueIds = List(player.mediaItemCount) { player.getMediaItemAt(it).mediaId }
+            for ((index, coverChanged) in refreshedItems(queueIds, previousArtworkUris, updates)) {
                 val item = player.getMediaItemAt(index)
-                val fresh = updates[TrackId(item.mediaId)] ?: continue
-                val unchangedCover = fresh.id in previousArtworkUris &&
-                    previousArtworkUris[fresh.id] == fresh.artworkUri
-                player.replaceMediaItem(index, item.withTagsOf(fresh, coverChanged = !unchangedCover))
+                player.replaceMediaItem(index, item.withTagsOf(updates.getValue(TrackId(item.mediaId)), coverChanged))
             }
         }
         rebuildQueueSnapshot()

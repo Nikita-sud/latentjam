@@ -897,12 +897,14 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
          * Everything finished saves change outside the files (spec §6.5). [edits] pairs each edit's
          * tracks, as the library held them before the save, with its result; [results] are all the
          * saves, recoveries included. First SMART's carry-overs, before the reload that would
-         * otherwise start a sync without them. Then one library reload. Then the queue and the open
-         * page, which hold descriptors by value. Nothing runs when no file changed; else the job.
+         * otherwise start a sync without them. Then the saved covers, which the library must know of
+         * before it reloads: Android's covers are per album, and only a recorded one is the song's
+         * own. Then one library reload. Then the queue and the open page, which hold descriptors by
+         * value. Nothing runs when no file changed; else the job.
          *
          * On the app's scope, not this composition's: an Activity recreated within the second this
-         * takes (a rotation) would otherwise cancel it, leaving the carry-overs unstored and the
-         * queue on the old descriptors. Those two are process-wide, so they finish whatever happens
+         * takes (a rotation) would otherwise cancel it, leaving the carry-overs and covers unstored
+         * and the queue on the old descriptors. Those are process-wide, so they finish whatever happens
          * to this composition. The library and the open page are this composition's; a new one
          * loads its own library at start, after the save, and opens no page from before.
          */
@@ -916,6 +918,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             return AppGraph.appScope.launch(Dispatchers.Main) {
                 for ((saved, result) in edits) {
                     AppGraph.audioCarryOvers.add(audioCarryOversOf(saved, result, access::keyOf))
+                }
+                for ((saved, result) in edits) {
+                    val covered = result.coverSavedTracks(saved, access::keyOf)
+                    if (covered.isNotEmpty()) library.coverSaved(covered, result.cover)
                 }
                 val fresh = scanLibrary()
                 playback.refreshTracks(tracksWithKeys(fresh, changedKeys, access::keyOf))

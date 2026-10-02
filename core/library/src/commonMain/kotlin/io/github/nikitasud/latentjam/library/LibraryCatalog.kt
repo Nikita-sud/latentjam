@@ -266,7 +266,7 @@ public data class LibraryCatalog(
                 }
 
                 val artists = sameTitle.mapNotNull { it.albumOwner().normalizedKey() }.toSet()
-                val artwork = sameTitle.mapNotNull { it.artworkUri }.toSet()
+                val artwork = sameTitle.mapNotNull { it.albumArtwork() }.toSet()
                 when {
                     artists.size <= 1 -> {
                         val artist = artists.firstOrNull()
@@ -328,9 +328,15 @@ public data class LibraryCatalog(
          */
         private fun TrackDescriptor.albumOwner(): String? = albumArtist?.takeIf { it.isNotBlank() } ?: artist
 
+        /**
+         * The album's artwork, never a song's own cover (see [TrackDescriptor.albumArtworkUri]): one
+         * song whose cover was edited, or removed, stays in its album.
+         */
+        private fun TrackDescriptor.albumArtwork(): String? = albumArtworkUri ?: artworkUri
+
         /** Artwork and artist are different identity domains even when their strings happen to match. */
         private fun TrackDescriptor.albumDiscriminator(): AlbumDiscriminator =
-            artworkUri?.let(AlbumDiscriminator::Artwork)
+            albumArtwork()?.let(AlbumDiscriminator::Artwork)
                 ?: AlbumDiscriminator.Artist(albumOwner().normalizedKey())
 
         /**

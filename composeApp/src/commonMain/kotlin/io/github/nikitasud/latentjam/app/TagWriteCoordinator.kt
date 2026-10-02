@@ -343,7 +343,7 @@ internal class TagWriteCoordinator<C>(
     fun deliver(id: Long) {
         val first = requests.firstOrNull() ?: return
         if (first.id != id || first.stage != TagWriteStage.COMPLETE) return
-        val report = TagWriteReport(first.kind, first.results, first.id)
+        val report = TagWriteReport(first.kind, first.results, first.id, first.edits.cover)
         requests = requests.drop(1)
         mutableCompleted.value = null
         checkpoint()

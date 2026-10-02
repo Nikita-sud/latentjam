@@ -5,10 +5,12 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.library.LibraryCatalog
+import io.github.nikitasud.latentjam.library.tags.CoverEdit
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 internal class TagEditRefreshTest {
@@ -115,5 +117,28 @@ internal class TagEditRefreshTest {
         val tracks = listOf(track("1", "A"), track("2", "A"), track("3", "A").copy(audioUri = null))
         assertEquals(listOf("2"), tracksWithKeys(tracks, setOf("k2", "gone"), { it.audioUri }).map { it.id.value })
         assertEquals(emptyList(), tracksWithKeys(tracks, emptySet(), { it.audioUri }))
+    }
+
+    @Test
+    fun aSavedCoverBelongsToEveryFileThatNowHoldsIt() {
+        val tracks = listOf(track("1", "A"), track("2", "A"), track("3", "A"), track("4", "A"))
+        val entries = listOf(
+            TagSaveEntry("k1", FileWriteStatus.SAVED),
+            TagSaveEntry("k2", FileWriteStatus.UNCHANGED),
+            TagSaveEntry("k3", FileWriteStatus.REFUSED, problem = TagProblem.DAMAGED),
+            TagSaveEntry("k4", FileWriteStatus.RECOVERED),
+        )
+        val replaced = TagSaveResult(entries, cover = CoverEdit.Replace(byteArrayOf(1), "image/png"))
+        assertEquals(listOf("1", "2", "4"), replaced.coverSavedTracks(tracks, { it.audioUri }).map { it.value })
+        val removed = TagSaveResult(entries, cover = CoverEdit.Remove)
+        assertEquals(listOf("1", "2", "4"), removed.coverSavedTracks(tracks, { it.audioUri }).map { it.value })
+        assertEquals(emptyList(), TagSaveResult(entries).coverSavedTracks(tracks, { it.audioUri }))
+    }
+
+    @Test
+    fun aSaveResultCarriesItsReportsCover() {
+        val cover = CoverEdit.Replace(byteArrayOf(1), "image/png")
+        val report = TagWriteReport(TagWriteKind.EDIT, listOf(FileWriteResult("k1", FileWriteStatus.SAVED)), id = 7, cover = cover)
+        assertSame(cover, TagSaveResult.of(report, readOnlyIsMusicLibrary = false).cover)
     }
 }

@@ -24,3 +24,19 @@ internal fun refreshedTracks(queue: List<TrackDescriptor>, updates: Map<TrackId,
     }
     return refreshed.takeIf { changed }
 }
+
+/**
+ * The queue items, by index in [queueIds], that [updates] refreshes, each with whether its cover
+ * changed: whether [previousArtworkUris], the covers held before the refresh, lacks the track or
+ * names another cover. Only those items get their artwork republished, so a title edit keeps a
+ * generated cover, and one song's new cover leaves the rest of its album as it was.
+ */
+internal fun refreshedItems(
+    queueIds: List<String>,
+    previousArtworkUris: Map<TrackId, String?>,
+    updates: Map<TrackId, TrackDescriptor>,
+): List<Pair<Int, Boolean>> = queueIds.mapIndexedNotNull { index, id ->
+    val fresh = updates[TrackId(id)] ?: return@mapIndexedNotNull null
+    val unchangedCover = fresh.id in previousArtworkUris && previousArtworkUris[fresh.id] == fresh.artworkUri
+    index to !unchangedCover
+}

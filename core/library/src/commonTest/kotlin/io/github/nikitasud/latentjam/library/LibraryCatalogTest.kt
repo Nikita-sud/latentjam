@@ -76,6 +76,57 @@ internal class LibraryCatalogTest {
         assertEquals(3, plain.albums.size)
     }
 
+    /** A song whose cover LatentJam saved on Android: its own cover, and its album's kept beside it. */
+    private fun TrackDescriptor.withOwnCover(uri: String?) = copy(artworkUri = uri, albumArtworkUri = artworkUri)
+
+    @Test
+    fun oneSongsOwnCoverDoesNotSplitItsAlbumInAnyGrouping() {
+        val shapes = mapOf(
+            "one artist" to listOf(
+                track("1", title = "a", artist = "Queen", album = "Hits", artworkUri = "art://1"),
+                track("2", title = "b", artist = "Queen", album = "Hits", artworkUri = "art://1"),
+                track("3", title = "c", artist = "Queen", album = "Hits", artworkUri = "art://1"),
+            ),
+            // No album artist: the shared album art is what holds these artists together.
+            "same title, several artists" to listOf(
+                track("1", title = "a", artist = "Queen", album = "Hits 1985", artworkUri = "art://9"),
+                track("2", title = "b", artist = "ABBA", album = "Hits 1985", artworkUri = "art://9"),
+                track("3", title = "c", artist = "Sade", album = "Hits 1985", artworkUri = "art://9"),
+            ),
+            "no album title" to listOf(
+                track("1", title = "a", artist = "Queen", artworkUri = "art://5"),
+                track("2", title = "b", artist = "ABBA", artworkUri = "art://5"),
+                track("3", title = "c", artist = "Sade", artworkUri = "art://5"),
+            ),
+        )
+        for ((shape, tracks) in shapes) {
+            val before = LibraryCatalog.build(tracks)
+            assertEquals(1, before.albums.size, shape)
+            // A new cover, and a removed one.
+            for (cover in listOf("file:///data/files/track-covers/0a1b2c3d.jpg", null)) {
+                val after = LibraryCatalog.build(tracks.mapIndexed { i, t -> if (i == 1) t.withOwnCover(cover) else t })
+                assertEquals(before.albums.map { it.key }, after.albums.map { it.key }, "$shape, cover $cover")
+                assertEquals(
+                    before.albums.map { album -> album.tracks.map { it.id } },
+                    after.albums.map { album -> album.tracks.map { it.id } },
+                    "$shape, cover $cover",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun anAlbumWhoseFirstSongHasItsOwnCoverShowsThatCover() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", title = "a", artist = "Queen", album = "Hits", artworkUri = "art://1")
+                    .withOwnCover("file:///data/files/track-covers/0a1b2c3d.jpg"),
+                track("2", title = "b", artist = "Queen", album = "Hits", artworkUri = "art://1"),
+            ),
+        )
+        assertEquals("file:///data/files/track-covers/0a1b2c3d.jpg", catalog.albums.single().artworkUri)
+    }
+
     @Test
     fun groupsAlbumsByArtworkUriKeepingSameNamedAlbumsApart() {
         // Two "Greatest Hits" by different artists, distinct artwork ids.

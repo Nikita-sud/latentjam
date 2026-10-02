@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.library.tags.CoverEdit
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import org.koin.core.module.Module
@@ -120,6 +121,14 @@ public interface MusicLibrary {
 
     /** Includes or excludes one source without changing any files on the device. */
     public suspend fun setSourceEnabled(sourceId: String, enabled: Boolean)
+
+    /**
+     * LatentJam just saved [cover] into the files of [trackIds]; called before the scan that
+     * follows the save. A platform whose covers are per album (Android's MediaStore) remembers it,
+     * so each of these songs shows its own cover. The default does nothing, for platforms that
+     * already show each file's own cover.
+     */
+    public suspend fun coverSaved(trackIds: Collection<TrackId>, cover: CoverEdit) {}
 }
 
 /**
