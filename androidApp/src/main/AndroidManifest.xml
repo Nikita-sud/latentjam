@@ -57,9 +57,13 @@
             android:resource="@xml/automotive_app_desc" />
 
         <!-- Fully-qualified: the activity class is compiled in :composeApp
-             (androidMain), not in this zero-source packaging module. -->
+             (androidMain), not in this zero-source packaging module.
+             Rotation, resizing, keyboards and night mode reach Compose as a new configuration
+             instead of recreating the activity, which closed the open page and the player. A new
+             per-app language (locale, layoutDirection) still recreates it. -->
         <activity
             android:name="io.github.nikitasud.latentjam.app.MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode"
             android:exported="true"
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">
