@@ -1,0 +1,1 @@
+The player now lies over your library: pull it down and the page you return to follows your finger, live. A slow pull on the cover no longer jumps back (#9). LatentJam speaks Hebrew, and right-to-left languages keep titles, artists and file names in their own reading order while the playback controls keep time's direction. Pulls are smoother on older phones.
