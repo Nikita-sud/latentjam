@@ -553,8 +553,18 @@ private fun CollectionHero(
 ) {
     val albumYear = remember(selection.tracks) { albumYearLabel(selection.tracks) }
     val metadata = if (selection.routeId.startsWith("album:")) {
-        joinIsolated(listOfNotNull(selection.subtitle, albumYear,
+        joinBidiWrapped(listOfNotNull(selection.subtitle, albumYear,
             pluralStringResource(Res.plurals.count_tracks, selection.tracks.size, selection.tracks.size)))
+    } else if (selection.routeId.startsWith(FOLDER_ROUTE_PREFIX)) {
+        // A folder's path is a file-system name: wrapped here, where it is shown, so it keeps its
+        // own reading order next to the translated count in either layout direction.
+        joinBidiWrapped(
+            listOf(
+                selection.routeId.removePrefix(FOLDER_ROUTE_PREFIX),
+                pluralStringResource(Res.plurals.count_tracks, selection.tracks.size, selection.tracks.size),
+            ),
+            separator = " • ",
+        )
     } else selection.subtitle
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 22.dp),
@@ -995,3 +1005,5 @@ internal fun SelectionTopAppBar(
         }
     }
 }
+
+private const val FOLDER_ROUTE_PREFIX = "folder:"

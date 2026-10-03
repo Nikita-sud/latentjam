@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.foundation.MarqueeSpacing
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,11 +47,14 @@ internal fun MarqueeText(
     val readingDirection = firstStrongDirection(text) ?: layoutDirection
     // A new name starts at its beginning even when its measured width matches the old one.
     key(text) {
-        CompositionLocalProvider(LocalLayoutDirection provides readingDirection) {
-            Text(
-                text = text,
-                modifier = modifier.then(
-                    if (animate) {
+        // The caller's modifier (padding, clicks, weight) belongs to the screen, so it is applied
+        // outside the swapped direction. propagateMinConstraints hands a filled width on to the
+        // text, so centred names stay centred, while wrap-content callers still wrap.
+        Box(modifier = modifier, propagateMinConstraints = true) {
+            CompositionLocalProvider(LocalLayoutDirection provides readingDirection) {
+                Text(
+                    text = text,
+                    modifier = if (animate) {
                         Modifier.basicMarquee(
                             iterations = Int.MAX_VALUE,
                             initialDelayMillis = 1_800,
@@ -59,16 +63,16 @@ internal fun MarqueeText(
                             velocity = 28.dp,
                         )
                     } else Modifier,
-                ),
-                style = metadataStyle,
-                color = color,
-                fontWeight = fontWeight,
-                textAlign = textAlign,
-                textDecoration = textDecoration,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis,
-            )
+                    style = metadataStyle,
+                    color = color,
+                    fontWeight = fontWeight,
+                    textAlign = textAlign,
+                    textDecoration = textDecoration,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

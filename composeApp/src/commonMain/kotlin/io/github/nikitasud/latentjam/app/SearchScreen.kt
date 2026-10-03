@@ -454,7 +454,7 @@ internal fun SearchScreen(
                     SearchContentMode.Loading -> SearchLoading()
 
                     SearchContentMode.NoMatches ->
-                        CenteredHint(stringResource(Res.string.search_no_matches, isolate(shown.query)))
+                        CenteredHint(stringResource(Res.string.search_no_matches, bidiWrap(shown.query)))
 
                     SearchContentMode.Results -> LazyColumn(
                         state = resultsListState,

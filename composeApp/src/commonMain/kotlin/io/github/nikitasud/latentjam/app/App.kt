@@ -2986,7 +2986,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     snackbar.showSnackbar(
                                                         getString(
                                                             Res.string.snack_playlist_deleted,
-                                                            isolate(playlist.name),
+                                                            bidiWrap(playlist.name, layoutDirection),
                                                         ),
                                                     )
                                                 }
@@ -3784,7 +3784,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         val result = snackbar.showSnackbar(
                                             message = getString(
                                                 Res.string.snack_playlist_track_removed,
-                                                isolate(playlist.title),
+                                                bidiWrap(playlist.title, layoutDirection),
                                             ),
                                             actionLabel = if (change.before != change.after) {
                                                 getString(Res.string.action_undo)
@@ -4027,7 +4027,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             val result = snackbar.showSnackbar(
                                 message = getString(
                                     Res.string.snack_playlist_track_removed,
-                                    isolate(request.sourcePlaylistTitle.orEmpty()),
+                                    bidiWrap(request.sourcePlaylistTitle.orEmpty(), layoutDirection),
                                 ),
                                 actionLabel = if (change.before != change.after) {
                                     getString(Res.string.action_undo)
@@ -4395,7 +4395,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         addToPlaylistSelection = null
                         refreshPlaylistMembershipsBestEffort()
                         snackbar.showSnackbar(
-                            getString(Res.string.snack_added_to_playlist, isolate(playlist.name)),
+                            getString(Res.string.snack_added_to_playlist, bidiWrap(playlist.name, layoutDirection)),
                         )
                     }
                 },
@@ -4457,7 +4457,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         showCreatePlaylist = false
                         pendingPlaylistTrackIds = emptyList()
                         snackbar.showSnackbar(
-                            getString(Res.string.snack_playlist_created, isolate(persisted.name)),
+                            getString(Res.string.snack_playlist_created, bidiWrap(persisted.name, layoutDirection)),
                         )
                     }
                 },
@@ -4996,7 +4996,7 @@ private suspend fun FolderGroup.toSelection(): CollectionSelection {
     }
     return CollectionSelection(
         title = name,
-        subtitle = isolate(path) + SUBTITLE_SEPARATOR + trackCountLabel(tracks.size),
+        subtitle = path + SUBTITLE_SEPARATOR + trackCountLabel(tracks.size),
         artworkUri = ordered.firstNotNullOfOrNull { it.artworkUri },
         tracks = ordered,
         railMode = CollectionRailMode.TRACK_TITLES,
@@ -5534,7 +5534,7 @@ private fun AlbumCard(
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = joinIsolated(
+            text = joinBidiWrapped(
                 listOfNotNull(
                     album.artist ?: stringResource(Res.string.track_unknown_artist),
                     year,

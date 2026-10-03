@@ -255,7 +255,7 @@ private fun ForYouSection.title(): String = when (kind) {
     ForYouSectionKind.WORTH_REVISITING -> stringResource(Res.string.foryou_section_worth_revisiting)
     // The artist IS the headline: "Your Yugo Kanno phase" is the whole recommendation.
     ForYouSectionKind.ON_A_ROLL ->
-        stringResource(Res.string.foryou_section_on_a_roll, isolate(subject.orEmpty()))
+        stringResource(Res.string.foryou_section_on_a_roll, bidiWrap(subject.orEmpty()))
     ForYouSectionKind.WORLDS -> stringResource(Res.string.foryou_section_worlds)
     ForYouSectionKind.JOURNEY -> stringResource(Res.string.foryou_section_journey)
     ForYouSectionKind.NEVER_PLAYED -> stringResource(Res.string.foryou_section_never_played)
@@ -391,7 +391,7 @@ private fun ForYouCaption.text(): String = when (this) {
     is ForYouCaption.TrackCount ->
         pluralStringResource(Res.plurals.count_tracks, tracks, tracks)
     is ForYouCaption.LeftTurnFrom ->
-        stringResource(Res.string.foryou_caption_left_turn, isolate(title))
+        stringResource(Res.string.foryou_caption_left_turn, bidiWrap(title))
 }
 
 @Composable
@@ -473,7 +473,7 @@ private fun ForYouCardItem(
             else -> null
         }
         Text(
-            text = joinIsolated(listOfNotNull(artist, reason)),
+            text = joinBidiWrapped(listOfNotNull(artist, reason)),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,

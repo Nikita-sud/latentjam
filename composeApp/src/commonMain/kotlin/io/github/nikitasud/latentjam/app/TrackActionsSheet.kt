@@ -219,7 +219,7 @@ internal fun TrackActionsSheet(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = joinIsolated(
+                        text = joinBidiWrapped(
                             listOfNotNull(
                                 track.artist ?: stringResource(Res.string.track_unknown_artist),
                                 track.album?.takeIf { it.isNotBlank() },
@@ -369,7 +369,7 @@ internal fun DeleteTrackDialog(
             val title = track.title
             Text(
                 if (title != null) {
-                    stringResource(Res.string.dialog_delete_track_message, isolate(title))
+                    stringResource(Res.string.dialog_delete_track_message, bidiWrap(title))
                 } else {
                     stringResource(Res.string.dialog_delete_track_message_generic)
                 },

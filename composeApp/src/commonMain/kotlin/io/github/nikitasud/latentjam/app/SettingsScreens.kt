@@ -2641,7 +2641,7 @@ private fun DuplicateGroupCard(
                             megabytesLabel(group.reclaimableBytes(survivor.track.id)),
                         ),
                     ),
-                ).let(::joinIsolated),
+                ).let { joinBidiWrapped(it) },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
@@ -2690,8 +2690,8 @@ private fun DuplicateCopyRow(
     )
     // The facts line is what tells two copies of one recording apart; when the source has none,
     // the file name or folder is the next most telling thing.
-    val headline = facts.takeIf { it.isNotEmpty() }?.let(::joinIsolated)
-        ?: isolate(
+    val headline = facts.takeIf { it.isNotEmpty() }?.let { joinBidiWrapped(it) }
+        ?: bidiWrap(
             copy.track.fileName
                 ?: copy.track.folderPath
                 ?: copy.track.title
@@ -2705,7 +2705,7 @@ private fun DuplicateCopyRow(
             pluralStringResource(Res.plurals.privacy_history_listens, it, it)
         },
         "♥".takeIf { copy.favorite },
-    ).let(::joinIsolated)
+    ).let { joinBidiWrapped(it) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2780,7 +2780,7 @@ private fun IndexingProblemRow(
         Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
             Text(title, style = MaterialTheme.typography.bodyLarge.metadata())
             Text(
-                text = joinIsolated(listOf(artist, error)),
+                text = joinBidiWrapped(listOf(artist, error)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

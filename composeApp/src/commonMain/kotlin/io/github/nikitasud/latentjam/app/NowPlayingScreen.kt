@@ -698,7 +698,7 @@ fun NowPlayingScreen(
                                             Text(
                                                 text = stringResource(
                                                     Res.string.now_playing_source,
-                                                    isolate(shown.sourceLabel),
+                                                    bidiWrap(shown.sourceLabel),
                                                 ),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1233,7 +1233,7 @@ private fun NextUpRow(next: TrackDescriptor?, onOpenQueue: () -> Unit) {
             ) {
                 Artwork(uri = shown.artworkUri, size = 28.dp, cornerRadius = 6.dp)
                 Text(
-                    text = stringResource(Res.string.now_playing_next, joinIsolated(listOf(title, artist), " — ")),
+                    text = stringResource(Res.string.now_playing_next, joinBidiWrapped(listOf(title, artist), " — ")),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

@@ -1100,7 +1100,7 @@ private fun headline(lens: MapLens, page: MapPage): String {
                     Res.string.map_headline_never_played,
                     listening.neverPlayed,
                     total,
-                    isolate(page.regionNames[region.region]),
+                    bidiWrap(page.regionNames[region.region]),
                     percent(region.neverPlayed, region.trackCount),
                 )
             }
@@ -1110,7 +1110,7 @@ private fun headline(lens: MapLens, page: MapPage): String {
             val region = listening.regions.firstOrNull { it.region == skippiest }
             stringResource(
                 Res.string.map_headline_skips,
-                isolate(page.regionNames.getOrElse(skippiest ?: -1) { "" }),
+                bidiWrap(page.regionNames.getOrElse(skippiest ?: -1) { "" }),
                 ((region?.skipRate ?: 0f) * 100f).roundToInt(),
             )
         }

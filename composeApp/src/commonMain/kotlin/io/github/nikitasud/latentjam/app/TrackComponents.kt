@@ -54,6 +54,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
@@ -375,9 +376,13 @@ private fun AnimatedTrackTitle(text: AnnotatedString, targetColor: Color, reduce
         animationSpec = tween(if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS),
         label = "track-title-color",
     )
+    // The colour animates through composition; keep the style copy out of those frames.
+    val base = MaterialTheme.typography.bodyLarge
+    val layoutDirection = LocalLayoutDirection.current
+    val style = remember(base, layoutDirection) { base.forMetadata(layoutDirection) }
     Text(
         text = text,
-        style = MaterialTheme.typography.bodyLarge.metadata(),
+        style = style,
         color = color,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,

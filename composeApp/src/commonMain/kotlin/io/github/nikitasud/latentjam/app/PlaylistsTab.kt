@@ -740,7 +740,7 @@ internal fun AddToPlaylistSheet(
                     stringResource(Res.string.action_add_to_playlist) + " · " +
                         pluralStringResource(Res.plurals.count_tracks, tracks.size, tracks.size)
                 } else if (trackTitle != null) {
-                    stringResource(Res.string.playlist_add_to_title, isolate(trackTitle))
+                    stringResource(Res.string.playlist_add_to_title, bidiWrap(trackTitle))
                 } else {
                     stringResource(Res.string.playlist_add_to_title_generic)
                 },
