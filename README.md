@@ -62,8 +62,9 @@ behind, so the newest features may not have arrived there yet. On iPhone, sidelo
   download `LatentJam-vX.Y.Z-arm64.apk` (about 57 MB; fits almost any phone from the last decade).
   Old 32-bit phones need the `armv7` APK (about 65 MB). Open it on the phone, allow installing
   unknown apps and tap through Play Protect's warning. Requires **Android 7.0+**.
-- **[F-Droid](https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/)** builds each release
-  from this source on its own schedule, as one larger APK for every processor type (83 MiB).
+- **[F-Droid](https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/)** builds LatentJam
+  from this source on its own schedule, so it can trail the newest release here; it ships one larger
+  APK for every processor type (83 MiB).
 - **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 63 MB) is **unsigned**: install
   it with AltStore or Sideloadly from a Mac or PC, which re-sign it with your Apple ID; with a free
   Apple ID the install must be refreshed every 7 days. Requires **iOS 15.1+**. Music comes from files
@@ -91,10 +92,10 @@ isn't included and runs again after the switch.
 </details>
 
 **First launch:** LatentJam asks for access to your music (notifications are optional, for analysis
-progress; editing tags asks for write access the first time you save; see [PRIVACY.md](PRIVACY.md)).
+progress; saving edited tags asks for permission to change those files; see [PRIVACY.md](PRIVACY.md)).
 It then analyses your songs on the phone and shows a progress count; you can play music meanwhile.
 SMART improves as more of the library is done and never falls back to a random shuffle. On iPhone,
-analysis runs only while the app is open (plus a short grace period after locking), so leave it open
+analysis runs only while the app is open (plus a short grace period after you leave it), so leave it open
 a while at first.
 
 ## Features
@@ -107,7 +108,7 @@ a while at first.
 - ✨ **For You** — rediscovery, not discovery: you already own everything here. One confident pick,
   then rows such as songs you left unfinished, favourites gone quiet, what you play at this time of
   day, **mixes** of your library grouped by sound and a **sonic journey** from one track to a distant
-  one. Suggestions you skip stop coming back for a while.
+  one. A never-played pick you pass over rests for a few days.
 - 🏷️ **Tags read properly** — albums sort by their original release year (a 2011 remaster of a 1973
   album reads 1973), names garbled by a wrong charset ("GrÃ¼ÃŸe") show as "Grüße" again without
   retagging, and every genre and credited artist of a track is kept.
