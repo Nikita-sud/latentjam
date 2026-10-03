@@ -12,6 +12,8 @@
 <p align="center">
   <a href="https://github.com/Nikita-sud/latentjam/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/Nikita-sud/latentjam?style=flat-square&color=2E7D32"></a>
   <a href="https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/"><img alt="F-Droid" src="https://img.shields.io/f-droid/v/io.github.nikitasud.latentjam.kmp?style=flat-square&color=1976D2&logo=fdroid&logoColor=white"></a>
+  <a href="https://github.com/Nikita-sud/latentjam/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/Nikita-sud/latentjam/total?style=flat-square&color=00695C&label=downloads"></a>
+  <a href="https://github.com/Nikita-sud/latentjam/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/Nikita-sud/latentjam?style=flat-square&color=F9A825"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platform-Android%207%2B%20%7C%20iOS%2015.1%2B-1450A8?style=flat-square">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-8E24AA.svg?style=flat-square"></a>
   <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-F9A825?style=flat-square">
