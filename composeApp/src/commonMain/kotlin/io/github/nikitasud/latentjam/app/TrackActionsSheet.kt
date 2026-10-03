@@ -214,15 +214,17 @@ internal fun TrackActionsSheet(
                 Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                     Text(
                         text = track.title ?: stringResource(Res.string.track_untitled),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.metadata(),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = listOfNotNull(
-                            track.artist ?: stringResource(Res.string.track_unknown_artist),
-                            track.album?.takeIf { it.isNotBlank() },
-                        ).joinToString(" · "),
+                        text = joinIsolated(
+                            listOfNotNull(
+                                track.artist ?: stringResource(Res.string.track_unknown_artist),
+                                track.album?.takeIf { it.isNotBlank() },
+                            ),
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -367,7 +369,7 @@ internal fun DeleteTrackDialog(
             val title = track.title
             Text(
                 if (title != null) {
-                    stringResource(Res.string.dialog_delete_track_message, title)
+                    stringResource(Res.string.dialog_delete_track_message, isolate(title))
                 } else {
                     stringResource(Res.string.dialog_delete_track_message_generic)
                 },

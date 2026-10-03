@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -322,9 +323,10 @@ fun MapTab(
         listOf(neutral, accent) + coolRamp + warmRamp
     }
     val measurer = rememberTextMeasurer()
+    // Region names come from the library's own genres and artists: metadata, not UI text.
     val labelStyle = MaterialTheme.typography.labelLarge.copy(
         color = MaterialTheme.colorScheme.onSurface,
-    )
+    ).metadata()
     val density = LocalDensity.current
     val labelSurface = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f)
     val selectedLabelSurface = accent.copy(
@@ -667,7 +669,7 @@ fun MapTab(
                     ) {
                         Text(
                             text = page.regionNames.getOrElse(selectedRegion) { "" },
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleMedium.metadata(),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
@@ -683,7 +685,7 @@ fun MapTab(
                             DropdownMenuItem(
                                 text = {
                                     Column {
-                                        Text(page.regionNames.getOrElse(candidate.region) { "" })
+                                        Text(page.regionNames.getOrElse(candidate.region) { "" }, style = LocalTextStyle.current.metadata())
                                         Text(
                                             pluralStringResource(Res.plurals.count_tracks,
                                                 candidate.trackCount, candidate.trackCount),
@@ -805,7 +807,7 @@ fun MapTab(
                 ) {
                     Text(
                         page.regionNames.getOrElse(selectedRegion) { "" },
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.metadata(),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
@@ -1098,7 +1100,7 @@ private fun headline(lens: MapLens, page: MapPage): String {
                     Res.string.map_headline_never_played,
                     listening.neverPlayed,
                     total,
-                    page.regionNames[region.region],
+                    isolate(page.regionNames[region.region]),
                     percent(region.neverPlayed, region.trackCount),
                 )
             }
@@ -1108,7 +1110,7 @@ private fun headline(lens: MapLens, page: MapPage): String {
             val region = listening.regions.firstOrNull { it.region == skippiest }
             stringResource(
                 Res.string.map_headline_skips,
-                page.regionNames.getOrElse(skippiest ?: -1) { "" },
+                isolate(page.regionNames.getOrElse(skippiest ?: -1) { "" }),
                 ((region?.skipRate ?: 0f) * 100f).roundToInt(),
             )
         }

@@ -804,8 +804,8 @@ object ForYouBuilder {
         val from = path.first()
         val to = path.last()
         val title = titlePattern
-            .replace("%1${'$'}s", from.title ?: from.artist.orEmpty())
-            .replace("%2${'$'}s", to.title ?: to.artist.orEmpty())
+            .replace("%1${'$'}s", isolate(from.title ?: from.artist.orEmpty()))
+            .replace("%2${'$'}s", isolate(to.title ?: to.artist.orEmpty()))
         return ForYouSection(
             kind = ForYouSectionKind.JOURNEY,
             cards = listOf(

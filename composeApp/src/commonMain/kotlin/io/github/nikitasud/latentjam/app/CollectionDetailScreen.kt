@@ -553,9 +553,8 @@ private fun CollectionHero(
 ) {
     val albumYear = remember(selection.tracks) { albumYearLabel(selection.tracks) }
     val metadata = if (selection.routeId.startsWith("album:")) {
-        listOfNotNull(selection.subtitle, albumYear,
-            pluralStringResource(Res.plurals.count_tracks, selection.tracks.size, selection.tracks.size))
-            .joinToString(" · ")
+        joinIsolated(listOfNotNull(selection.subtitle, albumYear,
+            pluralStringResource(Res.plurals.count_tracks, selection.tracks.size, selection.tracks.size)))
     } else selection.subtitle
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 22.dp),
@@ -588,7 +587,7 @@ private fun CollectionHero(
         }
         Text(
             text = selection.title,
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.headlineSmall.metadata(),
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
         )
@@ -778,7 +777,7 @@ private fun CollectionTrackLazyColumn(
                 item(key = "section-$sectionIndex") {
                     Text(
                         text = section.title,
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.titleSmall.metadata(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(
                             start = 20.dp,

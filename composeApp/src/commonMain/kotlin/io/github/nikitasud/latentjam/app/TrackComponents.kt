@@ -316,7 +316,7 @@ internal fun TrackRow(
                 text = remember(secondary, highlightQuery, highlight) {
                     emphasized(secondary, highlightQuery, highlight)
                 },
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.metadata(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -326,7 +326,7 @@ internal fun TrackRow(
                     text = remember(snippet, highlightQuery, highlight) {
                         emphasized(snippet, highlightQuery, highlight)
                     },
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyMedium.metadata(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
                     maxLines = 2,
@@ -377,7 +377,7 @@ private fun AnimatedTrackTitle(text: AnnotatedString, targetColor: Color, reduce
     )
     Text(
         text = text,
-        style = MaterialTheme.typography.bodyLarge,
+        style = MaterialTheme.typography.bodyLarge.metadata(),
         color = color,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,

@@ -465,7 +465,7 @@ private fun PlaylistRow(
             ) {
                 Text(
                     text = playlist.name,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyLarge.metadata(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
@@ -740,7 +740,7 @@ internal fun AddToPlaylistSheet(
                     stringResource(Res.string.action_add_to_playlist) + " · " +
                         pluralStringResource(Res.plurals.count_tracks, tracks.size, tracks.size)
                 } else if (trackTitle != null) {
-                    stringResource(Res.string.playlist_add_to_title, trackTitle)
+                    stringResource(Res.string.playlist_add_to_title, isolate(trackTitle))
                 } else {
                     stringResource(Res.string.playlist_add_to_title_generic)
                 },
@@ -796,7 +796,7 @@ internal fun AddToPlaylistSheet(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Column {
-                            Text(text = playlist.name, style = MaterialTheme.typography.bodyLarge)
+                            Text(text = playlist.name, style = MaterialTheme.typography.bodyLarge.metadata())
                             Text(
                                 text = pluralStringResource(Res.plurals.count_tracks, resolvedSize(playlist), resolvedSize(playlist)),
                                 style = MaterialTheme.typography.bodyMedium,
