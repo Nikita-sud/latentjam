@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">Usuń z LatentJam</string>
+    <string name="action_undo">Cofnij</string>
+    <string name="action_restore_hidden_tracks">Przywróć ukryte utwory</string>
+    <string name="snack_removed_from_latentjam">Usunięto z LatentJam. Plik na telefonie został zachowany.</string>
+    <string name="snack_hidden_tracks_restored">Ukryte utwory są znowu widoczne.</string>
+</resources>

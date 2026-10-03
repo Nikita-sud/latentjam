@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">إزالة من LatentJam</string>
+    <string name="action_undo">تراجع</string>
+    <string name="action_restore_hidden_tracks">استعادة المقاطع المخفية</string>
+    <string name="snack_removed_from_latentjam">تمت الإزالة من LatentJam. بقي الملف على الهاتف.</string>
+    <string name="snack_hidden_tracks_restored">أصبحت المقاطع المخفية ظاهرة مجددًا.</string>
+</resources>

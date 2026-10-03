@@ -26,16 +26,34 @@ import org.w3c.dom.Element
 class StringResourceParityTest {
 
     @Test
-    fun `every source key is translated in every locale, with no orphans`() {
-        val source = bundles.getValue(SOURCE)
+    fun `every locale carries every resource file of values`() {
+        // values/ is split into strings.xml and a few side files (library_*.xml). A locale that
+        // lacks a side file does not fail anything at build time: its keys silently fall back to
+        // English. That is how the Folders tab stayed English in 15 languages.
+        val sourceFiles = bundles.getValue(SOURCE).files.keys
         val problems = mutableListOf<String>()
         for (locale in LOCALES) {
-            val translation = bundles.getValue(locale)
-            (source.keys - translation.keys).sorted().forEach {
-                problems += "$locale is missing '$it'"
-            }
-            (translation.keys - source.keys).sorted().forEach {
-                problems += "$locale has orphan '$it' (not in values/)"
+            val files = bundles.getValue(locale).files.keys
+            (sourceFiles - files).sorted().forEach { problems += "$locale is missing $it" }
+            (files - sourceFiles).sorted().forEach { problems += "$locale has $it, which values/ does not" }
+        }
+        assertNoProblems(problems, "Resource files differ from values/")
+    }
+
+    @Test
+    fun `every source key is translated in every locale, with no orphans`() {
+        // Checked file by file: a key that moves between files in a translation still resolves,
+        // but the next person to look for it in the matching file will not find it.
+        val problems = mutableListOf<String>()
+        for ((fileName, source) in bundles.getValue(SOURCE).files) {
+            for (locale in LOCALES) {
+                val translation = bundles.getValue(locale).files[fileName].orEmpty()
+                (source.keys - translation.keys).sorted().forEach {
+                    problems += "$locale/$fileName is missing '$it'"
+                }
+                (translation.keys - source.keys).sorted().forEach {
+                    problems += "$locale/$fileName has orphan '$it' (not in values/$fileName)"
+                }
             }
         }
         assertNoProblems(problems, "Key parity broke")
@@ -85,30 +103,15 @@ class StringResourceParityTest {
     @Test
     fun `values-in is a faithful duplicate of values-id`() {
         // Indonesian needs both folders: java.util.Locale reports "in" on API 24-34 and "id" from
-        // 35, and Compose MP matches qualifiers by exact string. The files need not be
-        // byte-identical — a header comment may differ — so compare the bodies.
-        val id = body("values-id")
-        val about = body("values-in")
-        assertEquals(id, about, "values-in/strings.xml drifted from values-id/strings.xml")
+        // 35, and Compose MP matches qualifiers by exact string.
+        assertFaithfulDuplicate(original = "values-id", copy = "values-in")
     }
 
     @Test
     fun `values-iw is a faithful duplicate of values-he`() {
         // Hebrew is the same story as Indonesian: java.util.Locale reports "iw" on API 24-34 and
-        // "he" from 35 (iOS always says "he"). values-iw carries its own header comment, so
-        // compare the bodies. Hebrew also translates the library_*.xml side files, which have no
-        // header, so every file in the folder has to match.
-        assertEquals(body("values-he"), body("values-iw"), "values-iw/strings.xml drifted from values-he/strings.xml")
-        val he = File(resourcesDir, "values-he").list().orEmpty().toSortedSet()
-        val iw = File(resourcesDir, "values-iw").list().orEmpty().toSortedSet()
-        assertEquals(he, iw, "values-iw and values-he hold different files")
-        (he - "strings.xml").forEach { name ->
-            assertEquals(
-                File(resourcesDir, "values-he/$name").readText(),
-                File(resourcesDir, "values-iw/$name").readText(),
-                "values-iw/$name drifted from values-he/$name",
-            )
-        }
+        // "he" from 35 (iOS always says "he").
+        assertFaithfulDuplicate(original = "values-he", copy = "values-iw")
     }
 
     @Test
@@ -139,6 +142,10 @@ class StringResourceParityTest {
             "Locale folders on disk no longer match the list this test checks",
         )
         assertTrue(bundles.getValue(SOURCE).entries.size > 100, "values/strings.xml parsed suspiciously empty")
+        assertTrue(
+            bundles.getValue(SOURCE).files.size > 1,
+            "values/ holds only ${bundles.getValue(SOURCE).files.keys}; the side files went missing or are not parsed",
+        )
     }
 
     // ----------------------------------------------------------------- parsing
@@ -152,8 +159,9 @@ class StringResourceParityTest {
         val placeholders: Set<Int> = values.flatMap { it.placeholderIndices() }.toSet()
     }
 
-    private class Bundle(val entries: Map<String, Entry>) {
-        val keys: Set<String> get() = entries.keys
+    /** One values folder: every .xml file in it, by file name, and all their entries merged. */
+    private class Bundle(val files: Map<String, Map<String, Entry>>) {
+        val entries: Map<String, Entry> = files.values.fold(emptyMap()) { all, file -> all + file }
     }
 
     private companion object {
@@ -198,19 +206,42 @@ class StringResourceParityTest {
         fun Set<Int>.pretty(): String =
             if (isEmpty()) "no placeholders" else sorted().joinToString(", ") { "%$it\$" }
 
-        fun file(bundle: String): File = File(resourcesDir, "$bundle/strings.xml")
+        fun xmlFiles(bundle: String): List<File> =
+            File(resourcesDir, bundle).listFiles { f: File -> f.isFile && f.name.endsWith(".xml") }
+                .orEmpty()
+                .sortedBy { it.name }
 
         /** The `<resources>` element onward, so a differing header comment is not a difference. */
-        fun body(bundle: String): String {
-            val text = file(bundle).readText()
+        fun body(file: File): String {
+            val text = file.readText()
             val start = text.indexOf("<resources>")
-            assertTrue(start >= 0, "${file(bundle)} has no <resources> element")
+            assertTrue(start >= 0, "$file has no <resources> element")
             return text.substring(start)
         }
 
+        /**
+         * [copy] holds exactly the files of [original], each with the same body. The files need
+         * not be byte-identical — the copy's strings.xml carries its own header comment.
+         */
+        fun assertFaithfulDuplicate(original: String, copy: String) {
+            val originals = xmlFiles(original).map { it.name }
+            assertEquals(originals, xmlFiles(copy).map { it.name }, "$copy and $original hold different files")
+            originals.forEach { name ->
+                assertEquals(
+                    body(File(resourcesDir, "$original/$name")),
+                    body(File(resourcesDir, "$copy/$name")),
+                    "$copy/$name drifted from $original/$name",
+                )
+            }
+        }
+
         fun parse(bundle: String): Bundle {
-            val source = file(bundle)
-            assertTrue(source.isFile, "Missing $source")
+            val files = xmlFiles(bundle)
+            assertTrue(files.any { it.name == "strings.xml" }, "Missing $bundle/strings.xml")
+            return Bundle(files.associate { it.name to parseFile(it) })
+        }
+
+        fun parseFile(source: File): Map<String, Entry> {
             val document = DocumentBuilderFactory.newInstance()
                 .apply { isNamespaceAware = false }
                 .newDocumentBuilder()
@@ -229,7 +260,7 @@ class StringResourceParityTest {
                     isPlural = true,
                 )
             }
-            return Bundle(entries)
+            return entries
         }
 
         fun org.w3c.dom.NodeList.elements(): List<Element> =

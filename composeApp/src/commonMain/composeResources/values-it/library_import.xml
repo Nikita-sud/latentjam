@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">Importa musica</string>
+    <string name="library_import_hint">Scegli file audio da Download o da un’altra cartella dell’app File.</string>
+    <plurals name="library_imported">
+        <item quantity="one">%1$d brano importato</item>
+        <item quantity="other">%1$d brani importati</item>
+    </plurals>
+    <string name="library_import_none">Nessun nuovo brano importato.</string>
+    <string name="library_import_partial">%1$d importati, %2$d saltati, %3$d non riusciti</string>
+</resources>

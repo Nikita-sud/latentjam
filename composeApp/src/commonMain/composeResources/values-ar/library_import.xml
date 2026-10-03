@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">استيراد الموسيقى</string>
+    <string name="library_import_hint">اختر ملفات صوتية من «التنزيلات» أو من مجلد آخر في تطبيق «الملفات».</string>
+    <plurals name="library_imported">
+        <item quantity="zero">تم استيراد %1$d مقطع</item>
+        <item quantity="one">تم استيراد %1$d مقطع</item>
+        <item quantity="two">تم استيراد %1$d مقطعين</item>
+        <item quantity="few">تم استيراد %1$d مقاطع</item>
+        <item quantity="many">تم استيراد %1$d مقطعًا</item>
+        <item quantity="other">تم استيراد %1$d مقطع</item>
+    </plurals>
+    <string name="library_import_none">لم يتم استيراد أي مقاطع جديدة.</string>
+    <string name="library_import_partial">تم استيراد %1$d، وتخطي %2$d، وفشل %3$d</string>
+</resources>

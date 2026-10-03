@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">导入音乐</string>
+    <string name="library_import_hint">从“下载”或“文件”App 中的其他文件夹选择音频文件。</string>
+    <plurals name="library_imported">
+        <item quantity="other">已导入 %1$d 首歌曲</item>
+    </plurals>
+    <string name="library_import_none">没有导入新歌曲。</string>
+    <string name="library_import_partial">已导入 %1$d 首，跳过 %2$d 首，失败 %3$d 首</string>
+</resources>

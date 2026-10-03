@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">LatentJam से हटाएँ</string>
+    <string name="action_undo">पहले जैसा करें</string>
+    <string name="action_restore_hidden_tracks">छिपे गाने वापस लाएँ</string>
+    <string name="snack_removed_from_latentjam">LatentJam से हटाया गया। फ़ोन पर फ़ाइल बनी रही।</string>
+    <string name="snack_hidden_tracks_restored">छिपे गाने फिर से दिख रहे हैं।</string>
+</resources>

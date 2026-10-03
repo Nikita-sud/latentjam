@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">Aus LatentJam entfernen</string>
+    <string name="action_undo">Rückgängig</string>
+    <string name="action_restore_hidden_tracks">Ausgeblendete Titel wiederherstellen</string>
+    <string name="snack_removed_from_latentjam">Aus LatentJam entfernt. Die Datei auf dem Telefon bleibt erhalten.</string>
+    <string name="snack_hidden_tracks_restored">Ausgeblendete Titel sind wieder sichtbar.</string>
+</resources>
