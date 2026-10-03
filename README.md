@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>A music player that knows what your library <i>sounds</i> like.</b><br>
-  Free and offline, for the songs already on your phone: no account, no catalogue, no network.
+  Free and offline, for the songs already on your phone: no account, no streaming, no network.
 </p>
 
 <p align="center">
@@ -19,15 +19,16 @@
 
 <p align="center">
   <b><a href="https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/">Get it on F-Droid</a></b> ·
-  <b><a href="https://github.com/Nikita-sud/latentjam/releases/latest">Android APK</a></b> ·
-  <b><a href="https://github.com/Nikita-sud/latentjam/releases/latest">iOS IPA (sideload)</a></b>
+  <b><a href="#install">Android APK</a></b> ·
+  <b><a href="#install">iPhone (sideload, not on the App Store)</a></b><br>
+  <sub>No account · no analytics · no ads · no internet permission on Android · <a href="PRIVACY.md">Privacy</a></sub>
 </p>
 
 <p align="center">
   <a href="#install">Install</a> ·
-  <a href="#what-it-does">Features</a> ·
-  <a href="#how-the-recommender-works">How it works</a> ·
-  <a href="#building">Build</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#how-smart-works">How SMART works</a> ·
+  <a href="#building">Building</a> ·
   <a href="#licence">Licence</a>
 </p>
 
@@ -40,83 +41,94 @@ models that listen to your music are small enough to run on the phone, so the ca
 library and nothing about your listening ever leaves it.
 
 <p align="center">
-  <img src="docs/media/walkthrough.gif" width="270" alt="LatentJam: opening the player and following synchronized lyrics">
+  <img src="docs/media/walkthrough.gif" width="270" alt="LatentJam: opening the player and following synchronised lyrics">
 </p>
 
 <p align="center"><a href="docs/media/player-demo.mp4">Player & lyrics · 25 seconds</a> · <a href="docs/media/walkthrough.mp4">Explore the app · 46 seconds</a></p>
 
 <p align="center">
+  <img src="docs/media/player.png" width="170" alt="Now playing in SMART mode">&nbsp;&nbsp;
   <img src="docs/media/for-you.png" width="170" alt="For You page">&nbsp;&nbsp;
-  <img src="docs/media/player.png" width="170" alt="Now playing">&nbsp;&nbsp;
-  <img src="docs/media/lyrics.png" width="170" alt="Synchronized lyrics with tap-to-seek">&nbsp;&nbsp;
+  <img src="docs/media/lyrics.png" width="170" alt="Synchronised lyrics with tap-to-seek">&nbsp;&nbsp;
   <img src="docs/media/playlists.png" width="170" alt="Favourite, recent and personal playlists">
 </p>
 
-<p align="center"><sub>Screens from the Android app (captured on version 0.5) with a fictional demo library: invented artists, original artwork and timed demo lyrics. More screens, both themes and the library map are in <a href="docs/media/README.md">docs/media</a>.</sub></p>
+<p align="center"><sub>Android screens from version 0.5 (tag editing and other newer features aren't pictured) with a fictional demo library: invented artists, original artwork and timed demo lyrics. More screens, both themes and the library map are in <a href="docs/media/README.md">docs/media</a>.</sub></p>
 
 ## Install
 
 > **Beta, pre-1.0.** Screens and settings can still change between releases. Tag editing writes to
-> your real files, so back up the music you care about before a big edit. SMART gets good once a
-> chunk of your library has been analysed in the background; the first launch starts that on its own.
+> your real files, so back up the music you care about before a big edit.
 
-- **[F-Droid](https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/)** (Android, updates
-  itself) builds each release from this source on its own schedule, usually within a few days, so it
-  can be a version behind the Releases page. Its download is larger because it uses the standard
-  ONNX Runtime. It is signed with F-Droid's key, so it can't replace the APKs here or be replaced by
-  them: to switch, export your data (Settings → Local backup), uninstall, install, then restore.
-- **Android APK** (newest first) — from the [Releases page](https://github.com/Nikita-sud/latentjam/releases/latest),
-  download `LatentJam-vX.Y.Z-arm64.apk` (about 57 MB; right for virtually every phone from the last
-  decade; the `armv7` APK, about 65 MB, is for old 32-bit devices) and open it on the phone. Allow
+**Which one?** On Android, use F-Droid if you already do (it updates the app for you); otherwise
+take the arm64 APK, which is the newest version and the smaller download. On iPhone, sideload the IPA.
+
+- **[F-Droid](https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/)** builds each release
+  from this source on its own schedule, so new features can take a while to arrive (compare the
+  F-Droid and Release badges above). Its download is larger, about 88 MB: one APK for every
+  processor type.
+- **Android APK** — from the [Releases page](https://github.com/Nikita-sud/latentjam/releases/latest),
+  download `LatentJam-vX.Y.Z-arm64.apk` (about 57 MB, right for almost any phone from the last
+  decade; old 32-bit phones need the `armv7` one, about 65 MB) and open it on the phone. Allow
   installing unknown apps and tap through Play Protect's sideload warning. Requires **Android 7.0+**.
-  A new APK installs over the old one and keeps your library, history and settings.
-- **iOS IPA** — the IPA (about 63 MB) is **unsigned**: sideload it with AltStore, Sideloadly or
-  similar, which re-sign it with your Apple ID (with a free Apple ID that lasts 7 days and has to be
-  renewed). Requires **iOS 15.1+**, arm64. Music comes from files you import through the Files app
-  and from songs downloaded to your Music library.
+- **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 63 MB) is **unsigned**: install
+  it with AltStore or Sideloadly from a Mac or PC, which re-sign it with your Apple ID; with a free
+  Apple ID the install must be refreshed every 7 days. Requires **iOS 15.1+**. Music comes from files
+  you import through the Files app and from songs downloaded to your Music library.
 
-**Updating:** the app never goes online, so it can't tell you about new versions. F-Droid updates it
-for you; otherwise watch this repository for releases (Watch → Custom → Releases).
+*Switching between F-Droid and the APKs:* they are signed with different keys and can't update each
+other. Export your data (Settings → Local backup), uninstall, install the other one, then restore.
+The backup keeps playlists, history, settings and SMART exclusions; the song analysis isn't included
+and runs again after the switch.
 
-**Privacy:** no account, no analytics, no ads, no crash reporting, no server. The Android app doesn't
-even request the internet permission. Nothing leaves the device unless you export a backup yourself.
-Details in [PRIVACY.md](PRIVACY.md).
+**Updating:** F-Droid updates the app for you. Otherwise install the new APK over the old one (your
+library, history and settings stay), or sideload the new IPA the same way. The app never goes online,
+so it can't announce new versions: watch this repository for releases (Watch → Custom → Releases).
 
-## What it does
+**Permissions:** access to your music and, optionally, notifications to show analysis progress.
+Saving tags asks for write access when you save. Details in [PRIVACY.md](PRIVACY.md).
 
-- 🎧 **SMART shuffle** — turn it on and pick any song. The queue that follows stays close to that
-  song's sound and mood, moves gently from track to track, and keeps a niche corner of your library
-  from drifting into generic hits. Repeat artists are spaced out unless the next match by them is
-  much better, and switching SMART on mid-queue uses only what you just played.
+**First launch:** LatentJam analyses your songs on the phone and shows a progress count (on Android,
+also a notification); you can play music meanwhile. SMART improves as more of the library is done
+and never falls back to a random shuffle. On iPhone, analysis runs only while the app is open (plus a
+short grace period after locking), so leave it open a while at first.
+
+## Features
+
+- 🎧 **SMART shuffle** — tap the shuffle button until it shows SMART, then pick any song. The queue
+  that follows stays close to that song's sound and mood and moves gently from track to track. Start
+  from an obscure record and you stay in that corner of your library instead of sliding toward your
+  most-played songs.
 - ✨ **For You** — rediscovery, not discovery: you already own everything here. One confident pick
-  up top (something you stopped mid-way, a favourite gone quiet, a record never heard), then rows for
-  favourites untouched for months, songs SMART found that you played to the end, albums you never
-  opened, music for this time of day, and a **sonic journey** across your library from one track to a
-  distant one. Offers you ignore cool down instead of repeating.
-- ✏️ **Edit your tags** — one song, a whole album, an artist or any selection, in MP3, FLAC, M4A,
-  Ogg and Opus: title, artists, album, genre, year, track and disc numbers, lyrics and cover. The
-  audio is never touched, and a save cut off by a crash or a full disk ends as the original file or
-  the edited one, never a mix. On iOS, songs you imported can be edited; Music-library songs are
-  read-only.
+  up top, then rows such as songs left unfinished, favourites gone quiet (a whole album or playlist
+  when that is what went quiet), what you play at this time of day, the artist you're on a run with,
+  **mixes** of your library grouped by sound (no history needed), songs you own but never played,
+  one wildcard, and a **sonic journey** from one track to a distant one. Suggestions you skip past
+  stop coming back for a while.
 - 🏷️ **Every tag the file carries** — every genre of a multi-genre track, the credited artists and
   the original release year, read straight from the file. Albums sort by release year (a 2011
   remaster of a 1973 album reads 1973), and names garbled by a wrong charset ("GrÃ¼ÃŸe") show as
   "Grüße" again without retagging.
-- 🎤 **Lyrics** — embedded in MP3, FLAC, Ogg/Opus and M4A files, or from a `.lrc` file beside the
-  song. Timed lyrics follow the song, and a tap on a line seeks there.
+- ✏️ **Edit your tags** — one song, a whole album, an artist or any selection, in MP3, FLAC, M4A,
+  Ogg and Opus: title, artists, album, album artist, genre, year, track and disc numbers (with
+  totals), lyrics and cover. The audio is never touched, and a save cut off by a crash or a full
+  disk ends as the original file or the edited one, never a mix. On iOS, songs you imported can be
+  edited; Music-library songs are read-only.
+- 🎤 **Lyrics** — embedded in MP3, FLAC, M4A, Ogg and Opus files, or from a `.lrc` file named like
+  the song (on Android, allow its folder under Settings → Library; on iOS, put it beside the song in
+  LatentJam's Imported folder). Timed lyrics follow the song, and a tap on a line seeks there.
 - 🔎 **Search that ranks like you expect** — titles first, then artist, album, genre, lyrics and
-  finally meaning, across languages; `eminem mockingbird` finds the song in either word order. A year or
-  decade (`80s`, `1985`) narrows the results, an artist in another alphabet still matches (фонк finds
-  *phonk*), and nicknames and band members resolve through a local artist index, all on the phone.
+  finally meaning, across languages. Word order doesn't matter (`eminem mockingbird`), years and
+  decades narrow results (`80s`), and фонк finds *phonk*, all on the phone.
 - 🗺️ **A map of your library** — songs that sound alike sit together, so your genres appear as
   islands you can tap through, and any track can show where it lives.
 - 🎚️ **A real player underneath**
-  - The player lies over your library: pull it down and the page you're going back to follows your
-    finger, live. The cover flips to the track's facts, holds for actions and swipes between tracks;
-    the seek bar scrubs finely and shows the lyric line under your thumb.
+  - The player slides over your library; the cover flips to the track's facts, holds for actions and
+    swipes between tracks; the seek bar scrubs finely and shows the lyric line under your thumb.
   - An editable queue that survives restarts; playlists with M3U import/export and drag-to-reorder;
     album, artist, genre and folder browsing.
-  - Fades on pause, optional crossfade and volume normalization, a system equalizer, a sleep timer.
+  - Fades on pause, optional smooth transitions (a fade of up to 12 s at each track boundary),
+    volume normalisation, an equalizer, a sleep timer.
   - A duplicate finder that recognises the same recording saved twice even when the tags differ,
     and tells you which copy to keep.
   - Local backup and restore.
@@ -124,14 +136,18 @@ Details in [PRIVACY.md](PRIVACY.md).
   on, and add the Map or the **Statistics** dashboard (listening time, habits, first listens, top
   tracks and artists; also under Settings → Statistics).
 - 📱 **On Android** — three home-screen widgets that wear the playing track's colour, a Quick
-  Settings tile, Android Auto, and playback that resumes the exact queue after a restart.
+  Settings tile, Android Auto, and headphone or system media buttons that pick the last queue back
+  up without opening the app.
 - 🌍 **18 languages** — including Russian, Romanian, Arabic and Hebrew (right-to-left) and CJK, with
   correct plural forms.
 
-iOS has the same SMART, For You, search, lyrics and tag editing. Not there yet: crossfade and volume
-normalization. Android only: widgets, the Quick Settings tile and Android Auto.
+iOS has everything above except the Android extras, smooth transitions and volume normalisation
+(see [the platform table](#one-engine-two-platforms)).
 
-## How the recommender works
+## How SMART works
+
+The short version is under [Features](#features); this section is for the curious and for
+contributors.
 
 Every track is described by its sound, its tags and what is known about its artist. SMART picks the
 next song by asking a small model which candidate fits what you have just played. All of it is
@@ -143,19 +159,22 @@ computed on the device:
 | **Metadata embedding** | 384 | A 5 MB multilingual text encoder distilled from MiniLM, over trusted `genre; artist; original year; language` tags |
 | **Artist knowledge** | 384 | What an offline teacher wrote about 350k MusicBrainz and Wikidata artists, stored as 22 bytes per artist; a small adapter guesses it for artists outside the pack |
 
-**Retrieval.** Separate anchor-audio, session-audio, seed-text and artist-knowledge rankings are
-round-robined into one candidate pool, so there is no hand-tuned weight between embedding spaces.
+**Retrieval.** Three rankings are interleaved in turn into one 100-track candidate pool: audio close
+to the track you picked, audio close to the session, and either the seed's tag text or, when its
+artist is in the knowledge pack, what is known about that artist. No hand-tuned weight sits between
+them. Songs from a playlist you marked *Keep together in SMART* are added if retrieval missed them.
 
-**Scoring.** A 960-d GRU state encoder reads your last four plays, completion and skip signals, and
-30- and 365-day taste centroids, and feeds a frozen scorer over 100 candidates. The scorer sees each
-candidate's audio embedding next to its metadata vector, with the session's metadata centroid on the
-state side. It was trained with text dropout, so a track without usable tags is scored on audio
-alone.
+**Scoring.** A 960-d GRU state encoder reads your last four plays, completion and skip signals,
+30- and 365-day taste centroids and the time of day and week, and feeds a frozen scorer over the
+pool. The scorer sees each candidate's audio embedding next to its metadata vector, with the
+session's metadata centroid on the state side. It was trained with text dropout, so a track without
+usable tags is scored on audio alone.
 
-**The queue.** A scoring chain balances the model's vote against local coherence, keeps gravity
-toward the track you chose, and uses pool-relative semantic scores so niche corners of a library stay
-intact. Metadata rules then nudge repeated artists down instead of banning them, suppress duplicate
-titles and damp the dense cinematic/anime cluster, and the finished queue is ordered into gentle
+**The queue.** A scoring chain balances the model's vote against local coherence, keeps pulling back
+toward the track you chose, and uses pool-relative semantic scores so niche corners of a library
+stay intact. Metadata rules then nudge repeated artists down instead of banning them (a much better
+match by the same artist can still win), suppress duplicate titles and keep one very dense cluster
+(cinematic and anime soundtracks) from crowding the queue. The finished queue is ordered into gentle
 transitions.
 
 **Messy tags.** Track *titles* are excluded from the embedding, so a filename like `Hard Techno Mix`
@@ -165,19 +184,23 @@ no year carries its artist's decade.
 
 **First launch.** The audio index builds in small persisted batches spread over the whole library;
 until candidates are ready, SMART *abstains* rather than quietly falling back to random. A listener
-with no history gets an explicitly trained seed-only state, not a zero vector. Listening history is
-used as runtime context, **never trained on and never uploaded**.
+with no history gets a state trained for exactly that case, so the first queue is still meaningful.
+Listening history is used as runtime context, **never trained on and never uploaded**.
 
 **Tuning.** The scorer's weights are frozen and *objective*: SMART ranks by what the music is, not by
 who is listening. The constants around it (chain weights, quotas, spacing) are chosen by replaying
 recorded model outputs and simulated listeners through the full chain, not by hand.
 
-Five ONNX graphs ship in-tree: the audio and metadata encoders run once while tracks are indexed; the
-state encoder and the scorer run while a queue is built; a small semantic head turns audio embeddings
-into the genre-family scores the map and the mixes use. The model bundle (graphs, vocabulary, the
-artist index and the knowledge pack) is **≈48 MiB on both Android and iOS**; the complete arm64 APK
-is about 57 MB. There is no precomputed per-track catalogue: an imported track takes exactly the same
-local path as everything else.
+**What ships.** Five ONNX graphs ship in-tree: the audio encoder runs once per track while indexing;
+the metadata encoder runs at indexing and for search queries; the state encoder and the scorer run
+while a queue is built; a small semantic head turns audio embeddings into the genre-family scores the
+map and the mixes use. The model bundle (graphs, vocabulary, the artist index and the knowledge pack)
+is about 50 MB on both Android and iOS. There is no precomputed per-track catalogue: an imported
+track takes exactly the same local path as everything else.
+
+**Further reading:** [docs/model-selection.md](docs/model-selection.md) (architecture choice,
+benchmarks, rejected candidates) and [docs/for-you-ux.md](docs/for-you-ux.md) (the research behind
+For You).
 
 ## One engine, two platforms
 
@@ -191,8 +214,8 @@ The intelligence lives in shared Kotlin; each platform supplies only the native 
 | Library source | MediaStore | Files import · Music library |
 | Media3 / AVPlayer playback | ✓ | ✓ |
 | Tag editing (MP3 · FLAC · M4A · Ogg · Opus) | ✓ | ✓ (imported files; Music library is read-only) |
-| System equalizer | ✓ | ✓ (AVAudioEngine graph, imported files) |
-| Crossfade · volume normalization | ✓ | — not yet |
+| Equalizer | ✓ system effect | ✓ (own AVAudioEngine graph, imported files) |
+| Smooth transitions · volume normalisation | ✓ | — not yet |
 | Widgets · QS tile · Android Auto | ✓ | n/a |
 
 ## Building
@@ -210,13 +233,14 @@ xcodebuild -workspace iosApp.xcworkspace -scheme iosApp -sdk iphonesimulator bui
 ```
 
 Requires **JDK 17+** and the Android SDK; the first build pulls a large Kotlin/Native toolchain.
-Xcode's Gradle phase looks for the JDK on `PATH` plus `/opt/homebrew/opt/openjdk@21/bin`. iOS brings
+Plan for 16 GB of RAM (Gradle and Kotlin/Native get 8 GiB heaps); the Gradle daemon is off by design,
+so each run starts cold. Xcode's Gradle phase looks for the JDK on `PATH` plus `/opt/homebrew/opt/openjdk@21/bin`. iOS brings
 ONNX Runtime in through CocoaPods (`onnxruntime-c`) and reaches it from Kotlin through the Swift host.
 
 The published arm64 APK swaps in a reduced ONNX Runtime (identical results, smaller download); see
 [tools/runtime/README.md](tools/runtime/README.md). Without it the build uses the stock runtime.
 
-## Layout
+## Project layout
 
 ```
 core/smart      similarity engine, SMART chain, ONNX runtimes, tokenizer, MusicBrainz index
@@ -229,12 +253,14 @@ androidApp      packaging shell — contains no Kotlin
 iosApp          Xcode project + thin Swift host
 build-logic/    the build's own Gradle plugin: the Kotlin/Native name check
 docs/           design notes and validation records
+fastlane/       store listing and per-release changelogs (read by F-Droid)
+branding/       logo
 tools/          one-off scripts, research harnesses and the opt-in reduced ONNX Runtime build
 ```
 
-`androidApp` holds no Kotlin on purpose: AGP 9 ships no Compose Multiplatform *application* plugin and
-`com.android.application` can't combine with the KMP plugin, so the UI lives in `composeApp` as a
-library and `androidApp` exists only to package it.
+`androidApp` holds no Kotlin on purpose. AGP 9 won't combine `com.android.application` with the
+Kotlin Multiplatform plugin or with `kotlin-android`, so all code, `MainActivity` included, lives in
+`composeApp` (an Android library) and `androidApp` only packages it.
 
 ## Testing
 
@@ -249,22 +275,27 @@ A few checks cover what unit tests usually miss. Each skips unless its fixture i
 default run stays fast and offline:
 
 - **SMART parity** replays the reference implementation's own recorded model outputs through this port
-  and asserts the resulting queues match *exactly*. Point `SMART_PARITY_FIXTURE` at a directory from
-  `tools/export_parity_fixture.py`.
+  and asserts the resulting queues match *exactly*. Point `SMART_PARITY_FIXTURE` at a fixture made by
+  `tools/export_parity_fixture.py --scorer semtext1344` (generating one needs the maintainer's
+  offline data).
 - **Chain and For You simulations** replay recorded outputs and synthetic listeners through the full
-  chain; they are how the recommender's constants are chosen and defended.
-- **Real files** run the tag reader, the lyrics reader and the tag writer (every codec, through the
-  crash-safe write path) against actual music, because synthetic fixtures only prove a codec matches
-  one reading of the spec. Point `TAG_REAL_FILES` at a folder of mixed files, `ID3_REAL_FILES` at
-  `.mp3`s, `REAL_AUDIO_FILE` at a single track.
+  chain; they are how the recommender's constants are chosen and defended. They need
+  `SMART_PARITY_FIXTURE` and `SMART_SIM_INPUT`.
+- **Real files** check codecs against actual music, because synthetic fixtures only prove a codec
+  matches one reading of the spec. Point `TAG_REAL_FILES` at a folder of mixed files (every codec,
+  read and crash-safe write), `ID3_REAL_FILES` at `.mp3`s (ID3 reader), `REAL_AUDIO_FILE` at one
+  track (embedded lyrics).
 
-The research behind the For You design is in [docs/for-you-ux.md](docs/for-you-ux.md).
+Gradle doesn't track these variables, so run a gated check with `--rerun-tasks`, e.g.
+`TAG_REAL_FILES=~/Music ./gradlew :core:library:testAndroidHostTest --rerun-tasks`.
+
+## Contributing
 
 Issues and pull requests are welcome; please run `./gradlew testAndroidHostTest` before opening a PR.
 
 ## Credits
 
-Built on the shoulders of:
+LatentJam builds on:
 
 - **[ONNX Runtime](https://onnxruntime.ai/)** — on-device inference on both platforms
 - **[MobileNetV4](https://arxiv.org/abs/2404.10518)** and **[MiniLM](https://arxiv.org/abs/2002.10957)** — the encoder architectures behind the audio and text embeddings
@@ -276,9 +307,7 @@ Built on the shoulders of:
 
 **Apache-2.0** — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-Bundled models under `androidApp/src/main/assets/ml/` are covered by permissive licences documented
-in [LICENSE-MODEL.txt](androidApp/src/main/assets/ml/LICENSE-MODEL.txt). The architecture selection,
-benchmarks, rejected candidates and next compression target are in
-[docs/model-selection.md](docs/model-selection.md).
+Bundled models under `androidApp/src/main/assets/ml/` (mirrored in `iosApp/iosApp/ml/`) are covered
+by permissive licences documented in [LICENSE-MODEL.txt](androidApp/src/main/assets/ml/LICENSE-MODEL.txt).
 
 <p align="center"><sub>Everything runs on your device. Your taste stays there.</sub></p>
