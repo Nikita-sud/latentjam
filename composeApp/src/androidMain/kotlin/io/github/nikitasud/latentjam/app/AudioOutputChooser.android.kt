@@ -23,7 +23,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.automirrored.rounded.BluetoothSearching
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -208,7 +208,7 @@ private fun AudioOutputChooserSheet(onDismiss: () -> Unit) {
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 headlineContent = { Text(stringResource(Res.string.output_connect_device)) },
                 leadingContent = { Icon(Icons.AutoMirrored.Rounded.BluetoothSearching, null) },
-                trailingContent = { Icon(Icons.Rounded.ChevronRight, null) },
+                trailingContent = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null) },
                 modifier = Modifier.clickable(enabled = !dismissing, role = Role.Button) {
                     // Leave a visible error if settings cannot open. A successful handoff removes
                     // this sheet immediately so returning from pairing cannot bring it back.
