@@ -118,9 +118,10 @@ class StringResourceParityTest {
     fun `no translation is left in English`() {
         // A string copied from values/ and never translated passes every other check here: the
         // key exists, the placeholders match. Flag any value that equals the English source,
-        // unless the key is a name or unit that reads the same everywhere, or the word really is
-        // the same in that language (German "Album", French "Playlists"). Strings with nothing
-        // but placeholders and punctuation are skipped on their own.
+        // unless the key is a name that reads the same everywhere (SMART, Bluetooth), or that
+        // language really writes it the same (German "Album", French "Playlists", Spanish "min").
+        // Strings with nothing but placeholders and punctuation are skipped on their own. Both
+        // lists are checked the other way too, so they cannot go stale.
         val source = bundles.getValue(SOURCE).entries
         val problems = mutableListOf<String>()
         for (locale in LOCALES) {
@@ -134,6 +135,9 @@ class StringResourceParityTest {
                 }
                 if (untranslated.isEmpty() && key in cognates) {
                     problems += "$locale/$key is translated now; drop it from SAME_IN_LANGUAGE"
+                }
+                if (key in SAME_IN_EVERY_LANGUAGE && entry.values != english.values) {
+                    problems += "$locale/$key is a name and must stay as in values/, or leave SAME_IN_EVERY_LANGUAGE"
                 }
             }
             (cognates - bundles.getValue(locale).entries.keys).forEach {
@@ -204,16 +208,22 @@ class StringResourceParityTest {
 
         val PLACEHOLDER = Regex("%(\\d+)\\$")
 
-        /** Names and units: identical to English in every language, so never flagged. */
+        /** Names: never translated, so identical to English in every locale (and checked to be). */
         val SAME_IN_EVERY_LANGUAGE = setOf(
             "player_mode_smart", "settings_color_smart", "settings_license_runtime", "output_bluetooth",
-            "duplicates_kbps", "unit_megabytes", "settings_crossfade_value", "stats_days_short",
-            "stats_hours_short", "stats_minutes_short", "stats_under_minute",
         )
 
-        /** Words that are the same as the English one in that language, checked by a person. */
+        /**
+         * Strings a language really writes the same as English, checked by a person: shared words
+         * (German "Album", French "Playlists") and the units a language keeps in Latin letters
+         * ("kbps", "MB", "min"). A unit is listed only for the locales that keep it.
+         */
         val SAME_IN_LANGUAGE: Map<String, Set<String>> = run {
-            val indonesian = setOf(
+            val kbpsAndMegabytes = setOf("duplicates_kbps", "unit_megabytes")
+            val latinTimeUnits = setOf(
+                "settings_crossfade_value", "stats_hours_short", "stats_minutes_short", "stats_under_minute",
+            )
+            val indonesian = kbpsAndMegabytes + setOf(
                 "action_edit_album", "action_edit_short", "count_albums", "count_files", "details_file",
                 "details_format", "equalizer_preset_treble", "info_album", "info_genre",
                 "intelligence_section_status",
@@ -223,22 +233,37 @@ class StringResourceParityTest {
                     "action_pause", "details_format", "equalizer_preset_bass", "info_album", "info_cover",
                     "info_genre", "intelligence_engine", "intelligence_section_status", "settings_equalizer",
                     "settings_section_navigation", "settings_version", "tab_genres", "tab_playlists",
+                    "unit_megabytes", "settings_crossfade_value",
                 ),
-                "values-es" to setOf("equalizer_preset_vocal"),
-                "values-fr" to setOf(
+                "values-es" to kbpsAndMegabytes + latinTimeUnits + setOf("equalizer_preset_vocal", "stats_days_short"),
+                "values-fr" to latinTimeUnits + setOf(
                     "action_pause", "count_albums", "details_format", "info_album", "info_genre",
                     "settings_pages", "settings_section_navigation", "settings_version",
                     "sleep_timer_minutes", "stats_streak_longest", "tab_albums", "tab_genres", "tab_playlists",
                 ),
+                "values-he" to kbpsAndMegabytes,
+                "values-iw" to kbpsAndMegabytes,
+                "values-hi" to kbpsAndMegabytes,
                 "values-id" to indonesian,
                 "values-in" to indonesian,
-                "values-it" to setOf("count_albums", "count_files", "details_file", "info_album", "stats_streak_longest"),
-                "values-pl" to setOf("count_albums", "details_format", "info_album"),
-                "values-pt-rBR" to setOf("equalizer_preset_vocal", "intelligence_section_status", "tab_playlists"),
-                "values-ro" to setOf(
+                "values-it" to kbpsAndMegabytes + latinTimeUnits + setOf(
+                    "count_albums", "count_files", "details_file", "info_album", "stats_streak_longest",
+                ),
+                "values-ja" to kbpsAndMegabytes,
+                "values-ko" to kbpsAndMegabytes,
+                "values-pl" to setOf(
+                    "count_albums", "details_format", "info_album", "unit_megabytes", "settings_crossfade_value",
+                    "stats_minutes_short", "stats_under_minute",
+                ),
+                "values-pt-rBR" to kbpsAndMegabytes + latinTimeUnits + setOf(
+                    "equalizer_preset_vocal", "intelligence_section_status", "tab_playlists", "stats_days_short",
+                ),
+                "values-ro" to kbpsAndMegabytes + latinTimeUnits + setOf(
                     "count_albums", "details_format", "equalizer_preset_electronic", "info_album", "info_artist",
                     "sleep_timer_minutes", "stats_streak_longest",
                 ),
+                "values-tr" to setOf("unit_megabytes"),
+                "values-zh-rCN" to kbpsAndMegabytes,
             )
         }
 
