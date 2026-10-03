@@ -115,6 +115,35 @@ class StringResourceParityTest {
     }
 
     @Test
+    fun `no translation is left in English`() {
+        // A string copied from values/ and never translated passes every other check here: the
+        // key exists, the placeholders match. Flag any value that equals the English source,
+        // unless the key is a name or unit that reads the same everywhere, or the word really is
+        // the same in that language (German "Album", French "Playlists"). Strings with nothing
+        // but placeholders and punctuation are skipped on their own.
+        val source = bundles.getValue(SOURCE).entries
+        val problems = mutableListOf<String>()
+        for (locale in LOCALES) {
+            val cognates = SAME_IN_LANGUAGE[locale].orEmpty()
+            for ((key, entry) in bundles.getValue(locale).entries) {
+                val english = source[key] ?: continue
+                val untranslated = entry.values.filter { it in english.values && it.hasWords() }
+                val allowed = key in SAME_IN_EVERY_LANGUAGE || key in cognates
+                if (untranslated.isNotEmpty() && !allowed) {
+                    problems += "$locale/$key is still English: ${untranslated.first().trim()}"
+                }
+                if (untranslated.isEmpty() && key in cognates) {
+                    problems += "$locale/$key is translated now; drop it from SAME_IN_LANGUAGE"
+                }
+            }
+            (cognates - bundles.getValue(locale).entries.keys).forEach {
+                problems += "SAME_IN_LANGUAGE lists $locale/$it, which does not exist"
+            }
+        }
+        assertNoProblems(problems, "Strings left in English")
+    }
+
+    @Test
     fun `every plurals declares the other category`() {
         // "other" is the CLDR fallback and the only category required in all languages.
         val problems = mutableListOf<String>()
@@ -174,6 +203,51 @@ class StringResourceParityTest {
         )
 
         val PLACEHOLDER = Regex("%(\\d+)\\$")
+
+        /** Names and units: identical to English in every language, so never flagged. */
+        val SAME_IN_EVERY_LANGUAGE = setOf(
+            "player_mode_smart", "settings_color_smart", "settings_license_runtime", "output_bluetooth",
+            "duplicates_kbps", "unit_megabytes", "settings_crossfade_value", "stats_days_short",
+            "stats_hours_short", "stats_minutes_short", "stats_under_minute",
+        )
+
+        /** Words that are the same as the English one in that language, checked by a person. */
+        val SAME_IN_LANGUAGE: Map<String, Set<String>> = run {
+            val indonesian = setOf(
+                "action_edit_album", "action_edit_short", "count_albums", "count_files", "details_file",
+                "details_format", "equalizer_preset_treble", "info_album", "info_genre",
+                "intelligence_section_status",
+            )
+            mapOf(
+                "values-de" to setOf(
+                    "action_pause", "details_format", "equalizer_preset_bass", "info_album", "info_cover",
+                    "info_genre", "intelligence_engine", "intelligence_section_status", "settings_equalizer",
+                    "settings_section_navigation", "settings_version", "tab_genres", "tab_playlists",
+                ),
+                "values-es" to setOf("equalizer_preset_vocal"),
+                "values-fr" to setOf(
+                    "action_pause", "count_albums", "details_format", "info_album", "info_genre",
+                    "settings_pages", "settings_section_navigation", "settings_version",
+                    "sleep_timer_minutes", "stats_streak_longest", "tab_albums", "tab_genres", "tab_playlists",
+                ),
+                "values-id" to indonesian,
+                "values-in" to indonesian,
+                "values-it" to setOf("count_albums", "count_files", "details_file", "info_album", "stats_streak_longest"),
+                "values-pl" to setOf("count_albums", "details_format", "info_album"),
+                "values-pt-rBR" to setOf("equalizer_preset_vocal", "intelligence_section_status", "tab_playlists"),
+                "values-ro" to setOf(
+                    "count_albums", "details_format", "equalizer_preset_electronic", "info_album", "info_artist",
+                    "sleep_timer_minutes", "stats_streak_longest",
+                ),
+            )
+        }
+
+        /** Anything left once placeholders and \uXXXX escapes are gone that is a letter. */
+        fun String.hasWords(): Boolean =
+            replace(PLACEHOLDER_TOKEN, "").replace(UNICODE_ESCAPE, "").any { it.isLetter() }
+
+        val PLACEHOLDER_TOKEN = Regex("%\\d+\\$[a-z]")
+        val UNICODE_ESCAPE = Regex("\\\\u[0-9a-fA-F]{4}")
 
         val resourcesDir: File by lazy {
             // Gradle runs host tests with the module directory as the working directory, but do
