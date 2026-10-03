@@ -140,6 +140,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -2472,15 +2473,40 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // TalkBack can reach it. The scrim that dims it as the player rises is drawn in a small
             // layer of its own, so a frame of motion re-records that and not the library, and the
             // gate skips the library entirely while the player covers it.
+            //
+            // While the sheet is between its ends, the library and its scrim are drawn only where
+            // the sheet's opaque surface has uncovered them, one plain rectangle at a time: a
+            // rectangle clip lets the renderer skip the page's drawing outside it, which a cut-out
+            // clip would not. On a slow GPU drawing the whole page under the player every frame of
+            // a pull was the pull's entire extra cost.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer()
                     .drawWithContent {
                         if (!libraryDrawn.value) return@drawWithContent
-                        drawContent()
-                        val scrim = libraryScrimAlpha(playerExpansion.progress)
-                        if (scrim > 0f) drawRect(Color.Black, alpha = scrim)
+                        val progress = playerExpansion.progress
+                        if (progress <= 0f) {
+                            // At rest under the pill: the pill draws itself (and nudges sideways
+                            // under a swipe), so nothing of the page may be cut away.
+                            drawContent()
+                            return@drawWithContent
+                        }
+                        val surface = playerExpansion.surfaceBounds(size)
+                        val radius = playerExpansion.surfaceRadius()
+                        if (sheetCoversWindow(surface, radius, size.width, size.height)) {
+                            return@drawWithContent
+                        }
+                        val scrim = libraryScrimAlpha(progress)
+                        val pieces = sheetUncoveredPieces(
+                            surface, radius, inset = 1.dp.toPx(), width = size.width, height = size.height,
+                        )
+                        for (piece in pieces) {
+                            clipRect(piece.left, piece.top, piece.right, piece.bottom) {
+                                this@drawWithContent.drawContent()
+                                drawRect(Color.Black, alpha = scrim)
+                            }
+                        }
                     }
                     .graphicsLayer()
                     // Inert from the first move of a drag up too: a second finger must not reach

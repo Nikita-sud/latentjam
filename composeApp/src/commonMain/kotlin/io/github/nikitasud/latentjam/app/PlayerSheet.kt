@@ -100,6 +100,16 @@ internal class PlayerExpansion(open: Boolean, private val scope: CoroutineScope)
     /** How far the surface's top edge travels between the two ends, in px; set by the sheet's layout. */
     var travelPx = 0f
 
+    /** The pill's card and corner radius in the window, in px; set by the sheet's layout. */
+    var pillBounds = Rect.Zero
+    var pillRadiusPx = 0f
+
+    /** Where the sheet's opaque surface is now, in the window that both the sheet and the library fill. */
+    fun surfaceBounds(size: Size): Rect = lerp(pillBounds, Rect(Offset.Zero, size), progress)
+
+    /** The surface's corner radius now: the pill's, easing to square at the top. */
+    fun surfaceRadius(): Float = sheetCornerRadius(pillRadiusPx, progress)
+
     private var job: Job? = null
     private var heading: Boolean? = null
 
@@ -309,8 +319,13 @@ internal fun PlayerSheet(
     // A dragged (or merely pressed) node stays placed until its finger lifts. Unplaced, Compose
     // would stop sending it events without a cancel: the drag would never be released, or the
     // press never lifted.
+    // While the player covers it the pill is fully faded (above a quarter of the way): unplaced, it
+    // costs no drawing during a pull of the player.
+    var pillDragging by remember { mutableStateOf(false) }
     val pillPlaced = remember {
-        derivedStateOf { expansion.progress < 1f || expansion.dragging || pillPressed }
+        derivedStateOf {
+            miniPlayerContentAlpha(expansion.progress) > 0f || pillDragging || pillPressed
+        }
     }
     val inFlight = remember {
         derivedStateOf { expansion.progress > 0f && (expansion.progress < 1f || expansion.dragging) }
@@ -405,12 +420,16 @@ internal fun PlayerSheet(
                 .fillMaxSize()
                 .layout { measurable, constraints ->
                     val placeable = measurable.measure(constraints)
-                    expansion.travelPx = pill(Size(placeable.width.toFloat(), placeable.height.toFloat())).top
+                    val pillNow = pill(Size(placeable.width.toFloat(), placeable.height.toFloat()))
+                    expansion.pillBounds = pillNow
+                    expansion.pillRadiusPx = PILL_RADIUS.toPx()
+                    expansion.travelPx = pillNow.top
                     layout(placeable.width, placeable.height) { placeable.place(0, 0) }
                 },
         ) {
             // The surface between the two ends. At either end the pill or the player's own floor
-            // is the surface, so nothing is drawn twice while at rest.
+            // is the surface, so nothing is drawn twice while at rest; and once the player's own
+            // opaque floor has fully faded in over it (most of a pull), it is not drawn either.
             Spacer(
                 modifier = Modifier
                     .fillMaxSize()
@@ -418,12 +437,13 @@ internal fun PlayerSheet(
                     .drawBehind {
                         val progress = expansion.progress
                         if (progress <= 0f || progress >= 1f) return@drawBehind
+                        if (warm && fullPlayerContentAlpha(progress) >= 1f) return@drawBehind
                         val rect = surface(size, progress)
                         drawRoundRect(
                             color = lerp(pillColor, floorColor, playerSurfaceColorFraction(progress)),
                             topLeft = rect.topLeft,
                             size = rect.size,
-                            cornerRadius = CornerRadius(lerpFloat(PILL_RADIUS.toPx(), 0f, progress)),
+                            cornerRadius = CornerRadius(sheetCornerRadius(PILL_RADIUS.toPx(), progress)),
                         )
                     },
             )
@@ -442,7 +462,7 @@ internal fun PlayerSheet(
                                 clip = true
                                 shape = SheetWindowShape(
                                     Rect(rect.left, 0f, rect.right, rect.height),
-                                    lerpFloat(PILL_RADIUS.toPx(), 0f, progress),
+                                    sheetCornerRadius(PILL_RADIUS.toPx(), progress),
                                 )
                             } else {
                                 clip = false
@@ -487,14 +507,17 @@ internal fun PlayerSheet(
                         .playerExpansionDrag(
                             onDrag = { downPx ->
                                 if (!expansion.dragging) currentOnCoverStart()
+                                if (!pillDragging) pillDragging = true
                                 expansion.dragBy(downPx)
                             },
                             onRelease = { velocity ->
+                                pillDragging = false
                                 currentOnOpenChange(
                                     expansion.release(velocity, commitPx, flingPx, currentReduceMotion),
                                 )
                             },
                             onAbandon = {
+                                pillDragging = false
                                 expansion.abandonDrag(currentReduceMotion)
                                 currentOnOpenChange(expansion.target)
                             },
@@ -579,8 +602,10 @@ private fun FlyingCover(
 
 /** The growing surface's outline in the player layer's own (translated) coordinates. */
 private class SheetWindowShape(private val rect: Rect, private val radius: Float) : Shape {
+    // Below a pixel the corners cannot be seen, and a plain rectangle clip is far cheaper to
+    // render than an antialiased rounded one over the whole player.
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
-        Outline.Rounded(RoundRect(rect, CornerRadius(radius)))
+        if (radius < 1f) Outline.Rectangle(rect) else Outline.Rounded(RoundRect(rect, CornerRadius(radius)))
 }
 
 /**

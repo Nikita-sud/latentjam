@@ -111,6 +111,67 @@ class PlayerFeelTest {
     }
 
     @Test
+    fun theLibraryIsDrawnInDisjointPiecesExactlyWhereTheSheetLeavesItUncovered() {
+        val w = 1080f
+        val h = 2280f
+        val surface = Rect(20f, 900f, 1060f, 2250f)
+        val pieces = sheetUncoveredPieces(surface, radius = 60f, inset = 2f, width = w, height = h)
+        assertEquals(
+            listOf(
+                Rect(0f, 0f, w, 962f), // above, down past the top corners
+                Rect(0f, 2188f, w, h), // below, up past the bottom corners
+                Rect(0f, 962f, 22f, 2188f), // left of the straight edge
+                Rect(1058f, 962f, w, 2188f), // right of it
+            ),
+            pieces,
+        )
+        // Disjoint, so the scrim is never drawn twice anywhere.
+        for (a in pieces.indices) for (b in pieces.indices) if (a < b) {
+            val o = pieces[a].intersect(pieces[b])
+            assertTrue(o.width <= 0f || o.height <= 0f)
+        }
+        // Every point outside the rounded surface is in some piece.
+        for (x in listOf(0f, 10f, 21f, 25f, 540f, 1059f, 1070f, 1079f)) {
+            for (y in listOf(0f, 500f, 905f, 930f, 1500f, 2240f, 2260f, 2279f)) {
+                val p = androidx.compose.ui.geometry.Offset(x, y)
+                if (!insideRoundedRect(p, surface, 60f)) assertTrue(pieces.any { it.contains(p) }, "uncovered $p")
+            }
+        }
+        // A full-window square surface leaves nothing to draw; one only short of the top, a band.
+        assertEquals(emptyList(), sheetUncoveredPieces(Rect(0f, 0f, w, h), 0f, 2f, w, h))
+        assertEquals(listOf(Rect(0f, 0f, w, 13f)), sheetUncoveredPieces(Rect(0f, 10f, w, h), 0f, 3f, w, h))
+    }
+
+    @Test
+    fun theCornersAreThePillsAtTheBottomAndGoneLongBeforeTheTop() {
+        assertEquals(66f, sheetCornerRadius(66f, 0f))
+        assertEquals(16.5f, sheetCornerRadius(66f, 0.5f), absoluteTolerance = 0.001f)
+        // A short pull of the full player (down to ~0.88) stays under a pixel.
+        assertTrue(sheetCornerRadius(66f, 0.88f) < 1f)
+        assertEquals(0f, sheetCornerRadius(66f, 1f))
+        assertEquals(0f, sheetCornerRadius(66f, 1.2f))
+    }
+
+    @Test
+    fun aSurfaceThatReachesEveryEdgeWithSquareCornersHidesTheWholeLibrary() {
+        assertTrue(sheetCoversWindow(Rect(0f, 0.3f, 1080f, 2280f), radius = 0.2f, width = 1080f, height = 2280f))
+        // The last pixel of the top edge still uncovered.
+        assertFalse(sheetCoversWindow(Rect(0f, 1f, 1080f, 2280f), radius = 0f, width = 1080f, height = 2280f))
+        // Rounded corners leave slivers of the page visible.
+        assertFalse(sheetCoversWindow(Rect(0f, 0f, 1080f, 2280f), radius = 3f, width = 1080f, height = 2280f))
+        assertFalse(sheetCoversWindow(Rect(4f, 0f, 1076f, 2280f), radius = 0f, width = 1080f, height = 2280f))
+    }
+
+    private fun insideRoundedRect(point: androidx.compose.ui.geometry.Offset, rect: Rect, r: Float): Boolean {
+        if (!rect.contains(point) && point.x != rect.right && point.y != rect.bottom) return false
+        val cx = point.x.coerceIn(rect.left + r, rect.right - r)
+        val cy = point.y.coerceIn(rect.top + r, rect.bottom - r)
+        val dx = point.x - cx
+        val dy = point.y - cy
+        return dx * dx + dy * dy <= r * r + 0.001f
+    }
+
+    @Test
     fun neighbourRevealIsContinuousDirectionalAndReversible() {
         val outward = listOf(0f, -6f, -30f, -60f, -96f).map {
             artworkNeighbourReveal(it, width = 400f, forward = true)

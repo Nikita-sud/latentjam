@@ -58,6 +58,45 @@ internal fun collapseCommits(dy: Float, threshold: Float): Boolean = dy > thresh
 internal fun libraryDrawnUnderPlayer(progress: Float): Boolean = progress < 1f
 
 /**
+ * True when the sheet's surface leaves no part of the window uncovered, so the library under it
+ * need not be drawn at all: it reaches every edge (within half a pixel) and its corners are square.
+ */
+internal fun sheetCoversWindow(surface: Rect, radius: Float, width: Float, height: Float): Boolean =
+    surface.left <= 0.5f && surface.top <= 0.5f &&
+        surface.right >= width - 0.5f && surface.bottom >= height - 0.5f && radius < 0.5f
+
+/**
+ * The parts of the window the sheet's rounded surface leaves uncovered, as at most four disjoint
+ * rectangles: a band across the top down to below the top corners, one across the bottom up to
+ * above the bottom corners, and a strip on each side between them. The library is drawn once per
+ * piece with a plain rectangle clip, which lets the renderer skip everything outside it, and the
+ * pieces never overlap, so the scrim drawn in each is never doubled. Each piece reaches [inset]
+ * under the surface's edge so its antialiased rim never lets the floor show through.
+ */
+internal fun sheetUncoveredPieces(
+    surface: Rect,
+    radius: Float,
+    inset: Float,
+    width: Float,
+    height: Float,
+): List<Rect> {
+    val r = radius.coerceAtLeast(0f)
+    val topEdge = if (surface.top <= 0.5f && r < 0.5f) 0f else (surface.top + r + inset).coerceIn(0f, height)
+    val bottomEdge = if (surface.bottom >= height - 0.5f && r < 0.5f) {
+        height
+    } else {
+        (surface.bottom - r - inset).coerceIn(topEdge, height)
+    }
+    val pieces = ArrayList<Rect>(4)
+    if (topEdge > 0f) pieces += Rect(0f, 0f, width, topEdge)
+    if (bottomEdge < height) pieces += Rect(0f, bottomEdge, width, height)
+    if (bottomEdge > topEdge) {
+        if (surface.left > 0.5f) pieces += Rect(0f, topEdge, (surface.left + inset).coerceAtMost(width), bottomEdge)
+        if (surface.right < width - 0.5f) pieces += Rect((surface.right - inset).coerceAtLeast(0f), topEdge, width, bottomEdge)
+    }
+    return pieces
+}
+/**
  * Where a released drag of the player settles. A fling decides by its direction alone; a slow
  * release stays where it started unless the finger carried it past [commitFraction] of the way,
  * the same distance in both directions. [velocity] is in expansions per second, positive opening.
@@ -73,6 +112,16 @@ internal fun expansionSettlesOpen(
     velocity < -flingVelocity -> false
     wasOpen -> progress > 1f - commitFraction
     else -> progress > commitFraction
+}
+
+/**
+ * The sheet's corner radius: the pill's at 0, square at 1. It falls with the square of the
+ * remaining way, so the corners have gone (below a pixel, where the clip turns into a cheap
+ * rectangle) during the whole of a short pull, while the card still reads as a card low down.
+ */
+internal fun sheetCornerRadius(pillRadius: Float, progress: Float): Float {
+    val left = (1f - progress).coerceIn(0f, 1f)
+    return pillRadius * left * left
 }
 
 /** The mini player's own content leaves early, before the full player's begins to show. */
