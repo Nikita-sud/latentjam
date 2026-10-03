@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">Impor musik</string>
+    <string name="library_import_hint">Pilih file audio dari Unduhan atau folder lain di app File.</string>
+    <plurals name="library_imported">
+        <item quantity="other">%1$d lagu diimpor</item>
+    </plurals>
+    <string name="library_import_none">Tidak ada lagu baru yang diimpor.</string>
+    <string name="library_import_partial">%1$d diimpor, %2$d dilewati, %3$d gagal</string>
+</resources>

@@ -208,6 +208,11 @@
     <string name="action_delete_from_device">Șterge de pe dispozitiv</string>
     <string name="dialog_delete_tracks_message">Piesele selectate (%1$d) vor fi șterse de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>
     <string name="dialog_delete_track_title">Ștergi această piesă?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">Ștergi %1$d piesă?</item>
+        <item quantity="few">Ștergi %1$d piese?</item>
+        <item quantity="other">Ștergi %1$d de piese?</item>
+    </plurals>
     <string name="dialog_delete_track_message">„%1$s” va fi ștearsă de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>
     <string name="dialog_delete_track_message_generic">Această piesă va fi ștearsă de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>
 
@@ -357,12 +362,12 @@
     <string name="intelligence_section_recommendations">Recomandări</string>
     <string name="intelligence_queue_length">Lungimea cozii SMART</string>
     <string name="intelligence_queue_length_body">Alege câte piese adaugă SMART când creează o coadă.</string>
-    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
-    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
-    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
-    <string name="foryou_mix_sound_effects">Sound effects</string>
-    <string name="foryou_mix_spoken_audio">Spoken audio</string>
-    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_include_novelty_mixes">Include mixurile neobișnuite</string>
+    <string name="intelligence_include_novelty_mixes_body">Afișează în Pentru tine mixuri separate cu meme, audio viral și efecte sonore.</string>
+    <string name="foryou_mix_meme_viral">Meme și audio viral</string>
+    <string name="foryou_mix_sound_effects">Efecte sonore</string>
+    <string name="foryou_mix_spoken_audio">Audio vorbit</string>
+    <string name="foryou_mix_instrumental">Muzică instrumentală</string>
     <string name="intelligence_how_it_works">SMART compară amprentele sonore pe acest dispozitiv și combină asemănarea muzicală cu istoricul tău de ascultare. Funcționează fără cont sau conexiune la internet.</string>
     <string name="privacy_local_body">Biblioteca, istoricul de ascultare și datele SMART rămân pe acest dispozitiv. LatentJam nu folosește conturi și nu trimite aceste date către un server.</string>
     <string name="privacy_save_history_body">Reține redările și omiterile pe acest dispozitiv pentru Pentru tine și recomandările SMART.</string>

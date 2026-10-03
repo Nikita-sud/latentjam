@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">从 LatentJam 中移除</string>
+    <string name="action_undo">撤销</string>
+    <string name="action_restore_hidden_tracks">恢复隐藏歌曲</string>
+    <string name="snack_removed_from_latentjam">已从 LatentJam 中移除。手机上的文件已保留。</string>
+    <string name="snack_hidden_tracks_restored">隐藏的歌曲已重新显示。</string>
+</resources>

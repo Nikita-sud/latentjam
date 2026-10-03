@@ -202,6 +202,9 @@
     <string name="action_delete_from_device">デバイスから削除</string>
     <string name="dialog_delete_tracks_message">選択した%1$d曲をこのデバイスから削除します。この操作は取り消せません。</string>
     <string name="dialog_delete_track_title">この曲を削除しますか？</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="other">%1$d曲を削除しますか？</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">「%1$s」をこのデバイスから削除します。この操作は取り消せません。</string>
     <string name="dialog_delete_track_message_generic">この曲をこのデバイスから削除します。この操作は取り消せません。</string>
@@ -352,12 +355,12 @@
     <string name="intelligence_section_recommendations">おすすめ</string>
     <string name="intelligence_queue_length">SMART キューの長さ</string>
     <string name="intelligence_queue_length_body">SMART がキューを作るときに追加する曲数を選びます。</string>
-    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
-    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
-    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
-    <string name="foryou_mix_sound_effects">Sound effects</string>
-    <string name="foryou_mix_spoken_audio">Spoken audio</string>
-    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_include_novelty_mixes">ネタ系ミックスを含める</string>
+    <string name="intelligence_include_novelty_mixes_body">ミーム、バイラル、効果音のミックスを「あなたへ」に別枠で表示します。</string>
+    <string name="foryou_mix_meme_viral">ミーム＆バイラル音源</string>
+    <string name="foryou_mix_sound_effects">効果音</string>
+    <string name="foryou_mix_spoken_audio">トーク・朗読</string>
+    <string name="foryou_mix_instrumental">インストゥルメンタル</string>
     <string name="intelligence_how_it_works">SMART はこの端末上でサウンド指紋を比較し、音楽的な類似性と再生履歴を組み合わせます。アカウントやインターネット接続は必要ありません。</string>
     <string name="privacy_local_body">ライブラリ、再生履歴、SMART データはこの端末に保存されます。LatentJam にアカウントはなく、これらのデータをサーバーへ送信しません。</string>
     <string name="privacy_save_history_body">「おすすめ」と SMART の提案に使用するため、再生とスキップをこのデバイスに保存します。</string>

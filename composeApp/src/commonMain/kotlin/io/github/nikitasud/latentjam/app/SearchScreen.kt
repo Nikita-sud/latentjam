@@ -339,7 +339,7 @@ internal fun SearchScreen(
                             .heightIn(min = 48.dp).focusRequester(focusRequester),
                         textStyle = MaterialTheme.typography.bodyLarge.copy(
                             color = MaterialTheme.colorScheme.onSurface,
-                        ),
+                        ).metadata(),
                         cursorBrush = SolidColor(accentInk),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -456,7 +456,7 @@ internal fun SearchScreen(
                     SearchContentMode.Loading -> SearchLoading()
 
                     SearchContentMode.NoMatches ->
-                        CenteredHint(stringResource(Res.string.search_no_matches, shown.query))
+                        CenteredHint(stringResource(Res.string.search_no_matches, bidiWrap(shown.query)))
 
                     SearchContentMode.Results -> LazyColumn(
                         state = resultsListState,
@@ -662,7 +662,7 @@ private fun RecentSearchList(
                         )
                         Text(
                             text = entry,
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyLarge.metadata(),
                             modifier = Modifier.weight(1f).padding(vertical = 12.dp),
                         )
                         IconButton(onClick = { onRemove(entry) }, modifier = Modifier.size(48.dp)) {

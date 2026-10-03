@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">Retirer de LatentJam</string>
+    <string name="action_undo">Annuler</string>
+    <string name="action_restore_hidden_tracks">Restaurer les morceaux masqués</string>
+    <string name="snack_removed_from_latentjam">Retiré de LatentJam. Le fichier sur le téléphone a été conservé.</string>
+    <string name="snack_hidden_tracks_restored">Les morceaux masqués sont de nouveau visibles.</string>
+</resources>

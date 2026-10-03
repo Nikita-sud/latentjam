@@ -17,6 +17,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -103,6 +104,7 @@ internal fun ArtistChooserSheet(
                                 text = artist.name ?: stringResource(Res.string.track_unknown_artist),
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
+                                style = LocalTextStyle.current.metadata(),
                             )
                         },
                         supportingContent = {

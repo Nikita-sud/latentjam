@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">LatentJam から取り除く</string>
+    <string name="action_undo">元に戻す</string>
+    <string name="action_restore_hidden_tracks">非表示の曲を復元</string>
+    <string name="snack_removed_from_latentjam">LatentJam から取り除きました。端末上のファイルは残っています。</string>
+    <string name="snack_hidden_tracks_restored">非表示の曲が再び表示されます。</string>
+</resources>

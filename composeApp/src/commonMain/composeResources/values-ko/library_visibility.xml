@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">LatentJam에서 제거</string>
+    <string name="action_undo">실행 취소</string>
+    <string name="action_restore_hidden_tracks">숨긴 곡 복원</string>
+    <string name="snack_removed_from_latentjam">LatentJam에서 제거했습니다. 휴대전화의 파일은 그대로 있습니다.</string>
+    <string name="snack_hidden_tracks_restored">숨긴 곡이 다시 표시됩니다.</string>
+</resources>

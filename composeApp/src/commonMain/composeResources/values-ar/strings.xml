@@ -237,6 +237,14 @@
     <string name="action_delete_from_device">حذف من الجهاز</string>
     <string name="dialog_delete_tracks_message">ستتم إزالة المقاطع المحددة (%1$d) من هذا الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="dialog_delete_track_title">حذف هذا المقطع الصوتي؟</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="zero">حذف %1$d مقطع؟</item>
+        <item quantity="one">حذف %1$d مقطع؟</item>
+        <item quantity="two">حذف %1$d مقطعين؟</item>
+        <item quantity="few">حذف %1$d مقاطع؟</item>
+        <item quantity="many">حذف %1$d مقطعًا؟</item>
+        <item quantity="other">حذف %1$d مقطع؟</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">سيتم حذف «%1$s» من هذا الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="dialog_delete_track_message_generic">سيتم حذف هذا المقطع الصوتي من هذا الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>
@@ -392,12 +400,12 @@
     <string name="intelligence_section_recommendations">التوصيات</string>
     <string name="intelligence_queue_length">طول قائمة انتظار SMART</string>
     <string name="intelligence_queue_length_body">اختر عدد المقاطع التي يضيفها SMART عند إنشاء قائمة انتظار.</string>
-    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
-    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
-    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
-    <string name="foryou_mix_sound_effects">Sound effects</string>
-    <string name="foryou_mix_spoken_audio">Spoken audio</string>
-    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_include_novelty_mixes">تضمين المزيجات الطريفة</string>
+    <string name="intelligence_include_novelty_mixes_body">عرض مزيجات مستقلة للميمات والمقاطع الرائجة والمؤثرات الصوتية في «لك».</string>
+    <string name="foryou_mix_meme_viral">ميمات ومقاطع رائجة</string>
+    <string name="foryou_mix_sound_effects">مؤثرات صوتية</string>
+    <string name="foryou_mix_spoken_audio">محتوى منطوق</string>
+    <string name="foryou_mix_instrumental">موسيقى آلية</string>
     <string name="intelligence_how_it_works">يقارن SMART البصمات الصوتية على هذا الجهاز، ثم يجمع بين التشابه الموسيقي وسجل استماعك. يعمل من دون حساب أو اتصال بالإنترنت.</string>
     <string name="privacy_local_body">تبقى مكتبتك وسجل استماعك وبيانات SMART على هذا الجهاز. لا يحتاج LatentJam إلى حساب ولا يرسل أيًا منها إلى خادم.</string>
     <string name="privacy_save_history_body">احفظ مرات التشغيل والتخطي على هذا الجهاز لاستخدامها في «لك» وتوصيات SMART.</string>

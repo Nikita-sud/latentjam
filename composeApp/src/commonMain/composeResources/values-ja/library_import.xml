@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">音楽を読み込む</string>
+    <string name="library_import_hint">「ダウンロード」または「ファイル」アプリの別のフォルダからオーディオファイルを選びます。</string>
+    <plurals name="library_imported">
+        <item quantity="other">%1$d曲を読み込みました</item>
+    </plurals>
+    <string name="library_import_none">新しい曲は読み込まれませんでした。</string>
+    <string name="library_import_partial">読み込み %1$d、スキップ %2$d、失敗 %3$d</string>
+</resources>

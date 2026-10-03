@@ -326,7 +326,7 @@ private fun ScrubBubble(
             if (lyric != null) {
                 Text(
                     text = lyric,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.metadata(),
                     minLines = 2,
                     maxLines = 2,
                     textAlign = TextAlign.Center,

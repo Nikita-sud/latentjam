@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">Importer de la musique</string>
+    <string name="library_import_hint">Choisissez des fichiers audio dans Téléchargements ou un autre dossier de l’app Fichiers.</string>
+    <plurals name="library_imported">
+        <item quantity="one">%1$d morceau importé</item>
+        <item quantity="other">%1$d morceaux importés</item>
+    </plurals>
+    <string name="library_import_none">Aucun nouveau morceau importé.</string>
+    <string name="library_import_partial">%1$d importé(s), %2$d ignoré(s), %3$d en échec</string>
+</resources>

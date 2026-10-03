@@ -202,6 +202,9 @@
     <string name="action_delete_from_device">기기에서 삭제</string>
     <string name="dialog_delete_tracks_message">선택한 트랙 %1$d개를 이 기기에서 삭제합니다. 이 작업은 되돌릴 수 없습니다.</string>
     <string name="dialog_delete_track_title">이 곡을 삭제할까요?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="other">%1$d곡을 삭제할까요?</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">‘%1$s’을(를) 이 기기에서 삭제합니다. 이 작업은 되돌릴 수 없습니다.</string>
     <string name="dialog_delete_track_message_generic">이 곡을 이 기기에서 삭제합니다. 이 작업은 되돌릴 수 없습니다.</string>
@@ -352,12 +355,12 @@
     <string name="intelligence_section_recommendations">추천</string>
     <string name="intelligence_queue_length">SMART 대기열 길이</string>
     <string name="intelligence_queue_length_body">SMART가 대기열을 만들 때 추가할 곡 수를 선택합니다.</string>
-    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
-    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
-    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
-    <string name="foryou_mix_sound_effects">Sound effects</string>
-    <string name="foryou_mix_spoken_audio">Spoken audio</string>
-    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_include_novelty_mixes">이색 믹스 포함</string>
+    <string name="intelligence_include_novelty_mixes_body">밈, 바이럴, 효과음 믹스를 추천에 따로 표시합니다.</string>
+    <string name="foryou_mix_meme_viral">밈 &amp; 바이럴 오디오</string>
+    <string name="foryou_mix_sound_effects">효과음</string>
+    <string name="foryou_mix_spoken_audio">음성 콘텐츠</string>
+    <string name="foryou_mix_instrumental">연주곡</string>
     <string name="intelligence_how_it_works">SMART는 이 기기에서 사운드 지문을 비교한 다음 음악적 유사성과 감상 기록을 결합합니다. 계정이나 인터넷 연결 없이 작동합니다.</string>
     <string name="privacy_local_body">라이브러리, 감상 기록 및 SMART 데이터는 이 기기에만 저장됩니다. LatentJam에는 계정이 없으며 이러한 데이터를 서버로 보내지 않습니다.</string>
     <string name="privacy_save_history_body">맞춤 추천과 SMART 추천을 위해 재생 및 건너뛰기 기록을 이 기기에 저장합니다.</string>

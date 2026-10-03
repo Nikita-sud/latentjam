@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">Müzik içe aktar</string>
+    <string name="library_import_hint">İndirilenler’den veya Dosyalar uygulamasındaki başka bir klasörden ses dosyaları seç.</string>
+    <plurals name="library_imported">
+        <item quantity="one">%1$d parça içe aktarıldı</item>
+        <item quantity="other">%1$d parça içe aktarıldı</item>
+    </plurals>
+    <string name="library_import_none">Yeni parça içe aktarılmadı.</string>
+    <string name="library_import_partial">%1$d içe aktarıldı, %2$d atlandı, %3$d başarısız</string>
+</resources>

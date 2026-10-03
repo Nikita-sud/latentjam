@@ -11,7 +11,7 @@ LatentJam is a music player for the files on your phone that understands what yo
 <li><b>A real player underneath</b>: playlists with M3U import and export, album, artist, genre and folder browsing behind an A–Z rail, crossfade and volume normalization, a duplicate finder that says which copy to keep, statistics, tag editing, local backup and restore.</li>
 <li><b>On the home screen and in the car</b>: three widgets, a Quick Settings tile and an Android Auto browse tree.</li>
 <li><b>Your pages, your order</b>: show, hide and reorder the browsing pages, and choose the one it opens on.</li>
-<li><b>17 languages</b>, including Russian, Romanian, Arabic and Chinese, Japanese and Korean.</li>
+<li><b>18 languages</b>, including Russian, Romanian, Arabic, Hebrew, Chinese, Japanese and Korean.</li>
 </ul>
 
 SMART gets good once a chunk of your library has been analysed in the background; leaving the phone charging overnight speeds that up.

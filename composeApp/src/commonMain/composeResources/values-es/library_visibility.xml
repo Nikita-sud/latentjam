@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">Quitar de LatentJam</string>
+    <string name="action_undo">Deshacer</string>
+    <string name="action_restore_hidden_tracks">Restaurar canciones ocultas</string>
+    <string name="snack_removed_from_latentjam">Quitada de LatentJam. El archivo del teléfono se conserva.</string>
+    <string name="snack_hidden_tracks_restored">Las canciones ocultas vuelven a verse.</string>
+</resources>

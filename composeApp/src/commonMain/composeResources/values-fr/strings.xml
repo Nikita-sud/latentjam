@@ -220,6 +220,10 @@
     <string name="action_delete_from_device">Supprimer de l’appareil</string>
     <string name="dialog_delete_tracks_message">Les morceaux sélectionnés (%1$d) seront supprimés de cet appareil. Cette action est irréversible.</string>
     <string name="dialog_delete_track_title">Supprimer ce morceau ?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">Supprimer %1$d morceau ?</item>
+        <item quantity="other">Supprimer %1$d morceaux ?</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">« %1$s » sera supprimé de cet appareil. Cette action est irréversible.</string>
     <string name="dialog_delete_track_message_generic">Ce morceau sera supprimé de cet appareil. Cette action est irréversible.</string>
@@ -371,12 +375,12 @@
     <string name="intelligence_section_recommendations">Recommandations</string>
     <string name="intelligence_queue_length">Taille de la file SMART</string>
     <string name="intelligence_queue_length_body">Choisissez le nombre de morceaux que SMART ajoute lorsqu’il crée une file.</string>
-    <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
-    <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
-    <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>
-    <string name="foryou_mix_sound_effects">Sound effects</string>
-    <string name="foryou_mix_spoken_audio">Spoken audio</string>
-    <string name="foryou_mix_instrumental">Instrumental</string>
+    <string name="intelligence_include_novelty_mixes">Inclure les mixes insolites</string>
+    <string name="intelligence_include_novelty_mixes_body">Afficher dans Pour vous des mixes distincts de mèmes, de sons viraux et d’effets sonores.</string>
+    <string name="foryou_mix_meme_viral">Mèmes et sons viraux</string>
+    <string name="foryou_mix_sound_effects">Effets sonores</string>
+    <string name="foryou_mix_spoken_audio">Contenu parlé</string>
+    <string name="foryou_mix_instrumental">Musique instrumentale</string>
     <string name="intelligence_how_it_works">SMART compare les empreintes sonores sur cet appareil, puis associe la proximité musicale à votre historique d’écoute. Aucun compte ni connexion Internet n’est nécessaire.</string>
     <string name="privacy_local_body">Votre bibliothèque, votre historique d’écoute et les données SMART restent sur cet appareil. LatentJam ne nécessite aucun compte et n’envoie aucune de ces données à un serveur.</string>
     <string name="privacy_save_history_body">Enregistre les écoutes et les morceaux passés sur cet appareil pour Pour vous et les recommandations SMART.</string>

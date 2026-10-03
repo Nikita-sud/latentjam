@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">LatentJam’den kaldır</string>
+    <string name="action_undo">Geri al</string>
+    <string name="action_restore_hidden_tracks">Gizli parçaları geri getir</string>
+    <string name="snack_removed_from_latentjam">LatentJam’den kaldırıldı. Telefondaki dosya korundu.</string>
+    <string name="snack_hidden_tracks_restored">Gizli parçalar yeniden görünüyor.</string>
+</resources>

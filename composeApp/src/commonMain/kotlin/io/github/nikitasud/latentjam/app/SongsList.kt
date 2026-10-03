@@ -479,14 +479,14 @@ internal fun RailScrubPreviewTrackRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = track.title ?: unknownTitle,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge.metadata(),
                 color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = secondaryText ?: track.artist ?: unknownArtist,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.metadata(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

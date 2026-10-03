@@ -114,7 +114,8 @@ private fun EditorTextFieldBox(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label, style = MaterialTheme.typography.bodySmall) },
-        textStyle = MaterialTheme.typography.bodyLarge,
+        // Every editor field holds metadata (a tag, a playlist name): it reads in its own direction.
+        textStyle = MaterialTheme.typography.bodyLarge.metadata(),
         placeholder = placeholder?.let { { Text(it, style = MaterialTheme.typography.bodyLarge) } },
         trailingIcon = trailingIcon,
         singleLine = singleLine,

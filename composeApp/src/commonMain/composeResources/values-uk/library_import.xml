@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">Імпортувати музику</string>
+    <string name="library_import_hint">Виберіть аудіофайли в «Завантаженнях» або іншій теці програми «Файли».</string>
+    <plurals name="library_imported">
+        <item quantity="one">Імпортовано %1$d трек</item>
+        <item quantity="few">Імпортовано %1$d треки</item>
+        <item quantity="many">Імпортовано %1$d треків</item>
+        <item quantity="other">Імпортовано %1$d трека</item>
+    </plurals>
+    <string name="library_import_none">Нові треки не імпортовано.</string>
+    <string name="library_import_partial">Імпортовано: %1$d, пропущено: %2$d, з помилкою: %3$d</string>
+</resources>

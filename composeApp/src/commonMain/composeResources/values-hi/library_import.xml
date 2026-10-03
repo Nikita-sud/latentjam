@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">संगीत इंपोर्ट करें</string>
+    <string name="library_import_hint">डाउनलोड या Files ऐप के किसी दूसरे फ़ोल्डर से ऑडियो फ़ाइलें चुनें।</string>
+    <plurals name="library_imported">
+        <item quantity="one">%1$d गाना इंपोर्ट किया गया</item>
+        <item quantity="other">%1$d गाने इंपोर्ट किए गए</item>
+    </plurals>
+    <string name="library_import_none">कोई नया गाना इंपोर्ट नहीं हुआ।</string>
+    <string name="library_import_partial">%1$d इंपोर्ट हुए, %2$d छोड़े गए, %3$d विफल रहे</string>
+</resources>

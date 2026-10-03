@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">Importă muzică</string>
+    <string name="library_import_hint">Alege fișiere audio din Descărcări sau din alt dosar al aplicației Fișiere.</string>
+    <plurals name="library_imported">
+        <item quantity="one">S-a importat %1$d piesă</item>
+        <item quantity="few">S-au importat %1$d piese</item>
+        <item quantity="other">S-au importat %1$d de piese</item>
+    </plurals>
+    <string name="library_import_none">Nu s-a importat nicio piesă nouă.</string>
+    <string name="library_import_partial">Importate: %1$d, omise: %2$d, eșuate: %3$d</string>
+</resources>

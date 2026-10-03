@@ -255,7 +255,7 @@ private fun ForYouSection.title(): String = when (kind) {
     ForYouSectionKind.WORTH_REVISITING -> stringResource(Res.string.foryou_section_worth_revisiting)
     // The artist IS the headline: "Your Yugo Kanno phase" is the whole recommendation.
     ForYouSectionKind.ON_A_ROLL ->
-        stringResource(Res.string.foryou_section_on_a_roll, subject.orEmpty())
+        stringResource(Res.string.foryou_section_on_a_roll, bidiWrap(subject.orEmpty()))
     ForYouSectionKind.WORLDS -> stringResource(Res.string.foryou_section_worlds)
     ForYouSectionKind.JOURNEY -> stringResource(Res.string.foryou_section_journey)
     ForYouSectionKind.NEVER_PLAYED -> stringResource(Res.string.foryou_section_never_played)
@@ -328,7 +328,7 @@ internal fun WorldActionsSheet(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = world.title,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.metadata(),
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -391,7 +391,7 @@ private fun ForYouCaption.text(): String = when (this) {
     is ForYouCaption.TrackCount ->
         pluralStringResource(Res.plurals.count_tracks, tracks, tracks)
     is ForYouCaption.LeftTurnFrom ->
-        stringResource(Res.string.foryou_caption_left_turn, title)
+        stringResource(Res.string.foryou_caption_left_turn, bidiWrap(title))
 }
 
 @Composable
@@ -443,7 +443,7 @@ private fun ForYouCardItem(
             text = card.collection?.title
                 ?: card.track.title
                 ?: stringResource(Res.string.track_untitled),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium.metadata(),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -473,7 +473,7 @@ private fun ForYouCardItem(
             else -> null
         }
         Text(
-            text = listOfNotNull(artist, reason).joinToString(" · "),
+            text = joinBidiWrapped(listOfNotNull(artist, reason)),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -530,7 +530,7 @@ private fun HeroCard(hero: ForYouHero, accent: TrackAccent?, onPlay: () -> Unit)
                 )
                 Text(
                     text = hero.track.title ?: stringResource(Res.string.track_untitled),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.metadata(),
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -538,7 +538,7 @@ private fun HeroCard(hero: ForYouHero, accent: TrackAccent?, onPlay: () -> Unit)
                 )
                 Text(
                     text = hero.track.artist ?: stringResource(Res.string.track_unknown_artist),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.metadata(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

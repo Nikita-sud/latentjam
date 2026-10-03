@@ -3017,7 +3017,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                                     snackbar.showSnackbar(
                                                         getString(
                                                             Res.string.snack_playlist_deleted,
-                                                            playlist.name,
+                                                            bidiWrap(playlist.name, layoutDirection),
                                                         ),
                                                     )
                                                 }
@@ -3818,7 +3818,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         val result = snackbar.showSnackbar(
                                             message = getString(
                                                 Res.string.snack_playlist_track_removed,
-                                                playlist.title,
+                                                bidiWrap(playlist.title, layoutDirection),
                                             ),
                                             actionLabel = if (change.before != change.after) {
                                                 getString(Res.string.action_undo)
@@ -4131,7 +4131,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                             val result = snackbar.showSnackbar(
                                 message = getString(
                                     Res.string.snack_playlist_track_removed,
-                                    request.sourcePlaylistTitle.orEmpty(),
+                                    bidiWrap(request.sourcePlaylistTitle.orEmpty(), layoutDirection),
                                 ),
                                 actionLabel = if (change.before != change.after) {
                                     getString(Res.string.action_undo)
@@ -4499,7 +4499,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         addToPlaylistSelection = null
                         refreshPlaylistMembershipsBestEffort()
                         snackbar.showSnackbar(
-                            getString(Res.string.snack_added_to_playlist, playlist.name),
+                            getString(Res.string.snack_added_to_playlist, bidiWrap(playlist.name, layoutDirection)),
                         )
                     }
                 },
@@ -4561,7 +4561,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                         showCreatePlaylist = false
                         pendingPlaylistTrackIds = emptyList()
                         snackbar.showSnackbar(
-                            getString(Res.string.snack_playlist_created, persisted.name),
+                            getString(Res.string.snack_playlist_created, bidiWrap(persisted.name, layoutDirection)),
                         )
                     }
                 },
@@ -5646,16 +5646,18 @@ private fun AlbumCard(
         }
         Text(
             text = album.title ?: stringResource(Res.string.track_unknown_album),
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyLarge.metadata(),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = listOfNotNull(
-                album.artist ?: stringResource(Res.string.track_unknown_artist),
-                year,
-            ).joinToString(" · "),
+            text = joinBidiWrapped(
+                listOfNotNull(
+                    album.artist ?: stringResource(Res.string.track_unknown_artist),
+                    year,
+                ),
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -5706,7 +5708,7 @@ private fun GroupRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge.metadata(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -5772,13 +5774,13 @@ private fun FolderRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = folder.name,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge.metadata(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = folder.path,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.metadata(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -5888,14 +5890,14 @@ private fun MiniPlayerPill(
                             Text(
                                 text = shownTrack.title
                                     ?: stringResource(Res.string.track_untitled),
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodyMedium.metadata(),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
                                 text = shownTrack.artist
                                     ?: stringResource(Res.string.track_unknown_artist),
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodySmall.metadata(),
                                 color = miniInk.copy(alpha = 0.65f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,

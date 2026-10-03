@@ -450,7 +450,7 @@ private fun BulkTextField(
             removed -> pluralStringResource(Res.plurals.bulk_removed, count, count)
             text.isNotBlank() -> null
             shared == SharedValue.Different -> stringResource(Res.string.bulk_different)
-            else -> baseline.initialText(field).takeIf(String::isNotBlank)?.let { stringResource(Res.string.bulk_kept, it) }
+            else -> baseline.initialText(field).takeIf(String::isNotBlank)?.let { stringResource(Res.string.bulk_kept, bidiWrap(it)) }
         },
         supportingTextColor = if (removed) MaterialTheme.colorScheme.error else Color.Unspecified,
         trailingIcon = when {
@@ -523,7 +523,7 @@ private fun ResultList(result: BulkResult, tracks: List<TrackDescriptor>, access
 @Composable
 private fun FileReasonLine(name: String, reason: String) {
     Text(
-        text = stringResource(Res.string.bulk_file_reason, name, reason),
+        text = stringResource(Res.string.bulk_file_reason, bidiWrap(name), reason),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

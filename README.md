@@ -152,7 +152,7 @@ main thread and refreshed only while the dashboard is open.
 the way the player does, a Quick Settings tile, an Android Auto browse tree for the car, and
 playback resumption that restores the exact queue, its source and its order after a restart.
 
-🌍 &nbsp;**17 languages** — including Russian, Romanian, Arabic (RTL) and CJK, with correct plural
+🌍 &nbsp;**18 languages** — including Russian, Romanian, Arabic and Hebrew (RTL) and CJK, with correct plural
 forms.
 
 ## How the recommender works

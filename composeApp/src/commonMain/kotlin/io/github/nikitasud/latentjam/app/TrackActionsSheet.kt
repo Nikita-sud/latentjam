@@ -94,6 +94,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message_generic
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_title
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_tracks_message
+import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_tracks_title
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
@@ -213,15 +214,17 @@ internal fun TrackActionsSheet(
                 Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                     Text(
                         text = track.title ?: stringResource(Res.string.track_untitled),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.metadata(),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = listOfNotNull(
-                            track.artist ?: stringResource(Res.string.track_unknown_artist),
-                            track.album?.takeIf { it.isNotBlank() },
-                        ).joinToString(" · "),
+                        text = joinBidiWrapped(
+                            listOfNotNull(
+                                track.artist ?: stringResource(Res.string.track_unknown_artist),
+                                track.album?.takeIf { it.isNotBlank() },
+                            ),
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -366,7 +369,7 @@ internal fun DeleteTrackDialog(
             val title = track.title
             Text(
                 if (title != null) {
-                    stringResource(Res.string.dialog_delete_track_message, title)
+                    stringResource(Res.string.dialog_delete_track_message, bidiWrap(title))
                 } else {
                     stringResource(Res.string.dialog_delete_track_message_generic)
                 },
@@ -469,7 +472,7 @@ internal fun DeleteTracksDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.dialog_delete_track_title)) },
+        title = { Text(pluralStringResource(Res.plurals.dialog_delete_tracks_title, count, count)) },
         text = {
             Text(stringResource(Res.string.dialog_delete_tracks_message, count))
         },

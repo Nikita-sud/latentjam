@@ -1154,7 +1154,7 @@ private fun LibrarySettings(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     save.label ?: stringResource(Res.string.track_untitled),
-                                    style = MaterialTheme.typography.bodyLarge,
+                                    style = MaterialTheme.typography.bodyLarge.metadata(),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
@@ -1449,7 +1449,7 @@ private fun LyricsFolderRow(folder: LyricsFolder, onRemove: () -> Unit) {
     ) {
         Text(
             text = folder.label,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyLarge.metadata(),
             modifier = Modifier.weight(1f).padding(end = 12.dp),
         )
         TextButton(onClick = onRemove) {
@@ -1571,11 +1571,11 @@ private fun HiddenTrackRow(
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
             Text(
                 text = track.title ?: stringResource(Res.string.track_untitled),
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge.metadata(),
             )
             Text(
                 text = track.artist ?: stringResource(Res.string.track_unknown_artist),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.metadata(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -2625,7 +2625,7 @@ private fun DuplicateGroupCard(
         Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
             Text(
                 text = survivor.track.title ?: stringResource(Res.string.track_untitled),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.metadata(),
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -2641,7 +2641,7 @@ private fun DuplicateGroupCard(
                             megabytesLabel(group.reclaimableBytes(survivor.track.id)),
                         ),
                     ),
-                ).joinToString(" · "),
+                ).let { joinBidiWrapped(it) },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
@@ -2690,11 +2690,13 @@ private fun DuplicateCopyRow(
     )
     // The facts line is what tells two copies of one recording apart; when the source has none,
     // the file name or folder is the next most telling thing.
-    val headline = facts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
-        ?: copy.track.fileName
-        ?: copy.track.folderPath
-        ?: copy.track.title
-        ?: stringResource(Res.string.track_untitled)
+    val headline = facts.takeIf { it.isNotEmpty() }?.let { joinBidiWrapped(it) }
+        ?: bidiWrap(
+            copy.track.fileName
+                ?: copy.track.folderPath
+                ?: copy.track.title
+                ?: stringResource(Res.string.track_untitled),
+        )
     val details = listOfNotNull(
         copy.track.album,
         copy.track.folderPath,
@@ -2703,7 +2705,7 @@ private fun DuplicateCopyRow(
             pluralStringResource(Res.plurals.privacy_history_listens, it, it)
         },
         "♥".takeIf { copy.favorite },
-    ).joinToString(" · ")
+    ).let { joinBidiWrapped(it) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2776,9 +2778,9 @@ private fun IndexingProblemRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(title, style = MaterialTheme.typography.bodyLarge.metadata())
             Text(
-                text = "$artist · $error",
+                text = joinBidiWrapped(listOf(artist, error)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -2898,11 +2900,11 @@ private fun ExclusionRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(title, style = MaterialTheme.typography.bodyLarge.metadata())
             subtitle?.let {
                 Text(
                     text = it,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.metadata(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

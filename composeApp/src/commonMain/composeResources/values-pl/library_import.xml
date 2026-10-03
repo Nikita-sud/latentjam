@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">Importuj muzykę</string>
+    <string name="library_import_hint">Wybierz pliki audio z Pobranych lub innego folderu w aplikacji Pliki.</string>
+    <plurals name="library_imported">
+        <item quantity="one">Zaimportowano %1$d utwór</item>
+        <item quantity="few">Zaimportowano %1$d utwory</item>
+        <item quantity="many">Zaimportowano %1$d utworów</item>
+        <item quantity="other">Zaimportowano %1$d utworu</item>
+    </plurals>
+    <string name="library_import_none">Nie zaimportowano nowych utworów.</string>
+    <string name="library_import_partial">Zaimportowano: %1$d, pominięto: %2$d, błędy: %3$d</string>
+</resources>

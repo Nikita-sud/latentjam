@@ -101,7 +101,7 @@ internal fun AudioOutputStatus(route: AudioOutputRoute, onOpen: (() -> Unit)?, m
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelMedium.metadata(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

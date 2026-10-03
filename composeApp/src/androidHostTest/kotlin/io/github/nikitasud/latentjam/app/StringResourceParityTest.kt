@@ -26,16 +26,34 @@ import org.w3c.dom.Element
 class StringResourceParityTest {
 
     @Test
-    fun `every source key is translated in every locale, with no orphans`() {
-        val source = bundles.getValue(SOURCE)
+    fun `every locale carries every resource file of values`() {
+        // values/ is split into strings.xml and a few side files (library_*.xml). A locale that
+        // lacks a side file does not fail anything at build time: its keys silently fall back to
+        // English. That is how the Folders tab stayed English in 15 languages.
+        val sourceFiles = bundles.getValue(SOURCE).files.keys
         val problems = mutableListOf<String>()
         for (locale in LOCALES) {
-            val translation = bundles.getValue(locale)
-            (source.keys - translation.keys).sorted().forEach {
-                problems += "$locale is missing '$it'"
-            }
-            (translation.keys - source.keys).sorted().forEach {
-                problems += "$locale has orphan '$it' (not in values/)"
+            val files = bundles.getValue(locale).files.keys
+            (sourceFiles - files).sorted().forEach { problems += "$locale is missing $it" }
+            (files - sourceFiles).sorted().forEach { problems += "$locale has $it, which values/ does not" }
+        }
+        assertNoProblems(problems, "Resource files differ from values/")
+    }
+
+    @Test
+    fun `every source key is translated in every locale, with no orphans`() {
+        // Checked file by file: a key that moves between files in a translation still resolves,
+        // but the next person to look for it in the matching file will not find it.
+        val problems = mutableListOf<String>()
+        for ((fileName, source) in bundles.getValue(SOURCE).files) {
+            for (locale in LOCALES) {
+                val translation = bundles.getValue(locale).files[fileName].orEmpty()
+                (source.keys - translation.keys).sorted().forEach {
+                    problems += "$locale/$fileName is missing '$it'"
+                }
+                (translation.keys - source.keys).sorted().forEach {
+                    problems += "$locale/$fileName has orphan '$it' (not in values/$fileName)"
+                }
             }
         }
         assertNoProblems(problems, "Key parity broke")
@@ -85,11 +103,48 @@ class StringResourceParityTest {
     @Test
     fun `values-in is a faithful duplicate of values-id`() {
         // Indonesian needs both folders: java.util.Locale reports "in" on API 24-34 and "id" from
-        // 35, and Compose MP matches qualifiers by exact string. The files are NOT byte-identical
-        // — values-in carries a header comment explaining itself — so compare the bodies.
-        val id = body("values-id")
-        val about = body("values-in")
-        assertEquals(id, about, "values-in/strings.xml drifted from values-id/strings.xml")
+        // 35, and Compose MP matches qualifiers by exact string.
+        assertFaithfulDuplicate(original = "values-id", copy = "values-in")
+    }
+
+    @Test
+    fun `values-iw is a faithful duplicate of values-he`() {
+        // Hebrew is the same story as Indonesian: java.util.Locale reports "iw" on API 24-34 and
+        // "he" from 35 (iOS always says "he").
+        assertFaithfulDuplicate(original = "values-he", copy = "values-iw")
+    }
+
+    @Test
+    fun `no translation is left in English`() {
+        // A string copied from values/ and never translated passes every other check here: the
+        // key exists, the placeholders match. Flag any value that equals the English source,
+        // unless the key is a name that reads the same everywhere (SMART, Bluetooth), or that
+        // language really writes it the same (German "Album", French "Playlists", Spanish "min").
+        // Strings with nothing but placeholders and punctuation are skipped on their own. Both
+        // lists are checked the other way too, so they cannot go stale.
+        val source = bundles.getValue(SOURCE).entries
+        val problems = mutableListOf<String>()
+        for (locale in LOCALES) {
+            val cognates = SAME_IN_LANGUAGE[locale].orEmpty()
+            for ((key, entry) in bundles.getValue(locale).entries) {
+                val english = source[key] ?: continue
+                val untranslated = entry.values.filter { it in english.values && it.hasWords() }
+                val allowed = key in SAME_IN_EVERY_LANGUAGE || key in cognates
+                if (untranslated.isNotEmpty() && !allowed) {
+                    problems += "$locale/$key is still English: ${untranslated.first().trim()}"
+                }
+                if (untranslated.isEmpty() && key in cognates) {
+                    problems += "$locale/$key is translated now; drop it from SAME_IN_LANGUAGE"
+                }
+                if (key in SAME_IN_EVERY_LANGUAGE && entry.values != english.values) {
+                    problems += "$locale/$key is a name and must stay as in values/, or leave SAME_IN_EVERY_LANGUAGE"
+                }
+            }
+            (cognates - bundles.getValue(locale).entries.keys).forEach {
+                problems += "SAME_IN_LANGUAGE lists $locale/$it, which does not exist"
+            }
+        }
+        assertNoProblems(problems, "Strings left in English")
     }
 
     @Test
@@ -120,6 +175,10 @@ class StringResourceParityTest {
             "Locale folders on disk no longer match the list this test checks",
         )
         assertTrue(bundles.getValue(SOURCE).entries.size > 100, "values/strings.xml parsed suspiciously empty")
+        assertTrue(
+            bundles.getValue(SOURCE).files.size > 1,
+            "values/ holds only ${bundles.getValue(SOURCE).files.keys}; the side files went missing or are not parsed",
+        )
     }
 
     // ----------------------------------------------------------------- parsing
@@ -133,8 +192,9 @@ class StringResourceParityTest {
         val placeholders: Set<Int> = values.flatMap { it.placeholderIndices() }.toSet()
     }
 
-    private class Bundle(val entries: Map<String, Entry>) {
-        val keys: Set<String> get() = entries.keys
+    /** One values folder: every .xml file in it, by file name, and all their entries merged. */
+    private class Bundle(val files: Map<String, Map<String, Entry>>) {
+        val entries: Map<String, Entry> = files.values.fold(emptyMap()) { all, file -> all + file }
     }
 
     private companion object {
@@ -143,10 +203,76 @@ class StringResourceParityTest {
         val LOCALES = listOf(
             "values-ru", "values-ro", "values-es", "values-pt-rBR", "values-de", "values-fr",
             "values-it", "values-zh-rCN", "values-ja", "values-ko", "values-tr", "values-uk",
-            "values-pl", "values-id", "values-in", "values-ar", "values-hi",
+            "values-pl", "values-id", "values-in", "values-ar", "values-hi", "values-he", "values-iw",
         )
 
         val PLACEHOLDER = Regex("%(\\d+)\\$")
+
+        /** Names: never translated, so identical to English in every locale (and checked to be). */
+        val SAME_IN_EVERY_LANGUAGE = setOf(
+            "player_mode_smart", "settings_color_smart", "settings_license_runtime", "output_bluetooth",
+        )
+
+        /**
+         * Strings a language really writes the same as English, checked by a person: shared words
+         * (German "Album", French "Playlists") and the units a language keeps in Latin letters
+         * ("kbps", "MB", "min"). A unit is listed only for the locales that keep it.
+         */
+        val SAME_IN_LANGUAGE: Map<String, Set<String>> = run {
+            val kbpsAndMegabytes = setOf("duplicates_kbps", "unit_megabytes")
+            val latinTimeUnits = setOf(
+                "settings_crossfade_value", "stats_hours_short", "stats_minutes_short", "stats_under_minute",
+            )
+            val indonesian = kbpsAndMegabytes + setOf(
+                "action_edit_album", "action_edit_short", "count_albums", "count_files", "details_file",
+                "details_format", "equalizer_preset_treble", "info_album", "info_genre",
+                "intelligence_section_status",
+            )
+            mapOf(
+                "values-de" to setOf(
+                    "action_pause", "details_format", "equalizer_preset_bass", "info_album", "info_cover",
+                    "info_genre", "intelligence_engine", "intelligence_section_status", "settings_equalizer",
+                    "settings_section_navigation", "settings_version", "tab_genres", "tab_playlists",
+                    "unit_megabytes", "settings_crossfade_value",
+                ),
+                "values-es" to kbpsAndMegabytes + latinTimeUnits + setOf("equalizer_preset_vocal", "stats_days_short"),
+                "values-fr" to latinTimeUnits + setOf(
+                    "action_pause", "count_albums", "details_format", "info_album", "info_genre",
+                    "settings_pages", "settings_section_navigation", "settings_version",
+                    "sleep_timer_minutes", "stats_streak_longest", "tab_albums", "tab_genres", "tab_playlists",
+                ),
+                "values-he" to kbpsAndMegabytes,
+                "values-iw" to kbpsAndMegabytes,
+                "values-hi" to kbpsAndMegabytes,
+                "values-id" to indonesian,
+                "values-in" to indonesian,
+                "values-it" to kbpsAndMegabytes + latinTimeUnits + setOf(
+                    "count_albums", "count_files", "details_file", "info_album", "stats_streak_longest",
+                ),
+                "values-ja" to kbpsAndMegabytes,
+                "values-ko" to kbpsAndMegabytes,
+                "values-pl" to setOf(
+                    "count_albums", "details_format", "info_album", "unit_megabytes", "settings_crossfade_value",
+                    "stats_minutes_short", "stats_under_minute",
+                ),
+                "values-pt-rBR" to kbpsAndMegabytes + latinTimeUnits + setOf(
+                    "equalizer_preset_vocal", "intelligence_section_status", "tab_playlists", "stats_days_short",
+                ),
+                "values-ro" to kbpsAndMegabytes + latinTimeUnits + setOf(
+                    "count_albums", "details_format", "equalizer_preset_electronic", "info_album", "info_artist",
+                    "sleep_timer_minutes", "stats_streak_longest",
+                ),
+                "values-tr" to setOf("unit_megabytes"),
+                "values-zh-rCN" to kbpsAndMegabytes,
+            )
+        }
+
+        /** Anything left once placeholders and \uXXXX escapes are gone that is a letter. */
+        fun String.hasWords(): Boolean =
+            replace(PLACEHOLDER_TOKEN, "").replace(UNICODE_ESCAPE, "").any { it.isLetter() }
+
+        val PLACEHOLDER_TOKEN = Regex("%\\d+\\$[a-z]")
+        val UNICODE_ESCAPE = Regex("\\\\u[0-9a-fA-F]{4}")
 
         val resourcesDir: File by lazy {
             // Gradle runs host tests with the module directory as the working directory, but do
@@ -179,19 +305,42 @@ class StringResourceParityTest {
         fun Set<Int>.pretty(): String =
             if (isEmpty()) "no placeholders" else sorted().joinToString(", ") { "%$it\$" }
 
-        fun file(bundle: String): File = File(resourcesDir, "$bundle/strings.xml")
+        fun xmlFiles(bundle: String): List<File> =
+            File(resourcesDir, bundle).listFiles { f: File -> f.isFile && f.name.endsWith(".xml") }
+                .orEmpty()
+                .sortedBy { it.name }
 
         /** The `<resources>` element onward, so a differing header comment is not a difference. */
-        fun body(bundle: String): String {
-            val text = file(bundle).readText()
+        fun body(file: File): String {
+            val text = file.readText()
             val start = text.indexOf("<resources>")
-            assertTrue(start >= 0, "${file(bundle)} has no <resources> element")
+            assertTrue(start >= 0, "$file has no <resources> element")
             return text.substring(start)
         }
 
+        /**
+         * [copy] holds exactly the files of [original], each with the same body. The files need
+         * not be byte-identical — the copy's strings.xml carries its own header comment.
+         */
+        fun assertFaithfulDuplicate(original: String, copy: String) {
+            val originals = xmlFiles(original).map { it.name }
+            assertEquals(originals, xmlFiles(copy).map { it.name }, "$copy and $original hold different files")
+            originals.forEach { name ->
+                assertEquals(
+                    body(File(resourcesDir, "$original/$name")),
+                    body(File(resourcesDir, "$copy/$name")),
+                    "$copy/$name drifted from $original/$name",
+                )
+            }
+        }
+
         fun parse(bundle: String): Bundle {
-            val source = file(bundle)
-            assertTrue(source.isFile, "Missing $source")
+            val files = xmlFiles(bundle)
+            assertTrue(files.any { it.name == "strings.xml" }, "Missing $bundle/strings.xml")
+            return Bundle(files.associate { it.name to parseFile(it) })
+        }
+
+        fun parseFile(source: File): Map<String, Entry> {
             val document = DocumentBuilderFactory.newInstance()
                 .apply { isNamespaceAware = false }
                 .newDocumentBuilder()
@@ -210,7 +359,7 @@ class StringResourceParityTest {
                     isPlural = true,
                 )
             }
-            return Bundle(entries)
+            return entries
         }
 
         fun org.w3c.dom.NodeList.elements(): List<Element> =

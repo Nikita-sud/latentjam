@@ -709,7 +709,7 @@ fun NowPlayingScreen(
                                                 Text(
                                                     text = stringResource(
                                                         Res.string.now_playing_source,
-                                                        shown.sourceLabel,
+                                                        bidiWrap(shown.sourceLabel),
                                                     ),
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1001,7 +1001,7 @@ private fun PlayerLyricsSheet(
                                     // if its parent is disposed during a source change; keep that
                                     // frame drawable without asserting against the newer state.
                                     text = lyrics?.text.orEmpty(),
-                                    style = MaterialTheme.typography.bodyLarge,
+                                    style = MaterialTheme.typography.bodyLarge.metadata(),
                                     color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.padding(end = 12.dp),
                                 )
@@ -1047,13 +1047,13 @@ private fun LyricsSheetHeader(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = track.title ?: stringResource(Res.string.track_untitled),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.metadata(),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = track.artist ?: stringResource(Res.string.track_unknown_artist),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.metadata(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1188,7 +1188,7 @@ private fun SyncedLyricsBody(
             Text(
                 // A timed but wordless line is an instrumental gap; show that it is one.
                 text = line.text.ifBlank { if (seekTo != null) "♪" else "" },
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleLarge.metadata(),
                 fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                 color = color,
                 modifier = Modifier
@@ -1245,7 +1245,7 @@ private fun NextUpRow(next: TrackDescriptor?, onOpenQueue: () -> Unit) {
             ) {
                 Artwork(uri = shown.artworkUri, size = 28.dp, cornerRadius = 6.dp)
                 Text(
-                    text = stringResource(Res.string.now_playing_next, "$title — $artist"),
+                    text = stringResource(Res.string.now_playing_next, joinBidiWrapped(listOf(title, artist), " — ")),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -1483,7 +1483,7 @@ private fun QueueRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = track.title ?: stringResource(Res.string.track_untitled),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.metadata(),
                 fontWeight = FontWeight.Normal,
                 color = if (isCurrent) accentInk else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -1491,7 +1491,7 @@ private fun QueueRow(
             )
             Text(
                 text = track.artist ?: stringResource(Res.string.track_unknown_artist),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.metadata(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

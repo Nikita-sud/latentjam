@@ -278,13 +278,13 @@ internal fun TrackInfoSheet(
                     )
                     Text(
                         text = track.title ?: stringResource(Res.string.track_untitled),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.metadata(),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = track.artist ?: stringResource(Res.string.track_unknown_artist),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.metadata(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -445,7 +445,7 @@ internal fun TrackInfoSheet(
                             )
                             Text(
                                 text = text,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodyMedium.metadata(),
                             )
                         }
                     }
@@ -531,7 +531,7 @@ private fun InfoRow(label: String, value: String?, showDivider: Boolean = true) 
             )
             Text(
                 text = value?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.info_not_set),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.metadata(),
                 color = if (value.isNullOrBlank()) {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 } else {
