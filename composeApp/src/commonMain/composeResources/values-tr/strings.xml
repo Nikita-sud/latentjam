@@ -208,6 +208,10 @@
     <string name="action_delete_from_device">Cihazdan sil</string>
     <string name="dialog_delete_tracks_message">Seçilen %1$d parça bu cihazdan kaldırılacak. Bu işlem geri alınamaz.</string>
     <string name="dialog_delete_track_title">Bu parça silinsin mi?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">%1$d parça silinsin mi?</item>
+        <item quantity="other">%1$d parça silinsin mi?</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">"%1$s" bu cihazdan kaldırılacak. Bu işlem geri alınamaz.</string>
     <string name="dialog_delete_track_message_generic">Bu parça bu cihazdan kaldırılacak. Bu işlem geri alınamaz.</string>

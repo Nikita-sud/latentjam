@@ -208,6 +208,9 @@
     <string name="action_delete_from_device">Hapus dari perangkat</string>
     <string name="dialog_delete_tracks_message">Trek yang dipilih (%1$d) akan dihapus dari perangkat ini. Tindakan ini tidak dapat dibatalkan.</string>
     <string name="dialog_delete_track_title">Hapus lagu ini?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="other">Hapus %1$d lagu?</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">"%1$s" akan dihapus dari perangkat ini. Tindakan ini tidak dapat dibatalkan.</string>
     <string name="dialog_delete_track_message_generic">Lagu ini akan dihapus dari perangkat ini. Tindakan ini tidak dapat dibatalkan.</string>

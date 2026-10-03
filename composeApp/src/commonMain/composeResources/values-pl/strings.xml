@@ -224,6 +224,12 @@
     <string name="action_delete_from_device">Usuń z urządzenia</string>
     <string name="dialog_delete_tracks_message">Wybrane utwory (%1$d) zostaną usunięte z tego urządzenia. Tej operacji nie można cofnąć.</string>
     <string name="dialog_delete_track_title">Usunąć ten utwór?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">Usunąć %1$d utwór?</item>
+        <item quantity="few">Usunąć %1$d utwory?</item>
+        <item quantity="many">Usunąć %1$d utworów?</item>
+        <item quantity="other">Usunąć %1$d utworu?</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">Utwór „%1$s” zostanie usunięty z tego urządzenia. Tej operacji nie można cofnąć.</string>
     <string name="dialog_delete_track_message_generic">Ten utwór zostanie usunięty z tego urządzenia. Tej operacji nie można cofnąć.</string>

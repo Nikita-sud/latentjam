@@ -94,6 +94,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_message_generic
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_track_title
 import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_tracks_message
+import io.github.nikitasud.latentjam.app.generated.resources.dialog_delete_tracks_title
 import io.github.nikitasud.latentjam.app.generated.resources.count_tracks
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
@@ -469,7 +470,7 @@ internal fun DeleteTracksDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.dialog_delete_track_title)) },
+        title = { Text(pluralStringResource(Res.plurals.dialog_delete_tracks_title, count, count)) },
         text = {
             Text(stringResource(Res.string.dialog_delete_tracks_message, count))
         },

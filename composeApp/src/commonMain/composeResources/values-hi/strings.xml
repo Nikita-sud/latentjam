@@ -208,6 +208,10 @@
     <string name="action_delete_from_device">डिवाइस से मिटाएं</string>
     <string name="dialog_delete_tracks_message">चुने गए ट्रैक (%1$d) इस डिवाइस से हटा दिए जाएँगे। इसे पहले जैसा नहीं किया जा सकता।</string>
     <string name="dialog_delete_track_title">क्या यह गाना मिटाना है?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">क्या %1$d गाना मिटाना है?</item>
+        <item quantity="other">क्या %1$d गाने मिटाने हैं?</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">"%1$s" इस डिवाइस से हटा दिया जाएगा. इसे पहले जैसा नहीं किया जा सकता.</string>
     <string name="dialog_delete_track_message_generic">यह गाना इस डिवाइस से हटा दिया जाएगा. इसे पहले जैसा नहीं किया जा सकता.</string>

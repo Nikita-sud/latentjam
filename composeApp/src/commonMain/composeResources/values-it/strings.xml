@@ -215,6 +215,10 @@
     <string name="action_delete_from_device">Elimina dal dispositivo</string>
     <string name="dialog_delete_tracks_message">I brani selezionati (%1$d) verranno rimossi da questo dispositivo. L’operazione non può essere annullata.</string>
     <string name="dialog_delete_track_title">Eliminare questo brano?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">Eliminare %1$d brano?</item>
+        <item quantity="other">Eliminare %1$d brani?</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">“%1$s” verrà rimosso da questo dispositivo. L’operazione non può essere annullata.</string>
     <string name="dialog_delete_track_message_generic">Questo brano verrà rimosso da questo dispositivo. L’operazione non può essere annullata.</string>

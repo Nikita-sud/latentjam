@@ -208,6 +208,11 @@
     <string name="action_delete_from_device">Șterge de pe dispozitiv</string>
     <string name="dialog_delete_tracks_message">Piesele selectate (%1$d) vor fi șterse de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>
     <string name="dialog_delete_track_title">Ștergi această piesă?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">Ștergi %1$d piesă?</item>
+        <item quantity="few">Ștergi %1$d piese?</item>
+        <item quantity="other">Ștergi %1$d de piese?</item>
+    </plurals>
     <string name="dialog_delete_track_message">„%1$s” va fi ștearsă de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>
     <string name="dialog_delete_track_message_generic">Această piesă va fi ștearsă de pe acest dispozitiv. Acțiunea nu poate fi anulată.</string>
 

@@ -211,6 +211,12 @@
     <string name="action_delete_from_device">Удалить с устройства</string>
     <string name="dialog_delete_tracks_message">Выбранные треки (%1$d) будут удалены с этого устройства. Это действие нельзя отменить.</string>
     <string name="dialog_delete_track_title">Удалить этот трек?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">Удалить %1$d трек?</item>
+        <item quantity="few">Удалить %1$d трека?</item>
+        <item quantity="many">Удалить %1$d треков?</item>
+        <item quantity="other">Удалить %1$d трека?</item>
+    </plurals>
     <string name="dialog_delete_track_message">«%1$s» будет удалён с этого устройства. Это действие нельзя отменить.</string>
     <string name="dialog_delete_track_message_generic">Этот трек будет удалён с этого устройства. Это действие нельзя отменить.</string>
 

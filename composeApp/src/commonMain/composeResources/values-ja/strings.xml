@@ -202,6 +202,9 @@
     <string name="action_delete_from_device">デバイスから削除</string>
     <string name="dialog_delete_tracks_message">選択した%1$d曲をこのデバイスから削除します。この操作は取り消せません。</string>
     <string name="dialog_delete_track_title">この曲を削除しますか？</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="other">%1$d曲を削除しますか？</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">「%1$s」をこのデバイスから削除します。この操作は取り消せません。</string>
     <string name="dialog_delete_track_message_generic">この曲をこのデバイスから削除します。この操作は取り消せません。</string>

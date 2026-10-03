@@ -219,6 +219,11 @@
     <string name="action_delete_from_device">מחיקה מהמכשיר</string>
     <string name="dialog_delete_tracks_message">השירים שנבחרו (%1$d) יוסרו מהמכשיר הזה. אי אפשר לבטל את הפעולה.</string>
     <string name="dialog_delete_track_title">למחוק את השיר הזה?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">למחוק %1$d שיר?</item>
+        <item quantity="two">למחוק %1$d שירים?</item>
+        <item quantity="other">למחוק %1$d שירים?</item>
+    </plurals>
     <string name="dialog_delete_track_message">השיר "%1$s" יוסר מהמכשיר הזה. אי אפשר לבטל את הפעולה.</string>
     <string name="dialog_delete_track_message_generic">השיר הזה יוסר מהמכשיר. אי אפשר לבטל את הפעולה.</string>
 

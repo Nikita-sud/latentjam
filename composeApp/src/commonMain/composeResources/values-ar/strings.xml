@@ -237,6 +237,14 @@
     <string name="action_delete_from_device">حذف من الجهاز</string>
     <string name="dialog_delete_tracks_message">ستتم إزالة المقاطع المحددة (%1$d) من هذا الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="dialog_delete_track_title">حذف هذا المقطع الصوتي؟</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="zero">حذف %1$d مقطع؟</item>
+        <item quantity="one">حذف %1$d مقطع؟</item>
+        <item quantity="two">حذف %1$d مقطعين؟</item>
+        <item quantity="few">حذف %1$d مقاطع؟</item>
+        <item quantity="many">حذف %1$d مقطعًا؟</item>
+        <item quantity="other">حذف %1$d مقطع؟</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">سيتم حذف «%1$s» من هذا الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="dialog_delete_track_message_generic">سيتم حذف هذا المقطع الصوتي من هذا الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>

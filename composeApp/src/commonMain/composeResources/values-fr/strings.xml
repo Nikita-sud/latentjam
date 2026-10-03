@@ -220,6 +220,10 @@
     <string name="action_delete_from_device">Supprimer de l’appareil</string>
     <string name="dialog_delete_tracks_message">Les morceaux sélectionnés (%1$d) seront supprimés de cet appareil. Cette action est irréversible.</string>
     <string name="dialog_delete_track_title">Supprimer ce morceau ?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">Supprimer %1$d morceau ?</item>
+        <item quantity="other">Supprimer %1$d morceaux ?</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">« %1$s » sera supprimé de cet appareil. Cette action est irréversible.</string>
     <string name="dialog_delete_track_message_generic">Ce morceau sera supprimé de cet appareil. Cette action est irréversible.</string>

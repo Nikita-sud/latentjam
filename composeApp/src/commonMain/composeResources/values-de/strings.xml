@@ -218,6 +218,10 @@
     <string name="action_delete_from_device">Vom Gerät löschen</string>
     <string name="dialog_delete_tracks_message">Die ausgewählten Titel (%1$d) werden von diesem Gerät entfernt. Das lässt sich nicht rückgängig machen.</string>
     <string name="dialog_delete_track_title">Diesen Titel löschen?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">%1$d Titel löschen?</item>
+        <item quantity="other">%1$d Titel löschen?</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">„%1$s“ wird von diesem Gerät entfernt. Das lässt sich nicht rückgängig machen.</string>
     <string name="dialog_delete_track_message_generic">Dieser Titel wird von diesem Gerät entfernt. Das lässt sich nicht rückgängig machen.</string>

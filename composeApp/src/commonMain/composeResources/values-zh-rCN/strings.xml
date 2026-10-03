@@ -202,6 +202,9 @@
     <string name="action_delete_from_device">从设备中删除</string>
     <string name="dialog_delete_tracks_message">将从此设备删除所选的 %1$d 首歌曲。此操作无法撤销。</string>
     <string name="dialog_delete_track_title">要删除这首歌曲吗？</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="other">要删除 %1$d 首歌曲吗？</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">“%1$s”将从这台设备上移除，此操作无法撤销。</string>
     <string name="dialog_delete_track_message_generic">这首歌曲将从这台设备上移除，此操作无法撤销。</string>

@@ -215,6 +215,10 @@
     <string name="action_delete_from_device">Excluir do dispositivo</string>
     <string name="dialog_delete_tracks_message">As músicas selecionadas (%1$d) serão removidas deste dispositivo. Não é possível desfazer.</string>
     <string name="dialog_delete_track_title">Excluir esta música?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">Excluir %1$d música?</item>
+        <item quantity="other">Excluir %1$d músicas?</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">“%1$s” será removida deste dispositivo. Não é possível desfazer.</string>
     <string name="dialog_delete_track_message_generic">Esta música será removida deste dispositivo. Não é possível desfazer.</string>

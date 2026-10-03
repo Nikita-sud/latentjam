@@ -224,6 +224,12 @@
     <string name="action_delete_from_device">Видалити з пристрою</string>
     <string name="dialog_delete_tracks_message">Вибрані треки (%1$d) буде видалено з цього пристрою. Скасувати цю дію не вдасться.</string>
     <string name="dialog_delete_track_title">Видалити цей трек?</string>
+    <plurals name="dialog_delete_tracks_title">
+        <item quantity="one">Видалити %1$d трек?</item>
+        <item quantity="few">Видалити %1$d треки?</item>
+        <item quantity="many">Видалити %1$d треків?</item>
+        <item quantity="other">Видалити %1$d трека?</item>
+    </plurals>
     <!-- %1$s is a track title -->
     <string name="dialog_delete_track_message">«%1$s» буде видалено з цього пристрою. Скасувати цю дію не вдасться.</string>
     <string name="dialog_delete_track_message_generic">Цей трек буде видалено з цього пристрою. Скасувати цю дію не вдасться.</string>
