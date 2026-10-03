@@ -121,6 +121,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
@@ -132,6 +133,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.nikitasud.latentjam.app.generated.resources.Res
@@ -728,71 +730,87 @@ fun NowPlayingScreen(
                                 // The transport follows the time labels directly: the labels sit at the
                                 // edges and the play button in the middle, so nothing touches. What matters
                                 // is the line-to-button distance, kept equal to the button-to-next-up one.
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    RepeatButton(mode = now.repeatMode) {
-                                        scope.launch { playback.cycleRepeatMode() }
-                                    }
-                                    SkipButton(forward = false, playback = playback, durationMs = now.durationMs, active = active)
-                                    val playPauseDescription = stringResource(
-                                        if (now.showPauseButton) {
-                                            Res.string.action_pause
-                                        } else {
-                                            Res.string.action_play
-                                        },
-                                    )
-                                    // The button says what it is doing with its shape: a circle waits,
-                                    // a rounded square plays. Colour stays the same, so the state never
-                                    // depends on it.
-                                    val playInteraction = remember { MutableInteractionSource() }
-                                    val playCorner by animateDpAsState(
-                                        targetValue = if (now.showPauseButton) PLAY_PLAYING_RADIUS else PLAY_PAUSED_RADIUS,
-                                        animationSpec = tween(
-                                            if (reduceMotion) Motion.REDUCED_MS else Motion.EMPHASIZED_MS,
-                                        ),
-                                        label = "play-shape",
-                                    )
-                                    FilledIconButton(
-                                        onClick = {
-                                            haptics.play(PlayerHaptic.TAP)
-                                            scope.launch { playback.togglePlayPause() }
-                                        },
-                                        shape = RoundedCornerShape(playCorner),
-                                        interactionSource = playInteraction,
-                                        modifier = Modifier
-                                            .size(72.dp)
-                                            .scaleOnPress(playInteraction)
-                                            .semantics { contentDescription = playPauseDescription },
-                                    ) {
-                                        AnimatedContent(
-                                            targetState = now.showPauseButton,
-                                            transitionSpec = { motionIconTransform(reduceMotion) },
-                                            label = "play-pause",
-                                        ) { playing ->
-                                        Icon(
-                                            imageVector = if (playing) {
-                                                Icons.Rounded.Pause
-                                            } else {
-                                                Icons.Rounded.PlayArrow
-                                            },
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .inactiveForMotion(playing != now.showPauseButton),
-                                        )
+                                // Previous, play and next keep time's direction in every language
+                                // (TimeDirection). Repeat and the mode button are not about time: they
+                                // keep following the reading direction, start and end swapped by hand.
+                                val readingDirection = LocalLayoutDirection.current
+                                val repeatButton: @Composable () -> Unit = {
+                                    CompositionLocalProvider(LocalLayoutDirection provides readingDirection) {
+                                        RepeatButton(mode = now.repeatMode) {
+                                            scope.launch { playback.cycleRepeatMode() }
                                         }
                                     }
-                                    SkipButton(forward = true, playback = playback, durationMs = now.durationMs, active = active)
-                                    ModeButton(
-                                        mode = now.shuffleMode,
-                                        onCycle = { scope.launch { playback.cycleShuffleMode() } },
-                                        onSelect = { chosen -> scope.launch { playback.setShuffleMode(chosen) } },
-                                        smartQueueLength = smartQueueLength,
-                                        onSmartQueueLength = onSmartQueueLength,
-                                    )
+                                }
+                                val modeButton: @Composable () -> Unit = {
+                                    CompositionLocalProvider(LocalLayoutDirection provides readingDirection) {
+                                        ModeButton(
+                                            mode = now.shuffleMode,
+                                            onCycle = { scope.launch { playback.cycleShuffleMode() } },
+                                            onSelect = { chosen -> scope.launch { playback.setShuffleMode(chosen) } },
+                                            smartQueueLength = smartQueueLength,
+                                            onSmartQueueLength = onSmartQueueLength,
+                                        )
+                                    }
+                                }
+                                TimeDirection {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    ) {
+                                        if (readingDirection == LayoutDirection.Ltr) repeatButton() else modeButton()
+                                        SkipButton(forward = false, playback = playback, durationMs = now.durationMs, active = active)
+                                        val playPauseDescription = stringResource(
+                                            if (now.showPauseButton) {
+                                                Res.string.action_pause
+                                            } else {
+                                                Res.string.action_play
+                                            },
+                                        )
+                                        // The button says what it is doing with its shape: a circle waits,
+                                        // a rounded square plays. Colour stays the same, so the state never
+                                        // depends on it.
+                                        val playInteraction = remember { MutableInteractionSource() }
+                                        val playCorner by animateDpAsState(
+                                            targetValue = if (now.showPauseButton) PLAY_PLAYING_RADIUS else PLAY_PAUSED_RADIUS,
+                                            animationSpec = tween(
+                                                if (reduceMotion) Motion.REDUCED_MS else Motion.EMPHASIZED_MS,
+                                            ),
+                                            label = "play-shape",
+                                        )
+                                        FilledIconButton(
+                                            onClick = {
+                                                haptics.play(PlayerHaptic.TAP)
+                                                scope.launch { playback.togglePlayPause() }
+                                            },
+                                            shape = RoundedCornerShape(playCorner),
+                                            interactionSource = playInteraction,
+                                            modifier = Modifier
+                                                .size(72.dp)
+                                                .scaleOnPress(playInteraction)
+                                                .semantics { contentDescription = playPauseDescription },
+                                        ) {
+                                            AnimatedContent(
+                                                targetState = now.showPauseButton,
+                                                transitionSpec = { motionIconTransform(reduceMotion) },
+                                                label = "play-pause",
+                                            ) { playing ->
+                                            Icon(
+                                                imageVector = if (playing) {
+                                                    Icons.Rounded.Pause
+                                                } else {
+                                                    Icons.Rounded.PlayArrow
+                                                },
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .inactiveForMotion(playing != now.showPauseButton),
+                                            )
+                                            }
+                                        }
+                                        SkipButton(forward = true, playback = playback, durationMs = now.durationMs, active = active)
+                                        if (readingDirection == LayoutDirection.Ltr) modeButton() else repeatButton()
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(if (compact) 12.dp else 34.dp))

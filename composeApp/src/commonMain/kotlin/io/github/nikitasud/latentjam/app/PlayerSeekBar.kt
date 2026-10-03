@@ -70,7 +70,7 @@ import kotlin.math.roundToLong
  * band slows the scrub to half and then a quarter speed for landing on a moment. A bubble above
  * the handle shows the time being scrubbed to, and the lyric line at that time when the song
  * carries timed lyrics that are already loaded. The right-hand time toggles between the total
- * and the remaining time.
+ * and the remaining time. Right-to-left languages do not mirror it: it shows time.
  *
  * This is the only expanded-player subtree that observes the coarse position ticker.
  */
@@ -129,164 +129,168 @@ internal fun PlayerSeekBar(
     val seekDescription = stringResource(Res.string.cd_seek_position)
     val toggleDescription = stringResource(Res.string.cd_time_toggle)
 
-    Column(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(BAND_HEIGHT)
-                .onSizeChanged { bandWidth = it.width }
-                .semantics {
-                    contentDescription = seekDescription
-                    progressBarRangeInfo = ProgressBarRangeInfo(
-                        current = shownMs.toFloat(),
-                        range = 0f..duration.toFloat(),
-                    )
-                    setProgress { target ->
-                        if (!target.isFinite() || trackId == null || durationMs <= 0L) {
-                            return@setProgress false
-                        }
-                        val clamped = target.roundToLong().coerceIn(0L, duration)
-                        overrideMs = clamped
-                        scope.launch {
-                            val current = playback.state.value
-                            if (current.track?.id == trackId && current.queueIndex == queueIndex) {
-                                playback.seekTo(clamped)
-                            }
-                        }
-                        true
-                    }
-                }
-                .pointerInput(playback, trackId, queueIndex, durationMs, haptics, active) {
-                    val halfAt = SCRUB_HALF_AT.toPx()
-                    val quarterAt = SCRUB_QUARTER_AT.toPx()
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
-                        val width = size.width.toFloat()
-                        if (!active || width <= 0f || trackId == null || durationMs <= 0L) return@awaitEachGesture
-                        down.consume()
-                        val bandCentre = LINE_FROM_TOP.toPx()
-                        var target = ((down.position.x / width).coerceIn(0f, 1f) * duration)
-                            .roundToLong()
-                        haptics.play(PlayerHaptic.TAP)
-                        scrubbing = true
-                        overrideMs = target
-                        var lastX = down.position.x
-                        var dragged = false
-                        val scrubHaptics = ScrubHapticState(duration, target, down.uptimeMillis)
-                        var released = false
-                        try {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                if (change.isConsumed) break
-                                change.consume()
-                                if (!dragged && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
-                                    dragged = true
-                                }
-                                val dx = change.position.x - lastX
-                                lastX = change.position.x
-                                val factor = scrubFineFactor(
-                                    dyBelowBar = change.position.y - bandCentre,
-                                    halfAt = halfAt,
-                                    quarterAt = quarterAt,
-                                )
-                                target = (target + scrubDeltaMs(dx, width, duration, factor))
-                                    .coerceIn(0L, duration)
-                                if (!change.changedToUpIgnoreConsumed()) {
-                                    scrubHaptics.moveTo(target, change.uptimeMillis)?.let(haptics::play)
-                                }
-                                overrideMs = target
-                                if (change.changedToUpIgnoreConsumed()) {
-                                    released = true
-                                    break
-                                }
-                            }
-                        } finally {
-                            scrubbing = false
-                            if (!released) overrideMs = null
-                        }
-                        if (!released) return@awaitEachGesture
-                        // A tap already acknowledged the position on contact. Reserve the
-                        // end tick for a scrub, so a single tap never fires two vibrations.
-                        if (dragged) haptics.play(PlayerHaptic.RELEASE)
-                        scope.launch {
-                            val current = playback.state.value
-                            if (current.track?.id == trackId && current.queueIndex == queueIndex) {
-                                playback.seekTo(target)
-                            }
-                        }
-                    }
-                }
-                .drawBehind {
-                    val line = lineHeight.toPx()
-                    val handleW = HANDLE_WIDTH.toPx()
-                    val handleH = handleHeight.toPx()
-                    val gap = SEGMENT_GAP.toPx()
-                    val centreY = LINE_FROM_TOP.toPx()
-                    val handleX = (shownMs.toFloat() / duration) * (size.width - handleW)
-                    val remainingStart = handleX + handleW + gap
-                    if (remainingStart < size.width) {
-                        drawRoundRect(
-                            color = remainingColor,
-                            topLeft = Offset(remainingStart, centreY - line / 2f),
-                            size = Size(size.width - remainingStart, line),
-                            cornerRadius = CornerRadius(line / 2f),
+    // Time runs left to right in every language (Material's bidirectionality rule, see
+    // TimeDirection): the line fills from the left, elapsed sits on the left, the total on the right.
+    TimeDirection {
+        Column(modifier = modifier) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(BAND_HEIGHT)
+                    .onSizeChanged { bandWidth = it.width }
+                    .semantics {
+                        contentDescription = seekDescription
+                        progressBarRangeInfo = ProgressBarRangeInfo(
+                            current = shownMs.toFloat(),
+                            range = 0f..duration.toFloat(),
                         )
+                        setProgress { target ->
+                            if (!target.isFinite() || trackId == null || durationMs <= 0L) {
+                                return@setProgress false
+                            }
+                            val clamped = target.roundToLong().coerceIn(0L, duration)
+                            overrideMs = clamped
+                            scope.launch {
+                                val current = playback.state.value
+                                if (current.track?.id == trackId && current.queueIndex == queueIndex) {
+                                    playback.seekTo(clamped)
+                                }
+                            }
+                            true
+                        }
                     }
-                    val playedWidth = handleX - gap
-                    if (playedWidth > 0f) {
+                    .pointerInput(playback, trackId, queueIndex, durationMs, haptics, active) {
+                        val halfAt = SCRUB_HALF_AT.toPx()
+                        val quarterAt = SCRUB_QUARTER_AT.toPx()
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            val width = size.width.toFloat()
+                            if (!active || width <= 0f || trackId == null || durationMs <= 0L) return@awaitEachGesture
+                            down.consume()
+                            val bandCentre = LINE_FROM_TOP.toPx()
+                            var target = ((down.position.x / width).coerceIn(0f, 1f) * duration)
+                                .roundToLong()
+                            haptics.play(PlayerHaptic.TAP)
+                            scrubbing = true
+                            overrideMs = target
+                            var lastX = down.position.x
+                            var dragged = false
+                            val scrubHaptics = ScrubHapticState(duration, target, down.uptimeMillis)
+                            var released = false
+                            try {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    if (change.isConsumed) break
+                                    change.consume()
+                                    if (!dragged && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
+                                        dragged = true
+                                    }
+                                    val dx = change.position.x - lastX
+                                    lastX = change.position.x
+                                    val factor = scrubFineFactor(
+                                        dyBelowBar = change.position.y - bandCentre,
+                                        halfAt = halfAt,
+                                        quarterAt = quarterAt,
+                                    )
+                                    target = (target + scrubDeltaMs(dx, width, duration, factor))
+                                        .coerceIn(0L, duration)
+                                    if (!change.changedToUpIgnoreConsumed()) {
+                                        scrubHaptics.moveTo(target, change.uptimeMillis)?.let(haptics::play)
+                                    }
+                                    overrideMs = target
+                                    if (change.changedToUpIgnoreConsumed()) {
+                                        released = true
+                                        break
+                                    }
+                                }
+                            } finally {
+                                scrubbing = false
+                                if (!released) overrideMs = null
+                            }
+                            if (!released) return@awaitEachGesture
+                            // A tap already acknowledged the position on contact. Reserve the
+                            // end tick for a scrub, so a single tap never fires two vibrations.
+                            if (dragged) haptics.play(PlayerHaptic.RELEASE)
+                            scope.launch {
+                                val current = playback.state.value
+                                if (current.track?.id == trackId && current.queueIndex == queueIndex) {
+                                    playback.seekTo(target)
+                                }
+                            }
+                        }
+                    }
+                    .drawBehind {
+                        val line = lineHeight.toPx()
+                        val handleW = HANDLE_WIDTH.toPx()
+                        val handleH = handleHeight.toPx()
+                        val gap = SEGMENT_GAP.toPx()
+                        val centreY = LINE_FROM_TOP.toPx()
+                        val handleX = (shownMs.toFloat() / duration) * (size.width - handleW)
+                        val remainingStart = handleX + handleW + gap
+                        if (remainingStart < size.width) {
+                            drawRoundRect(
+                                color = remainingColor,
+                                topLeft = Offset(remainingStart, centreY - line / 2f),
+                                size = Size(size.width - remainingStart, line),
+                                cornerRadius = CornerRadius(line / 2f),
+                            )
+                        }
+                        val playedWidth = handleX - gap
+                        if (playedWidth > 0f) {
+                            drawRoundRect(
+                                color = playedColor,
+                                topLeft = Offset(0f, centreY - line / 2f),
+                                size = Size(playedWidth, line),
+                                cornerRadius = CornerRadius(line / 2f),
+                            )
+                        }
                         drawRoundRect(
                             color = playedColor,
-                            topLeft = Offset(0f, centreY - line / 2f),
-                            size = Size(playedWidth, line),
-                            cornerRadius = CornerRadius(line / 2f),
+                            topLeft = Offset(handleX, centreY - handleH / 2f),
+                            size = Size(handleW, handleH),
+                            cornerRadius = CornerRadius(handleW / 2f),
                         )
+                    },
+            ) {
+                if (scrubbing) {
+                    val handleCentre = with(androidx.compose.ui.platform.LocalDensity.current) {
+                        val handleW = HANDLE_WIDTH.toPx()
+                        (shownMs.toFloat() / duration) * (bandWidth - handleW) + handleW / 2f
                     }
-                    drawRoundRect(
-                        color = playedColor,
-                        topLeft = Offset(handleX, centreY - handleH / 2f),
-                        size = Size(handleW, handleH),
-                        cornerRadius = CornerRadius(handleW / 2f),
+                    ScrubBubble(
+                        time = formatDuration(shownMs),
+                        lyric = lyricAtHandle,
+                        handleCentreX = handleCentre,
                     )
-                },
-        ) {
-            if (scrubbing) {
-                val handleCentre = with(androidx.compose.ui.platform.LocalDensity.current) {
-                    val handleW = HANDLE_WIDTH.toPx()
-                    (shownMs.toFloat() / duration) * (bandWidth - handleW) + handleW / 2f
                 }
-                ScrubBubble(
-                    time = formatDuration(shownMs),
-                    lyric = lyricAtHandle,
-                    handleCentreX = handleCentre,
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = formatDuration(shownMs),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = if (showRemaining) {
+                        "−" + formatDuration(duration - shownMs)
+                    } else {
+                        formatDuration(durationMs)
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clickable(role = Role.Button, onClickLabel = toggleDescription) {
+                            haptics.play(PlayerHaptic.TAP)
+                            showRemaining = !showRemaining
+                        }
+                        .padding(start = 12.dp, top = 2.dp, bottom = 2.dp),
                 )
             }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = formatDuration(shownMs),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = if (showRemaining) {
-                    "−" + formatDuration(duration - shownMs)
-                } else {
-                    formatDuration(durationMs)
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .clickable(role = Role.Button, onClickLabel = toggleDescription) {
-                        haptics.play(PlayerHaptic.TAP)
-                        showRemaining = !showRemaining
-                    }
-                    .padding(start = 12.dp, top = 2.dp, bottom = 2.dp),
-            )
         }
     }
 }

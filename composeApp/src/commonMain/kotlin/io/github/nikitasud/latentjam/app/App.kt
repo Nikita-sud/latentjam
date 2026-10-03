@@ -5904,37 +5904,46 @@ private fun MiniPlayerPill(
                             )
                         }
                     }
-                    if (showPrevious) {
-                        IconButton(onClick = onPrevious) {
-                            Icon(
-                                imageVector = Icons.Rounded.SkipPrevious,
-                                contentDescription = previousDescription,
+                    // Previous, play and next keep time's direction in every language
+                    // (TimeDirection), like the pill's swipe: leftward is next.
+                    TimeDirection {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            if (showPrevious) {
+                                IconButton(onClick = onPrevious) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.SkipPrevious,
+                                        contentDescription = previousDescription,
+                                    )
+                                }
+                            }
+                            val playPauseDescription = stringResource(
+                                if (isPlaying) Res.string.action_pause else Res.string.action_play,
                             )
+                            IconButton(
+                                onClick = onTogglePlayPause,
+                                modifier = Modifier.semantics { contentDescription = playPauseDescription },
+                            ) {
+                                AnimatedContent(
+                                    targetState = isPlaying,
+                                    transitionSpec = { motionIconTransform(reduceMotion) },
+                                    label = "mini-play-pause",
+                                ) { playing ->
+                                Icon(
+                                    imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                    contentDescription = null,
+                                )
+                                }
+                            }
+                            IconButton(onClick = onNext) {
+                                Icon(
+                                    imageVector = Icons.Rounded.SkipNext,
+                                    contentDescription = stringResource(Res.string.action_next),
+                                )
+                            }
                         }
-                    }
-                    val playPauseDescription = stringResource(
-                        if (isPlaying) Res.string.action_pause else Res.string.action_play,
-                    )
-                    IconButton(
-                        onClick = onTogglePlayPause,
-                        modifier = Modifier.semantics { contentDescription = playPauseDescription },
-                    ) {
-                        AnimatedContent(
-                            targetState = isPlaying,
-                            transitionSpec = { motionIconTransform(reduceMotion) },
-                            label = "mini-play-pause",
-                        ) { playing ->
-                        Icon(
-                            imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = null,
-                        )
-                        }
-                    }
-                    IconButton(onClick = onNext) {
-                        Icon(
-                            imageVector = Icons.Rounded.SkipNext,
-                            contentDescription = stringResource(Res.string.action_next),
-                        )
                     }
                 }
                 MiniPlayerProgress(
@@ -6010,12 +6019,15 @@ private fun MiniPlayerProgress(
                 )
             }
         }
-        LinearProgressIndicator(
-            progress = { animatedProgress.value },
-            modifier = modifier,
-            color = accent.onContainer.copy(alpha = 0.9f),
-            trackColor = Color.Transparent,
-            drawStopIndicator = {},
-        )
+        // A timeline fills from the left in every language (TimeDirection).
+        TimeDirection {
+            LinearProgressIndicator(
+                progress = { animatedProgress.value },
+                modifier = modifier,
+                color = accent.onContainer.copy(alpha = 0.9f),
+                trackColor = Color.Transparent,
+                drawStopIndicator = {},
+            )
+        }
     }
 }
