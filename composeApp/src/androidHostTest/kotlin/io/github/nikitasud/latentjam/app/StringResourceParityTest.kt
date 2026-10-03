@@ -85,11 +85,30 @@ class StringResourceParityTest {
     @Test
     fun `values-in is a faithful duplicate of values-id`() {
         // Indonesian needs both folders: java.util.Locale reports "in" on API 24-34 and "id" from
-        // 35, and Compose MP matches qualifiers by exact string. The files are NOT byte-identical
-        // — values-in carries a header comment explaining itself — so compare the bodies.
+        // 35, and Compose MP matches qualifiers by exact string. The files need not be
+        // byte-identical — a header comment may differ — so compare the bodies.
         val id = body("values-id")
         val about = body("values-in")
         assertEquals(id, about, "values-in/strings.xml drifted from values-id/strings.xml")
+    }
+
+    @Test
+    fun `values-iw is a faithful duplicate of values-he`() {
+        // Hebrew is the same story as Indonesian: java.util.Locale reports "iw" on API 24-34 and
+        // "he" from 35 (iOS always says "he"). values-iw carries its own header comment, so
+        // compare the bodies. Hebrew also translates the library_*.xml side files, which have no
+        // header, so every file in the folder has to match.
+        assertEquals(body("values-he"), body("values-iw"), "values-iw/strings.xml drifted from values-he/strings.xml")
+        val he = File(resourcesDir, "values-he").list().orEmpty().toSortedSet()
+        val iw = File(resourcesDir, "values-iw").list().orEmpty().toSortedSet()
+        assertEquals(he, iw, "values-iw and values-he hold different files")
+        (he - "strings.xml").forEach { name ->
+            assertEquals(
+                File(resourcesDir, "values-he/$name").readText(),
+                File(resourcesDir, "values-iw/$name").readText(),
+                "values-iw/$name drifted from values-he/$name",
+            )
+        }
     }
 
     @Test
@@ -143,7 +162,7 @@ class StringResourceParityTest {
         val LOCALES = listOf(
             "values-ru", "values-ro", "values-es", "values-pt-rBR", "values-de", "values-fr",
             "values-it", "values-zh-rCN", "values-ja", "values-ko", "values-tr", "values-uk",
-            "values-pl", "values-id", "values-in", "values-ar", "values-hi",
+            "values-pl", "values-id", "values-in", "values-ar", "values-hi", "values-he", "values-iw",
         )
 
         val PLACEHOLDER = Regex("%(\\d+)\\$")

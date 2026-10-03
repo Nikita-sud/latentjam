@@ -117,6 +117,7 @@
 				en,
 				es,
 				fr,
+				he,
 				hi,
 				id,
 				it,

@@ -1,0 +1,741 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 LatentJam Project
+  SPDX-License-Identifier: Apache-2.0
+
+  Hebrew, under its legacy language code. A byte-for-byte copy of the body of
+  values-he/strings.xml: edit that file and copy its resources element here.
+
+  Why both folders: java.util.Locale reports Hebrew as "iw" on Android API
+  24-34 and as "he" from API 35, iOS reports "he", and Compose Multiplatform
+  matches the language qualifier by exact string. StringResourceParityTest
+  fails if the two bodies drift apart. (values-in / values-id are the same
+  arrangement for Indonesian.)
+-->
+<resources>
+
+    <!-- ============================================================ actions -->
+    <string name="action_play">הפעלה</string>
+    <string name="action_pause">השהיה</string>
+    <string name="action_next">הבא</string>
+    <string name="action_previous">הקודם</string>
+    <string name="action_shuffle">ערבוב</string>
+    <string name="action_close">סגירה</string>
+    <string name="action_back">חזרה</string>
+    <string name="action_cancel">ביטול</string>
+    <string name="action_delete">מחיקה</string>
+    <string name="action_rename">שינוי שם</string>
+    <string name="action_clear">ניקוי</string>
+    <string name="action_track_options">אפשרויות שיר</string>
+    <string name="action_create">יצירה</string>
+    <string name="action_play_all">הפעלת הכול</string>
+    <string name="action_shuffle_all">ערבוב הכול</string>
+    <string name="action_share">שיתוף</string>
+    <string name="action_select_all">בחירת הכול</string>
+    <string name="action_deselect_all">ביטול הבחירה</string>
+    <string name="selection_count">שירים שנבחרו: %1$d</string>
+    <string name="action_add">הוספה</string>
+    <string name="cd_more_options">אפשרויות נוספות</string>
+    <string name="cd_search_library">חיפוש בספרייה</string>
+    <string name="cd_alphabet_index">אינדקס אלפביתי</string>
+
+    <!-- ======================================================= track labels -->
+    <string name="label_track">שיר</string>
+    <string name="track_untitled">ללא שם</string>
+    <string name="track_unknown_artist">אמן לא ידוע</string>
+    <string name="track_unknown_album">אלבום לא ידוע</string>
+    <string name="track_unknown_genre">ז׳אנר לא ידוע</string>
+    <plurals name="count_tracks">
+        <item quantity="one">%1$d שיר</item>
+        <item quantity="two">%1$d שירים</item>
+        <item quantity="other">%1$d שירים</item>
+    </plurals>
+    <string name="cd_track_options_for">אפשרויות נוספות עבור %1$s</string>
+    <string name="cd_track_options_generic">אפשרויות נוספות לשיר הזה</string>
+
+    <plurals name="count_albums">
+        <item quantity="one">%1$d אלבום</item>
+        <item quantity="two">%1$d אלבומים</item>
+        <item quantity="other">%1$d אלבומים</item>
+    </plurals>
+
+    <!-- ======================================================= browse tabs -->
+    <string name="tab_for_you">בשבילך</string>
+    <string name="tab_playlists">פלייליסטים</string>
+    <string name="tab_tracks">שירים</string>
+    <string name="tab_albums">אלבומים</string>
+    <string name="tab_artists">אמנים</string>
+    <string name="tab_genres">ז׳אנרים</string>
+    <string name="tab_map">מפה</string>
+
+    <!-- ===================================================== library shell -->
+    <string name="library_empty">לא נמצאה מוזיקה במכשיר הזה.</string>
+    <string name="action_rescan_library">רענון הספרייה</string>
+    <string name="sort_recently_added">תאריך הוספה</string>
+    <string name="sort_direction_ascending">סדר עולה</string>
+    <string name="sort_direction_descending">סדר יורד</string>
+    <string name="snack_track_deleted">השיר נמחק</string>
+    <string name="snack_track_delete_denied">נדרשת גישה לקבצים כדי למחוק את השירים האלה.</string>
+    <string name="snack_track_delete_failed">לא ניתן למחוק את הקובץ</string>
+    <string name="snack_track_delete_summary">נמחקו: %1$d. הגישה נדחתה: %2$d. נכשלו: %3$d. בוטלו: %4$d.</string>
+
+    <!-- =========================================================== for you -->
+    <string name="foryou_empty">אחרי כמה שירים, העמוד הזה יתמלא בדברים ששווה לחזור אליהם.</string>
+    <string name="foryou_section_continue">עוד לא הסתיימו</string>
+    <string name="foryou_section_worth_revisiting">לא נשמעו מזמן</string>
+    <string name="foryou_section_worlds">המיקסים שלך</string>
+    <string name="foryou_mix_discovery">מיקס גילויים</string>
+    <string name="foryou_section_never_played">לא הושמעו אף פעם</string>
+    <string name="foryou_world_open">הצגת השירים</string>
+    <string name="foryou_world_smart">התחלת SMART מכאן</string>
+    <string name="foryou_kicker_resume">להמשיך מאיפה שעצרת</string>
+    <plurals name="foryou_kicker_played_times">
+        <item quantity="one">השמעת את זה %1$d פעם</item>
+        <item quantity="two">השמעת את זה %1$d פעמים</item>
+        <item quantity="other">השמעת את זה %1$d פעמים</item>
+    </plurals>
+    <string name="foryou_kicker_never_played">לא הושמע אף פעם</string>
+    <plurals name="foryou_caption_played_before">
+        <item quantity="one">%1$d× בעבר</item>
+        <item quantity="two">%1$d× בעבר</item>
+        <item quantity="other">%1$d× בעבר</item>
+    </plurals>
+
+    <!-- =============================================================== map -->
+    <string name="map_lens_worlds">עולמות</string>
+    <string name="map_lens_plays">השמעות</string>
+    <string name="map_lens_never_played">לא הושמעו</string>
+    <string name="map_lens_skips">דילוגים</string>
+
+    <plurals name="count_regions">
+        <item quantity="one">%1$d אזור</item>
+        <item quantity="two">%1$d אזורים</item>
+        <item quantity="other">%1$d אזורים</item>
+    </plurals>
+
+    <string name="map_headline_worlds">%1$s ב־%2$s. אפשר להקיש על אזור כדי לשמוע מה יש בו.</string>
+    <string name="map_headline_worlds_partial">%1$d מתוך %2$s ב־%3$s. אפשר להקיש על אזור כדי לשמוע מה יש בו.</string>
+    <string name="map_headline_plays">באזורי המפה, חצי מכל ההשמעות מגיעות מ־%1$s — %2$d% מהשירים שבהם.</string>
+    <string name="map_headline_never_played">באזורי המפה, %1$d מתוך %2$s לא הושמעו אף פעם. באזור "%3$s" עוד לא נשמעו %4$d%.</string>
+    <string name="map_headline_skips">הכי הרבה דילוגים הם באזור "%1$s" — %2$d% מההפעלות.</string>
+
+    <string name="map_headline_unplayed_total">אזורי המפה: %2$s · בלי השמעות מתועדות: %1$d.</string>
+    <string name="map_select_region">בחירת אזור</string>
+    <string name="map_fullscreen">פתיחת המפה במסך מלא</string>
+    <string name="map_exit_fullscreen">יציאה מהמפה במסך מלא</string>
+    <string name="map_gesture_hint">אפשר להזיז את המפה או לשנות את הזום בשתי אצבעות.</string>
+    <string name="map_reset_view">איפוס תצוגת המפה</string>
+    <string name="map_region_unplayed">לא הושמעו כאן: %1$d</string>
+    <string name="map_action_play_unheard">הפעלת מה שלא נשמע</string>
+    <string name="map_action_play_region">הפעלת האזור</string>
+    <string name="map_action_smart_here">מכאן ב־SMART</string>
+    <string name="map_empty_indexing">הספרייה שלך עדיין נקראת. המפה תופיע בסיום האינדוקס.</string>
+    <string name="map_empty_building">מחשבים את מבנה הספרייה שלך. זה עשוי לקחת קצת זמן, במיוחד בספרייה גדולה.</string>
+    <string name="map_empty_too_large">בספרייה שלך יש %1$s — יותר מ־%2$s שהמפה יכולה להציג כרגע.</string>
+
+    <string name="map_legend_selected">האזור שנבחר</string>
+    <string name="map_legend_rest">שאר הספרייה</string>
+    <string name="map_legend_never">לא הושמע אף פעם</string>
+    <string name="map_legend_played">הושמע לפחות פעם אחת</string>
+    <string name="map_legend_never_skips">אף פעם לא דולג</string>
+    <string name="map_legend_always_skips">תמיד דולג</string>
+
+    <!-- ================================================== now playing/queue -->
+    <string name="now_playing_nothing">אין השמעה כרגע</string>
+    <string name="now_playing_source">מתנגן מתוך %1$s</string>
+    <string name="cd_now_playing">מתנגן עכשיו</string>
+    <string name="queue_title">תור</string>
+    <string name="queue_title_count">תור · %1$d</string>
+    <string name="queue_row_continuation">לא המלצה — רק כדי שהמוזיקה תמשיך</string>
+    <string name="cd_repeat_off">חזרה כבויה. הקשה תפעיל חזרה על התור.</string>
+    <string name="cd_repeat_all">חזרה על התור. הקשה תעבור לחזרה על שיר אחד.</string>
+    <string name="cd_repeat_one">חזרה על שיר אחד. הקשה תכבה את החזרה.</string>
+    <string name="cd_shuffle_off">ערבוב כבוי. הקשה לשינוי.</string>
+    <string name="cd_shuffle_on">ערבוב פועל. הקשה לשינוי.</string>
+    <string name="cd_shuffle_smart">ערבוב SMART פועל. הקשה לשינוי.</string>
+
+    <!-- ============================================================= search -->
+    <string name="search_placeholder">שיר, אמן או מילים</string>
+    <string name="cd_close_search">סגירת החיפוש</string>
+    <string name="cd_clear_query">ניקוי החיפוש</string>
+    <string name="search_no_matches">אין תוצאות עבור "%1$s".</string>
+    <plurals name="search_hint_count">
+        <item quantity="one">חיפוש ב־%1$d שיר בספרייה.</item>
+        <item quantity="two">חיפוש ב־%1$d שירים בספרייה.</item>
+        <item quantity="other">חיפוש ב־%1$d שירים בספרייה.</item>
+    </plurals>
+    <string name="search_recent_title">חיפושים אחרונים</string>
+    <string name="cd_forget_search">מחיקת "%1$s" מההיסטוריה</string>
+
+    <!-- ========================================================== playlists -->
+    <string name="playlists_empty">עדיין אין פלייליסטים — אפשר ליצור אחד עם +.</string>
+    <string name="playlist_name_placeholder">שם הפלייליסט</string>
+    <string name="playlist_new">פלייליסט חדש</string>
+    <string name="cd_playlist_options">אפשרויות עבור %1$s</string>
+    <string name="playlist_add_to_title">הוספת "%1$s" אל</string>
+    <string name="playlist_add_to_title_generic">הוספת השיר אל</string>
+    <string name="playlist_rename_title">שינוי שם הפלייליסט</string>
+    <string name="action_change_playlist_cover">שינוי העטיפה</string>
+    <string name="action_reset_playlist_cover">עטיפה אוטומטית</string>
+    <string name="playlist_cover_error">לא ניתן לשנות את עטיפת הפלייליסט. כדאי לנסות תמונה אחרת.</string>
+    <string name="snack_playlist_created">הפלייליסט "%1$s" נוצר</string>
+    <string name="snack_playlist_deleted">הפלייליסט "%1$s" נמחק</string>
+    <string name="snack_added_to_playlist">נוסף לפלייליסט "%1$s"</string>
+    <!-- Collection titles, deliberately not the sort_* wording. -->
+    <string name="auto_playlist_favorites">מועדפים</string>
+    <string name="auto_playlist_recently_added">נוספו לאחרונה</string>
+    <string name="auto_playlist_most_played">הכי מושמעים</string>
+    <string name="auto_playlist_recently_played">הושמעו לאחרונה</string>
+    <string name="auto_playlist_never_played">לא הושמעו אף פעם</string>
+    <string name="auto_playlist_rediscover">לגלות מחדש</string>
+
+    <!-- ============================================== track actions + sheet -->
+    <string name="action_play_next">הפעלה כשיר הבא</string>
+    <string name="action_add_to_queue">הוספה לתור</string>
+    <string name="action_add_to_playlist">הוספה לפלייליסט</string>
+    <string name="action_add_favorite">הוספה למועדפים</string>
+    <string name="action_remove_favorite">הסרה מהמועדפים</string>
+    <string name="action_remove_from_playlist">הסרה מהפלייליסט הזה</string>
+    <string name="snack_playlist_track_removed">הוסר מהפלייליסט "%1$s"</string>
+    <string name="action_go_to_album">מעבר לאלבום</string>
+    <string name="action_go_to_artist">מעבר לאמן</string>
+    <string name="action_show_on_map">הצגה במפה</string>
+    <string name="action_export_m3u">ייצוא כ־M3U</string>
+    <string name="action_smart_keep_together">שמירה יחד ב־SMART</string>
+    <string name="action_import_m3u">ייבוא M3U</string>
+    <string name="snack_m3u_imported">יובאו %1$d מתוך %2$d שירים</string>
+    <string name="snack_m3u_import_failed">לא ניתן לייבא את הפלייליסט</string>
+    <string name="playlist_imported_name">פלייליסט מיובא</string>
+    <string name="action_information">מידע</string>
+    <string name="action_exclude_track_from_smart">לא להמליץ על השיר הזה</string>
+    <string name="action_exclude_artist_from_smart">לא להמליץ על האמן הזה</string>
+    <string name="action_include_track_in_smart">להמליץ שוב על השיר הזה</string>
+    <string name="action_include_artist_in_smart">להמליץ שוב על האמן הזה</string>
+    <string name="snack_track_excluded_from_smart">השיר הוסר מהמלצות SMART</string>
+    <string name="snack_artist_excluded_from_smart">האמן הוסר מהמלצות SMART</string>
+    <string name="snack_track_included_in_smart">השיר הוחזר להמלצות SMART</string>
+    <string name="snack_artist_included_in_smart">האמן הוחזר להמלצות SMART</string>
+    <string name="snack_smart_exclusion_failed">לא ניתן לעדכן את המלצות SMART. אפשר לנסות שוב.</string>
+    <string name="action_delete_from_device">מחיקה מהמכשיר</string>
+    <string name="dialog_delete_tracks_message">השירים שנבחרו (%1$d) יוסרו מהמכשיר הזה. אי אפשר לבטל את הפעולה.</string>
+    <string name="dialog_delete_track_title">למחוק את השיר הזה?</string>
+    <string name="dialog_delete_track_message">השיר "%1$s" יוסר מהמכשיר הזה. אי אפשר לבטל את הפעולה.</string>
+    <string name="dialog_delete_track_message_generic">השיר הזה יוסר מהמכשיר. אי אפשר לבטל את הפעולה.</string>
+
+    <!-- ======================================================== track info -->
+    <string name="info_title">כותרת</string>
+    <string name="info_artist">אמן</string>
+    <string name="info_album">אלבום</string>
+    <string name="info_genre">ז׳אנר</string>
+    <string name="info_year">שנה</string>
+    <string name="info_duration">משך</string>
+    <string name="info_location">מיקום</string>
+    <string name="info_not_set">לא הוגדר</string>
+    <string name="info_edit">עריכת תגיות</string>
+    <string name="info_save">שמירה</string>
+    <string name="info_cancel">ביטול</string>
+    <string name="editor_discard_title">לבטל את השינויים?</string>
+    <string name="editor_discard">ביטול השינויים</string>
+    <string name="editor_keep_editing">המשך עריכה</string>
+    <string name="info_saving">שומר…</string>
+    <string name="info_edit_note">השינוי נשמר בתוך הקובץ עצמו, כך שכל אפליקציה תראה את התיקון. ייתכן שתופיע בקשת הרשאה לשינוי הקובץ.</string>
+    <string name="info_edit_refused">התגיות בקובץ הזה כתובות בצורה שאי אפשר לכתוב מחדש בבטחה, ולכן שום דבר לא שונה.</string>
+    <string name="info_edit_failed">לא ניתן לכתוב לקובץ הזה. הוא נשאר כפי שהיה.</string>
+    <string name="info_edit_no_space">אין מספיק מקום פנוי כדי לשמור את התגיות בבטחה. שום דבר לא שונה.</string>
+    <string name="info_edit_recovery_pending">השמירה נקטעה. LatentJam ישלים או יבטל אותה בפעם הבאה שתהיה לו הרשאה לכתוב לקובץ.</string>
+    <string name="tag_recovery_title">השלמת שמירת התגיות</string>
+    <plurals name="tag_recovery_body">
+        <item quantity="one">שמירת התגיות ב־%1$d קובץ נקטעה. אפשר להשלים את השינוי עכשיו, או לבטל אותו אם אי אפשר להשלים את הקובץ.</item>
+        <item quantity="two">שמירת התגיות ב־%1$d קבצים נקטעה. אפשר להשלים את השינויים עכשיו, או לבטל אותם בקבצים שאי אפשר להשלים.</item>
+        <item quantity="other">שמירת התגיות ב־%1$d קבצים נקטעה. אפשר להשלים את השינויים עכשיו, או לבטל אותם בקבצים שאי אפשר להשלים.</item>
+    </plurals>
+    <string name="tag_recovery_finish">השלמה</string>
+    <string name="tag_recovery_later">אחר כך</string>
+    <string name="tag_problem_unsupported_format">אי אפשר לערוך קבצים מהסוג הזה ב־LatentJam.</string>
+    <string name="tag_problem_damaged">הקובץ הזה נראה פגום, ולכן הוא נשאר כפי שהוא.</string>
+    <string name="tag_problem_protected">הקובץ הזה מוגן מפני העתקה ואי אפשר לשנות אותו.</string>
+    <string name="tag_problem_tags_too_large">התגיות יהיו גדולות מדי עבור הקובץ הזה.</string>
+    <string name="tag_problem_bad_number">מספרי רצועה ודיסק חייבים להיות מספרים שלמים מ־1 עד 999.</string>
+    <string name="tag_problem_number_unreadable">מספר הרצועה או הדיסק בקובץ אינו מספר פשוט, ולכן אי אפשר לשנות רק את הסך הכולל.</string>
+    <string name="tag_problem_bad_image">התמונה אינה בפורמט JPEG או PNG.</string>
+    <string name="tag_problem_read_only_storage">הקובץ הזה נמצא באחסון שאי אפשר לכתוב אליו.</string>
+    <string name="tag_problem_music_library">אי אפשר לערוך שירים מספריית המוזיקה, רק שירים שיובאו אל LatentJam.</string>
+    <string name="tag_problem_unreadable">לא ניתן לקרוא את הקובץ הזה.</string>
+    <string name="tag_problem_not_allowed">לא ניתנה הרשאה לשנות את הקובץ.</string>
+    <string name="tag_problem_missing">הקובץ כבר לא קיים.</string>
+    <string name="tag_problem_stopped">נעצר לפני הקובץ הזה.</string>
+    <string name="tag_problem_cancelled">בקשת ההרשאה נסגרה.</string>
+    <string name="tag_problem_undone">שמירה שנקטעה בוטלה: הקובץ חזר למצבו הקודם.</string>
+    <string name="tag_problem_changed_elsewhere">אפליקציה אחרת שינתה את הקובץ אחרי שהשמירה נקטעה, ולכן הוא נשאר כפי שהוא.</string>
+    <string name="tag_problem_lost">לא ידוע איך הסתיימה השמירה הזו. כדאי לבדוק את התגיות בקובץ.</string>
+
+    <!-- =========================================================== settings -->
+    <string name="settings_title">הגדרות</string>
+    <string name="settings_section_appearance">מראה</string>
+    <string name="settings_theme">עיצוב</string>
+    <string name="theme_system">לפי המערכת</string>
+    <string name="theme_light">בהיר</string>
+    <string name="theme_dark">כהה</string>
+    <string name="settings_section_playback">השמעה</string>
+    <string name="settings_equalizer">אקולייזר</string>
+    <string name="settings_equalizer_subtitle">בקרת צליל ליציאת השמע של המכשיר</string>
+    <string name="settings_intelligence">מנוע SMART</string>
+    <string name="settings_smart_engine">מנוע SMART</string>
+    <string name="settings_smart_engine_subtitle">מה המודל שבמכשיר יודע על הספרייה שלך</string>
+    <string name="settings_about_body">נגן המוזיקה המקומי LatentJam כולל מנוע המלצות שפועל במכשיר. שום מידע על ההאזנה שלך לא יוצא מהמכשיר הזה.</string>
+
+    <!-- ========================================================== equalizer -->
+    <string name="state_on">פועל</string>
+    <string name="state_off">כבוי</string>
+    <string name="equalizer_presets">הגדרות מוכנות</string>
+    <string name="equalizer_bands">תדרים</string>
+    <string name="equalizer_bass_boost">הגברת בס</string>
+    <string name="equalizer_reset">איפוס למצב שטוח</string>
+
+    <!-- ======================================================= intelligence -->
+    <string name="intelligence_section_status">מצב</string>
+    <string name="intelligence_engine">מנוע</string>
+    <string name="intelligence_library">ספרייה</string>
+    <string name="intelligence_fingerprints">טביעות צליל</string>
+    <string name="intelligence_indexed_of">%1$d מתוך %2$d</string>
+    <string name="engine_state_not_started">לא הופעל</string>
+    <string name="engine_state_starting">מופעל…</string>
+    <string name="engine_state_ready">מוכן</string>
+    <string name="engine_state_unavailable">לא זמין — %1$s</string>
+
+    <!-- ========================================================= permission -->
+    <string name="permission_audio_rationale">ל־LatentJam נדרשת גישה למוזיקה שלך כדי לסרוק את הספרייה.</string>
+    <string name="permission_grant">מתן גישה</string>
+    <string name="permission_audio_settings_rationale">הגישה למוזיקה חסומה. יש לפתוח את הגדרות המערכת ולאפשר ל־LatentJam גישה למוזיקה ולאודיו.</string>
+    <string name="permission_open_settings">פתיחת ההגדרות</string>
+    <string name="permission_notifications_title">להציג את התקדמות הניתוח?</string>
+    <string name="permission_notifications_rationale">מנוע SMART מנתח את הספרייה במכשיר הזה. כדי לראות את ההתקדמות ולחזור ל־LatentJam בזמן העבודה, יש לאשר התראות. הניתוח ימשיך גם אם בוחרים "לא עכשיו".</string>
+    <string name="permission_not_now">לא עכשיו</string>
+    <string name="permission_continue">המשך</string>
+
+
+    <string name="engine_error_model_unavailable">מנוע SMART לא הצליח לטעון את המודלים המובנים שלו. אפשר לנסות שוב את ההגדרה; אם הבעיה נמשכת, כדאי להתקין מחדש או לדווח עליה.</string>
+    <string name="engine_error_not_indexed">הספרייה עדיין לא עברה אינדוקס.</string>
+    <string name="engine_error_audio_unavailable">לא ניתן לקרוא או לפענח את השיר הזה. כדאי לוודא שהקובץ עדיין זמין ולנסות שוב.</string>
+    <string name="engine_error_backend">אירעה שגיאה פנימית במנוע SMART. אפשר לנסות שוב את ההגדרה; אם היא חוזרת, כדאי לדווח על הבעיה.</string>
+
+    <string name="indexing_notification_title">ניתוח המוזיקה שלך</string>
+    <string name="indexing_notification_progress">%1$d מתוך %2$d</string>
+    <string name="indexing_notification_progress_eta">%1$d מתוך %2$d · נותרו כ־%3$d דק׳</string>
+
+    <!-- =================================================== expanded settings -->
+    <string name="settings_appearance">מראה</string>
+    <string name="settings_appearance_subtitle">עיצוב, צבעי הנגן ושפה</string>
+    <string name="settings_library">ספרייה</string>
+    <string name="settings_library_subtitle">רענון, ייבוא וניהול שירים מוסתרים</string>
+    <string name="settings_playback">השמעה</string>
+    <string name="settings_playback_subtitle">אקולייזר ובקרות שמע</string>
+    <string name="settings_privacy">פרטיות ונתונים</string>
+    <string name="settings_privacy_subtitle">היסטוריית האזנה וחיפושים אחרונים</string>
+    <string name="settings_about">אודות LatentJam</string>
+    <string name="settings_about_subtitle">רישיון, קוד מקור ותמיכה</string>
+    <string name="settings_section_library">ספרייה</string>
+    <string name="settings_section_navigation">ניווט</string>
+    <string name="settings_section_privacy">נתונים במכשיר</string>
+
+    <string name="settings_track_colors">צבעי הנגן</string>
+    <string name="settings_color_dynamic">עטיפה</string>
+    <string name="settings_color_dynamic_body">צבעים מתוך העטיפה, ואם אין — צבעי SMART.</string>
+    <string name="settings_color_smart">SMART</string>
+    <string name="settings_color_smart_body">צבעים שנגזרים מטביעת הצליל של כל שיר.</string>
+    <string name="settings_color_theme">עיצוב</string>
+    <string name="settings_color_theme_body">צבעי האפליקציה במקום צבעים לכל שיר.</string>
+    <string name="settings_start_page">עמוד פתיחה</string>
+    <string name="settings_start_page_body">יחול בפתיחה הבאה של LatentJam.</string>
+
+    <string name="settings_library_count">שירים בספרייה</string>
+    <string name="settings_library_refresh">רענון הספרייה</string>
+    <string name="settings_library_refresh_body">איתור מוזיקה חדשה והסרת רשומות של קבצים שכבר אינם זמינים.</string>
+    <string name="settings_library_import">ייבוא מוזיקה</string>
+    <string name="settings_library_import_body">בחירת קובצי שמע להעתקה אל LatentJam.</string>
+    <string name="settings_library_restore">שחזור שירים מוסתרים</string>
+    <string name="settings_library_restore_body">החזרת כל השירים שהוסרו מ־LatentJam אל הספרייה. הקבצים במכשיר לא משתנים.</string>
+
+    <string name="settings_equalizer_unavailable">לא זמין ביציאת השמע הזו</string>
+    <string name="equalizer_unavailable_body">יציאת השמע הנוכחית לא מספקת אקולייזר ל־LatentJam. אפשר לנסות יציאה אחרת. ההשמעה ממשיכה לפעול כרגיל.</string>
+    <string name="equalizer_bass_value">%1$d%</string>
+    <string name="equalizer_preset_flat">שטוח</string>
+    <string name="equalizer_preset_bass">בס</string>
+    <string name="equalizer_preset_treble">טרבל</string>
+    <string name="equalizer_preset_vocal">שירה</string>
+    <string name="equalizer_preset_electronic">אלקטרוני</string>
+
+    <string name="intelligence_syncing">סנכרון הספרייה…</string>
+    <string name="intelligence_analysis_progress">נותחו %1$d מתוך %2$d שירים</string>
+    <string name="intelligence_analysis_failed">הניתוח נכשל: %1$d</string>
+    <string name="intelligence_failures_more">ועוד %1$d</string>
+    <string name="intelligence_retry">הגדרת SMART מחדש</string>
+    <string name="intelligence_section_recommendations">המלצות</string>
+    <string name="intelligence_queue_length">אורך התור של SMART</string>
+    <string name="intelligence_queue_length_body">כמה שירים SMART מוסיף כשהוא בונה תור.</string>
+    <string name="intelligence_include_novelty_mixes">הכללת מיקסים מיוחדים</string>
+    <string name="intelligence_include_novelty_mixes_body">הצגת מיקסים נפרדים של ממים, להיטים ויראליים ואפקטים קוליים ב"בשבילך".</string>
+    <string name="foryou_mix_meme_viral">ממים וויראליים</string>
+    <string name="foryou_mix_sound_effects">אפקטים קוליים</string>
+    <string name="foryou_mix_spoken_audio">תוכן מדובר</string>
+    <string name="foryou_mix_instrumental">אינסטרומנטלי</string>
+    <string name="intelligence_how_it_works">מנוע SMART משווה טביעות צליל במכשיר הזה, ואז משלב דמיון מוזיקלי עם היסטוריית ההאזנה שלך. הוא פועל בלי חשבון ובלי חיבור לאינטרנט.</string>
+
+    <string name="privacy_local_body">הספרייה, היסטוריית ההאזנה ונתוני SMART נשארים במכשיר הזה. ל־LatentJam אין חשבון, ושום דבר מזה לא נשלח לשרת.</string>
+    <string name="privacy_save_history_body">שמירת השמעות ודילוגים במכשיר הזה עבור "בשבילך" והמלצות SMART.</string>
+    <string name="privacy_remember_searches_body">שמירת חיפושים במכשיר הזה כדי שיופיעו כששדה החיפוש ריק.</string>
+    <string name="privacy_disable_history_body">הפסקת השמירה של פעילות האזנה חדשה. מה לעשות עם ההיסטוריה שכבר נמצאת במכשיר?</string>
+    <string name="privacy_disable_searches_body">הפסקת השמירה של חיפושים חדשים. מה לעשות עם החיפושים שכבר נמצאים במכשיר?</string>
+    <string name="privacy_keep_existing">להשאיר</string>
+    <string name="privacy_delete_existing">למחוק</string>
+    <string name="privacy_setting_save_failed">לא ניתן לשמור את הגדרת הפרטיות. אפשר לנסות שוב.</string>
+    <string name="privacy_data_clear_failed">לא ניתן למחוק את הנתונים האלה מהמכשיר. אפשר לנסות שוב.</string>
+    <string name="privacy_clear_history">ניקוי היסטוריית ההאזנה</string>
+    <string name="privacy_clear_history_body">הסרת נתוני ההשמעות והדילוגים שמשמשים להתאמה אישית של ההמלצות.</string>
+    <string name="privacy_clear_history_confirm">לנקות את כל היסטוריית ההאזנה? ההמלצות יתחילו ללמוד את הטעם שלך מחדש.</string>
+    <string name="privacy_history_empty">אין היסטוריית האזנה</string>
+    <plurals name="privacy_history_listens">
+        <item quantity="one">%1$d האזנה</item>
+        <item quantity="two">%1$d האזנות</item>
+        <item quantity="other">%1$d האזנות</item>
+    </plurals>
+    <string name="privacy_recent_searches">חיפושים אחרונים</string>
+    <string name="privacy_clear_searches">ניקוי החיפושים האחרונים</string>
+    <string name="privacy_clear_searches_body">הסרת החיפושים שמוצגים כששדה החיפוש ריק.</string>
+    <string name="privacy_clear_searches_confirm">לנקות את כל החיפושים האחרונים?</string>
+
+    <string name="settings_license">רישיון</string>
+    <string name="settings_license_body">הקוד של LatentJam הוא תוכנה חופשית ברישיון Apache License 2.0.</string>
+    <string name="settings_open_source">קוד מקור</string>
+    <string name="settings_open_source_body">הפרויקט ב־GitHub</string>
+    <string name="settings_report_issue">דיווח על בעיה</string>
+    <string name="settings_section_preferences">העדפות</string>
+    <string name="settings_section_music">מוזיקה</string>
+    <string name="settings_section_data_support">נתונים ותמיכה</string>
+    <string name="privacy_listening_history">היסטוריית האזנה</string>
+    <string name="settings_version">גרסה</string>
+    <string name="settings_library_loading">הספרייה נטענת…</string>
+    <string name="settings_library_refreshing">מרענן…</string>
+    <string name="snack_library_refreshed">הספרייה רועננה</string>
+    <string name="action_retry">ניסיון חוזר</string>
+
+    <string name="settings_language">שפה</string>
+    <string name="settings_language_body">אפשר לשנות את השפה בהגדרות המערכת.</string>
+    <string name="settings_audio_access">גישה למוזיקה</string>
+    <string name="settings_audio_access_allowed">מותרת</string>
+    <string name="settings_audio_access_blocked">חסומה</string>
+    <string name="settings_audio_access_not_requested">לא התבקשה</string>
+    <string name="settings_audio_access_not_required">לא נדרשת</string>
+    <string name="settings_sources">מקורות מוזיקה</string>
+    <string name="settings_sources_body">בחירת התיקיות או האוספים במכשיר שיופיעו ב־LatentJam. הקבצים במכשיר לא משתנים.</string>
+    <string name="settings_sources_empty">לא נמצאו מקורות מוזיקה שאפשר לנהל.</string>
+    <string name="settings_source_unnamed">מוזיקה במכשיר</string>
+    <string name="settings_source_music_library">ספריית המוזיקה</string>
+    <string name="settings_hidden_tracks">שירים מוסתרים</string>
+    <string name="settings_hidden_tracks_body">שירים שהוסתרו רק ב־LatentJam. אפשר לשחזר כל שיר בלי לשנות את הקובץ שלו.</string>
+    <string name="settings_hidden_tracks_empty">אין שירים מוסתרים ב־LatentJam.</string>
+    <string name="settings_interrupted_saves">שמירות שנקטעו</string>
+    <plurals name="settings_interrupted_saves_body">
+        <item quantity="one">שמירת התגיות ב־%1$d קובץ נקטעה. היא תושלם או תבוטל ברגע שתהיה הרשאה לכתוב לקובץ.</item>
+        <item quantity="two">שמירת התגיות ב־%1$d קבצים נקטעה. כל שמירה תושלם או תבוטל ברגע שתהיה הרשאה לכתוב לקובץ.</item>
+        <item quantity="other">שמירת התגיות ב־%1$d קבצים נקטעה. כל שמירה תושלם או תבוטל ברגע שתהיה הרשאה לכתוב לקובץ.</item>
+    </plurals>
+    <string name="settings_interrupted_finish">השלמה עכשיו</string>
+    <string name="settings_interrupted_being_repaired">בתיקון: לא יושמע עד שהתיקון יסתיים</string>
+    <string name="settings_interrupted_forget">התעלמות</string>
+    <string name="settings_interrupted_forget_title">להתעלם מהשמירה הזו?</string>
+    <string name="settings_interrupted_forget_body">הקובץ יישאר בדיוק כפי שהוא עכשיו, ו־LatentJam יפסיק לנסות להשלים או לבטל את השמירה. אי אפשר לבטל את הפעולה.</string>
+    <string name="settings_interrupted_forget_damaged_body">השמירה הזו נעצרה באמצע. הקובץ עלול להיות פגום ולא להתנגן, והתעלמות תמחק את העותקים שמהם LatentJam יכול לתקן אותו. אי אפשר לבטל את הפעולה.</string>
+    <string name="settings_duplicates">כפילויות שמע</string>
+    <string name="settings_duplicates_body">איתור עותקים של אותה הקלטה לפי הצליל, בלי קשר לתגיות</string>
+    <string name="settings_duplicates_scanning">השוואה של כל זוג שירים…</string>
+    <string name="settings_duplicates_empty">אין כפילויות — כל שיר נשמע ייחודי</string>
+    <string name="settings_restore">שחזור</string>
+    <string name="settings_restore_all">שחזור הכול</string>
+    <string name="settings_library_manage_failed">לא ניתן לעדכן את הספרייה. אפשר לנסות שוב.</string>
+    <string name="settings_lyrics_folders">תיקיות עם קובצי LRC</string>
+    <string name="settings_lyrics_folders_body">מערכת Android תשאל לאיזו תיקייה לתת גישה. קובץ LRC ששמו כשם השיר ישמש למילים שלו.</string>
+    <string name="settings_lyrics_folders_add">הוספת תיקייה</string>
+    <string name="settings_lyrics_folders_remove">הסרה</string>
+    <string name="settings_lyrics_folders_failed">אי אפשר להשתמש בתיקייה הזו. יש לבחור תיקייה באחסון של המכשיר.</string>
+
+    <string name="settings_licenses">רישיונות קוד פתוח</string>
+    <string name="settings_licenses_body">הודעות עבור LatentJam, המודלים המובנים ותוכנות צד שלישי</string>
+    <string name="settings_license_models">מודלי שמע ו־SMART</string>
+    <string name="settings_license_models_body">המשקלים של מודל השמע MobileNetV4 ושל מנבא SMART, שהופקו על ידי LatentJam, מופצים ברישיון Apache-2.0. מודל התלמיד משתמש ב־timm (Apache-2.0) וזוקק מ־EfficientAT (MIT, זכויות יוצרים © 2022 Florian Schmid).</string>
+    <string name="settings_license_text_model">מודל טקסט</string>
+    <string name="settings_license_text_model_body">מקודד הטקסט המובנה ואוצר המילים שלו אומנו על ידי LatentJam כדי לשחזר את sentence-transformers/all-MiniLM-L6-v2 (Apache-2.0), ומופצים ברישיון Apache-2.0.</string>
+    <string name="settings_license_runtime">ONNX Runtime</string>
+    <string name="settings_license_runtime_body">הרצת המודלים במכשיר מתבססת על Microsoft ONNX Runtime ברישיון MIT. זכויות יוצרים © Microsoft Corporation.</string>
+    <string name="settings_license_aliases">MusicBrainz ו־Wikidata</string>
+    <string name="settings_license_aliases_body">נתוני החיפוש המובנים לפי כינויי אמנים נגזרים מ־MusicBrainz ומ־Wikidata ומסופקים ברישיון CC0.</string>
+    <string name="settings_license_libraries">ספריות צד שלישי</string>
+    <string name="settings_license_libraries_body">האפליקציה משתמשת ב־Kotlin, coroutines, Compose Multiplatform, AndroidX Media3, Koin ו־Coil ברישיונות המתירניים Apache-2.0 או MIT. ההודעות המלאות כלולות בהפצת קוד המקור.</string>
+
+    <string name="sleep_timer">טיימר שינה</string>
+    <string name="sleep_timer_off">כבוי</string>
+    <plurals name="sleep_timer_minutes">
+        <item quantity="one">%1$d דקה</item>
+        <item quantity="two">%1$d דקות</item>
+        <item quantity="other">%1$d דקות</item>
+    </plurals>
+    <string name="sleep_timer_end_of_track">סוף השיר הנוכחי</string>
+    <string name="sleep_timer_active_minutes">נותרו %1$d דק׳</string>
+    <string name="sleep_timer_active_end_of_track">ייעצר אחרי השיר הזה</string>
+
+    <string name="intelligence_problems">בעיות ניתוח</string>
+    <string name="intelligence_problems_body">שירים ש־SMART לא הצליח לנתח. המוזיקה שלך עדיין ניתנת להשמעה.</string>
+    <string name="intelligence_no_problems">אין בעיות ניתוח</string>
+    <string name="intelligence_manage_exclusions">החרגות מהמלצות</string>
+    <string name="intelligence_manage_exclusions_body">שירים ואמנים ש־SMART לעולם לא ימליץ עליהם</string>
+    <string name="intelligence_exclusions_empty">אין החרגות מהמלצות</string>
+    <string name="intelligence_excluded_tracks">שירים מוחרגים</string>
+    <string name="intelligence_excluded_artists">אמנים מוחרגים</string>
+    <string name="intelligence_rebuild">בנייה מחדש של ניתוח SMART</string>
+    <string name="intelligence_rebuild_body">מחיקת טביעות הצליל המקומיות וניתוח מחדש של הספרייה הגלויה.</string>
+    <string name="intelligence_rebuild_confirm">לבנות מחדש את כל ניתוח SMART? קובצי המוזיקה, הפלייליסטים והיסטוריית ההאזנה לא ישתנו.</string>
+    <string name="intelligence_how_title">איך SMART עובד</string>
+    <string name="intelligence_notifications">התראות ניתוח</string>
+    <string name="intelligence_notifications_body">הצגת התקדמות האינדוקס מחוץ ל־LatentJam</string>
+    <string name="intelligence_exclusions_clear">ניקוי כל ההחרגות</string>
+
+    <string name="settings_backup">גיבוי מקומי</string>
+    <string name="settings_backup_body">ייצוא או שחזור של פלייליסטים, העדפות, היסטוריה, שירים מוסתרים והחרגות SMART. קובצי המוזיקה ונתוני המודלים לא נכללים.</string>
+    <string name="backup_export">ייצוא גיבוי</string>
+    <string name="backup_import">ייבוא גיבוי</string>
+    <string name="backup_import_title">שחזור גיבוי מקומי</string>
+    <string name="backup_import_body">איך לשלב את הנתונים המיובאים עם הנתונים שכבר נמצאים במכשיר?</string>
+    <string name="backup_merge">מיזוג</string>
+    <string name="backup_replace">החלפה</string>
+    <string name="backup_replace_warning">להחליף את נתוני האפליקציה שנבחרו בגיבוי הזה? קובצי המוזיקה אף פעם לא משתנים.</string>
+    <string name="backup_export_success">הגיבוי יוצא</string>
+    <string name="backup_import_success">הגיבוי שוחזר</string>
+    <string name="backup_import_success_unmatched">הגיבוי שוחזר; לא נמצאה התאמה במכשיר הזה ל־%1$d הפניות לשירים.</string>
+    <string name="backup_import_partial">חלק מהנתונים שוחזרו לפני שאירעה שגיאה.</string>
+    <string name="backup_failed">לא ניתן להשלים את פעולת הגיבוי.</string>
+    <string name="backup_invalid">זה לא גיבוי תקין של LatentJam.</string>
+    <string name="backup_destination_warning">הגיבוי מכיל נתוני אפליקציה פרטיים. יעד בענן או של צד שלישי שנבחר בבורר המערכת עשוי לסנכרן אותו.</string>
+    <string name="settings_stats">סטטיסטיקה</string>
+    <string name="settings_stats_subtitle">ההאזנה שלך במספרים</string>
+    <string name="stats_period_week">7 ימים</string>
+    <string name="stats_period_month">30 ימים</string>
+    <string name="stats_period_all">כל הזמן</string>
+    <string name="stats_time_listened">זמן האזנה</string>
+    <string name="stats_plays">השמעות</string>
+    <string name="stats_distinct_tracks">שירים</string>
+    <string name="stats_streak_current">רצף</string>
+    <string name="stats_streak_longest">שיא</string>
+    <string name="stats_days_short">ימ׳</string>
+    <string name="stats_hours_short">ש׳</string>
+    <string name="stats_minutes_short">דק׳</string>
+    <string name="stats_finished_share">הושלמו</string>
+    <string name="stats_skipped_share">דולגו</string>
+    <string name="stats_by_hour">לפי שעה ביום</string>
+    <string name="stats_top_artists">אמנים מובילים</string>
+    <string name="stats_top_tracks">שירים מובילים</string>
+    <string name="stats_empty">עדיין לא הושמע שום דבר בתקופה הזו.</string>
+    <string name="stats_load_failed">לא ניתן לטעון את נתוני ההאזנה.</string>
+    <string name="settings_normalize_volume">איזון עוצמה</string>
+    <string name="settings_normalize_volume_subtitle">הנמכת שירים רועשים לרמה אחידה</string>
+    <string name="settings_crossfade">מעברים חלקים</string>
+    <string name="settings_crossfade_subtitle">עמעום העוצמה במעבר בין שירים</string>
+    <string name="settings_crossfade_value">%1$d שנ׳</string>
+    <string name="duplicates_keep_this">לשמור את זה</string>
+    <string name="snack_duplicates_merged">הכפילויות מוזגו: הפלייליסטים מפנים עכשיו לעותק שנשמר</string>
+    <string name="info_lyrics">מילים</string>
+    <string name="info_album_artist">אמן האלבום</string>
+    <string name="info_track_number">רצועה</string>
+    <string name="info_track_total">סה״כ רצועות</string>
+    <string name="info_disc_number">דיסק</string>
+    <string name="info_disc_total">סה״כ דיסקים</string>
+    <string name="info_cover">עטיפה</string>
+    <string name="info_cover_replace">החלפה</string>
+    <string name="info_cover_remove">הסרה</string>
+    <string name="info_cover_keep">השארת הנוכחית</string>
+    <string name="info_cover_new">עטיפה חדשה</string>
+    <string name="info_cover_removed">העטיפה תוסר.</string>
+    <plurals name="info_cover_more">
+        <item quantity="one">עוד %1$d תמונה בקובץ תישמר</item>
+        <item quantity="two">עוד %1$d תמונות בקובץ יישמרו</item>
+        <item quantity="other">עוד %1$d תמונות בקובץ יישמרו</item>
+    </plurals>
+    <string name="info_reading_file">קורא את הקובץ…</string>
+    <string name="action_edit_album">עריכת האלבום</string>
+    <string name="action_edit_artist">עריכת האמן</string>
+    <string name="action_edit_short">עריכה</string>
+    <plurals name="count_files">
+        <item quantity="one">%1$d קובץ</item>
+        <item quantity="two">%1$d קבצים</item>
+        <item quantity="other">%1$d קבצים</item>
+    </plurals>
+    <plurals name="count_fields">
+        <item quantity="one">%1$d שדה</item>
+        <item quantity="two">%1$d שדות</item>
+        <item quantity="other">%1$d שדות</item>
+    </plurals>
+    <string name="bulk_save">שינוי %1$s ב־%2$s</string>
+    <string name="bulk_reading">קורא %1$d מתוך %2$d…</string>
+    <plurals name="bulk_not_editable">
+        <item quantity="one">אי אפשר לערוך %1$d קובץ, והוא יישאר כפי שהוא:</item>
+        <item quantity="two">אי אפשר לערוך %1$d קבצים, והם יישארו כפי שהם:</item>
+        <item quantity="other">אי אפשר לערוך %1$d קבצים, והם יישארו כפי שהם:</item>
+    </plurals>
+    <plurals name="bulk_more_files">
+        <item quantity="one">ועוד %1$d</item>
+        <item quantity="two">ועוד %1$d</item>
+        <item quantity="other">ועוד %1$d</item>
+    </plurals>
+    <string name="bulk_nothing_editable">אי אפשר לערוך אף אחד מהקבצים האלה.</string>
+    <string name="bulk_different">ערכים שונים</string>
+    <plurals name="bulk_removed">
+        <item quantity="one">יוסר מ־%1$d קובץ</item>
+        <item quantity="two">יוסר מכל ה־%1$d</item>
+        <item quantity="other">יוסר מכל ה־%1$d</item>
+    </plurals>
+    <string name="bulk_remove_field">הסרה מכל הקבצים</string>
+    <string name="bulk_keep_field">השארה כמו שהוא</string>
+    <string name="bulk_kept">יישאר כמו שהוא: %1$s</string>
+    <string name="bulk_saving">נשמרו %1$d מתוך %2$d</string>
+    <string name="bulk_stop">עצירה</string>
+    <string name="bulk_result">נשמרו %1$d מתוך %2$d.</string>
+    <plurals name="bulk_not_changed">
+        <item quantity="one">%1$d קובץ לא שונה:</item>
+        <item quantity="two">%1$d קבצים לא שונו:</item>
+        <item quantity="other">%1$d קבצים לא שונו:</item>
+    </plurals>
+    <string name="bulk_done">סיום</string>
+    <string name="bulk_file_reason">%1$s — %2$s</string>
+    <plurals name="tags_saved">
+        <item quantity="one">התגיות נשמרו ב־%1$d קובץ</item>
+        <item quantity="two">התגיות נשמרו ב־%1$d קבצים</item>
+        <item quantity="other">התגיות נשמרו ב־%1$d קבצים</item>
+    </plurals>
+    <string name="tags_saved_partly">התגיות נשמרו ב־%1$d מתוך %2$d קבצים</string>
+    <plurals name="tag_recovery_done">
+        <item quantity="one">השמירה של %1$d קובץ הושלמה</item>
+        <item quantity="two">השמירה של %1$d קבצים הושלמה</item>
+        <item quantity="other">השמירה של %1$d קבצים הושלמה</item>
+    </plurals>
+    <plurals name="tag_recovery_undone">
+        <item quantity="one">%1$d שמירה שנקטעה בוטלה; הקובץ חזר למצבו הקודם</item>
+        <item quantity="two">%1$d שמירות שנקטעו בוטלו; הקבצים חזרו למצבם הקודם</item>
+        <item quantity="other">%1$d שמירות שנקטעו בוטלו; הקבצים חזרו למצבם הקודם</item>
+    </plurals>
+    <plurals name="tag_recovery_left">
+        <item quantity="one">%1$d קובץ שונה באפליקציה אחרת ונשאר כפי שהוא</item>
+        <item quantity="two">%1$d קבצים שונו באפליקציה אחרת ונשארו כפי שהם</item>
+        <item quantity="other">%1$d קבצים שונו באפליקציה אחרת ונשארו כפי שהם</item>
+    </plurals>
+    <plurals name="tag_recovery_waiting">
+        <item quantity="one">עדיין לא ניתן להשלים %1$d קובץ. פרטים בהגדרות ← ספרייה.</item>
+        <item quantity="two">עדיין לא ניתן להשלים %1$d קבצים. פרטים בהגדרות ← ספרייה.</item>
+        <item quantity="other">עדיין לא ניתן להשלים %1$d קבצים. פרטים בהגדרות ← ספרייה.</item>
+    </plurals>
+    <string name="lyrics_not_found">לא נמצאו מילים לשיר הזה.</string>
+    <string name="cd_scroll_to_top">חזרה למעלה</string>
+    <string name="foryou_section_daypart_morning">הבקרים שלך</string>
+    <string name="foryou_section_daypart_day">הצהריים שלך</string>
+    <string name="foryou_section_daypart_evening">הערבים שלך</string>
+    <string name="foryou_section_daypart_night">הלילות שלך</string>
+    <string name="foryou_section_on_a_roll">תקופת ה־%1$s שלך</string>
+    <string name="foryou_section_wildcard">הפתעה</string>
+    <string name="foryou_caption_left_turn">תפנית מ־%1$s</string>
+    <string name="foryou_section_journey">מסע צלילים</string>
+    <string name="foryou_journey_title">מ"%1$s" אל "%2$s"</string>
+    <string name="settings_pages">עמודים</string>
+    <string name="settings_pages_subtitle">הצגה, סדר ועמוד פתיחה</string>
+    <string name="settings_pages_body">גוררים כדי לשנות את הסדר. אפשר לכבות עמודים שלא משתמשים בהם.</string>
+    <string name="settings_pages_last_visible">צריך להשאיר לפחות עמוד אחד פעיל.</string>
+    <string name="settings_page_position">מיקום %1$d מתוך %2$d</string>
+    <string name="settings_page_move_up">הזזת %1$s למעלה</string>
+    <string name="settings_page_move_down">הזזת %1$s למטה</string>
+    <string name="settings_pages_reset">איפוס העמודים</string>
+    <string name="settings_pages_reset_body">שחזור סדר ברירת המחדל, העמודים המוצגים ועמוד הפתיחה.</string>
+
+    <!-- Listening dashboard -->
+    <string name="stats_dashboard_title">ההאזנה שלך</string>
+    <string name="stats_recording_off">היסטוריית ההאזנה מושהית. הסטטיסטיקה שנשמרה עדיין כאן; האזנות חדשות לא יתווספו עד שההיסטוריה תופעל בהגדרות הפרטיות.</string>
+    <string name="stats_comparison_more">%1$s יותר מאשר ב־%2$d הימים הקודמים</string>
+    <string name="stats_comparison_less">%1$s פחות מאשר ב־%2$d הימים הקודמים</string>
+    <string name="stats_comparison_same">אותו זמן האזנה כמו ב־%1$d הימים הקודמים</string>
+    <string name="stats_comparison_first">לא הייתה האזנה ב־%1$d הימים הקודמים</string>
+    <string name="stats_under_minute">פחות מדקה</string>
+    <string name="stats_activity">הקצב היומי שלך</string>
+    <string name="stats_calendar_days">%1$d הימים האחרונים · זמן האזנה</string>
+    <string name="stats_today">היום</string>
+    <string name="stats_yesterday">אתמול</string>
+    <string name="stats_days_ago">לפני %1$d ימים</string>
+    <string name="stats_habits">הרגלי האזנה</string>
+    <string name="stats_active_days">ימים פעילים</string>
+    <string name="stats_new_tracks">חדשים בשבילך</string>
+    <string name="stats_habits_note">שירים חדשים הם האזנות ראשונות בהיסטוריה השמורה. הרצפים מחושבים על פני כל הזמן.</string>
+    <string name="stats_repeat_share">השמעות חוזרות</string>
+    <string name="stats_coverage">כמה מהספרייה נשמע</string>
+    <string name="stats_coverage_detail">%1$d מתוך %2$s הושמעו בתקופה הזו</string>
+    <string name="stats_smart_share">מצב SMART</string>
+    <string name="stats_smart_detail">שיעור ההשמעות שהתחילו כשערבוב SMART היה פעיל</string>
+    <string name="stats_listening_style">סגנון ההאזנה שלך</string>
+    <string name="stats_peak_hour">הכי הרבה השמעות בסביבות %1$s</string>
+    <string name="stats_average_active_day">ליום פעיל</string>
+    <string name="stats_recent_empty">עדיין אין האזנות בימים האלה.</string>
+    <string name="stats_history_note">מבוסס על ההיסטוריה השמורה; מתעדכן כששיר מסתיים או מתחלף. הדירוגים כוללים רק שירים שזמינים בספרייה.</string>
+    <string name="stats_chart_day_summary">%1$s: %2$s · %3$s</string>
+
+    <!-- Duplicate finder -->
+    <string name="duplicates_summary">קבוצות: %1$d · עותקים עודפים: %2$d · אפשר לפנות: %3$s</string>
+    <string name="duplicates_keep_recommended">שמירת העותקים המומלצים</string>
+    <string name="duplicates_keep_selected">שמירת העותק שנבחר</string>
+    <string name="duplicates_not_duplicates">לא כפילויות</string>
+    <string name="duplicates_recommended">מומלץ</string>
+    <string name="duplicates_hide_copy">הסתרת העותק הזה</string>
+    <string name="duplicates_hide_files">הסתרת שאר העותקים; הקבצים נשארים במכשיר</string>
+    <string name="duplicates_delete_files">מחיקת שאר הקבצים מהמכשיר</string>
+    <string name="duplicates_merge_all_confirm">העותק המומלץ יישמר בכל %1$d הקבוצות.</string>
+    <string name="duplicates_merge_confirm_body">הפלייליסטים והמועדפים יפנו לעותק שנשמר. שאר העותקים (%1$d):</string>
+    <string name="duplicates_reclaimable">אפשר לפנות %1$s</string>
+    <string name="duplicates_kbps">%1$d kbps</string>
+    <string name="unit_megabytes">%1$s MB</string>
+    <string name="snack_duplicates_dismissed">סומנו כהקלטות שונות</string>
+    <!-- Player: cover, track details, seek bar, mode button, output -->
+    <string name="cd_player_artwork">עטיפה. הקשה לפרטי השיר, לחיצה ארוכה לפעולות, החלקה הצידה להחלפת שיר, גרירה למטה לסגירה.</string>
+    <string name="details_title">פרטי השיר</string>
+    <string name="details_language">שפה</string>
+    <string name="details_format">פורמט</string>
+    <string name="details_file">קובץ</string>
+    <string name="details_plays">השמעות</string>
+    <string name="details_plays_none">עוד לא הושמע</string>
+    <string name="details_original_year">יצא לראשונה</string>
+    <string name="cd_details_close">חזרה לעטיפה</string>
+    <string name="player_mode_title">מצב השמעה</string>
+    <string name="player_mode_off">לפי הסדר</string>
+    <string name="player_mode_shuffle">ערבוב</string>
+    <string name="player_mode_smart">SMART</string>
+    <string name="cd_mode_button">מצב השמעה: %1$s. הקשה לשינוי, לחיצה ארוכה לבחירה.</string>
+    <string name="cd_seek_position">מיקום ההשמעה</string>
+    <string name="cd_time_toggle">מעבר בין הזמן שנותר לזמן הכולל</string>
+    <string name="seek_fine_half">מהירות ½</string>
+    <string name="seek_fine_quarter">מהירות ¼</string>
+    <string name="cd_skip_next_hold">השיר הבא. לחיצה ארוכה להרצה קדימה.</string>
+    <string name="cd_skip_previous_hold">השיר הקודם. לחיצה ארוכה להרצה אחורה.</string>
+    <string name="output_phone_speaker">רמקול הטלפון</string>
+    <string name="output_headphones">אוזניות</string>
+    <string name="output_bluetooth">Bluetooth</string>
+    <string name="cd_output_route">מתנגן ב־%1$s. הקשה לבחירת מכשיר ההשמעה.</string>
+    <string name="now_playing_next">הבא: %1$s</string>
+    <string name="output_title">יציאת שמע</string>
+    <string name="output_current">היציאה הנוכחית</string>
+    <string name="output_connect_device">חיבור מכשיר</string>
+    <string name="output_selection_failed">המכשיר לא זמין. כדאי לבדוק את החיבור.</string>
+    <string name="queue_reorder">שינוי מיקום השיר</string>
+    <string name="playlists_yours">הפלייליסטים שלך</string>
+    <string name="playlists_empty_body">אפשר ליצור פלייליסט או לייבא קובץ M3U כדי לשמור את המוזיקה שלך יחד.</string>
+    <string name="playlists_automatic">אוטומטיים</string>
+    <string name="settings_pages_order">סדר</string>
+    <string name="settings_opens_on_launch">נפתח בהפעלה</string>
+    <string name="settings_reorder_page">שינוי המיקום של %1$s</string>
+    <string name="settings_backup_subtitle">ייצוא או שחזור</string>
+    <string name="duplicates_groups">קבוצות</string>
+    <string name="duplicates_summary_title">קבוצות: %1$d · %2$s</string>
+    <string name="duplicates_summary_extra">עותקים עודפים: %1$d</string>
+    <string name="duplicates_copy_count">עותקים: %1$d</string>
+</resources>

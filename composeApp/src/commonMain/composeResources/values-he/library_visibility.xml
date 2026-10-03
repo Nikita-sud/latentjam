@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_remove_from_latentjam">הסרה מ־LatentJam</string>
+    <string name="action_undo">ביטול</string>
+    <string name="action_restore_hidden_tracks">שחזור שירים מוסתרים</string>
+    <string name="snack_removed_from_latentjam">הוסר מ־LatentJam. הקובץ בטלפון נשמר.</string>
+    <string name="snack_hidden_tracks_restored">השירים המוסתרים מוצגים שוב.</string>
+</resources>

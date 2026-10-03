@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_import_action">ייבוא מוזיקה</string>
+    <string name="library_import_hint">בחירת קובצי שמע מ"הורדות" או מתיקייה אחרת באפליקציית "קבצים".</string>
+    <plurals name="library_imported">
+        <item quantity="one">יובא %1$d שיר</item>
+        <item quantity="two">יובאו %1$d שירים</item>
+        <item quantity="other">יובאו %1$d שירים</item>
+    </plurals>
+    <string name="library_import_none">לא יובאו שירים חדשים.</string>
+    <string name="library_import_partial">יובאו: %1$d, דולגו: %2$d, נכשלו: %3$d</string>
+</resources>
