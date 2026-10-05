@@ -12,9 +12,14 @@ around it. Grids:
               once per window (conv_head 960 -> 1280 after pooling, and the projection), e.g. lq4c+sq4b32
     hsq4c, hsq4b32  the same on Walsh-Hadamard-rotated groups of 32 inputs (worse after training)
     cqBgG     Cactus CQ: rotated groups of G, Lloyd-Max codebook of B bits, fp16 group norms
+    pNN_cfg   pruned first: every inverted-residual block keeps NN % of its expanded channels and conv_head
+              NN % of its hidden units (the largest mean activation on 64 training windows times the norm
+              of the weights that read them, a multiple of 16; the choice goes to prune_<cfg>.json, which
+              the export reads), then cfg's grids
 
-Validation cosine to the teacher after 12 epochs: lq4c+sq4b32 0.9989 (shipped), sq4b32 0.9989, sq4c+sq4b32
-0.9986, lq4c 0.9987, sq4c 0.9980.
+Validation cosine to the teacher after 12 epochs: lq4c+sq4b32 0.9989, sq4b32 0.9989, sq4c+sq4b32 0.9986,
+lq4c 0.9987, sq4c 0.9980. Pruned, after 20 epochs: p50_lq4c+sq4b32 0.9892, p38_ 0.9833, p25_ 0.9707; after 40,
+p50_ 0.9903 (shipped) and p38_ 0.9852.
 
     python qat_audio.py train 12 lq4c+sq4b32     # on a GPU, after fetch_fma.py
     python qat_audio.py export lq4c+sq4b32 qat_lq4c+sq4b32_best.pt   # out/mnv4_qat_lq4c+sq4b32.onnx, for
@@ -285,12 +290,103 @@ def load_backbone():
     return net, name
 
 
-def make_student(base, proj_name, cfg):
+def split_prune(cfg):
+    """"p50_lq4c+sq4b32" -> (0.5, "lq4c+sq4b32"): keep half of every expansion and of the head's hidden layer."""
+    if cfg.startswith("p") and "_" in cfg:
+        keep, rest = cfg[1:].split("_", 1)
+        return int(keep) / 100, rest
+    return None, cfg
+
+
+def expansions(st):
+    """Every inverted-residual block's (expansion, middle depthwise or None, projection) convolution names."""
+    convs = {n for n, m in st.named_modules() if isinstance(m, nn.Conv2d)}
+    out = []
+    for n in sorted(convs):
+        if n.endswith("/pw_exp/conv/Conv"):
+            prefix = n[:-len("pw_exp/conv/Conv")]
+            mid = prefix + "dw_mid/conv/Conv"
+            out.append((n, mid if mid in convs else None, prefix + "pw_proj/conv/Conv"))
+    return out
+
+
+HEAD_CONV = "encoder/backbone/conv_head/Conv"
+
+
+@torch.no_grad()
+def prune_indices(st, proj_name, keep, mel):
+    """Which expanded channels (and hidden head units) to keep: the largest mean ReLU activation on the
+    calibration log-mels times the L2 norm of the projection weights that read the channel; a multiple of 16."""
+    mods = dict(st.named_modules())
+    sums, hooks = {}, []
+
+    def watch(name):
+        def hook(_, __, out):
+            sums[name] = sums.get(name, 0) + F.relu(out.float()).mean((0, 2, 3)).cpu()
+        hooks.append(mods[name].register_forward_hook(hook))
+
+    blocks = expansions(st)
+    for exp, mid, _ in blocks:
+        watch(mid or exp)
+    watch(HEAD_CONV)
+    for b in range(0, len(mel), 8):
+        st(mel[b:b + 8])
+    for h in hooks:
+        h.remove()
+    keep_n = lambda n: max(16, int(round(n * keep / 16)) * 16)
+    out = {}
+    for exp, mid, proj in blocks:
+        score = sums[mid or exp] * mods[proj].weight.detach().float().cpu()[:, :, 0, 0].norm(dim=0)
+        out[exp] = sorted(score.topk(keep_n(len(score))).indices.tolist())
+    head = sums[HEAD_CONV] * getattr(st.initializers, proj_name).detach().float().cpu().norm(dim=1)
+    out[HEAD_CONV] = sorted(head.topk(keep_n(len(head))).indices.tolist())
+    return out
+
+
+def shrink(conv, rows=None, cols=None):
+    """A copy of `conv` with output channels `rows` and (for a dense convolution) input channels `cols`."""
+    w = conv.weight.detach()
+    b = None if conv.bias is None else conv.bias.detach()
+    if rows is not None:
+        w, b = w[rows], (None if b is None else b[rows])
+    depthwise = conv.groups > 1
+    if cols is not None and not depthwise:
+        w = w[:, cols]
+    out_ch = w.shape[0]
+    new = nn.Conv2d(out_ch if depthwise else w.shape[1], out_ch, conv.kernel_size, conv.stride, conv.padding,
+                    conv.dilation, groups=out_ch if depthwise else 1, bias=b is not None, padding_mode=conv.padding_mode)
+    new.weight.data.copy_(w)
+    if b is not None:
+        new.bias.data.copy_(b)
+    return new
+
+
+def prune(st, proj_name, indices):
+    """Applies prune_indices' choice in place: expansions, their depthwise convolutions and projections shrink."""
+    mods = dict(st.named_modules())
+    for exp, mid, proj in expansions(st):
+        idx = torch.tensor(indices[exp])
+        setattr(st, exp, shrink(mods[exp], rows=idx))
+        if mid:
+            setattr(st, mid, shrink(mods[mid], rows=idx))
+        setattr(st, proj, shrink(mods[proj], cols=idx))
+    idx = torch.tensor(indices[HEAD_CONV])
+    setattr(st, HEAD_CONV, shrink(mods[HEAD_CONV], rows=idx))
+    w = getattr(st.initializers, proj_name).detach()
+    delattr(st.initializers, proj_name)
+    st.initializers.register_parameter(proj_name, nn.Parameter(w[idx].clone()))
+    return st
+
+
+def make_student(base, proj_name, cfg, indices=None):
+    keep, cfg = split_prune(cfg)
     spatial, head = cfg.split("+") if "+" in cfg else (cfg, cfg)
     st = copy.deepcopy(base)
+    if keep is not None:
+        prune(st, proj_name, indices)
     for mod in st.modules():
         if isinstance(mod, nn.Conv2d) and mod.kernel_size == (1, 1):
-            once = (mod.in_channels, mod.out_channels) == (960, 1280)   # conv_head, after global pooling
+            once = mod is getattr(st, HEAD_CONV)                        # conv_head, after global pooling
             P.register_parametrization(mod, "weight", quantizer(head if once else spatial, mod.weight))
     # MatMul x @ W with W [in=1280, out=960]: groups run along the input axis, i.e. W's rows.
     proj = getattr(st.initializers, proj_name)
@@ -326,7 +422,8 @@ def param_to_initializer(net, proj_name):
 def export(cfg, state_path, out_dir="out"):
     base, proj_name = load_backbone()
     mapping = param_to_initializer(base, proj_name)
-    st = make_student(base, proj_name, cfg)
+    indices = json.load(open(f"prune_{cfg}.json")) if split_prune(cfg)[0] is not None else None
+    st = make_student(base, proj_name, cfg, indices)
     st.load_state_dict(torch.load(state_path, map_location="cpu"))
     st.eval()
     values = {}
@@ -342,6 +439,14 @@ def export(cfg, state_path, out_dir="out"):
     index = {t.name: i for i, t in enumerate(model.graph.initializer)}
     for init, a in values.items():
         model.graph.initializer[index[init]].CopyFrom(numpy_helper.from_array(a, init))
+    if indices is not None:  # pruned: depthwise convolutions take their new channel count, shapes are re-inferred
+        shapes = {t.name: list(t.dims) for t in model.graph.initializer}
+        for node in model.graph.node:
+            if node.op_type == "Conv":
+                for a in node.attribute:
+                    if a.name == "group" and a.i > 1:
+                        a.i = shapes[node.input[1]][0]
+        del model.graph.value_info[:]
     os.makedirs(out_dir, exist_ok=True)
     path = f"{out_dir}/mnv4_qat_{cfg}.onnx"
     onnx.save(model, path)
@@ -369,9 +474,21 @@ def train(epochs, cfgs):
         p.requires_grad_(False)
     steps_per_epoch = len(tr_idx) // BS
     total = MAXSTEPS or epochs * steps_per_epoch
+    calib = None
     students = {}
     for cfg in cfgs:
-        st = make_student(base, proj_name, cfg).to(dev).train()
+        indices = None
+        keep = split_prune(cfg)[0]
+        if keep is not None:  # choose the channels on 64 training windows, keep the choice for the export
+            if calib is None:
+                r = np.random.default_rng(2)
+                rows = r.choice(tr_idx, min(64, len(tr_idx)), replace=False)
+                crops = np.stack([W[i, (o := int(r.integers(0, int(lens[i]) - WIN + 1))):o + WIN] for i in rows])
+                with torch.no_grad():
+                    calib = fe(torch.from_numpy(crops).to(dev).float() / 32767.0)
+            indices = prune_indices(teacher, proj_name, keep, calib)
+            json.dump(indices, open(f"prune_{cfg}.json", "w"))
+        st = make_student(base, proj_name, cfg, indices).to(dev).train()
         opt = torch.optim.AdamW(st.parameters(), lr=LR, weight_decay=0.0)
         sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=LR, total_steps=total, pct_start=0.05)
         students[cfg] = dict(model=st, opt=opt, sched=sched, best=-1.0, hist=[],
