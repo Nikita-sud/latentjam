@@ -18,11 +18,29 @@ import ai.onnxruntime.OrtSession
  * 80 MiB that way and the scorer 18 MiB; without the arena they hold 15 MiB and 2 MiB, outputs are
  * bit-identical and warm runs as fast (only a session's first run takes 3–20 ms longer).
  */
-internal fun createOrtSession(model: ByteArray): OrtSession =
+internal fun createOrtSession(model: ByteArray, operators: Boolean = false): OrtSession =
     OrtSession.SessionOptions().use { options ->
         options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
         options.setIntraOpNumThreads(1)
         options.setInterOpNumThreads(1)
         options.setCPUArenaAllocator(false)
+        if (operators) OrtOperators.register(options)
         OrtEnvironment.getEnvironment().createSession(model, options)
     }
+
+/**
+ * LatentJam's own operators (libljq4, module :core:ort-ops): the music encoder's 4-bit pointwise
+ * convolutions. The library is loaded once for the life of the process; the runtime then opens it again by
+ * name, which finds that loaded copy, so closing the options (which closes the runtime's handle) never
+ * unloads code a session still calls.
+ */
+internal object OrtOperators {
+    private val loaded: Boolean by lazy { runCatching { System.loadLibrary(LIBRARY) }.isSuccess }
+
+    fun register(options: OrtSession.SessionOptions) {
+        check(loaded) { "lib$LIBRARY.so is missing for this CPU architecture" }
+        options.registerCustomOpLibrary("lib$LIBRARY.so")
+    }
+
+    private const val LIBRARY = "ljq4"
+}

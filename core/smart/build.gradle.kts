@@ -42,6 +42,7 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.onnxruntime.android)
+            implementation(project(":core:ort-ops"))
         }
         getByName("androidDeviceTest").dependencies {
             implementation(libs.androidx.annotation)

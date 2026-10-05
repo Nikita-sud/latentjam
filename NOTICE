@@ -5,7 +5,10 @@ Licensed under the Apache License, Version 2.0.
 See the LICENSE file in the root of this repository.
 
 This source tree is original work, written from scratch under the Apache
-License, Version 2.0.
+License, Version 2.0, except the third-party sources vendored under
+core/ort-ops/src/main/cpp/vendor/: kernels from Arm KleidiAI (Apache-2.0,
+Copyright 2024-2026 Arm Limited and/or its affiliates) and ONNX Runtime's C API
+headers (MIT, Copyright (c) Microsoft Corporation), each with its licence.
 
 The ML model weights under androidApp/src/main/assets/ml/ and iosApp/iosApp/ml/
 are distributed under permissive licences. See the LICENSE-MODEL.txt file

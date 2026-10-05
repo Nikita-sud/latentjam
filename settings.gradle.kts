@@ -38,6 +38,7 @@ dependencyResolutionManagement {
 rootProject.name = "latentjam-monorepo"
 
 include(":core:smart")
+include(":core:ort-ops")
 include(":core:library")
 include(":core:playback")
 include(":core:history")

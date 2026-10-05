@@ -511,6 +511,8 @@ private final class OrtRuntime {
         // session's lifetime (about 80 MiB for an idle music encoder, 18 MiB for the scorer,
         // measured on Android); without it outputs are identical and warm runs as fast.
         try Self.check(api, api.pointee.DisableCpuMemArena(options))
+        // LatentJam's own operators: the music encoder's 4-bit pointwise convolutions (core/ort-ops).
+        try Self.check(api, LjRegisterOrtOps(options, OrtGetApiBase()))
         var session: OpaquePointer?
         try path.withCString {
             try Self.check(api, api.pointee.CreateSession(environment, $0, options, &session))

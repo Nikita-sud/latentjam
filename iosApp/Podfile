@@ -5,4 +5,6 @@ use_frameworks! :linkage => :static
 target 'iosApp' do
   project 'iosApp.xcodeproj'
   pod 'onnxruntime-c', '1.26.0'
+  # LatentJam's own operators (the music encoder's 4-bit convolutions), built from source.
+  pod 'LatentJamOrtOps', :path => '../core/ort-ops'
 end
