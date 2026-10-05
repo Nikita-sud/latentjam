@@ -10,6 +10,7 @@ import ai.onnxruntime.OrtSession
 import android.content.Context
 import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.SmartEngineException
+import io.github.nikitasud.latentjam.smart.createOrtSession
 import java.nio.FloatBuffer
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -37,20 +38,8 @@ internal class OnnxPredictorRuntime(
             return Result.success(Unit)
         }
         return try {
-            val environment = OrtEnvironment.getEnvironment()
-            OrtSession.SessionOptions().use { options ->
-                options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
-                options.setIntraOpNumThreads(1)
-                options.setInterOpNumThreads(1)
-                stateSession = environment.createSession(
-                    context.assets.open(stateAsset).use { it.readBytes() },
-                    options,
-                )
-                scorerSession = environment.createSession(
-                    context.assets.open(scorerAsset).use { it.readBytes() },
-                    options,
-                )
-            }
+            stateSession = createOrtSession(context.assets.open(stateAsset).use { it.readBytes() })
+            scorerSession = createOrtSession(context.assets.open(scorerAsset).use { it.readBytes() })
             Result.success(Unit)
         } catch (t: Throwable) {
             close()

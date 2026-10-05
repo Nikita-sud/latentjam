@@ -497,6 +497,10 @@ private final class OrtRuntime {
         // occupying the cores Core Animation needs while the listener browses the library.
         try Self.check(api, api.pointee.SetIntraOpNumThreads(options, 1))
         try Self.check(api, api.pointee.SetInterOpNumThreads(options, 1))
+        // No CPU memory arena: it keeps every activation buffer a graph has ever needed for the
+        // session's lifetime (about 80 MiB for an idle music encoder, 18 MiB for the scorer,
+        // measured on Android); without it outputs are identical and warm runs as fast.
+        try Self.check(api, api.pointee.DisableCpuMemArena(options))
         var session: OpaquePointer?
         try path.withCString {
             try Self.check(api, api.pointee.CreateSession(environment, $0, options, &session))

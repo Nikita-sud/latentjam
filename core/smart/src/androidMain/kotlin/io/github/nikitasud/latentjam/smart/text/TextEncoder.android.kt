@@ -10,6 +10,7 @@ import ai.onnxruntime.OrtSession
 import android.content.Context
 import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.SmartEngineException
+import io.github.nikitasud.latentjam.smart.createOrtSession
 import java.io.InputStream
 import java.nio.LongBuffer
 import kotlin.math.sqrt
@@ -41,13 +42,7 @@ internal class OnnxTextEncoder(
             tokenizer = openVocab().bufferedReader(Charsets.UTF_8).useLines {
                 BertWordPieceTokenizer(BertWordPieceTokenizer.parseVocab(it), maxLen = TextEncoder.MAX_TOKENS)
             }
-            session = OrtSession.SessionOptions().use { options ->
-                options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
-                options.setIntraOpNumThreads(1)
-                options.setInterOpNumThreads(1)
-                OrtEnvironment.getEnvironment()
-                    .createSession(openModel().use { it.readBytes() }, options)
-            }
+            session = createOrtSession(openModel().use { it.readBytes() })
             Result.success(Unit)
         } catch (t: Throwable) {
             close()

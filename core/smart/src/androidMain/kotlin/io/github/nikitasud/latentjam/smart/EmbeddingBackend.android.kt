@@ -54,12 +54,7 @@ internal class OnnxEmbeddingBackend(
         return try {
             val assetPath = config.modelLocator ?: DEFAULT_ASSET_PATH
             val modelBytes = context.assets.open(assetPath).use { it.readBytes() }
-            session = OrtSession.SessionOptions().use { options ->
-                options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
-                options.setIntraOpNumThreads(1)
-                options.setInterOpNumThreads(1)
-                OrtEnvironment.getEnvironment().createSession(modelBytes, options)
-            }
+            session = createOrtSession(modelBytes)
             Result.success(Unit)
         } catch (t: Throwable) {
             Result.failure(
@@ -74,12 +69,7 @@ internal class OnnxEmbeddingBackend(
         if (semanticSession != null) return Result.success(Unit)
         return try {
             val semanticBytes = context.assets.open(SEMANTIC_ASSET_PATH).use { it.readBytes() }
-            semanticSession = OrtSession.SessionOptions().use { options ->
-                options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
-                options.setIntraOpNumThreads(1)
-                options.setInterOpNumThreads(1)
-                OrtEnvironment.getEnvironment().createSession(semanticBytes, options)
-            }
+            semanticSession = createOrtSession(semanticBytes)
             Result.success(Unit)
         } catch (failure: Throwable) {
             Result.failure(
