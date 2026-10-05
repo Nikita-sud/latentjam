@@ -33,7 +33,10 @@ import kotlin.random.Random
  * native_kb=…`, warm time the median of [REPEATS] runs, native_kb the native heap the session holds.
  *
  * Instrumentation arguments `arena=false` and `pattern=false` turn off ONNX Runtime's CPU memory arena
- * and memory-pattern planning, to weigh what an idle session keeps between runs.
+ * and memory-pattern planning, to weigh what an idle session keeps between runs; `profile=true` writes
+ * ONNX Runtime's per-node profile of the reported round to `files/bench-profiles/<bundle>-<asset>*.json`.
+ * A bundle holding `libljq4.so` registers that custom-operator library with each of its sessions;
+ * `dump=true` writes each graph's first output to `files/bench-outputs/<bundle>-<asset>.f32` (little endian).
  */
 class ModelBenchmarkDeviceTest {
 
@@ -47,12 +50,21 @@ class ModelBenchmarkDeviceTest {
         val arguments = InstrumentationRegistry.getArguments()
         arena = arguments.getString("arena") != "false"
         pattern = arguments.getString("pattern") != "false"
+        val profiles = File(context.filesDir, "bench-profiles").takeIf { arguments.getString("profile") == "true" }
+        profiles?.mkdirs()
+        outputs = File(context.filesDir, "bench-outputs").takeIf { arguments.getString("dump") == "true" }
+        outputs?.mkdirs()
         repeat(2) { round -> // round 0 warms the process (JIT, allocator); round 1 is reported
             for (bundle in bundles) {
                 for ((asset, feeds) in graphs()) {
                     val file = File(bundle, asset)
                     if (!file.isFile) continue
-                    val result = measureGraph(environment, file.readBytes(), feeds)
+                    val profile = profiles?.takeIf { round == 1 }?.let { File(it, "${bundle.name}-$asset").path }
+                    // A bundle's own build of the library wins; a bundle marked "ops" uses the one the app ships.
+                    val operators = File(bundle, "libljq4.so").takeIf { it.isFile }?.path
+                        ?: "libljq4.so".takeIf { File(bundle, "ops").isFile }
+                    dumpTo = outputs?.takeIf { round == 1 }?.let { File(it, "${bundle.name}-$asset.f32") }
+                    val result = measureGraph(environment, file.readBytes(), feeds, profile, operators)
                     if (round == 1) report(bundle.name, asset, result)
                 }
                 if (round == 1) measureTables(bundle)
@@ -62,21 +74,32 @@ class ModelBenchmarkDeviceTest {
 
     private var arena = true
     private var pattern = true
+    private var outputs: File? = null
+    private var dumpTo: File? = null
 
     private class Measured(val loadMs: Double, val firstMs: Double, val warmUs: Long, val nativeKb: Long, val checksum: Long)
 
-    private fun measureGraph(environment: OrtEnvironment, bytes: ByteArray, feeds: (OrtEnvironment) -> Map<String, OnnxTensor>): Measured {
+    private fun measureGraph(
+        environment: OrtEnvironment,
+        bytes: ByteArray,
+        feeds: (OrtEnvironment) -> Map<String, OnnxTensor>,
+        profile: String?,
+        operators: String?,
+    ): Measured {
         System.gc()
         val before = Debug.getNativeHeapAllocatedSize()
         val loadStarted = System.nanoTime()
-        val session = OrtSession.SessionOptions().use { options ->
-            options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
-            options.setIntraOpNumThreads(1)
-            options.setInterOpNumThreads(1)
-            options.setCPUArenaAllocator(arena)
-            options.setMemoryPatternOptimization(pattern)
-            environment.createSession(bytes, options)
-        }
+        // The options stay open while the session runs: closing them unloads a registered operator library.
+        val options = OrtSession.SessionOptions()
+        options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
+        options.setIntraOpNumThreads(1)
+        options.setInterOpNumThreads(1)
+        options.setCPUArenaAllocator(arena)
+        options.setMemoryPatternOptimization(pattern)
+        if (profile != null) options.enableProfiling(profile)
+        if (operators == "libljq4.so") OrtOperators.register(options)
+        else if (operators != null) options.registerCustomOpLibrary(operators)
+        val session = environment.createSession(bytes, options)
         val loadMs = (System.nanoTime() - loadStarted) / 1e6
         val inputs = feeds(environment)
         val firstStarted = System.nanoTime()
@@ -88,14 +111,22 @@ class ModelBenchmarkDeviceTest {
             (System.nanoTime() - started) / 1000
         }
         val nativeKb = (Debug.getNativeHeapAllocatedSize() - before) / 1024
+        if (profile != null) session.endProfiling()
         inputs.values.forEach(OnnxTensor::close)
         session.close()
+        options.close()
         times.sort()
         return Measured(loadMs, firstMs, times[REPEATS / 2], nativeKb, checksum)
     }
 
     /** CRC-32 over the raw bits of every float output, to show that a setting leaves results unchanged. */
     private fun checksum(result: OrtSession.Result): Long {
+        dumpTo?.let { file ->
+            val floats = (result.get(0) as OnnxTensor).floatBuffer
+            val bytes = java.nio.ByteBuffer.allocate(floats.remaining() * 4).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            bytes.asFloatBuffer().put(floats)
+            file.writeBytes(bytes.array())
+        }
         val crc = CRC32()
         for ((_, value) in result) {
             val floats = (value as? OnnxTensor)?.floatBuffer ?: continue
