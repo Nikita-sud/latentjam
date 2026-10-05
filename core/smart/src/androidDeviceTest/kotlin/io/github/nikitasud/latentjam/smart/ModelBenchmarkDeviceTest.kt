@@ -36,7 +36,8 @@ import kotlin.random.Random
  * and memory-pattern planning, to weigh what an idle session keeps between runs; `profile=true` writes
  * ONNX Runtime's per-node profile of the reported round to `files/bench-profiles/<bundle>-<asset>*.json`.
  * A bundle holding `libljq4.so` registers that custom-operator library with each of its sessions;
- * `dump=true` writes each graph's first output to `files/bench-outputs/<bundle>-<asset>.f32` (little endian).
+ * `dump=true` writes each graph's first output to `files/bench-outputs/<bundle>-<asset>.f32` (little endian);
+ * `ljq4=dotprod` or `ljq4=portable` forces that kernel path of the 4-bit operator.
  */
 class ModelBenchmarkDeviceTest {
 
@@ -54,6 +55,7 @@ class ModelBenchmarkDeviceTest {
         profiles?.mkdirs()
         outputs = File(context.filesDir, "bench-outputs").takeIf { arguments.getString("dump") == "true" }
         outputs?.mkdirs()
+        arguments.getString("ljq4")?.let { android.system.Os.setenv("LJ_Q4_PATH", it, true) }
         repeat(2) { round -> // round 0 warms the process (JIT, allocator); round 1 is reported
             for (bundle in bundles) {
                 for ((asset, feeds) in graphs()) {
