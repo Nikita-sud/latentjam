@@ -10,9 +10,9 @@ the bundle report, which lives outside the repository with the evaluation librar
 | `music_entities_250k.bin` | `../compact_music_entities.py` | LJENT3: same keys and ids as LJENT2, 40-bit keys, varint ids (lossless) |
 | `artist_knowledge.bin` | `../compact_knowledge_pack.py` | version 3: only the confident records the app reads (lossless) |
 | `artist_adapter.bin` | `../compact_artist_adapter.py` | LJADPT v2: 4-bit CQ (Walsh–Hadamard-rotated groups, Lloyd-Max codebook) |
-| `predictor_scorer_n100.onnx`, `predictor_state.onnx`, `universal_semantic_head.onnx` | `qat_nets.py` then `to_stock.py` | 4-bit MatMulNBits (stock ONNX Runtime), quantization-aware distillation |
+| `predictor_scorer_n100.onnx`, `predictor_state.onnx`, `universal_semantic_head.onnx` | `qat_nets.py` (the SMART nets with `--student-features`, to read the pruned encoder) then `to_stock.py` | 4-bit MatMulNBits (stock ONNX Runtime), quantization-aware distillation |
 | `text_encoder.onnx` | `to_stock.py` on the shipped student (embeddings only) | 4-bit GatherBlockQuantized embeddings + the INT8 layers |
-| `mnv4_audio.onnx` | `qat_audio.py` then `make_q4_encoder.py` | pointwise convolutions and projection: symmetric 4-bit on `latentjam.Q4Conv1x1` (core/ort-ops), a learned-clipping scale per output channel for the 44 over time and frequency, bf16 scales per block of 32 for the two that run once per window; the rest INT8 as before |
+| `mnv4_audio.onnx` | `qat_audio.py` (`p50_lq4c+sq4b32`: pruned to half its expanded channels) then `make_q4_encoder.py` | pointwise convolutions and projection: symmetric 4-bit on `latentjam.Q4Conv1x1` (core/ort-ops), a learned-clipping scale per output channel for the 44 over time and frequency, bf16 scales per block of 32 for the two that run once per window; the rest INT8 as before |
 
 ## Pipeline for the networks
 
@@ -41,12 +41,22 @@ everything else in INT8.
 
 1. `qat_audio.py` trains the 4-bit weights against the float encoder (lq4c+sq4b32: a scale per channel,
    whose kernel is as fast as INT8 on a phone, with a clipping range learned per channel; blocks of 32 for
-   conv_head and the projection, which run once per window).
+   conv_head and the projection, which run once per window). A `pNN_` prefix prunes first: each inverted-
+   residual block keeps NN % of its expanded channels and conv_head NN % of its hidden units, those with the
+   largest mean activation on 64 training windows times the norm of the weights that read them (a multiple of
+   16, written to `prune_<cfg>.json` for the export). The shipped encoder is `p50_lq4c+sq4b32` after 40
+   epochs on the Free Music Archive tracks under CC BY, CC0 or public domain (no share-alike or
+   no-derivatives licence): the id list replaces `commercial_ids.txt` before `fetch_fma.py`.
 2. `make_q4_encoder.py` quantizes the rest to INT8 as before, lets ONNX Runtime lay the graph out NHWC, and
    swaps the 46 pointwise layers for the operator; `q4pack.py` packs the weights exactly as KleidiAI's
    packer does (checked byte for byte).
 3. The app registers the operator: Android loads `libljq4.so` (built by Gradle with CMake) and registers it
    by name; iOS links the `LatentJamOrtOps` pod and calls `LjRegisterOrtOps`.
+
+A new encoder changes the space the SMART nets read. `qat_nets.py --student-features <the new bundle's
+features>` retrains them on the same recordings with every music vector moved into the new space (tracks row
+for row, the history means through a least-squares map), against the FP32 nets' outputs on the originals.
+The model version then changes (`AppGraph.kt`, `embedding_version.txt`) and the app re-indexes the library.
 
 On a phone, `core/smart/src/androidDeviceTest/.../ModelBenchmarkDeviceTest.kt` times and weighs bundles
 pushed into the test package's own files (`files/bench/<name>/`), never touching the installed app.
@@ -67,3 +77,9 @@ pushed into the test package's own files (`files/bench/<name>/`), never touching
   the graph needs the ranges the training learned; with the converter's own calibration it falls to 0.956.
 - Walsh-Hadamard rotation before 4-bit rounding: helps before training, hurts after it (val cos 0.9971
   rotated against 0.9989 plain, blocks of 32).
+- EfficientAT students (`student_audio.py`: mn05 / mn10, MobileNetV3) in place of the encoder: their
+  hard-swish and squeeze-excitation layers do not survive the graph's uint8 activations (owner library vectors
+  at cosine 0.912 to the teacher for mn10, 4.7 MB); ReLU and no squeeze-excitation reach 0.965 (mn10, 3.0 MB)
+  and 0.952 (mn05, 1.4 MB), against 0.989 for the pruned encoder at 3.35 MB.
+- Pruning deeper than half: keeping 38 % or 25 % of the expanded channels (2.72 / 2.06 MB) puts the vectors at
+  cosine 0.981 / 0.969 to the teacher, against 0.987 for half after the same 20 epochs.

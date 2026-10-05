@@ -247,6 +247,64 @@ Apache-2.0 app):
 Gate: end-to-end metrics better than today at clearly smaller size. Adopting it triggers the one
 re-index.
 
+*Phase 3, first round (2026-10-05): a smaller music encoder, as good as today's, not yet better.* The
+owner allowed the re-index ("backward compatibility does not matter, it is a beta") and asked for an
+architecture that stays cheap on phones: hard-swish and squeeze-excitation are why MNv4 replaced the
+EfficientAT students in the first place. Every student below learned from the shipped encoder on 8,222
+Free Music Archive tracks under CC BY, CC0 or public domain only (no share-alike, no no-derivatives).
+
+- **EfficientAT students: rejected.** mn10 and mn05 (MobileNetV3: hard-swish, squeeze-excitation)
+  distil well in float (the owner library's vectors at cosine 0.986 to the teacher for mn10), but the
+  deployed graph's uint8 activations break them: 0.912 (mn10, 4.7 MB),
+  0.965 and 0.952 with ReLU in place of hard-swish and without squeeze-excitation (mn10 3.0 MB, mn05
+  1.4 MB), against 0.997 for the shipped graph; the head's top genre agrees 68–84 % of the time.
+- **Pruned MNv4: kept.** Structured pruning keeps, in each of the 21 inverted-residual blocks and in the
+  head convolution's hidden layer, the channels with the largest mean activation on calibration audio
+  times the norm of the weights that read them, a multiple of 16; the pruned network is then trained by
+  quantization-aware distillation in the shipped format (`qat_audio.py train 20 p50_lq4c+sq4b32`, one
+  pod). Keeping 25 / 38 / 50 %: 2.06 / 2.72 / 3.35 MB, the owner library's vectors at cosine 0.969 /
+  0.981 / 0.987 to the teacher; half with 40 epochs instead of 20 reaches 0.989 (shipped).
+- **SMART nets moved to the new space (plan B).** `qat_nets.py --student-features` feeds the nets the
+  recorded MPD chain inputs with each track's vector replaced by the new encoder's (the four latest tracks
+  by row, the history means through a least-squares linear map) and trains them on the FP32 nets' outputs
+  for the original inputs; `to_stock.py` then writes the same MatMulNBits files as phase 1 (state net
+  cosine 0.9978, scorer top-10 overlap 94.3 % against the FP32 nets).
+- **Bundle report** (`phase3-p50-40-planb`): six MPD ΔP@10 −0.11 [−0.60, +0.36], owner cold +0.44
+  [−0.60, +1.43], owner history +0.02 [−0.43, +0.46] over 1,073 seeds (phase 2 on the same seeds −0.26
+  [−0.66, +0.11]); text search unchanged. The head gate as written fails (top genre agreement with the
+  float teacher's labels 97.4 → 94.4 %), and that gate cannot pass for any new encoder: it measures the
+  distance to the old vectors. Against real genres (`report/head_accuracy.py`: the 800 FMA-small test
+  tracks, eight broad genres, the head's product outputs, paired bootstrap) the head reads the new encoder
+  as well as 0.7.1's: top-1 55.2 → 55.8 % (+0.5 [−0.9, +1.9]), macro AP 61.3 → 61.5 % (+0.1 [−0.7,
+  +0.9]), largest mean shift of the 27 outputs 0.009 (phase 2: −0.1 pp, +0.1 pp, 0.005). **Head gate for
+  an encoder that re-indexes:** accuracy and macro AP against real genres not significantly worse, and no
+  output's mean moving more than 0.10; agreement with the teacher's labels stays the gate for changes that
+  keep the vector space.
+- **Duplicate finder** (cosine ≥ 0.99, durations within 2 s): over the seven libraries the new encoder
+  finds the same 13 pairs as 0.7.1 (re-releases, edits, featured versions of one song, at ≥ 0.996) plus
+  one more remix at 0.991, on 30 s previews where the duration check cannot help; different songs stay at
+  ≤ 0.985 with both encoders. The threshold stays.
+- **Size and speed:** bundle 25.1 MB in memory (0.7.1: 50.0), 21.9 MB in the APK (40.9); the encoder 3.35
+  / 2.61 MB (phase 2: 5.93 / 4.82). Mac, one thread: 13.7 ms per window against 19.4 ms.
+- **The operator's kernel paths, bit for bit.** On the pruned encoder the emulator's `OrtOperatorsDeviceTest`
+  failed: the NEON path's embedding sat at cosine 0.9994 to the i8mm and dotprod paths'. One output of block
+  2.0's expansion was exactly half a step between two values; KleidiAI multiplies the two scales first and
+  rounded it up, the operator's own code multiplied them in turn and rounded it down, and the step grew
+  through the network. The operator's own code (NEON, SSSE3, the plain loop) now repeats KleidiAI's float
+  steps for both formats, so every path writes the same bytes on both encoders, and `ljq4_test` checks
+  that on layers of the encoder's size (the old code fails it).
+- **In the app** (branch `feat/model-diet`): model version `mnv4-960-retrieval-distill-v1-p50q4`, so the
+  first launch re-indexes the library; `predictor_version.txt` `scoring-semtext-v1-nbits4-p50q4`. Release
+  APKs with the reduced runtime: arm64 38,240,995 bytes (phase 2: 40,452,127; 0.7.1: 56,808,169), armv7
+  45,733,019. The reduced runtime needs no new operators (rebuilt for the new model hashes; against stock
+  1.26.0, 47,047 floats bit for bit on the emulator). Emulator device tests, host tests and the iOS
+  simulator smoke pass (footprint 142 MB, phase 2 152 MB). Still open: timing on the phone.
+
+Better, not only smaller, needs more than the shipped encoder as a teacher: a student distilled from it
+can at best match it. Next candidates: fine-tuning the pruned encoder on playlist co-occurrence
+(InfoNCE, `train_audio_retrieval_student.py`'s objective) or a stronger offline teacher whose licence
+allows distillation.
+
 **4. Integration (1–2 days).** A branch with the new assets and the operator, `modelVersion` bump if
 phase 3 lands, parity fixtures and device tests updated, APK size measured per ABI, and an F-Droid
 build check (the operator builds from source with CMake). Merging stays the owner's call.
