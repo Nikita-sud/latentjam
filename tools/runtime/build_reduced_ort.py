@@ -38,6 +38,8 @@ def main():
     parser.add_argument("--stock-aar", type=Path, required=True)
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument("--native-build-dir", type=Path)
+    parser.add_argument("--custom-op-library", type=Path, required=True,
+                        help="libljq4 built for this host (core/ort-ops), to load the models that use it")
     args = parser.parse_args()
     import onnx
     import onnxruntime as ort
@@ -65,10 +67,11 @@ def main():
     # discover fused kernels that are absent from the source graph inventory.
     converted = output / "converted"
     run([sys.executable, "-m", "onnxruntime.tools.convert_onnx_models_to_ort",
-         models[0].parent, "--output_dir", converted,
+         models[0].parent, "--output_dir", converted, "--custom_op_library", args.custom_op_library.resolve(),
          "--optimization_style", "Fixed", "--target_platform", "arm",
          "--enable_type_reduction"])
     ops, _ = parse_config(str(converted / "required_operators_and_types.config"), False)
+    ops.pop("latentjam", None)  # LatentJam's own operators live in libljq4, not in the runtime
     def nodes(graph):
         for node in graph.node:
             yield node
@@ -83,6 +86,8 @@ def main():
         versions = {o.domain or "ai.onnx": o.version for o in model.opset_import}
         for node in nodes(model.graph):
             domain = node.domain or "ai.onnx"
+            if domain == "latentjam":  # LatentJam's own operators live in libljq4, not in the runtime
+                continue
             ops.setdefault(domain, {}).setdefault(versions[domain], set()).add(node.op_type)
     config = output / "required-operators.config"
     config.write_text("# Original and ARM-optimized graphs; no type reduction.\n" + "\n".join(

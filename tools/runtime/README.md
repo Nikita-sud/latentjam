@@ -33,11 +33,16 @@ python3 -m venv /tmp/latentjam-ort-python
 ```
 
 Pass the downloaded Gradle-cache copy of `onnxruntime-android-1.26.0.aar` as
-`--stock-aar`. From the repository root:
+`--stock-aar`. The music encoder uses LatentJam's own operator, so the model
+conversion needs a host build of it (`--custom-op-library`); its operators are
+left out of the runtime's list. From the repository root:
 
 ```sh
+cmake -S core/ort-ops/src/main/cpp -B /tmp/ljq4-host -DCMAKE_BUILD_TYPE=Release
+cmake --build /tmp/ljq4-host
 JAVA_HOME=/path/to/jdk17 \
 /tmp/latentjam-ort-python/bin/python tools/runtime/build_reduced_ort.py \
+  --custom-op-library /tmp/ljq4-host/libljq4.dylib \
   --source /tmp/latentjam-ort-source \
   --output /tmp/latentjam-reduced-ort \
   --sdk /path/to/android-sdk \
@@ -75,8 +80,9 @@ text lengths 3/12/32/48, cold and partial histories, padded candidate pools,
 text dropout, and three waveforms. All fixture hashes are recorded.
 
 Compile `OrtParity.java` against the generated `classes.jar`, convert both to
-one DEX jar with Android `d8`, and push the `device` directory to an ARM64 Android
-device or emulator. Run the same probe twice with the stock and candidate
+one DEX jar with Android `d8`, copy the arm64 `libljq4.so` that Gradle builds for
+`core/ort-ops` into the `device` directory (the music encoder needs it), and push
+that directory to an ARM64 Android device or emulator. Run the same probe twice with the stock and candidate
 native libraries selected by `LD_LIBRARY_PATH` and `-Djava.library.path`:
 
 ```sh

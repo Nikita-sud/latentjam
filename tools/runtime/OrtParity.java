@@ -16,6 +16,9 @@ public final class OrtParity {
             options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL);
             options.setIntraOpNumThreads(1);
             options.setInterOpNumThreads(1);
+            // The music encoder needs LatentJam's own operator: libljq4.so (core/ort-ops) beside the fixtures.
+            Path operators = root.resolve("libljq4.so");
+            if (Files.exists(operators)) options.registerCustomOpLibrary(operators.toString());
             boolean invalidRejected = false;
             try (OrtSession ignored = env.createSession(new byte[]{1,2,3,4}, options)) {
                 throw new IllegalStateException("Corrupt model unexpectedly loaded");
