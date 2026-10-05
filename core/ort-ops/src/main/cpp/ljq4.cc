@@ -149,13 +149,15 @@ void PackWeights(size_t n, size_t k, size_t block, size_t kr, const int8_t* q, c
 
 // The inverse of PackWeights for the model's layout (kr 16), block format: per 32 inputs, two segments of 8
 // channels x 4 words, each word the values at k, k + 16, k + 1, k + 17 (xor 0x8888); then 8 bf16 scales; at
-// the end the zero-point sums and the biases.
+// the end the zero-point sums (each channel's blocks' scales times their sums of values, as floats) and the
+// biases.
 void UnpackBlocks(const uint8_t* w, size_t n, size_t k, std::vector<int8_t>& q, std::vector<float>& scales,
-                  std::vector<float>& bias) {
+                  std::vector<float>& bias, std::vector<float>& sums) {
   const size_t groups = RoundUp(k, kGroup) / kGroup;
   q.assign(n * k, 0);
   scales.assign(n * groups, 0.f);
   bias.assign(n, 0.f);
+  sums.assign(n, 0.f);
   const uint8_t* src = w;
   for (size_t first = 0; first < n; first += kNr) {
     for (size_t g = 0; g < groups; ++g) {
@@ -176,7 +178,9 @@ void UnpackBlocks(const uint8_t* w, size_t n, size_t k, std::vector<int8_t>& q, 
         if (first + lane < n) scales[(first + lane) * groups + g] = Bf16ToFloat(static_cast<uint16_t>(src[0] | (src[1] << 8)));
       }
     }
-    src += kNr * 4;  // the zero-point sums
+    for (size_t lane = 0; lane < kNr; ++lane, src += 4) {
+      if (first + lane < n) memcpy(&sums[first + lane], src, 4);
+    }
     for (size_t lane = 0; lane < kNr; ++lane, src += 4) {
       if (first + lane < n) memcpy(&bias[first + lane], src, 4);
     }
@@ -366,11 +370,12 @@ struct Kernel {
   std::vector<int8_t> values;      // other CPUs: the weights decoded once (per channel: rows of `stride`)
   std::vector<float> scales, bias;
   std::vector<int32_t> sums;       // other CPUs, per channel: each channel's sum of weights
+  std::vector<float> blockSums;    // other CPUs, blocks: the zero-point sums the model carries
   size_t stride = 0;
 
   void Unpack(const uint8_t* w, size_t k) {
     if (block == 0) UnpackChannels(w, n, k, values, scales, bias);
-    else UnpackBlocks(w, n, k, values, scales, bias);
+    else UnpackBlocks(w, n, k, values, scales, bias, blockSums);
   }
   void Decode(const uint8_t* w, size_t k);
   void Multiply(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, const uint8_t* w, float ys, int32_t yz,
@@ -413,6 +418,7 @@ void Kernel::Multiply(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz
     std::vector<int8_t>().swap(values);
     std::vector<float>().swap(scales);
     std::vector<float>().swap(bias);
+    std::vector<float>().swap(blockSums);
   }
   const uint8_t* weights = i8mm ? w : repacked.data();
   const size_t rowBlock = (i8mm ? kModelKr : kDotKr) / kSr, padded = RoundUp(k, kGroup), stride = n * sizeof(float);
@@ -442,7 +448,10 @@ void Kernel::Multiply(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz
 }
 
 // Per channel without dotprod: chunks of rows prepared for DotTile, each tile of channels over all of them
-// while its weights are in cache, then the same requantization as the KleidiAI paths.
+// while its weights are in cache, then KleidiAI's float steps and the same requantization as its paths, so a
+// value that sits half a step between two outputs rounds the same way on every path: the weights' scale over
+// 16 (KleidiAI shifts each nibble up 4 bits) times the activations' scale, that times 16 x the sum, and the
+// bias added in a rounding of its own.
 void Kernel::Channels(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, float inverse, int32_t yz,
                       uint8_t* y) {
   const int32_t offset = static_cast<int32_t>(kCenter) - static_cast<int32_t>(xz);
@@ -466,7 +475,8 @@ void Kernel::Channels(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz
         for (size_t r = 0; r < kTileRows && r0 + r < count; ++r) {
           for (size_t j = 0; j < kTileChannels && o0 + j < n; ++j) {
             const int32_t total = dots[r * kTileChannels + j] + offset * sums[o0 + j];
-            results[(r0 + r) * n + o0 + j] = static_cast<float>(total) * xs * scales[o0 + j] + bias[o0 + j];
+            const float product = static_cast<float>(16 * total) * (scales[o0 + j] * 0.0625f * xs);
+            results[(r0 + r) * n + o0 + j] = product + bias[o0 + j];
           }
         }
       }
@@ -476,17 +486,20 @@ void Kernel::Channels(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz
 }
 
 // Blocks of 32 without dotprod by plain loops the compiler vectorizes, four rows at a time: the encoder keeps
-// blocks for its head, a row per window.
+// blocks for its head, a row per window. The float steps are KleidiAI's, as in Channels: each block's sum over
+// x - 128 fused into the running total with its scale, then the zero-point sum fused in times 128 - x_zp, the
+// activations' scale, and the bias in a rounding of its own.
 void Kernel::Blocks(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, float inverse, int32_t yz,
                     uint8_t* y) {
   constexpr size_t kTile = 4;
   const size_t groups = RoundUp(k, kGroup) / kGroup, span = kGroup;
+  const float offset = static_cast<float>(128 - static_cast<int32_t>(xz));
   if (scratch.centered.size() < kTile * k) scratch.centered.resize(kTile * k);
   int16_t* rows = scratch.centered.data();
   for (size_t r0 = 0; r0 < m; r0 += kTile) {
     const size_t count = std::min(kTile, m - r0);
     for (size_t i = 0; i < count; ++i) {
-      for (size_t c = 0; c < k; ++c) rows[i * k + c] = static_cast<int16_t>(x[(r0 + i) * k + c] - xz);
+      for (size_t c = 0; c < k; ++c) rows[i * k + c] = static_cast<int16_t>(x[(r0 + i) * k + c] - 128);
     }
     for (size_t o = 0; o < n; ++o) {
       const int8_t* wo = values.data() + o * k;
@@ -497,9 +510,11 @@ void Kernel::Blocks(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, 
           int32_t acc = 0;
           const size_t end = std::min(k, (g + 1) * span);
           for (size_t c = g * span; c < end; ++c) acc += row[c] * wo[c];
-          sum += scales[o * groups + g] * static_cast<float>(acc);
+          sum = std::fma(static_cast<float>(acc), scales[o * groups + g], sum);
         }
-        const int32_t q = static_cast<int32_t>(std::nearbyint((xs * sum + bias[o]) * inverse)) + yz;
+        const float scaled = std::fma(blockSums[o], offset, sum) * xs;
+        const float value = scaled + bias[o];
+        const int32_t q = static_cast<int32_t>(std::nearbyint(value * inverse)) + yz;
         y[(r0 + i) * n + o] = static_cast<uint8_t>(std::min(255, std::max(0, q)));
       }
     }

@@ -25,45 +25,69 @@ const char* Name(Path path) {
   return path == Path::kI8mm ? "i8mm" : path == Path::kDotprod ? "dotprod" : "portable";
 }
 
-// One layer through one path, twice (the second call reuses decoded or repacked weights). An output may
-// miss the exact value by one step only where the exact value sits at half a step.
-void CheckLayer(Path path, size_t block, size_t m, size_t k, size_t n, std::mt19937& rng) {
+// A random layer in the model's layout, its input rows, and its outputs computed exactly.
+struct Layer {
+  size_t block, m, k, n;
+  std::vector<int8_t> q;
+  std::vector<float> scale, bias;
+  std::vector<uint8_t> w, x;
+  float xs = 0.02f, ys = 0.f;
+  uint8_t xz = 37;
+  int32_t yz = 120;
+  std::vector<double> exact;
+};
+
+Layer RandomLayer(size_t block, size_t m, size_t k, size_t n, std::mt19937& rng) {
+  Layer layer{block, m, k, n};
   const size_t groups = block == 0 ? 1 : RoundUp(k, kGroup) / kGroup, span = block == 0 ? k : kGroup;
-  std::vector<int8_t> q(n * k);
-  for (auto& v : q) v = static_cast<int8_t>(static_cast<int>(rng() % 16) - 8);
+  layer.q.resize(n * k);
+  for (auto& v : layer.q) v = static_cast<int8_t>(static_cast<int>(rng() % 16) - 8);
   std::uniform_real_distribution<float> scaleDistribution(0.001f, 0.021f);
   std::normal_distribution<float> biasDistribution(0.f, 0.5f);
-  std::vector<float> scale(n * groups), bias(n);
-  for (auto& s : scale) s = block ? Bf16ToFloat(FloatToBf16(scaleDistribution(rng))) : scaleDistribution(rng);
-  for (auto& b : bias) b = biasDistribution(rng);
-  std::vector<uint8_t> w(WeightBytes(n, k, block));
-  PackWeights(n, k, block, kModelKr, q.data(), scale.data(), bias.data(), w.data());
-  std::vector<uint8_t> x(m * k);
-  for (auto& v : x) v = static_cast<uint8_t>(rng() & 0xFF);
-  const float xs = 0.02f;
-  const uint8_t xz = 37;
-
-  std::vector<double> exact(m * n);
+  layer.scale.resize(n * groups);
+  layer.bias.resize(n);
+  for (auto& s : layer.scale) s = block ? Bf16ToFloat(FloatToBf16(scaleDistribution(rng))) : scaleDistribution(rng);
+  for (auto& b : layer.bias) b = biasDistribution(rng);
+  layer.w.resize(WeightBytes(n, k, block));
+  PackWeights(n, k, block, kModelKr, layer.q.data(), layer.scale.data(), layer.bias.data(), layer.w.data());
+  layer.x.resize(m * k);
+  for (auto& v : layer.x) v = static_cast<uint8_t>(rng() & 0xFF);
+  layer.exact.resize(m * n);
   double peak = 0;
   for (size_t r = 0; r < m; ++r) {
     for (size_t o = 0; o < n; ++o) {
       double sum = 0;
       for (size_t g = 0; g < groups; ++g) {
         int64_t acc = 0;
-        for (size_t c = g * span; c < std::min(k, (g + 1) * span); ++c) acc += (x[r * k + c] - xz) * q[o * k + c];
-        sum += static_cast<double>(scale[o * groups + g]) * static_cast<double>(acc);
+        for (size_t c = g * span; c < std::min(k, (g + 1) * span); ++c) {
+          acc += (layer.x[r * k + c] - layer.xz) * layer.q[o * k + c];
+        }
+        sum += static_cast<double>(layer.scale[o * groups + g]) * static_cast<double>(acc);
       }
-      exact[r * n + o] = xs * sum + bias[o];
-      peak = std::max(peak, std::fabs(exact[r * n + o]));
+      layer.exact[r * n + o] = layer.xs * sum + layer.bias[o];
+      peak = std::max(peak, std::fabs(layer.exact[r * n + o]));
     }
   }
-  const float ys = static_cast<float>(peak / 100);
-  const int32_t yz = 120;
+  layer.ys = static_cast<float>(peak / 100);
+  return layer;
+}
 
+std::vector<uint8_t> Run(Kernel& kernel, const Layer& layer) {
+  std::vector<uint8_t> y(layer.m * layer.n, 0);
+  kernel.Multiply(layer.x.data(), layer.m, layer.k, layer.xs, layer.xz, layer.w.data(), layer.ys, layer.yz, y.data());
+  return y;
+}
+
+// One layer through one path, twice (the second call reuses decoded or repacked weights). An output may
+// miss the exact value by one step only where the exact value sits at half a step.
+void CheckLayer(Path path, size_t block, size_t m, size_t k, size_t n, std::mt19937& rng) {
+  const Layer layer = RandomLayer(block, m, k, n, rng);
+  const std::vector<double>& exact = layer.exact;
+  const float ys = layer.ys;
+  const int32_t yz = layer.yz;
   Kernel kernel{n, block, path};
   for (int call = 0; call < 2; ++call) {
-    std::vector<uint8_t> y(m * n, 0);
-    kernel.Multiply(x.data(), m, k, xs, xz, w.data(), ys, yz, y.data());
+    const std::vector<uint8_t> y = Run(kernel, layer);
     size_t steps = 0, wrong = 0;
     for (size_t i = 0; i < m * n; ++i) {
       const double unrounded = exact[i] / ys + yz;
@@ -79,6 +103,26 @@ void CheckLayer(Path path, size_t block, size_t m, size_t k, size_t n, std::mt19
              block, m, k, n, call, wrong, steps);
     if (call == 0) printf("%s\n", what);
     Expect(wrong == 0, what);
+  }
+}
+
+// Every path this CPU has writes the same bytes as the first, values that sit half a step between two outputs
+// included: the portable code repeats KleidiAI's float steps. Layers of the encoder's size, where such values
+// occur.
+void CheckPathsAgree(const std::vector<Path>& paths, size_t block, size_t m, size_t k, size_t n, std::mt19937& rng) {
+  const Layer layer = RandomLayer(block, m, k, n, rng);
+  Kernel first{n, block, paths[0]};
+  const std::vector<uint8_t> reference = Run(first, layer);
+  for (size_t p = 1; p < paths.size(); ++p) {
+    Kernel kernel{n, block, paths[p]};
+    const std::vector<uint8_t> y = Run(kernel, layer);
+    size_t differ = 0;
+    for (size_t i = 0; i < y.size(); ++i) differ += y[i] != reference[i];
+    char what[160];
+    snprintf(what, sizeof(what), "%-8s = %-8s block %2zu M=%4zu K=%4zu N=%4zu: %zu of %zu bytes differ",
+             Name(paths[p]), Name(paths[0]), block, m, k, n, differ, y.size());
+    printf("%s\n", what);
+    Expect(differ == 0, what);
   }
 }
 
@@ -154,6 +198,12 @@ int main() {
     for (size_t block : {0, 32}) {
       for (const Shape& shape : shapes) CheckLayer(path, block, shape.m, shape.k, shape.n, rng);
     }
+  }
+  if (paths.size() > 1) {
+    const Shape layers[] = {{2016, 80, 240}, {2016, 240, 80}, {504, 160, 480}, {126, 512, 160}};
+    for (const Shape& shape : layers) CheckPathsAgree({paths.rbegin(), paths.rend()}, 0, shape.m, shape.k, shape.n, rng);
+    CheckPathsAgree({paths.rbegin(), paths.rend()}, 32, 64, 960, 640, rng);
+    CheckPathsAgree({paths.rbegin(), paths.rend()}, 32, 64, 640, 960, rng);
   }
   printf("%s: %d failures\n", failures ? "FAILED" : "passed", failures);
   return failures ? 1 : 0;
