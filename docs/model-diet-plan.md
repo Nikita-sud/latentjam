@@ -169,6 +169,30 @@ weights are about 10 of the session's 15 MiB, so native 4-bit execution would sa
 while the encoder is loaded; storing 4-bit codes and building the INT8 weights at load would keep
 the APK saving at today's speed. *Decision 2026-10-05 (owner): build our own operator.*
 
+*Our own operator, 2026-10-05:* `latentjam.Q4Conv1x1` (module `core/ort-ops`) runs the encoder's 45
+pointwise convolutions and its projection with 4-bit weights; ONNX Runtime keeps everything else in INT8.
+
+- Format by quantization-aware training on a pod (11,456 CC-licensed FMA tracks, 8 epochs, $0.20),
+  validation cosine to the float encoder: symmetric 4-bit in blocks of 32 inputs with a bf16 scale
+  **0.9989**; one scale per output channel 0.9979; Cactus CQ 4-bit 0.9979; INT8 (0.7.1) 0.9978. A
+  Walsh-Hadamard rotation helps before training and hurts after it (0.9971 / 0.9945).
+- Kernels: Arm KleidiAI's int8 kernels (Apache-2.0, vendored): i8mm straight from the packed weights the
+  model carries, dotprod from a copy repacked at first use, a portable loop elsewhere (32-bit Arm, x86).
+  All three give the same embedding on the device (`OrtOperatorsDeviceTest`). C API only, version 16.
+- Graph: ONNX Runtime's own NHWC layout of the INT8 graph, the 46 layers swapped
+  (`tools/research/model_diet/make_q4_encoder.py`); uint8 in and out, so no transposes and no float
+  passes around the operator.
+- Bundle report on the shipped graph (`audio-q4-sq4b32`): every gate passes (six MPD ΔP@10 −0.23
+  [−0.64, +0.17], owner cold −0.24, history +0.13; head top genre −0.3 pp, mood +0.5 pp); the track
+  vectors sit at cosine 0.998 to 0.7.1's, the level of the 0.7.0 INT8 rebuild, so the model version (and
+  the index) stays. One scale per channel fails the head gate (top genre −1.0 pp).
+- Size: encoder 10.75 → 6.28 MB in memory, 8.94 → 5.25 MB in the APK (−3.69 MB), plus libljq4.so
+  0.16–0.28 MB per ABI. Mac, one thread: 21 ms per window against 22 ms for INT8. Loads in 28–44 ms
+  instead of ~115 ms (the graph is already optimized).
+- Integration: Android loads `libljq4.so` from the APK and registers it by name (CMake through Gradle,
+  NDK 28.2.13676358 pinned, so the F-Droid recipe needs that NDK); iOS links the `LatentJamOrtOps` pod and
+  calls `LjRegisterOrtOps`. Pending: the phone's timing gate (S24 Ultra, i8mm).
+
 **3. Better and smaller (3–5 days, ~$30–80 GPU).** Stronger offline teachers, chosen by measured
 SMART and listener quality and by licence (only teachers whose licence allows distilling into an
 Apache-2.0 app):

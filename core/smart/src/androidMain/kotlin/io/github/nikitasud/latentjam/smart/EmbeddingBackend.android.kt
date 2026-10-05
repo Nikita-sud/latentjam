@@ -54,7 +54,8 @@ internal class OnnxEmbeddingBackend(
         return try {
             val assetPath = config.modelLocator ?: DEFAULT_ASSET_PATH
             val modelBytes = context.assets.open(assetPath).use { it.readBytes() }
-            session = createOrtSession(modelBytes)
+            // The shipped encoder runs its pointwise convolutions on LatentJam's own 4-bit operator.
+            session = createOrtSession(modelBytes, operators = true)
             Result.success(Unit)
         } catch (t: Throwable) {
             Result.failure(

@@ -1,0 +1,134 @@
+"""Builds the shipped music encoder from a 4-bit QAT stand-in: a float graph (qat_audio.py export) whose
+pointwise convolutions and final projection sit on the symmetric 4-bit grid of blocks of 32 inputs with a
+bf16 scale each (sq4b32).
+
+1. INT8 everywhere else, as rebuild_audio_encoder.py quantizes the encoder: QDQ, per-channel weights,
+   percentile-99.99 activation ranges from calibration windows; the four-step front end stays float.
+2. ONNX Runtime lays the graph out NHWC itself (its saved fully optimized graph).
+3. Every pointwise convolution and the projection become latentjam.Q4Conv1x1 (core/ort-ops) with the exact
+   4-bit weights, packed by q4pack.py; the uint8 activations around them are untouched.
+
+    python make_q4_encoder.py STANDIN.onnx OUT.onnx --calibration windows.npy [--lib libljq4.dylib]
+
+windows.npy: int16 [N, 320000], mono 32 kHz. With --lib (a host build of core/ort-ops, see its
+CMakeLists.txt) the result is run against the INT8 graph of the same stand-in and against the stand-in.
+"""
+import argparse
+import os
+import tempfile
+from pathlib import Path
+
+import numpy as np
+import onnx
+import onnxruntime as ort
+from onnx import helper, numpy_helper
+from onnxruntime.quantization import CalibrationDataReader, CalibrationMethod, QuantFormat, QuantType, quantize_static
+
+from q4pack import GROUP, bf16_bits, pack
+
+
+def grid(W):
+    """W [N, K] on the grid -> (q int8 [N, K], bf16-exact scales [N, ceil(K / 32)], worst distance in steps)."""
+    N, K = W.shape
+    G = -(-K // GROUP)
+    Wp = np.pad(W, ((0, 0), (0, G * GROUP - K))).reshape(N, G, GROUP)
+    s = np.abs(Wp).max(-1) / 7.0
+    s = np.where(s > 0, s, 1.0).astype(np.float32)
+    s = (bf16_bits(s).astype(np.uint32) << 16).view(np.float32)
+    r = Wp / s[:, :, None]
+    q = np.clip(np.round(r), -8, 7)
+    return q.reshape(N, -1)[:, :K].astype(np.int8), s, float(np.abs(r - q).max())
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("standin")
+    ap.add_argument("out")
+    ap.add_argument("--calibration", required=True)
+    ap.add_argument("--ncal", type=int, default=200)
+    ap.add_argument("--lib", help="host build of libljq4, to check the result")
+    args = ap.parse_args()
+
+    work = Path(tempfile.mkdtemp())
+    standin = onnx.load(args.standin)
+    opsets = sorted({(o.domain, o.version) for o in standin.opset_import})   # merged graphs list opsets twice
+    del standin.opset_import[:]
+    standin.opset_import.extend(helper.make_opsetid(d, v) for d, v in opsets)
+    onnx.save(standin, str(work / "standin.onnx"))
+    floats = {t.name: numpy_helper.to_array(t) for t in standin.graph.initializer}
+    cal = np.load(args.calibration, mmap_mode="r")[:args.ncal].astype(np.float32) / 32767.0
+
+    class Reader(CalibrationDataReader):
+        def __init__(self):
+            self.it = iter([{"waveform": w[None]} for w in cal])
+
+        def get_next(self):
+            return next(self.it, None)
+
+    front = [n.name for n in standin.graph.node if n.name.startswith(("fft/", "fe4/"))]   # the front end stays float
+    quantize_static(str(work / "standin.onnx"), str(work / "int8.onnx"), Reader(), quant_format=QuantFormat.QDQ,
+                    per_channel=True, weight_type=QuantType.QInt8, activation_type=QuantType.QUInt8,
+                    nodes_to_exclude=front, op_types_to_quantize=["Conv", "Gemm", "MatMul"],
+                    calibrate_method=CalibrationMethod.Percentile, extra_options={"CalibPercentile": 99.99})
+    so = ort.SessionOptions()
+    so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    so.optimized_model_filepath = str(work / "nhwc.onnx")
+    so.log_severity_level = 3
+    ort.InferenceSession(str(work / "int8.onnx"), so, providers=["CPUExecutionProvider"])
+
+    m = onnx.load(str(work / "nhwc.onnx"))
+    g = m.graph
+    inits = {t.name: t for t in g.initializer}
+    nodes, swapped, worst = [], 0, 0.0
+    for n in g.node:
+        attrs = {a.name: helper.get_attribute_value(a) for a in n.attribute}
+        pointwise = n.op_type == "QLinearConv" and attrs.get("kernel_shape") == [1, 1] and attrs.get("group", 1) == 1
+        projection = n.op_type == "QLinearMatMul" and n.input[3] in inits
+        if not (pointwise or projection):
+            nodes.append(n)
+            continue
+        source = n.input[3].removesuffix("_quantized")
+        W = floats[source].astype(np.float32)
+        W = W.reshape(W.shape[0], -1) if pointwise else W.T          # [N, K]
+        bias = np.zeros(W.shape[0], np.float32)
+        if pointwise and len(n.input) > 8 and n.input[8]:
+            bias = floats[n.input[8].removesuffix("_quantized")].astype(np.float32)
+        q, scales, off = grid(W)
+        worst = max(worst, off)
+        blob = f"{source}_q4"
+        g.initializer.append(numpy_helper.from_array(pack(q, scales, bias), blob))
+        nodes.append(helper.make_node("Q4Conv1x1", [n.input[0], n.input[1], n.input[2], blob, n.input[6], n.input[7]],
+                                      list(n.output), domain="latentjam", name=n.name + "_q4", n=int(W.shape[0])))
+        swapped += 1
+    del g.node[:]
+    g.node.extend(nodes)
+    used = {i for n in g.node for i in n.input}
+    keep = [t for t in g.initializer if t.name in used]
+    del g.initializer[:]
+    g.initializer.extend(keep)
+    m.opset_import.append(helper.make_opsetid("latentjam", 1))
+    onnx.save(m, args.out)
+    print(f"{swapped} layers on Q4Conv1x1 (worst distance from the 4-bit grid {worst:.3f} steps); "
+          f"{os.path.getsize(args.out) / 1e6:.2f} MB, INT8 reference {os.path.getsize(work / 'int8.onnx') / 1e6:.2f} MB")
+    if worst > 0.01:
+        raise SystemExit("the stand-in's weights are not on the sq4b32 grid: export it from qat_audio.py")
+    if not args.lib:
+        return
+    so = ort.SessionOptions()
+    so.register_custom_ops_library(os.path.abspath(args.lib))
+    so.log_severity_level = 3
+    q4 = ort.InferenceSession(args.out, so, providers=["CPUExecutionProvider"])
+    int8 = ort.InferenceSession(str(work / "int8.onnx"), providers=["CPUExecutionProvider"])
+    flt = ort.InferenceSession(str(work / "standin.onnx"), providers=["CPUExecutionProvider"])
+    cos = lambda u, v: float((u * v).sum() / np.linalg.norm(u) / np.linalg.norm(v))
+    to_int8, to_float = [], []
+    for w in cal[:24]:
+        a, b, c = (s.run(None, {"waveform": w[None]})[0][0] for s in (q4, int8, flt))
+        to_int8.append(cos(a, b))
+        to_float.append(cos(a, c))
+    print(f"vs the INT8 graph of the stand-in: cos median {np.median(to_int8):.5f} min {min(to_int8):.5f}; "
+          f"vs the float stand-in: median {np.median(to_float):.5f} min {min(to_float):.5f}")
+
+
+if __name__ == "__main__":
+    main()

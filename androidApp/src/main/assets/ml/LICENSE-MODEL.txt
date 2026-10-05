@@ -20,13 +20,19 @@ MN10 preservation, EfficientAT DyMN20 relational supervision, and public
 playlist-transition supervision. This experimental weight file has not yet
 passed the training-data rights review required for a public release.
 The shipped graph is rebuilt from those weights by
-tools/research/rebuild_audio_encoder.py. Its log-mel DFT is computed as a
+tools/research/rebuild_audio_encoder.py and
+tools/research/model_diet/make_q4_encoder.py. Its log-mel DFT is computed as a
 four-step FFT (two 32-point stages of matrix products) instead of a
-convolution over stored kernels; the math is the same. Its convolution and
-matrix weights are INT8 (per-channel QDQ). Activation ranges were calibrated
-on the first 10 s of 200 Free Music Archive tracks released under CC BY,
-CC BY-SA, CC0 or public domain, and no audio is stored in the model. The
-rebuild reproduces the previous FP16 graph at a median track cosine of 0.998.
+convolution over stored kernels; the math is the same. Its 45 pointwise
+convolutions and its final projection hold symmetric 4-bit weights, in blocks
+of 32 inputs with a bfloat16 scale each, and run on LatentJam's own operator
+(core/ort-ops). They were fine-tuned by quantization-aware distillation,
+learning to reproduce the float encoder's own embeddings of 10 s windows from
+11,456 Free Music Archive tracks released under CC BY, CC BY-SA, CC0 or
+public domain. Its other convolution weights are INT8 (per-channel), and its
+activation ranges were calibrated on the first 10 s of 200 of those tracks; no
+audio is stored in the model. The graph reproduces the float encoder at a
+mean track cosine of 0.997, as the previous INT8 graph did.
 predictor_state.onnx and predictor_scorer_n100.onnx store their matrix
 weights as 4-bit blocks (ONNX Runtime's MatMulNBits: 32 weights per block,
 each with an FP16 scale and a 4-bit zero point; the state net's GRU stays
@@ -137,3 +143,10 @@ The models execute locally with Microsoft ONNX Runtime, licensed MIT:
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
+
+LatentJam's 4-bit operator (core/ort-ops) includes matrix-multiplication
+kernels from Arm KleidiAI, licensed Apache-2.0 (the licence text is the
+LICENSE file in the repository root):
+
+  Copyright 2024-2026 Arm Limited and/or its affiliates
+  <open-source-office@arm.com>
