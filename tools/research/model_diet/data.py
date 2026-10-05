@@ -9,18 +9,19 @@ from paths import WORK as ROOT
 FEATURES = ROOT / "runs" / "features" / "2ad669b58191522a"  # the 0.7.1 baseline bundle's features
 
 
-def library_matrix(name):
+def library_matrix(name, features=FEATURES):
     """[n, 1344] candidate vectors as ScorerPacking builds them: audio ⊕ text (zeros when absent)."""
-    folder = next(FEATURES.glob(f"{name}.*"))
+    folder = next(Path(features).glob(f"{name}.*"))
     audio = np.fromfile(folder / "audio.f32", "<f4").reshape(-1, 960)
     text = np.fromfile(folder / "text.f32", "<f4").reshape(-1, 384)
     text = np.where(np.isfinite(text).all(1, keepdims=True), text, 0)
     return np.concatenate([audio, text], 1).astype(np.float32)
 
 
-def load(folder, libraries=None):
+def load(folder, libraries=None, student=None):
     """Concatenated recordings: e_in, e_out, s_state, s_rows (global row ids into `matrix`), s_out,
-    plus which library each sample came from and the stacked candidate matrix of all libraries."""
+    plus which library each sample came from and the stacked candidate matrix of all libraries; with
+    `student` (another bundle's features root), `student_matrix` holds that bundle's vectors, row for row."""
     parts, mats, offset, libs = [], [], 0, []
     for path in sorted(glob.glob(str(Path(folder) / "*.npz"))):
         name = Path(path).name.split(".")[0]
@@ -41,4 +42,7 @@ def load(folder, libraries=None):
     out = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
     out["matrix"] = np.concatenate(mats)
     out["libraries"] = libs
+    if student:
+        out["student_matrix"] = np.concatenate([library_matrix(n, student) for n in libs])
+        out["offsets"] = np.cumsum([0] + [len(m) for m in mats])
     return out
