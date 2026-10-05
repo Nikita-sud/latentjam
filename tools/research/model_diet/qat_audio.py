@@ -31,6 +31,17 @@ trained without it. But the network learns its training ranges, and make_q4_enco
 built that way the graph falls to 0.956, so nothing trained with AQ ships until the converter takes the
 ranges the training kept.
 
+MIX="dasheng_06b:26" adds a second, frozen teacher (Dasheng, Apache-2.0: block 26, time-averaged, 16 kHz). By default
+its centred similarity structure is mixed into the relational target (weight MIXW, 0.5); MIXMODE=regress instead
+makes the students reproduce a new 960-d space: both teachers' centred unit vectors joined (weights 1 - MIXW and
+MIXW), reduced by PCA over NFIT training windows and rotated as close to the encoder's space as an orthogonal map
+gets (saved as mix_basis<TAG>.npz; MIX_BASIS reuses one). COSW and RELW weigh the cosine and the relational terms;
+INIT starts each student from a checkpoint (PRUNE_JSON: the channel choice it was pruned with); TAG names the run's
+files; WAVE and LENS take comma-separated lists (FMA and MPD previews, read as one set). Measured 2026-10-05
+(tools/research/model_diet/teachers): the joined space beats the encoder by 9 % on MPD playlists, the full-size
+student trained on FMA + MPD by 2 %; the pruned student stayed further from the joined space (top-10 overlap 0.81
+against 0.84 on FMA alone).
+
 It runs from the research folder that holds the float encoder (backbone_fixed.onnx, mnv4_4step_fp32.onnx),
 the front end (common.py, frontend_params.npz) and the training audio: fma_wave.npy / fma_lens.npy, 30 s of
 each of the 11,599 Free Music Archive tracks under CC BY, CC BY-SA, CC0 or public domain that fetch_fma.py
@@ -454,19 +465,67 @@ def export(cfg, state_path, out_dir="out"):
     return path
 
 
+class Waves:
+    """Several wave memmaps (WAVE="fma_wave.npy,mpd_wave.npy", LENS likewise) read as one, rows in order."""
+
+    def __init__(self, paths):
+        self.parts = [np.load(p, mmap_mode="r") for p in paths]
+        self.offsets = np.cumsum([0] + [len(p) for p in self.parts])
+
+    def __len__(self):
+        return int(self.offsets[-1])
+
+    def __getitem__(self, key):
+        i, window = key
+        k = int(np.searchsorted(self.offsets, i, side="right") - 1)
+        return self.parts[k][int(i - self.offsets[k]), window]
+
+
+def mix_teacher(spec, dev):
+    """MIX="dasheng_06b:26": Dasheng's block 26 (github.com/RicherMans/Dasheng, Apache-2.0), time-averaged, as a
+    second teacher whose similarity structure is mixed into the relational target. 32 kHz windows in, unit vectors out."""
+    import dasheng
+    import torchaudio
+    name, layer = spec.split(":")
+    net = {"dasheng_06b": dasheng.dasheng_06B, "dasheng_base": dasheng.dasheng_base}[name]().to(dev).eval()
+    for p in net.parameters():
+        p.requires_grad_(False)
+    captured = {}
+    net.blocks[int(layer)].register_forward_hook(lambda module, inputs, output: captured.__setitem__("h", output))
+
+    @torch.no_grad()
+    def fn(w):
+        x = torchaudio.functional.resample(w, SR, 16000)
+        with torch.autocast(dev, dtype=torch.float16, enabled=dev == "cuda"):
+            net(x)
+        return F.normalize(captured["h"].float().mean(1), dim=-1)
+    return fn
+
+
 def train(epochs, cfgs):
     torch.manual_seed(0); np.random.seed(0)
     dev = os.environ.get("DEV", "cuda")
     BS = int(os.environ.get("BS", 64))
     LR = float(os.environ.get("LR", 2e-4))
     torch.backends.cudnn.benchmark = dev == "cuda"
-    W = np.load(os.environ.get("WAVE", "fma_wave.npy"), mmap_mode="r")
-    lens = np.load(os.environ.get("LENS", "fma_lens.npy"))
+    W = Waves(os.environ.get("WAVE", "fma_wave.npy").split(","))
+    lens = np.concatenate([np.load(p) for p in os.environ.get("LENS", "fma_lens.npy").split(",")])
     usable = np.nonzero(lens >= 10 * SR)[0]
     perm = np.random.default_rng(0).permutation(usable)
     NVAL = int(os.environ.get("NVAL", 400))
     val_idx, tr_idx = np.sort(perm[:NVAL]), np.sort(perm[NVAL:])
     MAXSTEPS = int(os.environ.get("MAXSTEPS", 0))
+    # MIX: a second teacher (see mix_teacher) sharing the relational target with weight MIXW; COSW and RELW weigh the
+    # cosine to the encoder and the relational term; INIT starts each student from a checkpoint (PRUNE_JSON: the
+    # channel choice it was pruned with); TAG names the run's files.
+    mix = mix_teacher(os.environ["MIX"], dev) if os.environ.get("MIX") else None
+    MIXW = float(os.environ.get("MIXW", 0.5)) if mix else 0.0
+    COSW, RELW = float(os.environ.get("COSW", 1.0)), float(os.environ.get("RELW", 2.0))
+    # MIXMODE=regress: the students reproduce a new 960-d space instead, the two teachers' centred vectors joined
+    # (weights 1 - MIXW and MIXW) and reduced to 960 dimensions by PCA, fitted on NFIT training windows at the start
+    # (means and basis saved to mix_basis<TAG>.npz). Selection then goes by the cosine to that target.
+    REGRESS = mix is not None and os.environ.get("MIXMODE") == "regress"
+    TAG = os.environ.get("TAG", "")
     fe = Frontend(np.load("frontend_params.npz")).to(dev).eval()
     base, proj_name = load_backbone()
     teacher = copy.deepcopy(base).to(dev).eval()
@@ -479,7 +538,10 @@ def train(epochs, cfgs):
     for cfg in cfgs:
         indices = None
         keep = split_prune(cfg)[0]
-        if keep is not None:  # choose the channels on 64 training windows, keep the choice for the export
+        if keep is not None and os.environ.get("PRUNE_JSON"):
+            indices = json.load(open(os.environ["PRUNE_JSON"]))
+            json.dump(indices, open(f"prune_{cfg}.json", "w"))
+        elif keep is not None:  # choose the channels on 64 training windows, keep the choice for the export
             if calib is None:
                 r = np.random.default_rng(2)
                 rows = r.choice(tr_idx, min(64, len(tr_idx)), replace=False)
@@ -488,7 +550,10 @@ def train(epochs, cfgs):
                     calib = fe(torch.from_numpy(crops).to(dev).float() / 32767.0)
             indices = prune_indices(teacher, proj_name, keep, calib)
             json.dump(indices, open(f"prune_{cfg}.json", "w"))
-        st = make_student(base, proj_name, cfg, indices).to(dev).train()
+        st = make_student(base, proj_name, cfg, indices)
+        if os.environ.get("INIT"):
+            st.load_state_dict(torch.load(os.environ["INIT"], map_location="cpu"))
+        st = st.to(dev).train()
         opt = torch.optim.AdamW(st.parameters(), lr=LR, weight_decay=0.0)
         sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=LR, total_steps=total, pct_start=0.05)
         students[cfg] = dict(model=st, opt=opt, sched=sched, best=-1.0, hist=[],
@@ -532,6 +597,63 @@ def train(epochs, cfgs):
     VTc = F.normalize(VT - VT.mean(0), dim=-1)
     K = min(10, len(VT) - 1)
     VT_top = (VTc @ VTc.T).fill_diagonal_(-9).topk(K).indices.cpu()
+    if mix:  # the neighbours the run aims for: both teachers' centred similarities, mixed
+        VD = []
+        for b in range(0, len(VW), 16):
+            d = mix(VW[b:b + 16].reshape(-1, WIN).to(dev).float() / 32767.0)
+            VD.append(F.normalize(d.reshape(-1, 3, d.shape[-1]).sum(1), dim=-1))
+        VD = torch.cat(VD)
+        VDc = F.normalize(VD - VD.mean(0), dim=-1)
+        VM_top = ((1 - MIXW) * VTc @ VTc.T + MIXW * VDc @ VDc.T).fill_diagonal_(-9).topk(K).indices.cpu()
+
+    if REGRESS and os.environ.get("MIX_BASIS"):  # the target space of an earlier run, to continue its students
+        saved = np.load(os.environ["MIX_BASIS"])
+        mu_old, mu_new, basis = (torch.from_numpy(saved[k]).to(dev) for k in ("mu_old", "mu_new", "basis"))
+        np.savez(f"mix_basis{TAG}.npz", **{k: saved[k] for k in ("mu_old", "mu_new", "basis")})
+    elif REGRESS:
+        r = np.random.default_rng(3)
+        fit = r.choice(tr_idx, int(os.environ.get("NFIT", 12000)), replace=True)
+        olds, news = [], []
+        with torch.no_grad():
+            for b in range(0, len(fit), 64):
+                rows = fit[b:b + 64]
+                crops = np.stack([W[i, (o := int(r.integers(0, int(lens[i]) - WIN + 1))):o + WIN] for i in rows])
+                w = torch.from_numpy(crops).to(dev).float() / 32767.0
+                with torch.autocast(dev, dtype=torch.bfloat16, enabled=dev == "cuda"):
+                    olds.append(F.normalize(teacher(fe(w)).float(), dim=-1))
+                news.append(mix(w))
+        olds, news = torch.cat(olds), torch.cat(news)
+        mu_old, mu_new = olds.mean(0), news.mean(0)
+
+        def joined(a, b):
+            return torch.cat([(1 - MIXW) ** 0.5 * F.normalize(a - mu_old, dim=-1),
+                              MIXW ** 0.5 * F.normalize(b - mu_new, dim=-1)], -1)
+        _, _, V = torch.linalg.svd(joined(olds, news), full_matrices=False)
+        basis = V[:960]
+        # Rotated as close to the encoder's own space as an orthogonal map gets (Procrustes): cosines are unchanged,
+        # and a student that starts from the encoder starts near its target.
+        U, _, Vh = torch.linalg.svd((F.normalize(joined(olds, news) @ basis.T, dim=-1)).T @ olds)
+        basis = (U @ Vh).T @ basis
+        np.savez(f"mix_basis{TAG}.npz", mu_old=mu_old.cpu().numpy(), mu_new=mu_new.cpu().numpy(), basis=basis.cpu().numpy())
+    if REGRESS:
+        def joined(a, b):
+            return torch.cat([(1 - MIXW) ** 0.5 * F.normalize(a - mu_old, dim=-1),
+                              MIXW ** 0.5 * F.normalize(b - mu_new, dim=-1)], -1)
+
+        def target(t, d):  # per window: both teachers' unit vectors -> the 960-d unit target
+            return F.normalize(joined(t, d) @ basis.T, dim=-1)
+        VY = []
+        with torch.no_grad():
+            for b in range(0, len(VW), 16):
+                w = VW[b:b + 16].reshape(-1, WIN).to(dev).float() / 32767.0
+                with torch.autocast(dev, dtype=torch.bfloat16, enabled=dev == "cuda"):
+                    t = F.normalize(teacher(fe(w)).float(), dim=-1)
+                y = target(t, mix(w))
+                VY.append(F.normalize(y.reshape(-1, 3, 960).sum(1), dim=-1))
+        VT = torch.cat(VY)   # from here on "the teacher" of the cosine and of the top-10 overlap is the target space
+        VTc = F.normalize(VT - VT.mean(0), dim=-1)
+        VT_top = VM_top = (VTc @ VTc.T).fill_diagonal_(-9).topk(K).indices.cpu()
+        print(f"regression target: {basis.shape[0]} of {basis.shape[1]} dimensions", flush=True)
 
     def evaluate(st):
         st.eval()
@@ -541,6 +663,9 @@ def train(epochs, cfgs):
         Sc = F.normalize(S - S.mean(0), dim=-1)
         S_top = (Sc @ Sc.T).fill_diagonal_(-9).topk(K).indices.cpu()
         ov = np.mean([len(set(a.tolist()) & set(b.tolist())) / K for a, b in zip(VT_top, S_top)])
+        if mix:  # selection then goes by the mixed teacher's neighbours, reported in place of the minimum cosine
+            mixed = np.mean([len(set(a.tolist()) & set(b.tolist())) / K for a, b in zip(VM_top, S_top)])
+            return float(cos.mean()), float(cos.quantile(0.05)), float(mixed), float(ov)
         return float(cos.mean()), float(cos.quantile(0.05)), float(cos.min()), float(ov)
 
     print(f"train tracks {len(tr_idx)}, val {len(val_idx)}, steps/epoch {steps_per_epoch}, total steps {total}", flush=True)
@@ -561,6 +686,14 @@ def train(epochs, cfgs):
                 t = F.normalize(t.float(), dim=-1)
                 tc = F.normalize(t - t.mean(0), dim=-1)
                 rel_t = tc @ tc.T
+                if REGRESS:
+                    t = target(t, mix(w))
+                    tc = F.normalize(t - t.mean(0), dim=-1)
+                    rel_t = tc @ tc.T
+                elif mix:
+                    d = mix(w)
+                    dc = F.normalize(d - d.mean(0), dim=-1)
+                    rel_t = (1 - MIXW) * rel_t + MIXW * (dc @ dc.T)
             for s in students.values():
                 with torch.autocast(dev, dtype=torch.bfloat16, enabled=dev == "cuda"):
                     y = s["model"](mel)
@@ -568,7 +701,7 @@ def train(epochs, cfgs):
                 l_cos = (1 - (y * t).sum(-1)).mean()
                 yc = F.normalize(y - y.mean(0), dim=-1)
                 l_rel = F.mse_loss(yc @ yc.T, rel_t)
-                loss = l_cos + 2.0 * l_rel
+                loss = COSW * l_cos + RELW * l_rel
                 s["opt"].zero_grad(set_to_none=True)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(s["model"].parameters(), 3.0)
@@ -584,17 +717,18 @@ def train(epochs, cfgs):
         for cfg, s in students.items():
             mean, p5, mn, ov = evaluate(s["model"])
             s["hist"].append(dict(epoch=ep, loss=s["last"][0], l_cos=s["last"][1], l_rel=s["last"][2],
-                                  val_cos_mean=mean, val_cos_p5=p5, val_cos_min=mn, val_top10_overlap=ov,
-                                  t=time.time() - t0))
+                                  val_cos_mean=mean, val_cos_p5=p5, **{"val_mix_top10" if mix else "val_cos_min": mn},
+                                  val_top10_overlap=ov, t=time.time() - t0))
             print(cfg, json.dumps(s["hist"][-1]), flush=True)
-            if mean > s["best"]:
-                s["best"] = mean
-                torch.save(s["model"].state_dict(), f"qat_{cfg}_best.pt")
+            score = mn if mix and not REGRESS else mean  # MIX: the mixed top-10 overlap; regress: the cosine
+            if score > s["best"]:
+                s["best"] = score
+                torch.save(s["model"].state_dict(), f"qat_{cfg}{TAG}_best.pt")
         if MAXSTEPS and step >= MAXSTEPS:
             break
     for cfg, s in students.items():
-        json.dump(s["hist"], open(f"qat_hist_{cfg}.json", "w"))
-        print(cfg, "best val cos mean", s["best"], flush=True)
+        json.dump(s["hist"], open(f"qat_hist_{cfg}{TAG}.json", "w"))
+        print(cfg, "best", "mixed top-10 overlap" if mix else "val cos mean", s["best"], flush=True)
 
 
 if __name__ == "__main__":
