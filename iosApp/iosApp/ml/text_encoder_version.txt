@@ -1,1 +1,1 @@
-student-s256x3m-int8-trusted-v1
+student-s256x3m-emb4-int8-trusted-v1

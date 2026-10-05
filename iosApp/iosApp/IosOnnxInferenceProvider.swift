@@ -334,13 +334,23 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
                         ("candidates", candidates, [1, 100, 1344]),
                     ], int64s: [], output: "scores", outputCount: 100
                 )
+                // The genre / mood / energy head, over a unit vector and the window's own embedding.
+                if let error = self.loadSemantic() { throw OrtError.message(error) }
+                guard let semantic = self.semantic else { throw OrtError.message("The semantic head did not load") }
+                var unit = [Float](repeating: 0, count: 960)
+                unit[0] = 1
+                let semanticScores = try semantic.run(
+                    floats: [("embedding", unit + audioEmbedding, [2, 960])],
+                    int64s: [], output: "semantic_scores", outputCount: 2 * 27
+                )
                 guard audioEmbedding.allSatisfy(\.isFinite),
                       textTokens.allSatisfy(\.isFinite),
-                      sessionState.allSatisfy(\.isFinite), scores.allSatisfy(\.isFinite) else {
+                      sessionState.allSatisfy(\.isFinite), scores.allSatisfy(\.isFinite),
+                      semanticScores.allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= 1 }) else {
                     throw OrtError.message("A SMART graph failed finiteness checks")
                 }
                 let elapsed = Int((CFAbsoluteTimeGetCurrent() - started) * 1_000)
-                print("[SMART_SMOKE] ok audio=960 text=384 state=1344 scores=100 elapsed_ms=\(elapsed)")
+                print("[SMART_SMOKE] ok audio=960 text=384 state=1344 scores=100 semantics=27 elapsed_ms=\(elapsed)")
             } catch {
                 print("[SMART_SMOKE] failed: \(error.localizedDescription)")
             }

@@ -27,9 +27,16 @@ matrix weights are INT8 (per-channel QDQ). Activation ranges were calibrated
 on the first 10 s of 200 Free Music Archive tracks released under CC BY,
 CC BY-SA, CC0 or public domain, and no audio is stored in the model. The
 rebuild reproduces the previous FP16 graph at a median track cosine of 0.998.
-predictor_state.onnx stores its weights as dynamic INT8 and
-predictor_scorer_n100.onnx stores its weights as FP16; both are rebuilt
-from the FP32 weights by tools/research/compress_predictor_nets.py.
+predictor_state.onnx and predictor_scorer_n100.onnx store their matrix
+weights as 4-bit blocks (ONNX Runtime's MatMulNBits: 32 weights per block,
+each with an FP16 scale and a 4-bit zero point; the state net's GRU stays
+FP16). They were fine-tuned from the FP32 weights by quantization-aware
+distillation, learning to reproduce the FP32 nets' own outputs on inputs
+recorded from LatentJam's queue builder running over libraries assembled from
+Million Playlist Dataset playlists and their preview audio
+(tools/research/model_diet). Those recordings, like the music encoder's
+training data, have not passed the rights review required for a public
+release.
 universal_semantic_head.onnx is a compact 27-label routing head over those
 960-dimensional embeddings. It preserves the calibrated FMA genre branch and
 the EfficientAT MN10 hidden projection while pruning the AudioSet teacher from
@@ -37,7 +44,10 @@ the EfficientAT MN10 hidden projection while pruning the AudioSet teacher from
 sound effects, novelty-proxy, and instrumental scores. Its FMA-derived branch
 has not passed the source-audio rights review required for public
 redistribution. The novelty output is only a weak acoustic proxy and the app
-requires metadata corroboration before naming a meme/viral mix.
+requires metadata corroboration before naming a meme/viral mix. Its two
+largest matrices are 4-bit blocks (MatMulNBits), fine-tuned to reproduce the
+FP16 head's outputs on audio vectors of the same playlist libraries and of
+Free Music Archive tracks.
 universal_semantic_head.onnx combines parameters trained by LatentJam, licensed
 Apache-2.0, with parameters copied from the EfficientAT MN10 checkpoint, licensed
 MIT as reproduced below.
@@ -73,18 +83,21 @@ the artist that DeepSeek-V4.1-Flash wrote from the artist's name alone; the
 description text is not included. Each record also keeps a 16-bit fingerprint
 of the artist's normalized name, up to two language indices, the middle of the
 decades the model says the artist was most active in, and the model's own
-confidence. artist_adapter.bin is a two-layer network trained by LatentJam
+confidence; the file keeps records only for the artists whose confidence the
+app accepts. artist_adapter.bin is a two-layer network trained by LatentJam
 that guesses such a vector from a track's metadata vector when the pack does
 not cover the artist. It was trained only on metadata strings synthesized from
 the same model's structured artist attributes (languages, decades, genres),
-never on a listener's library. DeepSeek's terms of use permit using its
+never on a listener's library. Its weights are 4-bit codes (groups of 32
+rotated by a Walsh-Hadamard matrix, a Lloyd-Max codebook and an FP16 length
+per group), quantized after training. DeepSeek's terms of use permit using its
 outputs, including for training.
 
 music_entities_250k.bin is a hash index over artist names and aliases: the
 250,000 MusicBrainz artists with the most artist credits, then musicians,
 singers and groups from Wikidata that have a Wikipedia article and fall
 outside that list, ranked by article count. MusicBrainz core data and Wikidata
-are both CC0. The index stores only 48-bit name hashes and integer ids, never
+are both CC0. The index stores only 40-bit name hashes and integer ids, never
 the names themselves.
 
 text_encoder.onnx is a three-layer, 256-wide BERT that LatentJam trained to
@@ -96,7 +109,9 @@ training strings were artist names and aliases from the entity corpus above
 (CC0), metadata strings synthesized from the DeepSeek artist attributes,
 search-style phrases built from templates, MiniLM's vocabulary words, and
 search phrases DeepSeek-V4.1-Flash translated into twenty languages. No
-listener's library went into it. Its weights are dynamic INT8.
+listener's library went into it. Its word embeddings are 4-bit blocks (ONNX
+Runtime's GatherBlockQuantized), quantized after training, and its other
+weights dynamic INT8.
 
 No non-commercial model weights and no offline per-track descriptor table are
 included in the application.
