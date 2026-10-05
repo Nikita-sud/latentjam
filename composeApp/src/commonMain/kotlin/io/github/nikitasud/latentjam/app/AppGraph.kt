@@ -134,15 +134,16 @@ object AppGraph {
                     loudnessMeterModule(),
                     listeningHistoryModule(),
                     module {
-                        // Experimental retrieval-distilled FP16 MNv4 audio + 960-d SMART
+                        // Retrieval-distilled MNv4 audio (pruned, 4-bit) + 960-d SMART
                         // state/acoustic scorer plus learned optional text, fully local.
                         single {
                             SmartEngineConfig(
                                 embeddingDim = 960,
                                 modelLocator = "ml/mnv4_audio.onnx",
                                 // Must match assets/ml/embedding_version.txt;
-                                // keys the persisted index snapshot.
-                                modelVersion = "mnv4-960-retrieval-distill-v1",
+                                // keys the persisted index snapshot, so a new encoder
+                                // re-indexes the library instead of mixing two spaces.
+                                modelVersion = "mnv4-960-retrieval-distill-v1-p50q4",
                                 // EXPERIMENT CONCLUDED, off. Two weeks live at 0.3f
                                 // (2026-07-27 → 08-12): SMART skip rate 0.469 pre vs 0.463
                                 // post over 783/363 events, Fisher p=0.90, with the

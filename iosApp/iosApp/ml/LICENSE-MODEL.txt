@@ -14,38 +14,44 @@ Version 2.0, included in the repository root:
 
 Copyright (c) 2026 LatentJam Project
 
-mnv4_audio.onnx is a 960-dimensional MobileNetV4-Conv-M student initialized
-from the previous EfficientAT MN10 distillation, then retrieval-distilled with
-MN10 preservation, EfficientAT DyMN20 relational supervision, and public
-playlist-transition supervision. This experimental weight file has not yet
-passed the training-data rights review required for a public release.
-The shipped graph is rebuilt from those weights by
-tools/research/rebuild_audio_encoder.py and
-tools/research/model_diet/make_q4_encoder.py. Its log-mel DFT is computed as a
+mnv4_audio.onnx is a pruned copy of a 960-dimensional MobileNetV4-Conv-M
+student initialized from the previous EfficientAT MN10 distillation, then
+retrieval-distilled with MN10 preservation, EfficientAT DyMN20 relational
+supervision, and public playlist-transition supervision. This experimental
+weight file has not yet passed the training-data rights review required for a
+public release.
+The pruned copy keeps half of the expanded channels of each of its 21
+inverted-residual blocks and half of the head convolution's 1,280 hidden
+units: those with the largest mean activation on calibration audio, weighted
+by the size of the weights that read them. Its log-mel DFT is computed as a
 four-step FFT (two 32-point stages of matrix products) instead of a
 convolution over stored kernels; the math is the same. Its 45 pointwise
 convolutions and its final projection hold symmetric 4-bit weights and run on
 LatentJam's own operator (core/ort-ops): the 44 convolutions over time and
 frequency with a float scale per output channel over a clipping range learned
 in training, the head convolution and the projection, which run once per
-window, in blocks of 32 inputs with a bfloat16 scale each. They were
-fine-tuned by quantization-aware distillation, learning to reproduce the float
-encoder's own embeddings of 10 s windows from 11,456 Free Music Archive tracks
-released under CC BY, CC BY-SA, CC0 or public domain. Its other convolution
-weights are INT8 (per-channel), and its activation ranges were calibrated on
-the first 10 s of 200 of those tracks; no audio is stored in the model. The
-graph reproduces the float encoder at a mean track cosine of 0.997, as the
-previous INT8 graph did.
+window, in blocks of 32 inputs with a bfloat16 scale each. The pruned network
+was trained by quantization-aware distillation, learning to reproduce the
+unpruned float encoder's embeddings of 10 s windows from 8,222 Free Music
+Archive tracks released under CC BY, CC0 or public domain (no share-alike or
+no-derivatives licence), and the graph built from it by
+tools/research/model_diet/qat_audio.py and make_q4_encoder.py. Its other
+convolution weights are INT8 (per-channel), and its activation ranges were
+calibrated on the first 10 s of 200 Free Music Archive tracks under CC BY,
+CC BY-SA, CC0 or public domain; no audio is stored in the model. Its track
+embeddings sit at a mean cosine of 0.988 to the unpruned float encoder's,
+against 0.997 for the previous, unpruned 4-bit graph.
 predictor_state.onnx and predictor_scorer_n100.onnx store their matrix
 weights as 4-bit blocks (ONNX Runtime's MatMulNBits: 32 weights per block,
 each with an FP16 scale and a 4-bit zero point; the state net's GRU stays
 FP16). They were fine-tuned from the FP32 weights by quantization-aware
-distillation, learning to reproduce the FP32 nets' own outputs on inputs
-recorded from LatentJam's queue builder running over libraries assembled from
-Million Playlist Dataset playlists and their preview audio
-(tools/research/model_diet). Those recordings, like the music encoder's
-training data, have not passed the rights review required for a public
-release.
+distillation on inputs recorded from LatentJam's queue builder running over
+libraries assembled from Million Playlist Dataset playlists and their preview
+audio: with every music vector in those inputs replaced by the pruned
+encoder's vector of the same track, they learned to reproduce the FP32 nets'
+outputs on the original recordings (tools/research/model_diet). Those
+recordings, like the music encoder's training data, have not passed the
+rights review required for a public release.
 universal_semantic_head.onnx is a compact 27-label routing head over those
 960-dimensional embeddings. It preserves the calibrated FMA genre branch and
 the EfficientAT MN10 hidden projection while pruning the AudioSet teacher from

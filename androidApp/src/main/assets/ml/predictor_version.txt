@@ -1,1 +1,1 @@
-scoring-semtext-v1-nbits4
+scoring-semtext-v1-nbits4-p50q4
