@@ -1,7 +1,8 @@
 # Vendored third-party sources
 
 Copied unmodified; each keeps its own licence. Update them together with `../ljq4.cc` and re-run its
-device test (`OrtOperatorsDeviceTest`): the model carries weights packed in KleidiAI's layout.
+host test (`../../../test/cpp/ljq4_test.cc`) and device test (`OrtOperatorsDeviceTest`): the model carries
+weights packed in KleidiAI's layout.
 
 | Directory | Project | Version | Licence |
 |---|---|---|---|

@@ -177,8 +177,13 @@ pointwise convolutions and its projection with 4-bit weights; ONNX Runtime keeps
   **0.9989**; one scale per output channel 0.9979; Cactus CQ 4-bit 0.9979; INT8 (0.7.1) 0.9978. A
   Walsh-Hadamard rotation helps before training and hurts after it (0.9971 / 0.9945).
 - Kernels: Arm KleidiAI's int8 kernels (Apache-2.0, vendored): i8mm straight from the packed weights the
-  model carries, dotprod from a copy repacked at first use, a portable loop elsewhere (32-bit Arm, x86).
-  All three give the same embedding on the device (`OrtOperatorsDeviceTest`). C API only, version 16.
+  model carries, dotprod from a copy repacked at first use. Elsewhere (older 64-bit Arm, armv7, x86_64) the
+  operator's own NEON or SSSE3 code multiplies weights decoded once to int8; 16-bit lanes sum 128 products
+  of a 4-bit weight before widening. On the S24 Ultra's X4 / A720 / A520 cores that path takes 62 / 111 /
+  347 ms per window for the 44 per-channel layers, against 164 / 307 / 905 ms for the plain loop it
+  replaced and 22 / 39 / 95 ms for the dotprod kernels. All three give the same embedding on the device
+  (`OrtOperatorsDeviceTest`; bitwise on the S24), and `ljq4_test` checks every path the host has against
+  exact sums (x86_64 under Rosetta). C API only, version 16.
 - Graph: ONNX Runtime's own NHWC layout of the INT8 graph, the 46 layers swapped
   (`tools/research/model_diet/make_q4_encoder.py`); uint8 in and out, so no transposes and no float
   passes around the operator.

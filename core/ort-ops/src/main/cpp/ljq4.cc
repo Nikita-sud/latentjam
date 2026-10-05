@@ -5,7 +5,8 @@
 // Q4Conv1x1: the music encoder's pointwise convolutions with 4-bit weights, as an ONNX Runtime custom
 // operator in the domain "latentjam". The weights stay 4-bit in memory and are multiplied by KleidiAI's
 // int8 kernels: on CPUs with i8mm straight from the packed weights the model carries, on dotprod-only
-// CPUs from a copy packed once for the dotprod kernels, elsewhere by a portable loop.
+// CPUs from a copy packed once for the dotprod kernels. Other CPUs (older 64-bit Arm, armv7, x86_64)
+// decode the weights once to 8 bits and multiply them with NEON or SSSE3 code of this file.
 //
 // Inputs:  0 X            uint8 [..., K]  rows of an NHWC activation, statically quantized
 //          1 x_scale      float []
@@ -35,8 +36,12 @@
 #include <new>
 #include <vector>
 
-#if defined(__aarch64__)
+#if defined(__ARM_NEON)
 #include <arm_neon.h>
+#elif defined(__SSSE3__)
+#include <tmmintrin.h>
+#endif
+#if defined(__aarch64__)
 #if defined(__APPLE__)
 #include <sys/sysctl.h>
 #else
@@ -251,6 +256,100 @@ void Requantize(const float* values, size_t count, float inverse, int32_t zero, 
   }
 }
 
+// CPUs without dotprod multiply per-channel weights decoded to int8 rows of kStep-padded inputs, kTileRows
+// activation rows by kTileChannels channels at a time. A 4-bit weight keeps products small enough for
+// 16-bit lanes to sum a batch of kBatch inputs before widening: NEON multiplies x - 128 (int8) by w, 16
+// products of at most 128 * 8 per lane; SSSE3's maddubs multiplies x (uint8) by w, 8 pairs of at most
+// 2 * 255 * 8 per lane.
+constexpr size_t kStep = 16;
+constexpr size_t kBatch = 128;
+#define LJ_UNROLL _Pragma("clang loop unroll(full)")  // the tile's accumulators live in registers
+#if defined(__SSSE3__) && !defined(__ARM_NEON)
+constexpr uint8_t kCenter = 0;    // activations as they are
+constexpr size_t kTileRows = 4, kTileChannels = 2;
+#else
+constexpr uint8_t kCenter = 128;  // activations as int8 x - 128, flipped by xor
+#if defined(__aarch64__)
+constexpr size_t kTileRows = 4, kTileChannels = 4;
+#else
+constexpr size_t kTileRows = 4, kTileChannels = 2;  // armv7: 16 vector registers
+#endif
+#endif
+
+// dots[r * C + j] = sum over `padded` inputs of rows[r] (prepared: x ^ kCenter) times weights[j].
+template <size_t R, size_t C>
+void DotTile(const uint8_t* rows, const int8_t* weights, size_t padded, int32_t* dots) {
+#if defined(__ARM_NEON)
+  const int8_t* x = reinterpret_cast<const int8_t*>(rows);
+  int32x4_t wide[R * C];
+  LJ_UNROLL for (size_t i = 0; i < R * C; ++i) wide[i] = vdupq_n_s32(0);
+  for (size_t start = 0; start < padded; start += kBatch) {
+    const size_t end = std::min(padded, start + kBatch);
+    int16x8_t narrow[R * C];
+    LJ_UNROLL for (size_t i = 0; i < R * C; ++i) narrow[i] = vdupq_n_s16(0);
+    for (size_t c = start; c < end; c += kStep) {
+      int8x16_t xv[R], wv[C];
+      LJ_UNROLL for (size_t r = 0; r < R; ++r) xv[r] = vld1q_s8(x + r * padded + c);
+      LJ_UNROLL for (size_t j = 0; j < C; ++j) wv[j] = vld1q_s8(weights + j * padded + c);
+      // All low halves, then all high halves: no accumulator waits on its own last product (in-order cores).
+      LJ_UNROLL for (size_t r = 0; r < R; ++r) {
+        LJ_UNROLL for (size_t j = 0; j < C; ++j) {
+          narrow[r * C + j] = vmlal_s8(narrow[r * C + j], vget_low_s8(xv[r]), vget_low_s8(wv[j]));
+        }
+      }
+      LJ_UNROLL for (size_t r = 0; r < R; ++r) {
+        LJ_UNROLL for (size_t j = 0; j < C; ++j) {
+          narrow[r * C + j] = vmlal_s8(narrow[r * C + j], vget_high_s8(xv[r]), vget_high_s8(wv[j]));
+        }
+      }
+    }
+    LJ_UNROLL for (size_t i = 0; i < R * C; ++i) wide[i] = vpadalq_s16(wide[i], narrow[i]);
+  }
+  LJ_UNROLL for (size_t i = 0; i < R * C; i += 2) {  // two channels' sums per pairwise add
+    const int32x2_t a = vadd_s32(vget_low_s32(wide[i]), vget_high_s32(wide[i]));
+    const int32x2_t b = vadd_s32(vget_low_s32(wide[i + 1]), vget_high_s32(wide[i + 1]));
+    vst1_s32(dots + i, vpadd_s32(a, b));
+  }
+#elif defined(__SSSE3__)
+  const __m128i ones = _mm_set1_epi16(1);
+  __m128i wide[R * C];
+  LJ_UNROLL for (size_t i = 0; i < R * C; ++i) wide[i] = _mm_setzero_si128();
+  for (size_t start = 0; start < padded; start += kBatch) {
+    const size_t end = std::min(padded, start + kBatch);
+    __m128i narrow[R * C];
+    LJ_UNROLL for (size_t i = 0; i < R * C; ++i) narrow[i] = _mm_setzero_si128();
+    for (size_t c = start; c < end; c += kStep) {
+      __m128i xv[R], wv[C];
+      LJ_UNROLL for (size_t r = 0; r < R; ++r) {
+        xv[r] = _mm_loadu_si128(reinterpret_cast<const __m128i*>(rows + r * padded + c));
+      }
+      LJ_UNROLL for (size_t j = 0; j < C; ++j) {
+        wv[j] = _mm_loadu_si128(reinterpret_cast<const __m128i*>(weights + j * padded + c));
+      }
+      LJ_UNROLL for (size_t r = 0; r < R; ++r) {
+        LJ_UNROLL for (size_t j = 0; j < C; ++j) {
+          narrow[r * C + j] = _mm_add_epi16(narrow[r * C + j], _mm_maddubs_epi16(xv[r], wv[j]));
+        }
+      }
+    }
+    LJ_UNROLL for (size_t i = 0; i < R * C; ++i) wide[i] = _mm_add_epi32(wide[i], _mm_madd_epi16(narrow[i], ones));
+  }
+  LJ_UNROLL for (size_t i = 0; i < R * C; ++i) {
+    __m128i sum = _mm_add_epi32(wide[i], _mm_shuffle_epi32(wide[i], _MM_SHUFFLE(1, 0, 3, 2)));
+    sum = _mm_add_epi32(sum, _mm_shuffle_epi32(sum, _MM_SHUFFLE(2, 3, 0, 1)));
+    dots[i] = _mm_cvtsi128_si32(sum);
+  }
+#else
+  LJ_UNROLL for (size_t r = 0; r < R; ++r) {
+    LJ_UNROLL for (size_t j = 0; j < C; ++j) {
+      int32_t sum = 0;
+      for (size_t c = 0; c < padded; ++c) sum += static_cast<int8_t>(rows[r * padded + c]) * weights[j * padded + c];
+      dots[r * C + j] = sum;
+    }
+  }
+#endif
+}
+
 // One scratch per thread, shared by every layer: the runtime runs a session's nodes one at a time.
 struct Scratch {
   std::vector<uint8_t> rows;
@@ -264,23 +363,46 @@ struct Kernel {
   size_t block;                    // 32: a bf16 scale per 32 inputs; 0: a float scale per output channel
   Path path;
   std::vector<uint8_t> repacked;   // dotprod-only CPUs: the weights in the dotprod kernels' layout
-  std::vector<int8_t> values;      // portable path: the weights decoded once
+  std::vector<int8_t> values;      // other CPUs: the weights decoded once (per channel: rows of `stride`)
   std::vector<float> scales, bias;
+  std::vector<int32_t> sums;       // other CPUs, per channel: each channel's sum of weights
+  size_t stride = 0;
 
   void Unpack(const uint8_t* w, size_t k) {
     if (block == 0) UnpackChannels(w, n, k, values, scales, bias);
     else UnpackBlocks(w, n, k, values, scales, bias);
   }
+  void Decode(const uint8_t* w, size_t k);
   void Multiply(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, const uint8_t* w, float ys, int32_t yz,
                 uint8_t* y);
-  void Portable(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, float inverse, int32_t yz, uint8_t* y);
+  void Channels(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, float inverse, int32_t yz, uint8_t* y);
+  void Blocks(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, float inverse, int32_t yz, uint8_t* y);
 };
+
+// Per channel for DotTile: rows of int8 weights padded to kStep inputs and to whole tiles of channels.
+void Kernel::Decode(const uint8_t* w, size_t k) {
+  std::vector<int8_t> q;
+  UnpackChannels(w, n, k, q, scales, bias);
+  stride = RoundUp(k, kStep);
+  values.assign(RoundUp(n, kTileChannels) * stride, 0);
+  sums.assign(n, 0);
+  for (size_t o = 0; o < n; ++o) {
+    for (size_t c = 0; c < k; ++c) {
+      values[o * stride + c] = q[o * k + c];
+      sums[o] += q[o * k + c];
+    }
+  }
+}
 
 void Kernel::Multiply(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, const uint8_t* w, float ys,
                       int32_t yz, uint8_t* y) {
+  if (path == Path::kPortable && block == 0) {
+    if (values.empty()) Decode(w, k);
+    return Channels(x, m, k, xs, xz, 1.0f / ys, yz, y);
+  }
   if (path == Path::kPortable) {
     if (values.empty()) Unpack(w, k);
-    return Portable(x, m, k, xs, xz, 1.0f / ys, yz, y);
+    return Blocks(x, m, k, xs, xz, 1.0f / ys, yz, y);
   }
 #if defined(__aarch64__)
   const bool i8mm = path == Path::kI8mm;
@@ -319,11 +441,46 @@ void Kernel::Multiply(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz
 #endif
 }
 
-// Integer dot products the compiler vectorizes, per block of 32 inputs or per channel, four rows at a time.
-void Kernel::Portable(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, float inverse, int32_t yz,
+// Per channel without dotprod: chunks of rows prepared for DotTile, each tile of channels over all of them
+// while its weights are in cache, then the same requantization as the KleidiAI paths.
+void Kernel::Channels(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, float inverse, int32_t yz,
                       uint8_t* y) {
+  const int32_t offset = static_cast<int32_t>(kCenter) - static_cast<int32_t>(xz);
+  if (scratch.rows.size() < kChunk * stride) scratch.rows.resize(kChunk * stride);
+  if (scratch.results.size() < kChunk * n) scratch.results.resize(kChunk * n);
+  uint8_t* rows = scratch.rows.data();
+  float* results = scratch.results.data();
+  int32_t dots[kTileRows * kTileChannels];
+  for (size_t m0 = 0; m0 < m; m0 += kChunk) {
+    const size_t count = std::min(kChunk, m - m0), tiles = RoundUp(count, kTileRows);
+    memset(rows, 0, tiles * stride);  // padding: zero weights there, and rows past the chunk are dropped
+    for (size_t r = 0; r < count; ++r) {
+      const uint8_t* src = x + (m0 + r) * k;
+      uint8_t* dst = rows + r * stride;
+      for (size_t c = 0; c < k; ++c) dst[c] = static_cast<uint8_t>(src[c] ^ kCenter);
+    }
+    for (size_t o0 = 0; o0 < n; o0 += kTileChannels) {
+      const int8_t* weights = values.data() + o0 * stride;
+      for (size_t r0 = 0; r0 < tiles; r0 += kTileRows) {
+        DotTile<kTileRows, kTileChannels>(rows + r0 * stride, weights, stride, dots);
+        for (size_t r = 0; r < kTileRows && r0 + r < count; ++r) {
+          for (size_t j = 0; j < kTileChannels && o0 + j < n; ++j) {
+            const int32_t total = dots[r * kTileChannels + j] + offset * sums[o0 + j];
+            results[(r0 + r) * n + o0 + j] = static_cast<float>(total) * xs * scales[o0 + j] + bias[o0 + j];
+          }
+        }
+      }
+    }
+    Requantize(results, count * n, inverse, yz, y + m0 * n);
+  }
+}
+
+// Blocks of 32 without dotprod by plain loops the compiler vectorizes, four rows at a time: the encoder keeps
+// blocks for its head, a row per window.
+void Kernel::Blocks(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, float inverse, int32_t yz,
+                    uint8_t* y) {
   constexpr size_t kTile = 4;
-  const size_t groups = block == 0 ? 1 : RoundUp(k, kGroup) / kGroup, span = block == 0 ? k : kGroup;
+  const size_t groups = RoundUp(k, kGroup) / kGroup, span = kGroup;
   if (scratch.centered.size() < kTile * k) scratch.centered.resize(kTile * k);
   int16_t* rows = scratch.centered.data();
   for (size_t r0 = 0; r0 < m; r0 += kTile) {
