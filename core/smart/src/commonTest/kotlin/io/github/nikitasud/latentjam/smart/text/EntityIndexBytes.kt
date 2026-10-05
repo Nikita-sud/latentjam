@@ -42,6 +42,43 @@ internal object EntityIndexBytes {
         return bytes
     }
 
+    /** The same keys in the LJENT3 layout tools/research/compact_music_entities.py writes. */
+    fun compact(vararg mappings: Pair<String, IntArray>, entityCount: Int = 100): ByteArray =
+        compactHashed(mappings.map { (key, ids) -> hash(key) to ids }, entityCount)
+
+    fun compactHashed(keys: List<Pair<ULong, IntArray>>, entityCount: Int = 100): ByteArray {
+        val ordered = keys.sortedBy { it.first }
+        val stream = ArrayList<Byte>()
+        fun varint(value: Int) {
+            var rest = value
+            while (true) {
+                val byte = rest and 0x7f
+                rest = rest ushr 7
+                if (rest == 0) { stream += byte.toByte(); return }
+                stream += (byte or 0x80).toByte()
+            }
+        }
+        val starts = IntArray(65_537)
+        var bucket = 0
+        ordered.forEach { (hash, ids) ->
+            val target = (hash shr 32).toInt()
+            while (bucket <= target) starts[bucket++] = stream.size
+            val stored = ((hash shr 8) and 0xffffffuL).toInt()
+            for (index in 0 until 3) stream += (stored ushr (index * 8)).toByte()
+            varint(ids.size)
+            ids.forEachIndexed { index, id -> varint(if (index == 0) id else id - ids[index - 1]) }
+        }
+        while (bucket <= 65_536) starts[bucket++] = stream.size
+        val bytes = ByteArray(KEYS_OFFSET + stream.size)
+        "LJENT3\u0000\u0000".encodeToByteArray().copyInto(bytes)
+        writeInt(bytes, 8, ordered.size)
+        writeInt(bytes, 12, ordered.sumOf { it.second.size })
+        writeInt(bytes, 16, entityCount)
+        starts.forEachIndexed { index, start -> writeInt(bytes, HEADER_SIZE + index * 4, start) }
+        stream.toByteArray().copyInto(bytes, KEYS_OFFSET)
+        return bytes
+    }
+
     fun writeInt(bytes: ByteArray, offset: Int, value: Int) {
         for (index in 0 until 4) bytes[offset + index] = (value ushr (index * 8)).toByte()
     }

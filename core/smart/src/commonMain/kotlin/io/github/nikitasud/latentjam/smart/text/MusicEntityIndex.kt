@@ -22,11 +22,23 @@ package io.github.nikitasud.latentjam.smart.text
  *
  * A key hash is the low 48 bits of FNV-1a 64 over a normalized name or name token. The shipped
  * index has no collision at 48 bits; one would only make a name ambiguous.
+ *
+ * Layout `LJENT3` holds the same keys and ids in about 70 % of the bytes, and resolves exactly alike:
+ * - magic `LJENT3\0\0`, u32 key count, u32 value count, u32 entity count, four reserved bytes
+ * - 65,537 u32 byte positions in the entry stream where each top-16-bit bucket starts, then its length
+ * - per key, sorted by hash within its bucket: the hash's next 24 bits (bits 8–31), a varint id
+ *   count, the first id as a varint and every further id as a varint step from the one before
+ *
+ * Forty bits name a key there, which the shipped keys never share; a stranger name would be taken
+ * for a stored one with probability below one in a million per lookup. Unlike LJENT2 the entries are
+ * checked as lookups read them, not all at once when the file is parsed.
  */
 public class MusicEntityIndex private constructor(
     private val bytes: ByteArray,
     private val keyCount: Int,
     private val valueCount: Int,
+    private val compact: Boolean = false,
+    private val entityCount: Long = 0,
 ) {
     private val valuesOffset = KEYS_OFFSET + keyCount * KEY_SIZE
 
@@ -35,6 +47,7 @@ public class MusicEntityIndex private constructor(
         val normalized = normalize(value)
         if (normalized.isEmpty()) return IntArray(0)
         val hash = fnv1a64(normalized.encodeToByteArray()) and HASH_MASK
+        if (compact) return resolveCompact(hash)
         val bucket = (hash shr 32).toInt()
         val target = (hash and 0xffffffffuL).toLong()
         var low = u32(bytes, HEADER_SIZE + bucket * 4).toInt()
@@ -75,6 +88,41 @@ public class MusicEntityIndex private constructor(
 
     private fun firstValue(key: Int): Int = u24(bytes, KEYS_OFFSET + key * KEY_SIZE + 4)
 
+    /**
+     * LJENT3: a linear walk through the hash's bucket, a dozen keys on average. The walk checks every
+     * read against the bucket's end, the entity count and the sort order, and answers nothing for a
+     * key it cannot read cleanly, so a damaged file fails closed one lookup at a time instead of costing
+     * a full decode of nine million bytes at every start.
+     */
+    private fun resolveCompact(hash: ULong): IntArray {
+        val bucket = (hash shr 32).toInt()
+        val target = ((hash shr 8) and 0xffffffuL).toInt()
+        val reader = VarintReader(bytes, KEYS_OFFSET + u32(bytes, HEADER_SIZE + bucket * 4).toInt())
+        val end = KEYS_OFFSET + u32(bytes, HEADER_SIZE + (bucket + 1) * 4).toInt()
+        var previousHash = -1
+        while (reader.position < end) {
+            if (reader.position + 3 > end) return IntArray(0)
+            val found = u24(bytes, reader.position)
+            reader.position += 3
+            if (found <= previousHash || found > target) return IntArray(0)
+            previousHash = found
+            val count = reader.nextChecked(end) ?: return IntArray(0)
+            if (count == 0) return IntArray(0)
+            if (found == target) {
+                val ids = IntArray(count)
+                for (index in 0 until count) {
+                    val step = reader.nextChecked(end) ?: return IntArray(0)
+                    val id = if (index == 0) step.toLong() else ids[index - 1].toLong() + step
+                    if ((index > 0 && step == 0) || id >= entityCount) return IntArray(0)
+                    ids[index] = id.toInt()
+                }
+                return ids
+            }
+            repeat(count) { reader.nextChecked(end) ?: return IntArray(0) }
+        }
+        return IntArray(0)
+    }
+
     public companion object {
         private const val HEADER_SIZE = 24
         private const val BUCKETS = 1 shl 16
@@ -82,9 +130,13 @@ public class MusicEntityIndex private constructor(
         private const val KEY_SIZE = 7
         private const val HASH_MASK = 0xffffffffffffuL
         private val MAGIC = "LJENT2\u0000\u0000".encodeToByteArray()
+        private val MAGIC_COMPACT = "LJENT3\u0000\u0000".encodeToByteArray()
 
         /** Returns null for a missing, corrupt or other-format asset so ordinary metadata search remains available. */
         public fun parse(bytes: ByteArray): MusicEntityIndex? {
+            if (bytes.size >= KEYS_OFFSET && MAGIC_COMPACT.indices.all { bytes[it] == MAGIC_COMPACT[it] }) {
+                return parseCompact(bytes)
+            }
             if (bytes.size < KEYS_OFFSET || !MAGIC.indices.all { bytes[it] == MAGIC[it] }) return null
             val keyCount = u32(bytes, 8)
             val valueCount = u32(bytes, 12)
@@ -125,6 +177,26 @@ public class MusicEntityIndex private constructor(
                 }
             }
             return MusicEntityIndex(bytes, keys, values)
+        }
+
+        /**
+         * LJENT3: the header and the bucket directory are checked here (in order, within the stream,
+         * ending exactly at the file's end); each key's own bytes are checked when a lookup reads them.
+         */
+        private fun parseCompact(bytes: ByteArray): MusicEntityIndex? {
+            val keyCount = u32(bytes, 8)
+            val valueCount = u32(bytes, 12)
+            val entityCount = u32(bytes, 16)
+            if (keyCount > Int.MAX_VALUE || valueCount > Int.MAX_VALUE || entityCount > U24_LIMIT) return null
+            val stream = bytes.size.toLong() - KEYS_OFFSET
+            if (u32(bytes, HEADER_SIZE) != 0L || u32(bytes, HEADER_SIZE + BUCKETS * 4) != stream) return null
+            var previous = 0L
+            for (bucket in 1..BUCKETS) {
+                val start = u32(bytes, HEADER_SIZE + bucket * 4)
+                if (start < previous) return null
+                previous = start
+            }
+            return MusicEntityIndex(bytes, keyCount.toInt(), valueCount.toInt(), compact = true, entityCount = entityCount)
         }
 
         private const val U24_LIMIT = 1L shl 24
@@ -189,4 +261,20 @@ public class MusicEntityResolver(
 
     /** The entity ids [name] resolves to, most popular first; empty when the pack is absent. */
     public fun resolve(name: String): IntArray = index?.resolve(name) ?: IntArray(0)
+}
+
+/** Unsigned LEB128 varints, as tools/research/compact_music_entities.py writes them. */
+private class VarintReader(private val bytes: ByteArray, var position: Int) {
+    /** The next varint, or null when it would run past [end] or past 28 bits. */
+    fun nextChecked(end: Int): Int? {
+        var result = 0
+        var shift = 0
+        while (position < end && shift <= 21) {
+            val byte = bytes[position++].toInt() and 0xff
+            result = result or ((byte and 0x7f) shl shift)
+            if (byte < 0x80) return result
+            shift += 7
+        }
+        return null
+    }
 }

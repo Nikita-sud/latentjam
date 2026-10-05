@@ -34,4 +34,42 @@ internal object KnowledgePackBytes {
         for (filler in 1..fillers) record(1, 1, "Filler $filler", null, null, 200)
         return out.toByteArray()
     }
+
+    /**
+     * [tiny] in the version-3 layout tools/research/compact_knowledge_pack.py writes: the same
+     * entities, with only the confident ones (all but Gamma) stored.
+     */
+    fun tinyCompact(fillers: Int = 0): ByteArray {
+        val out = ArrayList<Byte>()
+        fun u8(value: Int) { out += value.toByte() }
+        fun u16(value: Int) { u8(value and 0xff); u8(value shr 8) }
+        fun u32(value: Int) { u16(value and 0xffff); u16(value ushr 16) }
+        val entities = 3 + fillers
+        "LJKNOW1\u0000".encodeToByteArray().forEach { out += it }
+        u32(3); u16(4); u8(2); u16(2); u32(entities)
+        repeat(2) { u16(0x3C00); u16(0x0000); u16(0x0000); u16(0x3C00) }
+        val present = BooleanArray(entities) { it != 2 }
+        val words = (entities + 63) / 64
+        for (word in 0 until words) {
+            for (byte in 0 until 8) {
+                var bits = 0
+                for (bit in 0 until 8) {
+                    val id = word * 64 + byte * 8 + bit
+                    if (id < entities && present[id]) bits = bits or (1 shl bit)
+                }
+                u8(bits)
+            }
+        }
+        val blocks = (entities + 511) / 512 + 1
+        for (block in 0 until blocks) u32((0 until minOf(block * 512, entities)).count { present[it] })
+        fun record(first: Int, second: Int, name: String, language: String?, decade: Int?) {
+            u8(first); u8(second); u16(ArtistKnowledgePack.fingerprint(name))
+            u8(language?.let { ArtistKnowledgePack.LANGUAGES.indexOf(it) + 1 } ?: 0)
+            u8(decade?.let { (it - 1000) / 10 + 1 } ?: 0)
+        }
+        record(0, 1, "Alpha", "ro", 1980)
+        record(1, 0, "Beta", "en", null)
+        for (filler in 1..fillers) record(1, 1, "Filler $filler", null, null)
+        return out.toByteArray()
+    }
 }
