@@ -1,6 +1,7 @@
 """Builds the shipped music encoder from a 4-bit QAT stand-in: a float graph (qat_audio.py export) whose
-pointwise convolutions and final projection sit on the symmetric 4-bit grid of blocks of 32 inputs with a
-bf16 scale each (sq4b32).
+pointwise convolutions and final projection sit on a symmetric 4-bit grid, each layer either with one float
+scale per output channel (sq4c) or with a bf16 scale per block of 32 inputs (sq4b32); the format of each
+layer is read off its weights.
 
 1. INT8 everywhere else, as rebuild_audio_encoder.py quantizes the encoder: QDQ, per-channel weights,
    percentile-99.99 activation ranges from calibration windows; the four-step front end stays float.
@@ -24,11 +25,11 @@ import onnxruntime as ort
 from onnx import helper, numpy_helper
 from onnxruntime.quantization import CalibrationDataReader, CalibrationMethod, QuantFormat, QuantType, quantize_static
 
-from q4pack import GROUP, bf16_bits, pack
+from q4pack import GROUP, bf16_bits, pack, pack_channels
 
 
-def grid(W):
-    """W [N, K] on the grid -> (q int8 [N, K], bf16-exact scales [N, ceil(K / 32)], worst distance in steps)."""
+def blocks(W):
+    """W [N, K] on the block grid -> (q int8 [N, K], bf16-exact scales [N, ceil(K / 32)], worst distance in steps)."""
     N, K = W.shape
     G = -(-K // GROUP)
     Wp = np.pad(W, ((0, 0), (0, G * GROUP - K))).reshape(N, G, GROUP)
@@ -40,12 +41,24 @@ def grid(W):
     return q.reshape(N, -1)[:, :K].astype(np.int8), s, float(np.abs(r - q).max())
 
 
+def channels(W):
+    """W [N, K] on the per-channel grid -> (q int8 [N, K], float scales [N], worst distance in steps)."""
+    s = np.abs(W).max(1) / 7.0
+    s = np.where(s > 0, s, 1.0).astype(np.float32)
+    r = W / s[:, None]
+    q = np.clip(np.round(r), -8, 7)
+    return q.astype(np.int8), s, float(np.abs(r - q).max())
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("standin")
     ap.add_argument("out")
     ap.add_argument("--calibration", required=True)
     ap.add_argument("--ncal", type=int, default=200)
+    ap.add_argument("--calibrate", choices=["percentile", "entropy", "minmax"], default="percentile",
+                    help="how activation ranges are read off the calibration windows")
+    ap.add_argument("--percentile", type=float, default=99.99)
     ap.add_argument("--lib", help="host build of libljq4, to check the result")
     args = ap.parse_args()
 
@@ -69,7 +82,9 @@ def main():
     quantize_static(str(work / "standin.onnx"), str(work / "int8.onnx"), Reader(), quant_format=QuantFormat.QDQ,
                     per_channel=True, weight_type=QuantType.QInt8, activation_type=QuantType.QUInt8,
                     nodes_to_exclude=front, op_types_to_quantize=["Conv", "Gemm", "MatMul"],
-                    calibrate_method=CalibrationMethod.Percentile, extra_options={"CalibPercentile": 99.99})
+                    calibrate_method={"percentile": CalibrationMethod.Percentile, "entropy": CalibrationMethod.Entropy,
+                                      "minmax": CalibrationMethod.MinMax}[args.calibrate],
+                    extra_options={"CalibPercentile": args.percentile})
     so = ort.SessionOptions()
     so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     so.optimized_model_filepath = str(work / "nhwc.onnx")
@@ -79,7 +94,7 @@ def main():
     m = onnx.load(str(work / "nhwc.onnx"))
     g = m.graph
     inits = {t.name: t for t in g.initializer}
-    nodes, swapped, worst = [], 0, 0.0
+    nodes, swapped, worst, formats = [], 0, 0.0, {}
     for n in g.node:
         attrs = {a.name: helper.get_attribute_value(a) for a in n.attribute}
         pointwise = n.op_type == "QLinearConv" and attrs.get("kernel_shape") == [1, 1] and attrs.get("group", 1) == 1
@@ -93,12 +108,19 @@ def main():
         bias = np.zeros(W.shape[0], np.float32)
         if pointwise and len(n.input) > 8 and n.input[8]:
             bias = floats[n.input[8].removesuffix("_quantized")].astype(np.float32)
-        q, scales, off = grid(W)
+        q, scales, off = channels(W)               # a scale per channel where the weights allow it: faster
+        block = 0
+        if off > 0.01:
+            q, scales, off = blocks(W)
+            block = 32
         worst = max(worst, off)
+        formats[block] = formats.get(block, 0) + 1
         blob = f"{source}_q4"
-        g.initializer.append(numpy_helper.from_array(pack(q, scales, bias), blob))
+        packed = pack_channels(q, scales, bias) if block == 0 else pack(q, scales, bias)
+        g.initializer.append(numpy_helper.from_array(packed, blob))
         nodes.append(helper.make_node("Q4Conv1x1", [n.input[0], n.input[1], n.input[2], blob, n.input[6], n.input[7]],
-                                      list(n.output), domain="latentjam", name=n.name + "_q4", n=int(W.shape[0])))
+                                      list(n.output), domain="latentjam", name=n.name + "_q4", n=int(W.shape[0]),
+                                      block=block))
         swapped += 1
     del g.node[:]
     g.node.extend(nodes)
@@ -108,10 +130,11 @@ def main():
     g.initializer.extend(keep)
     m.opset_import.append(helper.make_opsetid("latentjam", 1))
     onnx.save(m, args.out)
-    print(f"{swapped} layers on Q4Conv1x1 (worst distance from the 4-bit grid {worst:.3f} steps); "
+    print(f"{swapped} layers on Q4Conv1x1 ({formats.get(0, 0)} with a scale per channel, {formats.get(32, 0)} with "
+          f"blocks of 32; worst distance from the 4-bit grid {worst:.3f} steps); "
           f"{os.path.getsize(args.out) / 1e6:.2f} MB, INT8 reference {os.path.getsize(work / 'int8.onnx') / 1e6:.2f} MB")
     if worst > 0.01:
-        raise SystemExit("the stand-in's weights are not on the sq4b32 grid: export it from qat_audio.py")
+        raise SystemExit("the stand-in's weights are on neither 4-bit grid: export it from qat_audio.py")
     if not args.lib:
         return
     so = ort.SessionOptions()

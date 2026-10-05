@@ -5,19 +5,32 @@ reproduce the frozen float encoder's embeddings while those weights round straig
 (w + stop_grad(Q(w) - w)) to a 4-bit grid; every other parameter stays trainable so the network adapts
 around it. Grids:
 
-    sq4b32    symmetric 4-bit, blocks of 32 inputs with a bf16 scale (shipped: latentjam.Q4Conv1x1)
-    sq4c      symmetric 4-bit, one float scale per output channel (fails the semantic-head gate)
+    sq4b32    symmetric 4-bit, blocks of 32 inputs with a bf16 scale (latentjam.Q4Conv1x1)
+    sq4c      symmetric 4-bit, one float scale per output channel (as fast as INT8 on a phone; blocks are not)
+    lq4c, lq4b32  the same grids with a clipping range per channel or block learned in training (LQ)
+    A+B       mixed: A for the 44 pointwise convolutions over time and frequency, B for the two layers that run
+              once per window (conv_head 960 -> 1280 after pooling, and the projection), e.g. lq4c+sq4b32
     hsq4c, hsq4b32  the same on Walsh-Hadamard-rotated groups of 32 inputs (worse after training)
     cqBgG     Cactus CQ: rotated groups of G, Lloyd-Max codebook of B bits, fp16 group norms
 
-    python qat_audio.py train 8 sq4b32          # on a GPU, after fetch_fma.py (val cos 0.9989 to the teacher)
-    python qat_audio.py export sq4b32 qat_sq4b32_best.pt   # out/mnv4_qat_sq4b32.onnx, for make_q4_encoder.py
+Validation cosine to the teacher after 12 epochs: lq4c+sq4b32 0.9989 (shipped), sq4b32 0.9989, sq4c+sq4b32
+0.9986, lq4c 0.9987, sq4c 0.9980.
+
+    python qat_audio.py train 12 lq4c+sq4b32     # on a GPU, after fetch_fma.py
+    python qat_audio.py export lq4c+sq4b32 qat_lq4c+sq4b32_best.pt   # out/mnv4_qat_lq4c+sq4b32.onnx, for
+                                                                      # make_q4_encoder.py
+
+AQ=1 (both commands) also rounds the other convolutions to INT8 and every activation to uint8 as the shipped
+graph does (ActQ, I8): 0.9985 with all of that simulated, against about 0.997 for the shipped graph of a model
+trained without it. But the network learns its training ranges, and make_q4_encoder.py calibrates its own:
+built that way the graph falls to 0.956, so nothing trained with AQ ships until the converter takes the
+ranges the training kept.
 
 It runs from the research folder that holds the float encoder (backbone_fixed.onnx, mnv4_4step_fp32.onnx),
 the front end (common.py, frontend_params.npz) and the training audio: fma_wave.npy / fma_lens.npy, 30 s of
 each of the 11,599 Free Music Archive tracks under CC BY, CC BY-SA, CC0 or public domain that fetch_fma.py
 pulls (commercial_ids.txt). Loss: cosine to the teacher embedding plus batch similarity-structure matching.
-Eight epochs on one A40 take about 12 minutes for four students.
+Twelve epochs on one A40 take about 17 minutes for four students, about 40 for three with AQ.
 """
 import copy
 import functools
@@ -106,7 +119,7 @@ class SQ(nn.Module):
     def roundtrip(self, w):
         W = w.T if self.transposed else w.reshape(w.shape[0], -1)   # [out, in]
         out, inn = W.shape
-        pad = (-inn) % 32
+        pad = (-inn) % max(32, self.block)        # whole blocks, and whole rotation groups of 32
         Wp = (F.pad(W, (0, pad)) if pad else W).float()
         if self.rotate:
             Wp = (Wp.reshape(out, -1, 32) @ self.H).reshape(out, -1)
@@ -127,11 +140,134 @@ class SQ(nn.Module):
         return w + (self.roundtrip(w) - w).detach()
 
 
-def quantizer(cfg, transposed=False):
-    """cq4g32 -> CQ; sq4c / sq4b32 / hsq4c / hsq4b32 -> SQ."""
+class LQ(nn.Module):
+    """SQ's grids with a learned clipping range per output channel (or block): s = a * max|w| / 7 with a in
+    [0.3, 1], started at the a with the least squared error and trained with the network (the step size gets
+    LSQ's gradient, round(w / s) - w / s inside the range and +-7 at its ends; clipped weights get none).
+    Because a <= 1 the largest weight still lands on +-7, so max|w| / 7 reads the step back off the exported
+    weights and the operator's formats do not change."""
+
+    def __init__(self, bits, block, w, transposed=False):
+        super().__init__()
+        self.bits, self.block, self.transposed = bits, block, transposed
+        with torch.no_grad():
+            groups = self.groups(w.detach().float())
+            best = torch.ones(groups.shape[:-1])
+            err = torch.full(groups.shape[:-1], float("inf"))
+            for a in torch.linspace(0.3, 1.0, 36):
+                e = ((self.dequantize(groups, torch.full_like(best, float(a))) - groups) ** 2).sum(-1)
+                better = e < err
+                best, err = torch.where(better, a, best), torch.where(better, e, err)
+        self.a = nn.Parameter(best)
+
+    def groups(self, w):
+        W = w.T if self.transposed else w.reshape(w.shape[0], -1)   # [out, in]
+        if not self.block:
+            return W[:, None, :]                                     # one group per channel
+        pad = (-W.shape[1]) % self.block
+        return (F.pad(W, (0, pad)) if pad else W).reshape(W.shape[0], -1, self.block)
+
+    def dequantize(self, g, a):
+        top = (1 << (self.bits - 1)) - 1
+        s = (a.clamp(0.3, 1.0)[..., None] * g.abs().amax(-1, keepdim=True).detach() / top).clamp_min(1e-12)
+        if self.block:  # stored bf16: the step rounds too, straight-through
+            s = s + (s.to(torch.bfloat16).float() - s).detach()
+        t = torch.clamp(g / s, -top, top)
+        return (t + (torch.round(t) - t).detach()) * s
+
+    def forward(self, w):
+        g = self.groups(w.float())
+        deq = self.dequantize(g, self.a).reshape(g.shape[0], -1)
+        inn = w.shape[0] if self.transposed else w[0].numel()
+        deq = deq[:, :inn]
+        return (deq.T if self.transposed else deq.reshape(w.shape)).to(w.dtype)
+
+
+class I8(nn.Module):
+    """The other convolutions' weights as make_q4_encoder leaves them: INT8 per output channel with ONNX
+    Runtime's symmetric scale (max|w| / 127.5), straight-through."""
+
+    def forward(self, w):
+        W = w.reshape(w.shape[0], -1).float()
+        s = (W.abs().amax(1, keepdim=True) / 127.5).clamp_min(1e-12)
+        deq = (torch.clamp(torch.round(W / s), -128, 127) * s).reshape(w.shape).to(w.dtype)
+        return w + (deq - w).detach()
+
+
+class ActQ(nn.Module):
+    """A uint8 activation as ONNX Runtime's QLinear operators hold it: a scale and a zero point over a range
+    that includes 0, here a moving average of each training batch's 0.005th and 99.995th percentiles (0 below
+    for ReLU outputs); straight-through inside the range, nothing passes outside it. Evaluation keeps the range."""
+
+    def __init__(self, nonneg):
+        super().__init__()
+        self.nonneg, self.seen = nonneg, False
+        self.register_buffer("lo", torch.zeros(()))
+        self.register_buffer("hi", torch.ones(()))
+
+    @torch.no_grad()
+    def observe(self, x):
+        flat = x.detach().float().flatten()
+        if flat.numel() > 1 << 18:
+            flat = flat[torch.randint(flat.numel(), (1 << 18,), device=flat.device)]
+        q = torch.quantile(flat, torch.tensor([5e-5, 1 - 5e-5], device=flat.device))
+        lo = torch.zeros_like(q[0]) if self.nonneg else q[0].clamp(max=0.0)
+        hi = q[1].clamp(min=1e-6)
+        if self.seen:
+            self.lo.lerp_(lo, 0.1)
+            self.hi.lerp_(hi, 0.1)
+        else:
+            self.lo.copy_(lo)
+            self.hi.copy_(hi)
+            self.seen = True
+
+    def forward(self, x):
+        if self.training:
+            self.observe(x)
+        if not self.seen:
+            return x
+        xf = x.float()
+        scale = ((self.hi - self.lo) / 255).clamp_min(1e-8)
+        zero = torch.round(-self.lo / scale).clamp(0, 255)
+        xc = torch.clamp(xf, -zero * scale, (255 - zero) * scale)
+        return (xc + (torch.round(xc / scale) * scale - xc).detach()).to(x.dtype)
+
+
+def quantize_activations(st):
+    """ActQ on every tensor the shipped graph holds in uint8: the backbone's input, each convolution's output
+    (after its ReLU, which ONNX Runtime fuses), each residual sum, the pooled vector and the projection."""
+    g = st.graph
+    marks = []
+    for node in list(g.nodes):
+        if node.op == "placeholder":
+            marks.append((node, False))
+        if node.op != "call_module":
+            continue
+        mod = st.get_submodule(node.target)
+        if isinstance(mod, nn.Conv2d):
+            users = list(node.users)
+            relu = len(users) == 1 and users[0].op == "call_module" and isinstance(st.get_submodule(users[0].target), nn.ReLU)
+            marks.append((users[0], True) if relu else (node, False))
+        elif node.name.endswith("_add") or type(mod).__name__ in ("OnnxGlobalAveragePoolWithKnownInputShape", "OnnxMatMul"):
+            marks.append((node, False))
+    for i, (node, nonneg) in enumerate(marks):
+        name = f"actq_{i}"
+        st.add_submodule(name, ActQ(nonneg))
+        with g.inserting_after(node):
+            q = g.call_module(name, (node,))
+        node.replace_all_uses_with(q, delete_user_cb=lambda user, q=q: user is not q)
+    g.lint()
+    st.recompile()
+    return st
+
+
+def quantizer(cfg, w, transposed=False):
+    """cq4g32 -> CQ; sq4c / sq4b32 / hsq4c / hsq4b32 -> SQ; lq4c / lq4b32 -> LQ (learned clipping)."""
     if cfg.startswith("cq"):
         bits, group = parse(cfg)
         return CQ(bits, group, transposed=transposed)
+    if cfg.startswith("lq"):
+        return LQ(int(cfg[2]), 0 if cfg[3:] == "c" else int(cfg[4:]), w, transposed=transposed)
     rotate = cfg.startswith("h")
     body = cfg[3:] if rotate else cfg[2:]          # "4c" or "4b32"
     bits = int(body[0])
@@ -150,12 +286,20 @@ def load_backbone():
 
 
 def make_student(base, proj_name, cfg):
+    spatial, head = cfg.split("+") if "+" in cfg else (cfg, cfg)
     st = copy.deepcopy(base)
     for mod in st.modules():
         if isinstance(mod, nn.Conv2d) and mod.kernel_size == (1, 1):
-            P.register_parametrization(mod, "weight", quantizer(cfg))
+            once = (mod.in_channels, mod.out_channels) == (960, 1280)   # conv_head, after global pooling
+            P.register_parametrization(mod, "weight", quantizer(head if once else spatial, mod.weight))
     # MatMul x @ W with W [in=1280, out=960]: groups run along the input axis, i.e. W's rows.
-    P.register_parametrization(st.initializers, proj_name, quantizer(cfg, transposed=True))
+    proj = getattr(st.initializers, proj_name)
+    P.register_parametrization(st.initializers, proj_name, quantizer(head, proj, transposed=True))
+    if os.environ.get("AQ") == "1":  # also the shipped graph's INT8: the other weights and every activation
+        for mod in st.modules():
+            if isinstance(mod, nn.Conv2d) and mod.kernel_size != (1, 1):
+                P.register_parametrization(mod, "weight", I8())
+        quantize_activations(st)
     return st
 
 
@@ -230,7 +374,8 @@ def train(epochs, cfgs):
         st = make_student(base, proj_name, cfg).to(dev).train()
         opt = torch.optim.AdamW(st.parameters(), lr=LR, weight_decay=0.0)
         sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=LR, total_steps=total, pct_start=0.05)
-        students[cfg] = dict(model=st, opt=opt, sched=sched, best=-1.0, hist=[])
+        students[cfg] = dict(model=st, opt=opt, sched=sched, best=-1.0, hist=[],
+                             lq=[m for m in st.modules() if isinstance(m, LQ)])
 
     def producer(q):
         r = np.random.default_rng(1)
@@ -311,6 +456,8 @@ def train(epochs, cfgs):
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(s["model"].parameters(), 3.0)
                 s["opt"].step(); s["sched"].step()
+                for m in s["lq"]:
+                    m.a.data.clamp_(0.3, 1.0)   # projected: a clamp in the forward pass would stall a at 1
                 s["last"] = (float(loss), float(l_cos), float(l_rel))
             step += 1
             if step == 20:
