@@ -10,13 +10,17 @@
 // Inputs:  0 X            uint8 [..., K]  rows of an NHWC activation, statically quantized
 //          1 x_scale      float []
 //          2 x_zero_point uint8 []
-//          3 W            uint8 [bytes]   symmetric 4-bit weights with a bf16 scale per 32 inputs and a
-//                                         float bias per output channel, packed by lj_q4_pack (KleidiAI
-//                                         qsi4c32p, nr 8, kr 16, sr 2)
+//          3 W            uint8 [bytes]   symmetric 4-bit weights and a float bias per output channel, packed
+//                                         by lj_q4_pack as KleidiAI packs them (nr 8, kr 16, sr 2): with a bf16
+//                                         scale per 32 inputs (block 32, qsi4c32p) or a float scale per
+//                                         output channel (block 0, qsi4cxp)
 //          4 y_scale      float []
 //          5 y_zero_point uint8 []
-// Attribute: n, the number of output channels.
+// Attributes: n, the number of output channels; block, 32 (the default) or 0.
 // Output:  Y uint8 [..., n] = sat(round((x_scale * sum_k (x - x_zp) * w + bias) / y_scale) + y_zp)
+//
+// A scale per output channel costs nothing over an int8 matrix product; a scale per 32 inputs costs about
+// 1.7x on a phone, so the encoder keeps blocks only where they buy accuracy and the work is small.
 //
 // Only ONNX Runtime's C API is used, at version 16, so one build works with every runtime from 1.16 on. Built
 // without C++ exceptions: nothing can unwind into the runtime, and running out of memory aborts as it would there.
@@ -40,9 +44,12 @@
 #include <sys/auxv.h>
 #endif
 #include "kai_matmul_clamp_f32_qai8dxp4x4_qsi4c32p8x4_4x8_neon_dotprod.h"
+#include "kai_matmul_clamp_f32_qai8dxp4x4_qsi4cxp8x4_8x8x32_neon_dotprod.h"
 #include "kai_matmul_clamp_f32_qai8dxp4x8_qsi4c32p8x8_4x8x32_neon_i8mm.h"
+#include "kai_matmul_clamp_f32_qai8dxp4x8_qsi4cxp8x8_8x8x32_neon_i8mm.h"
 #endif
 #include "kai_rhs_pack_nxk_qsi4c32p_qsu4c32s1s0.h"
+#include "kai_rhs_pack_nxk_qsi4cxp_qs4cxs1s0.h"
 
 namespace {
 
@@ -50,15 +57,17 @@ constexpr uint32_t kApiVersion = 16;
 constexpr size_t kNr = 8, kSr = 2;
 constexpr size_t kModelKr = 16;   // the layout the model carries: KleidiAI's i8mm kernels read it as is
 constexpr size_t kDotKr = 8;      // the dotprod kernels' layout
-constexpr size_t kGroup = 32;     // inputs per bf16 scale
+constexpr size_t kGroup = 32;     // inputs per bf16 scale in the block format; K is padded to it in both
 constexpr size_t kChunk = 64;     // rows per pass: the int8 rows and float results stay in cache
 
 const OrtApi* api = nullptr;
 
 size_t RoundUp(size_t a, size_t b) { return (a + b - 1) / b * b; }
 
-// Per 8 output channels: per 32 inputs 16 bytes of values and 8 bf16 scales, then 8 sums and 8 biases.
-size_t WeightBytes(size_t n, size_t k) {
+// Per 8 output channels. Block format: per 32 inputs 16 bytes of values and 8 bf16 scales, then 8 sums and
+// 8 biases. Channel format: K/2 bytes of values per channel, then 8 sums, 8 scales and 8 biases.
+size_t WeightBytes(size_t n, size_t k, size_t block) {
+  if (block == 0) return RoundUp(n, kNr) * (RoundUp(k, kGroup) / 2 + 12);
   return RoundUp(n, kNr) / kNr * (RoundUp(k, kGroup) / kGroup * kNr * 18 + kNr * 8);
 }
 
@@ -102,7 +111,7 @@ Path DetectPath() {
 
 // Signed 4-bit values [n, k] to the nibbles KleidiAI packs: value + 8, two per byte, the even input low.
 std::vector<uint8_t> Nibbles(const int8_t* q, size_t n, size_t k, size_t padded) {
-  const size_t stride = padded / 2;
+  const size_t stride = (padded + 1) / 2;
   std::vector<uint8_t> nibbles(n * stride, 0x88);
   for (size_t o = 0; o < n; ++o) {
     for (size_t c = 0; c < k; ++c) {
@@ -114,8 +123,16 @@ std::vector<uint8_t> Nibbles(const int8_t* q, size_t n, size_t k, size_t padded)
   return nibbles;
 }
 
-// values [n, k] in -8..7, scales [n, ceil(k / 32)] (rounded to bf16 here), biases [n] -> KleidiAI's layout for kr.
-void PackWeights(size_t n, size_t k, size_t kr, const int8_t* q, const float* scale, const float* bias, uint8_t* out) {
+// values [n, k] in -8..7, scales ([n, ceil(k / 32)] for blocks, rounded to bf16 here; [n] for channels) and
+// biases [n] -> KleidiAI's layout for kr.
+void PackWeights(size_t n, size_t k, size_t block, size_t kr, const int8_t* q, const float* scale, const float* bias,
+                 uint8_t* out) {
+  if (block == 0) {
+    std::vector<uint8_t> nibbles = Nibbles(q, n, k, k);
+    kai_rhs_pack_nxk_qsi4cxp_qs4cxs1s0_params params{1, 8};
+    kai_run_rhs_pack_nxk_qsi4cxp_qs4cxs1s0(1, n, k, kNr, kr, kSr, nibbles.data(), bias, scale, out, 0, &params);
+    return;
+  }
   const size_t padded = RoundUp(k, kGroup), groups = padded / kGroup;
   std::vector<uint8_t> nibbles = Nibbles(q, n, k, padded);
   std::vector<uint16_t> scales(n * groups);
@@ -125,11 +142,11 @@ void PackWeights(size_t n, size_t k, size_t kr, const int8_t* q, const float* sc
                                             scales.data(), groups * sizeof(uint16_t), out, 0, &params);
 }
 
-// The inverse of PackWeights for the model's layout (kr 16): per 32 inputs, two segments of 8 channels x 4
-// words, each word the values at k, k + 16, k + 1, k + 17 (xor 0x8888); then 8 bf16 scales; at the end the
-// zero-point sums and the biases.
-void UnpackWeights(const uint8_t* w, size_t n, size_t k, std::vector<int8_t>& q, std::vector<float>& scales,
-                   std::vector<float>& bias) {
+// The inverse of PackWeights for the model's layout (kr 16), block format: per 32 inputs, two segments of 8
+// channels x 4 words, each word the values at k, k + 16, k + 1, k + 17 (xor 0x8888); then 8 bf16 scales; at
+// the end the zero-point sums and the biases.
+void UnpackBlocks(const uint8_t* w, size_t n, size_t k, std::vector<int8_t>& q, std::vector<float>& scales,
+                  std::vector<float>& bias) {
   const size_t groups = RoundUp(k, kGroup) / kGroup;
   q.assign(n * k, 0);
   scales.assign(n * groups, 0.f);
@@ -157,6 +174,33 @@ void UnpackWeights(const uint8_t* w, size_t n, size_t k, std::vector<int8_t>& q,
     src += kNr * 4;  // the zero-point sums
     for (size_t lane = 0; lane < kNr; ++lane, src += 4) {
       if (first + lane < n) memcpy(&bias[first + lane], src, 4);
+    }
+  }
+}
+
+// The same for the channel format: per 8 channels, blocks of 8 bytes per channel interleaved over the 8
+// channels, each byte the values at k (low) and k + 16 (high), xor 0x88; then sums x 16, scales / 16, biases.
+void UnpackChannels(const uint8_t* w, size_t n, size_t k, std::vector<int8_t>& q, std::vector<float>& scales,
+                    std::vector<float>& bias) {
+  const size_t internal = RoundUp(k, kGroup), bytes = kNr * internal / 2, stride = bytes + kNr * 12;
+  q.assign(n * k, 0);
+  scales.assign(n, 0.f);
+  bias.assign(n, 0.f);
+  for (size_t first = 0; first < n; first += kNr) {
+    const uint8_t* src = w + first / kNr * stride;
+    for (size_t i = 0; i < bytes; ++i) {
+      const size_t block = i / 8, super = block / kNr, lane = block % kNr, base = i % 8 + super * 8;
+      const size_t k0 = base + base / 16 * 16, k1 = k0 + 16, o = first + lane;
+      if (o >= n) continue;
+      const uint8_t byte = src[i] ^ 0x88;
+      if (k0 < k) q[o * k + k0] = static_cast<int8_t>(byte & 0x0F) - 8;
+      if (k1 < k) q[o * k + k1] = static_cast<int8_t>(byte >> 4) - 8;
+    }
+    for (size_t lane = 0; lane < kNr && first + lane < n; ++lane) {
+      float value;
+      memcpy(&value, src + bytes + kNr * 4 + lane * 4, 4);
+      scales[first + lane] = value * 16.f;
+      memcpy(&bias[first + lane], src + bytes + kNr * 8 + lane * 4, 4);
     }
   }
 }
@@ -217,11 +261,16 @@ thread_local Scratch scratch;
 
 struct Kernel {
   size_t n;
+  size_t block;                    // 32: a bf16 scale per 32 inputs; 0: a float scale per output channel
   Path path;
   std::vector<uint8_t> repacked;   // dotprod-only CPUs: the weights in the dotprod kernels' layout
   std::vector<int8_t> values;      // portable path: the weights decoded once
   std::vector<float> scales, bias;
 
+  void Unpack(const uint8_t* w, size_t k) {
+    if (block == 0) UnpackChannels(w, n, k, values, scales, bias);
+    else UnpackBlocks(w, n, k, values, scales, bias);
+  }
   void Multiply(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, const uint8_t* w, float ys, int32_t yz,
                 uint8_t* y);
   void Portable(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, float inverse, int32_t yz, uint8_t* y);
@@ -230,43 +279,51 @@ struct Kernel {
 void Kernel::Multiply(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, const uint8_t* w, float ys,
                       int32_t yz, uint8_t* y) {
   if (path == Path::kPortable) {
-    if (values.empty()) UnpackWeights(w, n, k, values, scales, bias);
+    if (values.empty()) Unpack(w, k);
     return Portable(x, m, k, xs, xz, 1.0f / ys, yz, y);
   }
 #if defined(__aarch64__)
   const bool i8mm = path == Path::kI8mm;
   if (!i8mm && repacked.empty()) {
-    UnpackWeights(w, n, k, values, scales, bias);
-    repacked.resize(WeightBytes(n, k));
-    PackWeights(n, k, kDotKr, values.data(), scales.data(), bias.data(), repacked.data());
+    Unpack(w, k);
+    repacked.resize(WeightBytes(n, k, block));
+    PackWeights(n, k, block, kDotKr, values.data(), scales.data(), bias.data(), repacked.data());
     std::vector<int8_t>().swap(values);
     std::vector<float>().swap(scales);
     std::vector<float>().swap(bias);
   }
   const uint8_t* weights = i8mm ? w : repacked.data();
-  const size_t block = (i8mm ? kModelKr : kDotKr) / kSr, padded = RoundUp(k, kGroup);
+  const size_t rowBlock = (i8mm ? kModelKr : kDotKr) / kSr, padded = RoundUp(k, kGroup), stride = n * sizeof(float);
   if (scratch.rows.size() < kChunk * (padded + 8)) scratch.rows.resize(kChunk * (padded + 8));
   if (scratch.results.size() < kChunk * n) scratch.results.resize(kChunk * n);
+  float* results = scratch.results.data();
   for (size_t m0 = 0; m0 < m; m0 += kChunk) {
     const size_t count = std::min(kChunk, m - m0);
-    PackRows(x + m0 * k, count, k, block, xs, xz, scratch.rows.data());
-    if (i8mm) {
-      kai_run_matmul_clamp_f32_qai8dxp4x8_qsi4c32p8x8_4x8x32_neon_i8mm(count, n, padded, kGroup, scratch.rows.data(),
-          weights, scratch.results.data(), n * sizeof(float), sizeof(float), -INFINITY, INFINITY);
+    const uint8_t* rows = scratch.rows.data();
+    PackRows(x + m0 * k, count, k, rowBlock, xs, xz, scratch.rows.data());
+    if (block == 0 && i8mm) {
+      kai_run_matmul_clamp_f32_qai8dxp4x8_qsi4cxp8x8_8x8x32_neon_i8mm(count, n, k, rows, weights, results, stride,
+                                                                      sizeof(float), -INFINITY, INFINITY);
+    } else if (block == 0) {
+      kai_run_matmul_clamp_f32_qai8dxp4x4_qsi4cxp8x4_8x8x32_neon_dotprod(count, n, k, rows, weights, results, stride,
+                                                                         sizeof(float), -INFINITY, INFINITY);
+    } else if (i8mm) {
+      kai_run_matmul_clamp_f32_qai8dxp4x8_qsi4c32p8x8_4x8x32_neon_i8mm(count, n, padded, kGroup, rows, weights, results,
+                                                                       stride, sizeof(float), -INFINITY, INFINITY);
     } else {
-      kai_run_matmul_clamp_f32_qai8dxp4x4_qsi4c32p8x4_4x8_neon_dotprod(count, n, padded, kGroup, scratch.rows.data(),
-          weights, scratch.results.data(), n * sizeof(float), sizeof(float), -INFINITY, INFINITY);
+      kai_run_matmul_clamp_f32_qai8dxp4x4_qsi4c32p8x4_4x8_neon_dotprod(count, n, padded, kGroup, rows, weights, results,
+                                                                       stride, sizeof(float), -INFINITY, INFINITY);
     }
-    Requantize(scratch.results.data(), count * n, 1.0f / ys, yz, y + m0 * n);
+    Requantize(results, count * n, 1.0f / ys, yz, y + m0 * n);
   }
 #endif
 }
 
-// Integer dot products per block of 32 inputs that the compiler vectorizes, four rows at a time.
+// Integer dot products the compiler vectorizes, per block of 32 inputs or per channel, four rows at a time.
 void Kernel::Portable(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, float inverse, int32_t yz,
                       uint8_t* y) {
   constexpr size_t kTile = 4;
-  const size_t groups = RoundUp(k, kGroup) / kGroup;
+  const size_t groups = block == 0 ? 1 : RoundUp(k, kGroup) / kGroup, span = block == 0 ? k : kGroup;
   if (scratch.centered.size() < kTile * k) scratch.centered.resize(kTile * k);
   int16_t* rows = scratch.centered.data();
   for (size_t r0 = 0; r0 < m; r0 += kTile) {
@@ -281,8 +338,8 @@ void Kernel::Portable(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz
         float sum = 0.f;
         for (size_t g = 0; g < groups; ++g) {
           int32_t acc = 0;
-          const size_t end = std::min(k, (g + 1) * kGroup);
-          for (size_t c = g * kGroup; c < end; ++c) acc += row[c] * wo[c];
+          const size_t end = std::min(k, (g + 1) * span);
+          for (size_t c = g * span; c < end; ++c) acc += row[c] * wo[c];
           sum += scales[o * groups + g] * static_cast<float>(acc);
         }
         const int32_t q = static_cast<int32_t>(std::nearbyint((xs * sum + bias[o]) * inverse)) + yz;
@@ -333,7 +390,9 @@ OrtStatus* ORT_API_CALL Compute(void* raw, OrtKernelContext* context) {
   if (OrtStatus* status = Count(w, &weightBytes, nullptr)) return status;
   if (shape.empty() || shape.back() <= 0) return Fail("Q4Conv1x1: X needs a channel axis");
   const size_t k = static_cast<size_t>(shape.back()), m = count / k;
-  if (weightBytes != WeightBytes(kernel->n, k)) return Fail("Q4Conv1x1: W does not match n and the channels of X");
+  if (weightBytes != WeightBytes(kernel->n, k, kernel->block)) {
+    return Fail("Q4Conv1x1: W does not match n, block and the channels of X");
+  }
   float xs = 0.f, ys = 0.f;
   uint8_t xz = 0, yz = 0;
   if (OrtStatus* status = Scalar(context, 1, &xs)) return status;
@@ -355,10 +414,15 @@ OrtStatus* ORT_API_CALL Compute(void* raw, OrtKernelContext* context) {
 }
 
 OrtStatus* ORT_API_CALL CreateKernel(const OrtCustomOp*, const OrtApi*, const OrtKernelInfo* info, void** out) {
-  int64_t n = 0;
+  int64_t n = 0, block = 32;
   if (OrtStatus* status = api->KernelInfoGetAttribute_int64(info, "n", &n)) return status;
+  if (OrtStatus* status = api->KernelInfoGetAttribute_int64(info, "block", &block)) {
+    api->ReleaseStatus(status);  // absent: blocks of 32
+    block = 32;
+  }
   if (n <= 0) return Fail("Q4Conv1x1: n must be positive");
-  Kernel* kernel = new (std::nothrow) Kernel{static_cast<size_t>(n), DetectPath(), {}, {}, {}, {}};
+  if (block != 0 && block != 32) return Fail("Q4Conv1x1: block must be 32 or 0");
+  Kernel* kernel = new (std::nothrow) Kernel{static_cast<size_t>(n), static_cast<size_t>(block), DetectPath(), {}, {}, {}, {}};
   if (kernel == nullptr) return api->CreateStatus(ORT_FAIL, "Q4Conv1x1: out of memory");
   *out = kernel;
   return nullptr;
@@ -413,12 +477,14 @@ LJ_EXPORT OrtStatus* LjRegisterOrtOps(OrtSessionOptions* options, const OrtApiBa
   return RegisterCustomOps(options, base);
 }
 
-// Bytes lj_q4_pack writes for an [n, k] matrix.
-LJ_EXPORT size_t lj_q4_packed_size(size_t n, size_t k) { return WeightBytes(n, k); }
+// Bytes lj_q4_pack writes for an [n, k] matrix (block 32 or 0).
+LJ_EXPORT size_t lj_q4_packed_size(size_t n, size_t k, size_t block) { return WeightBytes(n, k, block); }
 
-// Packs values q [n, k] in -8..7, scales [n, ceil(k / 32)] and biases [n] the way the model carries them.
-LJ_EXPORT void lj_q4_pack(size_t n, size_t k, const int8_t* q, const float* scale, const float* bias, uint8_t* out) {
-  PackWeights(n, k, kModelKr, q, scale, bias, out);
+// Packs values q [n, k] in -8..7, scales ([n, ceil(k / 32)] for blocks of 32, [n] per channel) and biases [n]
+// the way the model carries them.
+LJ_EXPORT void lj_q4_pack(size_t n, size_t k, size_t block, const int8_t* q, const float* scale, const float* bias,
+                          uint8_t* out) {
+  PackWeights(n, k, block, kModelKr, q, scale, bias, out);
 }
 
 }  // extern "C"

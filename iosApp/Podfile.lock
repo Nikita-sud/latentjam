@@ -1,5 +1,11 @@
 PODS:
-  - LatentJamOrtOps (1.0.0)
+  - LatentJamOrtOps (1.0.0):
+    - LatentJamOrtOps/Core (= 1.0.0)
+    - LatentJamOrtOps/Dotprod (= 1.0.0)
+    - LatentJamOrtOps/I8mm (= 1.0.0)
+  - LatentJamOrtOps/Core (1.0.0)
+  - LatentJamOrtOps/Dotprod (1.0.0)
+  - LatentJamOrtOps/I8mm (1.0.0)
   - onnxruntime-c (1.26.0)
 
 DEPENDENCIES:
@@ -15,7 +21,7 @@ EXTERNAL SOURCES:
     :path: "../core/ort-ops"
 
 SPEC CHECKSUMS:
-  LatentJamOrtOps: 5fcde8bb7bca10feb39fa3dc13689e10a74815f7
+  LatentJamOrtOps: ed6f77bef2d4c23f0a6f5d073c2bd5cd95cc5063
   onnxruntime-c: e6e9272f5996fed3ea3ca3c9bc843478b2ecbc73
 
 PODFILE CHECKSUM: 213b954945807df08e0b09fc29f351936f667219
