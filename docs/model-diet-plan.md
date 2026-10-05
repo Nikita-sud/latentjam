@@ -305,6 +305,36 @@ can at best match it. Next candidates: fine-tuning the pruned encoder on playlis
 (InfoNCE, `train_audio_retrieval_student.py`'s objective) or a stronger offline teacher whose licence
 allows distillation.
 
+*Phase 3, second round (2026-10-05): a better teacher than AudioSet's.* The owner asked whether teachers
+beyond the AudioSet ones (EfficientAT MN10 / DyMN20) would help. `tools/research/model_diet/teachers`
+measures a teacher's own space before any distillation, on the app's windows: MPD playlist P@10 (six
+libraries), the owner's library (playlists, same artist, next track) and FMA genre, against 0.7.1's
+encoder (0.145 / 0.221 / 0.115 / MRR 0.118 / 71.5 %).
+
+- **Raw, the music models are worse.** MusicFM (MIT) 0.123 MPD and MRR 0.068, MuQ (CC-BY-NC) 0.137 / 0.082,
+  MERT (CC-BY-NC) 0.115 / 0.075; MN10 0.140, DyMN20 0.143. Dasheng-0.6B (Apache-2.0, self-supervised on
+  272k hours of general audio, no labels) 0.149 / 0.098. CLAP's vectors were degenerate in our setup.
+- **The information is there.** With one learned 256-d map per space, trained on three MPD libraries'
+  playlists and tested on the other three: 0.7.1 0.159, Dasheng-0.6B 0.191, MuQ 0.177, MERT 0.173,
+  MusicFM 0.167; joined with 0.7.1's space, Dasheng 0.196.
+- **Joined, without any training, it is better everywhere.** 0.7.1 ⊕ Dasheng-0.6B (centred, equal weight):
+  MPD 0.158 (+9 %), owner playlists 0.242 (+10 %), same artist +0.011, next-track MRR +0.006 (n.s.; median
+  rank 48 → 42), FMA genre 74.0 % (+2.5 pp). A 960-d PCA of it keeps that (MPD 0.155, owner 0.232, MRR 0.129).
+- **Distilling it** (`qat_audio.py MIX=dasheng_06b:26`): matching only the in-batch similarity structure
+  barely moved the student; regressing to the joined PCA-960 space (`MIXMODE=regress`, Procrustes-aligned to
+  the encoder) reached parity on FMA alone (7.8k tracks, 20 epochs) and, continued on FMA plus 14,281 MPD
+  previews outside the evaluation libraries, MPD 0.148 (+0.003, significant), owner playlists 0.229 (+0.009,
+  n.s.), next-track MRR 0.116 (n.s.), genre 73.0 % — a quarter of the joined space's gain, at the full 5.93 MB.
+  One A40 pod, 4.3 h, about $2.10.
+- **End to end it buys nothing.** With the SMART nets and the semantic head moved to its space (plan B), the
+  bundle report (`phase3-regFM-planb`): six MPD ΔP@10 +0.06 [−0.47, +0.60], owner cold −0.16 [−1.23, +0.99],
+  history −0.18 [−0.73, +0.32] over 1,073 seeds; the moved head fails its gate (real genres top-1 −1.4 pp,
+  macro AP −2.0 [−3.7, −0.5], largest mean shift 0.23): without the FMA vectors phase 1 trained it on, plan B
+  has 13k examples for it. Not shipped; the branch keeps the pruned 3.35 MB encoder.
+- **What the gain would take:** much more training audio than 22k tracks, a larger student (against the size
+  goal), or a second small encoder for Dasheng's part joined on the device (about +3 MB and +60–70 %
+  indexing time, plus SMART nets trained for the joined space).
+
 **4. Integration (1–2 days).** A branch with the new assets and the operator, `modelVersion` bump if
 phase 3 lands, parity fixtures and device tests updated, APK size measured per ABI, and an F-Droid
 build check (the operator builds from source with CMake). Merging stays the owner's call.
