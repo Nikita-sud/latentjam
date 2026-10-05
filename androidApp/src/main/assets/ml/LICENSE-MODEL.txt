@@ -24,15 +24,18 @@ tools/research/rebuild_audio_encoder.py and
 tools/research/model_diet/make_q4_encoder.py. Its log-mel DFT is computed as a
 four-step FFT (two 32-point stages of matrix products) instead of a
 convolution over stored kernels; the math is the same. Its 45 pointwise
-convolutions and its final projection hold symmetric 4-bit weights, in blocks
-of 32 inputs with a bfloat16 scale each, and run on LatentJam's own operator
-(core/ort-ops). They were fine-tuned by quantization-aware distillation,
-learning to reproduce the float encoder's own embeddings of 10 s windows from
-11,456 Free Music Archive tracks released under CC BY, CC BY-SA, CC0 or
-public domain. Its other convolution weights are INT8 (per-channel), and its
-activation ranges were calibrated on the first 10 s of 200 of those tracks; no
-audio is stored in the model. The graph reproduces the float encoder at a
-mean track cosine of 0.997, as the previous INT8 graph did.
+convolutions and its final projection hold symmetric 4-bit weights and run on
+LatentJam's own operator (core/ort-ops): the 44 convolutions over time and
+frequency with a float scale per output channel over a clipping range learned
+in training, the head convolution and the projection, which run once per
+window, in blocks of 32 inputs with a bfloat16 scale each. They were
+fine-tuned by quantization-aware distillation, learning to reproduce the float
+encoder's own embeddings of 10 s windows from 11,456 Free Music Archive tracks
+released under CC BY, CC BY-SA, CC0 or public domain. Its other convolution
+weights are INT8 (per-channel), and its activation ranges were calibrated on
+the first 10 s of 200 of those tracks; no audio is stored in the model. The
+graph reproduces the float encoder at a mean track cosine of 0.997, as the
+previous INT8 graph did.
 predictor_state.onnx and predictor_scorer_n100.onnx store their matrix
 weights as 4-bit blocks (ONNX Runtime's MatMulNBits: 32 weights per block,
 each with an FP16 scale and a 4-bit zero point; the state net's GRU stays

@@ -196,7 +196,45 @@ pointwise convolutions and its projection with 4-bit weights; ONNX Runtime keeps
   instead of ~115 ms (the graph is already optimized).
 - Integration: Android loads `libljq4.so` from the APK and registers it by name (CMake through Gradle,
   NDK 28.2.13676358 pinned, so the F-Droid recipe needs that NDK); iOS links the `LatentJamOrtOps` pod and
-  calls `LjRegisterOrtOps`. Pending: the phone's timing gate (S24 Ultra, i8mm).
+  calls `LjRegisterOrtOps`.
+- **Phone timing (Galaxy S24 Ultra, i8mm), 2026-10-05: blocks of 32 fail the speed gate.** Per 10 s
+  window the 4-bit graph took 80–93 ms against 65–76 ms for INT8 (+19–24 %), though its session holds
+  8.9 MB instead of 15.1 MB and loads in 25 ms instead of 160 ms. A microbenchmark on the X4 core shows
+  why: KleidiAI's block-scaled 4-bit matmul needs 19–21 ms for the encoder's pointwise layers where its
+  int8 one needs 10 ms (a float multiply-add per block of 32), while its 4-bit kernel with one scale per
+  output channel runs as fast as int8 (in the app +2–5 % against ONNX Runtime's INT8, 8.8 MB). Blocks of
+  128 would still cost +37 %. One scale per channel everywhere failed the head gate, so the next round is
+  mixed: a scale per channel for the 44 pointwise convolutions over time and frequency (all of the work),
+  blocks of 32 for conv_head and the projection (26 % of the weights, run once per window).
+- **Mixed formats.** A scale per channel for those 44, blocks of 32 for conv_head and the projection (pod,
+  12 epochs, $0.26): validation cosine 0.9986 (blocks everywhere 0.9989, a scale per channel everywhere
+  0.9980). On the phone +2 % per window against INT8, load 30 ms instead of 200, session 8.9 MB instead of
+  15.1; i8mm, dotprod and the NEON path give the same embedding bit for bit. Alone it passes every gate, the
+  head only just (top genre −0.48 pp).
+- **The combined bundle, and a noisy gate.** With phase 1's assets the mixed encoder failed owner history,
+  ΔP@10 −1.40 [−2.40, −0.43]. The gate's 300 seeds are one fixed draw (rng 11) from the 1,073 usable
+  mid-session seeds, and that draw holds seeds that react to any change of the track vectors: on them every
+  4-bit encoder loses 0.3–1.4 pp, on the other 773 it moves −0.19…+0.13 pp, while phase 1 alone looks the
+  same on both (−0.20 / −0.16). **The owner-history gate now takes all 1,073 seeds** (`HISTORY_SEEDS=3000`
+  in the report; interval ±0.4 pp instead of ±1): phase 1 −0.17 [−0.48, +0.12], phase 1 with blocks of 32
+  −0.14 [−0.50, +0.21], with the mixed encoder −0.53 [−0.99, −0.11] (fails).
+- **Where the error is.** The float 4-bit stand-in sits at cosine 0.9991 to the teacher, the shipped graph
+  at 0.9963–0.9972 (0.7.1: 0.9974): ONNX Runtime's uint8 activations cost three times what the 4-bit weights
+  do. Calibration does not help (percentile 99.99 beats 99.999 and 99.9; entropy and min-max break the
+  graph). Simulating the INT8 activations in training (AQ=1) reaches 0.9985 with them, but the network
+  learns its training ranges: built with the converter's own calibration the graph falls to 0.956. It needs
+  the learned ranges carried into the graph (not done).
+- **Learned clipping, shipped 2026-10-05.** LQ learns a clipping range per channel (LSQ's step gradient,
+  started at the least squared error; at most max |w|, so the converter reads the step back off the
+  weights): lq4c+sq4b32 validation cosine 0.9989, as blocks everywhere. Bundle report
+  (`audio-q4-lq-lq4c+sq4b32`): MPD ΔP@10 −0.01 [−0.42, +0.42], owner cold −0.12, history −0.60 [−1.30,
+  +0.13] on the old 300 seeds; head top genre ±0.0 pp, mood +0.2; track vectors at cosine 0.998 to 0.7.1's
+  and at least as close to the teacher on six of seven libraries. With phase 1's assets
+  (`phase2-lq-lq4c+sq4b32`): owner history −0.26 [−0.66, +0.11] over 1,073 seeds (−1.10 on the old 300),
+  every other gate passes. 5.93 MB in memory, 4.82 MB in the APK (0.7.1: 10.75 / 8.94). Phone: 66.0
+  against 65.0 ms per window (+1.5 %), load 25 ms instead of 160; emulator device tests, the iOS simulator
+  smoke and the reduced runtime's parity (47,047 floats bit for bit) pass. Release arm64 APK 40.5 MB
+  (0.7.1: 56.8).
 
 **3. Better and smaller (3–5 days, ~$30–80 GPU).** Stronger offline teachers, chosen by measured
 SMART and listener quality and by licence (only teachers whose licence allows distilling into an
