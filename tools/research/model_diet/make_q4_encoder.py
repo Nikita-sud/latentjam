@@ -78,7 +78,8 @@ def main():
         def get_next(self):
             return next(self.it, None)
 
-    front = [n.name for n in standin.graph.node if n.name.startswith(("fft/", "fe4/"))]   # the front end stays float
+    # The front end stays float: fft/ and fe4/ in the encoder's graph, /fe/ in a student's (student_audio.py).
+    front = [n.name for n in standin.graph.node if n.name.startswith(("fft/", "fe4/", "/fe/"))]
     quantize_static(str(work / "standin.onnx"), str(work / "int8.onnx"), Reader(), quant_format=QuantFormat.QDQ,
                     per_channel=True, weight_type=QuantType.QInt8, activation_type=QuantType.QUInt8,
                     nodes_to_exclude=front, op_types_to_quantize=["Conv", "Gemm", "MatMul"],
