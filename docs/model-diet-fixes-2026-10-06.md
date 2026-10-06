@@ -149,6 +149,31 @@ plan boundaries (owner history: 0.232 → 0.200, against 0.137 off). On the owne
 a playlist with the pick (−6 pp in the first 12 for any continuation mode, −6 to −7 pp over the queue); on MPD
 there is no measured difference. These are proxies; the listening build with the fix is for the ear test.
 
+### Settings sweep against 0.7.1 (written protocol)
+
+Question: which settings make queues better than 0.7.1 for any listener, in the app's plan pattern
+(12+12+12)? The protocol was written before any run (`sweep-2026-10-06/protocol.json` in the experiment
+folder): settings chosen on discovery sets (MPD r1k_a, s1k_a, r3k; the owner's even seed rows), accepted
+only if on both held-out pools (MPD r1k_b, r1k_c, s1k_b; the owner's odd seed rows) the playlist share is
+not more than 1 pp lower, fewer neighbourhood slots are skipped, audio adjacency is not more than 0.005 lower
+and abrupt transitions (audio cosine under 0.2) not more than 0.5 pp more frequent.
+
+Swept (`tools/research/model_diet/replay_plans.py` cfg variants, `sweep_eval.py`): the plain chain with the
+semantic terms ×0.5, ×1.5, ×2; the continuation mode with a hard or soft neighbourhood (bonus 0–4) and with the
+neighbourhood's descriptor share 0.3/0.5/0.7 and semantic weight ×1/1.5/2.
+
+- No setting passed. The selection rule picked the continuation mode with its defaults; held out it is better
+  than 0.7.1 on MPD in every measure (playlist share +1.0 pp [+0.1, +1.9], audio adjacency +0.017, abrupt
+  transitions −1.0 pp, skipped slots −8.7, longer artist runs gone) and worse on the owner's library (playlist
+  share −4.3 pp [−5.5, −3.1], audio adjacency −0.006). The owner's loss sits in other artists' tracks, not in
+  fewer repeats of the pick's artist, and at every neighbourhood size.
+- The semantic weight is a trade-off, not a free gain: ×1.5–2 adds about 1 pp of playlist share on the
+  owner's library (none on MPD) for rougher transitions; ×0.5 makes queues markedly smoother (+0.03 audio
+  adjacency) for 3 pp less playlist share on the owner's library.
+- A soft neighbourhood or a different descriptor share does not recover the owner's loss.
+- Ordering has no headroom: the exact optimal order within each plan would add +0.003 audio adjacency.
+- The new bundle with the shipped chain is indistinguishable from 0.7.1 on both held-out pools.
+
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
 `continuity-model-comparison.json` re-evaluates the earlier models on fixed transition rulers.
