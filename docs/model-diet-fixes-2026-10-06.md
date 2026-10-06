@@ -196,6 +196,16 @@ Known limits: thematic libraries like the owner's lose playlist share (−4.3 pp
 have no listening histories, so history-mode evidence comes from the owner's library alone; playlist
 co-membership and audio continuity are proxies for listening.
 
+A blind judge (DeepSeek Flash, `tools/research/model_diet/judge_queues.py`: the first 24 tracks of each queue,
+every pair judged in both orders and averaged; MPD libraries only, the owner's library never leaves the machine)
+sees no difference on the held-out libraries: with top-ups only, 0.7.1 3.46 against 3.52, Δ +0.05 [−0.03,
++0.14] over 450 pairs; at the default length 20, 3.53 against 3.51, Δ −0.02 [−0.10, +0.06]. Clear wins (both
+orders agree, a gap of at least one point) split 196 to 193. The judge's complaints about the losing queue are
+the same for both versions: drifting off the seed's style (about 180 of the clear losses), flow, mood, a
+repeated artist and era. Each version drifts where the other does not: 0.7.1 into classic rock and oldies after
+a modern seed, the continuation mode into show tunes or ambient after a pop seed. The proxies' gains are too small
+for the judge to notice; the mode is on for its measured continuity and coverage, not as a judged improvement.
+
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
 `continuity-model-comparison.json` re-evaluates the earlier models on fixed transition rulers.
