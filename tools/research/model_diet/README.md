@@ -111,6 +111,8 @@ Do not promote a checkpoint because teacher cosine alone improves.
 - `distill_audio_cached.py` runs a bounded local teacher-assistant experiment with a fixed validation
   set and saves checkpoint hashes, selected track ids and every epoch, including epoch zero.
   It uses one fixed crop per track; it does not replace the augmented multi-crop training recipe.
+  `--aq` fine-tunes with the graph's INT8 convolutions and uint8 activations simulated, starting from a
+  checkpoint trained without them; export with `AQ=1` so the converter keeps the learned ranges.
 - `verify_audio_export.py` compares a restored checkpoint, with fake quantization active when requested,
   to the final custom-operator ONNX. Run with the audio-student source directory on `PYTHONPATH` for
   `common.py`; the source, checkpoint, pruned channel indices, calibration PCM and host operator library

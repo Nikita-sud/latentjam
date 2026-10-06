@@ -8,6 +8,7 @@ multi-crop, augmented training recipe in qat_audio.py.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import time
 
@@ -16,6 +17,25 @@ import torch
 import torch.nn.functional as F
 
 import qat_audio as q
+
+
+def load_without_aq(model, state):
+    """A checkpoint trained without AQ into an AQ student: the INT8-parametrized convolutions' weights move to
+    their parametrization's original, and only the activation observers' ranges may be missing."""
+    keys = set(model.state_dict())
+    moved = {}
+    for key, value in state.items():
+        if key not in keys and key.endswith(".weight"):
+            alias = key[: -len("weight")] + "parametrizations.weight.original"
+            if alias in keys:
+                key = alias
+        moved[key] = value
+    result = model.load_state_dict(moved, strict=False)
+    if result.unexpected_keys:
+        raise ValueError(f"checkpoint keys the AQ student lacks: {result.unexpected_keys[:5]}")
+    missing = [k for k in result.missing_keys if not k.endswith((".lo", ".hi", "._extra_state"))]
+    if missing:
+        raise ValueError(f"AQ student keys the checkpoint lacks: {missing[:5]}")
 
 
 def main():
@@ -32,6 +52,9 @@ def main():
     ap.add_argument("--max-train", type=int, default=2048)
     ap.add_argument("--max-val", type=int, default=384)
     ap.add_argument("--lr", type=float, default=5e-5)
+    ap.add_argument("--aq", action="store_true",
+                    help="also simulate the graph's INT8 convolutions and uint8 activations (qat_audio.py AQ=1); "
+                         "an --init without them keeps its weights, and the observers see 512 training crops first")
     a = ap.parse_args()
     torch.manual_seed(0)
     rng = np.random.default_rng(0)
@@ -51,8 +74,14 @@ def main():
     targets = np.load(a.cache / "teacher.npy", mmap_mode="r")
     base, proj = q.load_backbone()
     indices = json.loads(a.prune.read_text())
+    if a.aq:
+        os.environ["AQ"] = "1"
     model = q.make_student(base, proj, a.cfg, indices)
-    model.load_state_dict(torch.load(a.init, map_location="cpu", weights_only=True))
+    state = torch.load(a.init, map_location="cpu", weights_only=True)
+    if a.aq:
+        load_without_aq(model, state)
+    else:
+        model.load_state_dict(state)
     model.to(a.device)
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=0)
     lr = torch.optim.lr_scheduler.CosineAnnealingLR(opt, a.epochs)
@@ -63,6 +92,12 @@ def main():
         x = torch.from_numpy(np.array(mel[ids], dtype=np.float32)).to(a.device)
         y = torch.from_numpy(np.array(targets[ids])).to(a.device)
         return x, y
+
+    if a.aq:  # the activation observers take their first ranges from training crops, before any step
+        model.train()
+        with torch.no_grad():
+            for b in range(0, min(512, len(train)), a.batch):
+                model(batch(train[b : b + a.batch])[0])
 
     @torch.no_grad()
     def evaluate():
@@ -98,7 +133,7 @@ def main():
     before = evaluate()
     best = before["cos"]
     torch.save(
-        {k: v.detach().cpu() for k, v in model.state_dict().items()}, a.out / "best.pt"
+        {k: v.detach().cpu() if torch.is_tensor(v) else v for k, v in model.state_dict().items()}, a.out / "best.pt"
     )
     record(0, before)
     provenance = dict(
@@ -138,7 +173,7 @@ def main():
         if metrics["cos"] > best:
             best = metrics["cos"]
             torch.save(
-                {k: v.detach().cpu() for k, v in model.state_dict().items()},
+                {k: v.detach().cpu() if torch.is_tensor(v) else v for k, v in model.state_dict().items()},
                 a.out / "best.pt",
             )
         lr.step()
