@@ -225,6 +225,28 @@ judge with proxy limits, accepted on r1k_b, r1k_c, s1k_b in both app scenarios.
   and five Britney Spears tracks; a wide ring letting a grime seed wander to Owl City and AC/DC). Both versions put
   one artist's tracks next to each other (the ordering keeps similar tracks together).
 
+### The owner's criterion: tracks only
+
+The owner objected that a run of one artist is no fault when its tracks fit; a problem would be the same artist
+with tracks that do not. Measured on the held-out queues: neighbouring tracks by one artist are as similar as
+neighbours by different artists (audio cosine 0.60–0.64 against 0.59–0.61), and the faulty case (same artist,
+cosine under 0.2) is rare and rarest in the new versions (4.2 % of same-artist steps for 0.7.1, 1.9 % with rings).
+The judge's earlier instruction also asked it not to repeat an artist, so a judge that compares fit and flow only
+(`judge_queues.py --prompt fit`) was run again on the held-out libraries: rings against 0.7.1 +0.02 [−0.06, +0.10]
+and −0.04 [−0.11, +0.03], against the current mode −0.03 and −0.03, the current mode against 0.7.1 +0.05 and −0.02 —
+all level. Rings' earlier win came from fewer artist repeats.
+
+Its complaints about the losing queue (708 clear verdicts): a genre or style jump (99 %), flow (98 %), mood or
+energy (86 %), era (62 %), soundtracks, musicals or children's songs (18 %), language (15 %). Three ways to cut the
+jumps were tried on the discovery libraries with this judge, each under a protocol written first
+(`sweep-2026-10-06/protocol-style.json`, `protocol-stylegate.json`): a stronger semantic weight (×1.5, ×2, ×3:
++0.15, +0.14, +0.13 over 0.7.1) and a style gate on the artist descriptor between consecutive picks (0.1, 0.2,
+0.3: +0.13, +0.11, +0.11), against +0.14 for the current mode. None was worth confirming. The current mode itself
+is judged better than 0.7.1 on the three discovery libraries (+0.14 [+0.06, +0.23]) and level on the three
+held-out ones, so its advantage is library-dependent. Lune (github.com/MrDemonc/Lune, GPL-3.0, read for ideas
+only) builds queues from same-artist and genre-tag families, keyword energy and the listener's own transitions;
+nothing there addresses the jumps.
+
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
 `continuity-model-comparison.json` re-evaluates the earlier models on fixed transition rulers.
