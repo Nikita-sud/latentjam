@@ -58,6 +58,11 @@ internal data class ChainTuning(
      * Negative infinity is off. EXPERIMENTAL.
      */
     val styleGate: Float = Float.NEGATIVE_INFINITY,
+    /**
+     * A learned correction added to every candidate's score: one weight per [Rerank] feature, in
+     * score units. Null is off. EXPERIMENTAL.
+     */
+    val rerankWeights: FloatArray? = null,
     /** See [ChainConfig.COMPANION_BONUS]. */
     val companionBonus: Float = ChainConfig.COMPANION_BONUS,
     /**

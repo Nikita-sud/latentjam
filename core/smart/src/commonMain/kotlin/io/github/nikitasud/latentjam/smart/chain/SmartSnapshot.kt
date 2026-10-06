@@ -92,6 +92,18 @@ internal class SmartSnapshot private constructor(
         return dot
     }
 
+    /** Centered-text cosine between two rows, or `null` when either row has no text vector. */
+    fun textCosine(rowA: Int, rowB: Int): Float? {
+        val tc = centeredText ?: return null
+        val has = hasText ?: return null
+        if (rowA < 0 || rowB < 0 || !has[rowA] || !has[rowB]) return null
+        var dot = 0f
+        val baseA = rowA * TEXT_DIM
+        val baseB = rowB * TEXT_DIM
+        for (d in 0 until TEXT_DIM) dot += tc[baseA + d] * tc[baseB + d]
+        return dot
+    }
+
     companion object {
         const val AUDIO_DIM = 960
         const val TEXT_DIM = 384

@@ -141,7 +141,9 @@ internal data class ChainResult(val rows: List<Int>, val pool: List<Int>, val wa
  * @param inNeighbourhood whether the track was in the continuation mode's neighbourhood of [intentRow]
  * @param intentMoved whether the reference moved to the latest pick at this hop
  * @param terms the score's parts: scorer, previous (audio cosine), seed (gravity), semantic, log multiplier,
- *   artist repeat penalty, other (typicality, companions, bonuses)
+ *   artist repeat penalty, other (typicality, companions, bonuses), the learned correction
+ * @param candidates every candidate the hop scored, [CANDIDATE_WIDTH] values each: the row, the score
+ *   without the learned correction, the correction, then the [Rerank] features
  */
 internal data class PickTrace(
     val position: Int,
@@ -155,7 +157,12 @@ internal data class PickTrace(
     val poolSize: Int,
     val logit: Float,
     val terms: FloatArray,
-)
+    val candidates: FloatArray = FloatArray(0),
+) {
+    companion object {
+        const val CANDIDATE_WIDTH = 3 + Rerank.FEATURES
+    }
+}
 
 /**
  * Where a continuation-mode walk stands when a plan ends. The app plans SMART in several requests,
@@ -537,6 +544,11 @@ internal class SmartChain(
             var bestIndex = -1
             var bestScore = Float.NEGATIVE_INFINITY
             var bestTerms: FloatArray? = null
+            val rerankWeights = tuning.rerankWeights
+            val features = if (rerankWeights != null || trace != null) FloatArray(Rerank.FEATURES) else null
+            val referenceRow = if (continueAfterExhaustion) intentRow else seedRow
+            val scored = if (trace != null) FloatArray(pool.size * PickTrace.CANDIDATE_WIDTH) else null
+            var scoredSize = 0
             val bestCompanionIndexes = IntArray(seedCompanionGroups.size) { -1 }
             val bestCompanionScores = FloatArray(seedCompanionGroups.size) {
                 Float.NEGATIVE_INFINITY
@@ -612,6 +624,24 @@ internal class SmartChain(
                     score -= ChainConfig.CHAIN_ARTIST_REPEAT_PENALTY *
                         recentArtists.count { it == meta.artistKey }
                 }
+                val artistPenalty = score - beforePenalty
+                var correction = 0f
+                if (features != null) {
+                    Rerank.features(
+                        snapshot, features, row, anchorRow, referenceRow, seedRow, anchorCos, seedCos, scorerTerm,
+                        sameArtist = meta.artistKey.isNotEmpty() && meta.artistKey == anchorMeta.artistKey,
+                        inNeighbourhood = row in hopNearby,
+                    )
+                    if (rerankWeights != null) correction = Rerank.term(rerankWeights, features)
+                    if (scored != null) {
+                        scored[scoredSize++] = row.toFloat()
+                        scored[scoredSize++] = score
+                        scored[scoredSize++] = correction
+                        features.copyInto(scored, scoredSize)
+                        scoredSize += Rerank.FEATURES
+                    }
+                    score += correction
+                }
 
                 if (score > bestScore) {
                     bestScore = score
@@ -621,8 +651,8 @@ internal class SmartChain(
                         val seedTerm = seedPull * ChainConfig.CHAIN_SEED_GRAVITY * seedCos
                         val semanticTerm = if (tuning.semanticWeight == 1f) semantic else tuning.semanticWeight * semantic
                         bestTerms = floatArrayOf(
-                            scorerTerm, previousTerm, seedTerm, semanticTerm, ln(multiplier), score - beforePenalty,
-                            beforeMultiplier - scorerTerm - previousTerm - seedTerm - semanticTerm,
+                            scorerTerm, previousTerm, seedTerm, semanticTerm, ln(multiplier), artistPenalty,
+                            beforeMultiplier - scorerTerm - previousTerm - seedTerm - semanticTerm, correction,
                         )
                     }
                 }
@@ -665,6 +695,7 @@ internal class SmartChain(
                     intentRow = intentRow, intentMoved = intentMovedThisHop, ring = ring,
                     inNeighbourhood = pickedRow in hopNearby, neighbourhoodSize = hopNearby.size, poolSize = pool.size,
                     logit = logits[chosenIndex], terms = if (chosenIndex == bestIndex) bestTerms ?: FloatArray(0) else FloatArray(0),
+                    candidates = scored?.copyOf(scoredSize) ?: FloatArray(0),
                 ))
             }
             chain.add(pickedRow)

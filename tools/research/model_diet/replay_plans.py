@@ -46,7 +46,11 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                 val ringFloor = System.getProperty("diet.ringFloor")?.toFloatOrNull() ?: 0.20f
                 val ringPull = System.getProperty("diet.ringPull")?.toFloatOrNull() ?: 1f
                 val styleGate = System.getProperty("diet.styleGate")?.toFloatOrNull() ?: Float.NEGATIVE_INFINITY
+                val rerank = System.getProperty("diet.rerank")?.takeIf { it.isNotBlank() }
+                    ?.split(',')?.map { it.trim().toFloat() }?.toFloatArray()
+                    ?.also { require(it.size == Rerank.FEATURES) { "diet.rerank needs ${Rerank.FEATURES} weights" } }
                 val tracing = System.getProperty("diet.trace") == "true"
+                val tracingCandidates = System.getProperty("diet.traceCandidates") == "true"
                 val traced = StringBuilder()
                 val seedRow = snapshot.rowOf(job.seed)
                 fun close(row: Int) = Reanchor.isCloseContinuation(
@@ -100,6 +104,7 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                             continueAfterExhaustion = continuation, neighbourhoodBonus = bonus,
                             semanticWeight = semantic, neighbourhoodDescriptorWeight = descriptorShare,
                             ringStep = ringStep, ringFloor = ringFloor, ringSeedPull = ringPull, styleGate = styleGate,
+                            rerankWeights = rerank,
                         ),
                     ).build(
                         seedId = tail, length = length, timeFeatures = job.timeFeatures, historyEvents = events,
@@ -114,7 +119,21 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                                 .append(",\\"in_neighbourhood\\":").append(t.inNeighbourhood)
                                 .append(",\\"neighbourhood\\":").append(t.neighbourhoodSize).append(",\\"pool\\":").append(t.poolSize)
                                 .append(",\\"logit\\":").append(t.logit).append(",\\"terms\\":[")
-                                .append(t.terms.joinToString(",")).append("]}")
+                                .append(t.terms.joinToString(",")).append("]")
+                            if (tracingCandidates) {
+                                // Rows as track ids; every other value rounded to four decimals.
+                                traced.append(",\\"candidates\\":[")
+                                for (c in t.candidates.indices step PickTrace.CANDIDATE_WIDTH) {
+                                    if (c > 0) traced.append(',')
+                                    traced.append("[\\"").append(snapshot.tracks[t.candidates[c].toInt()].id.value).append('"')
+                                    for (k in 1 until PickTrace.CANDIDATE_WIDTH) {
+                                        traced.append(',').append(kotlin.math.round(t.candidates[c + k] * 10000f) / 10000f)
+                                    }
+                                    traced.append(']')
+                                }
+                                traced.append(']')
+                            }
+                            traced.append('}')
                         },
                     )
                     // DefaultSimilarityEngine orders a resumed plan from the track it continues.
@@ -169,9 +188,10 @@ def main():
     ap.add_argument("--variant", action="append", required=True,
                     help=f"one of {sorted(VARIANTS)}, or cfg:mode=<variant>,b=<neighbourhood bonus>,"
                          "s=<semantic weight>,w=<neighbourhood descriptor share>,r=<ring step>,f=<ring floor>,"
-                         "p=<seed pull inside a widened ring>,g=<style gate>")
+                         "p=<seed pull inside a widened ring>,g=<style gate>,k=<JSON file of learned weights>")
     ap.add_argument("--pool", type=int, default=3)
     ap.add_argument("--trace", action="store_true", help="also write <variant>.tsv.trace.jsonl with every pick's PickTrace")
+    ap.add_argument("--trace-candidates", action="store_true", help="with --trace: also every scored candidate's features")
     a = ap.parse_args()
     if not all(p.strip().isdigit() and int(p) > 0 for p in a.plans.split(",")):
         ap.error("--plans must be positive integers")
@@ -190,6 +210,7 @@ def main():
 
     def run(variant):
         bonus, semantic, share, step, floor, pull, gate = "inf", "1", "0.5", "0", "0.2", "1", "-inf"
+        rerank, rerank_name = "", ""
         if variant.startswith("cfg:"):
             spec = dict(item.split("=", 1) for item in variant[4:].split(","))
             mode = spec.get("mode", "join")
@@ -197,16 +218,23 @@ def main():
             step, floor, pull = spec.get("r", step), spec.get("f", floor), spec.get("p", pull)
             gate = spec.get("g", gate)
             [float(x) for x in (bonus, semantic, share, step, floor, pull, gate)]  # validates
+            if "k" in spec:
+                weights = json.loads(Path(spec["k"]).read_text())
+                weights = weights["weights"] if isinstance(weights, dict) else weights
+                rerank, rerank_name = ",".join(repr(float(w)) for w in weights), Path(spec["k"]).stem
             cont, carry, join = VARIANTS[mode]
             variant = f"{mode}_b{bonus}_s{semantic}_w{share}" + (f"_r{step}_f{floor}" if float(step) else "") + \
-                (f"_p{pull}" if float(pull) != 1 else "") + (f"_g{gate}" if gate != "-inf" else "")
+                (f"_p{pull}" if float(pull) != 1 else "") + (f"_g{gate}" if gate != "-inf" else "") + \
+                (f"_k{rerank_name}" if rerank_name else "")
         else:
             cont, carry, join = VARIANTS[variant]
         output = a.out / f"{variant}.tsv"
         command = launch[:1] + [f"-Ddiet.plans={a.plans}", f"-Ddiet.continue={cont}", f"-Ddiet.carry={carry}",
                                 f"-Ddiet.join={join}", f"-Ddiet.bonus={bonus}", f"-Ddiet.sem={semantic}",
                                 f"-Ddiet.nbw={share}", f"-Ddiet.ringStep={step}", f"-Ddiet.ringFloor={floor}",
-                                f"-Ddiet.ringPull={pull}", f"-Ddiet.styleGate={gate}", f"-Ddiet.trace={str(a.trace).lower()}"] + launch[1:] + [
+                                f"-Ddiet.ringPull={pull}", f"-Ddiet.styleGate={gate}", f"-Ddiet.rerank={rerank}",
+                                f"-Ddiet.trace={str(a.trace).lower()}",
+                                f"-Ddiet.traceCandidates={str(a.trace_candidates).lower()}"] + launch[1:] + [
             str(a.prepared.resolve()), str(a.assets.resolve()), a.mode, str(output.resolve()),
             "--seeds", str(a.seeds.resolve()), "--order", "journey",
         ]

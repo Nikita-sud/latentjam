@@ -170,32 +170,40 @@ internal class SmartChainContinuationTest {
 
     @Test
     fun `the style gate skips a track of another style while one of the same style remains`() {
-        // Row 1 sounds closest to the pick but its artist is described as another style; row 2 sounds a
-        // little further and shares the pick's style. Rows 3-8 balance the means.
-        fun unit(vararg parts: Pair<Int, Float>, dim: Int = PredictorRuntime.EMBEDDING_DIM) = FloatArray(dim).also { v ->
-            for ((axis, value) in parts) v[axis] += value
-            val norm = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
-            for (i in v.indices) v[i] /= norm
-        }
-        val audio = listOf(unit(0 to 1f), unit(0 to 1f, 1 to 0.2f), unit(0 to 1f, 2 to 0.6f)) +
-            (3..8).map { unit(0 to -1f, (10 + it) to 0.3f) }
-        val styles = listOf(unit(0 to 1f, dim = 8), unit(1 to 1f, dim = 8), unit(0 to 1f, 2 to 0.2f, dim = 8)) +
-            (3..8).map { unit((it % 6 + 2) to 1f, 0 to -0.3f, dim = 8) }
-        val snapshot = requireNotNull(SmartSnapshot.build(audio.indices.map { row ->
-            SmartTrack(
-                TrackId(row.toString()), audio[row], descriptor = styles[row],
-                meta = TrackMeta("Title $row", "Artist $row", null, null, null),
-            )
-        }))
-        val other = snapshot.descriptorCosine(0, 1)!!
-        val same = snapshot.descriptorCosine(0, 2)!!
-        assertTrue(other < 0.1f && same > 0.3f, "fixture styles: other $other, same $same")
-        assertTrue(snapshot.centeredCosine(0, 1) > snapshot.centeredCosine(0, 2), "row 1 must sound closer")
+        val snapshot = styles()
         fun first(gate: Float) = SmartChain(
             snapshot, null, tuning = ChainTuning(styleGate = gate),
         ).build(TrackId("0"), 1, FloatArray(5)).rows.single()
         assertEquals(1, first(Float.NEGATIVE_INFINITY))
         assertEquals(2, first(0.2f))
+    }
+
+    @Test
+    fun `a learned correction can prefer the pick's style over the closest sound`() {
+        val snapshot = styles()
+        fun first(weights: FloatArray?) = SmartChain(
+            snapshot, null, tuning = ChainTuning(continueAfterExhaustion = true, rerankWeights = weights),
+        ).build(TrackId("0"), 1, FloatArray(5)).rows.single()
+        assertEquals(1, first(null))
+        assertEquals(1, first(FloatArray(Rerank.FEATURES)))
+        assertEquals(2, first(FloatArray(Rerank.FEATURES).also { it[Rerank.STYLE_SEED] = 10f }))
+    }
+
+    @Test
+    fun `the learned correction's features are the chain's own numbers`() {
+        val snapshot = styles()
+        val out = FloatArray(Rerank.FEATURES)
+        Rerank.features(snapshot, out, 2, previousRow = 0, referenceRow = 0, seedRow = 0, audioPrevious = 0.5f,
+            audioReference = 0.25f, scorerTerm = 0.75f, sameArtist = false, inNeighbourhood = true)
+        assertEquals(0.5f, out[Rerank.AUDIO_PREVIOUS])
+        assertEquals(0.25f, out[Rerank.AUDIO_REFERENCE])
+        assertEquals(snapshot.centeredCosine(0, 2), out[Rerank.AUDIO_SEED])
+        assertEquals(snapshot.descriptorCosine(0, 2)!!, out[Rerank.STYLE_SEED])
+        assertEquals(out[Rerank.STYLE_SEED], out[Rerank.STYLE_PREVIOUS])
+        assertEquals(0f, out[Rerank.TEXT_SEED])
+        assertEquals(0.75f, out[Rerank.SCORER])
+        assertEquals(1f, out[Rerank.STYLE_KNOWN])
+        assertEquals(1f, out[Rerank.IN_NEIGHBOURHOOD])
     }
 
     @Test
@@ -207,7 +215,12 @@ internal class SmartChainContinuationTest {
             assertEquals(SmartChain(snapshot, null, tuning = tuning).build(TrackId("0"), 10, FloatArray(5)), traced)
             assertEquals(traced.rows, traces.map { it.row })
             assertEquals((0 until 10).toList(), traces.map { it.position })
-            assertTrue(traces.all { it.channel in setOf("audio", "state", "text", "descriptor") && it.terms.size == 7 })
+            assertTrue(traces.all { it.channel in setOf("audio", "state", "text", "descriptor") && it.terms.size == 8 })
+            // Every hop lists what it scored, the pick among them.
+            assertTrue(traces.all { t ->
+                t.candidates.size % PickTrace.CANDIDATE_WIDTH == 0 &&
+                    (t.candidates.indices step PickTrace.CANDIDATE_WIDTH).any { t.candidates[it].toInt() == t.row }
+            })
         }
     }
 
@@ -252,6 +265,33 @@ internal class SmartChainContinuationTest {
         return requireNotNull(SmartSnapshot.build(vectors.mapIndexed { row, audio ->
             SmartTrack(TrackId(row.toString()), audio, meta = TrackMeta("Title $row", "Artist $row", null, null, null))
         }))
+    }
+
+    /**
+     * Row 1 sounds closest to the pick (row 0) but its artist is described as another style; row 2 sounds
+     * a little further and shares the pick's style. Rows 3-8 balance the means.
+     */
+    private fun styles(): SmartSnapshot {
+        fun unit(vararg parts: Pair<Int, Float>, dim: Int = PredictorRuntime.EMBEDDING_DIM) = FloatArray(dim).also { v ->
+            for ((axis, value) in parts) v[axis] += value
+            val norm = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
+            for (i in v.indices) v[i] /= norm
+        }
+        val audio = listOf(unit(0 to 1f), unit(0 to 1f, 1 to 0.2f), unit(0 to 1f, 2 to 0.6f)) +
+            (3..8).map { unit(0 to -1f, (10 + it) to 0.3f) }
+        val styles = listOf(unit(0 to 1f, dim = 8), unit(1 to 1f, dim = 8), unit(0 to 1f, 2 to 0.2f, dim = 8)) +
+            (3..8).map { unit((it % 6 + 2) to 1f, 0 to -0.3f, dim = 8) }
+        val snapshot = requireNotNull(SmartSnapshot.build(audio.indices.map { row ->
+            SmartTrack(
+                TrackId(row.toString()), audio[row], descriptor = styles[row],
+                meta = TrackMeta("Title $row", "Artist $row", null, null, null),
+            )
+        }))
+        val other = snapshot.descriptorCosine(0, 1)!!
+        val same = snapshot.descriptorCosine(0, 2)!!
+        assertTrue(other < 0.1f && same > 0.3f, "fixture styles: other $other, same $same")
+        assertTrue(snapshot.centeredCosine(0, 1) > snapshot.centeredCosine(0, 2), "row 1 must sound closer")
+        return snapshot
     }
 
     /** See [satelliteVectors]: the seed, its neighbours, one satellite per neighbour, fillers. */
