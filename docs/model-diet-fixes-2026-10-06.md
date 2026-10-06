@@ -247,6 +247,83 @@ held-out ones, so its advantage is library-dependent. Lune (github.com/MrDemonc/
 only) builds queues from same-artist and genre-tag families, keyword energy and the listener's own transitions;
 nothing there addresses the jumps.
 
+### Where the jumps come from
+
+The judge now marks the tracks that break the flow, one queue at a time (`annotate_jumps.py`, the first 24 tracks),
+and the chain says why it chose each track (`SmartChain.build`'s `trace`, `replay_plans.py --trace`; tracing
+changes no pick: the traced queues equal the sweep's byte for byte). On the six MPD libraries (900 queues of the
+current mode, `jumps-2026-10-06/`):
+
+- 18.8 % of tracks are marked; 97 % of queues have at least one mark, 4.52 per queue. Many marks are soft
+  (neo-soul inside an R&B queue), some are real drift (reggae → dancehall → reggaeton → EDM → chill electronic).
+- Marks grow along the queue: 5 % at the first track, 9 % at 2–4, 15 % at 9–12, 24 % at 14–18, 28 % at 19–24.
+  The first track of a later plan is no worse than its neighbours (20.1 % against 20.1 % at position 13).
+- Sound does not predict a mark: among the chain's picks the audio cosine to the previous track has an AUC of
+  0.51, to the seed 0.55. The artist descriptor does: to the seed 0.67, to the previous track 0.64. At a
+  descriptor cosine to the seed of 0.65 or more 3–5 % of tracks are marked, under 0.2 about 31 %, whatever the
+  sound. The judge sees only "artist — title" here (the MPD libraries carry no genre or year), so its marks are
+  about style by construction; sound continuity has to be measured separately.
+- Picks after the walk moved its reference off the seed are marked more often (25 % against 15 %). Picks that
+  share a playlist with the seed are marked 7.8 % of the time, the rest 21.6 %, so the marks agree with the
+  human playlists.
+- The per-track count separates versions the pairwise judge could not: 0.7.1 4.92 per queue against the current
+  mode's 4.52 (Δ −0.40 [−0.79, −0.01]); rings 4.50; every semantic weight (×1.5–3), style gate (0.1–0.3) and
+  neighbourhood descriptor share (0.7) is level with or above the current mode on the discovery libraries.
+- Greedy queues built from the 0.7.1 rulers alone (each step the unused track with the best weighted closeness
+  to the previous track and the seed) are marked as often as the chain: 4.50 by style first, 4.44 with equal
+  weights, 5.05 by sound alone. Similarity ranking on these signals has no headroom left.
+
+Are the jumps avoidable, or does the library simply run out of the seed's style? For 360 marked tracks and 360
+unmarked controls the judge picked the best next track blind from the app's pick and 49 tracks not yet played
+(the 15 closest to the seed, the 15 closest to the previous track, 20 random), and the queue with its pick swapped
+in was marked again (`avoidable_jumps.py`). It took the app's pick for 8 of the 360 jumps. Asked again about the
+unchanged queue it marks 84 % of the same jumps and 4 % of the controls; with its own pick swapped in, 20 % of the
+jumps stay marked; with a random candidate swapped in, 68 % (and 45 % of the controls become jumps). Of the 296
+jumps it confirms, 237 (80 %) disappear with its pick. Those picks share a playlist with the seed 35 % of the time
+against 5 % for the app's picks; they sit closer to the seed by artist style (0.50 against 0.32) and further from
+the previous track by sound (0.35 against 0.59); 94 % of them rank among the 15 closest by the chain's own signals.
+The chain could see these tracks and weighed sound to the previous track above style to the seed. For scale, two
+tracks of one MPD playlist sit at an audio cosine of 0.06–0.26 on average, the chain's neighbours at 0.60.
+
+### A score correction learned from the judge (not adopted)
+
+`ChainTuning.rerankWeights` adds a weighted sum of twelve features the chain already computes (`Rerank`: sound,
+artist style and text closeness to the previous pick, the reference and the original pick, the scorer's vote, a
+same-artist flag, descriptor coverage, neighbourhood membership); off by default. The judge ranked the three best
+of about 18 of the chain's own candidates at 10,000 hops of replays on four MPD libraries never used to evaluate
+queues (`train_r1`, `train_r2`, `train_s1`, `train_s2`, prepared for the new bundle; `rank_candidates.py`), and a
+Plackett–Luce model was fitted on them (`fit_rerank.py`). On a library left out of the fit it finds the judge's
+first choice 15.4 % of the time against 11.8 % for the chain's own score (chance 5.6 %); its pick is in the judge's
+top three 34.1 % against 28.9 %. The fitted weights favour artist style to the reference most (27 score units), then
+sound to it (14), style and text to the previous track (11, 10), sound to the previous track (8).
+
+Round 1 (`rerank-2026-10-06/protocol-rerank.json`) failed at selection: on the discovery libraries no strength cut
+the jumps per queue and every one raised harsh transitions (adjacent audio cosine under 0.2) from 1.8 % to 4.8–6.0 %.
+The pairwise fit judge, run afterwards on the same queues, preferred them strongly (+0.27 [+0.20, +0.33]), and the
+per-track count turned out to be context-dependent (a glaring jump hides milder ones; in the controls a random swap
+lowered the queue's other marks by 2.0). Round 2 (`protocol-rerank-r2.json`, written before its runs) added a sound
+floor (`ChainTuning.soundFloor`: a candidate under the floor to the previous pick is passed over while another
+remains) and made the pairwise judge the primary endpoint. Selected on the discovery libraries: the fitted weights
+with a floor of 0.2 (+0.24 [+0.18, +0.31], harsh transitions +0.19 pp). Acceptance:
+
+- held out (r1k_b, r1k_c, s1k_b, 450 pairs): fit judge +0.36 [+0.29, +0.44] (239 wins, 78 losses); playlist share
+  +1.50 [+0.59, +2.48] pp; harsh transitions −0.18 [−0.44, +0.10] pp; the default judge (which also asks not to
+  repeat an artist) +0.08 [−0.00, +0.16];
+- fresh (train_r3, train_s3, 300 pairs): fit judge +0.24 [+0.15, +0.34]; harsh transitions −0.56 [−0.97, −0.14] pp;
+  playlist share −0.11 [−1.22, +0.96] pp, which misses the −1.0 pp bound: **not accepted** by its protocol; the
+  default judge +0.00 [−0.09, +0.10];
+- the owner's library (local only): playlist share +4.8 pp cold and +4.7 pp with history, harsh transitions −1.1 and
+  −1.4 pp, longest run of one artist +0.9 and +0.7.
+
+The gain is mostly artist clustering. Over the 750 held-out and fresh queues the longest run of one artist grows
+from 3.45 to 4.41 tracks, queues with five or more in a row from 24 % to 50 %, and distinct artists per 24 tracks
+fall from 16.5 to 13.9; one song in two versions appears in 9 % of queues against 6 %. The fit judge was told that
+a run of one artist is fine when its tracks fit, and the judge that is not told so sees no difference. Six random
+held-out and fresh pairs were shown blind to a separate model asked to answer as an ordinary listener: it preferred
+the current mode four times, the correction once, and called one a tie, objecting to runs of four to six songs by one
+artist ("an album, not a radio") and to one song twice in different versions. With fewer runs the correction's case
+is open; it stays off.
+
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
 `continuity-model-comparison.json` re-evaluates the earlier models on fixed transition rulers.
