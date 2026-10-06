@@ -88,9 +88,12 @@ def main():
 
     # The front end stays float: fft/ and fe4/ in the encoder's graph, /fe/ in a student's (student_audio.py).
     front = [n.name for n in standin.graph.node if n.name.startswith(("fft/", "fe4/", "/fe/"))]
+    # GlobalAveragePool stays float even with trained ranges: ONNX Runtime would fuse it into
+    # QLinearGlobalAveragePool, which the reduced arm64 runtime (tools/runtime) does not carry. Its output is
+    # still quantized with the trained range where the next layer reads it.
     quantize_static(str(work / "standin.onnx"), str(work / "int8.onnx"), Reader(), quant_format=QuantFormat.QDQ,
                     per_channel=True, weight_type=QuantType.QInt8, activation_type=QuantType.QUInt8,
-                    nodes_to_exclude=front, op_types_to_quantize=["Conv", "Gemm", "MatMul"] + (["Add", "GlobalAveragePool"] if ranges else []),
+                    nodes_to_exclude=front, op_types_to_quantize=["Conv", "Gemm", "MatMul"] + (["Add"] if ranges else []),
                     calibrate_method={"percentile": CalibrationMethod.Percentile, "entropy": CalibrationMethod.Entropy,
                                       "minmax": CalibrationMethod.MinMax}[args.calibrate],
                     extra_options={"CalibPercentile": args.percentile, "TensorQuantOverrides": overrides})
