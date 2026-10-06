@@ -18,7 +18,34 @@ def library_matrix(name, features=FEATURES):
     return np.concatenate([audio, text], 1).astype(np.float32)
 
 
-def load(folder, libraries=None, student=None):
+def assert_paired_rows(name, student):
+    old = next(Path(FEATURES).glob(f"{name}.*"))
+    new = next(Path(student).glob(f"{name}.*"))
+    if (old / "ids.txt").read_bytes() != (new / "ids.txt").read_bytes():
+        raise ValueError(f"{name}: student and teacher track rows differ")
+
+
+def split_audit(libraries, evaluation_libraries=None):
+    """Record catalog overlap; held-out playlists do not imply held-out track identities."""
+    evaluation_libraries = evaluation_libraries or ["r1k_a", "r1k_b", "r1k_c", "s1k_a", "s1k_b", "r3k", "listener"]
+    training = set()
+    for name in libraries:
+        folder = next(Path(FEATURES).glob(f"{name}.*"))
+        training.update((folder / "ids.txt").read_text().splitlines())
+    overlap, missing = {}, []
+    for name in evaluation_libraries:
+        path = ROOT / "libraries" / f"{name}.json"
+        if not path.exists():
+            missing.append(name)
+            continue
+        ids = {row["id"] for row in json.loads(path.read_text())["rows"]}
+        overlap[name] = len(training & ids)
+    return {"training_catalog_unique_tracks": len(training), "evaluation_catalog_overlap": overlap,
+            "missing_evaluation_libraries": missing,
+            "note": "Catalog counts include internal validation rows; shared tracks invalidate a track-disjoint claim."}
+
+
+def load(folder, libraries=None, student=None, max_samples=None):
     """Concatenated recordings: e_in, e_out, s_state, s_rows (global row ids into `matrix`), s_out,
     plus which library each sample came from and the stacked candidate matrix of all libraries; with
     `student` (another bundle's features root), `student_matrix` holds that bundle's vectors, row for row."""
@@ -42,7 +69,13 @@ def load(folder, libraries=None, student=None):
     out = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
     out["matrix"] = np.concatenate(mats)
     out["libraries"] = libs
+    if max_samples and len(out["s_rows"]) > max_samples:
+        take = np.sort(np.random.default_rng(12).choice(len(out["s_rows"]), max_samples, replace=False))
+        for key in parts[0]:
+            out[key] = out[key][take]
     if student:
+        for name in libs:
+            assert_paired_rows(name, student)
         out["student_matrix"] = np.concatenate([library_matrix(n, student) for n in libs])
         out["offsets"] = np.cumsum([0] + [len(m) for m in mats])
     return out
