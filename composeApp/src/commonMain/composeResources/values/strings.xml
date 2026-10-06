@@ -432,6 +432,13 @@
     <string name="intelligence_section_recommendations">Recommendations</string>
     <string name="intelligence_queue_length">SMART queue length</string>
     <string name="intelligence_queue_length_body">Choose how many tracks SMART adds when it builds a queue.</string>
+    <string name="intelligence_artist_variety">Artist variety</string>
+    <string name="intelligence_artist_variety_body">How much SMART spreads out songs by the same artist. A song that clearly fits better still plays, even right after the same artist.</string>
+    <string name="intelligence_artist_variety_free">Off</string>
+    <string name="intelligence_artist_variety_low">Low</string>
+    <string name="intelligence_artist_variety_balanced">Balanced</string>
+    <string name="intelligence_artist_variety_high">High</string>
+    <string name="intelligence_artist_variety_max">Maximum</string>
     <string name="intelligence_include_novelty_mixes">Include novelty mixes</string>
     <string name="intelligence_include_novelty_mixes_body">Show separately named meme, viral, and sound-effect mixes in For You.</string>
     <string name="foryou_mix_meme_viral">Meme &amp; Viral Audio</string>

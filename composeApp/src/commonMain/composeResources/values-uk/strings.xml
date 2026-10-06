@@ -383,6 +383,13 @@
     <string name="intelligence_section_recommendations">Рекомендації</string>
     <string name="intelligence_queue_length">Довжина черги SMART</string>
     <string name="intelligence_queue_length_body">Виберіть, скільки треків SMART додаватиме під час створення черги.</string>
+    <string name="intelligence_artist_variety">Різноманітність виконавців</string>
+    <string name="intelligence_artist_variety_body">Наскільки SMART розносить пісні одного виконавця. Пісня, яка підходить явно краще, усе одно прозвучить, навіть одразу після того самого виконавця.</string>
+    <string name="intelligence_artist_variety_free">Вимк.</string>
+    <string name="intelligence_artist_variety_low">Низька</string>
+    <string name="intelligence_artist_variety_balanced">Збалансована</string>
+    <string name="intelligence_artist_variety_high">Висока</string>
+    <string name="intelligence_artist_variety_max">Максимальна</string>
     <string name="intelligence_include_novelty_mixes">Показувати незвичні мікси</string>
     <string name="intelligence_include_novelty_mixes_body">Показувати в розділі «Для вас» окремі мікси з мемами, вірусними аудіо та звуковими ефектами.</string>
     <string name="foryou_mix_meme_viral">Меми й вірусні аудіо</string>

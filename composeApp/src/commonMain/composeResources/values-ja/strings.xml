@@ -355,6 +355,13 @@
     <string name="intelligence_section_recommendations">おすすめ</string>
     <string name="intelligence_queue_length">SMART キューの長さ</string>
     <string name="intelligence_queue_length_body">SMART がキューを作るときに追加する曲数を選びます。</string>
+    <string name="intelligence_artist_variety">アーティストの多様性</string>
+    <string name="intelligence_artist_variety_body">同じアーティストの曲を SMART がどれだけ離して並べるか。明らかによく合う曲は、同じアーティストの直後でも再生されます。</string>
+    <string name="intelligence_artist_variety_free">オフ</string>
+    <string name="intelligence_artist_variety_low">低</string>
+    <string name="intelligence_artist_variety_balanced">バランス</string>
+    <string name="intelligence_artist_variety_high">高</string>
+    <string name="intelligence_artist_variety_max">最大</string>
     <string name="intelligence_include_novelty_mixes">ネタ系ミックスを含める</string>
     <string name="intelligence_include_novelty_mixes_body">ミーム、バイラル、効果音のミックスを「あなたへ」に別枠で表示します。</string>
     <string name="foryou_mix_meme_viral">ミーム＆バイラル音源</string>

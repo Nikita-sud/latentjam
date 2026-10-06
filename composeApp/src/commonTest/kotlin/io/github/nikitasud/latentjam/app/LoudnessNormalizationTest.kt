@@ -134,6 +134,8 @@ internal class LoudnessNormalizationTest {
         override fun setTrackColorMode(mode: TrackColorMode) { trackColorMode.value = mode }
         override val smartQueueLength = MutableStateFlow(DEFAULT_SMART_QUEUE_LENGTH)
         override fun setSmartQueueLength(length: Int) { smartQueueLength.value = length }
+        override val artistVariety = MutableStateFlow(DEFAULT_ARTIST_VARIETY)
+        override fun setArtistVariety(level: Int) { artistVariety.value = level }
         override val includeNoveltyMixes = MutableStateFlow(false)
         override fun setIncludeNoveltyMixes(enabled: Boolean) { includeNoveltyMixes.value = enabled }
         override val normalizeVolume = MutableStateFlow(true)

@@ -362,6 +362,13 @@
     <string name="intelligence_section_recommendations">Recomandări</string>
     <string name="intelligence_queue_length">Lungimea cozii SMART</string>
     <string name="intelligence_queue_length_body">Alege câte piese adaugă SMART când creează o coadă.</string>
+    <string name="intelligence_artist_variety">Varietatea artiștilor</string>
+    <string name="intelligence_artist_variety_body">Cât de mult distanțează SMART piesele aceluiași artist. O piesă care se potrivește clar mai bine se redă oricum, chiar imediat după același artist.</string>
+    <string name="intelligence_artist_variety_free">Dezactivată</string>
+    <string name="intelligence_artist_variety_low">Scăzută</string>
+    <string name="intelligence_artist_variety_balanced">Echilibrată</string>
+    <string name="intelligence_artist_variety_high">Ridicată</string>
+    <string name="intelligence_artist_variety_max">Maximă</string>
     <string name="intelligence_include_novelty_mixes">Include mixurile neobișnuite</string>
     <string name="intelligence_include_novelty_mixes_body">Afișează în Pentru tine mixuri separate cu meme, audio viral și efecte sonore.</string>
     <string name="foryou_mix_meme_viral">Meme și audio viral</string>

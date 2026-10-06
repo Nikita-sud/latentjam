@@ -32,6 +32,12 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override val trackColorMode: StateFlow<TrackColorMode> = mutableTrackColorMode.asStateFlow()
     private val mutableSmartQueueLength = MutableStateFlow(readSmartQueueLength())
     override val smartQueueLength: StateFlow<Int> = mutableSmartQueueLength.asStateFlow()
+    private val mutableArtistVariety = MutableStateFlow(
+        artistVarietyFromPersisted(
+            runCatching { preferences.getInt(KEY_ARTIST_VARIETY, DEFAULT_ARTIST_VARIETY) }.getOrNull(),
+        ),
+    )
+    override val artistVariety: StateFlow<Int> = mutableArtistVariety.asStateFlow()
     private val mutableIncludeNoveltyMixes = MutableStateFlow(readNoveltyMixPreference())
     override val includeNoveltyMixes: StateFlow<Boolean> = mutableIncludeNoveltyMixes.asStateFlow()
     private val mutableNormalizeVolume = MutableStateFlow(
@@ -108,6 +114,12 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         val sanitized = sanitizeCrossfadeSeconds(seconds)
         preferences.edit().putInt(KEY_CROSSFADE_SECONDS, sanitized).apply()
         mutableCrossfadeSeconds.value = sanitized
+    }
+
+    override fun setArtistVariety(level: Int) {
+        val sanitized = sanitizeArtistVariety(level)
+        preferences.edit().putInt(KEY_ARTIST_VARIETY, sanitized).apply()
+        mutableArtistVariety.value = sanitized
     }
 
     override fun setSongSort(choice: SortChoice<SongSort>) {
@@ -302,6 +314,7 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
         const val KEY_NORMALIZE_VOLUME = "normalize_volume"
         const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
+        const val KEY_ARTIST_VARIETY = "artist_variety"
         const val KEY_SONG_SORT = "song_sort"
         const val KEY_ALBUM_SORT = "album_sort"
         const val KEY_ARTIST_ALBUM_SORT = "artist_album_sort"

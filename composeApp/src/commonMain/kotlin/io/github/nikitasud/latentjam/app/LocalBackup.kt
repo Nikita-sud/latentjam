@@ -51,6 +51,8 @@ internal data class LocalBackupSettings(
     val crossfadeSeconds: Int = 0,
     /** Added in backup v4; older snapshots keep Map disabled by default. */
     val pageLayout: PageLayout = PageLayout(),
+    /** Added in backup v6; older snapshots restore the default. */
+    val artistVariety: Int = DEFAULT_ARTIST_VARIETY,
 )
 
 /**
@@ -143,7 +145,7 @@ internal class LocalBackupFormatException(message: String) : IllegalArgumentExce
  * validation make an arbitrary document-picker input safe to reject before any app state changes.
  */
 internal object LocalBackupCodec {
-    const val FORMAT_VERSION: Int = 5
+    const val FORMAT_VERSION: Int = 6
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -181,6 +183,7 @@ internal object LocalBackupCodec {
                     },
                 )
                 if (snapshot.formatVersion >= 4) appendRecord("L", encodePageLayout(pageLayout))
+                if (snapshot.formatVersion >= 6) appendRecord("V", artistVariety.toString())
             }
             snapshot.tracks.sortedBy(LocalBackupTrackReference::originalId).forEach { track ->
                 appendRecord(
@@ -253,6 +256,7 @@ internal object LocalBackupCodec {
         var createdAtMs: Long? = null
         var settings: LocalBackupSettings? = null
         var pageLayout: PageLayout? = null
+        var artistVariety: Int? = null
         val tracks = mutableListOf<LocalBackupTrackReference>()
         val playlists = mutableListOf<LocalBackupPlaylist>()
         val history = mutableListOf<LocalBackupListenEvent>()
@@ -314,6 +318,12 @@ internal object LocalBackupCodec {
                     if (pageLayout != null) formatError("Duplicate page layout record")
                     pageLayout = decodePageLayout(record.nextField())
                         ?: formatError("Invalid page layout")
+                }
+                "V" -> {
+                    record.requireFieldCount(2)
+                    if (version < 6) formatError("Older backups cannot encode artist variety")
+                    if (artistVariety != null) formatError("Duplicate artist variety record")
+                    artistVariety = record.nextField().parseInt("artist variety")
                 }
                 "T" -> {
                     record.requireFieldCount(6)
@@ -411,7 +421,7 @@ internal object LocalBackupCodec {
             formatVersion = version,
             createdAtMs = createdAtMs ?: formatError("Missing creation record"),
             settings = (settings ?: formatError("Missing settings record"))
-                .copy(pageLayout = pageLayout ?: PageLayout()),
+                .copy(pageLayout = pageLayout ?: PageLayout(), artistVariety = artistVariety ?: DEFAULT_ARTIST_VARIETY),
             tracks = tracks,
             playlists = playlists,
             listeningHistory = history,
@@ -434,6 +444,12 @@ internal object LocalBackupCodec {
         }
         if (snapshot.settings.crossfadeSeconds !in 0..MAX_CROSSFADE_SECONDS) {
             formatError("Unsupported crossfade duration")
+        }
+        if (snapshot.settings.artistVariety !in ARTIST_VARIETY_PENALTIES.indices) {
+            formatError("Unsupported artist variety")
+        }
+        if (snapshot.formatVersion < 6 && snapshot.settings.artistVariety != DEFAULT_ARTIST_VARIETY) {
+            formatError("Older backups cannot encode artist variety")
         }
         if (snapshot.settings.pageLayout != snapshot.settings.pageLayout.normalized()) {
             formatError("Invalid page layout")
@@ -709,6 +725,7 @@ internal class LocalBackupService(
                 normalizeVolume = settings.normalizeVolume.value,
                 crossfadeSeconds = settings.crossfadeSeconds.value,
                 pageLayout = settings.pageLayout.value,
+                artistVariety = settings.artistVariety.value,
             ),
             tracks = references,
             playlists = storedPlaylists.map { playlist ->
@@ -838,6 +855,7 @@ internal class LocalBackupService(
                 settings.setIncludeNoveltyMixes(snapshot.settings.includeNoveltyMixes)
                 settings.setNormalizeVolume(snapshot.settings.normalizeVolume)
                 settings.setCrossfadeSeconds(snapshot.settings.crossfadeSeconds)
+                settings.setArtistVariety(snapshot.settings.artistVariety)
                 completed += LocalBackupSection.SETTINGS
             }
         } catch (failure: Throwable) {

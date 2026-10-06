@@ -375,6 +375,13 @@
     <string name="intelligence_section_recommendations">Recommandations</string>
     <string name="intelligence_queue_length">Taille de la file SMART</string>
     <string name="intelligence_queue_length_body">Choisissez le nombre de morceaux que SMART ajoute lorsqu’il crée une file.</string>
+    <string name="intelligence_artist_variety">Variété des artistes</string>
+    <string name="intelligence_artist_variety_body">À quel point SMART espace les titres d’un même artiste. Un titre qui convient nettement mieux est quand même joué, même juste après le même artiste.</string>
+    <string name="intelligence_artist_variety_free">Désactivée</string>
+    <string name="intelligence_artist_variety_low">Faible</string>
+    <string name="intelligence_artist_variety_balanced">Équilibrée</string>
+    <string name="intelligence_artist_variety_high">Élevée</string>
+    <string name="intelligence_artist_variety_max">Maximale</string>
     <string name="intelligence_include_novelty_mixes">Inclure les mixes insolites</string>
     <string name="intelligence_include_novelty_mixes_body">Afficher dans Pour vous des mixes distincts de mèmes, de sons viraux et d’effets sonores.</string>
     <string name="foryou_mix_meme_viral">Mèmes et sons viraux</string>

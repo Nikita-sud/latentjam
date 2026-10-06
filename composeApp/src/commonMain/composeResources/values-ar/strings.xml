@@ -400,6 +400,13 @@
     <string name="intelligence_section_recommendations">التوصيات</string>
     <string name="intelligence_queue_length">طول قائمة انتظار SMART</string>
     <string name="intelligence_queue_length_body">اختر عدد المقاطع التي يضيفها SMART عند إنشاء قائمة انتظار.</string>
+    <string name="intelligence_artist_variety">تنوّع الفنانين</string>
+    <string name="intelligence_artist_variety_body">مدى تباعد SMART بين أغاني الفنان نفسه. الأغنية التي تناسب بوضوح أكثر تُشغَّل رغم ذلك، حتى بعد الفنان نفسه مباشرةً.</string>
+    <string name="intelligence_artist_variety_free">إيقاف</string>
+    <string name="intelligence_artist_variety_low">منخفض</string>
+    <string name="intelligence_artist_variety_balanced">متوازن</string>
+    <string name="intelligence_artist_variety_high">مرتفع</string>
+    <string name="intelligence_artist_variety_max">أقصى</string>
     <string name="intelligence_include_novelty_mixes">تضمين المزيجات الطريفة</string>
     <string name="intelligence_include_novelty_mixes_body">عرض مزيجات مستقلة للميمات والمقاطع الرائجة والمؤثرات الصوتية في «لك».</string>
     <string name="foryou_mix_meme_viral">ميمات ومقاطع رائجة</string>

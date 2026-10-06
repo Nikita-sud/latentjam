@@ -52,6 +52,7 @@ internal class LocalBackupTest {
                     .withPageEnabled(StartPage.MAP, true)
                     .withPageEnabled(StartPage.GENRES, false)
                     .movePage(StartPage.ALBUMS, -4),
+                artistVariety = 4,
             ),
             tracks = listOf(
                 LocalBackupTrackReference(
@@ -92,7 +93,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t5\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t6\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
     }
 
@@ -135,6 +136,20 @@ internal class LocalBackupTest {
         assertFalse(decoded.settings.normalizeVolume)
         assertEquals(0, decoded.settings.crossfadeSeconds)
         assertNull(decoded.listeningHistory.firstOrNull()?.listenedMs)
+    }
+
+    @Test
+    fun artistVarietyIsAV6RecordThatOlderBackupsCannotCarry() {
+        val v5 =
+            "LATENTJAM-LOCAL-BACKUP\t5\n" +
+                "C\t1\n" +
+                "S\tSYSTEM\ttracks\tdynamic\t20\t1\t1\t0\t0\t0\n"
+        assertEquals(DEFAULT_ARTIST_VARIETY, LocalBackupCodec.decode(v5).settings.artistVariety)
+        assertFailsWith<LocalBackupFormatException> { LocalBackupCodec.decode(v5 + "V\t3\n") }
+        val v6 = v5.replaceFirst("\t5\n", "\t6\n")
+        assertEquals(3, LocalBackupCodec.decode(v6 + "V\t3\n").settings.artistVariety)
+        assertFailsWith<LocalBackupFormatException> { LocalBackupCodec.decode(v6 + "V\t9\n") }
+        assertFailsWith<LocalBackupFormatException> { LocalBackupCodec.decode(v6 + "V\t3\nV\t3\n") }
     }
 
     @Test
@@ -183,7 +198,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t5\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t6\n"))
     }
 
     @Test
@@ -235,7 +250,7 @@ internal class LocalBackupTest {
     fun codecRejectsFutureVersionsCorruptionAndDanglingReferences() {
         val valid = LocalBackupCodec.encode(emptySnapshot())
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t5", "LOCAL-BACKUP\t9"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t6", "LOCAL-BACKUP\t9"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
@@ -330,7 +345,7 @@ internal class LocalBackupTest {
         val encoded = source.service.exportEncoded()
         destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
 
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t5\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t6\n"))
         assertEquals(layout, destination.settings.pageLayout.value)
         assertEquals(StartPage.STATISTICS, destination.settings.startPage.value)
     }
@@ -405,6 +420,7 @@ internal class LocalBackupTest {
         source.settings.setIncludeNoveltyMixes(true)
         source.settings.setNormalizeVolume(true)
         source.settings.setCrossfadeSeconds(9)
+        source.settings.setArtistVariety(0)
         source.settings.setSaveListeningHistory(false).getOrThrow()
 
         val encoded = source.service.exportEncoded()
@@ -449,6 +465,7 @@ internal class LocalBackupTest {
         assertTrue(destination.settings.includeNoveltyMixes.value)
         assertTrue(destination.settings.normalizeVolume.value)
         assertEquals(9, destination.settings.crossfadeSeconds.value)
+        assertEquals(0, destination.settings.artistVariety.value)
         assertFalse(destination.settings.saveListeningHistory.value)
     }
 
@@ -743,6 +760,8 @@ internal class LocalBackupTest {
         override fun setTrackColorMode(mode: TrackColorMode) { trackColorMode.value = mode }
         override val smartQueueLength: MutableStateFlow<Int> = MutableStateFlow(DEFAULT_SMART_QUEUE_LENGTH)
         override fun setSmartQueueLength(length: Int) { smartQueueLength.value = sanitizeSmartQueueLength(length) }
+        override val artistVariety: MutableStateFlow<Int> = MutableStateFlow(DEFAULT_ARTIST_VARIETY)
+        override fun setArtistVariety(level: Int) { artistVariety.value = sanitizeArtistVariety(level) }
         override val includeNoveltyMixes: MutableStateFlow<Boolean> = MutableStateFlow(false)
         override fun setIncludeNoveltyMixes(enabled: Boolean) { includeNoveltyMixes.value = enabled }
         override val normalizeVolume: MutableStateFlow<Boolean> = MutableStateFlow(false)

@@ -370,6 +370,13 @@
     <string name="intelligence_section_recommendations">Recomendações</string>
     <string name="intelligence_queue_length">Tamanho da fila SMART</string>
     <string name="intelligence_queue_length_body">Escolha quantas músicas o SMART adiciona ao criar uma fila.</string>
+    <string name="intelligence_artist_variety">Variedade de artistas</string>
+    <string name="intelligence_artist_variety_body">O quanto o SMART espaça as músicas de um mesmo artista. Uma música que combina claramente melhor ainda toca, mesmo logo depois do mesmo artista.</string>
+    <string name="intelligence_artist_variety_free">Desligada</string>
+    <string name="intelligence_artist_variety_low">Baixa</string>
+    <string name="intelligence_artist_variety_balanced">Equilibrada</string>
+    <string name="intelligence_artist_variety_high">Alta</string>
+    <string name="intelligence_artist_variety_max">Máxima</string>
     <string name="intelligence_include_novelty_mixes">Incluir mixes inusitados</string>
     <string name="intelligence_include_novelty_mixes_body">Mostra em Para você mixes separados de memes, áudios virais e efeitos sonoros.</string>
     <string name="foryou_mix_meme_viral">Memes e áudios virais</string>

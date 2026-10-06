@@ -370,6 +370,13 @@
     <string name="intelligence_section_recommendations">Consigli</string>
     <string name="intelligence_queue_length">Lunghezza della coda SMART</string>
     <string name="intelligence_queue_length_body">Scegli quanti brani aggiunge SMART quando crea una coda.</string>
+    <string name="intelligence_artist_variety">Varietà degli artisti</string>
+    <string name="intelligence_artist_variety_body">Quanto SMART distanzia i brani di uno stesso artista. Un brano che si adatta chiaramente meglio viene comunque riprodotto, anche subito dopo lo stesso artista.</string>
+    <string name="intelligence_artist_variety_free">Disattivata</string>
+    <string name="intelligence_artist_variety_low">Bassa</string>
+    <string name="intelligence_artist_variety_balanced">Bilanciata</string>
+    <string name="intelligence_artist_variety_high">Alta</string>
+    <string name="intelligence_artist_variety_max">Massima</string>
     <string name="intelligence_include_novelty_mixes">Includi i mix insoliti</string>
     <string name="intelligence_include_novelty_mixes_body">Mostra in Per te mix separati di meme, audio virali ed effetti sonori.</string>
     <string name="foryou_mix_meme_viral">Meme e audio virali</string>

@@ -355,6 +355,13 @@
     <string name="intelligence_section_recommendations">推荐</string>
     <string name="intelligence_queue_length">SMART 队列长度</string>
     <string name="intelligence_queue_length_body">选择 SMART 创建队列时添加的歌曲数量。</string>
+    <string name="intelligence_artist_variety">艺人多样性</string>
+    <string name="intelligence_artist_variety_body">SMART 将同一艺人的歌曲分散开的程度。明显更合适的歌曲仍会播放，即使紧接在同一艺人之后。</string>
+    <string name="intelligence_artist_variety_free">关闭</string>
+    <string name="intelligence_artist_variety_low">低</string>
+    <string name="intelligence_artist_variety_balanced">均衡</string>
+    <string name="intelligence_artist_variety_high">高</string>
+    <string name="intelligence_artist_variety_max">最高</string>
     <string name="intelligence_include_novelty_mixes">包含趣味混合歌单</string>
     <string name="intelligence_include_novelty_mixes_body">在“为你推荐”中单独显示表情包梗、网络爆款和音效混合歌单。</string>
     <string name="foryou_mix_meme_viral">梗与网络爆款音频</string>

@@ -361,6 +361,13 @@
     <string name="intelligence_section_recommendations">Rekomendasi</string>
     <string name="intelligence_queue_length">Panjang antrean SMART</string>
     <string name="intelligence_queue_length_body">Pilih jumlah lagu yang ditambahkan SMART saat membuat antrean.</string>
+    <string name="intelligence_artist_variety">Variasi artis</string>
+    <string name="intelligence_artist_variety_body">Seberapa jauh SMART memisahkan lagu dari artis yang sama. Lagu yang jelas lebih cocok tetap diputar, bahkan tepat setelah artis yang sama.</string>
+    <string name="intelligence_artist_variety_free">Mati</string>
+    <string name="intelligence_artist_variety_low">Rendah</string>
+    <string name="intelligence_artist_variety_balanced">Seimbang</string>
+    <string name="intelligence_artist_variety_high">Tinggi</string>
+    <string name="intelligence_artist_variety_max">Maksimal</string>
     <string name="intelligence_include_novelty_mixes">Sertakan mix unik</string>
     <string name="intelligence_include_novelty_mixes_body">Tampilkan mix terpisah berisi meme, audio viral, dan efek suara di Untuk kamu.</string>
     <string name="foryou_mix_meme_viral">Meme &amp; audio viral</string>

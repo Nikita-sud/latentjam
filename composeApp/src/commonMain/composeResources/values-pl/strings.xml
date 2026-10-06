@@ -383,6 +383,13 @@
     <string name="intelligence_section_recommendations">Rekomendacje</string>
     <string name="intelligence_queue_length">Długość kolejki SMART</string>
     <string name="intelligence_queue_length_body">Wybierz liczbę utworów dodawanych przez SMART podczas tworzenia kolejki.</string>
+    <string name="intelligence_artist_variety">Różnorodność wykonawców</string>
+    <string name="intelligence_artist_variety_body">Jak bardzo SMART rozdziela utwory jednego wykonawcy. Utwór, który wyraźnie lepiej pasuje, i tak zostanie odtworzony, nawet zaraz po tym samym wykonawcy.</string>
+    <string name="intelligence_artist_variety_free">Wył.</string>
+    <string name="intelligence_artist_variety_low">Niska</string>
+    <string name="intelligence_artist_variety_balanced">Zrównoważona</string>
+    <string name="intelligence_artist_variety_high">Wysoka</string>
+    <string name="intelligence_artist_variety_max">Maksymalna</string>
     <string name="intelligence_include_novelty_mixes">Uwzględniaj nietypowe miksy</string>
     <string name="intelligence_include_novelty_mixes_body">Pokazuj w sekcji Dla Ciebie osobne miksy z memami, viralami i efektami dźwiękowymi.</string>
     <string name="foryou_mix_meme_viral">Memy i virale</string>

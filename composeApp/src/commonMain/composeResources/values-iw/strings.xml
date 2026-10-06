@@ -378,6 +378,13 @@
     <string name="intelligence_section_recommendations">המלצות</string>
     <string name="intelligence_queue_length">אורך התור של SMART</string>
     <string name="intelligence_queue_length_body">כמה שירים SMART מוסיף כשהוא בונה תור.</string>
+    <string name="intelligence_artist_variety">מגוון אמנים</string>
+    <string name="intelligence_artist_variety_body">עד כמה SMART מרחיק זה מזה שירים של אותו אמן. שיר שמתאים בבירור יותר יתנגן בכל זאת, גם מיד אחרי אותו אמן.</string>
+    <string name="intelligence_artist_variety_free">כבוי</string>
+    <string name="intelligence_artist_variety_low">נמוך</string>
+    <string name="intelligence_artist_variety_balanced">מאוזן</string>
+    <string name="intelligence_artist_variety_high">גבוה</string>
+    <string name="intelligence_artist_variety_max">מרבי</string>
     <string name="intelligence_include_novelty_mixes">הכללת מיקסים מיוחדים</string>
     <string name="intelligence_include_novelty_mixes_body">הצגת מיקסים נפרדים של ממים, להיטים ויראליים ואפקטים קוליים ב"בשבילך".</string>
     <string name="foryou_mix_meme_viral">ממים וויראליים</string>

@@ -40,6 +40,10 @@ internal class IosAppSettings : AppSettings {
     override val trackColorMode: StateFlow<TrackColorMode> = mutableTrackColorMode.asStateFlow()
     private val mutableSmartQueueLength = MutableStateFlow(readSmartQueueLength())
     override val smartQueueLength: StateFlow<Int> = mutableSmartQueueLength.asStateFlow()
+    private val mutableArtistVariety = MutableStateFlow(
+        artistVarietyFromPersisted((defaults.objectForKey(KEY_ARTIST_VARIETY) as? NSNumber)?.intValue),
+    )
+    override val artistVariety: StateFlow<Int> = mutableArtistVariety.asStateFlow()
     private val mutableIncludeNoveltyMixes = MutableStateFlow(readNoveltyMixPreference())
     override val includeNoveltyMixes: StateFlow<Boolean> = mutableIncludeNoveltyMixes.asStateFlow()
     private val mutableNormalizeVolume = MutableStateFlow(
@@ -118,6 +122,12 @@ internal class IosAppSettings : AppSettings {
         val sanitized = sanitizeCrossfadeSeconds(seconds)
         defaults.setInteger(sanitized.toLong(), KEY_CROSSFADE_SECONDS)
         mutableCrossfadeSeconds.value = sanitized
+    }
+
+    override fun setArtistVariety(level: Int) {
+        val sanitized = sanitizeArtistVariety(level)
+        defaults.setInteger(sanitized.toLong(), KEY_ARTIST_VARIETY)
+        mutableArtistVariety.value = sanitized
     }
 
     override fun setSongSort(choice: SortChoice<SongSort>) {
@@ -311,6 +321,7 @@ internal class IosAppSettings : AppSettings {
         const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
         const val KEY_NORMALIZE_VOLUME = "normalize_volume"
         const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
+        const val KEY_ARTIST_VARIETY = "artist_variety"
         const val KEY_SONG_SORT = "song_sort"
         const val KEY_ALBUM_SORT = "album_sort"
         const val KEY_ARTIST_ALBUM_SORT = "artist_album_sort"

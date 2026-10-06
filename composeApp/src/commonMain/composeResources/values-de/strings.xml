@@ -373,6 +373,13 @@
     <string name="intelligence_section_recommendations">Empfehlungen</string>
     <string name="intelligence_queue_length">Länge der SMART-Warteschlange</string>
     <string name="intelligence_queue_length_body">Lege fest, wie viele Titel SMART beim Erstellen einer Warteschlange hinzufügt.</string>
+    <string name="intelligence_artist_variety">Künstlervielfalt</string>
+    <string name="intelligence_artist_variety_body">Wie stark SMART die Songs eines Künstlers verteilt. Ein Song, der eindeutig besser passt, wird trotzdem gespielt, auch direkt nach demselben Künstler.</string>
+    <string name="intelligence_artist_variety_free">Aus</string>
+    <string name="intelligence_artist_variety_low">Niedrig</string>
+    <string name="intelligence_artist_variety_balanced">Ausgewogen</string>
+    <string name="intelligence_artist_variety_high">Hoch</string>
+    <string name="intelligence_artist_variety_max">Maximal</string>
     <string name="intelligence_include_novelty_mixes">Spaß-Mixe einbeziehen</string>
     <string name="intelligence_include_novelty_mixes_body">Eigene Mixe mit Memes, viralen Clips und Soundeffekten in „Für dich“ anzeigen.</string>
     <string name="foryou_mix_meme_viral">Memes &amp; virale Clips</string>

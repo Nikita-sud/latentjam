@@ -108,6 +108,18 @@ enum class TrackColorMode(internal val persistedValue: String) {
 const val DEFAULT_SMART_QUEUE_LENGTH: Int = 20
 val SMART_QUEUE_LENGTH_OPTIONS: List<Int> = listOf(10, DEFAULT_SMART_QUEUE_LENGTH, 40)
 
+/**
+ * The artist-variety setting's levels, as SMART's artist-run penalty (SmartEngineConfig.artistRunPenalty):
+ * from runs of one artist allowed freely to the most variety. Every level was measured; the middle one was
+ * accepted as the default (docs/model-diet-fixes-2026-10-06.md).
+ */
+val ARTIST_VARIETY_PENALTIES: List<Float> = listOf(0f, 0.25f, 0.5f, 1f, 2f)
+const val DEFAULT_ARTIST_VARIETY: Int = 2
+
+internal fun sanitizeArtistVariety(level: Int): Int = level.coerceIn(0, ARTIST_VARIETY_PENALTIES.lastIndex)
+
+internal fun artistVarietyFromPersisted(value: Int?): Int = value?.let(::sanitizeArtistVariety) ?: DEFAULT_ARTIST_VARIETY
+
 internal fun startPageFromPersisted(value: String?): StartPage =
     StartPage.entries.firstOrNull { it.persistedValue == value } ?: StartPage.TRACKS
 
@@ -378,6 +390,10 @@ interface AppSettings {
 
     val smartQueueLength: StateFlow<Int>
     fun setSmartQueueLength(length: Int)
+
+    /** How strongly SMART avoids several tracks in a row by one artist: an index into [ARTIST_VARIETY_PENALTIES]. */
+    val artistVariety: StateFlow<Int>
+    fun setArtistVariety(level: Int)
 
     /**
      * Whether For You may surface separately routed meme/viral and sound-effect clusters.

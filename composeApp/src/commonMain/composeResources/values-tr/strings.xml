@@ -363,6 +363,13 @@
     <string name="intelligence_section_recommendations">Öneriler</string>
     <string name="intelligence_queue_length">SMART kuyruk uzunluğu</string>
     <string name="intelligence_queue_length_body">SMART’ın kuyruk oluştururken kaç parça ekleyeceğini seç.</string>
+    <string name="intelligence_artist_variety">Sanatçı çeşitliliği</string>
+    <string name="intelligence_artist_variety_body">SMART’ın aynı sanatçının şarkılarını ne kadar aralıklı çalacağı. Açıkça daha iyi uyan bir şarkı, aynı sanatçının hemen ardından bile çalar.</string>
+    <string name="intelligence_artist_variety_free">Kapalı</string>
+    <string name="intelligence_artist_variety_low">Düşük</string>
+    <string name="intelligence_artist_variety_balanced">Dengeli</string>
+    <string name="intelligence_artist_variety_high">Yüksek</string>
+    <string name="intelligence_artist_variety_max">En yüksek</string>
     <string name="intelligence_include_novelty_mixes">Eğlencelik mixleri dahil et</string>
     <string name="intelligence_include_novelty_mixes_body">Sana özel bölümünde komik, viral ve ses efekti mixlerini ayrı göster.</string>
     <string name="foryou_mix_meme_viral">Komik ve viral sesler</string>

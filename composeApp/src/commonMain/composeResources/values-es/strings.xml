@@ -370,6 +370,13 @@
     <string name="intelligence_section_recommendations">Recomendaciones</string>
     <string name="intelligence_queue_length">Tamaño de la cola SMART</string>
     <string name="intelligence_queue_length_body">Elige cuántas canciones añade SMART al crear una cola.</string>
+    <string name="intelligence_artist_variety">Variedad de artistas</string>
+    <string name="intelligence_artist_variety_body">Cuánto separa SMART las canciones de un mismo artista. Una canción que encaja claramente mejor suena igualmente, incluso justo después del mismo artista.</string>
+    <string name="intelligence_artist_variety_free">Desactivada</string>
+    <string name="intelligence_artist_variety_low">Baja</string>
+    <string name="intelligence_artist_variety_balanced">Equilibrada</string>
+    <string name="intelligence_artist_variety_high">Alta</string>
+    <string name="intelligence_artist_variety_max">Máxima</string>
     <string name="intelligence_include_novelty_mixes">Incluir mixes curiosos</string>
     <string name="intelligence_include_novelty_mixes_body">Muestra en Para ti mixes aparte de memes, audios virales y efectos de sonido.</string>
     <string name="foryou_mix_meme_viral">Memes y audios virales</string>

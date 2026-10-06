@@ -363,6 +363,13 @@
     <string name="intelligence_section_recommendations">सुझाव</string>
     <string name="intelligence_queue_length">SMART कतार की लंबाई</string>
     <string name="intelligence_queue_length_body">SMART कतार बनाते समय कितने गाने जोड़े, यह चुनें।</string>
+    <string name="intelligence_artist_variety">कलाकार विविधता</string>
+    <string name="intelligence_artist_variety_body">SMART एक ही कलाकार के गानों को कितना अलग-अलग रखता है। जो गाना साफ़ तौर पर बेहतर बैठता है, वह फिर भी बजेगा, चाहे उसी कलाकार के ठीक बाद हो।</string>
+    <string name="intelligence_artist_variety_free">बंद</string>
+    <string name="intelligence_artist_variety_low">कम</string>
+    <string name="intelligence_artist_variety_balanced">संतुलित</string>
+    <string name="intelligence_artist_variety_high">ज़्यादा</string>
+    <string name="intelligence_artist_variety_max">अधिकतम</string>
     <string name="intelligence_include_novelty_mixes">अनोखे मिक्स शामिल करें</string>
     <string name="intelligence_include_novelty_mixes_body">आपके लिए में मीम, वायरल ऑडियो और साउंड इफ़ेक्ट के अलग मिक्स दिखाएँ।</string>
     <string name="foryou_mix_meme_viral">मीम और वायरल ऑडियो</string>

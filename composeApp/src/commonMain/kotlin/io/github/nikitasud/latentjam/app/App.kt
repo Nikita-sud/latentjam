@@ -555,6 +555,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
     val visiblePages = remember(pageLayout) { pageLayout.normalized().visiblePages }
     val trackColorMode by settings.trackColorMode.collectAsState()
     val smartQueueLength by settings.smartQueueLength.collectAsState()
+    val artistVariety by settings.artistVariety.collectAsState()
     val includeNoveltyMixes by settings.includeNoveltyMixes.collectAsState()
     val historyRevision by AppGraph.historyRevision.collectAsState()
     val smartExclusions = AppGraph.smartExclusions
@@ -577,6 +578,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         val sleepTimerState by sleepTimer.state.collectAsState()
         LaunchedEffect(playback, smartQueueLength) {
             playback.setSmartQueueLength(smartQueueLength)
+        }
+        LaunchedEffect(engine, artistVariety) {
+            engine.setArtistRunPenalty(ARTIST_VARIETY_PENALTIES[sanitizeArtistVariety(artistVariety)])
         }
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
