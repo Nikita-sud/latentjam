@@ -12,6 +12,12 @@ package io.github.nikitasud.latentjam.smart.chain
  * and always get the shipped behavior. Values here change only together with harness evidence.
  */
 internal data class ChainTuning(
+    /**
+     * Experimental continuation policy for unmarked queues. Refill from the whole library and
+     * leave the current neighborhood only when no eligible close tracks remain. Marked groups
+     * retain the existing quota policy. Default stays off until the continuity benchmark passes.
+     */
+    val continueAfterExhaustion: Boolean = false,
     /** See [ChainConfig.COMPANION_BONUS]. */
     val companionBonus: Float = ChainConfig.COMPANION_BONUS,
     /**

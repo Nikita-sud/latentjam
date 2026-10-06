@@ -40,6 +40,10 @@ internal object Reanchor {
     fun fusedCos(audioCos: Float, descCos: Float?): Float =
         if (descCos == null) audioCos else 0.5f * (audioCos + descCos)
 
+    /** A semantic match also needs acoustic support before it can delay a neighborhood change. */
+    fun isCloseContinuation(audioCos: Float, descCos: Float?): Boolean =
+        audioCos >= ChainConfig.SEM_SOUND_GATE_HIGH && fusedCos(audioCos, descCos) >= NICHE_COS
+
     /** True when fewer than [NICHE_MIN] eligible candidates remain in the seed's niche. */
     fun reanchorExhausted(onNiche: Int): Boolean = onNiche < NICHE_MIN
 

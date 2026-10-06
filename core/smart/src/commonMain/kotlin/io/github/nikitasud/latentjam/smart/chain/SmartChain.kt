@@ -124,7 +124,7 @@ internal object ChainConfig {
  * A built queue plus the candidate pool it was drawn from.
  *
  * @param rows snapshot rows to play, in order
- * @param pool the rows considered, in retrieval order — kept for diagnostics and parity checks
+ * @param pool the rows considered, in first-seen retrieval order across any refills — kept for diagnostics and parity checks
  */
 internal data class ChainResult(val rows: List<Int>, val pool: List<Int>) {
     companion object {
@@ -217,7 +217,7 @@ internal class SmartChain(
         val seedTitle = snapshot.tracks[seedRow].meta.titleArtistKey
         // A bounded retrieval can contain only alternate releases of the seed. Search past
         // those rows before abstaining; leave every productive pool and its scores unchanged.
-        val pool = if (seedTitle != null && initialPool.isNotEmpty() &&
+        var pool = if (seedTitle != null && initialPool.isNotEmpty() &&
             initialPool.all { snapshot.tracks[it].meta.titleArtistKey == seedTitle }
         ) {
             val duplicateRows = snapshot.tracks.indices.filterTo(HashSet()) {
@@ -230,12 +230,11 @@ internal class SmartChain(
         if (pool.isEmpty()) return ChainResult.EMPTY
         // Pool positions carry snapshot rows; the semantic z-scores and fused candidate block are
         // computed per pool position so everything lines up with candidate `pool[i]` below.
-        val poolRows = pool.toIntArray()
-        // Fused candidate block, packed ONCE: `[960 raw audio ⊕ 384 unit-norm text]` per row, the
-        // text half zero-filled where a track has none (a trained text-dropout path). It never
-        // changes across the walk — only the state's session-text-centroid does — so the scorer is
-        // called against this same block every hop. Short pools stay zero-padded: the scorer graph
-        // has the pool size baked in.
+        var poolRows = pool.toIntArray()
+        // Fused candidate block: `[960 raw audio ⊕ 384 unit-norm text]` per row, with absent text
+        // zero-filled (the trained text-dropout path). The default keeps this pool for the walk;
+        // continuation mode repacks the same buffer after a refill. Short pools stay zero-padded:
+        // the scorer graph has the pool size baked in.
         val hasText = snapshot.hasText ?: BooleanArray(snapshot.size)
         val candidates = FloatArray(PredictorRuntime.POOL_SIZE * PredictorRuntime.SCORER_INPUT_DIM)
         ScorerPacking.packCandidates(
@@ -256,8 +255,12 @@ internal class SmartChain(
         val chain = ArrayList<Int>(length)
         val used = HashSet<Int>()
         var anchorRow = seedRow
-        val seedGenres = Genres.families(snapshot.tracks[seedRow].meta.genre)
-        val seedGenreSupport = MetadataRerank.seedGenreSupport(
+        val continueAfterExhaustion = tuning.continueAfterExhaustion && companions.groupCount == 0
+        var intentRow = seedRow
+        val consideredRows = LinkedHashSet<Int>()
+        if (!continueAfterExhaustion) consideredRows.addAll(pool)
+        var seedGenres = Genres.families(snapshot.tracks[seedRow].meta.genre)
+        var seedGenreSupport = MetadataRerank.seedGenreSupport(
             seedGenres,
             pool.asSequence().map { snapshot.tracks[it].meta }.asIterable(),
         )
@@ -278,15 +281,15 @@ internal class SmartChain(
         seedTitle?.let(seenTitles::add)
         val artistPlays = HashMap<String, Int>()
 
-        // Seed-relative semantic z: computed once against the ORIGINAL pick, constant for the walk.
-        // (poolRows was built above alongside the fused candidate block.)
-        val zSeed = chainSemanticZ(seedRow, poolRows)
+        // Semantic reference for the active intent: fixed at the original pick by default,
+        // recomputed after each pool refill in continuation mode.
+        var zSeed = chainSemanticZ(seedRow, poolRows)
 
         // A pool position still in the running this hop: not already picked, and past the artist
         // cap and repeated-title filters. Shared by the scoring loop and the tail re-anchor
         // so the niche count sees exactly the candidates the scorer would.
         fun isEligible(i: Int): Boolean {
-            if (i in used) return false
+            if (pool[i] in used) return false
             val meta = snapshot.tracks[pool[i]].meta
             if (meta.titleArtistKey in seenTitles) return false
             if (meta.artistKey.isNotEmpty() &&
@@ -296,6 +299,47 @@ internal class SmartChain(
         }
 
         while (chain.size < length) {
+            if (continueAfterExhaustion) {
+                // Exclusions are track ids (snapshot rows), never positions in a changing pool.
+                val unavailable = HashSet<Int>(excludedRows)
+                unavailable.add(seedRow)
+                for (row in snapshot.tracks.indices) {
+                    val meta = snapshot.tracks[row].meta
+                    if (!eligibleRows[row] || row in used || meta.titleArtistKey in seenTitles ||
+                        (meta.artistKey.isNotEmpty() &&
+                            (artistPlays[meta.artistKey] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP)
+                    ) unavailable.add(row)
+                }
+                fun closeRows(reference: Int): Set<Int> = snapshot.tracks.indices.filterTo(HashSet()) { row ->
+                    row !in unavailable && Reanchor.isCloseContinuation(
+                        snapshot.centeredCosine(reference, row), snapshot.descriptorCosine(reference, row),
+                    )
+                }
+                var nearby = closeRows(intentRow)
+                if (nearby.isEmpty() && intentRow != anchorRow) {
+                    intentRow = anchorRow
+                    seedGenres = Genres.families(snapshot.tracks[intentRow].meta.genre)
+                    seedFamilyPicks = 0
+                    nearby = closeRows(intentRow)
+                }
+                // Search the full eligible library before declaring a neighborhood exhausted.
+                // A bounded old pool is not evidence that all suitable tracks were consumed.
+                val excluded = if (nearby.isEmpty()) unavailable else HashSet<Int>(unavailable).apply {
+                    snapshot.tracks.indices.filterTo(this) { it !in nearby }
+                }
+                pool = buildPool(intentRow, state, excluded)
+                if (pool.isEmpty()) break
+                consideredRows.addAll(pool)
+                poolRows = pool.toIntArray()
+                ScorerPacking.packCandidates(
+                    snapshot.rawAudio, snapshot.rawText, hasText, poolRows,
+                    PredictorRuntime.POOL_SIZE, candidates,
+                )
+                seedGenreSupport = MetadataRerank.seedGenreSupport(
+                    seedGenres, pool.asSequence().map { snapshot.tracks[it].meta }.asIterable(),
+                )
+                zSeed = chainSemanticZ(intentRow, poolRows)
+            }
             // Previous-pick-relative semantic z: recomputed each hop against the current anchor.
             val zPrev = chainSemanticZ(anchorRow, poolRows)
 
@@ -304,9 +348,11 @@ internal class SmartChain(
             // is spent, so the seed-anchored gravity + semantic-seed terms re-anchor to the chain's
             // own centroid (keeping SEED_KEEP of the intent). Recomputed per hop; hops before
             // MIN_IDX, and any hop that never exhausts, leave the score byte-identical.
-            var effSeed: FloatArray? = null
+            var effSeed: FloatArray? = if (continueAfterExhaustion) snapshot.centeredAudio.copyOfRange(
+                intentRow * dim, (intentRow + 1) * dim,
+            ) else null
             var zSeedActive = zSeed
-            if (Reanchor.ENABLED && seedRow >= 0 && chain.size >= Reanchor.MIN_IDX) {
+            if (!continueAfterExhaustion && Reanchor.ENABLED && seedRow >= 0 && chain.size >= Reanchor.MIN_IDX) {
                 var onNiche = 0
                 for (i in pool.indices) {
                     if (!isEligible(i)) continue
@@ -472,7 +518,7 @@ internal class SmartChain(
 
             val pickedRow = pool[chosenIndex]
             chain.add(pickedRow)
-            used.add(chosenIndex)
+            used.add(pickedRow)
             val pickedMeta = snapshot.tracks[pickedRow].meta
             if (Genres.families(pickedMeta.genre).any { it in seedGenres }) seedFamilyPicks++
             pickedMeta.titleArtistKey?.let(seenTitles::add)
@@ -498,7 +544,7 @@ internal class SmartChain(
                 .onFailure { live = false }
                 .getOrDefault(state)
         }
-        return ChainResult(chain, pool)
+        return ChainResult(chain, consideredRows.toList())
     }
 
     private fun encode(
