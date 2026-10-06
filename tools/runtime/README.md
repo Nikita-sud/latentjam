@@ -130,3 +130,10 @@ Two release APKs from the same current app sources measure 72,194,061 bytes
 inside the APK; all DEX and model assets are identical. APK signing verification,
 16 KiB ZIP alignment, emulator installation, and cold launch passed. A separate
 deliberately stale model manifest was correctly rejected before building.
+
+## 2026-10-06 result
+
+After the music encoder was replaced by the activation-trained p50 graph, the regenerated operator
+config was identical, so the 2026-10-05 candidate AAR stays valid; only the manifest's model hash
+changed. Emulator parity with real excerpts from three FMA tracks: 21 cases, 47,047 output floats,
+bitwise identical to the stock runtime; both error cases and the recovery passed.

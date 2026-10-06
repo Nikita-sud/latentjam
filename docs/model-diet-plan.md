@@ -335,6 +335,41 @@ encoder (0.145 / 0.221 / 0.115 / MRR 0.118 / 71.5 %).
   goal), or a second small encoder for Dasheng's part joined on the device (about +3 MB and +60–70 %
   indexing time, plus SMART nets trained for the joined space).
 
+*Phase 3, third round (2026-10-06): simulated activations.* The audit (`docs/model-diet-fixes-2026-10-06.md`)
+added a per-window export check: on 32 calibration windows the trained model, fake quantization included,
+and the custom-operator graph must agree at cosine 0.99 or better. The pruned encoder on the branch failed
+it too (minimum 0.955, mean 0.9970): its uint8 activations had been calibrated after training, never trained.
+`distill_audio_cached.py --aq` fine-tunes with the graph's INT8 convolutions and uint8 activations
+simulated, and the converter keeps the ranges it learns. Two students, 15,000 cached crops each (FMA plus MPD
+previews outside the evaluation libraries), 5 epochs on the Mac:
+
+- **The teacher-assistant student** (regFM, the Dasheng-joined space, as teacher): export check passes
+  (minimum 0.9978); raw retrieval as good as 0.7.1's (MPD P@10 +0.05 [−0.18, +0.27], owner +0.56, where the
+  branch's p50 lost −0.30 [−0.47, −0.13]). As a bundle, with the SMART nets and head refitted for its space
+  (state targets in 0.7.1's coordinates): owner history ΔP@10 −0.92 [−1.43, −0.40], head macro AP −1.95
+  [−3.40, −0.48]. **Rejected**, the same pattern as the audit's own students: a moved space costs history
+  queues more than its better neighbours give back.
+- **The branch's p50, fine-tuned against the same float 0.7.1 encoder** (LR 2e-5): export check passes
+  (minimum 0.9985, mean 0.9995); its track vectors sit closer to the float encoder (owner library 0.9917
+  against 0.9888, r3k 0.9924 against 0.9875); raw retrieval unchanged (MPD −0.26). With the branch's nets
+  and head unchanged (`phase4-p50-071-aq`): six MPD ΔP@10 −0.00 [−0.49, +0.50], owner cold +0.28 [−0.67,
+  +1.27], owner history −0.37 [−0.78, +0.05]; paired against the previous p50 every interval crosses zero;
+  real genres top-1 +0.75, macro AP −0.17 (both n.s.). **Shipped on the branch** (`76b16b50`, model version
+  `mnv4-960-retrieval-distill-v1-p50q4aq`, so the library re-indexes).
+- Converter trap: with trained ranges the converter also quantized GlobalAveragePool, which ONNX Runtime
+  fuses into QLinearGlobalAveragePool, an operator the reduced arm64 runtime lacks. The pool stays float
+  now (bitwise identical embeddings); the operator config is unchanged and the reduced runtime's emulator
+  parity is again 21 cases, 47,047 floats, bitwise identical.
+- The continuation mode in the app: SMART plans 12 tracks per request (`EngineNextTrackChooser.CHAIN_LENGTH`;
+  the queue-length setting only sets how far ahead the queue is filled) and the next plan starts from the
+  queue's last track. On the owner's 1,073 histories the mode replaces 4 of each 12 tracks, lowers the
+  audit's transition cost by 2.4 % [0.7, 3.9] within them (10 % on tracks 13–20, which the app never takes
+  from one chain) and lowers the share of tracks sharing a playlist with the seed by 5.8 pp. It stays off by
+  default; a side-by-side listening build (branch `exp/listen-continuation`, "LJ Listen") is for an ear test.
+
+Smaller at equal quality, then, and not yet better: a better teacher's space does not survive moving the
+SMART nets into it.
+
 **4. Integration (1–2 days).** A branch with the new assets and the operator, `modelVersion` bump if
 phase 3 lands, parity fixtures and device tests updated, APK size measured per ABI, and an F-Droid
 build check (the operator builds from source with CMake). Merging stays the owner's call.

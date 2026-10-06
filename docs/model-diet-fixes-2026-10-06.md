@@ -102,6 +102,20 @@ are in `continuation-implementation/current-p50-results.json`.
   Repeated app planning across multiple batches and marked-playlist behavior need separate product
   evaluation before making this mode the default.
 
+### Follow-up, same day
+
+- The export check now passes. `distill_audio_cached.py --aq` fine-tunes with the graph's INT8 convolutions
+  and uint8 activations simulated; the teacher-assistant student then exports at minimum 0.9978, but as a
+  bundle it fails owner history (ΔP@10 −0.92 [−1.43, −0.40]) and its refitted head loses macro AP (−1.95
+  [−3.40, −0.48]), so it is rejected. The p50 the branch already shipped failed the check as well (minimum
+  0.955); fine-tuned the same way against the float 0.7.1 encoder it passes (minimum 0.9985) with queue
+  quality unchanged within noise, and replaces it on the branch (`76b16b50`). Measurements are in
+  `docs/model-diet-plan.md`, phase 3, third round.
+- The app plans SMART 12 tracks per request and starts the next plan from the queue's last track. On the
+  owner's 1,073 histories the continuation mode replaces 4 of each 12 tracks and lowers transition cost by
+  2.4 % within them; most of the gain measured above (tracks 13–20) lies where the app replans anyway.
+  A side-by-side listening build with the mode on is on branch `exp/listen-continuation`.
+
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
 `continuity-model-comparison.json` re-evaluates the earlier models on fixed transition rulers.

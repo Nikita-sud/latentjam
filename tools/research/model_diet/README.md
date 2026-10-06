@@ -46,10 +46,13 @@ everything else in INT8.
    largest mean activation on 64 training windows times the norm of the weights that read them (a multiple of
    16, written to `prune_<cfg>.json` for the export). The shipped encoder is `p50_lq4c+sq4b32` after 40
    epochs on the Free Music Archive tracks under CC BY, CC0 or public domain (no share-alike or
-   no-derivatives licence): the id list replaces `commercial_ids.txt` before `fetch_fma.py`.
-2. `make_q4_encoder.py` quantizes the rest to INT8 as before, lets ONNX Runtime lay the graph out NHWC, and
-   swaps the 46 pointwise layers for the operator; `q4pack.py` packs the weights exactly as KleidiAI's
-   packer does (checked byte for byte).
+   no-derivatives licence): the id list replaces `commercial_ids.txt` before `fetch_fma.py`; then five epochs
+   of `distill_audio_cached.py --aq` against the same float encoder, so the graph's uint8 activation ranges
+   are trained rather than calibrated (per-window export check: minimum cosine 0.9985).
+2. `make_q4_encoder.py` quantizes the rest to INT8 as before (with the trained ranges where the checkpoint
+   has them; GlobalAveragePool stays float, since the reduced runtime has no QLinearGlobalAveragePool), lets
+   ONNX Runtime lay the graph out NHWC, and swaps the 46 pointwise layers for the operator; `q4pack.py` packs
+   the weights exactly as KleidiAI's packer does (checked byte for byte).
 3. The app registers the operator: Android loads `libljq4.so` (built by Gradle with CMake) and registers it
    by name; iOS links the `LatentJamOrtOps` pod and calls `LjRegisterOrtOps`.
 
