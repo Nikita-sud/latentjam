@@ -368,6 +368,7 @@
     <string name="intelligence_artist_variety_balanced">Seimbang</string>
     <string name="intelligence_artist_variety_high">Tinggi</string>
     <string name="intelligence_artist_variety_max">Maksimal</string>
+    <string name="intelligence_artist_variety_marked">Hanya berlaku selama tidak ada playlist yang disetel ke “Jaga tetap bersama di SMART”.</string>
     <string name="intelligence_include_novelty_mixes">Sertakan mix unik</string>
     <string name="intelligence_include_novelty_mixes_body">Tampilkan mix terpisah berisi meme, audio viral, dan efek suara di Untuk kamu.</string>
     <string name="foryou_mix_meme_viral">Meme &amp; audio viral</string>

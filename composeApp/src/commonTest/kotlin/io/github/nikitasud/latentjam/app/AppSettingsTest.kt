@@ -13,7 +13,9 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class AppSettingsTest {
 
@@ -350,5 +352,17 @@ class AppSettingsTest {
             ResumeFallbackQueue(source, 1),
             fallbackResumeQueue(ShuffleMode.OFF, current, source),
         )
+    }
+
+    @Test
+    fun `artist variety is off while a playlist is marked to keep together in SMART`() {
+        // From playlists as the app publishes them to SMART: every plan carries all of the marked ones.
+        val marked = Playlist(id = "marked", name = "Marked", trackIds = listOf("a", "b"), includeInSmart = true)
+        assertTrue(artistVarietyApplies(emptyList<Playlist>().smartCompanionMemberships()))
+        assertTrue(artistVarietyApplies(listOf(marked.copy(includeInSmart = false)).smartCompanionMemberships()))
+        // A marked playlist of one track keeps nothing together, so SMART never plans with it.
+        assertTrue(artistVarietyApplies(listOf(marked.copy(trackIds = listOf("a"))).smartCompanionMemberships()))
+        assertFalse(artistVarietyApplies(listOf(marked).smartCompanionMemberships()))
+        assertFalse(artistVarietyApplies(listOf(marked, marked.copy(id = "other", includeInSmart = false)).smartCompanionMemberships()))
     }
 }

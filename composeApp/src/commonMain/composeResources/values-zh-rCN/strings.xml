@@ -362,6 +362,7 @@
     <string name="intelligence_artist_variety_balanced">均衡</string>
     <string name="intelligence_artist_variety_high">高</string>
     <string name="intelligence_artist_variety_max">最高</string>
+    <string name="intelligence_artist_variety_marked">仅在没有播放列表设为“在 SMART 中保持在一起”时生效。</string>
     <string name="intelligence_include_novelty_mixes">包含趣味混合歌单</string>
     <string name="intelligence_include_novelty_mixes_body">在“为你推荐”中单独显示表情包梗、网络爆款和音效混合歌单。</string>
     <string name="foryou_mix_meme_viral">梗与网络爆款音频</string>

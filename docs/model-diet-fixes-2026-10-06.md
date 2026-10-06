@@ -365,9 +365,11 @@ by the author before the key was opened: 10, 3 and 7 ties. Both listeners still 
 song twice in different versions, to runs of four to six by one artist and to a second half that wanders.
 
 In the app (`9b77945a`, `fe90ab23`, `978ab8de`): `SmartEngineConfig.judgedScoring` turns the scoring on with the
-continuation mode (queues of marked playlists keep the shipped chain), and Settings > SMART > Artist variety picks the
-penalty from the five measured steps (Off, Low, Balanced = 0.5, High, Maximum), stored on both platforms and in local
-backups (format v6).
+continuation mode, and Settings > SMART > Artist variety picks the penalty from the five measured steps (Off, Low,
+Balanced = 0.5, High, Maximum), stored on both platforms and in local backups (format v6). Plans made with marked
+playlists keep the shipped chain, and the app plans with every playlist marked "Keep together in SMART", so while any
+playlist is marked every queue keeps the shipped chain, seeds outside the playlists included; Settings then shows
+Artist variety as off, with a line saying why.
 
 Versions of one song (`protocol-versions.json`): the repeated-title check also drops a trailing " - qualifier" that
 names a version (Radio Edit, Remastered 2011, a remix, From "Grease", feat. ...), keeping qualifiers without a version

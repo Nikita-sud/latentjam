@@ -377,6 +377,7 @@
     <string name="intelligence_artist_variety_balanced">Bilanciata</string>
     <string name="intelligence_artist_variety_high">Alta</string>
     <string name="intelligence_artist_variety_max">Massima</string>
+    <string name="intelligence_artist_variety_marked">Si applica solo finché nessuna playlist è impostata su “Tieni insieme in SMART”.</string>
     <string name="intelligence_include_novelty_mixes">Includi i mix insoliti</string>
     <string name="intelligence_include_novelty_mixes_body">Mostra in Per te mix separati di meme, audio virali ed effetti sonori.</string>
     <string name="foryou_mix_meme_viral">Meme e audio virali</string>

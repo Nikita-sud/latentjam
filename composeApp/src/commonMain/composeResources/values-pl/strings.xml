@@ -390,6 +390,7 @@
     <string name="intelligence_artist_variety_balanced">Zrównoważona</string>
     <string name="intelligence_artist_variety_high">Wysoka</string>
     <string name="intelligence_artist_variety_max">Maksymalna</string>
+    <string name="intelligence_artist_variety_marked">Działa tylko wtedy, gdy żadna playlista nie ma włączonej opcji „Trzymaj razem w SMART”.</string>
     <string name="intelligence_include_novelty_mixes">Uwzględniaj nietypowe miksy</string>
     <string name="intelligence_include_novelty_mixes_body">Pokazuj w sekcji Dla Ciebie osobne miksy z memami, viralami i efektami dźwiękowymi.</string>
     <string name="foryou_mix_meme_viral">Memy i virale</string>

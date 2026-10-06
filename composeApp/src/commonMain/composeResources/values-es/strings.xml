@@ -377,6 +377,7 @@
     <string name="intelligence_artist_variety_balanced">Equilibrada</string>
     <string name="intelligence_artist_variety_high">Alta</string>
     <string name="intelligence_artist_variety_max">Máxima</string>
+    <string name="intelligence_artist_variety_marked">Solo se aplica mientras ninguna lista esté en «Mantener juntas en SMART».</string>
     <string name="intelligence_include_novelty_mixes">Incluir mixes curiosos</string>
     <string name="intelligence_include_novelty_mixes_body">Muestra en Para ti mixes aparte de memes, audios virales y efectos de sonido.</string>
     <string name="foryou_mix_meme_viral">Memes y audios virales</string>

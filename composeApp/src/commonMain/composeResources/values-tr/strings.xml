@@ -370,6 +370,7 @@
     <string name="intelligence_artist_variety_balanced">Dengeli</string>
     <string name="intelligence_artist_variety_high">Yüksek</string>
     <string name="intelligence_artist_variety_max">En yüksek</string>
+    <string name="intelligence_artist_variety_marked">Yalnızca hiçbir çalma listesi “SMART'ta birlikte tut” olarak ayarlı değilken uygulanır.</string>
     <string name="intelligence_include_novelty_mixes">Eğlencelik mixleri dahil et</string>
     <string name="intelligence_include_novelty_mixes_body">Sana özel bölümünde komik, viral ve ses efekti mixlerini ayrı göster.</string>
     <string name="foryou_mix_meme_viral">Komik ve viral sesler</string>

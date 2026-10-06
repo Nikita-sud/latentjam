@@ -390,6 +390,7 @@
     <string name="intelligence_artist_variety_balanced">מאוזן</string>
     <string name="intelligence_artist_variety_high">גבוה</string>
     <string name="intelligence_artist_variety_max">מרבי</string>
+    <string name="intelligence_artist_variety_marked">חל רק כל עוד אף פלייליסט לא מסומן ב"שמירה יחד ב־SMART".</string>
     <string name="intelligence_include_novelty_mixes">הכללת מיקסים מיוחדים</string>
     <string name="intelligence_include_novelty_mixes_body">הצגת מיקסים נפרדים של ממים, להיטים ויראליים ואפקטים קוליים ב"בשבילך".</string>
     <string name="foryou_mix_meme_viral">ממים וויראליים</string>

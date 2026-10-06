@@ -190,6 +190,7 @@ import io.github.nikitasud.latentjam.app.generated.resources.intelligence_artist
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_artist_variety_free
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_artist_variety_high
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_artist_variety_low
+import io.github.nikitasud.latentjam.app.generated.resources.intelligence_artist_variety_marked
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_artist_variety_max
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_engine
 import io.github.nikitasud.latentjam.app.generated.resources.intelligence_failures_more
@@ -1960,9 +1961,12 @@ private fun formatDecibels(millibels: Float): String {
 
 // --------------------------------------------------------------- intelligence
 
-/** SMART's artist-variety setting: a slider over [ARTIST_VARIETY_PENALTIES], the current level named on the right. */
+/**
+ * SMART's artist-variety setting: a slider over [ARTIST_VARIETY_PENALTIES], the current level named on the right.
+ * Off, with a line saying why, while it cannot change SMART's plans ([artistVarietyApplies]); the level is kept.
+ */
 @Composable
-private fun ArtistVarietyRow(level: Int, onLevel: (Int) -> Unit) {
+private fun ArtistVarietyRow(level: Int, enabled: Boolean, onLevel: (Int) -> Unit) {
     val names = listOf(
         Res.string.intelligence_artist_variety_free,
         Res.string.intelligence_artist_variety_low,
@@ -1970,6 +1974,7 @@ private fun ArtistVarietyRow(level: Int, onLevel: (Int) -> Unit) {
         Res.string.intelligence_artist_variety_high,
         Res.string.intelligence_artist_variety_max,
     )
+    val alpha = if (enabled) 1f else 0.38f
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1980,22 +1985,32 @@ private fun ArtistVarietyRow(level: Int, onLevel: (Int) -> Unit) {
                 Text(
                     text = stringResource(Res.string.intelligence_artist_variety),
                     style = MaterialTheme.typography.bodyLarge,
+                    color = if (enabled) Color.Unspecified else MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
                 )
                 Text(
                     text = stringResource(Res.string.intelligence_artist_variety_body),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
                 )
+                if (!enabled) {
+                    Text(
+                        text = stringResource(Res.string.intelligence_artist_variety_marked),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
             Text(
                 text = stringResource(names[sanitizeArtistVariety(level)]),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
             )
         }
         Slider(
             value = sanitizeArtistVariety(level).toFloat(),
             onValueChange = { onLevel(it.roundToInt()) },
+            enabled = enabled,
             valueRange = 0f..ARTIST_VARIETY_PENALTIES.lastIndex.toFloat(),
             steps = ARTIST_VARIETY_PENALTIES.size - 2,
         )
@@ -2020,6 +2035,7 @@ private fun IntelligenceSettings(
     val indexing by AppGraph.automaticIndexing.collectAsState()
     val queueLength by settings.smartQueueLength.collectAsState()
     val artistVariety by settings.artistVariety.collectAsState()
+    val companionGroups by AppGraph.smartCompanionGroups.collectAsState()
     val includeNoveltyMixes by settings.includeNoveltyMixes.collectAsState()
     val notificationStatus by permissions.notificationStatus.collectAsState()
     val ids = remember(tracks) { tracks.map(TrackDescriptor::id) }
@@ -2132,7 +2148,11 @@ private fun IntelligenceSettings(
                     onSelected = settings::setSmartQueueLength,
                 )
                 SettingsBody(stringResource(Res.string.intelligence_queue_length_body))
-                ArtistVarietyRow(level = artistVariety, onLevel = settings::setArtistVariety)
+                ArtistVarietyRow(
+                    level = artistVariety,
+                    enabled = artistVarietyApplies(companionGroups),
+                    onLevel = settings::setArtistVariety,
+                )
                 SettingsSwitchRow(
                     title = stringResource(Res.string.intelligence_include_novelty_mixes),
                     subtitle = stringResource(Res.string.intelligence_include_novelty_mixes_body),

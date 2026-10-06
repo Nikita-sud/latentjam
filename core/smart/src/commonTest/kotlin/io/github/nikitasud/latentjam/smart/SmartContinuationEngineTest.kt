@@ -120,6 +120,8 @@ internal class SmartContinuationEngineTest {
 
     @Test
     fun `marked playlists keep the shipped chain under judged scoring`() = runTest {
+        // The seed is in no marked playlist and still keeps the shipped chain. The app's Settings show Artist
+        // variety as off while any playlist is marked (artistVarietyApplies); a narrower gate must change that too.
         val groups = listOf(setOf(tracks[1].id, tracks[2].id, tracks[3].id))
         val judged = engine(continuation = true, judged = true, runPenalty = 0.5f)
         val plain = engine(continuation = true)

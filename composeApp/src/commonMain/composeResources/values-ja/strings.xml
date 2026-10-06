@@ -362,6 +362,7 @@
     <string name="intelligence_artist_variety_balanced">バランス</string>
     <string name="intelligence_artist_variety_high">高</string>
     <string name="intelligence_artist_variety_max">最大</string>
+    <string name="intelligence_artist_variety_marked">「SMARTでまとめて再生」に設定したプレイリストがないときだけ適用されます。</string>
     <string name="intelligence_include_novelty_mixes">ネタ系ミックスを含める</string>
     <string name="intelligence_include_novelty_mixes_body">ミーム、バイラル、効果音のミックスを「あなたへ」に別枠で表示します。</string>
     <string name="foryou_mix_meme_viral">ミーム＆バイラル音源</string>

@@ -362,6 +362,7 @@
     <string name="intelligence_artist_variety_balanced">균형</string>
     <string name="intelligence_artist_variety_high">높음</string>
     <string name="intelligence_artist_variety_max">최대</string>
+    <string name="intelligence_artist_variety_marked">“SMART에서 함께 유지”로 설정된 재생목록이 없을 때만 적용됩니다.</string>
     <string name="intelligence_include_novelty_mixes">이색 믹스 포함</string>
     <string name="intelligence_include_novelty_mixes_body">밈, 바이럴, 효과음 믹스를 추천에 따로 표시합니다.</string>
     <string name="foryou_mix_meme_viral">밈 &amp; 바이럴 오디오</string>
