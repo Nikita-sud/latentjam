@@ -144,6 +144,26 @@ internal class DecodeLoopGuard(
 }
 
 /**
+ * Where decoding spends its time, summed over calls; only diagnostics (the decode benchmark) pass one.
+ * Every field is nanoseconds.
+ */
+internal class DecodeStageTimes {
+    var open = 0L
+    var extractor = 0L
+    var lookup = 0L
+    var start = 0L
+    var inputWait = 0L
+    var read = 0L
+    var outputWait = 0L
+    var convert = 0L
+    var resample = 0L
+    var release = 0L
+    var windows = 0
+
+    val total: Long get() = open + extractor + lookup + start + inputWait + read + outputWait + convert + resample + release
+}
+
+/**
  * Decodes one fixed-length mono window of a track for the embedding model,
  * using the platform decoders (MediaExtractor + MediaCodec) — every format
  * Android can play, no bundled codecs.
@@ -175,8 +195,16 @@ internal class AndroidAudioDecoder(private val context: Context) {
         targetSamples: Int,
         downmixMode: AudioDownmixMode = AudioDownmixMode.AVERAGE,
         isCancelled: () -> Boolean,
+        stages: DecodeStageTimes? = null,
     ): AudioDecodeResult {
         if (isCancelled()) throw CancellationException("Audio decoding cancelled")
+        stages?.windows = (stages?.windows ?: 0) + 1
+        var mark = System.nanoTime()
+        fun lap(add: (Long) -> Unit) {
+            val now = System.nanoTime()
+            add(now - mark)
+            mark = now
+        }
         val source = try {
             context.contentResolver.openAssetFileDescriptor(uri, "r")
         } catch (cancellation: CancellationException) {
@@ -190,6 +218,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
         } ?: return AudioDecodeResult.Unavailable(
             "Audio source is not locally readable at ${startMs}ms",
         )
+        if (stages != null) lap { stages.open += it }
 
         val extractor = try {
             MediaExtractor()
@@ -237,6 +266,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 if (startMs > 0) {
                     extractor.seekTo(startMs * 1000L, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
                 }
+                if (stages != null) lap { stages.extractor += it }
                 failureStage = AudioDecodeFailureStage.CODEC
                 // Resolve support separately from allocation. A null result is a stable property of
                 // this device + stream format and may be remembered for unchanged bytes; failures
@@ -244,10 +274,12 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 val decoderName = MediaCodecList(MediaCodecList.REGULAR_CODECS)
                     .findDecoderForFormat(inputFormat)
                     ?: return AudioDecodeResult.InvalidAudio("No decoder for $mime")
+                if (stages != null) lap { stages.lookup += it }
                 val codec = MediaCodec.createByCodecName(decoderName)
                 try {
                     codec.configure(inputFormat, null, null, 0)
                     codec.start()
+                    if (stages != null) lap { stages.start += it }
                     val decoded = decodeLoop(
                         codec,
                         extractor,
@@ -255,9 +287,11 @@ internal class AndroidAudioDecoder(private val context: Context) {
                         targetSamples,
                         downmixMode,
                         isCancelled,
+                        stages,
                     ) ?: return AudioDecodeResult.InvalidAudio(
                         "Decoder produced no valid PCM at ${startMs}ms ($mime)",
                     )
+                    mark = System.nanoTime()
                     AudioDecodeResult.Success(decoded.waveform, decoded.validSamples)
                 } finally {
                     runCatching { codec.stop() }
@@ -277,6 +311,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
         } finally {
             runCatching { extractor.release() }
             runCatching { source.close() }
+            if (stages != null) lap { stages.release += it }
         }
     }
 
@@ -287,7 +322,15 @@ internal class AndroidAudioDecoder(private val context: Context) {
         targetSamples: Int,
         downmixMode: AudioDownmixMode,
         isCancelled: () -> Boolean,
+        stages: DecodeStageTimes? = null,
     ): DecodedWindow? {
+        var mark = System.nanoTime()
+        fun lap(add: (Long) -> Unit) {
+            if (stages == null) return
+            val now = System.nanoTime()
+            add(now - mark)
+            mark = now
+        }
         var sourceRate = 0
         var sourceChannels = 0
         var pcmFloat = false
@@ -351,36 +394,15 @@ internal class AndroidAudioDecoder(private val context: Context) {
             throw ReadableSourceParseException(error)
         }
 
-        while (!outputDone) {
-            checkLiveness()
-            if (!inputDone) {
-                val inputIndex = codec.dequeueInputBuffer(DEQUEUE_TIMEOUT_US)
-                checkLiveness()
-                if (inputIndex >= 0) {
-                    val buffer = codec.getInputBuffer(inputIndex)
-                        ?: error("Codec returned no input buffer for index $inputIndex")
-                    val size = readSource { extractor.readSampleData(buffer, 0) }
-                    checkLiveness()
-                    if (size < 0) {
-                        codec.queueInputBuffer(
-                            inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM,
-                        )
-                        inputDone = true
-                    } else {
-                        val sampleTime = readSource { extractor.sampleTime }
-                        codec.queueInputBuffer(inputIndex, 0, size, sampleTime, 0)
-                        readSource { extractor.advance() }
-                    }
-                    checkLiveness(madeProgress = true)
-                }
-            }
-
-            val outputIndex = codec.dequeueOutputBuffer(info, DEQUEUE_TIMEOUT_US)
-            checkLiveness()
+        // Hand the codec every input buffer it will take and drain every output it has ready before
+        // waiting: one frame in flight per round trip leaves the codec, often in another process,
+        // idle most of the time. The samples collected are the same; only the waiting changes.
+        fun handleOutput(outputIndex: Int): Boolean {
             when {
                 outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                     readOutputFormat()
                     checkLiveness(madeProgress = true)
+                    return true
                 }
                 outputIndex >= 0 -> {
                     if (sourceRate == 0) readOutputFormat()
@@ -404,10 +426,57 @@ internal class AndroidAudioDecoder(private val context: Context) {
                     ) {
                         outputDone = true
                     }
+                    return true
                 }
+                // INFO_TRY_AGAIN_LATER, or the deprecated INFO_OUTPUT_BUFFERS_CHANGED.
+                else -> return outputIndex != MediaCodec.INFO_TRY_AGAIN_LATER
             }
         }
 
+        while (!outputDone) {
+            checkLiveness()
+            var progressed = false
+            while (!inputDone) {
+                lap { stages!!.convert += it }
+                val inputIndex = codec.dequeueInputBuffer(0)
+                lap { stages!!.inputWait += it }
+                if (inputIndex < 0) break
+                val buffer = codec.getInputBuffer(inputIndex)
+                    ?: error("Codec returned no input buffer for index $inputIndex")
+                val size = readSource { extractor.readSampleData(buffer, 0) }
+                checkLiveness()
+                if (size < 0) {
+                    codec.queueInputBuffer(
+                        inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM,
+                    )
+                    inputDone = true
+                } else {
+                    val sampleTime = readSource { extractor.sampleTime }
+                    codec.queueInputBuffer(inputIndex, 0, size, sampleTime, 0)
+                    readSource { extractor.advance() }
+                }
+                lap { stages!!.read += it }
+                checkLiveness(madeProgress = true)
+                progressed = true
+            }
+            while (!outputDone) {
+                lap { stages!!.convert += it }
+                val outputIndex = codec.dequeueOutputBuffer(info, 0)
+                lap { stages!!.outputWait += it }
+                if (!handleOutput(outputIndex)) break
+                progressed = true
+            }
+            if (!progressed && !outputDone) {
+                // Nothing moved: let the codec work, waking as soon as it has output.
+                lap { stages!!.convert += it }
+                val outputIndex = codec.dequeueOutputBuffer(info, DEQUEUE_TIMEOUT_US)
+                lap { stages!!.outputWait += it }
+                checkLiveness()
+                handleOutput(outputIndex)
+            }
+        }
+
+        lap { stages!!.convert += it }
         checkLiveness()
         if (sourceRate == 0 || collected == 0) return null
         val source = FloatArray(collected)
@@ -417,7 +486,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
             position += chunk.size
         }
         checkLiveness()
-        return resampleLinear(source, sourceRate, targetSampleRate, targetSamples)
+        return resampleLinear(source, sourceRate, targetSampleRate, targetSamples).also { lap { stages!!.resample += it } }
     }
 
     private fun monoFromPcm16(
@@ -425,20 +494,23 @@ internal class AndroidAudioDecoder(private val context: Context) {
         channels: Int,
         downmixMode: AudioDownmixMode,
     ): FloatArray {
-        val shorts = buffer.order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer()
-        val frames = shorts.remaining() / channels
+        // One bulk copy, then plain array reads: a buffer read per sample costs more than the decode.
+        val view = buffer.order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        val shorts = ShortArray(view.remaining())
+        view.get(shorts)
+        val frames = shorts.size / channels
         val mono = FloatArray(frames)
         for (frame in 0 until frames) {
             mono[frame] = when (downmixMode) {
                 AudioDownmixMode.AVERAGE -> {
                     var sum = 0f
                     for (channel in 0 until channels) {
-                        sum += shorts.get(frame * channels + channel) / 32768f
+                        sum += shorts[frame * channels + channel] / 32768f
                     }
                     sum / channels
                 }
                 AudioDownmixMode.PRESERVE_CHANNEL_POWER -> channelPowerDownmix(channels) { channel ->
-                    shorts.get(frame * channels + channel) / 32768f
+                    shorts[frame * channels + channel] / 32768f
                 }
             }
         }
@@ -450,15 +522,17 @@ internal class AndroidAudioDecoder(private val context: Context) {
         channels: Int,
         downmixMode: AudioDownmixMode,
     ): FloatArray {
-        val floats = buffer.order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
-        val frames = floats.remaining() / channels
+        val view = buffer.order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+        val floats = FloatArray(view.remaining())
+        view.get(floats)
+        val frames = floats.size / channels
         val mono = FloatArray(frames)
         for (frame in 0 until frames) {
             mono[frame] = when (downmixMode) {
                 AudioDownmixMode.AVERAGE -> {
                     var sum = 0f
                     for (channel in 0 until channels) {
-                        sum += floats.get(frame * channels + channel)
+                        sum += floats[frame * channels + channel]
                     }
                     // Float decoders may legally overshoot full scale. The embedding graph's
                     // trained contract is strictly finite [-1, 1].
@@ -466,7 +540,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
                     if (sample.isFinite()) sample.coerceIn(-1f, 1f) else 0f
                 }
                 AudioDownmixMode.PRESERVE_CHANNEL_POWER -> channelPowerDownmix(channels) { channel ->
-                    floats.get(frame * channels + channel)
+                    floats[frame * channels + channel]
                 }
             }
         }
