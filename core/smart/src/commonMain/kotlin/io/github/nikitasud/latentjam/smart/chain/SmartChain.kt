@@ -125,10 +125,34 @@ internal object ChainConfig {
  *
  * @param rows snapshot rows to play, in order
  * @param pool the rows considered, in first-seen retrieval order across any refills — kept for diagnostics and parity checks
+ * @param walk where the walk stands at the end, for the next plan to carry on from; only in the
+ *   continuation mode ([ChainTuning.continueAfterExhaustion])
  */
-internal data class ChainResult(val rows: List<Int>, val pool: List<Int>) {
+internal data class ChainResult(val rows: List<Int>, val pool: List<Int>, val walk: ChainWalk? = null) {
     companion object {
         val EMPTY = ChainResult(emptyList(), emptyList())
+    }
+}
+
+/**
+ * Where a continuation-mode walk stands when a plan ends. The app plans SMART in several requests,
+ * each seeded with the queue's last track; resumed from this, the next plan keeps spending the
+ * neighbourhood of [intent] instead of starting a new one around that last track.
+ *
+ * @param intent the track whose neighbourhood the walk is spending
+ * @param picks the walk's latest picks in the order they were chosen, at most [WINDOW]: they keep
+ *   the artist cap, the repeated-title check, the artist repeat penalty and the genre-family count
+ *   running as they do inside one chain of the longest queue the app plans
+ * @param picksUnderIntent how many of the latest [picks] were chosen with [intent] as the reference
+ */
+internal data class ChainWalk(
+    val intent: TrackId,
+    val picks: List<TrackId>,
+    val picksUnderIntent: Int,
+) {
+    companion object {
+        /** The longest queue the app plans in one chain (the SMART queue length setting's maximum). */
+        const val WINDOW = 40
     }
 }
 
@@ -183,6 +207,8 @@ internal class SmartChain(
      * @param seedId the track the user picked
      * @param length how many tracks to queue after the seed
      * @param timeFeatures from [PredictorRuntime.timeFeatures] on the real clock
+     * @param resume the walk the previous plan ended with, when this plan continues it from that
+     *   plan's last track; ignored outside the continuation mode
      */
     fun build(
         seedId: TrackId,
@@ -190,6 +216,7 @@ internal class SmartChain(
         timeFeatures: FloatArray,
         sessionFeatures: FloatArray = PredictorRuntime.SESSION_FEATURES_COLD,
         historyEvents: List<SmartHistoryEvent> = emptyList(),
+        resume: ChainWalk? = null,
     ): ChainResult {
         val seedRow = snapshot.rowOf(seedId)
         if (seedRow < 0 || length <= 0) return ChainResult.EMPTY
@@ -280,6 +307,35 @@ internal class SmartChain(
         val seenTitles = HashSet<Pair<String, String>>()
         seedTitle?.let(seenTitles::add)
         val artistPlays = HashMap<String, Int>()
+        // A resumed walk: its reference and its latest picks carry over, as if this plan were the
+        // next stretch of the same chain. The picks are queued already and stay unavailable.
+        var picksUnderIntent = 0
+        val carried = if (continueAfterExhaustion && resume != null) {
+            resume.picks.map(snapshot::rowOf).filter { it >= 0 }
+        } else {
+            emptyList()
+        }
+        if (continueAfterExhaustion && resume != null) {
+            val resumedIntent = snapshot.rowOf(resume.intent)
+            if (resumedIntent >= 0) {
+                intentRow = resumedIntent
+                snapshot.tracks[intentRow].meta.titleArtistKey?.let(seenTitles::add)
+                seedGenres = Genres.families(snapshot.tracks[intentRow].meta.genre)
+                val underIntent = carried.takeLast(resume.picksUnderIntent.coerceIn(0, carried.size))
+                picksUnderIntent = underIntent.size
+                seedFamilyPicks = underIntent.count { row ->
+                    Genres.families(snapshot.tracks[row].meta.genre).any { it in seedGenres }
+                }
+            }
+            for (row in carried) {
+                val meta = snapshot.tracks[row].meta
+                used.add(row)
+                meta.titleArtistKey?.let(seenTitles::add)
+                artistPlays[meta.artistKey] = (artistPlays[meta.artistKey] ?: 0) + 1
+                recentArtists.addLast(meta.artistKey)
+                while (recentArtists.size > ChainConfig.CHAIN_ARTIST_SPACING) recentArtists.removeFirst()
+            }
+        }
 
         // Semantic reference for the active intent: fixed at the original pick by default,
         // recomputed after each pool refill in continuation mode.
@@ -320,6 +376,7 @@ internal class SmartChain(
                     intentRow = anchorRow
                     seedGenres = Genres.families(snapshot.tracks[intentRow].meta.genre)
                     seedFamilyPicks = 0
+                    picksUnderIntent = 0
                     nearby = closeRows(intentRow)
                 }
                 // Search the full eligible library before declaring a neighborhood exhausted.
@@ -526,6 +583,7 @@ internal class SmartChain(
             recentArtists.addLast(pickedMeta.artistKey)
             while (recentArtists.size > ChainConfig.CHAIN_ARTIST_SPACING) recentArtists.removeFirst()
             anchorRow = pickedRow
+            picksUnderIntent++
 
             // The final pick needs no state advance — nothing consumes it, and the encoder is the
             // chain's dominant cost.
@@ -544,7 +602,17 @@ internal class SmartChain(
                 .onFailure { live = false }
                 .getOrDefault(state)
         }
-        return ChainResult(chain, consideredRows.toList())
+        val walk = if (continueAfterExhaustion) {
+            val picks = (carried + chain).takeLast(ChainWalk.WINDOW)
+            ChainWalk(
+                intent = snapshot.tracks[intentRow].id,
+                picks = picks.map { snapshot.tracks[it].id },
+                picksUnderIntent = picksUnderIntent.coerceAtMost(picks.size),
+            )
+        } else {
+            null
+        }
+        return ChainResult(chain, consideredRows.toList(), walk)
     }
 
     private fun encode(

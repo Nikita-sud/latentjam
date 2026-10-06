@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.chain.ChainTuning
+import io.github.nikitasud.latentjam.smart.chain.ChainWalk
 import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
 import io.github.nikitasud.latentjam.smart.chain.MetadataFallbackQueue
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
@@ -664,30 +666,57 @@ internal class DefaultSimilarityEngine(
                     "indexed=$indexedEligible/${eligibleIds.size}, required=$requiredAudio, " +
                     "text=${if (textEncoderLoaded) "ready" else "unavailable"}",
             )
+            // A request seeded with the last track of a plan this engine answered continues that
+            // walk (the app tops the queue up this way); any other seed starts a new one.
+            val resume = if (config.continueAfterExhaustion && companionGroups.isEmpty()) {
+                walks[seed.id]
+            } else {
+                null
+            }
             val chain = SmartChain(
                 snapshot,
                 livePredictor,
                 eligibleRows,
                 typicalityWeight = config.typicalityWeight,
                 companionGroups = companionGroups,
+                tuning = ChainTuning(continueAfterExhaustion = config.continueAfterExhaustion),
             ).build(
                 seedId = seed.id,
                 length = length,
                 timeFeatures = clock.timeFeatures(),
                 historyEvents = history,
+                resume = resume,
             )
             // Marked playlists have positional quota turns; retain their planned order.
-            // Otherwise bridge the selected tracks locally before handing the plan to playback.
+            // Otherwise bridge the selected tracks locally before handing the plan to playback; a
+            // continued walk is bridged from the queue's last track, which plays right before it.
+            val continuedFrom = if (resume != null) snapshot.rowOf(seed.id).takeIf { it >= 0 } else null
             val rows = if (companionGroups.isEmpty()) {
-                JourneySequencer.order(snapshot, chain.rows)
+                JourneySequencer.order(snapshot, chain.rows, from = continuedFrom)
             } else {
                 chain.rows
             }
-            rows.map { snapshot.tracks[it].id }
-                .ifEmpty {
-                    metadataFallback(seed, library, length, history, companionGroups)
-                }
+            val ids = rows.map { snapshot.tracks[it].id }
+            val walk = chain.walk
+            if (walk != null && ids.isNotEmpty()) rememberWalk(ids.last(), walk)
+            ids.ifEmpty {
+                metadataFallback(seed, library, length, history, companionGroups)
+            }
         }
+    }
+
+    /**
+     * Continuation-mode walks by the last track of the plan that ended them, newest last. A few
+     * entries, so an unrelated request in between (a diagnostic seed, a second queue) does not
+     * break the walk a playing queue is following. In memory only: after a restart the next plan
+     * starts a new walk.
+     */
+    private val walks = LinkedHashMap<TrackId, ChainWalk>()
+
+    private fun rememberWalk(lastTrack: TrackId, walk: ChainWalk) {
+        walks.remove(lastTrack)
+        walks[lastTrack] = walk
+        while (walks.size > WALKS_KEPT) walks.remove(walks.keys.first())
     }
 
     override suspend fun clearAnalysis() {
@@ -738,6 +767,7 @@ internal class DefaultSimilarityEngine(
                 mixCoverageCache = null
                 snapshotCache = null
                 indexRevision++
+                walks.clear()
                 if (mutableState.value is EngineState.Ready) {
                     mutableState.value = EngineState.Ready(indexedCount = 0)
                 }
@@ -763,6 +793,7 @@ internal class DefaultSimilarityEngine(
                 mixCoverageCache = null
                 snapshotCache = null
                 indexRevision++
+                walks.clear()
                 predictorLoaded = false
                 textEncoderLoaded = false
                 audioModelLoaded = false
@@ -1093,6 +1124,9 @@ internal class DefaultSimilarityEngine(
     private companion object {
         /** Maximum warm-up requirement for large libraries. */
         const val MIN_AUDIO_CORPUS = 64
+
+        /** Continuation walks kept for requests that continue a plan; see [walks]. */
+        const val WALKS_KEPT = 4
 
         /** Below this, the metadata-only full-library path is more honest than a tiny audio pool. */
         const val MIN_AUDIO_CORPUS_FLOOR = 24
