@@ -40,9 +40,19 @@ internal object Reanchor {
     fun fusedCos(audioCos: Float, descCos: Float?): Float =
         if (descCos == null) audioCos else 0.5f * (audioCos + descCos)
 
-    /** A semantic match also needs acoustic support before it can delay a neighborhood change. */
-    fun isCloseContinuation(audioCos: Float, descCos: Float?): Boolean =
-        audioCos >= ChainConfig.SEM_SOUND_GATE_HIGH && fusedCos(audioCos, descCos) >= NICHE_COS
+    /**
+     * A semantic match also needs acoustic support before it can delay a neighborhood change.
+     * [descriptorWeight] is the descriptor's share of the fused cosine; the shipped 0.5 is [fusedCos].
+     */
+    fun isCloseContinuation(audioCos: Float, descCos: Float?, descriptorWeight: Float = 0.5f): Boolean {
+        if (audioCos < ChainConfig.SEM_SOUND_GATE_HIGH) return false
+        val fused = if (descCos == null || descriptorWeight == 0.5f) {
+            fusedCos(audioCos, descCos)
+        } else {
+            (1f - descriptorWeight) * audioCos + descriptorWeight * descCos
+        }
+        return fused >= NICHE_COS
+    }
 
     /** True when fewer than [NICHE_MIN] eligible candidates remain in the seed's niche. */
     fun reanchorExhausted(onNiche: Int): Boolean = onNiche < NICHE_MIN

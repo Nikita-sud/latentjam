@@ -55,6 +55,10 @@ internal class SmartChainContinuationTest {
         assertFalse(Reanchor.isCloseContinuation(0.39f, null))
         assertTrue(Reanchor.isCloseContinuation(0.5f, null))
         assertTrue(Reanchor.isCloseContinuation(0.3f, 0.7f))
+        // The descriptor's share decides borderline cases; the sound gate holds at any share.
+        assertFalse(Reanchor.isCloseContinuation(0.3f, 0.7f, descriptorWeight = 0.2f))
+        assertTrue(Reanchor.isCloseContinuation(0.25f, 0.6f, descriptorWeight = 0.8f))
+        assertFalse(Reanchor.isCloseContinuation(0.1f, 1f, descriptorWeight = 0.9f))
     }
 
     @Test
@@ -108,6 +112,25 @@ internal class SmartChainContinuationTest {
         val walk = assertNotNull(queue.walk)
         assertEquals(queue.rows.takeLast(ChainWalk.WINDOW).map { snapshot.tracks[it].id }, walk.picks)
         assertTrue(walk.picksUnderIntent <= walk.picks.size)
+    }
+
+    @Test
+    fun `a soft neighbourhood lets a strongly preferred outsider in and keeps the rest first`() {
+        val snapshot = satellites()
+        val outsider = SATELLITE_ROWS.first()
+        fun plan(bonus: Float) = SmartChain(
+            snapshot, null,
+            tuning = ChainTuning(
+                continueAfterExhaustion = true,
+                neighbourhoodBonus = bonus,
+                // Stands in for a scorer that strongly prefers one track outside the neighbourhood.
+                personalAffinity = { row -> if (row == outsider) 1f else 0f },
+                personalWeight = 6f,
+            ),
+        ).build(TrackId("0"), 3, FloatArray(5)).rows
+        assertFalse(outsider in plan(Float.POSITIVE_INFINITY), "the hard neighbourhood admits no outsider")
+        assertTrue(outsider in plan(0.5f), "a small bonus lets the preferred outsider in")
+        assertTrue(plan(10f).all { it in NEIGHBOURS }, "a large bonus keeps the neighbourhood first")
     }
 
     @Test

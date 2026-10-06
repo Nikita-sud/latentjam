@@ -283,6 +283,9 @@ internal class SmartChain(
         val used = HashSet<Int>()
         var anchorRow = seedRow
         val continueAfterExhaustion = tuning.continueAfterExhaustion && companions.groupCount == 0
+        val softNeighbourhood = continueAfterExhaustion && tuning.neighbourhoodBonus.isFinite()
+        // This hop's neighbourhood, for the soft bonus.
+        var hopNearby: Set<Int> = emptySet()
         var intentRow = seedRow
         val consideredRows = LinkedHashSet<Int>()
         if (!continueAfterExhaustion) consideredRows.addAll(pool)
@@ -369,6 +372,7 @@ internal class SmartChain(
                 fun closeRows(reference: Int): Set<Int> = snapshot.tracks.indices.filterTo(HashSet()) { row ->
                     row !in unavailable && Reanchor.isCloseContinuation(
                         snapshot.centeredCosine(reference, row), snapshot.descriptorCosine(reference, row),
+                        tuning.neighbourhoodDescriptorWeight,
                     )
                 }
                 var nearby = closeRows(intentRow)
@@ -381,9 +385,10 @@ internal class SmartChain(
                 }
                 // Search the full eligible library before declaring a neighborhood exhausted.
                 // A bounded old pool is not evidence that all suitable tracks were consumed.
-                val excluded = if (nearby.isEmpty()) unavailable else HashSet<Int>(unavailable).apply {
+                val excluded = if (nearby.isEmpty() || softNeighbourhood) unavailable else HashSet<Int>(unavailable).apply {
                     snapshot.tracks.indices.filterTo(this) { it !in nearby }
                 }
+                hopNearby = nearby
                 pool = buildPool(intentRow, state, excluded)
                 if (pool.isEmpty()) break
                 consideredRows.addAll(pool)
@@ -488,8 +493,9 @@ internal class SmartChain(
                 // anchor has no semantic vector or too few pool members do, leaving score unchanged.
                 // zSeedActive == zSeed except on an exhausted tail hop (medoid reference). A bonus
                 // needs the candidate to sound like its reference (soundBackedZ).
-                score += ChainConfig.SEM_CHAIN_SEED_GRAVITY * soundBackedZ(zSeedActive[i], seedCos) +
+                val semantic = ChainConfig.SEM_CHAIN_SEED_GRAVITY * soundBackedZ(zSeedActive[i], seedCos) +
                     ChainConfig.SEM_CHAIN_PREV_BLEND * soundBackedZ(zPrev[i], anchorCos)
+                score += if (tuning.semanticWeight == 1f) semantic else tuning.semanticWeight * semantic
                 // Typicality: the axis centering removes. Off (0f) unless the caller opts in, so
                 // the recorded parity fixtures and every shipped queue are unchanged by default.
                 if (typicalityWeight != 0f) {
@@ -503,6 +509,7 @@ internal class SmartChain(
                 }
                 // Experimental personal term, harness-only today (see ChainTuning): default
                 // null/0 keeps every shipped queue and parity replay unchanged.
+                if (softNeighbourhood && row in hopNearby) score += tuning.neighbourhoodBonus
                 val personalAffinity = tuning.personalAffinity
                 if (personalAffinity != null && tuning.personalWeight != 0f) {
                     score += tuning.personalWeight * personalAffinity(row)

@@ -18,6 +18,24 @@ internal data class ChainTuning(
      * retain the existing quota policy. Default stays off until the continuity benchmark passes.
      */
     val continueAfterExhaustion: Boolean = false,
+    /**
+     * How the continuation mode holds a queue to its neighbourhood. Infinity (the default) admits
+     * only neighbourhood tracks while any remain. A finite value builds each hop's pool from every
+     * channel around the reference, as the default chain does, and adds this many score units to
+     * the neighbourhood's tracks: what the scorer and the descriptors know about what goes together
+     * can then outbid sound alone. EXPERIMENTAL.
+     */
+    val neighbourhoodBonus: Float = Float.POSITIVE_INFINITY,
+    /**
+     * Scales the chain's semantic terms (descriptor and text gravity toward the reference and the
+     * previous pick) against its sound terms; 1 is the shipped balance. EXPERIMENTAL.
+     */
+    val semanticWeight: Float = 1f,
+    /**
+     * The descriptor's share in the continuation mode's neighbourhood test, fused = (1 - w) audio +
+     * w descriptor; 0.5 is the shipped equal weighting ([Reanchor.fusedCos]). EXPERIMENTAL.
+     */
+    val neighbourhoodDescriptorWeight: Float = 0.5f,
     /** See [ChainConfig.COMPANION_BONUS]. */
     val companionBonus: Float = ChainConfig.COMPANION_BONUS,
     /**
