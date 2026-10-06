@@ -34,6 +34,31 @@ internal object Rerank {
     const val IN_NEIGHBOURHOOD = 11
     const val FEATURES = 12
 
+    /**
+     * The correction the app uses ([io.github.nikitasud.latentjam.smart.SmartEngineConfig.judgedScoring]), in
+     * [FEATURES] order: fitted to DeepSeek Flash's rankings of the chain's own candidates at 10,000 hops on four
+     * MPD libraries no queue was evaluated on (tools/research/model_diet rank_candidates.py and fit_rerank.py,
+     * penalty 0.01). Accepted only together with [SOUND_FLOOR], a soft neighbourhood and an artist-run penalty
+     * (docs/model-diet-fixes-2026-10-06.md). Read it, never write it.
+     */
+    val JUDGED_WEIGHTS: FloatArray = floatArrayOf(
+        8.307804f,
+        14.342008f,
+        0.7398643f,
+        10.941509f,
+        27.112993f,
+        7.756507f,
+        9.659199f,
+        5.657382f,
+        3.100394f,
+        -4.66554f,
+        0.0f,
+        1.8221145f,
+    )
+
+    /** The sound floor the judged scoring was accepted with ([ChainTuning.soundFloor]). */
+    const val SOUND_FLOOR = 0.2f
+
     fun features(
         snapshot: SmartSnapshot,
         out: FloatArray,

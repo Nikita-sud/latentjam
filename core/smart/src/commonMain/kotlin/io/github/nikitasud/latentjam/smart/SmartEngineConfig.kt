@@ -39,6 +39,12 @@ package io.github.nikitasud.latentjam.smart
  *   next when a request continues from the last track of the plan it answered (the app tops up the
  *   queue that way). Off by default here, which is the 0.7.1 chain exactly; the app turns it on
  *   (AppGraph). `docs/model-diet-fixes-2026-10-06.md` has the measurements and what is unmeasured.
+ * @property judgedScoring With [continueAfterExhaustion]: the chain adds the correction learned from a
+ *   listening judge's choices (Rerank.JUDGED_WEIGHTS), passes over a candidate that sounds far from the
+ *   previous pick while another remains (a sound floor), and weighs the pick's neighbourhood instead of
+ *   restricting the pool to it. Queues of listener-marked playlists keep the shipped chain. Off by default.
+ * @property artistRunPenalty How strongly a judged-scoring queue avoids several tracks in a row by one artist
+ *   (ChainTuning.artistRunPenalty) until [SimilarityEngine.setArtistRunPenalty] changes it; 0 is off.
  */
 public data class SmartEngineConfig(
     public val embeddingDim: Int = 512,
@@ -46,4 +52,6 @@ public data class SmartEngineConfig(
     public val modelVersion: String = "unversioned",
     public val typicalityWeight: Float = 0f,
     public val continueAfterExhaustion: Boolean = false,
+    public val judgedScoring: Boolean = false,
+    public val artistRunPenalty: Float = 0f,
 )

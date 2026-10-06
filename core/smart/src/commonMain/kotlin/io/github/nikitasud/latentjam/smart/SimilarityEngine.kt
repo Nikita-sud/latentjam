@@ -271,6 +271,12 @@ public interface SimilarityEngine {
     ): List<TrackId>
 
     /**
+     * How strongly SMART avoids several tracks in a row by one artist, for plans requested from now on (the
+     * listener's setting; see SmartEngineConfig.artistRunPenalty). Engines without SMART ignore it.
+     */
+    public fun setArtistRunPenalty(penalty: Float) {}
+
+    /**
      * Deletes audio and metadata vectors from memory and durable storage without unloading models.
      * The next automatic indexing pass can rebuild them from the still-local library.
      */

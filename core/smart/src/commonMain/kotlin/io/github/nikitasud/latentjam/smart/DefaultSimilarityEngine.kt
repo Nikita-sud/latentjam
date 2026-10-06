@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.smart
 
 import io.github.nikitasud.latentjam.smart.chain.ChainTuning
+import io.github.nikitasud.latentjam.smart.chain.Rerank
 import io.github.nikitasud.latentjam.smart.chain.ChainWalk
 import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
 import io.github.nikitasud.latentjam.smart.chain.MetadataFallbackQueue
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
@@ -65,6 +67,13 @@ internal class DefaultSimilarityEngine(
 ) : SimilarityEngine {
 
     private val mutex = Mutex()
+
+    @Volatile
+    private var artistRunPenalty = config.artistRunPenalty.coerceAtLeast(0f)
+
+    override fun setArtistRunPenalty(penalty: Float) {
+        artistRunPenalty = penalty.coerceAtLeast(0f)
+    }
     private val mutableState = MutableStateFlow<EngineState>(EngineState.Uninitialized)
     private val knownTracks = LinkedHashMap<TrackId, TrackDescriptor>()
     /** Identity of the descriptor used to create each in-memory/persisted audio vector. */
@@ -673,13 +682,27 @@ internal class DefaultSimilarityEngine(
             } else {
                 null
             }
+            // The judged scoring was measured on queues without marked playlists; theirs keep the shipped chain.
+            val judged = config.judgedScoring && config.continueAfterExhaustion && companionGroups.isEmpty()
+            val runPenalty = if (judged) artistRunPenalty else 0f
+            val tuning = if (judged) {
+                ChainTuning(
+                    continueAfterExhaustion = true,
+                    neighbourhoodBonus = 0f,
+                    rerankWeights = Rerank.JUDGED_WEIGHTS,
+                    soundFloor = Rerank.SOUND_FLOOR,
+                    artistRunPenalty = runPenalty,
+                )
+            } else {
+                ChainTuning(continueAfterExhaustion = config.continueAfterExhaustion)
+            }
             val chain = SmartChain(
                 snapshot,
                 livePredictor,
                 eligibleRows,
                 typicalityWeight = config.typicalityWeight,
                 companionGroups = companionGroups,
-                tuning = ChainTuning(continueAfterExhaustion = config.continueAfterExhaustion),
+                tuning = tuning,
             ).build(
                 seedId = seed.id,
                 length = length,
@@ -692,7 +715,7 @@ internal class DefaultSimilarityEngine(
             // continued walk is bridged from the queue's last track, which plays right before it.
             val continuedFrom = if (resume != null) snapshot.rowOf(seed.id).takeIf { it >= 0 } else null
             val rows = if (companionGroups.isEmpty()) {
-                JourneySequencer.order(snapshot, chain.rows, from = continuedFrom)
+                JourneySequencer.order(snapshot, chain.rows, from = continuedFrom, sameArtistCost = runPenalty)
             } else {
                 chain.rows
             }

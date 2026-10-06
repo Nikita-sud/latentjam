@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.smart
 import io.github.nikitasud.latentjam.smart.chain.ChainTuning
 import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
 import io.github.nikitasud.latentjam.smart.chain.NEIGHBOURS
+import io.github.nikitasud.latentjam.smart.chain.Rerank
 import io.github.nikitasud.latentjam.smart.chain.SATELLITE_ROWS
 import io.github.nikitasud.latentjam.smart.chain.SmartChain
 import io.github.nikitasud.latentjam.smart.chain.SmartSnapshot
@@ -84,11 +85,41 @@ internal class SmartContinuationEngineTest {
         assertEquals(journey(rest, tail, continuation = false), engine.smartQueue(tail, rest, 3))
     }
 
-    private suspend fun engine(continuation: Boolean) = DefaultSimilarityEngine(
+    @Test
+    fun `judged scoring plans with the learned correction and the listener's run penalty`() = runTest {
+        val engine = engine(continuation = true, judged = true, runPenalty = 0.5f)
+        assertEquals(judgedJourney(tracks.drop(1), tracks.first(), 0.5f), engine.smartQueue(tracks.first(), tracks.drop(1), 5))
+        engine.setArtistRunPenalty(2f)
+        assertEquals(judgedJourney(tracks.drop(1), tracks.first(), 2f), engine.smartQueue(tracks.first(), tracks.drop(1), 5))
+    }
+
+    @Test
+    fun `marked playlists keep the shipped chain under judged scoring`() = runTest {
+        val groups = listOf(setOf(tracks[1].id, tracks[2].id, tracks[3].id))
+        val judged = engine(continuation = true, judged = true, runPenalty = 0.5f)
+        val plain = engine(continuation = true)
+        assertEquals(
+            plain.smartQueue(tracks.first(), tracks.drop(1), 5, companionGroups = groups),
+            judged.smartQueue(tracks.first(), tracks.drop(1), 5, companionGroups = groups),
+        )
+    }
+
+    private fun judgedJourney(library: List<TrackDescriptor>, seed: TrackDescriptor, runPenalty: Float): List<TrackId> {
+        val snapshot = snapshot()
+        val tuning = ChainTuning(
+            continueAfterExhaustion = true, neighbourhoodBonus = 0f, rerankWeights = Rerank.JUDGED_WEIGHTS,
+            soundFloor = Rerank.SOUND_FLOOR, artistRunPenalty = runPenalty,
+        )
+        val rows = SmartChain(snapshot, null, eligible(snapshot, library), tuning = tuning).build(seed.id, 5, FloatArray(5)).rows
+        return JourneySequencer.order(snapshot, rows, sameArtistCost = runPenalty).map { snapshot.tracks[it].id }
+    }
+
+    private suspend fun engine(continuation: Boolean, judged: Boolean = false, runPenalty: Float = 0f) = DefaultSimilarityEngine(
         backend = FakeEmbeddingBackend(vectors), index = InMemoryVectorIndex(960),
         store = FakeIndexStore(),
         config = SmartEngineConfig(
             embeddingDim = 960, modelVersion = "walk-test", continueAfterExhaustion = continuation,
+            judgedScoring = judged, artistRunPenalty = runPenalty,
         ),
         dispatcher = Dispatchers.Default.limitedParallelism(1, "walk-test"),
     ).also {
