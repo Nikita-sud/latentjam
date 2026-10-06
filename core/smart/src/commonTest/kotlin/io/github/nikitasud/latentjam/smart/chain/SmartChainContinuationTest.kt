@@ -199,6 +199,19 @@ internal class SmartChainContinuationTest {
     }
 
     @Test
+    fun `tracing explains every pick and changes none`() {
+        val snapshot = satellites()
+        for (tuning in listOf(ChainTuning(), ChainTuning(continueAfterExhaustion = true))) {
+            val traces = mutableListOf<PickTrace>()
+            val traced = SmartChain(snapshot, null, tuning = tuning).build(TrackId("0"), 10, FloatArray(5), trace = traces::add)
+            assertEquals(SmartChain(snapshot, null, tuning = tuning).build(TrackId("0"), 10, FloatArray(5)), traced)
+            assertEquals(traced.rows, traces.map { it.row })
+            assertEquals((0 until 10).toList(), traces.map { it.position })
+            assertTrue(traces.all { it.channel in setOf("audio", "state", "text", "descriptor") && it.terms.size == 7 })
+        }
+    }
+
+    @Test
     fun `without the continuation mode a walk changes nothing`() {
         val snapshot = satellites()
         val walk = ChainWalk(TrackId("0"), listOf(TrackId("1")), picksUnderIntent = 1)

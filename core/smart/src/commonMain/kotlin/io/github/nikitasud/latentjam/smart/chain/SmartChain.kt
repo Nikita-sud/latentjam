@@ -135,6 +135,29 @@ internal data class ChainResult(val rows: List<Int>, val pool: List<Int>, val wa
 }
 
 /**
+ * Why one track was picked, for offline diagnosis ([SmartChain.build]'s `trace`); never used to decide.
+ *
+ * @param channel the pool channel that brought the track in this hop: audio, state, text, descriptor or companion
+ * @param inNeighbourhood whether the track was in the continuation mode's neighbourhood of [intentRow]
+ * @param intentMoved whether the reference moved to the latest pick at this hop
+ * @param terms the score's parts: scorer, previous (audio cosine), seed (gravity), semantic, log multiplier,
+ *   artist repeat penalty, other (typicality, companions, bonuses)
+ */
+internal data class PickTrace(
+    val position: Int,
+    val row: Int,
+    val channel: String,
+    val intentRow: Int,
+    val intentMoved: Boolean,
+    val ring: Float,
+    val inNeighbourhood: Boolean,
+    val neighbourhoodSize: Int,
+    val poolSize: Int,
+    val logit: Float,
+    val terms: FloatArray,
+)
+
+/**
  * Where a continuation-mode walk stands when a plan ends. The app plans SMART in several requests,
  * each seeded with the queue's last track; resumed from this, the next plan keeps spending the
  * neighbourhood of [intent] instead of starting a new one around that last track.
@@ -212,6 +235,7 @@ internal class SmartChain(
      * @param timeFeatures from [PredictorRuntime.timeFeatures] on the real clock
      * @param resume the walk the previous plan ended with, when this plan continues it from that
      *   plan's last track; ignored outside the continuation mode
+     * @param trace receives one [PickTrace] per pick, for offline diagnosis; it never changes a pick
      */
     fun build(
         seedId: TrackId,
@@ -220,6 +244,7 @@ internal class SmartChain(
         sessionFeatures: FloatArray = PredictorRuntime.SESSION_FEATURES_COLD,
         historyEvents: List<SmartHistoryEvent> = emptyList(),
         resume: ChainWalk? = null,
+        trace: ((PickTrace) -> Unit)? = null,
     ): ChainResult {
         val seedRow = snapshot.rowOf(seedId)
         if (seedRow < 0 || length <= 0) return ChainResult.EMPTY
@@ -243,7 +268,8 @@ internal class SmartChain(
         }
 
         val excludedRows = sessionExclusions(seedRow, context.sessionRows, length)
-        val initialPool = buildPool(seedRow, state, excludedRows)
+        var provenance: HashMap<Int, String>? = if (trace != null) HashMap() else null
+        val initialPool = buildPool(seedRow, state, excludedRows, provenance = provenance)
         val seedTitle = snapshot.tracks[seedRow].meta.titleArtistKey
         // A bounded retrieval can contain only alternate releases of the seed. Search past
         // those rows before abstaining; leave every productive pool and its scores unchanged.
@@ -253,7 +279,7 @@ internal class SmartChain(
             val duplicateRows = snapshot.tracks.indices.filterTo(HashSet()) {
                 snapshot.tracks[it].meta.titleArtistKey == seedTitle
             }
-            buildPool(seedRow, state, excludedRows + duplicateRows)
+            buildPool(seedRow, state, excludedRows + duplicateRows, provenance = provenance)
         } else {
             initialPool
         }
@@ -366,7 +392,9 @@ internal class SmartChain(
             return true
         }
 
+        var intentMovedThisHop = false
         while (chain.size < length) {
+            intentMovedThisHop = false
             if (continueAfterExhaustion) {
                 // Exclusions are track ids (snapshot rows), never positions in a changing pool.
                 val unavailable = HashSet<Int>(excludedRows)
@@ -398,6 +426,7 @@ internal class SmartChain(
                     nearby = closeRows(intentRow)
                 }
                 if (nearby.isEmpty() && intentRow != anchorRow) {
+                    intentMovedThisHop = true
                     intentRow = anchorRow
                     ring = Reanchor.NICHE_COS
                     seedGenres = Genres.families(snapshot.tracks[intentRow].meta.genre)
@@ -408,10 +437,11 @@ internal class SmartChain(
                 // Search the full eligible library before declaring a neighborhood exhausted.
                 // A bounded old pool is not evidence that all suitable tracks were consumed.
                 hopNearby = nearby
+                if (trace != null) provenance = HashMap()
                 pool = if (nearby.isEmpty() || softNeighbourhood) {
-                    buildPool(intentRow, state, unavailable)
+                    buildPool(intentRow, state, unavailable, provenance = provenance)
                 } else {
-                    buildPool(intentRow, state, unavailable, among = nearby)
+                    buildPool(intentRow, state, unavailable, among = nearby, provenance = provenance)
                 }
                 if (pool.isEmpty()) break
                 consideredRows.addAll(pool)
@@ -506,6 +536,7 @@ internal class SmartChain(
 
             var bestIndex = -1
             var bestScore = Float.NEGATIVE_INFINITY
+            var bestTerms: FloatArray? = null
             val bestCompanionIndexes = IntArray(seedCompanionGroups.size) { -1 }
             val bestCompanionScores = FloatArray(seedCompanionGroups.size) {
                 Float.NEGATIVE_INFINITY
@@ -516,7 +547,8 @@ internal class SmartChain(
                 val row = pool[i]
                 val meta = snapshot.tracks[row].meta
 
-                var score = ChainConfig.SCORER_SQUASH * tanh(logits[i] / ChainConfig.SCORER_TEMP)
+                val scorerTerm = ChainConfig.SCORER_SQUASH * tanh(logits[i] / ChainConfig.SCORER_TEMP)
+                var score = scorerTerm
                 val anchorCos = snapshot.centeredCosine(anchorRow, row)
                 score += ChainConfig.COSINE_BLEND_WEIGHT * anchorCos
                 // Seed gravity toward the user's actual pick — or, on an exhausted tail hop, toward
@@ -573,7 +605,9 @@ internal class SmartChain(
                 }
                 multiplier = (multiplier * energySmoothness(anchorRow, row))
                     .coerceAtLeast(ChainConfig.MULTIPLIER_MIN)
+                val beforeMultiplier = score
                 score += ln(multiplier)
+                val beforePenalty = score
                 if (meta.artistKey.isNotEmpty()) {
                     score -= ChainConfig.CHAIN_ARTIST_REPEAT_PENALTY *
                         recentArtists.count { it == meta.artistKey }
@@ -582,6 +616,15 @@ internal class SmartChain(
                 if (score > bestScore) {
                     bestScore = score
                     bestIndex = i
+                    if (trace != null) {
+                        val previousTerm = ChainConfig.COSINE_BLEND_WEIGHT * anchorCos
+                        val seedTerm = seedPull * ChainConfig.CHAIN_SEED_GRAVITY * seedCos
+                        val semanticTerm = if (tuning.semanticWeight == 1f) semantic else tuning.semanticWeight * semantic
+                        bestTerms = floatArrayOf(
+                            scorerTerm, previousTerm, seedTerm, semanticTerm, ln(multiplier), score - beforePenalty,
+                            beforeMultiplier - scorerTerm - previousTerm - seedTerm - semanticTerm,
+                        )
+                    }
                 }
                 for (group in companions.groupsOf(row)) {
                     val position = quotaPositionByGroup[group]
@@ -616,6 +659,14 @@ internal class SmartChain(
             }
 
             val pickedRow = pool[chosenIndex]
+            if (trace != null) {
+                trace(PickTrace(
+                    position = chain.size, row = pickedRow, channel = provenance?.get(pickedRow) ?: "unknown",
+                    intentRow = intentRow, intentMoved = intentMovedThisHop, ring = ring,
+                    inNeighbourhood = pickedRow in hopNearby, neighbourhoodSize = hopNearby.size, poolSize = pool.size,
+                    logit = logits[chosenIndex], terms = if (chosenIndex == bestIndex) bestTerms ?: FloatArray(0) else FloatArray(0),
+                ))
+            }
             chain.add(pickedRow)
             used.add(pickedRow)
             val pickedMeta = snapshot.tracks[pickedRow].meta
@@ -903,6 +954,7 @@ internal class SmartChain(
         state: FloatArray,
         excluded: Set<Int>,
         among: Set<Int>? = null,
+        provenance: MutableMap<Int, String>? = null,
     ): List<Int> {
         val n = snapshot.size
         val dim = PredictorRuntime.EMBEDDING_DIM
@@ -959,13 +1011,21 @@ internal class SmartChain(
         val seen = HashSet<Int>()
         var i = 0
         while (pool.size < PredictorRuntime.POOL_SIZE && i < anchorOrder.size) {
-            if (seen.add(anchorOrder[i])) pool.add(anchorOrder[i])
-            if (pool.size < PredictorRuntime.POOL_SIZE && seen.add(stateOrder[i])) pool.add(stateOrder[i])
+            if (seen.add(anchorOrder[i])) {
+                pool.add(anchorOrder[i])
+                provenance?.put(anchorOrder[i], "audio")
+            }
+            if (pool.size < PredictorRuntime.POOL_SIZE && seen.add(stateOrder[i])) {
+                pool.add(stateOrder[i])
+                provenance?.put(stateOrder[i], "state")
+            }
             if (pool.size < PredictorRuntime.POOL_SIZE && i < textTurn.size && seen.add(textTurn[i])) {
                 pool.add(textTurn[i])
+                provenance?.put(textTurn[i], "text")
             }
             if (pool.size < PredictorRuntime.POOL_SIZE && i < descriptorOrder.size && seen.add(descriptorOrder[i])) {
                 pool.add(descriptorOrder[i])
+                provenance?.put(descriptorOrder[i], "descriptor")
             }
             i++
         }
@@ -1015,6 +1075,7 @@ internal class SmartChain(
             if (missingCompanions.isNotEmpty()) {
                 val keep = (pool.size - missingCompanions.size).coerceAtLeast(0)
                 while (pool.size > keep) pool.removeAt(pool.size - 1)
+                missingCompanions.forEach { provenance?.put(it, "companion") }
                 pool.addAll(missingCompanions)
             }
         }

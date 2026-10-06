@@ -46,6 +46,8 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                 val ringFloor = System.getProperty("diet.ringFloor")?.toFloatOrNull() ?: 0.20f
                 val ringPull = System.getProperty("diet.ringPull")?.toFloatOrNull() ?: 1f
                 val styleGate = System.getProperty("diet.styleGate")?.toFloatOrNull() ?: Float.NEGATIVE_INFINITY
+                val tracing = System.getProperty("diet.trace") == "true"
+                val traced = StringBuilder()
                 val seedRow = snapshot.rowOf(job.seed)
                 fun close(row: Int) = Reanchor.isCloseContinuation(
                     snapshot.centeredCosine(seedRow, row), snapshot.descriptorCosine(seedRow, row),
@@ -87,7 +89,7 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                 // smartHistoryFor: the observed events, then the track the request continues from.
                 val observed = if (job.history.isEmpty()) emptyList() else job.history.dropLast(1)
                 val now = job.history.lastOrNull()?.startedAtMs ?: 1000L
-                for (length in plans) {
+                for ((plan, length) in plans.withIndex()) {
                     val events = observed + SmartHistoryEvent(tail, now, playedFraction = 1f, completed = true, skipped = false)
                     val left = suitableLeft(queued, sessionRows(events, snapshot.rowOf(tail)))
                     val eligible = BooleanArray(snapshot.size) { it !in queued }
@@ -102,6 +104,18 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                     ).build(
                         seedId = tail, length = length, timeFeatures = job.timeFeatures, historyEvents = events,
                         resume = resumed,
+                        trace = if (!tracing) null else { t: PickTrace ->
+                            if (traced.isNotEmpty()) traced.append(',')
+                            traced.append("{\\"plan\\":").append(plan).append(",\\"position\\":").append(t.position)
+                                .append(",\\"track\\":\\"").append(snapshot.tracks[t.row].id.value)
+                                .append("\\",\\"channel\\":\\"").append(t.channel)
+                                .append("\\",\\"intent\\":\\"").append(snapshot.tracks[t.intentRow].id.value)
+                                .append("\\",\\"intent_moved\\":").append(t.intentMoved).append(",\\"ring\\":").append(t.ring)
+                                .append(",\\"in_neighbourhood\\":").append(t.inNeighbourhood)
+                                .append(",\\"neighbourhood\\":").append(t.neighbourhoodSize).append(",\\"pool\\":").append(t.poolSize)
+                                .append(",\\"logit\\":").append(t.logit).append(",\\"terms\\":[")
+                                .append(t.terms.joinToString(",")).append("]}")
+                        },
                     )
                     // DefaultSimilarityEngine orders a resumed plan from the track it continues.
                     val ordered = if (join && resumed != null) {
@@ -126,6 +140,9 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                     fallbackSeeds++
                 }
                 val neighbourhood = snapshot.tracks.indices.count { it != seedRow && close(it) }
+                if (tracing) {
+                    java.io.File(options.output.path + ".trace.jsonl").appendText("{\\"key\\":\\"" + job.key + "\\",\\"picks\\":[" + traced + "]}\\n")
+                }
                 out.append(job.key).append('\\t')
                     .append(played.joinToString(",") { snapshot.tracks[it].id.value }).append('\\t')
                     .append(bounds.joinToString(",")).append('\\t')
@@ -154,6 +171,7 @@ def main():
                          "s=<semantic weight>,w=<neighbourhood descriptor share>,r=<ring step>,f=<ring floor>,"
                          "p=<seed pull inside a widened ring>,g=<style gate>")
     ap.add_argument("--pool", type=int, default=3)
+    ap.add_argument("--trace", action="store_true", help="also write <variant>.tsv.trace.jsonl with every pick's PickTrace")
     a = ap.parse_args()
     if not all(p.strip().isdigit() and int(p) > 0 for p in a.plans.split(",")):
         ap.error("--plans must be positive integers")
@@ -188,7 +206,7 @@ def main():
         command = launch[:1] + [f"-Ddiet.plans={a.plans}", f"-Ddiet.continue={cont}", f"-Ddiet.carry={carry}",
                                 f"-Ddiet.join={join}", f"-Ddiet.bonus={bonus}", f"-Ddiet.sem={semantic}",
                                 f"-Ddiet.nbw={share}", f"-Ddiet.ringStep={step}", f"-Ddiet.ringFloor={floor}",
-                                f"-Ddiet.ringPull={pull}", f"-Ddiet.styleGate={gate}"] + launch[1:] + [
+                                f"-Ddiet.ringPull={pull}", f"-Ddiet.styleGate={gate}", f"-Ddiet.trace={str(a.trace).lower()}"] + launch[1:] + [
             str(a.prepared.resolve()), str(a.assets.resolve()), a.mode, str(output.resolve()),
             "--seeds", str(a.seeds.resolve()), "--order", "journey",
         ]
