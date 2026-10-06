@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.smart.chain
 
+import kotlin.math.sqrt
+
 /**
  * Orders already selected recommendations into smoother local journeys. Selection still belongs
  * to [SmartChain]; this pass cannot add a track, repeat one, or shorten the queue.
@@ -27,17 +29,19 @@ internal object JourneySequencer {
     /**
      * @param from the row playing right before [rows] when they continue a walk (the queue's last
      *   track), never one of [rows]; null keeps every window's first pick
+     * @param sameArtistCost what two neighbours by one artist add to the journey's cost, in standard
+     *   deviations of the window's step costs ([ChainTuning.artistRunPenalty]); 0 leaves the order alone
      */
-    fun order(snapshot: SmartSnapshot, rows: List<Int>, from: Int? = null): List<Int> =
+    fun order(snapshot: SmartSnapshot, rows: List<Int>, from: Int? = null, sameArtistCost: Float = 0f): List<Int> =
         rows.chunked(WINDOW_SIZE).flatMapIndexed { index, window ->
             if (index == 0 && from != null) {
-                orderWindow(snapshot, listOf(from) + window).drop(1)
+                orderWindow(snapshot, listOf(from) + window, sameArtistCost).drop(1)
             } else {
-                orderWindow(snapshot, window)
+                orderWindow(snapshot, window, sameArtistCost)
             }
         }
 
-    private fun orderWindow(snapshot: SmartSnapshot, rows: List<Int>): List<Int> {
+    private fun orderWindow(snapshot: SmartSnapshot, rows: List<Int>, sameArtistCost: Float): List<Int> {
         if (rows.size < 4) return rows
         val n = rows.size
         val costs = Array(n) { FloatArray(n) }
@@ -53,6 +57,7 @@ internal object JourneySequencer {
                 costs[b][a] = costs[a][b]
             }
         }
+        if (sameArtistCost > 0f) separateArtists(snapshot, rows, costs, sameArtistCost)
         val route = rows.indices.toMutableList()
         // Symmetric costs make a reversal's gain depend only on its two boundary edges.
         // Bound the work even for unusual inputs; equal-cost alternatives retain original order.
@@ -81,5 +86,27 @@ internal object JourneySequencer {
             }
         }
         return route.map { rows[it] }
+    }
+
+    private fun separateArtists(snapshot: SmartSnapshot, rows: List<Int>, costs: Array<FloatArray>, weight: Float) {
+        val n = rows.size
+        var sum = 0.0
+        var squares = 0.0
+        var count = 0
+        for (a in 0 until n) for (b in 0 until a) {
+            sum += costs[a][b]
+            squares += costs[a][b].toDouble() * costs[a][b]
+            count++
+        }
+        val mean = sum / count
+        val spread = sqrt((squares / count - mean * mean).coerceAtLeast(0.0)).toFloat()
+        if (spread <= 0f) return
+        for (a in 0 until n) for (b in 0 until a) {
+            val artist = snapshot.tracks[rows[a]].meta.artistKey
+            if (artist.isNotEmpty() && artist == snapshot.tracks[rows[b]].meta.artistKey) {
+                costs[a][b] += weight * spread
+                costs[b][a] = costs[a][b]
+            }
+        }
     }
 }

@@ -47,6 +47,7 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                 val ringPull = System.getProperty("diet.ringPull")?.toFloatOrNull() ?: 1f
                 val styleGate = System.getProperty("diet.styleGate")?.toFloatOrNull() ?: Float.NEGATIVE_INFINITY
                 val soundFloor = System.getProperty("diet.soundFloor")?.toFloatOrNull() ?: Float.NEGATIVE_INFINITY
+                val artistRun = System.getProperty("diet.artistRun")?.toFloatOrNull() ?: 0f
                 val rerank = System.getProperty("diet.rerank")?.takeIf { it.isNotBlank() }
                     ?.split(',')?.map { it.trim().toFloat() }?.toFloatArray()
                     ?.also { require(it.size == Rerank.FEATURES) { "diet.rerank needs ${Rerank.FEATURES} weights" } }
@@ -105,7 +106,7 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                             continueAfterExhaustion = continuation, neighbourhoodBonus = bonus,
                             semanticWeight = semantic, neighbourhoodDescriptorWeight = descriptorShare,
                             ringStep = ringStep, ringFloor = ringFloor, ringSeedPull = ringPull, styleGate = styleGate,
-                            rerankWeights = rerank, soundFloor = soundFloor,
+                            rerankWeights = rerank, soundFloor = soundFloor, artistRunPenalty = artistRun,
                         ),
                     ).build(
                         seedId = tail, length = length, timeFeatures = job.timeFeatures, historyEvents = events,
@@ -139,7 +140,9 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                     )
                     // DefaultSimilarityEngine orders a resumed plan from the track it continues.
                     val ordered = if (join && resumed != null) {
-                        JourneySequencer.order(snapshot, result.rows, from = snapshot.rowOf(tail))
+                        JourneySequencer.order(snapshot, result.rows, from = snapshot.rowOf(tail), sameArtistCost = artistRun)
+                    } else if (artistRun > 0f) {
+                        JourneySequencer.order(snapshot, result.rows, sameArtistCost = artistRun)
                     } else {
                         harnessJourneyOrder(snapshot, result.rows) ?: fail("this source tree has no JourneySequencer")
                     }
@@ -190,7 +193,7 @@ def main():
                     help=f"one of {sorted(VARIANTS)}, or cfg:mode=<variant>,b=<neighbourhood bonus>,"
                          "s=<semantic weight>,w=<neighbourhood descriptor share>,r=<ring step>,f=<ring floor>,"
                          "p=<seed pull inside a widened ring>,g=<style gate>,k=<JSON file of learned weights>,"
-                         "a=<sound floor>")
+                         "a=<sound floor>,l=<artist run penalty>")
     ap.add_argument("--pool", type=int, default=3)
     ap.add_argument("--trace", action="store_true", help="also write <variant>.tsv.trace.jsonl with every pick's PickTrace")
     ap.add_argument("--trace-candidates", action="store_true", help="with --trace: also every scored candidate's features")
@@ -212,14 +215,14 @@ def main():
 
     def run(variant):
         bonus, semantic, share, step, floor, pull, gate = "inf", "1", "0.5", "0", "0.2", "1", "-inf"
-        rerank, rerank_name, sound = "", "", "-inf"
+        rerank, rerank_name, sound, run = "", "", "-inf", "0"
         if variant.startswith("cfg:"):
             spec = dict(item.split("=", 1) for item in variant[4:].split(","))
             mode = spec.get("mode", "join")
             bonus, semantic, share = spec.get("b", bonus), spec.get("s", semantic), spec.get("w", share)
             step, floor, pull = spec.get("r", step), spec.get("f", floor), spec.get("p", pull)
-            gate, sound = spec.get("g", gate), spec.get("a", sound)
-            [float(x) for x in (bonus, semantic, share, step, floor, pull, gate, sound)]  # validates
+            gate, sound, run = spec.get("g", gate), spec.get("a", sound), spec.get("l", run)
+            [float(x) for x in (bonus, semantic, share, step, floor, pull, gate, sound, run)]  # validates
             if "k" in spec:
                 weights = json.loads(Path(spec["k"]).read_text())
                 weights = weights["weights"] if isinstance(weights, dict) else weights
@@ -227,7 +230,8 @@ def main():
             cont, carry, join = VARIANTS[mode]
             variant = f"{mode}_b{bonus}_s{semantic}_w{share}" + (f"_r{step}_f{floor}" if float(step) else "") + \
                 (f"_p{pull}" if float(pull) != 1 else "") + (f"_g{gate}" if gate != "-inf" else "") + \
-                (f"_k{rerank_name}" if rerank_name else "") + (f"_a{sound}" if sound != "-inf" else "")
+                (f"_k{rerank_name}" if rerank_name else "") + (f"_a{sound}" if sound != "-inf" else "") + \
+                (f"_l{run}" if float(run) else "")
         else:
             cont, carry, join = VARIANTS[variant]
         output = a.out / f"{variant}.tsv"
@@ -235,7 +239,7 @@ def main():
                                 f"-Ddiet.join={join}", f"-Ddiet.bonus={bonus}", f"-Ddiet.sem={semantic}",
                                 f"-Ddiet.nbw={share}", f"-Ddiet.ringStep={step}", f"-Ddiet.ringFloor={floor}",
                                 f"-Ddiet.ringPull={pull}", f"-Ddiet.styleGate={gate}", f"-Ddiet.rerank={rerank}",
-                                f"-Ddiet.soundFloor={sound}",
+                                f"-Ddiet.soundFloor={sound}", f"-Ddiet.artistRun={run}",
                                 f"-Ddiet.trace={str(a.trace).lower()}",
                                 f"-Ddiet.traceCandidates={str(a.trace_candidates).lower()}"] + launch[1:] + [
             str(a.prepared.resolve()), str(a.assets.resolve()), a.mode, str(output.resolve()),

@@ -65,6 +65,14 @@ internal data class ChainTuning(
      */
     val soundFloor: Float = Float.NEGATIVE_INFINITY,
     /**
+     * Runs of one artist: when the queue ends with k tracks in a row by one artist (the seed counts),
+     * that artist's next candidate loses k times this many standard deviations of the hop's candidate
+     * scores. Soft by design: a track that fits clearly better than every other artist's still
+     * plays, so an artist with the only close tracks keeps them; each further one in a row must fit
+     * better by more. JourneySequencer takes the same value for the order. 0 is off. EXPERIMENTAL.
+     */
+    val artistRunPenalty: Float = 0f,
+    /**
      * A learned correction added to every candidate's score: one weight per [Rerank] feature, in
      * score units. Null is off. EXPERIMENTAL.
      */

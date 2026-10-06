@@ -351,6 +351,9 @@ internal class SmartChain(
         val seenTitles = HashSet<Pair<String, String>>()
         seedTitle?.let(seenTitles::add)
         val artistPlays = HashMap<String, Int>()
+        // The run of one artist the queue ends with, the seed included (ChainTuning.artistRunPenalty).
+        var runArtist = snapshot.tracks[seedRow].meta.artistKey
+        var runLength = if (runArtist.isEmpty()) 0 else 1
         // A resumed walk: its reference and its latest picks carry over, as if this plan were the
         // next stretch of the same chain. The picks are queued already and stay unavailable.
         var picksUnderIntent = 0
@@ -379,6 +382,13 @@ internal class SmartChain(
                 artistPlays[meta.artistKey] = (artistPlays[meta.artistKey] ?: 0) + 1
                 recentArtists.addLast(meta.artistKey)
                 while (recentArtists.size > ChainConfig.CHAIN_ARTIST_SPACING) recentArtists.removeFirst()
+            }
+            // The plan's seed is the walk's last pick; the run it ends counts back through the walk.
+            if (carried.isNotEmpty()) {
+                runArtist = snapshot.tracks[carried.last()].meta.artistKey
+                runLength = if (runArtist.isEmpty()) 0 else {
+                    carried.asReversed().takeWhile { snapshot.tracks[it].meta.artistKey == runArtist }.size
+                }
             }
         }
 
@@ -556,6 +566,10 @@ internal class SmartChain(
             val bestCompanionScores = FloatArray(seedCompanionGroups.size) {
                 Float.NEGATIVE_INFINITY
             }
+            // Every candidate is scored first, then picked: the run penalty is sized by the hop's spread.
+            val hopScores = FloatArray(pool.size)
+            val hopScored = BooleanArray(pool.size)
+            val hopTerms = if (trace != null) arrayOfNulls<FloatArray>(pool.size) else null
             for (i in pool.indices) {
                 if (!isEligible(i)) continue
                 if (styleGated && !inStyle(i)) continue
@@ -646,21 +660,40 @@ internal class SmartChain(
                     }
                     score += correction
                 }
-
+                hopScores[i] = score
+                hopScored[i] = true
+                if (hopTerms != null) {
+                    val previousTerm = ChainConfig.COSINE_BLEND_WEIGHT * anchorCos
+                    val seedTerm = seedPull * ChainConfig.CHAIN_SEED_GRAVITY * seedCos
+                    val semanticTerm = if (tuning.semanticWeight == 1f) semantic else tuning.semanticWeight * semantic
+                    hopTerms[i] = floatArrayOf(
+                        scorerTerm, previousTerm, seedTerm, semanticTerm, ln(multiplier), artistPenalty,
+                        beforeMultiplier - scorerTerm - previousTerm - seedTerm - semanticTerm, correction,
+                    )
+                }
+            }
+            // A run of one artist: the next of its tracks in a row gives up runLength spreads of this
+            // hop's scores per unit of the penalty, so it still wins when it clearly fits best.
+            if (tuning.artistRunPenalty > 0f && runLength > 0) {
+                val penalty = tuning.artistRunPenalty * runLength * scoreSpread(hopScores, hopScored)
+                if (penalty > 0f) {
+                    for (i in pool.indices) {
+                        if (hopScored[i] && snapshot.tracks[pool[i]].meta.artistKey == runArtist) {
+                            hopScores[i] -= penalty
+                            hopTerms?.get(i)?.let { it[5] -= penalty }
+                        }
+                    }
+                }
+            }
+            for (i in pool.indices) {
+                if (!hopScored[i]) continue
+                val score = hopScores[i]
                 if (score > bestScore) {
                     bestScore = score
                     bestIndex = i
-                    if (trace != null) {
-                        val previousTerm = ChainConfig.COSINE_BLEND_WEIGHT * anchorCos
-                        val seedTerm = seedPull * ChainConfig.CHAIN_SEED_GRAVITY * seedCos
-                        val semanticTerm = if (tuning.semanticWeight == 1f) semantic else tuning.semanticWeight * semantic
-                        bestTerms = floatArrayOf(
-                            scorerTerm, previousTerm, seedTerm, semanticTerm, ln(multiplier), artistPenalty,
-                            beforeMultiplier - scorerTerm - previousTerm - seedTerm - semanticTerm, correction,
-                        )
-                    }
+                    if (hopTerms != null) bestTerms = hopTerms[i]
                 }
-                for (group in companions.groupsOf(row)) {
+                for (group in companions.groupsOf(pool[i])) {
                     val position = quotaPositionByGroup[group]
                     if (position >= 0 && score > bestCompanionScores[position]) {
                         bestCompanionScores[position] = score
@@ -710,6 +743,12 @@ internal class SmartChain(
             artistPlays[pickedMeta.artistKey] = (artistPlays[pickedMeta.artistKey] ?: 0) + 1
             recentArtists.addLast(pickedMeta.artistKey)
             while (recentArtists.size > ChainConfig.CHAIN_ARTIST_SPACING) recentArtists.removeFirst()
+            if (pickedMeta.artistKey.isNotEmpty() && pickedMeta.artistKey == runArtist) {
+                runLength++
+            } else {
+                runArtist = pickedMeta.artistKey
+                runLength = if (runArtist.isEmpty()) 0 else 1
+            }
             anchorRow = pickedRow
             picksUnderIntent++
 
@@ -1128,6 +1167,24 @@ internal class SmartChain(
      * exhausted tail hop — to the re-anchored effective seed ([effSeed], a unit centered-audio
      * vector). Kept in one place so both branches measure in the same space.
      */
+    /** Population standard deviation of the scored candidates' scores; 0 with fewer than two. */
+    private fun scoreSpread(scores: FloatArray, scored: BooleanArray): Float {
+        var count = 0
+        var sum = 0.0
+        for (i in scores.indices) if (scored[i]) {
+            count++
+            sum += scores[i]
+        }
+        if (count < 2) return 0f
+        val mean = sum / count
+        var squares = 0.0
+        for (i in scores.indices) if (scored[i]) {
+            val d = scores[i] - mean
+            squares += d * d
+        }
+        return sqrt(squares / count).toFloat()
+    }
+
     private fun seedGravityCos(effSeed: FloatArray?, seedRow: Int, row: Int): Float {
         if (effSeed == null) return snapshot.centeredCosine(seedRow, row)
         var dot = 0f
