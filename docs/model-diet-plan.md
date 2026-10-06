@@ -360,15 +360,22 @@ previews outside the evaluation libraries), 5 epochs on the Mac:
   fuses into QLinearGlobalAveragePool, an operator the reduced arm64 runtime lacks. The pool stays float
   now (bitwise identical embeddings); the operator config is unchanged and the reduced runtime's emulator
   parity is again 21 cases, 47,047 floats, bitwise identical.
-- The continuation mode in the app: SMART plans 12 tracks per request (`EngineNextTrackChooser.CHAIN_LENGTH`;
-  the queue-length setting only sets how far ahead the queue is filled) and the next plan starts from the
-  queue's last track. On the owner's 1,073 histories the mode replaces 4 of each 12 tracks, lowers the
-  audit's transition cost by 2.4 % [0.7, 3.9] within them (10 % on tracks 13–20, which the app never takes
-  from one chain) and lowers the share of tracks sharing a playlist with the seed by 5.8 pp. It stays off by
-  default; a side-by-side listening build (branch `exp/listen-continuation`, "LJ Listen") is for an ear test.
+- The continuation mode in the app. The queue's automatic top-up plans 12 tracks per request
+  (`EngineNextTrackChooser.CHAIN_LENGTH`) and starts each new plan from the queue's last track; the For You
+  hero, the map's regions and "start SMART" from a track card plan the chosen queue length (10/20/40) in one
+  chain, so tracks 13–20 of one chain do reach the listener. Measured on the previous p50 bundle (not the
+  activation-trained one now shipped), the mode replaces 4 of the first 12 tracks on the owner's 1,073
+  histories, lowers the audit's transition cost by 2.4 % [0.7, 3.9] there and by 10 % on tracks 13–20, and
+  lowers the share of tracks sharing a playlist with the seed by 5.8 pp. **Integration gap:** the mode's
+  state is not carried from one plan to the next. Replaying two 12-track plans with the shipped encoder,
+  43 of 64 cold starts kept every pick close with suitable tracks left after the first plan, and in 12 of
+  them the second plan's first pick already left that neighbourhood. It stays off by default; the
+  side-by-side listening build (branch `exp/listen-continuation`, "LJ Listen") has the same gap.
 
-Smaller at equal quality, then, and not yet better: a better teacher's space does not survive moving the
-SMART nets into it.
+Smaller with no loss detected, then, which is not the same as equal: every queue interval crosses zero, and
+a decline of up to 0.78 pp on owner history is not excluded. Not better either: a better teacher's space did
+not survive moving the SMART nets into it in these runs, which does not show that better is out of reach at
+this size.
 
 **4. Integration (1–2 days).** A branch with the new assets and the operator, `modelVersion` bump if
 phase 3 lands, parity fixtures and device tests updated, APK size measured per ABI, and an F-Droid

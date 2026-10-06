@@ -111,10 +111,12 @@ are in `continuation-implementation/current-p50-results.json`.
   0.955); fine-tuned the same way against the float 0.7.1 encoder it passes (minimum 0.9985) with queue
   quality unchanged within noise, and replaces it on the branch (`76b16b50`). Measurements are in
   `docs/model-diet-plan.md`, phase 3, third round.
-- The app plans SMART 12 tracks per request and starts the next plan from the queue's last track. On the
-  owner's 1,073 histories the continuation mode replaces 4 of each 12 tracks and lowers transition cost by
-  2.4 % within them; most of the gain measured above (tracks 13–20) lies where the app replans anyway.
-  A side-by-side listening build with the mode on is on branch `exp/listen-continuation`.
+- The queue's automatic top-up plans 12 tracks per request and starts each plan from the queue's last
+  track; the For You hero, the map's regions and "start SMART" from a track card plan the chosen length in
+  one chain, so the long-queue results above do apply there. The mode's state is not carried from one plan
+  to the next: in a two-plan replay with the shipped encoder, 12 of 64 cold starts left the neighbourhood at
+  the second plan's first pick while suitable tracks remained. That has to be fixed before an ear test means
+  much; the side-by-side listening build on branch `exp/listen-continuation` still has the gap.
 
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
