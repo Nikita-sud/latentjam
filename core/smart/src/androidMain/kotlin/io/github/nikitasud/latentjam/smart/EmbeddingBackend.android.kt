@@ -7,13 +7,21 @@ package io.github.nikitasud.latentjam.smart
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import android.app.ActivityManager
 import android.content.Context
 import android.net.Uri
+import android.os.Process
 import io.github.nikitasud.latentjam.smart.di.smartLayoutQualifier
 import io.github.nikitasud.latentjam.smart.di.smartTextIndexQualifier
 import java.nio.FloatBuffer
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.sqrt
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
@@ -39,6 +47,9 @@ import org.koin.dsl.module
  * Threading: the engine serializes calls on a low-priority worker and the ORT session is explicitly
  * single-threaded. ORT's default native pool otherwise occupies several cores even though the
  * calling coroutine has parallelism one, starving UI rendering during first-run indexing.
+ * [embedEach] decodes the next tracks on [decodeWorkers] background-priority threads while the
+ * current one runs inference; decoding is mostly waiting on the platform codec, so a few in flight
+ * multiply indexing speed. Inference stays one track at a time, in order.
  */
 internal class OnnxEmbeddingBackend(
     private val context: Context,
@@ -48,6 +59,24 @@ internal class OnnxEmbeddingBackend(
     private val decoder = AndroidAudioDecoder(context)
     private var session: OrtSession? = null
     private var semanticSession: OrtSession? = null
+
+    /**
+     * Tracks decoding at once while inference runs: one on a low-RAM device, two with four cores or
+     * fewer, three otherwise. Measured on 40 tracks (AudioDecodeBenchmarkDeviceTest, identical audio
+     * in every setting): an 8-core S24 Ultra decodes a track in 1.8 s alone, 0.52 s with two, 0.34 s
+     * with three and 0.39 s with four; a 4-core emulator in 0.72, 0.52, 0.33 and 0.22 s.
+     */
+    private val decodeWorkers: Int = run {
+        val cores = Runtime.getRuntime().availableProcessors()
+        val lowRam = runCatching { context.getSystemService(ActivityManager::class.java)?.isLowRamDevice }
+            .getOrNull() == true
+        when {
+            lowRam -> 1
+            cores <= 4 -> 2
+            else -> 3
+        }
+    }
+    private var decodePool: ExecutorService? = null
 
     override suspend fun loadModel(): Result<Unit> {
         if (session != null) return Result.success(Unit)
@@ -84,7 +113,72 @@ internal class OnnxEmbeddingBackend(
         }
     }
 
-    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> {
+    override suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray> = embedDecoded(descriptor, null)
+
+    override suspend fun embedEach(
+        tracks: List<TrackDescriptor>,
+        onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
+    ) {
+        if (tracks.size < 2 || session == null) {
+            for (track in tracks) onResult(track, embed(track))
+            return
+        }
+        val pool = decodePool ?: Executors.newFixedThreadPool(decodeWorkers) { task ->
+            Thread({
+                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
+                task.run()
+            }, "smart-decode").apply { isDaemon = true }
+        }.also { decodePool = it }
+        val dispatcher = pool.asCoroutineDispatcher()
+        coroutineScope {
+            // Decoding runs ahead by the workers plus one ready track; inference takes them in order.
+            val ahead = ArrayDeque<Pair<TrackDescriptor, Deferred<Map<Long, AudioDecodeResult>?>>>()
+            var next = 0
+            fun launchNext() {
+                val track = tracks[next++]
+                ahead.addLast(track to async(dispatcher) { prefetch(track) })
+            }
+            while (next < tracks.size && ahead.size <= decodeWorkers) launchNext()
+            while (ahead.isNotEmpty()) {
+                val (track, decoding) = ahead.removeFirst()
+                val decoded = decoding.await()
+                if (next < tracks.size) launchNext()
+                onResult(track, embedDecoded(track, decoded))
+            }
+        }
+    }
+
+    /** The planned windows of [descriptor], decoded; null when there is nothing to decode ahead. */
+    private suspend fun prefetch(descriptor: TrackDescriptor): Map<Long, AudioDecodeResult>? {
+        val audioUri = descriptor.audioUri ?: return null
+        val decodeContext = currentCoroutineContext()
+        return try {
+            val uri = Uri.parse(audioUri)
+            windowStartsMs(descriptor.durationMs).associateWith { startMs ->
+                decoder.decodeWindowMono(
+                    uri = uri,
+                    startMs = startMs,
+                    targetSampleRate = SAMPLE_RATE,
+                    targetSamples = WINDOW_SAMPLES,
+                    isCancelled = { !decodeContext.isActive },
+                )
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Throwable) {
+            null // embedDecoded decodes the track itself, exactly as embed would.
+        }
+    }
+
+    /**
+     * [embed], with the windows [prefetched] already decoded where they succeeded or failed for good.
+     * A window that failed for a reason that may pass (a codec not allocated while others ran) is
+     * decoded again here, alone.
+     */
+    private suspend fun embedDecoded(
+        descriptor: TrackDescriptor,
+        prefetched: Map<Long, AudioDecodeResult>?,
+    ): Result<FloatArray> {
         val activeSession = session
             ?: return Result.failure(SmartEngineException(EngineError.ModelUnavailable))
         val audioUri = descriptor.audioUri
@@ -128,7 +222,8 @@ internal class OnnxEmbeddingBackend(
 
             suspend fun tryWindow(startMs: Long) {
                 currentCoroutineContext().ensureActive()
-                when (val decoded = decoder.decodeWindowMono(
+                val ready = prefetched?.get(startMs)?.takeUnless { it is AudioDecodeResult.Unavailable }
+                when (val decoded = ready ?: decoder.decodeWindowMono(
                     uri = uri,
                     startMs = startMs,
                     targetSampleRate = SAMPLE_RATE,
@@ -233,6 +328,8 @@ internal class OnnxEmbeddingBackend(
         runCatching { semanticSession?.close() }
         session = null
         semanticSession = null
+        decodePool?.shutdownNow()
+        decodePool = null
         // The process-global OrtEnvironment is deliberately left open.
     }
 

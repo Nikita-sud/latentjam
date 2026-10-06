@@ -219,8 +219,8 @@ internal class DefaultSimilarityEngine(
             if (modelFailure != null) {
                 for (track in toEmbed) errors[track.id] = modelFailure
             } else {
-                for (track in toEmbed) {
-                    backend.embed(track).fold(
+                backend.embedEach(toEmbed) { track, result ->
+                    result.fold(
                         onSuccess = { vector ->
                             val rejection = validateAndUpsert(track, vector)
                             if (rejection == null) indexed++ else errors[track.id] = rejection

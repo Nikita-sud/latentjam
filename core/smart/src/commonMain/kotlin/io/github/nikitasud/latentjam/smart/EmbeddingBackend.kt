@@ -52,6 +52,18 @@ public interface EmbeddingBackend {
     public suspend fun embed(descriptor: TrackDescriptor): Result<FloatArray>
 
     /**
+     * Embeds [tracks] in order, handing each result to [onResult] before the next one's: what [embed]
+     * returns for every track, one by one. A backend may prepare later tracks while an earlier one
+     * runs; the results and their order stay exactly [embed]'s.
+     */
+    public suspend fun embedEach(
+        tracks: List<TrackDescriptor>,
+        onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
+    ) {
+        for (track in tracks) onResult(track, embed(track))
+    }
+
+    /**
      * Runs the optional compact semantic head over stored audio embeddings.
      *
      * The default keeps alternate/test backends source-compatible and means a missing head only
