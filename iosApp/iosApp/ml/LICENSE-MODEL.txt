@@ -34,13 +34,19 @@ window, in blocks of 32 inputs with a bfloat16 scale each. The pruned network
 was trained by quantization-aware distillation, learning to reproduce the
 unpruned float encoder's embeddings of 10 s windows from 8,222 Free Music
 Archive tracks released under CC BY, CC0 or public domain (no share-alike or
-no-derivatives licence), and the graph built from it by
-tools/research/model_diet/qat_audio.py and make_q4_encoder.py. Its other
-convolution weights are INT8 (per-channel), and its activation ranges were
-calibrated on the first 10 s of 200 Free Music Archive tracks under CC BY,
-CC BY-SA, CC0 or public domain; no audio is stored in the model. Its track
-embeddings sit at a mean cosine of 0.988 to the unpruned float encoder's,
-against 0.997 for the previous, unpruned 4-bit graph.
+no-derivatives licence), then fine-tuned for five epochs against the same
+float encoder with the graph's INT8 convolutions and uint8 activations
+simulated, on one 10 s crop from each of 15,000 tracks: 1,734 Free Music
+Archive tracks under the same licences and 13,266 Million Playlist Dataset
+preview clips outside the evaluation libraries. The graph is built from it by
+tools/research/model_diet/qat_audio.py, distill_audio_cached.py and
+make_q4_encoder.py. Its other convolution weights are INT8 (per-channel); its
+activation ranges are the ones learned in that fine-tune where the training
+simulates them, and otherwise calibrated on the first 10 s of 200 Free Music
+Archive tracks under CC BY, CC BY-SA, CC0 or public domain; no audio is stored
+in the model. Its track embeddings sit at a mean cosine of 0.992 to the
+unpruned float encoder's, against 0.997 for the previous, unpruned 4-bit
+graph.
 predictor_state.onnx and predictor_scorer_n100.onnx store their matrix
 weights as 4-bit blocks (ONNX Runtime's MatMulNBits: 32 weights per block,
 each with an FP16 scale and a 4-bit zero point; the state net's GRU stays
