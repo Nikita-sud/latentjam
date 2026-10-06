@@ -115,8 +115,39 @@ are in `continuation-implementation/current-p50-results.json`.
   track; the For You hero, the map's regions and "start SMART" from a track card plan the chosen length in
   one chain, so the long-queue results above do apply there. The mode's state is not carried from one plan
   to the next: in a two-plan replay with the shipped encoder, 12 of 64 cold starts left the neighbourhood at
-  the second plan's first pick while suitable tracks remained. That has to be fixed before an ear test means
-  much; the side-by-side listening build on branch `exp/listen-continuation` still has the gap.
+  the second plan's first pick while suitable tracks remained.
+
+### Carrying the walk across plans
+
+Fixed in `6db0054a`: the chain reports and resumes a `ChainWalk` (its reference track and latest 40 picks),
+the engine resumes it when a request continues from the last track of the plan it answered, and such a
+plan is ordered from that track (`d42ffa52`, JourneySequencer `from`). Measured with
+`tools/research/model_diet/replay_plans.py` and `compare_plans.py`: the shipped bundle, the app's request
+pattern (plans seeded with the queue's last track, everything queued excluded, history as
+`smartHistoryFor` hands it over), 0.7.1's audio and artist-descriptor vectors as fixed rulers. "Skipped"
+counts plan slots that went outside the pick's neighbourhood while suitable tracks remained (the chain's
+own criterion, session exclusions included); "cost" is the audit's transition cost; "audio" the mean
+adjacent audio cosine; "playlist" the share of tracks sharing a playlist with the pick. Off is the shipped
+chain, "earlier" the continuation mode as the listening build first had it, "new" the fix.
+
+| Queues (seeds) | Skipped: off / earlier / new | Cost: off / earlier / new, new − off [95 % CI] | Audio, new − off | Playlist: off / new |
+|---|---|---|---|---|
+| Owner history, 12+12+12 (1,073) | 9.1 / 5.9 / 0.3 | 0.166 / 0.160 / 0.176, +0.010 [+0.007, +0.013] | −0.002 [−0.006, +0.002] | 33.2 / 27.4 % |
+| Owner history, 20+12+12 (1,073) | 9.5 / 5.3 / 0.5 | 0.181 / 0.170 / 0.182, +0.001 [−0.002, +0.004] | +0.010 [+0.006, +0.013] | 30.6 / 24.1 % |
+| Owner cold, 12+12+12 (252) | 10.0 / 6.4 / 0.2 | 0.173 / 0.167 / 0.181, +0.008 [+0.003, +0.013] | +0.001 [−0.006, +0.008] | 34.6 / 27.5 % |
+| Owner cold, 20+12+12 (252) | 10.6 / 5.7 / 0.3 | 0.183 / 0.173 / 0.187, +0.004 [−0.001, +0.010] | +0.005 [−0.002, +0.012] | 30.9 / 24.4 % |
+| Six MPD libraries, 12+12+12 (900) | 9.3 / 5.2 / 0.05 | 0.199 / 0.175 / 0.187, −0.013 [−0.016, −0.009] | +0.018 [+0.014, +0.022] | 17.5 / 18.0 % |
+
+The fix does what the clarified objective asks: queues with any skipped slot fall from 82–90 % (off) and
+56–65 % (earlier) to 7–14 % on the owner's library. Artist variety rises everywhere (distinct artists per
+track +0.07 on the owner's library, +0.03 on MPD; the longest same-artist run −0.5 to −0.9). Against the
+shipped chain, adjacent transitions sound no rougher on the owner's library and smoother on MPD; the cost,
+which also counts artist changes, is up to 6 % higher on the owner's top-up queues. Against the earlier
+continuation mode the cost is 7–10 % higher: that mode followed the queue's tail instead of finishing the
+neighbourhood. Ordering a resumed plan from the queue's last track removed a third of the extra cost at
+plan boundaries (owner history: 0.232 → 0.200, against 0.137 off). On the owner's library fewer tracks share
+a playlist with the pick (−6 pp in the first 12 for any continuation mode, −6 to −7 pp over the queue); on MPD
+there is no measured difference. These are proxies; the listening build with the fix is for the ear test.
 
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.

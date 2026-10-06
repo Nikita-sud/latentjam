@@ -366,11 +366,13 @@ previews outside the evaluation libraries), 5 epochs on the Mac:
   chain, so tracks 13–20 of one chain do reach the listener. Measured on the previous p50 bundle (not the
   activation-trained one now shipped), the mode replaces 4 of the first 12 tracks on the owner's 1,073
   histories, lowers the audit's transition cost by 2.4 % [0.7, 3.9] there and by 10 % on tracks 13–20, and
-  lowers the share of tracks sharing a playlist with the seed by 5.8 pp. **Integration gap:** the mode's
-  state is not carried from one plan to the next. Replaying two 12-track plans with the shipped encoder,
-  43 of 64 cold starts kept every pick close with suitable tracks left after the first plan, and in 12 of
-  them the second plan's first pick already left that neighbourhood. It stays off by default; the
-  side-by-side listening build (branch `exp/listen-continuation`, "LJ Listen") has the same gap.
+  lowers the share of tracks sharing a playlist with the seed by 5.8 pp. A review found the mode's state was
+  not carried from one plan to the next (12 of 64 cold starts left the neighbourhood at the second plan's
+  first pick). Fixed (`d42ffa52`, `6db0054a`): replayed the way the app asks, skipped neighbourhood slots fall
+  from 9–10 per queue (off) and 5–6 (before the fix) to 0.05–0.5, artist variety rises, transitions sound no
+  rougher than the shipped chain's on the owner's library and smoother on MPD, while fewer of the owner's
+  queued tracks share a playlist with the pick (table in `docs/model-diet-fixes-2026-10-06.md`). It stays
+  off by default; the side-by-side listening build (branch `exp/listen-continuation`, "LJ Listen") turns it on.
 
 Smaller with no loss detected, then, which is not the same as equal: every queue interval crosses zero, and
 a decline of up to 0.78 pp on owner history is not excluded. Not better either: a better teacher's space did
