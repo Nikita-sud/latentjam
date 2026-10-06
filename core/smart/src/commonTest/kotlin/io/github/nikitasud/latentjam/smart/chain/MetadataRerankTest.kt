@@ -12,6 +12,21 @@ import kotlin.test.assertTrue
 class MetadataRerankTest {
 
     @Test
+    fun `versions of one song share a title and a movement keeps its own`() {
+        for (version in listOf(
+            "Moves Like Jagger - Studio Recording From The Voice Performance", "Moves Like Jagger - Remix",
+            "Moves Like Jagger (feat. Christina Aguilera)", "Moves Like Jagger - Radio Edit - Remastered 2011",
+            "Moves Like Jagger \u2013 Live",
+        )) {
+            assertEquals("moves like jagger", MetadataRerank.normalizeTitle(version), version)
+        }
+        assertEquals("piano sonata no. 14 - i. adagio sostenuto", MetadataRerank.normalizeTitle("Piano Sonata No. 14 - I. Adagio sostenuto"))
+        assertEquals("nowadays/hot honey rag - medley title", MetadataRerank.normalizeTitle("Nowadays/Hot Honey Rag - Medley Title"))
+        // A title that is nothing but a version word stays what it is.
+        assertEquals("remix", MetadataRerank.normalizeTitle("Remix"))
+    }
+
+    @Test
     fun `supported seed family softly penalizes an early cross-family candidate`() {
         val seedGenre = Genres.families("Brazilian Phonk")
         val pool = List(6) { meta(genre = "Phonk") } + meta(genre = "House")

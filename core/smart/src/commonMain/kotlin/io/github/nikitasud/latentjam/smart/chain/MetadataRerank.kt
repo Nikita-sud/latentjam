@@ -74,12 +74,29 @@ internal object MetadataRerank {
     private val BRACKETED = Regex("\\s*[\\(\\[][^()\\[\\]]*[\\)\\]]\\s*")
     private val WHITESPACE = Regex("\\s+")
 
-    /** Title with bracketed qualifiers stripped, for duplicate detection across releases. */
-    fun normalizeTitle(title: String?): String =
-        title.orEmpty().lowercase()
-            .replace(BRACKETED, " ")
-            .replace(WHITESPACE, " ")
-            .trim()
+    /**
+     * A trailing " - qualifier" naming a version of the song ("- Radio Edit", "- Remastered 2011",
+     * "- Dirty South Remix", "- From 'Grease'"). A qualifier without a version word, such as a
+     * movement's name, is part of the title and stays.
+     */
+    private val VERSION_SUFFIX = Regex(
+        "\\s+[-\u2013\u2014]\\s+[^-\u2013\u2014]*\\b(remix|mix|edit|version|remaster|remastered|live|acoustic|radio|" +
+            "single|recording|demo|mono|stereo|extended|instrumental|rework|vip|dub|bootleg|mashup|unplugged|" +
+            "session|bonus|deluxe|anniversary|explicit|clean|feat|ft|vs|from)\\b[^-\u2013\u2014]*$",
+    )
+
+    /**
+     * Title with bracketed qualifiers and trailing version qualifiers stripped, for duplicate detection
+     * across releases and versions of one song.
+     */
+    fun normalizeTitle(title: String?): String {
+        var normalized = title.orEmpty().lowercase().replace(BRACKETED, " ").replace(WHITESPACE, " ").trim()
+        while (true) {
+            val stripped = normalized.replace(VERSION_SUFFIX, "").trim()
+            if (stripped == normalized || stripped.isEmpty()) return normalized
+            normalized = stripped
+        }
+    }
 
     /** Canonical artist key shared by pairwise scoring, queue spacing, and per-artist caps. */
     fun normalizeArtist(artist: String?): String =
