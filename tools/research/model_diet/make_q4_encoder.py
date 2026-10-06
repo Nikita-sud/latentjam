@@ -15,6 +15,7 @@ windows.npy: int16 [N, 320000], mono 32 kHz. With --lib (a host build of core/or
 CMakeLists.txt) the result is run against the INT8 graph of the same stand-in and against the stand-in.
 """
 import argparse
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -68,6 +69,13 @@ def main():
     del standin.opset_import[:]
     standin.opset_import.extend(helper.make_opsetid(d, v) for d, v in opsets)
     onnx.save(standin, str(work / "standin.onnx"))
+    ranges = next((json.loads(p.value) for p in standin.metadata_props
+                   if p.key == "latentjam.activation_quantization"), {})
+    overrides = {name: [{"scale": np.asarray(v["scale"], dtype=np.float32),
+                         "zero_point": np.asarray(v["zero_point"], dtype=np.uint8)}]
+                 for name, v in ranges.items()}
+    if ranges:
+        print(f"preserving {len(ranges)} trained activation ranges", flush=True)
     floats = {t.name: numpy_helper.to_array(t) for t in standin.graph.initializer}
     cal = np.load(args.calibration, mmap_mode="r")[:args.ncal].astype(np.float32) / 32767.0
 
@@ -82,10 +90,10 @@ def main():
     front = [n.name for n in standin.graph.node if n.name.startswith(("fft/", "fe4/", "/fe/"))]
     quantize_static(str(work / "standin.onnx"), str(work / "int8.onnx"), Reader(), quant_format=QuantFormat.QDQ,
                     per_channel=True, weight_type=QuantType.QInt8, activation_type=QuantType.QUInt8,
-                    nodes_to_exclude=front, op_types_to_quantize=["Conv", "Gemm", "MatMul"],
+                    nodes_to_exclude=front, op_types_to_quantize=["Conv", "Gemm", "MatMul"] + (["Add", "GlobalAveragePool"] if ranges else []),
                     calibrate_method={"percentile": CalibrationMethod.Percentile, "entropy": CalibrationMethod.Entropy,
                                       "minmax": CalibrationMethod.MinMax}[args.calibrate],
-                    extra_options={"CalibPercentile": args.percentile})
+                    extra_options={"CalibPercentile": args.percentile, "TensorQuantOverrides": overrides})
     so = ort.SessionOptions()
     so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     so.optimized_model_filepath = str(work / "nhwc.onnx")

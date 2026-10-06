@@ -27,9 +27,10 @@ p50_ 0.9903 (shipped) and p38_ 0.9852.
 
 AQ=1 (both commands) also rounds the other convolutions to INT8 and every activation to uint8 as the shipped
 graph does (ActQ, I8): 0.9985 with all of that simulated, against about 0.997 for the shipped graph of a model
-trained without it. But the network learns its training ranges, and make_q4_encoder.py calibrates its own:
-built that way the graph falls to 0.956, so nothing trained with AQ ships until the converter takes the
-ranges the training kept.
+trained without it. The exporter now carries the learned ranges in ONNX metadata and make_q4_encoder.py preserves them.
+Older conversion discarded those ranges and fell to 0.956. Checkpoint reload also restores ActQ.seen.
+Use verify_audio_export.py to compare the restored fake-quantized model with the final operator graph;
+preserving scales alone does not prove model quality or bit-exact inference.
 
 MIX="dasheng_06b:26" adds a second, frozen teacher (Dasheng, Apache-2.0: block 26, time-averaged, 16 kHz). By default
 its centred similarity structure is mixed into the relational target (weight MIXW, 0.5); MIXMODE=regress instead
@@ -221,6 +222,19 @@ class ActQ(nn.Module):
         self.register_buffer("lo", torch.zeros(()))
         self.register_buffer("hi", torch.ones(()))
 
+    def get_extra_state(self):
+        return {"seen": self.seen}
+
+    def set_extra_state(self, state):
+        self.seen = bool(state["seen"])
+
+    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
+        # Older checkpoints saved valid lo/hi ranges but omitted the observer's initialized flag.
+        key = prefix + "_extra_state"
+        if key not in state_dict:
+            state_dict[key] = {"seen": prefix + "lo" in state_dict and prefix + "hi" in state_dict}
+        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
+
     @torch.no_grad()
     def observe(self, x):
         flat = x.detach().float().flatten()
@@ -252,23 +266,37 @@ class ActQ(nn.Module):
 def quantize_activations(st):
     """ActQ on every tensor the shipped graph holds in uint8: the backbone's input, each convolution's output
     (after its ReLU, which ONNX Runtime fuses), each residual sum, the pooled vector and the projection."""
+    from onnx2torch.onnx_graph import OnnxGraph
+    source = OnnxGraph(onnx.load(BACKBONE).graph)
+    full = onnx.load(FULL)
+    first_conv = next(n for n in full.graph.node if n.name == "/encoder/backbone/conv_stem/Conv")
     g = st.graph
     marks = []
+    names = {}
     for node in list(g.nodes):
         if node.op == "placeholder":
             marks.append((node, False))
+            names[node.name] = [first_conv.input[0]]
         if node.op != "call_module":
             continue
         mod = st.get_submodule(node.target)
+        original = source.nodes.get(node.target)
+        if original is not None:
+            names.setdefault(node.name, list(original.output_values))
         if isinstance(mod, nn.Conv2d):
             users = list(node.users)
             relu = len(users) == 1 and users[0].op == "call_module" and isinstance(st.get_submodule(users[0].target), nn.ReLU)
             marks.append((users[0], True) if relu else (node, False))
+            if relu:
+                # ORT may fuse Relu into Conv. Both names must retain the trained post-ReLU grid.
+                names[users[0].name] = list(source.nodes[users[0].target].output_values) + list(original.output_values)
         elif node.name.endswith("_add") or type(mod).__name__ in ("OnnxGlobalAveragePoolWithKnownInputShape", "OnnxMatMul"):
             marks.append((node, False))
     for i, (node, nonneg) in enumerate(marks):
         name = f"actq_{i}"
-        st.add_submodule(name, ActQ(nonneg))
+        observer = ActQ(nonneg)
+        observer.tensor_names = names[node.name]
+        st.add_submodule(name, observer)
         with g.inserting_after(node):
             q = g.call_module(name, (node,))
         node.replace_all_uses_with(q, delete_user_cb=lambda user, q=q: user is not q)
@@ -460,6 +488,20 @@ def export(cfg, state_path, out_dir="out"):
         del model.graph.value_info[:]
     os.makedirs(out_dir, exist_ok=True)
     path = f"{out_dir}/mnv4_qat_{cfg}.onnx"
+    ranges = {}
+    for observer in st.modules():
+        if not isinstance(observer, ActQ):
+            continue
+        if not observer.seen:
+            raise ValueError("cannot export uninitialized activation quantization")
+        scale = float(((observer.hi - observer.lo) / 255).clamp_min(1e-8))
+        zero = int(torch.round(-observer.lo / scale).clamp(0, 255))
+        for name in observer.tensor_names:
+            ranges[name] = {"scale": scale, "zero_point": zero}
+    if ranges:
+        entry = model.metadata_props.add()
+        entry.key = "latentjam.activation_quantization"
+        entry.value = json.dumps(ranges, sort_keys=True)
     onnx.save(model, path)
     print(f"{cfg}: wrote {path} ({len(values)} tensors replaced of {len(mapping)} mapped)")
     return path
