@@ -286,6 +286,9 @@ internal class SmartChain(
         val softNeighbourhood = continueAfterExhaustion && tuning.neighbourhoodBonus.isFinite()
         // This hop's neighbourhood, for the soft bonus.
         var hopNearby: Set<Int> = emptySet()
+        // Closeness depends only on the reference: computed once per reference, filtered every hop.
+        var closeTo = -1
+        var closeToRows = IntArray(0)
         var intentRow = seedRow
         val consideredRows = LinkedHashSet<Int>()
         if (!continueAfterExhaustion) consideredRows.addAll(pool)
@@ -369,11 +372,17 @@ internal class SmartChain(
                             (artistPlays[meta.artistKey] ?: 0) >= ChainConfig.CHAIN_ARTIST_QUEUE_CAP)
                     ) unavailable.add(row)
                 }
-                fun closeRows(reference: Int): Set<Int> = snapshot.tracks.indices.filterTo(HashSet()) { row ->
-                    row !in unavailable && Reanchor.isCloseContinuation(
-                        snapshot.centeredCosine(reference, row), snapshot.descriptorCosine(reference, row),
-                        tuning.neighbourhoodDescriptorWeight,
-                    )
+                fun closeRows(reference: Int): Set<Int> {
+                    if (reference != closeTo) {
+                        closeTo = reference
+                        closeToRows = snapshot.tracks.indices.filter { row ->
+                            Reanchor.isCloseContinuation(
+                                snapshot.centeredCosine(reference, row), snapshot.descriptorCosine(reference, row),
+                                tuning.neighbourhoodDescriptorWeight,
+                            )
+                        }.toIntArray()
+                    }
+                    return closeToRows.filterTo(HashSet()) { it !in unavailable }
                 }
                 var nearby = closeRows(intentRow)
                 if (nearby.isEmpty() && intentRow != anchorRow) {
@@ -385,11 +394,12 @@ internal class SmartChain(
                 }
                 // Search the full eligible library before declaring a neighborhood exhausted.
                 // A bounded old pool is not evidence that all suitable tracks were consumed.
-                val excluded = if (nearby.isEmpty() || softNeighbourhood) unavailable else HashSet<Int>(unavailable).apply {
-                    snapshot.tracks.indices.filterTo(this) { it !in nearby }
-                }
                 hopNearby = nearby
-                pool = buildPool(intentRow, state, excluded)
+                pool = if (nearby.isEmpty() || softNeighbourhood) {
+                    buildPool(intentRow, state, unavailable)
+                } else {
+                    buildPool(intentRow, state, unavailable, among = nearby)
+                }
                 if (pool.isEmpty()) break
                 consideredRows.addAll(pool)
                 poolRows = pool.toIntArray()
@@ -858,11 +868,22 @@ internal class SmartChain(
      * interleaving gives each channel representation without a hand-tuned cross-modal weight; the
      * scorer learns how much optional text should affect ordering.
      */
-    private fun buildPool(seedRow: Int, state: FloatArray, excluded: Set<Int>): List<Int> {
+    /**
+     * @param among when given, the only rows that may enter the pool: scores are computed for these
+     *   alone, and the pool is exactly the one [excluded] = every other row would give.
+     */
+    private fun buildPool(
+        seedRow: Int,
+        state: FloatArray,
+        excluded: Set<Int>,
+        among: Set<Int>? = null,
+    ): List<Int> {
         val n = snapshot.size
         val dim = PredictorRuntime.EMBEDDING_DIM
-        val anchorScores = FloatArray(n) { row ->
-            snapshot.centeredCosine(seedRow, row) -
+        val rows = among?.sorted()?.toIntArray() ?: IntArray(n) { it }
+        val anchorScores = FloatArray(n)
+        for (row in rows) {
+            anchorScores[row] = snapshot.centeredCosine(seedRow, row) -
                 ChainConfig.HUB_PENALTY_BETA * snapshot.hubPenalty[row]
         }
 
@@ -877,7 +898,7 @@ internal class SmartChain(
             } else {
                 null
             }
-            for (row in 0 until n) {
+            for (row in rows) {
                 var audio = 0f
                 val base = row * dim
                 for (d in 0 until dim) audio += snapshot.rawAudio[base + d] * query[d]
@@ -893,9 +914,9 @@ internal class SmartChain(
             anchorScores.copyInto(stateScores)
         }
 
-        val anchorOrder = order(anchorScores, seedRow, excluded)
-        val stateOrder = order(stateScores, seedRow, excluded)
-        val textOrder = textScores.indices
+        val anchorOrder = order(anchorScores, seedRow, excluded, rows)
+        val stateOrder = order(stateScores, seedRow, excluded, rows)
+        val textOrder = rows
             .filter {
                 it != seedRow && eligibleRows[it] && it !in excluded && textScores[it].isFinite()
             }
@@ -906,7 +927,7 @@ internal class SmartChain(
         // descriptor is what the teacher knows about the same artist, and swapping measured
         // +1.5 cold / +1.0 history P@10 on the listener, MPD +-1 (smart-bench exp_desc_quota.py).
         // Without a descriptor it is empty, so the pool is exactly the three-channel one.
-        val descriptorOrder = descriptorOrder(seedRow, excluded)
+        val descriptorOrder = descriptorOrder(seedRow, excluded, rows)
         val textTurn = if (descriptorOrder.isEmpty()) textOrder else IntArray(0)
         val pool = ArrayList<Int>(PredictorRuntime.POOL_SIZE)
         val seen = HashSet<Int>()
@@ -1025,19 +1046,19 @@ internal class SmartChain(
     }
 
     /** Candidates by centered-descriptor cosine to the seed; empty when the seed has no descriptor. */
-    private fun descriptorOrder(seedRow: Int, excluded: Set<Int>): IntArray {
+    private fun descriptorOrder(seedRow: Int, excluded: Set<Int>, rows: IntArray): IntArray {
         if (snapshot.hasDescriptor?.get(seedRow) != true) return IntArray(0)
-        val scores = FloatArray(snapshot.size) { row ->
-            snapshot.descriptorCosine(seedRow, row) ?: Float.NEGATIVE_INFINITY
-        }
-        return scores.indices
+        val scores = FloatArray(snapshot.size) { Float.NEGATIVE_INFINITY }
+        for (row in rows) scores[row] = snapshot.descriptorCosine(seedRow, row) ?: Float.NEGATIVE_INFINITY
+        return rows
             .filter { it != seedRow && eligibleRows[it] && it !in excluded && scores[it].isFinite() }
             .sortedByDescending { scores[it] }
             .toIntArray()
     }
 
-    private fun order(scores: FloatArray, exclude: Int, excluded: Set<Int>): IntArray =
-        scores.indices.filter { it != exclude && eligibleRows[it] && it !in excluded }
+    /** [rows] ascending; the stable sort keeps equal scores in row order whatever subset is ranked. */
+    private fun order(scores: FloatArray, exclude: Int, excluded: Set<Int>, rows: IntArray): IntArray =
+        rows.filter { it != exclude && eligibleRows[it] && it !in excluded }
             .sortedByDescending { scores[it] }
             .toIntArray()
 
