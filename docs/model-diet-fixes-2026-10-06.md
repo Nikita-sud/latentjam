@@ -174,6 +174,28 @@ neighbourhood's descriptor share 0.3/0.5/0.7 and semantic weight ×1/1.5/2.
 - Ordering has no headroom: the exact optimal order within each plan would add +0.003 audio adjacency.
 - The new bundle with the shipped chain is indistinguishable from 0.7.1 on both held-out pools.
 
+### Decision: the continuation mode is on in the app
+
+The owner set the goal: good queues for other listeners, not for the owner's own library. On the held-out MPD
+libraries (r1k_b, r1k_c, s1k_b; 450 starts each) the mode was checked in every way the app plans a queue,
+against 0.7.1:
+
+| First plan, then 12-track top-ups | Playlist share, Δ pp [95 % CI] | Audio adjacency Δ | Abrupt transitions Δ | Protocol |
+|---|---|---|---|---|
+| 12 (top-up only) | +1.02 [+0.14, +1.92] | +0.017 | −1.0 pp | passes, better |
+| 10 | +1.48 [+0.64, +2.32] | +0.013 | −1.1 pp | passes, better |
+| 20 (default length) | +0.46 [−0.33, +1.29] | +0.013 | −0.7 pp | passes |
+| 40 | −0.27 [−1.00, +0.49] | +0.031 | −1.3 pp | fails the −1 pp margin by 0.004 pp |
+
+Skipped neighbourhood slots fall to almost none at every length. The neighbourhood test is now computed once
+per reference and a hard neighbourhood's pool scores only its rows (byte-identical queues; a 36-track replay on
+a 3,002-track library takes 233 ms per seed against 463 before and 238 for the default chain). `AppGraph`
+turns the mode on; `SmartEngineConfig` keeps it off by default, which is the 0.7.1 chain.
+
+Known limits: thematic libraries like the owner's lose playlist share (−4.3 pp held out); the MPD libraries
+have no listening histories, so history-mode evidence comes from the owner's library alone; playlist
+co-membership and audio continuity are proxies for listening.
+
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
 `continuity-model-comparison.json` re-evaluates the earlier models on fixed transition rulers.

@@ -34,11 +34,11 @@ package io.github.nikitasud.latentjam.smart
  *   all flat), but no offline judge can confirm it *helps* — the only
  *   validated predictor is typicality itself, so scoring it with typicality
  *   would be circular. It ships behind this flag to be settled on device.
- * @property continueAfterExhaustion EXPERIMENT FLAG, off. The chain spends every suitable track
- *   near the listener's pick before it moves on, and the engine carries that walk from one plan to
- *   the next when a request continues from the last track of the plan it answered (the app tops
- *   up the queue that way). Off reproduces the shipped chain exactly. See
- *   `docs/model-diet-fixes-2026-10-06.md` for what it changes and what is still unmeasured.
+ * @property continueAfterExhaustion The continuation mode: the chain spends every suitable track near
+ *   the listener's pick before it moves on, and the engine carries that walk from one plan to the
+ *   next when a request continues from the last track of the plan it answered (the app tops up the
+ *   queue that way). Off by default here, which is the 0.7.1 chain exactly; the app turns it on
+ *   (AppGraph). `docs/model-diet-fixes-2026-10-06.md` has the measurements and what is unmeasured.
  */
 public data class SmartEngineConfig(
     public val embeddingDim: Int = 512,

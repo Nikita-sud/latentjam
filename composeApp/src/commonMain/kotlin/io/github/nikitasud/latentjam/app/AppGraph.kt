@@ -154,6 +154,14 @@ object AppGraph {
                                 // stay for future experiments; re-enable only with a new
                                 // hypothesis and its own before/after window.
                                 typicalityWeight = 0f,
+                                // Queues spend the pick's neighbourhood before moving on, across the
+                                // plans the queue is topped up with. Against 0.7.1 on held-out MPD
+                                // libraries (450 starts each, docs/model-diet-fixes-2026-10-06.md): more
+                                // tracks from the pick's playlists (+1.0 pp top-up, +1.5 at length 10),
+                                // smoother transitions and fewer abrupt ones at every queue length.
+                                // Thematic libraries (the owner's) lose playlist share; history-mode
+                                // evidence exists only for that library.
+                                continueAfterExhaustion = true,
                             )
                         }
                         // The single point where playback meets the engine.
