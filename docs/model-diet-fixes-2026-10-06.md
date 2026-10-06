@@ -324,6 +324,46 @@ the current mode four times, the correction once, and called one a tie, objectin
 artist ("an album, not a radio") and to one song twice in different versions. With fewer runs the correction's case
 is open; it stays off.
 
+### Runs of one artist: a soft, growing penalty (accepted with the correction)
+
+The owner rejected a hard limit on runs (sometimes only the same artist has the similar tracks) and asked for a
+penalty that grows with every track in a row. `ChainTuning.artistRunPenalty`: when the queue ends with k tracks by
+one artist (the seed counts), that artist's next candidate loses k times the penalty in standard deviations of the
+hop's candidate scores, so a clearly better fit still plays and the unit means the same with any scoring;
+`JourneySequencer` takes the same value as the cost of two neighbours by one artist, in standard deviations of the
+window's step costs. With the penalty off every pick is unchanged (the replays reproduce the current mode and round 2
+byte for byte). With the correction most runs come from the picks themselves (longest run 4.65 in pick order, 4.66
+played); in the current mode the order adds about half a track (3.16 to 3.68).
+
+Protocol `rerank-2026-10-06/protocol-artist-runs.json`, written before the runs: penalties 0, 0.25, 0.5, 1, 2 with
+the current mode and with the correction, both judges against the current mode on the discovery libraries; the
+largest min(fit, default) wins. Discovery:
+
+| variant | fit judge | default judge |
+|---|---|---|
+| current mode, penalty 0.25 / 0.5 / 1 / 2 | −0.04 / −0.07 / −0.15 / −0.25 | −0.01 / +0.02 / +0.03 / +0.06 |
+| correction, penalty 0 / 0.25 / 0.5 / 1 / 2 | +0.22 / +0.23 / +0.14 / +0.06 / −0.01 | −0.01 / +0.03 / +0.07 / +0.11 / +0.15 |
+
+Breaking runs in the current mode only costs coherence; with the correction the penalty trades the fit judge's gain
+for the default judge's, and 0.5 keeps both positive. Acceptance (the correction with penalty 0.5, all gates pass):
+
+- held out (r1k_b, r1k_c, s1k_b, 450 pairs): fit judge +0.26 [+0.19, +0.34] (209 wins, 96 losses), default judge
+  +0.15 [+0.08, +0.23] (176, 117); playlist share +1.30 [+0.43, +2.23] pp; harsh transitions −0.46 [−0.73, −0.19] pp;
+- fresh (train_r3, train_s3, train_r4, train_r5, 600 pairs; the first two reused from round 2): fit judge +0.13
+  [+0.07, +0.19], default judge +0.10 [+0.03, +0.16]; playlist share +0.74 [+0.02, +1.48] pp; harsh transitions −0.52
+  [−0.82, −0.25] pp;
+- the owner's library (local only): playlist share +5.2 pp cold, +4.6 pp with history; harsh transitions −0.95 and
+  −1.23 pp; mean adjacent audio cosine −0.002 and −0.008; the longest run of one artist 0.3 and 0.5 shorter;
+- jumps per queue level (−0.01 held out, +0.15 fresh, both intervals across zero);
+- runs over the 1,050 held-out and fresh queues: longest 3.33 tracks against the current mode's 3.52 (round 2: 4.41),
+  five or more in a row in 21 % of queues against 25 % (round 2: 50 %), distinct artists per 24 tracks 15.1 against
+  16.4; one song twice in two versions in 7 % against 6 %.
+
+Listener panel (the protocol's veto): two blind models answering as ordinary listeners, ten random held-out or fresh
+pairs each, preferred the new queues 12 times, the current mode 6 times, two ties (5:4:1 and 7:2:1); a blind reading
+by the author before the key was opened: 10, 3 and 7 ties. Both listeners still object, in both versions, to one
+song twice in different versions, to runs of four to six by one artist and to a second half that wanders.
+
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
 `continuity-model-comparison.json` re-evaluates the earlier models on fixed transition rulers.
