@@ -9,7 +9,9 @@ package io.github.nikitasud.latentjam.smart.chain
  * to [SmartChain]; this pass cannot add a track, repeat one, or shorten the queue.
  *
  * Work in short windows, retaining each window's first pick and destination. This preserves the
- * immediate recommendation and the tail from which playback plans its next batch. Squared
+ * immediate recommendation and the tail from which playback plans its next batch. A plan that
+ * continues a walk (`from`) has no immediate recommendation to keep: its first window starts from
+ * the track already playing, so the step into the plan is smoothed like any other. Squared
  * distance makes one abrupt transition more expensive than several moderate ones. Descriptor
  * similarity helps keep musical themes together, while audio supplies most of the distance.
  *
@@ -22,8 +24,18 @@ internal object JourneySequencer {
     private const val SEMANTIC_WEIGHT = 0.35f
     private const val MIN_GAIN = 1e-6f
 
-    fun order(snapshot: SmartSnapshot, rows: List<Int>): List<Int> =
-        rows.chunked(WINDOW_SIZE).flatMap { orderWindow(snapshot, it) }
+    /**
+     * @param from the row playing right before [rows] when they continue a walk (the queue's last
+     *   track), never one of [rows]; null keeps every window's first pick
+     */
+    fun order(snapshot: SmartSnapshot, rows: List<Int>, from: Int? = null): List<Int> =
+        rows.chunked(WINDOW_SIZE).flatMapIndexed { index, window ->
+            if (index == 0 && from != null) {
+                orderWindow(snapshot, listOf(from) + window).drop(1)
+            } else {
+                orderWindow(snapshot, window)
+            }
+        }
 
     private fun orderWindow(snapshot: SmartSnapshot, rows: List<Int>): List<Int> {
         if (rows.size < 4) return rows

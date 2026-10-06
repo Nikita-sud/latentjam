@@ -69,6 +69,22 @@ class JourneySequencerTest {
         assertEquals(ordered, JourneySequencer.order(snapshot, rows))
     }
 
+    @Test
+    fun `a continued plan may move its first pick toward the track before it`() {
+        val snapshot = circle(24)
+        val rows = listOf(12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 20, 14, 15, 16, 17, 18, 19)
+        val plain = JourneySequencer.order(snapshot, rows)
+        assertEquals(12, plain.first())
+        val continued = JourneySequencer.order(snapshot, rows, from = 0)
+
+        assertEquals(rows.toSet(), continued.toSet())
+        assertTrue(snapshot.centeredCosine(0, continued.first()) > snapshot.centeredCosine(0, 12))
+        assertTrue(distance(snapshot, listOf(0) + continued.take(12)) < distance(snapshot, listOf(0) + plain.take(12)))
+        // Only the first window changes: its destination and every later window stay as they were.
+        assertEquals(plain[11], continued[11])
+        assertEquals(plain.drop(12), continued.drop(12))
+    }
+
     private fun distance(snapshot: SmartSnapshot, rows: List<Int>): Float =
         rows.zipWithNext().sumOf { (a, b) ->
             val d = 1f - snapshot.centeredCosine(a, b)
