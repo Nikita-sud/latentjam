@@ -25,6 +25,17 @@ JUDGE = ("You compare two automatic radio queues that a music app built after th
          "keep repeating one artist, and would be enjoyable to hear next. Tracks are 'artist — title [genre, year]' "
          "when known. Rate each queue 1-5 and name the better one, or 'tie' only when they are genuinely equal. "
          "Answer json {\"A\": n, \"B\": n, \"better\": \"A\"|\"B\"|\"tie\", \"why\": \"one short sentence\"}.")
+# The owner's criterion (2026-10-06): tracks are what is compared; a run of one artist is fine when its tracks fit,
+# consecutive tracks that sound unrelated are not.
+JUDGE_FIT = ("You compare two automatic radio queues that a music app built after the listener picked a seed track "
+             "from their own library; every track comes from that library. Judge as a listener: which queue is the "
+             "better continuation of the seed — fits its style, language, era and mood, and flows well from track to "
+             "track, so that each track sounds like it belongs after the one before it. Several tracks by one artist "
+             "in a row are fine when they fit; consecutive tracks that sound unrelated are not. Tracks are "
+             "'artist — title [genre, year]' when known. Rate each queue 1-5 and name the better one, or 'tie' only "
+             "when they are genuinely equal. Answer json {\"A\": n, \"B\": n, \"better\": \"A\"|\"B\"|\"tie\", "
+             "\"why\": \"one short sentence\"}.")
+PROMPTS = {"default": JUDGE, "fit": JUDGE_FIT}
 URL = "https://api.deepseek.com/chat/completions"
 
 
@@ -46,10 +57,10 @@ def read(path):
     return out
 
 
-async def ask(session, sem, key, cache, seed, first, second):
+async def ask(session, sem, key, cache, seed, first, second, prompt=JUDGE):
     body = {"model": "deepseek-flash", "thinking": {"type": "disabled"}, "temperature": 0.0, "max_tokens": 160,
             "response_format": {"type": "json_object"},
-            "messages": [{"role": "system", "content": JUDGE},
+            "messages": [{"role": "system", "content": prompt},
                          {"role": "user", "content": f"Seed: {seed}\n\n" + "\n\n".join(
                              f"Queue {k}:\n" + "\n".join(f"{i + 1}. {x}" for i, x in enumerate(q))
                              for k, q in (("A", first), ("B", second)))}]}
@@ -71,13 +82,13 @@ async def ask(session, sem, key, cache, seed, first, second):
     return None
 
 
-async def run(cases, key, cache, workers):
+async def run(cases, key, cache, workers, prompt=JUDGE):
     import aiohttp
     sem = asyncio.Semaphore(workers)
     async with aiohttp.ClientSession() as session:
         async def both(case):
-            one = await ask(session, sem, key, cache, case["seed"], case["old"], case["new"])
-            two = await ask(session, sem, key, cache, case["seed"], case["new"], case["old"])
+            one = await ask(session, sem, key, cache, case["seed"], case["old"], case["new"], prompt)
+            two = await ask(session, sem, key, cache, case["seed"], case["new"], case["old"], prompt)
             if one and two:
                 case["old_score"] = (one[0] + two[1]) / 2
                 case["new_score"] = (one[1] + two[0]) / 2
@@ -96,6 +107,8 @@ def main():
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--key-file", type=Path, default=Path.home() / ".deepseek_key")
     ap.add_argument("--dry-run", action="store_true", help="print one prompt and the call count, call nothing")
+    ap.add_argument("--prompt", choices=sorted(PROMPTS), default="default",
+                    help="default: the earlier judge (it also asks not to repeat an artist); fit: tracks only")
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
     cases = []
@@ -113,7 +126,7 @@ def main():
                                   identical=old[k][:a.tracks] == new[k][:a.tracks]))
     if a.dry_run:
         c = cases[0]
-        print(JUDGE, "\n\nSeed:", c["seed"], "\nQueue A:", *c["old"][:5], "...", sep="\n")
+        print(PROMPTS[a.prompt], "\n\nSeed:", c["seed"], "\nQueue A:", *c["old"][:5], "...", sep="\n")
         print(f"\n{len(cases)} pairs, {2 * len(cases)} calls")
         return
     key = os.environ.get("LLM_KEY") or (a.key_file.read_text().strip() if a.key_file.exists() else "")
@@ -122,7 +135,7 @@ def main():
     cache_path = a.out / "cache.json"
     cache = json.loads(cache_path.read_text()) if cache_path.exists() else {}
     try:
-        done = asyncio.run(run(cases, key, cache, a.workers))
+        done = asyncio.run(run(cases, key, cache, a.workers, PROMPTS[a.prompt]))
     finally:
         cache_path.write_text(json.dumps(cache))
     judged = [c for c in done if "new_score" in c]

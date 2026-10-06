@@ -45,6 +45,7 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                 val ringStep = System.getProperty("diet.ringStep")?.toFloatOrNull() ?: 0f
                 val ringFloor = System.getProperty("diet.ringFloor")?.toFloatOrNull() ?: 0.20f
                 val ringPull = System.getProperty("diet.ringPull")?.toFloatOrNull() ?: 1f
+                val styleGate = System.getProperty("diet.styleGate")?.toFloatOrNull() ?: Float.NEGATIVE_INFINITY
                 val seedRow = snapshot.rowOf(job.seed)
                 fun close(row: Int) = Reanchor.isCloseContinuation(
                     snapshot.centeredCosine(seedRow, row), snapshot.descriptorCosine(seedRow, row),
@@ -96,7 +97,7 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                         tuning = ChainTuning(
                             continueAfterExhaustion = continuation, neighbourhoodBonus = bonus,
                             semanticWeight = semantic, neighbourhoodDescriptorWeight = descriptorShare,
-                            ringStep = ringStep, ringFloor = ringFloor, ringSeedPull = ringPull,
+                            ringStep = ringStep, ringFloor = ringFloor, ringSeedPull = ringPull, styleGate = styleGate,
                         ),
                     ).build(
                         seedId = tail, length = length, timeFeatures = job.timeFeatures, historyEvents = events,
@@ -151,7 +152,7 @@ def main():
     ap.add_argument("--variant", action="append", required=True,
                     help=f"one of {sorted(VARIANTS)}, or cfg:mode=<variant>,b=<neighbourhood bonus>,"
                          "s=<semantic weight>,w=<neighbourhood descriptor share>,r=<ring step>,f=<ring floor>,"
-                         "p=<seed pull inside a widened ring>")
+                         "p=<seed pull inside a widened ring>,g=<style gate>")
     ap.add_argument("--pool", type=int, default=3)
     a = ap.parse_args()
     if not all(p.strip().isdigit() and int(p) > 0 for p in a.plans.split(",")):
@@ -170,23 +171,24 @@ def main():
     launch = json.loads((build / "launch.json").read_text())
 
     def run(variant):
-        bonus, semantic, share, step, floor, pull = "inf", "1", "0.5", "0", "0.2", "1"
+        bonus, semantic, share, step, floor, pull, gate = "inf", "1", "0.5", "0", "0.2", "1", "-inf"
         if variant.startswith("cfg:"):
             spec = dict(item.split("=", 1) for item in variant[4:].split(","))
             mode = spec.get("mode", "join")
             bonus, semantic, share = spec.get("b", bonus), spec.get("s", semantic), spec.get("w", share)
             step, floor, pull = spec.get("r", step), spec.get("f", floor), spec.get("p", pull)
-            [float(x) for x in (bonus, semantic, share, step, floor, pull)]  # validates
+            gate = spec.get("g", gate)
+            [float(x) for x in (bonus, semantic, share, step, floor, pull, gate)]  # validates
             cont, carry, join = VARIANTS[mode]
             variant = f"{mode}_b{bonus}_s{semantic}_w{share}" + (f"_r{step}_f{floor}" if float(step) else "") + \
-                (f"_p{pull}" if float(pull) != 1 else "")
+                (f"_p{pull}" if float(pull) != 1 else "") + (f"_g{gate}" if gate != "-inf" else "")
         else:
             cont, carry, join = VARIANTS[variant]
         output = a.out / f"{variant}.tsv"
         command = launch[:1] + [f"-Ddiet.plans={a.plans}", f"-Ddiet.continue={cont}", f"-Ddiet.carry={carry}",
                                 f"-Ddiet.join={join}", f"-Ddiet.bonus={bonus}", f"-Ddiet.sem={semantic}",
                                 f"-Ddiet.nbw={share}", f"-Ddiet.ringStep={step}", f"-Ddiet.ringFloor={floor}",
-                                f"-Ddiet.ringPull={pull}"] + launch[1:] + [
+                                f"-Ddiet.ringPull={pull}", f"-Ddiet.styleGate={gate}"] + launch[1:] + [
             str(a.prepared.resolve()), str(a.assets.resolve()), a.mode, str(output.resolve()),
             "--seeds", str(a.seeds.resolve()), "--order", "journey",
         ]

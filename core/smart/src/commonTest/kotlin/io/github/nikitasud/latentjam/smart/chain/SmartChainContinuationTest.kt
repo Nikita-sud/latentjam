@@ -169,6 +169,36 @@ internal class SmartChainContinuationTest {
     }
 
     @Test
+    fun `the style gate skips a track of another style while one of the same style remains`() {
+        // Row 1 sounds closest to the pick but its artist is described as another style; row 2 sounds a
+        // little further and shares the pick's style. Rows 3-8 balance the means.
+        fun unit(vararg parts: Pair<Int, Float>, dim: Int = PredictorRuntime.EMBEDDING_DIM) = FloatArray(dim).also { v ->
+            for ((axis, value) in parts) v[axis] += value
+            val norm = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
+            for (i in v.indices) v[i] /= norm
+        }
+        val audio = listOf(unit(0 to 1f), unit(0 to 1f, 1 to 0.2f), unit(0 to 1f, 2 to 0.6f)) +
+            (3..8).map { unit(0 to -1f, (10 + it) to 0.3f) }
+        val styles = listOf(unit(0 to 1f, dim = 8), unit(1 to 1f, dim = 8), unit(0 to 1f, 2 to 0.2f, dim = 8)) +
+            (3..8).map { unit((it % 6 + 2) to 1f, 0 to -0.3f, dim = 8) }
+        val snapshot = requireNotNull(SmartSnapshot.build(audio.indices.map { row ->
+            SmartTrack(
+                TrackId(row.toString()), audio[row], descriptor = styles[row],
+                meta = TrackMeta("Title $row", "Artist $row", null, null, null),
+            )
+        }))
+        val other = snapshot.descriptorCosine(0, 1)!!
+        val same = snapshot.descriptorCosine(0, 2)!!
+        assertTrue(other < 0.1f && same > 0.3f, "fixture styles: other $other, same $same")
+        assertTrue(snapshot.centeredCosine(0, 1) > snapshot.centeredCosine(0, 2), "row 1 must sound closer")
+        fun first(gate: Float) = SmartChain(
+            snapshot, null, tuning = ChainTuning(styleGate = gate),
+        ).build(TrackId("0"), 1, FloatArray(5)).rows.single()
+        assertEquals(1, first(Float.NEGATIVE_INFINITY))
+        assertEquals(2, first(0.2f))
+    }
+
+    @Test
     fun `without the continuation mode a walk changes nothing`() {
         val snapshot = satellites()
         val walk = ChainWalk(TrackId("0"), listOf(TrackId("1")), picksUnderIntent = 1)

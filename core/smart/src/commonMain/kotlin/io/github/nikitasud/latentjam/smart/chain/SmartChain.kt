@@ -496,6 +496,14 @@ internal class SmartChain(
             }
             val anchorMeta = snapshot.tracks[anchorRow].meta
 
+            // Style gate: while the pool still holds a candidate in the previous pick's style, skip the
+            // ones far from it (no descriptor counts as in style).
+            fun inStyle(i: Int): Boolean {
+                val style = snapshot.descriptorCosine(anchorRow, pool[i])
+                return style == null || style >= tuning.styleGate
+            }
+            val styleGated = tuning.styleGate.isFinite() && pool.indices.any { isEligible(it) && inStyle(it) }
+
             var bestIndex = -1
             var bestScore = Float.NEGATIVE_INFINITY
             val bestCompanionIndexes = IntArray(seedCompanionGroups.size) { -1 }
@@ -504,6 +512,7 @@ internal class SmartChain(
             }
             for (i in pool.indices) {
                 if (!isEligible(i)) continue
+                if (styleGated && !inStyle(i)) continue
                 val row = pool[i]
                 val meta = snapshot.tracks[row].meta
 

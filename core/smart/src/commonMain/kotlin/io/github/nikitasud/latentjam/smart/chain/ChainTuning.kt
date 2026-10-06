@@ -51,6 +51,13 @@ internal data class ChainTuning(
      * and keeps the step smooth. 1 is the usual pull. EXPERIMENTAL.
      */
     val ringSeedPull: Float = 1f,
+    /**
+     * Style gate: a candidate whose artist descriptor is less similar than this (centred cosine) to
+     * the previous pick's is passed over while the pool still holds one that is not, so a queue does
+     * not jump genre, era or scene from one track to the next. Candidates without a descriptor pass.
+     * Negative infinity is off. EXPERIMENTAL.
+     */
+    val styleGate: Float = Float.NEGATIVE_INFINITY,
     /** See [ChainConfig.COMPANION_BONUS]. */
     val companionBonus: Float = ChainConfig.COMPANION_BONUS,
     /**
