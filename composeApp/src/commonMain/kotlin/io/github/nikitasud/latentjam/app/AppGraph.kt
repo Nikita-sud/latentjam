@@ -162,6 +162,14 @@ object AppGraph {
                                 // Thematic libraries (the owner's) lose playlist share; history-mode
                                 // evidence exists only for that library.
                                 continueAfterExhaustion = true,
+                                // The correction learned from a listening judge, a sound floor and a soft
+                                // penalty for runs of one artist. Against the mode above on held-out and
+                                // fresh MPD libraries both judges prefer it (+0.26/+0.15 and +0.13/+0.10),
+                                // playlist share +1.3/+0.7 pp, harsh transitions -0.5 pp, a blind listener
+                                // panel 12:6; the owner's library +5 pp playlist share. The listener's
+                                // artist-variety setting replaces the default penalty at startup (App).
+                                judgedScoring = true,
+                                artistRunPenalty = ARTIST_VARIETY_PENALTIES[DEFAULT_ARTIST_VARIETY],
                             )
                         }
                         // The single point where playback meets the engine.
