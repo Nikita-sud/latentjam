@@ -11,7 +11,9 @@ queued and hands the chain the observed history plus the track it continues from
 Variants: `off` is the shipped chain; `continue` is ChainTuning.continueAfterExhaustion with every plan
 starting afresh (the listening build before 2026-10-06's fix); `carry` also resumes the walk the previous
 plan ended with (ChainWalk); `join` also orders each resumed plan from the track it continues
-(JourneySequencer `from`), which is what DefaultSimilarityEngine does in the continuation mode.
+(JourneySequencer `from`), which is what DefaultSimilarityEngine does in the continuation mode;
+`cfg:mode=..,b=..,s=..,w=..` sets ChainTuning.neighbourhoodBonus, semanticWeight and
+neighbourhoodDescriptorWeight on one of those variants.
 
 Output per variant, one line per seed: key, played track ids (journey order, all plans), plan boundaries,
 each plan's walk intent, a 0/1 flag per played track for "close to the original pick" by the chain's own
@@ -37,6 +39,9 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                 val continuation = System.getProperty("diet.continue") == "true"
                 val carry = System.getProperty("diet.carry") == "true"
                 val join = System.getProperty("diet.join") == "true"
+                val bonus = System.getProperty("diet.bonus")?.toFloatOrNull() ?: Float.POSITIVE_INFINITY
+                val semantic = System.getProperty("diet.sem")?.toFloatOrNull() ?: 1f
+                val descriptorShare = System.getProperty("diet.nbw")?.toFloatOrNull() ?: 0.5f
                 val seedRow = snapshot.rowOf(job.seed)
                 fun close(row: Int) = Reanchor.isCloseContinuation(
                     snapshot.centeredCosine(seedRow, row), snapshot.descriptorCosine(seedRow, row),
@@ -84,7 +89,11 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                     val eligible = BooleanArray(snapshot.size) { it !in queued }
                     val resumed = if (carry) walk else null
                     val result = SmartChain(
-                        snapshot, runtime, eligible, tuning = ChainTuning(continueAfterExhaustion = continuation),
+                        snapshot, runtime, eligible,
+                        tuning = ChainTuning(
+                            continueAfterExhaustion = continuation, neighbourhoodBonus = bonus,
+                            semanticWeight = semantic, neighbourhoodDescriptorWeight = descriptorShare,
+                        ),
                     ).build(
                         seedId = tail, length = length, timeFeatures = job.timeFeatures, historyEvents = events,
                         resume = resumed,
@@ -135,7 +144,9 @@ def main():
         ap.add_argument(f"--{name}", type=Path, required=True)
     ap.add_argument("--mode", choices=("cold", "history"), required=True)
     ap.add_argument("--plans", default="12,12,12", help="plan lengths in request order")
-    ap.add_argument("--variant", action="append", choices=sorted(VARIANTS), required=True)
+    ap.add_argument("--variant", action="append", required=True,
+                    help=f"one of {sorted(VARIANTS)}, or cfg:mode=<variant>,b=<neighbourhood bonus>,"
+                         "s=<semantic weight>,w=<neighbourhood descriptor share>")
     ap.add_argument("--pool", type=int, default=3)
     a = ap.parse_args()
     if not all(p.strip().isdigit() and int(p) > 0 for p in a.plans.split(",")):
@@ -154,10 +165,20 @@ def main():
     launch = json.loads((build / "launch.json").read_text())
 
     def run(variant):
-        cont, carry, join = VARIANTS[variant]
+        bonus, semantic, share = "inf", "1", "0.5"
+        if variant.startswith("cfg:"):
+            spec = dict(item.split("=", 1) for item in variant[4:].split(","))
+            mode = spec.get("mode", "join")
+            bonus, semantic, share = spec.get("b", bonus), spec.get("s", semantic), spec.get("w", share)
+            [float(x) for x in (bonus, semantic, share)]  # validates
+            cont, carry, join = VARIANTS[mode]
+            variant = f"{mode}_b{bonus}_s{semantic}_w{share}"
+        else:
+            cont, carry, join = VARIANTS[variant]
         output = a.out / f"{variant}.tsv"
         command = launch[:1] + [f"-Ddiet.plans={a.plans}", f"-Ddiet.continue={cont}", f"-Ddiet.carry={carry}",
-                                f"-Ddiet.join={join}"] + launch[1:] + [
+                                f"-Ddiet.join={join}", f"-Ddiet.bonus={bonus}", f"-Ddiet.sem={semantic}",
+                                f"-Ddiet.nbw={share}"] + launch[1:] + [
             str(a.prepared.resolve()), str(a.assets.resolve()), a.mode, str(output.resolve()),
             "--seeds", str(a.seeds.resolve()), "--order", "journey",
         ]
