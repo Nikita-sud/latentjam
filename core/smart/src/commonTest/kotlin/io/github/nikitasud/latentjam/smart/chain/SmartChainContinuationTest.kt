@@ -190,6 +190,21 @@ internal class SmartChainContinuationTest {
     }
 
     @Test
+    fun `the sound floor passes over a track that sounds far from the previous pick`() {
+        val snapshot = styles()
+        val styleFirst = FloatArray(Rerank.FEATURES).also { it[Rerank.STYLE_SEED] = 10f }
+        val between = (snapshot.centeredCosine(0, 1) + snapshot.centeredCosine(0, 2)) / 2
+        fun first(floor: Float) = SmartChain(
+            snapshot, null,
+            tuning = ChainTuning(continueAfterExhaustion = true, rerankWeights = styleFirst, soundFloor = floor),
+        ).build(TrackId("0"), 1, FloatArray(5)).rows.single()
+        assertEquals(2, first(Float.NEGATIVE_INFINITY))
+        assertEquals(1, first(between))
+        // Above every candidate the floor has nothing to keep and changes nothing.
+        assertEquals(2, first(2f))
+    }
+
+    @Test
     fun `the learned correction's features are the chain's own numbers`() {
         val snapshot = styles()
         val out = FloatArray(Rerank.FEATURES)

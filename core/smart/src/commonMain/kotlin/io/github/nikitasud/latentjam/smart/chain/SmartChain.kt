@@ -540,6 +540,9 @@ internal class SmartChain(
                 return style == null || style >= tuning.styleGate
             }
             val styleGated = tuning.styleGate.isFinite() && pool.indices.any { isEligible(it) && inStyle(it) }
+            // Sound floor: the same, on the audio cosine to the previous pick.
+            fun inSound(i: Int): Boolean = snapshot.centeredCosine(anchorRow, pool[i]) >= tuning.soundFloor
+            val soundGated = tuning.soundFloor.isFinite() && pool.indices.any { isEligible(it) && inSound(it) }
 
             var bestIndex = -1
             var bestScore = Float.NEGATIVE_INFINITY
@@ -556,6 +559,7 @@ internal class SmartChain(
             for (i in pool.indices) {
                 if (!isEligible(i)) continue
                 if (styleGated && !inStyle(i)) continue
+                if (soundGated && !inSound(i)) continue
                 val row = pool[i]
                 val meta = snapshot.tracks[row].meta
 

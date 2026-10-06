@@ -59,6 +59,12 @@ internal data class ChainTuning(
      */
     val styleGate: Float = Float.NEGATIVE_INFINITY,
     /**
+     * Sound floor: a candidate whose audio (centred cosine) is less similar than this to the previous
+     * pick's is passed over while the pool still holds one that is not, so a queue does not change
+     * sound abruptly from one track to the next. Negative infinity is off. EXPERIMENTAL.
+     */
+    val soundFloor: Float = Float.NEGATIVE_INFINITY,
+    /**
      * A learned correction added to every candidate's score: one weight per [Rerank] feature, in
      * score units. Null is off. EXPERIMENTAL.
      */
