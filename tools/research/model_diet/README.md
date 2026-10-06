@@ -55,7 +55,20 @@ everything else in INT8.
 
 A new encoder changes the space the SMART nets read. `qat_nets.py --student-features <the new bundle's
 features>` retrains them on the same recordings with every music vector moved into the new space (tracks row
-for row, the history means through a least-squares map), against the FP32 nets' outputs on the originals.
+for row, the history means through a least-squares map). State outputs must also be in the retrieval
+space: the explicitly selected `--state-target-map dual` query target is `old_query @ lstsq(new_tracks, old_tracks).T`, normalized, which
+preserves dot products for a linear change of coordinates. This is an approximation for a nonlinear
+encoder and must pass the full queue benchmark. Both tested transfers regressed owner-history queues;
+there is therefore no default map when moving to a new space. `--state-target-map identity` keeps the
+targets in 0.7.1's coordinates: the shipped p50 nets, whose encoder sits at cosine 0.988 to 0.7.1's. `--state-target-map forward` exists only to reproduce
+the rejected first prototype. The scorer requires `--student-state <float exported new state.onnx>` and
+trains with that model's outputs rather than the recorded old-coordinate states.
+
+The semantic head requires `--head-pairs <pairs.npz>` when `--student-features` is supplied.
+`prepare_head_pairs.py` builds paired embeddings from licensed FMA training/validation tracks, retaining
+the official split and excluding test tracks. Selection uses the normalized logit error across all
+AudioSet and FMA classes; Music argmax agreement is retained only as a diagnostic. Epoch zero is eligible
+as the best model. The stored pair ids and validation mask are part of the experiment provenance.
 The model version then changes (`AppGraph.kt`, `embedding_version.txt`) and the app re-indexes the library.
 
 On a phone, `core/smart/src/androidDeviceTest/.../ModelBenchmarkDeviceTest.kt` times and weighs bundles
@@ -73,8 +86,11 @@ pushed into the test package's own files (`files/bench/<name>/`), never touching
   assets ΔP@10 −0.53 pp [−0.99, −0.11] over 1,073 seeds. The learned clipping range fixed both.
 - Music encoder with blocks of 32 everywhere: +19–24 % per window on a Galaxy S24 Ultra (KleidiAI's
   block-scaled 4-bit matmul costs about 1.8× its int8 one); blocks of 64 or 128 still +45 % in the matmul.
-- Quantization-aware training that also simulates the INT8 activations: 0.9985 with them simulated, but
-  the graph needs the ranges the training learned; with the converter's own calibration it falls to 0.956.
+- The old AQ export discarded the learned activation ranges and fell to 0.956. The 2026-10-06 fix stores
+  `ActQ.seen` in checkpoints, restores legacy observers, and passes learned scales and zero points from
+  ONNX metadata into the converter. Numerical export verification passed on 32 windows (mean cosine
+  0.99955, minimum 0.99859, 97 exact retained grids). This is an export check, not evidence that AQ improves
+  retrieval or phone latency.
 - Walsh-Hadamard rotation before 4-bit rounding: helps before training, hurts after it (val cos 0.9971
   rotated against 0.9989 plain, blocks of 32).
 - EfficientAT students (`student_audio.py`: mn05 / mn10, MobileNetV3) in place of the encoder: their
@@ -83,3 +99,43 @@ pushed into the test package's own files (`files/bench/<name>/`), never touching
   and 0.952 (mn05, 1.4 MB), against 0.989 for the pruned encoder at 3.35 MB.
 - Pruning deeper than half: keeping 38 % or 25 % of the expanded channels (2.72 / 2.06 MB) puts the vectors at
   cosine 0.981 / 0.969 to the teacher, against 0.987 for half after the same 20 epochs.
+
+
+## Audit fixes and bounded experiments (2026-10-06)
+
+See `docs/model-diet-fixes-2026-10-06.md` for measurements, rejected candidates and reproducibility.
+Do not promote a checkpoint because teacher cosine alone improves.
+
+- `cache_audio_distillation.py` caches one deterministic crop and teacher target per training track,
+  excludes evaluation-library paths, and keeps FMA's official training/validation separation.
+- `distill_audio_cached.py` runs a bounded local teacher-assistant experiment with a fixed validation
+  set and saves checkpoint hashes, selected track ids and every epoch, including epoch zero.
+  It uses one fixed crop per track; it does not replace the augmented multi-crop training recipe.
+- `verify_audio_export.py` compares a restored checkpoint, with fake quantization active when requested,
+  to the final custom-operator ONNX. Run with the audio-student source directory on `PYTHONPATH` for
+  `common.py`; the source, checkpoint, pruned channel indices, calibration PCM and host operator library
+  are explicit arguments. The numerical check must precede downstream quality measurements.
+- `tests/test_training_contracts.py` guards observer restoration, head selection, query-coordinate
+  transforms and scorer inputs. Run with `python -m pytest tools/research/model_diet/tests`.
+- The external bundle report now labels confidence intervals crossing zero `inconclusive`. Absence of a
+  significant decline does not establish equivalence. Its patch is retained in the experiment directory.
+
+The audio helpers require the same ONNX, onnx2torch, PyTorch and ORT dependencies as `qat_audio.py`.
+
+
+New-space training now saves `split-audit.json`. Use `--require-disjoint-tracks` to reject overlapping
+training/evaluation catalogs or missing evaluation evidence. The inherited SMART catalogs are not
+track-disjoint from MPD evaluation, while the new audio-cache paths are disjoint. See the audit
+report before interpreting a whole-queue score as unseen-track generalization.
+
+
+For continuation experiments use `replay_continuation.py`, with explicit `--benchmark`, `--source`,
+`--prepared`, `--assets`, `--seeds`, `--mode history|cold` and a new `--out` directory. `--legacy`
+selects the unchanged control; `--length` defaults to 20. It builds the real Kotlin sources in its
+own output directory and records model, feature, seed and source hashes. Do not assume that the
+bundle report's `--src` rebuilds SMART: it controls feature extraction only.
+
+The experimental `ChainTuning.continueAfterExhaustion` remains off by default. It refills candidates
+from the entire eligible library, exhausts the active neighborhood before moving on, and uses the
+same fixed-100 scorer shape. See `docs/model-diet-fixes-2026-10-06.md` for continuity measurements,
+the user-clarified objective, the reduction in artist diversity on MPD, and deployment limitations.
