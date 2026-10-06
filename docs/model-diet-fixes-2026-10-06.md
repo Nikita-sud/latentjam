@@ -364,6 +364,17 @@ pairs each, preferred the new queues 12 times, the current mode 6 times, two tie
 by the author before the key was opened: 10, 3 and 7 ties. Both listeners still object, in both versions, to one
 song twice in different versions, to runs of four to six by one artist and to a second half that wanders.
 
+In the app (`9b77945a`, `fe90ab23`, `978ab8de`): `SmartEngineConfig.judgedScoring` turns the scoring on with the
+continuation mode (queues of marked playlists keep the shipped chain), and Settings > SMART > Artist variety picks the
+penalty from the five measured steps (Off, Low, Balanced = 0.5, High, Maximum), stored on both platforms and in local
+backups (format v6).
+
+Versions of one song (`protocol-versions.json`): the repeated-title check also drops a trailing " - qualifier" that
+names a version (Radio Edit, Remastered 2011, a remix, From "Grease", feat. ...), keeping qualifiers without a version
+word such as a movement's name. Queues playing one song twice or the seed's song again: 9.8 % to 0.0 % held out, 7.5 %
+to 0.3 % fresh; both judges slightly prefer the result (fit +0.02 [+0.00, +0.03] and +0.01 [+0.00, +0.02], default
++0.03 [+0.02, +0.05] and +0.02 [+0.01, +0.03]); playlist share and harsh transitions unchanged.
+
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
 `continuity-model-comparison.json` re-evaluates the earlier models on fixed transition rulers.
