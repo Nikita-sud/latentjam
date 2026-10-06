@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.smart
 
+import io.github.nikitasud.latentjam.smart.chain.ChainConfig
 import io.github.nikitasud.latentjam.smart.chain.ChainTuning
 import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
 import io.github.nikitasud.latentjam.smart.chain.NEIGHBOURS
@@ -94,6 +95,30 @@ internal class SmartContinuationEngineTest {
     }
 
     @Test
+    fun `a library of one artist keeps getting SMART plans after the walk spends the artist`() = runTest {
+        // A single band: the artist cap ends every walk at its sixth pick, and the next plan resumes it.
+        val band = tracks.map { it.copy(artist = "The Band") }
+        val index = InMemoryVectorIndex(960)
+        val engine = engine(continuation = true, library = band, index = index)
+        // The reference walks read the vectors the engine indexed: the fixture's satellites tie exactly,
+        // so a rounding difference would break those ties differently.
+        val indexed = band.associate { it.id to requireNotNull(index.vector(it.id)) }
+        val first = engine.smartQueue(band.first(), band.drop(1), 12)
+        assertEquals(ChainConfig.CHAIN_ARTIST_QUEUE_CAP, first.size)
+        var queued = first.toSet() + band.first().id
+        var tail = band.first { it.id == first.last() }
+        // Each top-up is seeded with the queue's last track, as the app asks; each must still be a chain plan.
+        repeat(2) { topUp ->
+            val rest = band.filter { it.id !in queued }
+            val next = engine.smartQueue(tail, rest, 12)
+            assertEquals(freshPlan(snapshot(band, indexed), rest, tail, 12), next, "top-up ${topUp + 1}")
+            assertEquals(ChainConfig.CHAIN_ARTIST_QUEUE_CAP, next.size, "top-up ${topUp + 1}")
+            queued = queued + next
+            tail = band.first { it.id == next.last() }
+        }
+    }
+
+    @Test
     fun `marked playlists keep the shipped chain under judged scoring`() = runTest {
         val groups = listOf(setOf(tracks[1].id, tracks[2].id, tracks[3].id))
         val judged = engine(continuation = true, judged = true, runPenalty = 0.5f)
@@ -114,8 +139,22 @@ internal class SmartContinuationEngineTest {
         return JourneySequencer.order(snapshot, rows, sameArtistCost = runPenalty).map { snapshot.tracks[it].id }
     }
 
-    private suspend fun engine(continuation: Boolean, judged: Boolean = false, runPenalty: Float = 0f) = DefaultSimilarityEngine(
-        backend = FakeEmbeddingBackend(vectors), index = InMemoryVectorIndex(960),
+    /** A walk started afresh from [seed], [library] still eligible: the engine's path without a carried walk. */
+    private fun freshPlan(snapshot: SmartSnapshot, library: List<TrackDescriptor>, seed: TrackDescriptor, length: Int): List<TrackId> {
+        val rows = SmartChain(
+            snapshot, null, eligible(snapshot, library), tuning = ChainTuning(continueAfterExhaustion = true),
+        ).build(seed.id, length, FloatArray(5)).rows
+        return JourneySequencer.order(snapshot, rows).map { snapshot.tracks[it].id }
+    }
+
+    private suspend fun engine(
+        continuation: Boolean,
+        judged: Boolean = false,
+        runPenalty: Float = 0f,
+        library: List<TrackDescriptor> = tracks,
+        index: InMemoryVectorIndex = InMemoryVectorIndex(960),
+    ) = DefaultSimilarityEngine(
+        backend = FakeEmbeddingBackend(vectors), index = index,
         store = FakeIndexStore(),
         config = SmartEngineConfig(
             embeddingDim = 960, modelVersion = "walk-test", continueAfterExhaustion = continuation,
@@ -124,12 +163,13 @@ internal class SmartContinuationEngineTest {
         dispatcher = Dispatchers.Default.limitedParallelism(1, "walk-test"),
     ).also {
         it.initialize()
-        it.indexLibrary(tracks)
+        it.indexLibrary(library)
     }
 
-    private fun snapshot() = requireNotNull(SmartSnapshot.build(tracks.map { track ->
-        SmartTrack(track.id, vectors.getValue(track.id), meta = TrackMeta(track.title, track.artist, null, null, null))
-    }))
+    private fun snapshot(library: List<TrackDescriptor> = tracks, audio: Map<TrackId, FloatArray> = vectors) =
+        requireNotNull(SmartSnapshot.build(library.map { track ->
+            SmartTrack(track.id, audio.getValue(track.id), meta = TrackMeta(track.title, track.artist, null, null, null))
+        }))
 
     private fun eligible(snapshot: SmartSnapshot, library: List<TrackDescriptor>): BooleanArray {
         val allowed = library.map { it.id }.toSet()

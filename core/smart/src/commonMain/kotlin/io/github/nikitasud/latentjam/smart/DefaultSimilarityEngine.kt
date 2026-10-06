@@ -696,24 +696,36 @@ internal class DefaultSimilarityEngine(
             } else {
                 ChainTuning(continueAfterExhaustion = config.continueAfterExhaustion)
             }
-            val chain = SmartChain(
+            val planner = SmartChain(
                 snapshot,
                 livePredictor,
                 eligibleRows,
                 typicalityWeight = config.typicalityWeight,
                 companionGroups = companionGroups,
                 tuning = tuning,
-            ).build(
+            )
+            val timeFeatures = clock.timeFeatures()
+            fun plan(walk: ChainWalk?) = planner.build(
                 seedId = seed.id,
                 length = length,
-                timeFeatures = clock.timeFeatures(),
+                timeFeatures = timeFeatures,
                 historyEvents = history,
-                resume = resume,
+                resume = walk,
             )
+            var continued = resume
+            var chain = plan(resume)
+            // The carried picks keep the artist cap running, so in a library of a few artists they can
+            // hold every artist at the cap and end the walk before its first pick. That plan starts a
+            // new walk from its seed, as every plan did before the continuation mode, rather than
+            // falling back to metadata or to no plan at all.
+            if (continued != null && chain.rows.isEmpty()) {
+                continued = null
+                chain = plan(null)
+            }
             // Marked playlists have positional quota turns; retain their planned order.
             // Otherwise bridge the selected tracks locally before handing the plan to playback; a
             // continued walk is bridged from the queue's last track, which plays right before it.
-            val continuedFrom = if (resume != null) snapshot.rowOf(seed.id).takeIf { it >= 0 } else null
+            val continuedFrom = if (continued != null) snapshot.rowOf(seed.id).takeIf { it >= 0 } else null
             val rows = if (companionGroups.isEmpty()) {
                 JourneySequencer.order(snapshot, chain.rows, from = continuedFrom, sameArtistCost = runPenalty)
             } else {
