@@ -296,6 +296,7 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -412,6 +413,42 @@ internal fun shouldInvalidateSmartFuture(
     previous: List<Set<TrackId>>,
     updated: List<Set<TrackId>>,
 ): Boolean = policyInitialized && previous != updated
+
+/** How long Artist variety must rest on a level before the SMART tracks already queued are replanned for it. */
+internal const val ARTIST_VARIETY_SETTLE_MS: Long = 400L
+
+/**
+ * Applies the Artist variety setting to SMART, including the tracks SMART has already queued.
+ *
+ * The engine plans with a level's penalty from its next plan on, but SMART keeps a planned future: the rows ahead of
+ * the playhead (the SMART queue length) and the chooser's unserved plan. Left alone, a new level would first be heard
+ * twenty to thirty tracks later, so a change replans that future, as marking a playlist does. App runs [apply] for
+ * each level the setting takes and cancels it when the next one arrives, so a drag across the slider replans once,
+ * at the level it rests on.
+ */
+internal class ArtistVarietyApplier(
+    private val setPenalty: (Float) -> Unit,
+    private val invalidateSmartFuture: suspend () -> Unit,
+    private val companionGroups: () -> List<Set<TrackId>>,
+) {
+    /**
+     * The level the queued SMART future follows. Null until the first [apply], which only restores the saved level:
+     * replanning then would throw away a persisted SMART queue that should resume exactly.
+     */
+    private var plannedWith: Int? = null
+
+    suspend fun apply(level: Int) {
+        val sanitized = sanitizeArtistVariety(level)
+        setPenalty(ARTIST_VARIETY_PENALTIES[sanitized])
+        val previous = plannedWith
+        // While a playlist is marked, plans ignore the level (artistVarietyApplies), so nothing queued would change.
+        val replan = previous != null && previous != sanitized && artistVarietyApplies(companionGroups())
+        if (replan) delay(ARTIST_VARIETY_SETTLE_MS)
+        // Recorded before the replan: if the next level cuts it short, part of the queue already follows this one.
+        plannedWith = sanitized
+        if (replan) invalidateSmartFuture()
+    }
+}
 
 /** An externally resumed platform queue always wins over reloading and pausing the saved queue. */
 internal fun shouldApplySavedPlaybackAfterPlatformSync(now: NowPlaying): Boolean =
@@ -579,8 +616,15 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         LaunchedEffect(playback, smartQueueLength) {
             playback.setSmartQueueLength(smartQueueLength)
         }
-        LaunchedEffect(engine, artistVariety) {
-            engine.setArtistRunPenalty(ARTIST_VARIETY_PENALTIES[sanitizeArtistVariety(artistVariety)])
+        val artistVarietyApplier = remember(engine, playback) {
+            ArtistVarietyApplier(
+                setPenalty = engine::setArtistRunPenalty,
+                invalidateSmartFuture = { playback.invalidateSmartFuture() },
+                companionGroups = { AppGraph.smartCompanionGroups.value },
+            )
+        }
+        LaunchedEffect(artistVarietyApplier, artistVariety) {
+            artistVarietyApplier.apply(artistVariety)
         }
         val snackbar = remember { SnackbarHostState() }
         var tracks by remember { mutableStateOf<List<TrackDescriptor>?>(null) }
