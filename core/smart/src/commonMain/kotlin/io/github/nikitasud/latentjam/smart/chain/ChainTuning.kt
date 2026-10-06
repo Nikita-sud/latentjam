@@ -36,6 +36,21 @@ internal data class ChainTuning(
      * w descriptor; 0.5 is the shipped equal weighting ([Reanchor.fusedCos]). EXPERIMENTAL.
      */
     val neighbourhoodDescriptorWeight: Float = 0.5f,
+    /**
+     * Rings: once the neighbourhood is spent, the continuation mode lowers the closeness threshold
+     * around the same reference in steps of this size, down to [ringFloor], before it moves the
+     * reference to the latest pick. The walk then reaches the nearest remaining style first, instead
+     * of wherever its last pick leads. 0 keeps the move at once. EXPERIMENTAL.
+     */
+    val ringStep: Float = 0f,
+    /** The widest ring, as a fused cosine to the reference; see [ringStep]. */
+    val ringFloor: Float = 0.20f,
+    /**
+     * Seed gravity inside a widened ring, as a share of the usual: the ring already keeps the walk
+     * near its reference, so a lower value lets the previous pick choose among the ring's tracks
+     * and keeps the step smooth. 1 is the usual pull. EXPERIMENTAL.
+     */
+    val ringSeedPull: Float = 1f,
     /** See [ChainConfig.COMPANION_BONUS]. */
     val companionBonus: Float = ChainConfig.COMPANION_BONUS,
     /**

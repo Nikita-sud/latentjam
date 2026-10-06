@@ -144,11 +144,14 @@ internal data class ChainResult(val rows: List<Int>, val pool: List<Int>, val wa
  *   the artist cap, the repeated-title check, the artist repeat penalty and the genre-family count
  *   running as they do inside one chain of the longest queue the app plans
  * @param picksUnderIntent how many of the latest [picks] were chosen with [intent] as the reference
+ * @param ring the closeness threshold the walk had widened to around [intent]
  */
 internal data class ChainWalk(
     val intent: TrackId,
     val picks: List<TrackId>,
     val picksUnderIntent: Int,
+    /** The ring the walk had widened to around [intent] ([ChainTuning.ringStep]). */
+    val ring: Float = Reanchor.NICHE_COS,
 ) {
     companion object {
         /** The longest queue the app plans in one chain (the SMART queue length setting's maximum). */
@@ -286,9 +289,11 @@ internal class SmartChain(
         val softNeighbourhood = continueAfterExhaustion && tuning.neighbourhoodBonus.isFinite()
         // This hop's neighbourhood, for the soft bonus.
         var hopNearby: Set<Int> = emptySet()
-        // Closeness depends only on the reference: computed once per reference, filtered every hop.
+        // Closeness depends only on the reference and the ring: computed once per pair, filtered every hop.
         var closeTo = -1
+        var closeToRing = Float.NaN
         var closeToRows = IntArray(0)
+        var ring = Reanchor.NICHE_COS
         var intentRow = seedRow
         val consideredRows = LinkedHashSet<Int>()
         if (!continueAfterExhaustion) consideredRows.addAll(pool)
@@ -325,6 +330,7 @@ internal class SmartChain(
             val resumedIntent = snapshot.rowOf(resume.intent)
             if (resumedIntent >= 0) {
                 intentRow = resumedIntent
+                ring = resume.ring
                 snapshot.tracks[intentRow].meta.titleArtistKey?.let(seenTitles::add)
                 seedGenres = Genres.families(snapshot.tracks[intentRow].meta.genre)
                 val underIntent = carried.takeLast(resume.picksUnderIntent.coerceIn(0, carried.size))
@@ -373,20 +379,27 @@ internal class SmartChain(
                     ) unavailable.add(row)
                 }
                 fun closeRows(reference: Int): Set<Int> {
-                    if (reference != closeTo) {
+                    if (reference != closeTo || ring != closeToRing) {
                         closeTo = reference
+                        closeToRing = ring
                         closeToRows = snapshot.tracks.indices.filter { row ->
                             Reanchor.isCloseContinuation(
                                 snapshot.centeredCosine(reference, row), snapshot.descriptorCosine(reference, row),
-                                tuning.neighbourhoodDescriptorWeight,
+                                tuning.neighbourhoodDescriptorWeight, ring,
                             )
                         }.toIntArray()
                     }
                     return closeToRows.filterTo(HashSet()) { it !in unavailable }
                 }
                 var nearby = closeRows(intentRow)
+                // Rings: widen around the same reference before leaving it.
+                while (nearby.isEmpty() && tuning.ringStep > 0f && ring - tuning.ringStep >= tuning.ringFloor - 1e-6f) {
+                    ring -= tuning.ringStep
+                    nearby = closeRows(intentRow)
+                }
                 if (nearby.isEmpty() && intentRow != anchorRow) {
                     intentRow = anchorRow
+                    ring = Reanchor.NICHE_COS
                     seedGenres = Genres.families(snapshot.tracks[intentRow].meta.genre)
                     seedFamilyPicks = 0
                     picksUnderIntent = 0
@@ -414,6 +427,9 @@ internal class SmartChain(
             }
             // Previous-pick-relative semantic z: recomputed each hop against the current anchor.
             val zPrev = chainSemanticZ(anchorRow, poolRows)
+            // Inside a widened ring the ring keeps the walk near its reference; the previous pick
+            // decides among the ring's tracks (multiplying by 1 leaves every other score unchanged).
+            val seedPull = if (continueAfterExhaustion && ring < Reanchor.NICHE_COS) tuning.ringSeedPull else 1f
 
             // Tail-exhaustion re-anchor. From output position REANCHOR MIN_IDX on, once too few
             // eligible candidates sit within NICHE_COS fused cosine of the ORIGINAL seed the niche
@@ -497,13 +513,13 @@ internal class SmartChain(
                 // Seed gravity toward the user's actual pick — or, on an exhausted tail hop, toward
                 // the re-anchored effective seed (effSeed).
                 val seedCos = seedGravityCos(effSeed, seedRow, row)
-                score += ChainConfig.CHAIN_SEED_GRAVITY * seedCos
+                score += seedPull * ChainConfig.CHAIN_SEED_GRAVITY * seedCos
                 // Semantic gravity/blend: same shape as the audio terms, in the descriptor+text
                 // spaces and pool-normalized (see zSeed/zPrev construction). Zero when the seed or
                 // anchor has no semantic vector or too few pool members do, leaving score unchanged.
                 // zSeedActive == zSeed except on an exhausted tail hop (medoid reference). A bonus
                 // needs the candidate to sound like its reference (soundBackedZ).
-                val semantic = ChainConfig.SEM_CHAIN_SEED_GRAVITY * soundBackedZ(zSeedActive[i], seedCos) +
+                val semantic = seedPull * ChainConfig.SEM_CHAIN_SEED_GRAVITY * soundBackedZ(zSeedActive[i], seedCos) +
                     ChainConfig.SEM_CHAIN_PREV_BLEND * soundBackedZ(zPrev[i], anchorCos)
                 score += if (tuning.semanticWeight == 1f) semantic else tuning.semanticWeight * semantic
                 // Typicality: the axis centering removes. Off (0f) unless the caller opts in, so
@@ -625,6 +641,7 @@ internal class SmartChain(
                 intent = snapshot.tracks[intentRow].id,
                 picks = picks.map { snapshot.tracks[it].id },
                 picksUnderIntent = picksUnderIntent.coerceAtMost(picks.size),
+                ring = ring,
             )
         } else {
             null

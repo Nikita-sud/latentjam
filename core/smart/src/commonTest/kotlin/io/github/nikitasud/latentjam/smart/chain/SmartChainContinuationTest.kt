@@ -134,6 +134,41 @@ internal class SmartChainContinuationTest {
     }
 
     @Test
+    fun `rings around the pick keep the walk near it after its closest tracks run out`() {
+        val snapshot = rings()
+        val inner = (1..4).toSet()
+        val outer = (5..8).toSet()
+        val escape = (9..12).toSet()
+        fun closeAt(row: Int, threshold: Float) = Reanchor.isCloseContinuation(
+            snapshot.centeredCosine(0, row), snapshot.descriptorCosine(0, row), threshold = threshold,
+        )
+        for (row in inner) assertTrue(closeAt(row, Reanchor.NICHE_COS), "row $row must neighbour the pick")
+        for (row in outer) {
+            assertFalse(closeAt(row, Reanchor.NICHE_COS), "row $row must be outside the first ring")
+            assertTrue(closeAt(row, 0.25f), "row $row must be inside a wider ring")
+        }
+        for (row in escape) assertFalse(closeAt(row, 0.20f), "row $row must be beyond every ring")
+        fun plan(step: Float) = SmartChain(
+            snapshot, null,
+            tuning = ChainTuning(continueAfterExhaustion = true, ringStep = step, ringFloor = 0.20f),
+        ).build(TrackId("0"), 6, FloatArray(5))
+        val plain = plan(0f)
+        val ringed = plan(0.05f)
+        assertEquals(inner, plain.rows.take(4).toSet())
+        assertEquals(inner, ringed.rows.take(4).toSet())
+        assertTrue(plain.rows[4] in escape, "without rings the walk follows its last track out: ${plain.rows}")
+        assertTrue(ringed.rows.drop(4).all { it in outer }, "with rings it widens around the pick: ${ringed.rows}")
+        assertEquals(TrackId("0"), ringed.walk?.intent)
+        assertTrue(ringed.walk!!.ring < Reanchor.NICHE_COS, "the widened ring carries over to the next plan")
+        // Letting the previous pick decide inside the ring still keeps the walk within it.
+        val previousDecides = SmartChain(
+            snapshot, null,
+            tuning = ChainTuning(continueAfterExhaustion = true, ringStep = 0.05f, ringFloor = 0.20f, ringSeedPull = 0f),
+        ).build(TrackId("0"), 6, FloatArray(5)).rows
+        assertTrue(previousDecides.drop(4).all { it in outer }, "rings still bound the walk: $previousDecides")
+    }
+
+    @Test
     fun `without the continuation mode a walk changes nothing`() {
         val snapshot = satellites()
         val walk = ChainWalk(TrackId("0"), listOf(TrackId("1")), picksUnderIntent = 1)
@@ -153,6 +188,28 @@ internal class SmartChainContinuationTest {
 
     private fun close(snapshot: SmartSnapshot, a: Int, b: Int) =
         Reanchor.isCloseContinuation(snapshot.centeredCosine(a, b), snapshot.descriptorCosine(a, b))
+
+    /**
+     * A pick (row 0), four close neighbours (1-4), an outer ring (5-8) that sounds a little like the
+     * pick, an escape (9-12) that sounds like one neighbour each but not like the pick, and fillers.
+     */
+    private fun rings(): SmartSnapshot {
+        fun unit(vararg parts: Pair<Int, Float>) = FloatArray(PredictorRuntime.EMBEDDING_DIM).also { v ->
+            for ((axis, value) in parts) v[axis] += value
+            val norm = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
+            for (i in v.indices) v[i] /= norm
+        }
+        val vectors = buildList {
+            add(unit(0 to 1f))
+            for (i in 1..4) add(unit(0 to 1f, (10 + i) to 0.8f))
+            for (j in 1..4) add(unit(0 to 0.3f, (100 + j) to 1f))
+            for (i in 1..4) add(unit((10 + i) to 1f, 0 to 0.2f))
+            for (k in 1..6) add(unit(0 to -1f, (300 + k) to 0.05f))
+        }
+        return requireNotNull(SmartSnapshot.build(vectors.mapIndexed { row, audio ->
+            SmartTrack(TrackId(row.toString()), audio, meta = TrackMeta("Title $row", "Artist $row", null, null, null))
+        }))
+    }
 
     /** See [satelliteVectors]: the seed, its neighbours, one satellite per neighbour, fillers. */
     private fun satellites(): SmartSnapshot = requireNotNull(SmartSnapshot.build(
