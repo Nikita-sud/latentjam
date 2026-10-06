@@ -206,6 +206,25 @@ repeated artist and era. Each version drifts where the other does not: 0.7.1 int
 a modern seed, the continuation mode into show tunes or ambient after a pop seed. The proxies' gains are too small
 for the judge to notice; the mode is on for its measured continuity and coverage, not as a judged improvement.
 
+### Rings: slower drift, judged better
+
+The judge's main complaint about both versions is drift off the seed's style. Rings (`7fc9cb19`): once the
+neighbourhood is spent, the threshold widens around the same pick (0.40, 0.35, … down to a floor) before the walk
+follows its latest pick, and inside a widened ring the pull toward the pick weakens so the previous track chooses.
+Protocol written first (`sweep-2026-10-06/protocol-rings.json`): variants chosen on MPD r1k_a, s1k_a, r3k by the
+judge with proxy limits, accepted on r1k_b, r1k_c, s1k_b in both app scenarios.
+
+- Discovery (450 starts, judge against 0.7.1): every variant +0.21 to +0.25, the current mode +0.22; selected
+  step 0.05, floor 0.20, pull 0.25 (+0.23; audio adjacency −0.005 against 0.7.1).
+- Held out (450 starts each): judge against 0.7.1 +0.15 [+0.07, +0.22] with top-ups and +0.08 [+0.01, +0.14] from
+  a 20-track start; against the current mode +0.09 [+0.03, +0.15] and +0.08 [+0.01, +0.15]. Playlist share against
+  0.7.1 +1.12 [+0.30, +1.94] and +0.99 [+0.26, +1.69] pp; abrupt transitions no more frequent; fewer repeated
+  artists; audio adjacency −0.003 [−0.009, +0.003] and −0.010 [−0.015, −0.005]. The second misses the
+  pre-registered −0.005 smoothness margin, so by its own protocol the variant is not accepted.
+- Reading pairs by hand agrees with the judge on its clear calls (2010s pop staying pop instead of turning to rap
+  and five Britney Spears tracks; a wide ring letting a grime seed wander to Owl City and AC/DC). Both versions put
+  one artist's tracks next to each other (the ordering keeps similar tracks together).
+
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
 `continuity-model-comparison.json` re-evaluates the earlier models on fixed transition rulers.
