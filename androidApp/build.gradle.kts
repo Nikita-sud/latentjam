@@ -2,7 +2,9 @@
  * Copyright (c) 2026 LatentJam Project
  * SPDX-License-Identifier: Apache-2.0
  */
+import com.android.build.api.artifact.SingleArtifact
 import java.util.Properties
+import org.gradle.work.DisableCachingByDefault
 
 plugins {
     alias(libs.plugins.androidApplication)
@@ -98,6 +100,52 @@ android {
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = false
+        }
+    }
+}
+
+// Builds that turn the splits off package every ABI a dependency ships, x86 included. An ABI that has
+// ONNX Runtime but not LatentJam's operators (:core:ort-ops) installs, then never loads the music encoder.
+// Android Studio builds native code only for the connected device's ABI (android.injected.build.abi), so
+// its builds are not held to this.
+val deviceAbiOnly = providers.gradleProperty("android.injected.build.abi").isPresent
+androidComponents {
+    onVariants { variant ->
+        val variantName = variant.name.replaceFirstChar(Char::uppercaseChar)
+        val verify = tasks.register<CheckNativeLibraries>("check${variantName}NativeLibraries") {
+            group = LifecycleBasePlugin.VERIFICATION_GROUP
+            description = "Fails when an ABI of this build packages ONNX Runtime without libljq4.so."
+            nativeLibraries.set(variant.artifacts.get(SingleArtifact.MERGED_NATIVE_LIBS))
+        }
+        if (!deviceAbiOnly) {
+            tasks.named { it == "assemble$variantName" || it == "bundle$variantName" }
+                .configureEach { dependsOn(verify) }
+        }
+    }
+}
+
+/** Fails when an ABI directory of [nativeLibraries] holds libonnxruntime.so but not libljq4.so. */
+@DisableCachingByDefault(because = "Listing the libraries again is as quick as a cache lookup")
+abstract class CheckNativeLibraries : DefaultTask() {
+
+    @get:InputFiles
+    @get:SkipWhenEmpty
+    @get:IgnoreEmptyDirectories
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val nativeLibraries: DirectoryProperty
+
+    @TaskAction
+    fun check() {
+        val abis = nativeLibraries.get().asFile.resolve("lib").listFiles().orEmpty().filter { it.isDirectory }
+        val missing = abis
+            .filter { it.resolve("libonnxruntime.so").isFile && !it.resolve("libljq4.so").isFile }
+            .map { it.name }
+            .sorted()
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "libljq4.so is missing for ${missing.joinToString()}, which packages ONNX Runtime: the music " +
+                    "encoder would never load on such a device. Add the ABI to :core:ort-ops' abiFilters.",
+            )
         }
     }
 }

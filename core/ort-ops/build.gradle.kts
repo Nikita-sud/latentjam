@@ -21,7 +21,9 @@ android {
             }
         }
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            // Every ABI ONNX Runtime ships: the universal APK (F-Droid) and the Play bundle carry its x86
+            // libraries, and a device that installs them must find these operators beside them.
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
         }
     }
 
