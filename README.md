@@ -61,13 +61,13 @@ download. Use F-Droid if you already do (it updates the app for you), but it can
 behind, so the newest features may not have arrived there yet. On iPhone, sideload the IPA.
 
 - **Android APK** — from the [Releases page](https://github.com/Nikita-sud/latentjam/releases/latest),
-  download `LatentJam-vX.Y.Z-arm64.apk` (about 57 MB; fits almost any phone from the last decade).
-  Old 32-bit phones need the `armv7` APK (about 65 MB). Open it on the phone, allow installing
+  download `LatentJam-vX.Y.Z-arm64.apk` (about 38 MB; fits almost any phone from the last decade).
+  Old 32-bit phones need the `armv7` APK (about 46 MB). Open it on the phone, allow installing
   unknown apps and tap through Play Protect's warning. Requires **Android 7.0+**.
 - **[F-Droid](https://f-droid.org/packages/io.github.nikitasud.latentjam.kmp/)** builds LatentJam
   from this source on its own schedule, so it can trail the newest release here; it ships one larger
-  APK for every processor type (83 MiB).
-- **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 63 MB) is **unsigned**: install
+  APK for every processor type (66 MiB).
+- **iPhone IPA** — not on the App Store or TestFlight. The IPA (about 44 MB) is **unsigned**: install
   it with AltStore or Sideloadly from a Mac or PC, which re-sign it with your Apple ID; with a free
   Apple ID the install must be refreshed every 7 days. Requires **iOS 15.1+**. Music comes from files
   you import through the Files app and from songs downloaded to your Music library. Protected Apple
@@ -159,9 +159,9 @@ computed on the device:
 
 | Signal | Dimensions | Where it comes from |
 |---|---:|---|
-| **Audio embedding** | 960 | MobileNetV4-Conv-M encoder over the raw waveform |
-| **Metadata embedding** | 384 | A 5 MB text encoder trained to reproduce MiniLM's sentence vectors (with search phrases in twenty languages), over trusted `genre; artist; original year; language` tags |
-| **Artist knowledge** | 384 | What an offline teacher wrote about 350k MusicBrainz and Wikidata artists, stored as 22 bytes per artist; a small adapter guesses it for artists outside the pack |
+| **Audio embedding** | 960 | A pruned MobileNetV4-Conv-M encoder over the raw waveform, its 4-bit weights run by LatentJam's own ONNX Runtime operator |
+| **Metadata embedding** | 384 | A 4 MB text encoder trained to reproduce MiniLM's sentence vectors (with search phrases in twenty languages), over trusted `genre; artist; original year; language` tags |
+| **Artist knowledge** | 384 | What an offline teacher wrote about the 350k MusicBrainz and Wikidata artists the name index knows (its 190k confident answers are kept, about 20 bytes each); a small adapter guesses it for the rest |
 
 **Retrieval.** Three rankings are interleaved into one 100-track candidate pool: audio close to the
 track you picked, audio close to the session, and what is known about the seed's artist (from the
@@ -177,9 +177,13 @@ a track without usable tags is scored on audio alone.
 
 **The queue.** A scoring chain balances the model's vote against local coherence, keeps pulling back
 toward the track you chose, and uses pool-relative semantic scores so niche corners of a library
-stay intact. Metadata rules then nudge repeated artists down instead of banning them (a much better
-match by the same artist can still win), suppress duplicate titles and keep one very dense cluster
-(cinematic and anime soundtracks) from crowding the queue. The finished queue is ordered into gentle
+stay intact. On top sits a small correction learned from a blind judge's rankings of real playlists
+(public MPD data): it passes over a candidate that would change the sound abruptly while a closer one
+is left, and the walk carries on across top-ups. Metadata rules nudge repeated artists down instead
+of banning them (each further song by one artist in a row must fit better by more; Settings → SMART
+engine → Artist variety), suppress duplicate titles, other versions of a song included, and keep one
+very dense cluster (cinematic and anime soundtracks) from crowding the queue. Playlists marked *Keep
+together in SMART* earn points, not reserved slots. The finished queue is ordered into gentle
 transitions.
 
 **Messy tags.** Track *titles* are excluded from the embedding, so a filename like `Hard Techno Mix`
@@ -189,8 +193,9 @@ no year carries its artist's decade.
 
 **Tuning.** The scorer's weights are frozen and *objective*: SMART ranks by what the music is, not by
 who is listening. Listening history is used as runtime context, **never trained on and never
-uploaded**. The constants around the scorer (chain weights, quotas, spacing) are chosen by replaying
-recorded model outputs and simulated listeners through the full chain, not by hand.
+uploaded**. The constants around the scorer (chain weights, the learned correction, spacing) are
+chosen by replaying recorded model outputs and simulated listeners through the full chain and by blind
+judges on public playlists, not by hand.
 
 **Cold start.** The audio index builds in small persisted batches spread over the whole library;
 until candidates are ready, SMART *abstains* rather than quietly falling back to random. A listener
@@ -200,7 +205,7 @@ with no history gets a state trained for exactly that case, so the first queue i
 the metadata encoder runs at indexing and for search queries; the state encoder and the scorer run
 while a queue is built; a small semantic head turns audio embeddings into the genre-family scores the
 map and the mixes use. The model bundle (graphs, vocabulary, the artist index and the knowledge pack)
-is about 50 MB on both Android and iOS. There is no precomputed per-track catalogue: an imported
+is about 24 MB on both Android and iOS. There is no precomputed per-track catalogue: an imported
 track takes exactly the same local path as everything else.
 
 **Further reading:** [docs/model-selection.md](docs/model-selection.md) (architecture choice,
