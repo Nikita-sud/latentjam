@@ -378,6 +378,61 @@ word such as a movement's name. Queues playing one song twice or the seed's song
 to 0.3 % fresh; both judges slightly prefer the result (fit +0.02 [+0.00, +0.03] and +0.01 [+0.00, +0.02], default
 +0.03 [+0.02, +0.05] and +0.02 [+0.01, +0.03]); playlist share and harsh transitions unchanged.
 
+### Planning time on large libraries (2026-10-07)
+
+The judged scoring builds a full-library pool at every pick (the correction reads the neighbourhood as a feature, so
+it may pick outside it), and each pool rescored the whole library against its reference and sorted it four times. A
+release review measured what that costs: on a synthetic 10,000-track library (host JVM, `ChainPlanningBenchmark`, a
+stand-in predictor, so without ONNX Runtime) a 20-track plan took 349 ms against 22 ms for the default chain, a
+40-track plan 674 ms, and the For You hero, a map region and "Start SMART" wait for that plan before playing.
+
+The rankings that depend only on the reference (audio closeness, trusted text, the artist descriptor) are now sorted
+once per reference and filtered by availability each pick, which lists the available rows in the same order. The
+state ranking changes with every pick; its 100 best rows are selected instead of sorting the library, ties in row
+order as the stable sort kept them, and every whole-library dot product runs four rows at a time, each sum in the
+order of a single loop, so the scores are the same floats. The same 10,000 tracks: 63 ms for 20 tracks, 112 ms for
+40 (default chain 12 and 15); 3,000 tracks: 25 ms for 20 (was 108). With the real models through the replay harness,
+a 36-track plan on the 3,002-track r3k library costs 254 ms per seed instead of 400 (the default chain 223).
+
+Queues are unchanged byte for byte, every pick's trace included, replayed before and after with the app's judged mode,
+the default chain and the hard continuation mode: r3k, r1k_b and train_r4 (150 cold seeds each)
+and the owner's listening history (1,073 seeds, history mode; its judged plans 230 ms per seed instead of 263)
+(`speed-2026-10-07/identity.sh`). No device timing yet.
+
+### Against 0.7.1 and Lune (2026-10-06)
+
+Seven MPD libraries (the three held out and the four fresh ones), 1,050 cold seeds, 36-track queues from 0.7.1 (the
+chain with every new knob off, on 0.7.1's features and models), this release (the app's settings) and Lune's smart
+shuffle: a re-implementation of its score in the research folder, not in this repository (similarity to the current
+track from same artist, genre or genre family and an energy profile guessed from title, genre and duration, minus a
+same-artist term, plus a small random term; a random pick among the best three). Lune ran cold, without the listening
+history it learns from, and with DeepSeek's artist genres because MPD files carry none. `three-way-2026-10-06/`.
+
+| pair, 1,050 queues judged in both orders | fit judge | default judge |
+|---|---|---|
+| this release vs 0.7.1 | +0.27 [+0.22, +0.33] (481 wins, 241 losses) | +0.25 [+0.20, +0.31] (481, 247) |
+| this release vs Lune | +1.03 [+0.96, +1.10] (782, 125) | +0.53 [+0.46, +0.60] (570, 202) |
+| 0.7.1 vs Lune | +0.78 [+0.70, +0.86] (690, 204) | +0.29 [+0.22, +0.36] (461, 284) |
+
+Two blind listeners, eight three-queue examples each: mean place 1.50 for this release, 1.94 for 0.7.1, 2.56 for
+Lune (first 9, 5 and 2 times); this release over 0.7.1 10:6, over Lune 14:2.
+
+| first 24 tracks | 0.7.1 | this release | Lune |
+|---|---|---|---|
+| in a real playlist with the seed | 21.1 % | 22.1 % | 15.5 % |
+| harsh transitions (audio cosine < 0.2) | 2.4 % | 1.2 % | 51.3 % |
+| style cosine of neighbours | 0.609 | 0.667 | 0.220 |
+| longest run of one artist | 4.14 | 3.33 | 1.00 |
+| queues with five or more in a row | 38 % | 21 % | 0 % |
+| one song twice | 8.1 % | 0.2 % | 3.9 % |
+| style cosine to the seed, tracks 25-36 | 0.207 | 0.332 | 0.195 |
+
+What the listeners still disliked in this release: runs of four to six (the seed's artist at the start, blocks
+later), a queue that drifts far while every step is smooth (Ellie Goulding to post-rock), and a medley right after its
+own song (the live "Free / Into The Mystic" before the studio "Free"; 0.7.1 does the same). Limits: Lune's learning
+from plays and skips is not reproduced, DeepSeek's genres may favour it before a DeepSeek judge, and the correction
+was fitted to the fit judge, on other libraries.
+
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
 `continuity-model-comparison.json` re-evaluates the earlier models on fixed transition rulers.
