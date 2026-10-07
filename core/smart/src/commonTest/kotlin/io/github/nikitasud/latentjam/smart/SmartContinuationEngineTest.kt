@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart
 
 import io.github.nikitasud.latentjam.smart.chain.ChainConfig
 import io.github.nikitasud.latentjam.smart.chain.ChainTuning
+import io.github.nikitasud.latentjam.smart.chain.CompanionMembership
 import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
 import io.github.nikitasud.latentjam.smart.chain.NEIGHBOURS
 import io.github.nikitasud.latentjam.smart.chain.Rerank
@@ -119,26 +120,52 @@ internal class SmartContinuationEngineTest {
     }
 
     @Test
-    fun `marked playlists keep the shipped chain under judged scoring`() = runTest {
-        // The seed is in no marked playlist and still keeps the shipped chain. The app's Settings show Artist
-        // variety as off while any playlist is marked (artistVarietyApplies); a narrower gate must change that too.
+    fun `under judged scoring marked playlists are points and the run penalty still counts`() = runTest {
         val groups = listOf(setOf(tracks[1].id, tracks[2].id, tracks[3].id))
-        val judged = engine(continuation = true, judged = true, runPenalty = 0.5f)
-        val plain = engine(continuation = true)
+        val engine = engine(continuation = true, judged = true, runPenalty = 0.5f)
         assertEquals(
-            plain.smartQueue(tracks.first(), tracks.drop(1), 5, companionGroups = groups),
-            judged.smartQueue(tracks.first(), tracks.drop(1), 5, companionGroups = groups),
+            judgedJourney(tracks.drop(1), tracks.first(), 0.5f, groups),
+            engine.smartQueue(tracks.first(), tracks.drop(1), 5, companionGroups = groups),
+        )
+        engine.setArtistRunPenalty(2f)
+        assertEquals(
+            judgedJourney(tracks.drop(1), tracks.first(), 2f, groups),
+            engine.smartQueue(tracks.first(), tracks.drop(1), 5, companionGroups = groups),
         )
     }
 
-    private fun judgedJourney(library: List<TrackDescriptor>, seed: TrackDescriptor, runPenalty: Float): List<TrackId> {
+    @Test
+    fun `without judged scoring marked playlists keep the shipped chain in its planned order`() = runTest {
+        val groups = listOf(setOf(tracks[1].id, tracks[2].id, tracks[3].id))
+        val snapshot = snapshot()
+        val planned = SmartChain(
+            snapshot, null, eligible(snapshot, tracks.drop(1)), companionGroups = groups,
+            tuning = ChainTuning(continueAfterExhaustion = true),
+        ).build(tracks.first().id, 5, FloatArray(5)).rows
+        assertEquals(
+            planned.map { snapshot.tracks[it].id },
+            engine(continuation = true).smartQueue(tracks.first(), tracks.drop(1), 5, companionGroups = groups),
+        )
+    }
+
+    private fun judgedJourney(
+        library: List<TrackDescriptor>,
+        seed: TrackDescriptor,
+        runPenalty: Float,
+        groups: List<Set<TrackId>> = emptyList(),
+    ): List<TrackId> {
         val snapshot = snapshot()
         val tuning = ChainTuning(
             continueAfterExhaustion = true, neighbourhoodBonus = 0f, rerankWeights = Rerank.JUDGED_WEIGHTS,
-            soundFloor = Rerank.SOUND_FLOOR, artistRunPenalty = runPenalty,
+            soundFloor = Rerank.SOUND_FLOOR, artistRunPenalty = runPenalty, companionPoints = Rerank.COMPANION_POINTS,
         )
-        val rows = SmartChain(snapshot, null, eligible(snapshot, library), tuning = tuning).build(seed.id, 5, FloatArray(5)).rows
-        return JourneySequencer.order(snapshot, rows, sameArtistCost = runPenalty).map { snapshot.tracks[it].id }
+        val rows = SmartChain(snapshot, null, eligible(snapshot, library), companionGroups = groups, tuning = tuning)
+            .build(seed.id, 5, FloatArray(5)).rows
+        val companions = if (groups.isEmpty()) null else CompanionMembership.build(snapshot.tracks.map { it.id }, groups)
+        return JourneySequencer.order(
+            snapshot, rows, sameArtistCost = runPenalty, companions = companions,
+            togetherCost = if (companions == null) 0f else Rerank.COMPANION_POINTS.together,
+        ).map { snapshot.tracks[it].id }
     }
 
     /** A walk started afresh from [seed], [library] still eligible: the engine's path without a carried walk. */

@@ -59,6 +59,12 @@ internal object Rerank {
     /** The sound floor the judged scoring was accepted with ([ChainTuning.soundFloor]). */
     const val SOUND_FLOOR = 0.2f
 
+    /**
+     * Marked playlists in the judged scoring ([ChainTuning.companionPoints]): chosen from a 3 x 3 grid on MPD
+     * libraries with real playlists marked, by both judges against the shipped quota (protocol-companions.json).
+     */
+    val COMPANION_POINTS: CompanionPoints = CompanionPoints(together = 1f, comeback = 1f)
+
     fun features(
         snapshot: SmartSnapshot,
         out: FloatArray,

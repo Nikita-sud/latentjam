@@ -31,17 +31,33 @@ internal object JourneySequencer {
      *   track), never one of [rows]; null keeps every window's first pick
      * @param sameArtistCost what two neighbours by one artist add to the journey's cost, in standard
      *   deviations of the window's step costs ([ChainTuning.artistRunPenalty]); 0 leaves the order alone
+     * @param companions the listener's marked playlists: two neighbours sharing one pay [sameArtistCost] only
+     *   times (1 - the playlist's specificity) and save [togetherCost] times its specificity, in the same unit
+     *   ([CompanionPoints.together]); null leaves the order as without marked playlists
      */
-    fun order(snapshot: SmartSnapshot, rows: List<Int>, from: Int? = null, sameArtistCost: Float = 0f): List<Int> =
+    fun order(
+        snapshot: SmartSnapshot,
+        rows: List<Int>,
+        from: Int? = null,
+        sameArtistCost: Float = 0f,
+        companions: CompanionMembership? = null,
+        togetherCost: Float = 0f,
+    ): List<Int> =
         rows.chunked(WINDOW_SIZE).flatMapIndexed { index, window ->
             if (index == 0 && from != null) {
-                orderWindow(snapshot, listOf(from) + window, sameArtistCost).drop(1)
+                orderWindow(snapshot, listOf(from) + window, sameArtistCost, companions, togetherCost).drop(1)
             } else {
-                orderWindow(snapshot, window, sameArtistCost)
+                orderWindow(snapshot, window, sameArtistCost, companions, togetherCost)
             }
         }
 
-    private fun orderWindow(snapshot: SmartSnapshot, rows: List<Int>, sameArtistCost: Float): List<Int> {
+    private fun orderWindow(
+        snapshot: SmartSnapshot,
+        rows: List<Int>,
+        sameArtistCost: Float,
+        companions: CompanionMembership?,
+        togetherCost: Float,
+    ): List<Int> {
         if (rows.size < 4) return rows
         val n = rows.size
         val costs = Array(n) { FloatArray(n) }
@@ -57,7 +73,9 @@ internal object JourneySequencer {
                 costs[b][a] = costs[a][b]
             }
         }
-        if (sameArtistCost > 0f) separateArtists(snapshot, rows, costs, sameArtistCost)
+        if (sameArtistCost > 0f || (companions != null && togetherCost > 0f)) {
+            adjust(snapshot, rows, costs, sameArtistCost, companions, togetherCost)
+        }
         val route = rows.indices.toMutableList()
         // Symmetric costs make a reversal's gain depend only on its two boundary edges.
         // Bound the work even for unusual inputs; equal-cost alternatives retain original order.
@@ -88,7 +106,15 @@ internal object JourneySequencer {
         return route.map { rows[it] }
     }
 
-    private fun separateArtists(snapshot: SmartSnapshot, rows: List<Int>, costs: Array<FloatArray>, weight: Float) {
+    /** Same-artist neighbours cost more and neighbours from one marked playlist less, in spreads of the costs. */
+    private fun adjust(
+        snapshot: SmartSnapshot,
+        rows: List<Int>,
+        costs: Array<FloatArray>,
+        weight: Float,
+        companions: CompanionMembership?,
+        togetherCost: Float,
+    ) {
         val n = rows.size
         var sum = 0.0
         var squares = 0.0
@@ -102,11 +128,13 @@ internal object JourneySequencer {
         val spread = sqrt((squares / count - mean * mean).coerceAtLeast(0.0)).toFloat()
         if (spread <= 0f) return
         for (a in 0 until n) for (b in 0 until a) {
+            val together = companions?.takeIf { it.sharesGroup(rows[a], rows[b]) }?.weight(rows[a], rows[b]) ?: 0f
             val artist = snapshot.tracks[rows[a]].meta.artistKey
-            if (artist.isNotEmpty() && artist == snapshot.tracks[rows[b]].meta.artistKey) {
-                costs[a][b] += weight * spread
-                costs[b][a] = costs[a][b]
+            if (weight > 0f && artist.isNotEmpty() && artist == snapshot.tracks[rows[b]].meta.artistKey) {
+                costs[a][b] += if (together == 0f) weight * spread else weight * spread * (1f - together)
             }
+            if (togetherCost > 0f) costs[a][b] -= togetherCost * together * spread
+            costs[b][a] = costs[a][b]
         }
     }
 }

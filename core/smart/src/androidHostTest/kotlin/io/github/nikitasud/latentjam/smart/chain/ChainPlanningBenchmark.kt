@@ -10,8 +10,9 @@ import kotlin.test.Test
 
 /**
  * Opt-in diagnostic: SMART_CHAIN_BENCHMARK=1, then run this host test with --rerun. Times one plan of the shipped
- * judged chain (and of the default chain, for reference) on synthetic libraries of 3,000 and 10,000 tracks, with a
- * stand-in predictor so the per-hop state ranking runs as in the app. ORT's own time is not part of it.
+ * judged chain, with and without marked playlists (and of the default chain, for reference), the journey order
+ * included, on synthetic libraries of 3,000 and 10,000 tracks, with a stand-in predictor so the per-hop state ranking
+ * runs as in the app. ORT's own time is not part of it.
  *
  * Output: one `chain-bench` line per library size, mode and length with the median milliseconds per plan and a
  * checksum of every planned row, so a change that must not alter queues can be checked on the same libraries.
@@ -29,15 +30,37 @@ class ChainPlanningBenchmark {
         )
         for (n in listOf(3_000, 10_000)) {
             val snapshot = library(n)
-            for ((mode, tuning) in listOf("judged" to judged, "default" to ChainTuning())) {
-                val chain = SmartChain(snapshot, StandInPredictor(), tuning = tuning)
+            // Marked playlists as a listener might have them: eight of 20 tracks and a broad one holding them.
+            val marked = (0 until 8).map { g ->
+                (0 until 20).map { TrackId(((g * 997 + it * 13) % n).toString()) }.toSet()
+            }
+            val broad = marked.flatten().toSet() + (0 until n / 3).map { TrackId((it * 3).toString()) }
+            val groups = marked + listOf(broad)
+            val modes = listOf(
+                Triple("judged", judged, emptyList<Set<TrackId>>()),
+                Triple("judged-marked", judged.copy(companionPoints = Rerank.COMPANION_POINTS), groups),
+                Triple("default", ChainTuning(), emptyList()),
+            )
+            for ((mode, tuning, companionGroups) in modes) {
+                val chain = SmartChain(snapshot, StandInPredictor(), companionGroups = companionGroups, tuning = tuning)
+                val companions = if (companionGroups.isEmpty()) null else
+                    CompanionMembership.build(snapshot.tracks.map { it.id }, companionGroups)
                 for (length in listOf(12, 20, 40)) {
-                    val seeds = (0 until SEEDS).map { TrackId((it * (n / SEEDS) + 7).toString()) }
+                    // Seeds inside the marked playlists when there are any, so their points take part.
+                    val seeds = (0 until SEEDS).map { i ->
+                        if (companionGroups.isEmpty()) TrackId((i * (n / SEEDS) + 7).toString())
+                        else marked[i % 8].first()
+                    }
                     repeat(2) { chain.build(seeds[it], length, FloatArray(5)) }
                     var checksum = 17L
                     val times = seeds.map { seed ->
                         val start = System.nanoTime()
-                        val rows = chain.build(seed, length, FloatArray(5)).rows
+                        val planned = chain.build(seed, length, FloatArray(5)).rows
+                        // The order step as the engine runs it.
+                        val rows = JourneySequencer.order(
+                            snapshot, planned, sameArtistCost = tuning.artistRunPenalty, companions = companions,
+                            togetherCost = tuning.companionPoints?.together ?: 0f,
+                        )
                         val elapsed = (System.nanoTime() - start) / 1e6
                         for (row in rows) checksum = checksum * 31 + row
                         elapsed

@@ -330,7 +330,9 @@ internal class SmartChain(
         val chain = ArrayList<Int>(length)
         val used = HashSet<Int>()
         var anchorRow = seedRow
-        val continueAfterExhaustion = tuning.continueAfterExhaustion && companions.groupCount == 0
+        // Marked playlists as points (ChainTuning.companionPoints) leave the walk as it is without them.
+        val points = tuning.companionPoints?.takeIf { companions.groupCount > 0 }
+        val continueAfterExhaustion = tuning.continueAfterExhaustion && (companions.groupCount == 0 || points != null)
         val softNeighbourhood = continueAfterExhaustion && tuning.neighbourhoodBonus.isFinite()
         // This hop's neighbourhood, for the soft bonus.
         var hopNearby: Set<Int> = emptySet()
@@ -357,6 +359,15 @@ internal class SmartChain(
             quotaPositionByGroup[group] = position
         }
         var nextQuotaGroupPosition = 0
+        // Points-only marked playlists: the reference's playlists, and the picks since each last played.
+        var comebackGroups = IntArray(0)
+        var comebackMisses = IntArray(0)
+        fun comebackFrom(reference: Int, walked: List<Int>) {
+            comebackGroups = companions.quotaGroupsOf(reference)
+            comebackMisses = IntArray(comebackGroups.size) { g ->
+                walked.asReversed().takeWhile { !companions.contains(comebackGroups[g], it) }.size
+            }
+        }
         val recentArtists = ArrayDeque<String>()
         // The seed establishes intent, so it carries no repeat penalty. Subsequent picks enter
         // this short window; the penalty accumulates if both recent picks share an artist.
@@ -403,6 +414,9 @@ internal class SmartChain(
                 }
             }
         }
+
+        // The reference is a member of its own playlists; a resumed walk counts its picks since then.
+        if (points != null) comebackFrom(intentRow, carried.takeLast(picksUnderIntent))
 
         // Semantic reference for the active intent: fixed at the original pick by default,
         // recomputed after each pool refill in continuation mode.
@@ -462,6 +476,7 @@ internal class SmartChain(
                     seedGenres = Genres.families(snapshot.tracks[intentRow].meta.genre)
                     seedFamilyPicks = 0
                     picksUnderIntent = 0
+                    if (points != null) comebackFrom(intentRow, emptyList())
                     nearby = closeRows(intentRow)
                 }
                 // Search the full eligible library before declaring a neighborhood exhausted.
@@ -613,8 +628,8 @@ internal class SmartChain(
                 }
                 // The listener's own "keep these together": a nudge for candidates sharing a
                 // marked group with the current anchor, weighted by how SPECIFIC the smallest
-                // shared group is. No groups — no term, see COMPANION_BONUS.
-                if (companions.sharesGroup(anchorRow, row)) {
+                // shared group is. No groups — no term, see COMPANION_BONUS. As points, below.
+                if (points == null && companions.sharesGroup(anchorRow, row)) {
                     score += tuning.companionBonus * companions.weight(anchorRow, row)
                 }
                 // Experimental personal term, harness-only today (see ChainTuning): default
@@ -687,14 +702,44 @@ internal class SmartChain(
             }
             // A run of one artist: the next of its tracks in a row gives up runLength spreads of this
             // hop's scores per unit of the penalty, so it still wins when it clearly fits best.
-            if (tuning.artistRunPenalty > 0f && runLength > 0) {
-                val penalty = tuning.artistRunPenalty * runLength * scoreSpread(hopScores, hopScored)
+            val runPenalised = tuning.artistRunPenalty > 0f && runLength > 0
+            val spread = if (runPenalised || points != null) scoreSpread(hopScores, hopScored) else 0f
+            if (runPenalised) {
+                val penalty = tuning.artistRunPenalty * runLength * spread
                 if (penalty > 0f) {
                     for (i in pool.indices) {
                         if (hopScored[i] && snapshot.tracks[pool[i]].meta.artistKey == runArtist) {
-                            hopScores[i] -= penalty
-                            hopTerms?.get(i)?.let { it[5] -= penalty }
+                            // Within a marked playlist the run is the listener's own, as far as the playlist is
+                            // specific: a small one lifts the penalty almost entirely, a broad one keeps most of it.
+                            val paid = if (points != null && companions.sharesGroup(anchorRow, pool[i])) {
+                                penalty * (1f - companions.weight(anchorRow, pool[i]))
+                            } else {
+                                penalty
+                            }
+                            hopScores[i] -= paid
+                            hopTerms?.get(i)?.let { it[5] -= paid }
                         }
+                    }
+                }
+            }
+            // Marked playlists as points: a candidate that shares one with the previous pick, and one
+            // from a playlist of the reference that has not played for a while, gain spreads of this
+            // hop's scores; nothing is guaranteed (ChainTuning.companionPoints).
+            if (points != null && spread > 0f) {
+                for (i in pool.indices) {
+                    if (!hopScored[i]) continue
+                    val row = pool[i]
+                    var comeback = 0f
+                    for (g in comebackGroups.indices) {
+                        if (comebackMisses[g] > 0 && companions.contains(comebackGroups[g], row)) {
+                            comeback = maxOf(comeback, comebackMisses[g] * companions.specificity(comebackGroups[g]))
+                        }
+                    }
+                    val together = if (companions.sharesGroup(anchorRow, row)) companions.weight(anchorRow, row) else 0f
+                    val bonus = (points.together * together + points.comeback * comeback) * spread
+                    if (bonus != 0f) {
+                        hopScores[i] += bonus
+                        hopTerms?.get(i)?.let { it[6] += bonus }
                     }
                 }
             }
@@ -718,7 +763,7 @@ internal class SmartChain(
 
             // The quota hop: see COMPANION_QUOTA_STRIDE. Falls through to the normal pick when
             // the seed has no marked groups or no member survived this hop's eligibility.
-            val quotaHop = seedCompanionGroups.isNotEmpty() &&
+            val quotaHop = points == null && seedCompanionGroups.isNotEmpty() &&
                 (chain.size + 1) % ChainConfig.COMPANION_QUOTA_STRIDE == 0
             var chosenIndex = bestIndex
             if (quotaHop) {
@@ -764,6 +809,9 @@ internal class SmartChain(
             }
             anchorRow = pickedRow
             picksUnderIntent++
+            for (g in comebackGroups.indices) {
+                comebackMisses[g] = if (companions.contains(comebackGroups[g], pickedRow)) 0 else comebackMisses[g] + 1
+            }
 
             // The final pick needs no state advance — nothing consumes it, and the encoder is the
             // chain's dominant cost.

@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.smart
 import io.github.nikitasud.latentjam.smart.chain.ChainTuning
 import io.github.nikitasud.latentjam.smart.chain.Rerank
 import io.github.nikitasud.latentjam.smart.chain.ChainWalk
+import io.github.nikitasud.latentjam.smart.chain.CompanionMembership
 import io.github.nikitasud.latentjam.smart.chain.JourneySequencer
 import io.github.nikitasud.latentjam.smart.chain.MetadataFallbackQueue
 import io.github.nikitasud.latentjam.smart.chain.PredictorRuntime
@@ -675,15 +676,15 @@ internal class DefaultSimilarityEngine(
                     "indexed=$indexedEligible/${eligibleIds.size}, required=$requiredAudio, " +
                     "text=${if (textEncoderLoaded) "ready" else "unavailable"}",
             )
+            // The judged scoring takes marked playlists as points; the shipped chain keeps its quota for them.
+            val judged = config.judgedScoring && config.continueAfterExhaustion
             // A request seeded with the last track of a plan this engine answered continues that
             // walk (the app tops the queue up this way); any other seed starts a new one.
-            val resume = if (config.continueAfterExhaustion && companionGroups.isEmpty()) {
+            val resume = if (config.continueAfterExhaustion && (companionGroups.isEmpty() || judged)) {
                 walks[seed.id]
             } else {
                 null
             }
-            // The judged scoring was measured on queues without marked playlists; theirs keep the shipped chain.
-            val judged = config.judgedScoring && config.continueAfterExhaustion && companionGroups.isEmpty()
             val runPenalty = if (judged) artistRunPenalty else 0f
             val tuning = if (judged) {
                 ChainTuning(
@@ -692,6 +693,7 @@ internal class DefaultSimilarityEngine(
                     rerankWeights = Rerank.JUDGED_WEIGHTS,
                     soundFloor = Rerank.SOUND_FLOOR,
                     artistRunPenalty = runPenalty,
+                    companionPoints = Rerank.COMPANION_POINTS,
                 )
             } else {
                 ChainTuning(continueAfterExhaustion = config.continueAfterExhaustion)
@@ -722,12 +724,18 @@ internal class DefaultSimilarityEngine(
                 continued = null
                 chain = plan(null)
             }
-            // Marked playlists have positional quota turns; retain their planned order.
+            // The shipped chain's marked playlists have positional quota turns; retain their planned order.
             // Otherwise bridge the selected tracks locally before handing the plan to playback; a
             // continued walk is bridged from the queue's last track, which plays right before it.
             val continuedFrom = if (continued != null) snapshot.rowOf(seed.id).takeIf { it >= 0 } else null
             val rows = if (companionGroups.isEmpty()) {
                 JourneySequencer.order(snapshot, chain.rows, from = continuedFrom, sameArtistCost = runPenalty)
+            } else if (judged) {
+                JourneySequencer.order(
+                    snapshot, chain.rows, from = continuedFrom, sameArtistCost = runPenalty,
+                    companions = CompanionMembership.build(snapshot.tracks.map { it.id }, companionGroups),
+                    togetherCost = Rerank.COMPANION_POINTS.together,
+                )
             } else {
                 chain.rows
             }

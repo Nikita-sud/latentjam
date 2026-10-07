@@ -80,6 +80,13 @@ internal data class ChainTuning(
     /** See [ChainConfig.COMPANION_BONUS]. */
     val companionBonus: Float = ChainConfig.COMPANION_BONUS,
     /**
+     * Marked playlists as points only ([CompanionPoints]): no quota turn, no raw [companionBonus],
+     * the continuation mode keeps working with marked playlists, and the [artistRunPenalty] between
+     * two tracks of one marked playlist shrinks to (1 - its specificity). Null keeps the shipped
+     * mechanism. EXPERIMENTAL.
+     */
+    val companionPoints: CompanionPoints? = null,
+    /**
      * How far (in score units, where 1.0 cosine ~ 3.0) a marked group's champion may trail the
      * hop's best candidate and still take a guaranteed quota turn. Infinity reproduces the
      * unconditional quota.
@@ -96,6 +103,21 @@ internal data class ChainTuning(
      */
     val personalAffinity: ((Int) -> Float)? = null,
     val personalWeight: Float = 0f,
+)
+
+/**
+ * Marked playlists ("Keep together in SMART") as points in a hop's score, in standard deviations of
+ * the hop's candidate scores like [ChainTuning.artistRunPenalty], each times the playlist's
+ * specificity ([CompanionMembership.weight]). Nothing is guaranteed: a candidate still has to fit.
+ */
+internal data class CompanionPoints(
+    /** For a candidate that shares a marked playlist with the previous pick. */
+    val together: Float,
+    /**
+     * For a candidate in a marked playlist of the walk's reference, per pick since that playlist
+     * last played: a playlist that sounds unlike the walk gains with every pick it misses.
+     */
+    val comeback: Float,
 )
 
 /**

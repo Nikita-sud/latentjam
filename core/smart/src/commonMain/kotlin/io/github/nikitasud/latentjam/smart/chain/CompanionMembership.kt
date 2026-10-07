@@ -70,6 +70,30 @@ internal class CompanionMembership private constructor(
     fun sharesGroup(rowA: Int, rowB: Int): Boolean =
         firstSharedGroup(rowA, rowB) >= 0
 
+    /** Whether [row] is a member of [group]. */
+    fun contains(group: Int, row: Int): Boolean {
+        // A row's groups are sorted ascending (see build).
+        val groups = groupsByRow[row]
+        var low = 0
+        var high = groups.size - 1
+        while (low <= high) {
+            val middle = (low + high) ushr 1
+            when {
+                groups[middle] < group -> low = middle + 1
+                groups[middle] > group -> high = middle - 1
+                else -> return true
+            }
+        }
+        return false
+    }
+
+    /** How specific [group] is: `1 - size/librarySize`, floored as in [weight]. */
+    fun specificity(group: Int): Float {
+        if (populationSize == 0) return 0f
+        return (1f - rowsByGroup[group].size.toFloat() / populationSize)
+            .coerceIn(ChainConfig.COMPANION_SPECIFICITY_FLOOR, 1f)
+    }
+
     /** Specificity of the smallest group shared by two rows. */
     fun weight(rowA: Int, rowB: Int): Float {
         val left = groupsByRow[rowA]
