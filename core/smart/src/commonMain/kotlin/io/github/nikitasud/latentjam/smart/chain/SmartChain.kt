@@ -276,7 +276,17 @@ internal class SmartChain(
 
         val excludedRows = sessionExclusions(seedRow, context.sessionRows, length)
         var provenance: HashMap<Int, String>? = if (trace != null) HashMap() else null
-        val initialPool = buildPool(seedRow, state, excludedRows, provenance = provenance)
+        // The latest reference's cosines and full-library rankings, reused while the reference stays.
+        var cosines: ReferenceCosines? = null
+        fun cosinesFor(reference: Int): ReferenceCosines =
+            cosines?.takeIf { it.reference == reference } ?: referenceCosines(reference).also { cosines = it }
+        var ranking: ReferenceRanking? = null
+        fun rankingFor(reference: Int): ReferenceRanking =
+            ranking?.takeIf { it.reference == reference }
+                ?: referenceRanking(cosinesFor(reference)).also { ranking = it }
+        val initialPool = buildPool(
+            seedRow, state, excludedRows, provenance = provenance, ranking = rankingFor(seedRow),
+        )
         val seedTitle = snapshot.tracks[seedRow].meta.titleArtistKey
         // A bounded retrieval can contain only alternate releases of the seed. Search past
         // those rows before abstaining; leave every productive pool and its scores unchanged.
@@ -286,7 +296,9 @@ internal class SmartChain(
             val duplicateRows = snapshot.tracks.indices.filterTo(HashSet()) {
                 snapshot.tracks[it].meta.titleArtistKey == seedTitle
             }
-            buildPool(seedRow, state, excludedRows + duplicateRows, provenance = provenance)
+            buildPool(
+                seedRow, state, excludedRows + duplicateRows, provenance = provenance, ranking = rankingFor(seedRow),
+            )
         } else {
             initialPool
         }
@@ -427,9 +439,10 @@ internal class SmartChain(
                     if (reference != closeTo || ring != closeToRing) {
                         closeTo = reference
                         closeToRing = ring
+                        val cosines = cosinesFor(reference)
                         closeToRows = snapshot.tracks.indices.filter { row ->
                             Reanchor.isCloseContinuation(
-                                snapshot.centeredCosine(reference, row), snapshot.descriptorCosine(reference, row),
+                                cosines.audio[row], cosines.descriptor(row),
                                 tuning.neighbourhoodDescriptorWeight, ring,
                             )
                         }.toIntArray()
@@ -456,7 +469,7 @@ internal class SmartChain(
                 hopNearby = nearby
                 if (trace != null) provenance = HashMap()
                 pool = if (nearby.isEmpty() || softNeighbourhood) {
-                    buildPool(intentRow, state, unavailable, provenance = provenance)
+                    buildPool(intentRow, state, unavailable, provenance = provenance, ranking = rankingFor(intentRow))
                 } else {
                     buildPool(intentRow, state, unavailable, among = nearby, provenance = provenance)
                 }
@@ -1022,6 +1035,8 @@ internal class SmartChain(
     /**
      * @param among when given, the only rows that may enter the pool: scores are computed for these
      *   alone, and the pool is exactly the one [excluded] = every other row would give.
+     * @param ranking [seedRow]'s reference-only rankings, when the caller keeps them between pools;
+     *   used only without [among] and computed here when missing. The pool is the same either way.
      */
     private fun buildPool(
         seedRow: Int,
@@ -1029,58 +1044,24 @@ internal class SmartChain(
         excluded: Set<Int>,
         among: Set<Int>? = null,
         provenance: MutableMap<Int, String>? = null,
+        ranking: ReferenceRanking? = null,
     ): List<Int> {
-        val n = snapshot.size
-        val dim = PredictorRuntime.EMBEDDING_DIM
-        val rows = among?.sorted()?.toIntArray() ?: IntArray(n) { it }
-        val anchorScores = FloatArray(n)
-        for (row in rows) {
-            anchorScores[row] = snapshot.centeredCosine(seedRow, row) -
-                ChainConfig.HUB_PENALTY_BETA * snapshot.hubPenalty[row]
-        }
-
-        val stateScores = FloatArray(n)
-        val textScores = FloatArray(n) { Float.NEGATIVE_INFINITY }
-        if (state.size >= dim) {
-            val query = normalized(state, dim)
-            val textDim = SmartSnapshot.TEXT_DIM
-            val rawText = snapshot.rawText
-            val seedText = if (rawText != null && snapshot.hasText?.get(seedRow) == true) {
-                rawText.copyOfRange(seedRow * textDim, (seedRow + 1) * textDim)
-            } else {
-                null
-            }
-            for (row in rows) {
-                var audio = 0f
-                val base = row * dim
-                for (d in 0 until dim) audio += snapshot.rawAudio[base + d] * query[d]
-                stateScores[row] = audio
-                if (seedText != null && snapshot.hasText?.get(row) == true) {
-                    var text = 0f
-                    val textBase = row * textDim
-                    for (d in 0 until textDim) text += rawText!![textBase + d] * seedText[d]
-                    textScores[row] = text
-                }
-            }
+        val channels = if (among == null) {
+            val kept = ranking?.takeIf { it.reference == seedRow }
+            libraryChannels(kept ?: referenceRanking(referenceCosines(seedRow)), state, excluded)
         } else {
-            anchorScores.copyInto(stateScores)
+            subsetChannels(seedRow, state, excluded, among)
         }
-
-        val anchorOrder = order(anchorScores, seedRow, excluded, rows)
-        val stateOrder = order(stateScores, seedRow, excluded, rows)
-        val textOrder = rows
-            .filter {
-                it != seedRow && eligibleRows[it] && it !in excluded && textScores[it].isFinite()
-            }
-            .sortedByDescending { textScores[it] }
-            .toIntArray()
+        val anchorScores = channels.anchorScores
+        val anchorOrder = channels.anchor
+        val stateOrder = channels.state
         // A fourth channel ranks by the descriptor space (what a teacher knows about the artist),
         // when the seed has a descriptor. It then also takes the trusted-text channel's turn: the
         // descriptor is what the teacher knows about the same artist, and swapping measured
         // +1.5 cold / +1.0 history P@10 on the listener, MPD +-1 (smart-bench exp_desc_quota.py).
         // Without a descriptor it is empty, so the pool is exactly the three-channel one.
-        val descriptorOrder = descriptorOrder(seedRow, excluded, rows)
-        val textTurn = if (descriptorOrder.isEmpty()) textOrder else IntArray(0)
+        val descriptorOrder = channels.descriptor
+        val textTurn = if (descriptorOrder.isEmpty()) channels.text else IntArray(0)
         val pool = ArrayList<Int>(PredictorRuntime.POOL_SIZE)
         val seen = HashSet<Int>()
         var i = 0
@@ -1154,6 +1135,182 @@ internal class SmartChain(
             }
         }
         return pool
+    }
+
+    /**
+     * A pool's four rankings, best first, and the anchor scores its companion tail is ordered by.
+     * The interleave reads at most the first [PredictorRuntime.POOL_SIZE] of each ranking: every
+     * anchor row it has passed is in the pool, so it stops before reaching that position.
+     */
+    private class PoolChannels(
+        val anchorScores: FloatArray,
+        val anchor: IntArray,
+        val state: IntArray,
+        val text: IntArray,
+        val descriptor: IntArray,
+    )
+
+    /**
+     * The rankings a full-library pool takes from its reference alone (audio closeness, trusted
+     * text, the artist descriptor) over every eligible row but the reference. A walk keeps its
+     * reference for many hops, so they are sorted once per reference and only filtered by
+     * availability each hop: a stable sort of the available rows lists them in the same order.
+     */
+    private class ReferenceRanking(
+        val reference: Int,
+        val anchorScores: FloatArray,
+        val anchor: IntArray,
+        val text: IntArray,
+        val descriptor: IntArray,
+    )
+
+    /** The reference's cosines to every row, shared by its neighbourhood and its rankings. */
+    private class ReferenceCosines(
+        val reference: Int,
+        val audio: FloatArray,
+        private val descriptor: FloatArray?,
+        private val hasDescriptor: BooleanArray?,
+    ) {
+        /** [SmartSnapshot.descriptorCosine] of the reference and [row]. */
+        fun descriptor(row: Int): Float? =
+            if (descriptor != null && hasDescriptor?.get(row) == true) descriptor[row] else null
+    }
+
+    private fun referenceCosines(reference: Int) = ReferenceCosines(
+        reference = reference,
+        audio = snapshot.centeredCosines(reference),
+        descriptor = snapshot.descriptorCosines(reference),
+        hasDescriptor = snapshot.hasDescriptor,
+    )
+
+    private fun referenceRanking(cosines: ReferenceCosines): ReferenceRanking {
+        val reference = cosines.reference
+        val n = snapshot.size
+        val rows = IntArray(n) { it }
+        val anchorScores = FloatArray(n)
+        for (row in rows) {
+            anchorScores[row] = cosines.audio[row] - ChainConfig.HUB_PENALTY_BETA * snapshot.hubPenalty[row]
+        }
+        val textScores = FloatArray(n) { Float.NEGATIVE_INFINITY }
+        val rawText = snapshot.rawText
+        val hasText = snapshot.hasText
+        if (rawText != null && hasText?.get(reference) == true) {
+            val withText = IntArray(n)
+            var count = 0
+            for (row in rows) if (hasText[row]) withText[count++] = row
+            val textDim = SmartSnapshot.TEXT_DIM
+            batchDots(rawText, textDim, rawText, reference * textDim, withText, count, textScores)
+        }
+        // Rows without a descriptor never enter this channel, as in descriptorOrder.
+        val descriptorScores = FloatArray(n) { cosines.descriptor(it) ?: Float.NEGATIVE_INFINITY }
+        return ReferenceRanking(
+            reference = reference,
+            anchorScores = anchorScores,
+            anchor = order(anchorScores, reference, emptySet(), rows),
+            text = rows
+                .filter { it != reference && eligibleRows[it] && textScores[it].isFinite() }
+                .sortedByDescending { textScores[it] }
+                .toIntArray(),
+            descriptor = rows
+                .filter { it != reference && eligibleRows[it] && descriptorScores[it].isFinite() }
+                .sortedByDescending { descriptorScores[it] }
+                .toIntArray(),
+        )
+    }
+
+    /**
+     * Every row may enter: the reference's rankings filtered by [excluded], and the state ranking,
+     * which changes with every pick, selected rather than sorted. Without a state the state ranking
+     * is the anchor one and the text channel is empty, as in [subsetChannels].
+     */
+    private fun libraryChannels(ranking: ReferenceRanking, state: FloatArray, excluded: Set<Int>): PoolChannels {
+        val keep = PredictorRuntime.POOL_SIZE
+        val anchor = ranking.anchor.firstAvailable(keep, excluded)
+        val descriptor = ranking.descriptor.firstAvailable(keep, excluded)
+        val dim = PredictorRuntime.EMBEDDING_DIM
+        if (state.size < dim) {
+            return PoolChannels(ranking.anchorScores, anchor, anchor, IntArray(0), descriptor)
+        }
+        val n = snapshot.size
+        val blocked = BooleanArray(n)
+        for (row in excluded) if (row in 0 until n) blocked[row] = true
+        val candidates = IntArray(n)
+        var count = 0
+        for (row in 0 until n) {
+            if (row != ranking.reference && eligibleRows[row] && !blocked[row]) candidates[count++] = row
+        }
+        val stateScores = FloatArray(n)
+        batchDots(snapshot.rawAudio, dim, normalized(state, dim), 0, candidates, count, stateScores)
+        return PoolChannels(
+            anchorScores = ranking.anchorScores,
+            anchor = anchor,
+            state = topRows(stateScores, candidates, count, keep),
+            text = ranking.text.firstAvailable(keep, excluded),
+            descriptor = descriptor,
+        )
+    }
+
+    /** Only [among] may enter: every ranking is computed and sorted over those rows alone. */
+    private fun subsetChannels(seedRow: Int, state: FloatArray, excluded: Set<Int>, among: Set<Int>): PoolChannels {
+        val n = snapshot.size
+        val dim = PredictorRuntime.EMBEDDING_DIM
+        val rows = among.sorted().toIntArray()
+        val anchorScores = FloatArray(n)
+        for (row in rows) {
+            anchorScores[row] = snapshot.centeredCosine(seedRow, row) -
+                ChainConfig.HUB_PENALTY_BETA * snapshot.hubPenalty[row]
+        }
+
+        val stateScores = FloatArray(n)
+        val textScores = FloatArray(n) { Float.NEGATIVE_INFINITY }
+        if (state.size >= dim) {
+            val query = normalized(state, dim)
+            val textDim = SmartSnapshot.TEXT_DIM
+            val rawText = snapshot.rawText
+            val seedText = if (rawText != null && snapshot.hasText?.get(seedRow) == true) {
+                rawText.copyOfRange(seedRow * textDim, (seedRow + 1) * textDim)
+            } else {
+                null
+            }
+            for (row in rows) {
+                var audio = 0f
+                val base = row * dim
+                for (d in 0 until dim) audio += snapshot.rawAudio[base + d] * query[d]
+                stateScores[row] = audio
+                if (seedText != null && snapshot.hasText?.get(row) == true) {
+                    var text = 0f
+                    val textBase = row * textDim
+                    for (d in 0 until textDim) text += rawText!![textBase + d] * seedText[d]
+                    textScores[row] = text
+                }
+            }
+        } else {
+            anchorScores.copyInto(stateScores)
+        }
+
+        return PoolChannels(
+            anchorScores = anchorScores,
+            anchor = order(anchorScores, seedRow, excluded, rows),
+            state = order(stateScores, seedRow, excluded, rows),
+            text = rows
+                .filter {
+                    it != seedRow && eligibleRows[it] && it !in excluded && textScores[it].isFinite()
+                }
+                .sortedByDescending { textScores[it] }
+                .toIntArray(),
+            descriptor = descriptorOrder(seedRow, excluded, rows),
+        )
+    }
+
+    /** The first [count] rows of this ranking that are not in [excluded], in order. */
+    private fun IntArray.firstAvailable(count: Int, excluded: Set<Int>): IntArray {
+        val out = IntArray(minOf(count, size))
+        var taken = 0
+        for (row in this) {
+            if (taken == out.size) break
+            if (row !in excluded) out[taken++] = row
+        }
+        return if (taken == out.size) out else out.copyOf(taken)
     }
 
     /**
@@ -1255,6 +1412,58 @@ internal class SmartChain(
         const val MILLIS_PER_DAY = 86_400_000.0
         const val LN_2 = 0.6931471805599453
     }
+}
+
+/**
+ * The first [keep] of `rows.take(count).sortedByDescending { scores[it] }`, for [rows] in ascending
+ * order, without sorting them all: the same rows in the same order. Scores compare by
+ * [Float.compareTo] as the sort compares them, and equal scores keep row order as its stable sort does.
+ */
+internal fun topRows(scores: FloatArray, rows: IntArray, count: Int, keep: Int): IntArray {
+    // Rows are distinct, so this is a strict order: a higher score first, then the lower row.
+    fun before(a: Int, b: Int): Boolean {
+        val c = scores[a].compareTo(scores[b])
+        return c > 0 || (c == 0 && a < b)
+    }
+    // A heap of the best rows so far with the one that ranks last on top.
+    val heap = IntArray(minOf(keep, count).coerceAtLeast(0))
+    var size = 0
+    for (index in 0 until count) {
+        val row = rows[index]
+        if (size < heap.size) {
+            var child = size++
+            heap[child] = row
+            while (child > 0) {
+                val parent = (child - 1) / 2
+                if (!before(heap[parent], heap[child])) break
+                heap[parent] = heap[child].also { heap[child] = heap[parent] }
+                child = parent
+            }
+        } else if (size > 0 && before(row, heap[0])) {
+            heap[0] = row
+            var parent = 0
+            while (true) {
+                val left = 2 * parent + 1
+                if (left >= size) break
+                val right = left + 1
+                val last = if (right < size && before(heap[left], heap[right])) right else left
+                if (!before(heap[parent], heap[last])) break
+                heap[parent] = heap[last].also { heap[last] = heap[parent] }
+                parent = last
+            }
+        }
+    }
+    // Insertion sort, best first: at most a pool's worth of rows.
+    for (i in 1 until size) {
+        val row = heap[i]
+        var j = i - 1
+        while (j >= 0 && before(row, heap[j])) {
+            heap[j + 1] = heap[j]
+            j--
+        }
+        heap[j + 1] = row
+    }
+    return heap
 }
 
 /**

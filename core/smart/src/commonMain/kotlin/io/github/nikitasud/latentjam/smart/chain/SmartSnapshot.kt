@@ -92,6 +92,30 @@ internal class SmartSnapshot private constructor(
         return dot
     }
 
+    /** [centeredCosine] of [reference] with every row: the same floats, a whole library at a time. */
+    fun centeredCosines(reference: Int): FloatArray {
+        val out = FloatArray(size)
+        if (reference < 0) return out
+        batchDots(centeredAudio, AUDIO_DIM, centeredAudio, reference * AUDIO_DIM, IntArray(size) { it }, size, out)
+        return out
+    }
+
+    /**
+     * [descriptorCosine] of [reference] with every row, read where [hasDescriptor] is set (elsewhere it
+     * is null); null when it is null for every row.
+     */
+    fun descriptorCosines(reference: Int): FloatArray? {
+        val dc = centeredDescriptor ?: return null
+        val has = hasDescriptor ?: return null
+        if (reference < 0 || !has[reference]) return null
+        val rows = IntArray(size)
+        var count = 0
+        for (row in 0 until size) if (has[row]) rows[count++] = row
+        val out = FloatArray(size)
+        batchDots(dc, descriptorDim, dc, reference * descriptorDim, rows, count, out)
+        return out
+    }
+
     /** Centered-text cosine between two rows, or `null` when either row has no text vector. */
     fun textCosine(rowA: Int, rowB: Int): Float? {
         val tc = centeredText ?: return null
@@ -360,5 +384,52 @@ internal class SmartSnapshot private constructor(
             for (x in v) sumSq += x.toDouble() * x
             return sqrt(sumSq).toFloat()
         }
+    }
+}
+
+/**
+ * `out[row] = Σ matrix[row · dim + d] · query[offset + d]`, d ascending, for the first [count] of [rows].
+ * Each sum runs in the same order as a loop over one row, so it is the same float; four rows go at a time
+ * so that their sums, independent of each other, run side by side instead of each addition waiting for
+ * the one before.
+ */
+internal fun batchDots(
+    matrix: FloatArray,
+    dim: Int,
+    query: FloatArray,
+    offset: Int,
+    rows: IntArray,
+    count: Int,
+    out: FloatArray,
+) {
+    var index = 0
+    while (index + 4 <= count) {
+        val base0 = rows[index] * dim
+        val base1 = rows[index + 1] * dim
+        val base2 = rows[index + 2] * dim
+        val base3 = rows[index + 3] * dim
+        var dot0 = 0f
+        var dot1 = 0f
+        var dot2 = 0f
+        var dot3 = 0f
+        for (d in 0 until dim) {
+            val q = query[offset + d]
+            dot0 += matrix[base0 + d] * q
+            dot1 += matrix[base1 + d] * q
+            dot2 += matrix[base2 + d] * q
+            dot3 += matrix[base3 + d] * q
+        }
+        out[rows[index]] = dot0
+        out[rows[index + 1]] = dot1
+        out[rows[index + 2]] = dot2
+        out[rows[index + 3]] = dot3
+        index += 4
+    }
+    while (index < count) {
+        val base = rows[index] * dim
+        var dot = 0f
+        for (d in 0 until dim) dot += matrix[base + d] * query[offset + d]
+        out[rows[index]] = dot
+        index++
     }
 }
