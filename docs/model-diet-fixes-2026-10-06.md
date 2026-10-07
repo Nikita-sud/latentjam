@@ -367,10 +367,9 @@ song twice in different versions, to runs of four to six by one artist and to a 
 In the app (`9b77945a`, `fe90ab23`, `978ab8de`): `SmartEngineConfig.judgedScoring` turns the scoring on with the
 continuation mode, and Settings > SMART > Artist variety picks the penalty from the five measured steps (Off, Low,
 Balanced = 0.5, High, Maximum), stored on both platforms and in local backups (format v6). A new level replans the
-SMART tracks already queued once the slider rests on it, as marking a playlist does. Plans made with marked playlists
-keep the shipped chain, and the app plans with every playlist marked "Keep together in SMART", so while any playlist
-is marked every queue keeps the shipped chain, seeds outside the playlists included; Settings then shows Artist
-variety as off, with a line saying why.
+SMART tracks already queued once the slider rests on it, as marking a playlist does. Marked playlists ("Keep
+together in SMART") first kept the shipped chain for every queue; since 2026-10-07 the judged scoring takes them as
+points (below).
 
 Versions of one song (`protocol-versions.json`): the repeated-title check also drops a trailing " - qualifier" that
 names a version (Radio Edit, Remastered 2011, a remix, From "Grease", feat. ...), keeping qualifiers without a version
@@ -432,6 +431,58 @@ later), a queue that drifts far while every step is smooth (Ellie Goulding to po
 own song (the live "Free / Into The Mystic" before the studio "Free"; 0.7.1 does the same). Limits: Lune's learning
 from plays and skips is not reproduced, DeepSeek's genres may favour it before a DeepSeek judge, and the correction
 was fitted to the fit judge, on other libraries.
+
+### Marked playlists as points (2026-10-07)
+
+The app plans every queue with all playlists marked "Keep together in SMART", and a plan with any marked playlist kept
+the shipped chain: a quota turn for the seed's playlists every third pick, a raw bonus, the planned order, no
+continuation. One marked playlist turned the judged scoring off for every queue; the owner's backup has 16 of 22
+playlists marked. The owner asked for points instead of guarantees, no run penalty inside a marked playlist, and no
+slower planning.
+
+`ChainTuning.companionPoints` ([CompanionPoints]): a candidate sharing a marked playlist with the previous pick gains
+`together`, one in a marked playlist of the walk's reference gains `comeback` for every pick since that playlist last
+played, both in standard deviations of the hop's candidate scores times the playlist's specificity; no quota; the
+reference's playlists still join the candidate pool, which only lets them compete. Between two tracks sharing a marked
+playlist the artist-run penalty is kept at (1 - specificity), so it is almost lifted inside a small playlist and mostly
+kept inside a broad one; `JourneySequencer` scales its same-artist cost the same way and saves `together` times the
+specificity for two neighbours from one marked playlist. The continuation mode now works with marked playlists.
+
+Protocol `companions-2026-10-07/protocol-companions.json`, written before the replays (amendment 1, before any judge:
+the first discovery run lifted the run penalty entirely and lengthened runs, because a broad marked playlist holds
+15-45 % of a library). Marks: `mark_playlists.py`, 8 real playlists of each MPD library plus a broad one, the union of
+those and 8 more; 100 seeds inside the 8, 50 in no marked playlist; cold replays of the app's 12-track plans,
+`companion_metrics.py` on the first 24 tracks. Discovery (r1k_a, s1k_a, r3k): seven of the nine grid points pass the
+eligibility rule, all seven beat the shipped mechanism with both judges, and together = 1, comeback = 1 has the largest
+min(fit, default), +0.42 / +0.35 (`Rerank.COMPANION_POINTS`).
+
+Acceptance (r1k_b, r1k_c, s1k_b, train_r3, train_s3, train_r4, train_r5; 700 seeds inside marked playlists, 350
+outside):
+
+| | shipped (quota) | points | judged, no marks |
+|---|---|---|---|
+| tracks from the seed's marked playlists | 44.7 % | 47.1 % | 18.3 % |
+| steps between two tracks of one marked playlist | 17.5 % | 38.5 % | 11.8 % |
+| harsh steps (audio cosine < 0.2) | 10.1 % | 2.2 % | 1.0 % |
+| tracks sharing an unmarked playlist with the seed | 34.6 % | 35.5 % | 29.5 % |
+| longest run of one artist / five or more in a row | 3.47 / 25 % | 3.90 / 34 % | 3.69 / 28 % |
+
+Judges against the shipped mechanism on the inside seeds: fit +0.36 [+0.30, +0.42] (367 wins, 120 losses), default
++0.23 [+0.17, +0.28] (316, 151); against the judged scoring without marks on the outside seeds: fit +0.06 [+0.01,
++0.11], default +0.06 [+0.00, +0.11]. Two blind listeners (the protocol's veto), eight pairs each with the marked
+playlist starred and named as theirs, chose points 11 times and the shipped mechanism 5 (5:3 and 6:2); both still
+object, in both versions, to five or six songs by one artist in a row and to second halves that wander.
+
+The owner's library (local only, 15 of the owner's marked playlists from the 2026-09-24 backup mapped onto the
+811-track July library, 113 seeds inside them): the shipped mechanism plays 69.2 % from the seed's playlists with
+13.3 % harsh steps, points 70.5 % with 1.8 % (no marks 51.6 % and 1.3 %); runs 4.44 / 48 % and 4.75 / 61 % (no marks
+3.27 / 21 %), mostly within the owner's own marked playlists.
+
+Planning time (`ChainPlanningBenchmark`, 10,000 tracks): a 20-track plan 62 ms with marked playlists against 63
+without, 40 tracks 117 against 119. A listener with marked playlists moves from the shipped chain (12 ms) to the
+judged scoring's cost, the same as everyone else's. Settings > SMART > Artist variety applies again with marked
+playlists. Limits: the marks on MPD are real playlists chosen at random, not a listener's; the judges do not know a
+playlist was marked; runs grow by about half a track, most of it inside marked playlists.
 
 Artifacts: `/Users/nichitabulgaru/Documents/LJ/model-diet-2026-10-04/phase4-auditfix-2026-10-06`. The queue investigation is in `continuation-implementation/`,
 with `full-results.json`, `full-per-seed.json`, source snapshots and runnable benchmark scripts.
