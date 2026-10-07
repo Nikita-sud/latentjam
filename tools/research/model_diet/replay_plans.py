@@ -51,6 +51,17 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                 val rerank = System.getProperty("diet.rerank")?.takeIf { it.isNotBlank() }
                     ?.split(',')?.map { it.trim().toFloat() }?.toFloatArray()
                     ?.also { require(it.size == Rerank.FEATURES) { "diet.rerank needs ${Rerank.FEATURES} weights" } }
+                // Marked playlists ("Keep together in SMART"): one group per line, comma-separated rows.
+                val companionGroups = System.getProperty("diet.companions")?.takeIf { it.isNotBlank() }
+                    ?.let { java.io.File(it).readLines() }.orEmpty()
+                    .filter { it.isNotBlank() }
+                    .map { line -> line.split(',').map { TrackId(it.trim()) }.toSet() }
+                val together = System.getProperty("diet.together")?.toFloatOrNull()
+                val comeback = System.getProperty("diet.comeback")?.toFloatOrNull()
+                val points = if (together != null || comeback != null) CompanionPoints(together ?: 0f, comeback ?: 0f) else null
+                val plannedOrder = System.getProperty("diet.order") == "planned"
+                val companionRows = if (companionGroups.isEmpty()) null else
+                    CompanionMembership.build(snapshot.tracks.map { it.id }, companionGroups)
                 val tracing = System.getProperty("diet.trace") == "true"
                 val tracingCandidates = System.getProperty("diet.traceCandidates") == "true"
                 val traced = StringBuilder()
@@ -101,12 +112,13 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                     val eligible = BooleanArray(snapshot.size) { it !in queued }
                     val resumed = if (carry) walk else null
                     val result = SmartChain(
-                        snapshot, runtime, eligible,
+                        snapshot, runtime, eligible, companionGroups = companionGroups,
                         tuning = ChainTuning(
                             continueAfterExhaustion = continuation, neighbourhoodBonus = bonus,
                             semanticWeight = semantic, neighbourhoodDescriptorWeight = descriptorShare,
                             ringStep = ringStep, ringFloor = ringFloor, ringSeedPull = ringPull, styleGate = styleGate,
                             rerankWeights = rerank, soundFloor = soundFloor, artistRunPenalty = artistRun,
+                            companionPoints = points,
                         ),
                     ).build(
                         seedId = tail, length = length, timeFeatures = job.timeFeatures, historyEvents = events,
@@ -138,11 +150,21 @@ PLAN_LOOP = """                val failures0 = runtime.failures
                             traced.append('}')
                         },
                     )
-                    // DefaultSimilarityEngine orders a resumed plan from the track it continues.
-                    val ordered = if (join && resumed != null) {
-                        JourneySequencer.order(snapshot, result.rows, from = snapshot.rowOf(tail), sameArtistCost = artistRun)
+                    // DefaultSimilarityEngine orders a resumed plan from the track it continues; the shipped
+                    // chain keeps a plan with marked playlists in its planned order (diet.order=planned).
+                    val togetherCost = points?.together ?: 0f
+                    val ordered = if (plannedOrder) {
+                        result.rows
+                    } else if (join && resumed != null) {
+                        JourneySequencer.order(
+                            snapshot, result.rows, from = snapshot.rowOf(tail), sameArtistCost = artistRun,
+                            companions = companionRows, togetherCost = togetherCost,
+                        )
                     } else if (artistRun > 0f) {
-                        JourneySequencer.order(snapshot, result.rows, sameArtistCost = artistRun)
+                        JourneySequencer.order(
+                            snapshot, result.rows, sameArtistCost = artistRun, companions = companionRows,
+                            togetherCost = togetherCost,
+                        )
                     } else {
                         harnessJourneyOrder(snapshot, result.rows) ?: fail("this source tree has no JourneySequencer")
                     }
@@ -193,8 +215,10 @@ def main():
                     help=f"one of {sorted(VARIANTS)}, or cfg:mode=<variant>,b=<neighbourhood bonus>,"
                          "s=<semantic weight>,w=<neighbourhood descriptor share>,r=<ring step>,f=<ring floor>,"
                          "p=<seed pull inside a widened ring>,g=<style gate>,k=<JSON file of learned weights>,"
-                         "a=<sound floor>,l=<artist run penalty>")
+                         "a=<sound floor>,l=<artist run penalty>,t=<together points>,c=<comeback points>,"
+                         "o=planned (keep the planned order, as the shipped chain does with marked playlists)")
     ap.add_argument("--pool", type=int, default=3)
+    ap.add_argument("--companions", type=Path, help="marked playlists: one group per line, comma-separated rows")
     ap.add_argument("--trace", action="store_true", help="also write <variant>.tsv.trace.jsonl with every pick's PickTrace")
     ap.add_argument("--trace-candidates", action="store_true", help="with --trace: also every scored candidate's features")
     a = ap.parse_args()
@@ -216,13 +240,18 @@ def main():
     def run(variant):
         bonus, semantic, share, step, floor, pull, gate = "inf", "1", "0.5", "0", "0.2", "1", "-inf"
         rerank, rerank_name, sound, run = "", "", "-inf", "0"
+        together, comeback, order = "", "", "journey"
         if variant.startswith("cfg:"):
             spec = dict(item.split("=", 1) for item in variant[4:].split(","))
             mode = spec.get("mode", "join")
             bonus, semantic, share = spec.get("b", bonus), spec.get("s", semantic), spec.get("w", share)
             step, floor, pull = spec.get("r", step), spec.get("f", floor), spec.get("p", pull)
             gate, sound, run = spec.get("g", gate), spec.get("a", sound), spec.get("l", run)
+            together, comeback, order = spec.get("t", together), spec.get("c", comeback), spec.get("o", order)
             [float(x) for x in (bonus, semantic, share, step, floor, pull, gate, sound, run)]  # validates
+            [float(x) for x in (together, comeback) if x]
+            if order not in ("journey", "planned"):
+                raise ValueError(f"o= must be journey or planned, not {order}")
             if "k" in spec:
                 weights = json.loads(Path(spec["k"]).read_text())
                 weights = weights["weights"] if isinstance(weights, dict) else weights
@@ -231,7 +260,8 @@ def main():
             variant = f"{mode}_b{bonus}_s{semantic}_w{share}" + (f"_r{step}_f{floor}" if float(step) else "") + \
                 (f"_p{pull}" if float(pull) != 1 else "") + (f"_g{gate}" if gate != "-inf" else "") + \
                 (f"_k{rerank_name}" if rerank_name else "") + (f"_a{sound}" if sound != "-inf" else "") + \
-                (f"_l{run}" if float(run) else "")
+                (f"_l{run}" if float(run) else "") + (f"_t{together}" if together else "") + \
+                (f"_c{comeback}" if comeback else "") + ("_planned" if order == "planned" else "")
         else:
             cont, carry, join = VARIANTS[variant]
         output = a.out / f"{variant}.tsv"
@@ -240,6 +270,8 @@ def main():
                                 f"-Ddiet.nbw={share}", f"-Ddiet.ringStep={step}", f"-Ddiet.ringFloor={floor}",
                                 f"-Ddiet.ringPull={pull}", f"-Ddiet.styleGate={gate}", f"-Ddiet.rerank={rerank}",
                                 f"-Ddiet.soundFloor={sound}", f"-Ddiet.artistRun={run}",
+                                f"-Ddiet.companions={a.companions.resolve() if a.companions else ''}",
+                                f"-Ddiet.together={together}", f"-Ddiet.comeback={comeback}", f"-Ddiet.order={order}",
                                 f"-Ddiet.trace={str(a.trace).lower()}",
                                 f"-Ddiet.traceCandidates={str(a.trace_candidates).lower()}"] + launch[1:] + [
             str(a.prepared.resolve()), str(a.assets.resolve()), a.mode, str(output.resolve()),
@@ -252,6 +284,7 @@ def main():
     with cf.ThreadPoolExecutor(a.pool) as pool:
         commands = dict(pool.map(run, a.variant))
     manifest = dict(plans=a.plans, mode=a.mode, commands=commands,
+                    companions_sha256=sha(a.companions) if a.companions else None,
                     source_build_sha256=sha(build / "source-hashes.json"), seeds_sha256=sha(a.seeds),
                     models={n: sha(a.assets / n) for n in ("predictor_state.onnx", "predictor_scorer_n100.onnx")},
                     prepared_inputs={n: sha(a.prepared / n) for n in
