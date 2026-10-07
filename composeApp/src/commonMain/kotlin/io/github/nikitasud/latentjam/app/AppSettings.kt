@@ -8,7 +8,6 @@ import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.library.SongSortDirection
 import io.github.nikitasud.latentjam.library.defaultDirection
-import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.flow.StateFlow
 import org.koin.core.module.Module
 import kotlin.math.abs
@@ -120,13 +119,6 @@ const val DEFAULT_ARTIST_VARIETY: Int = 2
 internal fun sanitizeArtistVariety(level: Int): Int = level.coerceIn(0, ARTIST_VARIETY_PENALTIES.lastIndex)
 
 internal fun artistVarietyFromPersisted(value: Int?): Int = value?.let(::sanitizeArtistVariety) ?: DEFAULT_ARTIST_VARIETY
-
-/**
- * Whether the artist-variety setting can change SMART's plans. A plan made with playlists marked to keep
- * together in SMART keeps the shipped chain, which has no artist-run penalty, and the app plans with every
- * marked playlist ([AppGraph.smartCompanionGroups]), so one marked playlist turns the setting off.
- */
-internal fun artistVarietyApplies(companionGroups: List<Set<TrackId>>): Boolean = companionGroups.isEmpty()
 
 internal fun startPageFromPersisted(value: String?): StartPage =
     StartPage.entries.firstOrNull { it.persistedValue == value } ?: StartPage.TRACKS

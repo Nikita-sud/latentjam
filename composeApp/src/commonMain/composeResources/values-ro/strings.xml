@@ -369,7 +369,6 @@
     <string name="intelligence_artist_variety_balanced">Echilibrată</string>
     <string name="intelligence_artist_variety_high">Ridicată</string>
     <string name="intelligence_artist_variety_max">Maximă</string>
-    <string name="intelligence_artist_variety_marked">Se aplică doar cât timp nicio listă de redare nu are activată opțiunea „Păstrează împreună în SMART”.</string>
     <string name="intelligence_include_novelty_mixes">Include mixurile neobișnuite</string>
     <string name="intelligence_include_novelty_mixes_body">Afișează în Pentru tine mixuri separate cu meme, audio viral și efecte sonore.</string>
     <string name="foryou_mix_meme_viral">Meme și audio viral</string>

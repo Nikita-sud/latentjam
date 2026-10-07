@@ -380,7 +380,6 @@
     <string name="intelligence_artist_variety_balanced">Ausgewogen</string>
     <string name="intelligence_artist_variety_high">Hoch</string>
     <string name="intelligence_artist_variety_max">Maximal</string>
-    <string name="intelligence_artist_variety_marked">Gilt nur, solange keine Playlist auf „In SMART zusammenhalten“ gestellt ist.</string>
     <string name="intelligence_include_novelty_mixes">Spaß-Mixe einbeziehen</string>
     <string name="intelligence_include_novelty_mixes_body">Eigene Mixe mit Memes, viralen Clips und Soundeffekten in „Für dich“ anzeigen.</string>
     <string name="foryou_mix_meme_viral">Memes &amp; virale Clips</string>

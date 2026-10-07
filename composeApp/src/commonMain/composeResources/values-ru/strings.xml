@@ -379,7 +379,6 @@
     <string name="intelligence_artist_variety_balanced">Сбалансированное</string>
     <string name="intelligence_artist_variety_high">Высокое</string>
     <string name="intelligence_artist_variety_max">Максимальное</string>
-    <string name="intelligence_artist_variety_marked">Действует, только пока ни у одного плейлиста не включено «Держать вместе в SMART».</string>
     <string name="intelligence_include_novelty_mixes">Показывать необычные миксы</string>
     <string name="intelligence_include_novelty_mixes_body">Показывать в разделе «Для вас» отдельные миксы с мемами, вирусными аудиозаписями и звуковыми эффектами.</string>
     <string name="foryou_mix_meme_viral">Мемы и вирусные аудиозаписи</string>

@@ -429,7 +429,6 @@ internal const val ARTIST_VARIETY_SETTLE_MS: Long = 400L
 internal class ArtistVarietyApplier(
     private val setPenalty: (Float) -> Unit,
     private val invalidateSmartFuture: suspend () -> Unit,
-    private val companionGroups: () -> List<Set<TrackId>>,
 ) {
     /**
      * The level the queued SMART future follows. Null until the first [apply], which only restores the saved level:
@@ -441,8 +440,7 @@ internal class ArtistVarietyApplier(
         val sanitized = sanitizeArtistVariety(level)
         setPenalty(ARTIST_VARIETY_PENALTIES[sanitized])
         val previous = plannedWith
-        // While a playlist is marked, plans ignore the level (artistVarietyApplies), so nothing queued would change.
-        val replan = previous != null && previous != sanitized && artistVarietyApplies(companionGroups())
+        val replan = previous != null && previous != sanitized
         if (replan) delay(ARTIST_VARIETY_SETTLE_MS)
         // Recorded before the replan: if the next level cuts it short, part of the queue already follows this one.
         plannedWith = sanitized
@@ -620,7 +618,6 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             ArtistVarietyApplier(
                 setPenalty = engine::setArtistRunPenalty,
                 invalidateSmartFuture = { playback.invalidateSmartFuture() },
-                companionGroups = { AppGraph.smartCompanionGroups.value },
             )
         }
         LaunchedEffect(artistVarietyApplier, artistVariety) {

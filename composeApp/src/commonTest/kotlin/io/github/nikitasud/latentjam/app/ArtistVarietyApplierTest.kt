@@ -4,7 +4,6 @@
  */
 package io.github.nikitasud.latentjam.app
 
-import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -89,18 +88,6 @@ class ArtistVarietyApplierTest {
         assertEquals(2, setting.replans)
     }
 
-    @Test
-    fun `while a playlist is marked a new level only reaches the engine`() = runTest {
-        val setting = Setting(backgroundScope)
-        setting.companionGroups = listOf(setOf(TrackId("a"), TrackId("b")))
-        setting.level(2)
-        runCurrent()
-        setting.level(4)
-        settle()
-        assertEquals(0, setting.replans)
-        assertEquals(ARTIST_VARIETY_PENALTIES[4], setting.penalties.last())
-    }
-
     private fun TestScope.settle() {
         advanceTimeBy(ARTIST_VARIETY_SETTLE_MS)
         runCurrent()
@@ -110,7 +97,6 @@ class ArtistVarietyApplierTest {
     private class Setting(private val scope: CoroutineScope) {
         val penalties = mutableListOf<Float>()
         var replans = 0
-        var companionGroups: List<Set<TrackId>> = emptyList()
 
         /** False keeps a replan running until the next level cancels it. */
         var replanFinishes = true
@@ -121,7 +107,6 @@ class ArtistVarietyApplierTest {
                 replans++
                 if (!replanFinishes) awaitCancellation()
             },
-            companionGroups = { companionGroups },
         )
         private var application: Job? = null
 

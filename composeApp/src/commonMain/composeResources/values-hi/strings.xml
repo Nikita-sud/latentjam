@@ -370,7 +370,6 @@
     <string name="intelligence_artist_variety_balanced">संतुलित</string>
     <string name="intelligence_artist_variety_high">ज़्यादा</string>
     <string name="intelligence_artist_variety_max">अधिकतम</string>
-    <string name="intelligence_artist_variety_marked">यह तभी लागू होता है जब कोई भी प्लेलिस्ट “SMART में साथ रखें” पर सेट न हो।</string>
     <string name="intelligence_include_novelty_mixes">अनोखे मिक्स शामिल करें</string>
     <string name="intelligence_include_novelty_mixes_body">आपके लिए में मीम, वायरल ऑडियो और साउंड इफ़ेक्ट के अलग मिक्स दिखाएँ।</string>
     <string name="foryou_mix_meme_viral">मीम और वायरल ऑडियो</string>

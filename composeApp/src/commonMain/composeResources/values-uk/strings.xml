@@ -390,7 +390,6 @@
     <string name="intelligence_artist_variety_balanced">Збалансована</string>
     <string name="intelligence_artist_variety_high">Висока</string>
     <string name="intelligence_artist_variety_max">Максимальна</string>
-    <string name="intelligence_artist_variety_marked">Діє, лише поки жоден список відтворення не має ввімкненого «Тримати разом у SMART».</string>
     <string name="intelligence_include_novelty_mixes">Показувати незвичні мікси</string>
     <string name="intelligence_include_novelty_mixes_body">Показувати в розділі «Для вас» окремі мікси з мемами, вірусними аудіо та звуковими ефектами.</string>
     <string name="foryou_mix_meme_viral">Меми й вірусні аудіо</string>
