@@ -836,6 +836,8 @@ private fun AlphabetRail(
                     steps = (buckets.size - 2).coerceAtLeast(0),
                 )
                 setProgress { target ->
+                    // The framework's target is arbitrary here: roundToInt() throws on NaN.
+                    if (!target.isFinite()) return@setProgress false
                     val index = target.roundToInt().coerceIn(0, buckets.lastIndex)
                     if (index != activeIndex) {
                         haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
