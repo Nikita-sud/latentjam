@@ -10,6 +10,7 @@ import io.github.nikitasud.latentjam.smart.text.EntityIndexBytes
 import io.github.nikitasud.latentjam.smart.text.KnowledgePackBytes
 import io.github.nikitasud.latentjam.smart.text.MusicEntityResolver
 import io.github.nikitasud.latentjam.smart.text.TextEncoder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -632,6 +633,60 @@ internal class DefaultSimilarityEngineTest {
         val result = harness.engine.nextTrack(ListeningContext(seed = seed))
         assertEquals(near.id, assertIs<NextTrackResult.Match>(result).trackId)
     }
+
+    @Test
+    fun `cancelled audio snapshot restore propagates instead of latching an empty ready engine`() =
+        runTest {
+            val backing = FakeIndexStore().apply {
+                snapshots["test-model"] = mapOf(near.id to floatArrayOf(0.9f, 0.1f, 0f))
+            }
+            var cancelRestore = true
+            val store = object : IndexStore by backing {
+                override suspend fun loadSnapshot(modelVersion: String): StoredIndexSnapshot? {
+                    if (cancelRestore) throw CancellationException("cancelled restore")
+                    return backing.loadSnapshot(modelVersion)
+                }
+            }
+            val engine = engine(FakeEmbeddingBackend(), store)
+
+            assertFailsWith<CancellationException> { engine.initialize() }
+
+            assertEquals(
+                EngineState.Initializing,
+                engine.state.value,
+                "cancellation must not be published as Ready(0)",
+            )
+
+            // Not latched: the next attempt restores the snapshot that was never read.
+            cancelRestore = false
+            assertTrue(engine.initialize().isSuccess)
+            assertEquals(EngineState.Ready(indexedCount = 1), engine.state.value)
+        }
+
+    @Test
+    fun `cancelled metadata snapshot restore propagates instead of latching an empty ready engine`() =
+        runTest {
+            val textStore = object : IndexStore by FakeIndexStore() {
+                override suspend fun loadSnapshot(modelVersion: String): StoredIndexSnapshot? {
+                    throw CancellationException("cancelled metadata restore")
+                }
+            }
+            val engine = engine(
+                backend = FakeEmbeddingBackend(),
+                store = FakeIndexStore(),
+                textEncoder = FakeTextEncoder(),
+                textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+                textStore = textStore,
+            )
+
+            assertFailsWith<CancellationException> { engine.initialize() }
+
+            assertEquals(
+                EngineState.Initializing,
+                engine.state.value,
+                "cancellation must not be published as Ready(0)",
+            )
+        }
 
     @Test
     fun clearAnalysisDeletesMemoryAndPersistedSnapshotWithoutUnloadingModel() = runTest {

@@ -118,7 +118,16 @@ internal class DefaultSimilarityEngine(
                 runCatching { it.load().getOrThrow() }.isSuccess
             } ?: false
             if (textIndex != null && textIndex.size == 0) {
-                runCatching { textStore?.loadSnapshot(TEXT_INDEX_VERSION) }.getOrNull()
+                // Same as the audio restore: a cancelled metadata load must surface, never latch
+                // Ready(0) over a snapshot that is still on disk.
+                val persistedText = try {
+                    textStore?.loadSnapshot(TEXT_INDEX_VERSION)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Throwable) {
+                    null
+                }
+                persistedText
                     ?.let { persisted ->
                         for ((id, vector) in persisted.entries) {
                             runCatching { textIndex.upsert(id, vector) }
@@ -945,7 +954,15 @@ internal class DefaultSimilarityEngine(
      */
     private suspend fun restorePersistedIndex() {
         if (index.size > 0) return
-        val persisted = runCatching { store.loadSnapshot(config.modelVersion) }.getOrNull() ?: return
+        // Cancellation must not read as "no snapshot": falling through would let initialize()
+        // publish Ready(0) and re-embed the whole library instead of restarting the restore.
+        val persisted = try {
+            store.loadSnapshot(config.modelVersion)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            null
+        } ?: return
         for ((id, vector) in persisted.entries) {
             runCatching { index.upsert(id, vector) }
                 .onSuccess {
