@@ -28,6 +28,9 @@ public interface TagCodec {
     /**
      * The picture [read]'s [TagSnapshot.cover] describes, as stored; null when there is none or the
      * tags cannot be read. Reads no more than [read] does.
+     *
+     * A codec holds no size rule of its own: whatever its size, the picture is the one the snapshot
+     * names. [TagCodecs.readCover] adds the caller's ceiling to the bytes it hands out.
      */
     public fun readCover(source: RandomAccessSource): CoverPicture?
 
@@ -78,12 +81,25 @@ public object TagCodecs {
 
     public fun read(source: RandomAccessSource): TagSnapshot? = forSource(source)?.read(source)
 
-    /** The largest cover [readCover] hands out; a bigger one is no cover anyone should hold in memory. */
+    /**
+     * The ceiling [readCover] applies by default: the largest cover it hands out to a caller that
+     * keeps the bytes. A bigger one is no cover anyone should hold in memory — yet it is still the
+     * file's cover: [read] describes it whatever its size, and a caller that truly wants those bytes
+     * asks [readCover] for a limit that fits them.
+     */
     public const val MAX_COVER_BYTES: Int = 16 shl 20
 
     /**
      * The file's cover picture, its bytes named by what they probe as; null when the file has none,
      * is no container a codec recognises, or holds one over [maxBytes].
+     *
+     * [read] and this reader name the same picture — the first one a codec counts as a cover — so
+     * [maxBytes] is the only difference between them. [read] hands out no bytes, only the type, size
+     * and checksum of a cover of any size; this reader hands out the bytes themselves, which a caller
+     * keeps (writes to a cache, hashes, decodes). A null past [maxBytes] therefore means "nothing to
+     * hand out at this limit", never "the file has no cover": a caller that must know whether one
+     * exists asks [read], whose [TagSnapshot.cover] answers it, and a caller that wants these bytes
+     * passes a [maxBytes] that fits the picture the snapshot describes.
      */
     public fun readCover(source: RandomAccessSource, maxBytes: Int = MAX_COVER_BYTES): CoverPicture? {
         val stored = forSource(source)?.readCover(source) ?: return null
