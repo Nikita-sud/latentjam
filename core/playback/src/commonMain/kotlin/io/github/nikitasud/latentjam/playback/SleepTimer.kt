@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.playback
 
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -63,13 +64,12 @@ public class SleepTimerController(
      *
      * The timer follows the queue *row*, not its position: editing the queue elsewhere (removing
      * or moving a row above the playhead) or changing the shuffle order leaves the listener on the
-     * same entry and must not stop playback. An entry is only followed by position when its track
-     * id is ambiguous — when the queue holds the same track twice, index is the only identity the
-     * snapshot exposes (same rule as the UI's `queueLazyItemKey`). Ambiguity is read from every
+     * same entry and must not stop playback. Only when the queue holds the same track twice does
+     * the id stop being the row's identity, and then which of the track's rows is playing — how many
+     * of them come before the playhead — is the only one the snapshot exposes. Edits to other rows
+     * leave that count alone, wherever they move the playhead's index. Ambiguity is read from every
      * state rather than once: Play next on the playing track queues it again after the timer was
-     * set, and the playhead moving on to that copy is still the end of this row. While the id is
-     * unique, the row's position simply follows the edits, so a copy queued later is compared
-     * against where the row is now rather than where it was when the timer was set.
+     * set, and the playhead moving on to that copy is still the end of this row.
      *
      * Neither is moving the playhead inside the row an end of it: a manual seek back, Previous
      * restarting the track, or tapping the row again all land at the start of a row that never
@@ -80,20 +80,21 @@ public class SleepTimerController(
         val trackId = initial.track?.id ?: return
         replace {
             mutableState.value = SleepTimerState.EndOfTrack
-            var rowIndex = initial.queueIndex
+            var rowOrdinal = initial.rowsOfTrackBeforePlayhead(trackId)
             var hasPlayed = initial.isPlaying
             var previousPositionMs = initial.positionMs
             var previousDurationMs = initial.durationMs
             var previousStart = initial.playbackStart
             playback.state.first { snapshot ->
                 if (snapshot.isPlaying) hasPlayed = true
-                // Only a duplicated id needs the position to tell the two rows apart; everywhere
-                // else the id is the row's identity, so a queue edit above the playhead cannot
-                // look like a skip, and the position it leaves the row at is the one to remember.
+                // Only a duplicated id needs the row's place among the track's rows to tell them
+                // apart. Everywhere else the id is the row's identity and its place is the first,
+                // which is what a copy queued later is compared against.
                 val ambiguousRow = snapshot.queue.count { it.id == trackId } > 1
+                val ordinal = snapshot.rowsOfTrackBeforePlayhead(trackId)
                 val movedAway = snapshot.track?.id != trackId ||
-                    (ambiguousRow && snapshot.queueIndex != rowIndex)
-                if (!ambiguousRow) rowIndex = snapshot.queueIndex
+                    (ambiguousRow && ordinal != rowOrdinal)
+                if (!ambiguousRow) rowOrdinal = ordinal
                 val naturallyEnded = hasPlayed &&
                     !snapshot.isPlaying &&
                     snapshot.durationMs > 0L &&
@@ -143,6 +144,10 @@ public class SleepTimerController(
         current.cause != StartCause.REPEAT -> false
         else -> current.sequence != previous?.sequence
     }
+
+    /** How many rows of [trackId] come before the playhead: which of the track's rows is playing. */
+    private fun NowPlaying.rowsOfTrackBeforePlayhead(trackId: TrackId): Int =
+        queue.subList(0, queueIndex.coerceIn(0, queue.size)).count { it.id == trackId }
 
     private fun replace(block: suspend () -> Unit) {
         job?.cancel()

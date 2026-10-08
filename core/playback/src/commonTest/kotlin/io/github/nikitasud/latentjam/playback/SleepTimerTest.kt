@@ -162,12 +162,9 @@ class SleepTimerTest {
 
         timer.startAtEndOfTrack()
         runCurrent()
-        // With the id in the queue twice, position is the only identity left, so a jump to the
-        // other row of the same track counts as leaving the entry.
-        playback.mutableState.value = playback.mutableState.value.copy(
-            queue = listOf(track, track, other),
-            queueIndex = 1,
-        )
+        // With the id in the queue twice, which of its rows plays is the only identity left, so a
+        // jump to the other row of the same track counts as leaving the entry.
+        playback.mutableState.value = playback.mutableState.value.copy(queueIndex = 0)
         runCurrent()
 
         assertEquals(1, playback.pauseCalls)
@@ -205,6 +202,44 @@ class SleepTimerTest {
             assertEquals(1, playback.pauseCalls)
             assertEquals(SleepTimerState.Off, timer.state.value)
         }
+
+    @Test
+    fun `end of track survives an edit above the row once the track is queued twice`() = runTest {
+        val first = TrackDescriptor(TrackId("one"))
+        val track = TrackDescriptor(TrackId("again"))
+        val other = TrackDescriptor(TrackId("other"))
+        val playback = FakePlayback(
+            initial = NowPlaying(
+                track = track,
+                isPlaying = true,
+                queue = listOf(first, track, other),
+                queueIndex = 1,
+            ),
+        )
+        val timer = SleepTimerController(playback, backgroundScope) { testScheduler.currentTime }
+
+        timer.startAtEndOfTrack()
+        runCurrent()
+        // Play next on the playing track, then the row above it is removed: the playhead's index
+        // moves, but it is still the first of the track's two rows.
+        playback.mutableState.value = playback.mutableState.value.copy(
+            queue = listOf(first, track, track, other),
+        )
+        runCurrent()
+        playback.mutableState.value = playback.mutableState.value.copy(
+            queue = listOf(track, track, other),
+            queueIndex = 0,
+        )
+        runCurrent()
+        assertEquals(0, playback.pauseCalls)
+        assertEquals(SleepTimerState.EndOfTrack, timer.state.value)
+
+        // The row plays out and the queue advances to the copy.
+        playback.mutableState.value = playback.mutableState.value.copy(queueIndex = 1)
+        runCurrent()
+        assertEquals(1, playback.pauseCalls)
+        assertEquals(SleepTimerState.Off, timer.state.value)
+    }
 
     @Test
     fun `end of track compares a later copy against where the row is now`() = runTest {
