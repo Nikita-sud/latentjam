@@ -592,7 +592,13 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
     val smartQueueLength by settings.smartQueueLength.collectAsState()
     val artistVariety by settings.artistVariety.collectAsState()
     val includeNoveltyMixes by settings.includeNoveltyMixes.collectAsState()
-    val historyRevision by AppGraph.historyRevision.collectAsState()
+    val recordedHistoryRevision by AppGraph.historyRevision.collectAsState()
+    // The recorder's revision moves only when a listen is recorded, but clearing the log or
+    // restoring a backup replaces it wholesale without recording anything. Those two settings
+    // actions bump this epoch instead, and the sum is what every cache below is keyed on; both
+    // halves only grow, so neither counter can mask the other.
+    var replacedHistoryEpoch by remember { mutableLongStateOf(0L) }
+    val historyRevision = recordedHistoryRevision + replacedHistoryEpoch
     val smartExclusions = AppGraph.smartExclusions
     val smartExclusionState by smartExclusions.state.collectAsState()
     val reduceMotion = rememberPlatformReduceMotion()
@@ -2820,13 +2826,18 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                         }
                                         CompositionLocalProvider(LocalPageRailSlot provides pageRailSlots.getValue(tab)) {
                                         when (tab) {
-                                        StartPage.STATISTICS -> ListeningStatsSettings(
+                                        // Re-keyed on the replacement epoch alone, not on the whole
+                                        // revision: new listens refresh this page in place, while a
+                                        // cleared or restored log must drop its cached snapshot.
+                                        StartPage.STATISTICS -> androidx.compose.runtime.key(replacedHistoryEpoch) {
+                                            ListeningStatsSettings(
                                                 accent = accent,
-                                            history = AppGraph.history,
-                                            tracks = visibleCatalog.songs,
-                                            contentPadding = listPadding,
-                                            active = browsePageVisible && settledTab == StartPage.STATISTICS,
-                                        )
+                                                history = AppGraph.history,
+                                                tracks = visibleCatalog.songs,
+                                                contentPadding = listPadding,
+                                                active = browsePageVisible && settledTab == StartPage.STATISTICS,
+                                            )
+                                        }
 
                                         StartPage.FOR_YOU -> AnimatedContent(
                                             targetState = forYou,
@@ -4923,6 +4934,9 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     worldLibraryIds = emptyList()
                     builtWorldsKey = null
                     personalizationRevision += 1
+                    // The restored log replaces the old one without recording a listen, so the
+                    // recorder's revision cannot report it: advance the replacement epoch.
+                    replacedHistoryEpoch += 1
                     invalidateSmartRecommendationCaches()
                     refreshPlaylistsWithFeedback()
                 },
@@ -4933,6 +4947,8 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                     builtForYouLibraryIds = null
                     builtForYouPlaylistIdentity = null
                     personalizationRevision += 1
+                    // Emptied log, same problem: the caches keyed on history must not survive it.
+                    replacedHistoryEpoch += 1
                     refreshPlaylistsWithFeedback()
                 },
                 onClearRecentSearches = {
