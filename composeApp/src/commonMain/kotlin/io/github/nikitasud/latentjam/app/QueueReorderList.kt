@@ -4,7 +4,9 @@
  */
 package io.github.nikitasud.latentjam.app
 
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +15,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
@@ -66,36 +70,38 @@ internal fun QueueReorderList(
     }
     Box(Modifier.fillMaxWidth().pointerInput(identity, canReorder) {
         if (!canReorder) return@pointerInput
-        detectDragGesturesAfterLongPress(
-            onDragStart = { position ->
-                val row = listState.layoutInfo.visibleItemsInfo.firstOrNull {
-                    position.y >= it.offset && position.y < it.offset + it.size
-                }
-                if (row != null) {
-                    drag = QueueDrag(row.index, row.offset.toFloat(), row.size, position.y)
-                    haptics.play(PlayerHaptic.HOLD)
-                }
-            },
-            onDrag = { change, delta ->
-                drag?.let { active ->
-                    change.consume()
-                    drag = active.copy(top = active.top + delta.y, pointerY = active.pointerY + delta.y)
-                }
-            },
-            onDragEnd = {
-                val active = drag
-                drag = null
-                if (active != null) {
-                    val target = queueDropIndex(active.top + active.height / 2f,
-                        listState.layoutInfo.visibleItemsInfo.map { QueueDragRow(it.index, it.offset, it.size) })
-                    if (target != null && target != active.from) {
-                        latestMove(active.from, target)
-                        haptics.play(PlayerHaptic.SUCCESS)
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val held = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+            val row = listState.layoutInfo.visibleItemsInfo.firstOrNull {
+                held.position.y >= it.offset && held.position.y < it.offset + it.size
+            } ?: return@awaitEachGesture
+            drag = QueueDrag(row.index, row.offset.toFloat(), row.size, held.position.y)
+            haptics.play(PlayerHaptic.HOLD)
+            try {
+                while (true) {
+                    // After the hold, claim movement before LazyColumn or the sheet consumes it.
+                    // Until then normal list scrolling, swipes and taps retain their own gestures.
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == held.id } ?: break
+                    if (event.changes.count { it.pressed } > 1 || change.isConsumed) break
+                    if (!change.pressed) {
+                        change.consume()
+                        val active = drag ?: break
+                        val target = queueDropIndex(active.top + active.height / 2f,
+                            listState.layoutInfo.visibleItemsInfo.map { QueueDragRow(it.index, it.offset, it.size) })
+                        if (target != null && target != active.from) {
+                            latestMove(active.from, target)
+                            haptics.play(PlayerHaptic.SUCCESS)
+                        }
+                        break
                     }
+                    val delta = change.positionChange().y
+                    change.consume()
+                    drag = drag?.let { it.copy(top = it.top + delta, pointerY = change.position.y) }
                 }
-            },
-            onDragCancel = { drag = null },
-        )
+            } finally { drag = null }
+        }
     }) {
         content(drag?.from)
         drag?.let { active ->

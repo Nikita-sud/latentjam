@@ -1,12 +1,14 @@
 SMART picks better, and the app gets smaller: smoother transitions and fewer jumps between genres, an Artist variety slider, marked playlists that stay together without abrupt changes — on audio models half the size that analyse your library up to twice as fast. Still fully on-device: no account, no catalogue, no network — nothing about your listening leaves the phone.
 
 ### New
+- **Reverse group sorting.** Genres, artists and folders each remember their own ascending/descending order. Date-named genres can show the newest first. Local backup format 8 preserves these choices and still reads versions 1–7.
 - 🎧 **SMART chooses the next song more the way a person would.** A correction learned from a blind judge of real playlists (public MPD data, never your library) now ranks the candidates: it passes over a song that would change the sound abruptly while a closer one is left, and keeps the walk going across top-ups instead of starting over. In blind comparisons on public libraries, both judges preferred the new queues to 0.7.1's about 2:1, and two listener panels 10:6.
 - 🎚️ **Artist variety** (Settings → SMART engine → Recommendations): from Off to Maximum, how strongly SMART avoids playing one artist several times in a row. Balanced by default; a run still happens when that artist really has the closest songs, and a new level reaches the songs already queued.
 - 📌 **"Keep together in SMART" without forced turns.** A marked playlist no longer takes every third song by force: its songs earn points instead. They play as often as before, sit next to each other twice as often, and come with a fifth of the abrupt changes. One marked playlist also no longer switches the new SMART off for every queue.
 - 🪶 **Smaller and faster.** The on-device models are half the size, and the audio model runs about a third faster on LatentJam's own 4-bit operator; the arm64 download shrinks from 57 to 38 MB. After the update the library is analysed once more — up to twice as fast as before.
 
 ### Fixed
+- Dragging a queue entry to either edge scrolls the queue while you hold it there, so it can be moved beyond the visible rows.
 - iPhone import preserves existing shorter or different files with the same name and safely gives the new copy another name.
 - After a large tag edit, the library and queue refresh again when Android finishes indexing the changed files.
 - A remix, radio edit, remaster or live take of a song you just heard no longer comes up again in SMART as if it were another song (in 0.7.1 it happened in about one queue in twelve)
