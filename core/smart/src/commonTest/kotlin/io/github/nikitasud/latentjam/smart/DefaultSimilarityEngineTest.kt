@@ -705,6 +705,29 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun `cancelled clear analysis propagates instead of reporting a clear failure`() = runTest {
+        val backing = FakeIndexStore()
+        val store = object : IndexStore by backing {
+            override suspend fun clear() {
+                throw CancellationException("cancelled clear")
+            }
+        }
+        val engine = engine(
+            FakeEmbeddingBackend(mutableMapOf(seed.id to floatArrayOf(1f, 0f, 0f))),
+            store,
+        )
+        engine.initialize()
+        engine.indexLibrary(listOf(seed))
+
+        assertFailsWith<CancellationException> { engine.clearAnalysis() }
+
+        // The clear was cancelled, not failed: nothing was deleted and the live index survives.
+        assertEquals(EngineState.Ready(indexedCount = 1), engine.state.value)
+        assertNotNull(engine.embedding(seed.id))
+        assertEquals(setOf(seed.id), backing.snapshots["test-model"]?.keys)
+    }
+
+    @Test
     fun indexLibrarySkipsAlreadyIndexedTracks() = runTest {
         val harness = Harness()
         harness.registerTriangle()

@@ -873,9 +873,11 @@ internal class DefaultSimilarityEngine(
                 // Both deletions are attempted even if the first fails. Memory stays live until
                 // every durable snapshot has been deleted, so a caller never observes a cleared
                 // engine while an old snapshot is still known to be recoverable on restart.
-                runCatching { store.clear() }.onFailure(failures::add)
+                // Cancellation is not a failure: collectClearFailure rethrows it, so a cancelled
+                // clear surfaces as cancellation instead of as a repair the caller cannot run.
+                runCatching { store.clear() }.onFailure { collectClearFailure(failures, it) }
                 textStore?.let { target ->
-                    runCatching { target.clear() }.onFailure(failures::add)
+                    runCatching { target.clear() }.onFailure { collectClearFailure(failures, it) }
                 }
                 if (failures.isNotEmpty()) {
                     // A successful deletion paired with a failed/ambiguous one would leave the two
@@ -887,14 +889,14 @@ internal class DefaultSimilarityEngine(
                         store.saveSnapshot(config.modelVersion, audioSnapshot)
                     }.onSuccess {
                         audioIndexDirty = false
-                    }.onFailure(failures::add)
+                    }.onFailure { collectClearFailure(failures, it) }
                     if (textStore != null) {
                         textIndexDirty = true
                         runCatching {
                             textStore.saveSnapshot(TEXT_INDEX_VERSION, metadataSnapshot)
                         }.onSuccess {
                             textIndexDirty = false
-                        }.onFailure(failures::add)
+                        }.onFailure { collectClearFailure(failures, it) }
                     }
                     throwAnalysisClearFailure(failures)
                 }
@@ -1153,6 +1155,16 @@ internal class DefaultSimilarityEngine(
             entries = entries,
             identities = textVectorIdentities.filterKeys(entries::containsKey),
         )
+    }
+
+    /**
+     * Collects a failed snapshot deletion or repair save. Cancellation is never collected: it is
+     * rethrown so the caller sees the cancellation instead of an [IllegalStateException] raised
+     * after repair attempts that an already cancelled context cannot complete.
+     */
+    private fun collectClearFailure(failures: MutableList<Throwable>, failure: Throwable) {
+        if (failure is CancellationException) throw failure
+        failures += failure
     }
 
     private fun throwAnalysisClearFailure(failures: List<Throwable>): Nothing {
