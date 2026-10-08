@@ -199,19 +199,24 @@ internal class SmartContinuationEngineTest {
     fun `a track removed from the end of a plan stays out of the walk's later plans`() = runTest {
         val engine = engine(continuation = true)
         val first = engine.smartQueue(tracks.first(), tracks.drop(1), 4)
+        val removed = tracks.first { it.id == first.last() }
         val queue = (listOf(tracks.first().id) + first).dropLast(1).toMutableList()
-        // Two top-ups of three spend the seed's other neighbours; the removed one is never among them.
-        // The controllers keep a removed track out of the candidates (recordSmartRemoval and
-        // smartTopUpCandidates, see SmartQueueEligibilityTest), so the walk only has to carry on.
+        // The controllers keep the removed track itself out of the candidates (recordSmartRemoval and
+        // smartTopUpCandidates, see SmartQueueEligibilityTest). Another release of the same song,
+        // sounding just like it, is a candidate all the same; only the walk remembers the song.
+        val again = removed.copy(id = TrackId("walk-again"), audioUri = "test://walk-again")
+        vectors[again.id] = vectors.getValue(removed.id)
+        engine.indexLibrary(listOf(again))
+        // Two top-ups of three spend the seed's other neighbours; neither release is among them.
         repeat(2) { topUp ->
             val tail = tracks.first { it.id == queue.last() }
-            val rest = tracks.filter { it.id !in queue && it.id != first.last() }
+            val rest = tracks.filter { it.id !in queue && it.id != removed.id } + again
             val next = engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = queue.dropLast(1).takeLast(10))
             assertEquals(3, next.size, "top-up ${topUp + 1}")
-            assertTrue(first.last() !in next, "top-up ${topUp + 1} brought the removed track back: $next")
+            assertTrue(again.id !in next, "top-up ${topUp + 1} brought the removed song back: $next")
             queue += next
         }
-        assertEquals(neighbours - first.last(), queue.filter { it in neighbours }.toSet())
+        assertEquals(neighbours - removed.id, queue.filter { it in neighbours }.toSet())
     }
 
     @Test
@@ -235,23 +240,40 @@ internal class SmartContinuationEngineTest {
     fun `a planned track moved above the last queued track still counts as played`() = runTest {
         // One band, so the artist cap counts exactly the tracks the walk takes as played.
         val band = tracks.map { it.copy(artist = "The Band") }
-        suspend fun topUp(edit: (List<TrackId>) -> List<TrackId>): List<TrackId> {
+        suspend fun topUp(
+            precedingRows: Int = 10,
+            keepRemovedOut: Boolean = true,
+            edit: (List<TrackId>) -> List<TrackId>,
+        ): List<TrackId> {
             val engine = engine(continuation = true, library = band)
             val first = engine.smartQueue(band.first(), band.drop(1), 4)
             val queue = edit(listOf(band.first().id) + first)
             // As the controllers pass them: nothing queued, nothing the listener removed.
-            val removed = first.filter { it !in queue }.toSet()
+            val removed = if (keepRemovedOut) first.filter { it !in queue }.toSet() else emptySet()
             val rest = band.filter { it.id !in queue && it.id !in removed }
             val tail = band.first { it.id == queue.last() }
-            return engine.continueSmartQueue(tail, rest, 3, precedingTrackIds = queue.dropLast(1))
+            return engine.continueSmartQueue(
+                tail, rest, 3, precedingTrackIds = queue.dropLast(1).takeLast(precedingRows),
+            )
         }
         // Dragged above the track before it, the plan's last track still plays before the top-up:
         // the walk counts four of its picks as played, and the cap leaves room for two more.
         val moved = topUp { queue -> queue.dropLast(2) + queue.last() + queue[queue.lastIndex - 1] }
         assertEquals(ChainConfig.CHAIN_ARTIST_QUEUE_CAP - 4, moved.size, "moved: $moved")
-        // Removed instead, it never plays: the walk counts three, and the top-up fills all three slots.
+        // Dragged up past the rows a top-up sends before its seed, it still plays: the walk does
+        // not go by those rows but by what the request no longer offers.
+        val farUp = topUp(precedingRows = 2) { queue ->
+            queue.take(1) + queue.last() + queue.subList(1, queue.lastIndex)
+        }
+        assertEquals(ChainConfig.CHAIN_ARTIST_QUEUE_CAP - 4, farUp.size, "moved far up: $farUp")
+        // Removed by the listener, it is not offered either and counts the same way: the walk errs
+        // toward keeping a removed song, and its other releases, out of the plan.
         val removed = topUp { queue -> queue.dropLast(1) }
-        assertEquals(3, removed.size, "removed: $removed")
+        assertEquals(ChainConfig.CHAIN_ARTIST_QUEUE_CAP - 4, removed.size, "removed: $removed")
+        // Discarded to replan, it is offered again: the walk counts three, and the top-up fills all
+        // three slots.
+        val discarded = topUp(keepRemovedOut = false) { queue -> queue.dropLast(1) }
+        assertEquals(3, discarded.size, "discarded: $discarded")
     }
 
     @Test
@@ -453,7 +475,8 @@ internal class SmartContinuationEngineTest {
         val planned = SmartChain(snapshot, null, eligible(snapshot, tracks.drop(1)), tuning = on)
             .build(tracks.first().id, plan.size, FloatArray(5))
         assertEquals(plan, JourneySequencer.order(snapshot, planned.rows).map { snapshot.tracks[it].id })
-        val walk = planned.walk?.followingOrder(plan)?.resumedAt(tail.id, queuedBefore)
+        val offered = library.mapTo(HashSet()) { it.id }
+        val walk = planned.walk?.followingOrder(plan)?.resumedAt(tail.id, queuedBefore, offered::contains)
         val resumed = SmartChain(snapshot, null, eligible(snapshot, library), tuning = on)
             .build(tail.id, 3, FloatArray(5), resume = walk)
         return JourneySequencer.order(snapshot, resumed.rows, from = snapshot.rowOf(tail.id)).map { snapshot.tracks[it].id }

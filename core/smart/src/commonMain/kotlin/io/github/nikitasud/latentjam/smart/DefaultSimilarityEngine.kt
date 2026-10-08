@@ -723,7 +723,7 @@ internal class DefaultSimilarityEngine(
             // chooser call has no local plan identity and can otherwise mistake a manually selected
             // old tail for a continuation. The seed may also be an earlier track of the walk.
             val resume = if (continueWalk && config.continueAfterExhaustion && (companionGroups.isEmpty() || judged)) {
-                continuedWalk(seed.id, precedingTrackIds, companionGroups)
+                continuedWalk(seed.id, precedingTrackIds, companionGroups, offered = eligibleIds)
             } else {
                 null
             }
@@ -842,10 +842,11 @@ internal class DefaultSimilarityEngine(
      * still holds before it (continuesSmartPlan). [seed] usually ended that walk's plan. It is an
      * earlier track when the listener removed or moved the queue's last rows, or the app discarded the
      * queue's future to replan it: the walk goes on as it stood at [seed] (ChainWalk.resumedAt). Its
-     * picks after [seed] that [precedingTrackIds] still holds count as played; the rest are released
-     * and may be planned again, so a discarded future is not lost to the replan. A track the listener
-     * removed stays out all the same: the controllers leave it out of the candidates they pass in.
-     * An older walk never saw a newer one's picks, so the newer walk wins.
+     * picks after [seed] that this request [offered] again are released and may be planned again, so
+     * a discarded future is not lost to the replan; the rest — still queued, however far up the
+     * listener moved them, or removed, which the controllers keep out of the candidates — count as
+     * played. [precedingTrackIds] reach back only a few rows, so they order those picks but do not
+     * decide them. An older walk never saw a newer one's picks, so the newer walk wins.
      *
      * Only the plan's OWN rows identify it: the track it was planned from and the picks it made. The
      * walk's older picks belong to earlier plans, and a queue that merely holds the old intent — one
@@ -859,13 +860,14 @@ internal class DefaultSimilarityEngine(
         seed: TrackId,
         precedingTrackIds: List<TrackId>,
         companionGroups: List<Set<TrackId>>,
+        offered: Set<TrackId>,
     ): ResumedWalk? {
         val cached = walks.values.lastOrNull { cached ->
             val at = cached.order.indexOf(seed)
             at > cached.plannedAt &&
                 continuesSmartPlan(cached.order.subList(cached.plannedAt, at), precedingTrackIds)
         } ?: return null
-        val walk = cached.walk.resumedAt(seed, precedingTrackIds)
+        val walk = cached.walk.resumedAt(seed, precedingTrackIds, offered::contains)
         val marked = joinsMarkedPlaylist(seed, before = cached.companionGroups, after = companionGroups)
         return ResumedWalk(
             walk = if (marked) walk.reanchoredAt(seed) else walk,

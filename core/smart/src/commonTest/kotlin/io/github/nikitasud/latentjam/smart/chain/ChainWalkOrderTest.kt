@@ -141,8 +141,8 @@ internal class ChainWalkOrderTest {
     @Test
     fun `a walk resumed at an earlier pick plays on as if its plan had ended there`() {
         // The listener removed the plan's last row, row 4: the queue ends at row 3, which closes a
-        // run of A with row 2. The removed row must neither break that run nor count as played; the
-        // controller keeps it out of the candidates, as row 4 is here.
+        // run of A with row 2. The removed row must not break that run; the controller keeps it out
+        // of the candidates, as row 4 is here.
         val snapshot = circle(setOf(2, 3, 13))
         val picks = listOf(1, 2, 3, 4).map { TrackId(it.toString()) }
         val eligible = BooleanArray(snapshot.size) { it > 4 }
@@ -167,8 +167,8 @@ internal class ChainWalkOrderTest {
         assertEquals(endedPick.row, cutPick.row)
         kotlin.test.assertContentEquals(endedPick.terms, cutPick.terms)
         kotlin.test.assertContentEquals(endedPick.candidates, cutPick.candidates)
-        // The removed row leaves the walk: nothing remembers a track the queue no longer holds.
-        assertEquals(picks.dropLast(1) + TrackId("13"), cut.walk?.picks)
+        // The removed row, not offered again, stays spent and remembered, ahead of that run.
+        assertEquals(listOf(4, 1, 2, 3, 13).map { TrackId(it.toString()) }, cut.walk?.picks)
     }
 
     @Test
@@ -177,7 +177,10 @@ internal class ChainWalkOrderTest {
         // row 3 with row 4 right before it, and the next top-up is seeded with row 3.
         val ids = { rows: List<Int> -> rows.map { TrackId(it.toString()) } }
         val queuedBefore = ids(listOf(0, 1, 2, 4))
-        val moved = ChainWalk(TrackId("0"), ids(listOf(1, 2, 3, 4)), 4).resumedAt(TrackId("3"), queuedBefore)
+        // As the controllers do, nothing queued is a candidate.
+        val offered = { id: TrackId -> id.value.toInt() > 4 }
+        val moved = ChainWalk(TrackId("0"), ids(listOf(1, 2, 3, 4)), 4)
+            .resumedAt(TrackId("3"), queuedBefore, offered)
         assertEquals(ChainWalk(TrackId("0"), ids(listOf(1, 2, 4, 3)), 4), moved)
 
         // Its song stays heard: row 13, another release of row 4, is not planned, though the
@@ -189,7 +192,6 @@ internal class ChainWalkOrderTest {
             personalAffinity = { row -> if (row == 13) 1f else 0f },
             personalWeight = 100f,
         )
-        // As the controllers do, nothing queued is a candidate.
         val eligible = BooleanArray(snapshot.size) { it > 4 }
         fun firstPick(walk: ChainWalk): Int = SmartChain(snapshot, null, eligible, tuning = tuning)
             .build(TrackId("3"), 1, FloatArray(5), resume = walk).rows.single()
@@ -202,8 +204,9 @@ internal class ChainWalkOrderTest {
         // The walk spends row 2's neighbourhood. The app discarded the queue's future after row 2 to
         // replan it (a new artist variety, a newly marked playlist): rows 3 and 4 were never removed.
         val ids = { rows: List<Int> -> rows.map { TrackId(it.toString()) } }
+        // Neither queued nor removed, they are candidates again.
         val replanned = ChainWalk(TrackId("2"), ids(listOf(1, 2, 3, 4)), 2)
-            .resumedAt(TrackId("2"), ids(listOf(0, 1)))
+            .resumedAt(TrackId("2"), ids(listOf(0, 1))) { id -> id.value.toInt() > 2 }
         assertEquals(ChainWalk(TrackId("2"), ids(listOf(1, 2)), 0), replanned)
 
         // Released, they are the closest tracks to row 2 again, and the replan takes them.
@@ -213,6 +216,33 @@ internal class ChainWalkOrderTest {
             snapshot, null, eligible, tuning = ChainTuning(continueAfterExhaustion = true, neighbourhoodBonus = 0f),
         ).build(TrackId("2"), 2, FloatArray(5), resume = replanned)
         assertEquals(setOf(3, 4), plan.rows.toSet())
+    }
+
+    @Test
+    fun `a pick moved up beyond the queue rows a top-up sees still counts as played`() {
+        // The plan served rows 1-14; the listener dragged rows 13 and 14 up right after the playing
+        // row 0, so the queue ends at row 12 and the ten rows a top-up sends before it are rows 2-11.
+        val ids = { rows: List<Int> -> rows.map { TrackId(it.toString()) } }
+        val walk = ChainWalk(TrackId("0"), ids((1..14).toList()), 14)
+        val queuedBefore = ids((2..11).toList())
+        val offered = { id: TrackId -> id.value.toInt() > 14 }
+        val moved = walk.resumedAt(TrackId("12"), queuedBefore, offered)
+        assertEquals(ids(listOf(13, 14) + (1..12)), moved.picks)
+
+        // Row 20, another release of row 13, stays out though the listener's taste would put it first.
+        val snapshot = circle(emptySet(), sameSong = mapOf(20 to 13))
+        val tuning = ChainTuning(
+            continueAfterExhaustion = true,
+            neighbourhoodBonus = 0f,
+            personalAffinity = { row -> if (row == 20) 1f else 0f },
+            personalWeight = 100f,
+        )
+        val eligible = BooleanArray(snapshot.size) { it > 14 }
+        fun firstPick(resume: ChainWalk): Int = SmartChain(snapshot, null, eligible, tuning = tuning)
+            .build(TrackId("12"), 1, FloatArray(5), resume = resume).rows.single()
+        assertNotEquals(20, firstPick(moved))
+        // Released as a discarded future would be, row 13 would let its other release straight in.
+        assertEquals(20, firstPick(walk.resumedAt(TrackId("12"), queuedBefore) { true }))
     }
 
     private fun artistRun(snapshot: SmartSnapshot, walk: ChainWalk): Int {

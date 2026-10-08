@@ -280,9 +280,11 @@ public interface SimilarityEngine {
      * ([continuesSmartPlan] decides against the plan's own rows, and lets the listener's queue edits
      * through). After the listener removed or moved the queue's last rows, or the app discarded the
      * queue's future to replan it, [seed] is an earlier track of the walk: it resumes as it stood
-     * there, and the tracks it picked after [seed] stay spent, so one the listener removed is not
-     * planned again in this walk. [library] contains only tracks available to append to the queue, so
-     * the caller keeps out what is queued and what the listener removed from this queue.
+     * there. A track it picked after [seed] that [library] offers again was discarded to replan and
+     * may be planned again; one it does not offer (still queued, or removed) stays spent and counts
+     * as played. [library] contains only tracks available to append to the queue, so the caller
+     * keeps out what is queued and what the listener removed from this queue — that is what keeps a
+     * removed track from coming back.
      *
      * User-initiated starts use [smartQueue], even if their seed ended a previous plan. The default
      * delegates there so engines without continuation support retain their existing behavior.
