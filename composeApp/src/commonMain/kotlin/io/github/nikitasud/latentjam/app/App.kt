@@ -1095,10 +1095,31 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         }
 
         var favoriteIds by remember { mutableStateOf<List<TrackId>>(emptyList()) }
+        // Hearts live in private storage, and both its read and its write can fail. A failure must
+        // leave the heart where it was and say so, instead of escaping the scope that launched it.
+        suspend fun loadFavorites() {
+            try {
+                favoriteIds = AppGraph.favorites.all()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                println("Favorites: could not read: $failure")
+                snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
+            }
+        }
         fun toggleFavorite(id: TrackId) {
             scope.launch {
-                AppGraph.favorites.toggle(id)
-                favoriteIds = AppGraph.favorites.all()
+                try {
+                    // Written to the store before memory changes, so a failed write leaves the
+                    // visible heart exactly as it was.
+                    AppGraph.favorites.toggle(id)
+                    loadFavorites()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Throwable) {
+                    println("Favorites: could not toggle: $failure")
+                    snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
+                }
             }
         }
         LaunchedEffect(Unit) {
@@ -1113,7 +1134,7 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                 println("Library: could not scan at launch: $failure")
                 snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
             }
-            favoriteIds = AppGraph.favorites.all()
+            loadFavorites()
             // Playlists load at launch, not first tab visit: the SMART companion groups and mix
             // names derive from them, and both must work in a session that never opens the tab.
             try {
