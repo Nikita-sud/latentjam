@@ -3,4 +3,4 @@
    description is the only key here; it must stay in sync with
    NSAppleMusicUsageDescription in iosApp/Info.plist, which is the fallback. */
 
-"NSAppleMusicUsageDescription" = "LatentJam משתמש בספריית המוזיקה במכשיר כדי לארגן שירים וליצור המלצות פרטיות באופן מקומי.";
+"NSAppleMusicUsageDescription" = "אפליקציית LatentJam משתמשת בספריית המוזיקה במכשיר כדי לארגן שירים וליצור המלצות פרטיות באופן מקומי.";
