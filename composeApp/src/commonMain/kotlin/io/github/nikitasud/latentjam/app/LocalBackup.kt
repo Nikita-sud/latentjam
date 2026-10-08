@@ -12,9 +12,11 @@ import io.github.nikitasud.latentjam.history.RecentSearches
 import io.github.nikitasud.latentjam.history.SmartExclusionState
 import io.github.nikitasud.latentjam.history.SmartExclusions
 import io.github.nikitasud.latentjam.history.epochMillis
+import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.MusicLibrary
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.library.Playlists
+import io.github.nikitasud.latentjam.library.SongSort
 import io.github.nikitasud.latentjam.playback.MAX_CROSSFADE_SECONDS
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -55,6 +57,15 @@ internal data class LocalBackupSettings(
     val pageLayout: PageLayout = PageLayout(),
     /** Added in backup v6; older snapshots restore the default. */
     val artistVariety: Int = DEFAULT_ARTIST_VARIETY,
+    /**
+     * The Tracks tab's order. Travels as its own optional v6 record, so a v6 file written before
+     * that record existed — like every older format — restores the default.
+     */
+    val songSort: SortChoice<SongSort> = DEFAULT_SONG_SORT,
+    /** The Albums tab's order; see [songSort]. */
+    val albumSort: SortChoice<AlbumSort> = DEFAULT_ALBUM_SORT,
+    /** An artist's page order; see [songSort]. */
+    val artistAlbumSort: SortChoice<AlbumSort> = DEFAULT_ARTIST_ALBUM_SORT,
 )
 
 /**
@@ -207,6 +218,16 @@ internal object LocalBackupCodec {
                 )
                 if (snapshot.formatVersion >= 4) appendRecord("L", encodePageLayout(pageLayout))
                 if (snapshot.formatVersion >= 6) appendRecord("V", artistVariety.toString())
+                if (snapshot.formatVersion >= 6) {
+                    // The list orders. The record is optional within v6: a file written before it
+                    // existed has no such line and restores the defaults.
+                    appendRecord(
+                        "O",
+                        encodeSortChoice(songSort),
+                        encodeSortChoice(albumSort),
+                        encodeSortChoice(artistAlbumSort),
+                    )
+                }
             }
             snapshot.tracks.sortedBy(LocalBackupTrackReference::originalId).forEach { track ->
                 appendRecord(
@@ -280,6 +301,7 @@ internal object LocalBackupCodec {
         var settings: LocalBackupSettings? = null
         var pageLayout: PageLayout? = null
         var artistVariety: Int? = null
+        var sortOrders: SortOrders? = null
         val tracks = mutableListOf<LocalBackupTrackReference>()
         val playlists = mutableListOf<LocalBackupPlaylist>()
         val history = mutableListOf<LocalBackupListenEvent>()
@@ -347,6 +369,25 @@ internal object LocalBackupCodec {
                     if (version < 6) formatError("Older backups cannot encode artist variety")
                     if (artistVariety != null) formatError("Duplicate artist variety record")
                     artistVariety = record.nextField().parseInt("artist variety")
+                }
+                "O" -> {
+                    record.requireFieldCount(4)
+                    if (version < 6) formatError("Older backups cannot encode sort orders")
+                    if (sortOrders != null) formatError("Duplicate sort order record")
+                    sortOrders = SortOrders(
+                        song = record.nextField().decodeSortChoice(
+                            "song sort",
+                            ::songSortFromPersisted,
+                        ),
+                        album = record.nextField().decodeSortChoice(
+                            "album sort",
+                            ::albumSortFromPersisted,
+                        ),
+                        artistAlbum = record.nextField().decodeSortChoice(
+                            "artist album sort",
+                            ::artistAlbumSortFromPersisted,
+                        ),
+                    )
                 }
                 "T" -> {
                     record.requireFieldCount(6)
@@ -444,7 +485,13 @@ internal object LocalBackupCodec {
             formatVersion = version,
             createdAtMs = createdAtMs ?: formatError("Missing creation record"),
             settings = (settings ?: formatError("Missing settings record"))
-                .copy(pageLayout = pageLayout ?: PageLayout(), artistVariety = artistVariety ?: DEFAULT_ARTIST_VARIETY),
+                .copy(
+                    pageLayout = pageLayout ?: PageLayout(),
+                    artistVariety = artistVariety ?: DEFAULT_ARTIST_VARIETY,
+                    songSort = sortOrders?.song ?: DEFAULT_SONG_SORT,
+                    albumSort = sortOrders?.album ?: DEFAULT_ALBUM_SORT,
+                    artistAlbumSort = sortOrders?.artistAlbum ?: DEFAULT_ARTIST_ALBUM_SORT,
+                ),
             tracks = tracks,
             playlists = playlists,
             listeningHistory = history,
@@ -473,6 +520,17 @@ internal object LocalBackupCodec {
         }
         if (snapshot.formatVersion < 6 && snapshot.settings.artistVariety != DEFAULT_ARTIST_VARIETY) {
             formatError("Older backups cannot encode artist variety")
+        }
+        // An artist's page only offers these fields; anything else would be dropped by the setter.
+        if (snapshot.settings.artistAlbumSort.sort !in ARTIST_ALBUM_SORTS) {
+            formatError("Unsupported artist album sort")
+        }
+        if (snapshot.formatVersion < 6 &&
+            (snapshot.settings.songSort != DEFAULT_SONG_SORT ||
+                snapshot.settings.albumSort != DEFAULT_ALBUM_SORT ||
+                snapshot.settings.artistAlbumSort != DEFAULT_ARTIST_ALBUM_SORT)
+        ) {
+            formatError("Older backups cannot encode sort orders")
         }
         if (snapshot.settings.pageLayout != snapshot.settings.pageLayout.normalized()) {
             formatError("Invalid page layout")
@@ -551,6 +609,25 @@ internal object LocalBackupCodec {
             formatError("Unknown track reference")
         }
         if (snapshot.smartExcludedArtists.any(String::isBlank)) formatError("Excluded artists cannot be blank")
+    }
+
+    /** The three list orders of one "O" record; a v6 file without that record restores defaults. */
+    private data class SortOrders(
+        val song: SortChoice<SongSort>,
+        val album: SortChoice<AlbumSort>,
+        val artistAlbum: SortChoice<AlbumSort>,
+    )
+
+    /**
+     * Reads one `field:direction` sort order, the form [encodeSortChoice] writes. The app decoder
+     * repairs an unknown field or a missing direction instead of failing, so anything it had to
+     * repair is not a value this format wrote and the record is rejected.
+     */
+    private fun <S : Enum<S>> String.decodeSortChoice(
+        label: String,
+        fromPersisted: (String?) -> SortChoice<S>,
+    ): SortChoice<S> = fromPersisted(this).also {
+        if (encodeSortChoice(it) != this) formatError("Unknown $label")
     }
 
     private fun StringBuilder.appendRecord(vararg fields: String) = appendRecord(fields.asList())
@@ -774,6 +851,9 @@ internal class LocalBackupService(
                 crossfadeSeconds = settings.crossfadeSeconds.value,
                 pageLayout = settings.pageLayout.value,
                 artistVariety = settings.artistVariety.value,
+                songSort = settings.songSort.value,
+                albumSort = settings.albumSort.value,
+                artistAlbumSort = settings.artistAlbumSort.value,
             ),
             tracks = references,
             playlists = storedPlaylists.map { playlist ->
@@ -917,6 +997,9 @@ internal class LocalBackupService(
                 settings.setNormalizeVolume(snapshot.settings.normalizeVolume)
                 settings.setCrossfadeSeconds(snapshot.settings.crossfadeSeconds)
                 settings.setArtistVariety(snapshot.settings.artistVariety)
+                settings.setSongSort(snapshot.settings.songSort)
+                settings.setAlbumSort(snapshot.settings.albumSort)
+                settings.setArtistAlbumSort(snapshot.settings.artistAlbumSort)
                 completed += LocalBackupSection.SETTINGS
             }
         } catch (failure: Throwable) {

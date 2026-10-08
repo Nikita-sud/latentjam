@@ -38,6 +38,17 @@ internal class AndroidEqualizerController(context: Context) : EqualizerControlle
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
 
+    /**
+     * Guards the native effect handles.
+     *
+     * The session listener runs on whichever thread the service published from — its main thread —
+     * while band and preset edits arrive on [Dispatchers.IO], so without this an edit could take a
+     * handle just as it is released, or land on the effect the listener has already replaced and
+     * disappear with it: the user's band is stored but never heard. Every native call is short and
+     * none of them suspends, so one monitor for both sides is enough.
+     */
+    private val effectLock = Any()
+
     init {
         // Follows the player's session for the app's lifetime: the service can be torn down and
         // rebuilt underneath us, and each new session needs the stored curve applied again. When
@@ -50,7 +61,7 @@ internal class AndroidEqualizerController(context: Context) : EqualizerControlle
         // would never attach and the screen would wrongly read "no equalizer". Attach a probe up
         // front so the controls are usable before the first track — the curve is persisted and
         // re-applied to the real player session the moment playback starts.
-        if (equalizer == null) attachToProbe()
+        if (hasNoEffect()) attachToProbe()
     }
 
     /**
@@ -78,24 +89,45 @@ internal class AndroidEqualizerController(context: Context) : EqualizerControlle
      * effect implementation at all, and that is a state to explain rather than a crash.
      */
     private fun attachTo(audioSessionId: Int) {
-        release()
-        runCatching {
-            val effect = Equalizer(EFFECT_PRIORITY, audioSessionId)
-            equalizer = effect
-            bassBoost = runCatching { BassBoost(EFFECT_PRIORITY, audioSessionId) }.getOrNull()
-            restore(effect)
-            publish()
-        }.onFailure {
+        synchronized(effectLock) {
             release()
-            mutableState.value = EqualizerState(available = false)
+            runCatching {
+                val effect = Equalizer(EFFECT_PRIORITY, audioSessionId)
+                equalizer = effect
+                bassBoost = runCatching { BassBoost(EFFECT_PRIORITY, audioSessionId) }.getOrNull()
+                restore(effect)
+                publish()
+            }.onFailure {
+                release()
+                mutableState.value = EqualizerState(available = false)
+            }
         }
     }
 
     private fun release() {
-        runCatching { equalizer?.release() }
-        runCatching { bassBoost?.release() }
-        equalizer = null
-        bassBoost = null
+        synchronized(effectLock) {
+            runCatching { equalizer?.release() }
+            runCatching { bassBoost?.release() }
+            equalizer = null
+            bassBoost = null
+        }
+    }
+
+    /** Whether no effect is attached; read under [effectLock] so the init probe cannot race one. */
+    private fun hasNoEffect(): Boolean = synchronized(effectLock) { equalizer == null }
+
+    /**
+     * Runs [block] on the attached effect under [effectLock], and does nothing when no effect is
+     * attached — the device may have no implementation, and the listener may be between sessions.
+     *
+     * Every edit goes through here so it can never touch a handle that [release] is freeing or that
+     * [attachTo] has replaced; the failure of the native call itself is still swallowed, because a
+     * refused band must not take the settings screen down.
+     */
+    private inline fun withAttachedEffect(block: (Equalizer) -> Unit): Unit = synchronized(effectLock) {
+        val effect = equalizer
+        if (effect != null) runCatching { block(effect) }
+        Unit
     }
 
     private fun restore(effect: Equalizer) {
@@ -121,8 +153,7 @@ internal class AndroidEqualizerController(context: Context) : EqualizerControlle
     }
 
     override suspend fun setEnabled(enabled: Boolean): Unit = withContext(Dispatchers.IO) {
-        val effect = equalizer ?: return@withContext
-        runCatching {
+        withAttachedEffect { effect ->
             effect.enabled = enabled
             bassBoost?.let { if (it.strengthSupported) it.enabled = enabled }
             preferences.update { putBoolean(KEY_ENABLED, enabled) }
@@ -132,8 +163,7 @@ internal class AndroidEqualizerController(context: Context) : EqualizerControlle
 
     override suspend fun setBandLevel(bandIndex: Int, levelMillibels: Int): Unit =
         withContext(Dispatchers.IO) {
-            val effect = equalizer ?: return@withContext
-            runCatching {
+            withAttachedEffect { effect ->
                 val level = levelMillibels.coerceIn(effect)
                 effect.setBandLevel(bandIndex.toShort(), level.toShort())
                 preferences.update {
@@ -146,8 +176,7 @@ internal class AndroidEqualizerController(context: Context) : EqualizerControlle
         }
 
     override suspend fun applyPreset(presetIndex: Int): Unit = withContext(Dispatchers.IO) {
-        val effect = equalizer ?: return@withContext
-        runCatching {
+        withAttachedEffect { effect ->
             effect.usePreset(presetIndex.toShort())
             preferences.update {
                 putInt(KEY_PRESET, presetIndex)
@@ -159,19 +188,19 @@ internal class AndroidEqualizerController(context: Context) : EqualizerControlle
     }
 
     override suspend fun setBassBoost(strength: Int): Unit = withContext(Dispatchers.IO) {
-        val boost = bassBoost ?: return@withContext
-        runCatching {
-            if (!boost.strengthSupported) return@withContext
-            val clamped = strength.coerceIn(0, 1000)
-            boost.setStrength(clamped.toShort())
-            preferences.update { putInt(KEY_BASS_BOOST, clamped) }
-            publish()
+        withAttachedEffect {
+            val boost = bassBoost
+            if (boost?.strengthSupported == true) {
+                val clamped = strength.coerceIn(0, 1000)
+                boost.setStrength(clamped.toShort())
+                preferences.update { putInt(KEY_BASS_BOOST, clamped) }
+                publish()
+            }
         }
     }
 
     override suspend fun reset(): Unit = withContext(Dispatchers.IO) {
-        val effect = equalizer ?: return@withContext
-        runCatching {
+        withAttachedEffect { effect ->
             for (band in 0 until effect.numberOfBands) effect.setBandLevel(band.toShort(), 0)
             bassBoost?.takeIf { it.strengthSupported }?.setStrength(0)
             preferences.update {

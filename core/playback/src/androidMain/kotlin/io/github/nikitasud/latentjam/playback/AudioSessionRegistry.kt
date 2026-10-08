@@ -14,6 +14,10 @@ package io.github.nikitasud.latentjam.playback
  *
  * Both orderings work: a listener registering after the session was published is handed the current
  * value immediately.
+ *
+ * The listener is invoked on the publishing thread — the service's main thread — while its own
+ * callers may work from a background dispatcher, so a listener that touches shared native state has
+ * to serialize that itself; see [AndroidEqualizerController].
  */
 internal object AudioSessionRegistry {
 
