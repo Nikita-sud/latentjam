@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.addressOf
@@ -26,6 +27,7 @@ import platform.Foundation.NSFileSize
 import platform.Foundation.NSNumber
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSURL
+import platform.Foundation.NSUUID
 import platform.Foundation.NSUserDomainMask
 import platform.UIKit.UIApplication
 import platform.UIKit.UIDocumentPickerDelegateProtocol
@@ -36,7 +38,6 @@ import platform.posix.EINTR
 import platform.posix.O_RDONLY
 import platform.posix.errno
 import platform.posix.pread
-import platform.posix.rename
 import platform.posix.close as posixClose
 import platform.posix.open as posixOpen
 
@@ -119,20 +120,20 @@ private fun copyIntoDocuments(urls: List<NSURL>): AudioImportResult {
 }
 
 /** What one picked file did, i.e. which counter of [AudioImportResult] it feeds. */
-private enum class ImportOutcome { IMPORTED, ALREADY_PRESENT, FAILED }
+internal enum class ImportOutcome { IMPORTED, ALREADY_PRESENT, FAILED }
 
 /**
  * Copies one picked file into `Documents/Imported`.
  *
  * A name that is already taken is no longer an automatic skip, which used to lose files two ways.
  * A file that already holds exactly this source is still reported as skipped, but one that holds
- * anything else keeps its name while this source lands under a Finder-style " (2)" name. The one
- * taken file this method does overwrite is an interrupted copy of this very source — the torn or
- * zero-byte remnant of a copy the system killed in the background, which otherwise blocked every
- * later import of that file for good.
+ * anything else keeps its name while this source lands under a Finder-style " (2)" name.
+ * A shorter matching prefix can be a complete trimmed MP3, so it never proves an interrupted import.
+ * Even empty existing files are preserved; only the unique temporary copy made by this import may
+ * be removed on failure.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun importOne(
+internal fun importOne(
     manager: NSFileManager,
     destinationDirectory: NSURL,
     source: NSURL,
@@ -161,14 +162,6 @@ private fun importOne(
             existingSize == sourceSize && hasEqualPrefix(candidate, sourcePath, sourceSize) ->
                 return ImportOutcome.ALREADY_PRESENT
 
-            // Shorter and byte-for-byte the beginning of this source: an interrupted copy of it,
-            // not another track, so the import must repair it instead of skipping or duplicating it.
-            existingSize != null && existingSize < sourceSize &&
-                hasEqualPrefix(candidate, sourcePath, existingSize) -> {
-                destinationPath = candidate
-                break
-            }
-
             // A different file owns this name. Leave it alone and try " (2)", " (3)", ...
             else -> Unit
         }
@@ -183,18 +176,17 @@ private fun importOne(
 }
 
 /**
- * Copies [source] into a `.partial` sibling of [destinationPath] and renames it into place, so the
- * final name only ever holds a complete file and this bug cannot be re-created by a copy that the
- * system kills mid-flight. A failed copy is reported as such, never as "already imported".
+ * Stages a complete copy beside the destination and moves it without replacing an existing file.
+ * A unique temporary name keeps concurrent imports and remnants of earlier imports independent.
+ * If another writer takes the destination after the name check, the move fails and preserves it.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 private fun copyAtomically(
     manager: NSFileManager,
     source: NSURL,
     destinationPath: String,
 ): ImportOutcome {
-    val partialPath = destinationPath + PARTIAL_SUFFIX
-    manager.removeItemAtPath(partialPath, null)
+    val partialPath = "$destinationPath.${NSUUID().UUIDString}$PARTIAL_SUFFIX"
     var failure: String? = null
     val copied = memScoped {
         val error = alloc<ObjCObjectVar<NSError?>>()
@@ -208,10 +200,9 @@ private fun copyAtomically(
         println("IOS_IMPORT: copy failed: ${failure ?: "unknown error"}")
         return ImportOutcome.FAILED
     }
-    if (rename(partialPath, destinationPath) != 0) {
-        val code = errno
+    if (!manager.moveItemAtPath(partialPath, destinationPath, null)) {
         manager.removeItemAtPath(partialPath, null)
-        println("IOS_IMPORT: could not move the copy into place: errno $code")
+        println("IOS_IMPORT: could not move the copy into place")
         return ImportOutcome.FAILED
     }
     return ImportOutcome.IMPORTED
