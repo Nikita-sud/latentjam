@@ -1200,6 +1200,10 @@ internal class IosPlaybackController(
      * invalidated by a media-services reset and will be used by the next imported file.
      * Reopening a local file preserves its playhead. As required by AVAudioSession's reset
      * contract, playback waits for a new user action instead of restarting automatically.
+     *
+     * A cued file that cannot be reopened — deleted or moved while paused — gives way to the next
+     * playable row, still paused, the way an unreadable saved row does on resume. Kept current, the
+     * row would have no file behind it, and Play would do nothing until the listener skipped.
      */
     private fun onMediaServicesReset() {
         mainScope.launch {
@@ -1210,11 +1214,28 @@ internal class IosPlaybackController(
             transportFadeJob = null
             transportFade.reset()
             val localPosition = mutableState.value.positionMs.takeIf { activeBackend == PlaybackBackend.FILE }
-            audioEngine.rebuildAfterMediaServicesReset(localPosition)
+            val recued = audioEngine.rebuildAfterMediaServicesReset(localPosition)
             if (activeBackend == PlaybackBackend.MEDIA_LIBRARY) mediaPlayer.pause()
             mediaPlayerStartRequestedAt = null
             mediaItemStarted = false
             playing = false
+            val unreadableIndex = queueIndex
+            if (localPosition != null && !recued && unreadableIndex in queue.indices) {
+                val loaded = loadPlayableFrom(
+                    startIndex = unreadableIndex,
+                    direction = 1,
+                    autoPlay = false,
+                    wrap = false,
+                )
+                // The same row reopening after all keeps its playhead; any other row is new.
+                if (loaded) {
+                    if (queueIndex != unreadableIndex) {
+                        beginStart(cause = null)
+                    } else if (localPosition > 0L) {
+                        seekActiveBackend(localPosition)
+                    }
+                }
+            }
             updateTicker()
             invalidateNowPlayingInfo()
             pushState()
