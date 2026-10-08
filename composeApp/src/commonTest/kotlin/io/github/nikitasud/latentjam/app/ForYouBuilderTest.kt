@@ -25,6 +25,15 @@ class ForYouBuilderTest {
 
     private val now = 1_000_000_000_000L
     private val day = 24L * 60 * 60 * 1000
+    private val hour = 60L * 60 * 1000
+
+    /**
+     * The page's day boundary, pinned to the UTC midnight the fixtures below are built around.
+     * Production keys every rotation to the device's LOCAL day (see `localDayOf` on
+     * [ForYouBuilder.build]), and a fixture that left it to the default would silently move to
+     * another day with the runner's timezone.
+     */
+    private val utcDay: (Long) -> Long = { at -> at / day }
 
     private fun track(id: String, artist: String = "A", added: Long = 0) =
         TrackDescriptor(id = TrackId(id), title = "T$id", artist = artist, addedAtMs = added)
@@ -42,14 +51,21 @@ class ForYouBuilderTest {
         library: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats> = emptyMap(),
         events: List<ListenEvent> = emptyList(),
-    ) = ForYouBuilder.build(library, stats, events, now).sections
+    ) = ForYouBuilder.build(library, stats, events, now, localDayOf = utcDay).sections
 
     private fun page(
         library: List<TrackDescriptor>,
         stats: Map<TrackId, TrackStats> = emptyMap(),
         events: List<ListenEvent> = emptyList(),
         playlists: List<Playlist> = emptyList(),
-    ) = ForYouBuilder.build(library, stats, events, now, playlists = playlists)
+    ) = ForYouBuilder.build(
+        library,
+        stats,
+        events,
+        now,
+        playlists = playlists,
+        localDayOf = utcDay,
+    )
 
     private fun track(id: String, artist: String, album: String) =
         TrackDescriptor(id = TrackId(id), title = "T$id", artist = artist, album = album)
@@ -620,12 +636,54 @@ class ForYouBuilderTest {
     @Test
     fun `the page rotates across days but holds still within one`() {
         val tracks = (1..30).map { track("$it", artist = "Artist$it", added = it.toLong()) }
-        val sameDay = ForYouBuilder.build(tracks, emptyMap(), emptyList(), now + 60 * 60 * 1000L)
-        val today = ForYouBuilder.build(tracks, emptyMap(), emptyList(), now)
+        val sameDay = ForYouBuilder.build(
+            tracks, emptyMap(), emptyList(), now + hour, localDayOf = utcDay,
+        )
+        val today = ForYouBuilder.build(tracks, emptyMap(), emptyList(), now, localDayOf = utcDay)
         assertEquals(today, sameDay, "two openings on one day must agree")
 
-        val tomorrow = ForYouBuilder.build(tracks, emptyMap(), emptyList(), now + day)
+        val tomorrow = ForYouBuilder.build(
+            tracks, emptyMap(), emptyList(), now + day, localDayOf = utcDay,
+        )
         assertTrue(today != tomorrow, "consecutive days must not show an identical page")
+    }
+
+    @Test
+    fun `the daily rotation turns over on the local day, not on the UTC day`() {
+        val tracks = (1..30).map { track("$it", artist = "Artist$it", added = it.toLong()) }
+        // A fixed UTC+13 zone — far enough east for its calendar day to disagree with UTC's for
+        // eleven hours out of twenty-four. Local midnight there falls at 11:00 UTC.
+        val offset = 13 * hour
+        fun localDay(at: Long): Long = (at + offset) / day
+        fun pageAt(at: Long) = ForYouBuilder.build(
+            library = tracks,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = at,
+            localDayOf = ::localDay,
+        )
+
+        // Two instants inside ONE UTC day, on either side of the listener's own midnight.
+        val dayStart = now - now % day
+        val beforeLocalMidnight = dayStart + 10 * hour + 30 * 60_000L
+        val afterLocalMidnight = dayStart + 11 * hour + 30 * 60_000L
+        assertEquals(beforeLocalMidnight / day, afterLocalMidnight / day)
+        assertEquals(localDay(beforeLocalMidnight) + 1, localDay(afterLocalMidnight))
+        assertTrue(
+            pageAt(beforeLocalMidnight) != pageAt(afterLocalMidnight),
+            "the listener's own day turned over; the page must not keep yesterday's rotation",
+        )
+
+        // And two instants inside ONE local day while UTC midnight passes between them.
+        val beforeUtcMidnight = dayStart + 23 * hour + 30 * 60_000L
+        val afterUtcMidnight = dayStart + 24 * hour + 30 * 60_000L
+        assertEquals(beforeUtcMidnight / day + 1, afterUtcMidnight / day)
+        assertEquals(localDay(beforeUtcMidnight), localDay(afterUtcMidnight))
+        assertEquals(
+            pageAt(beforeUtcMidnight),
+            pageAt(afterUtcMidnight),
+            "UTC midnight is not this listener's midnight",
+        )
     }
 
     @Test
@@ -730,6 +788,7 @@ class ForYouBuilderTest {
             ),
             nowMs = now,
             journeys = journeys,
+            localDayOf = utcDay,
         )
         val card = result.sections.single { it.kind == ForYouSectionKind.JOURNEY }.cards.single()
         assertEquals(spare.first().id, card.track.id)
