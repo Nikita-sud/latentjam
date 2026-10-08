@@ -97,12 +97,36 @@ internal class IosMusicLibrary : MusicLibrary {
     private data class SourceSnapshot(
         val documents: List<TrackDescriptor>,
         val device: List<TrackDescriptor>,
+        // False when Documents could not be enumerated at all, which is also the source of the
+        // app-owned half of the library.
+        val documentsReadable: Boolean = true,
     )
+
+    /**
+     * Reports an incomplete scan whenever a source that should answer came back empty, because iOS
+     * encodes "could not ask" as an empty list: Music.app returns no songs while the query is
+     * still loading after a grant, and `enumeratorAtPath` returns null on a broken sandbox. An
+     * empty result in that state is not evidence that previously indexed tracks were deleted, so
+     * pruning must not treat it as a complete library.
+     */
+    override suspend fun scan(): LibraryScan {
+        val hidden = hiddenTrackIdValues()
+        val excludedSources = excludedSourceIds()
+        val snapshot = sourceSnapshot(prompt = true)
+        val documents = snapshot.documents.filterNot { sourceId(it) in excludedSources }
+        val device = if (DEVICE_MUSIC_SOURCE_ID in excludedSources) emptyList() else snapshot.device
+        return LibraryScan(
+            tracks = mergeSources(documents, device)
+                .filterNot { it.id.value in hidden }
+                .sortedBy { it.title?.lowercase() ?: "" },
+            complete = isCompleteSnapshot(snapshot, excludedSources),
+        )
+    }
 
     override suspend fun tracks(): List<TrackDescriptor> {
         val hidden = hiddenTrackIdValues()
         val excludedSources = excludedSourceIds()
-        val snapshot = sourceSnapshot()
+        val snapshot = sourceSnapshot(prompt = true)
         val documents = snapshot.documents.filterNot { sourceId(it) in excludedSources }
         val device = if (DEVICE_MUSIC_SOURCE_ID in excludedSources) emptyList() else snapshot.device
         return mergeSources(documents, device)
@@ -116,8 +140,12 @@ internal class IosMusicLibrary : MusicLibrary {
             .sortedBy { it.title?.lowercase() ?: "" }
     }
 
-    private suspend fun sourceSnapshot(): SourceSnapshot {
-        val canReadDeviceLibrary = mediaLibraryAuthorized()
+    private suspend fun sourceSnapshot(prompt: Boolean = false): SourceSnapshot {
+        val canReadDeviceLibrary = if (prompt) {
+            mediaLibraryAuthorized()
+        } else {
+            mediaLibraryAuthorizedWithoutPrompt()
+        }
         val device = if (canReadDeviceLibrary) {
             // MediaPlayer's controller is explicitly main-thread-only. Keeping its query here as
             // well avoids relying on undocumented cross-thread behavior of the returned items.
@@ -125,11 +153,25 @@ internal class IosMusicLibrary : MusicLibrary {
         } else {
             emptyList()
         }
+        var readable = true
         val documents = withContext(Dispatchers.Default) {
-            scanMutex.withLock { IosPaths.documents()?.let(::scan).orEmpty() }
+            scanMutex.withLock {
+                IosPaths.documents()?.let { root ->
+                    readable = NSFileManager.defaultManager.enumeratorAtPath(root) != null
+                    scan(root)
+                }.orEmpty()
+            }
         }
-        return SourceSnapshot(documents = documents, device = device)
+        return SourceSnapshot(documents = documents, device = device, documentsReadable = readable)
     }
+
+    private fun isCompleteSnapshot(snapshot: SourceSnapshot, excludedSources: Set<String>): Boolean =
+        snapshotIsComplete(
+            documentsReadable = snapshot.documentsReadable,
+            device = snapshot.device,
+            deviceSourceEnabled = DEVICE_MUSIC_SOURCE_ID !in excludedSources,
+            hasDocuments = snapshot.documents.isNotEmpty(),
+        )
 
     override suspend fun hide(trackId: TrackId): Unit = withContext(Dispatchers.Default) {
         visibilityMutex.withLock {
@@ -639,6 +681,26 @@ internal class IosMusicLibrary : MusicLibrary {
         )
 
     }
+}
+
+/**
+ * Whether one iOS scan saw every source that was supposed to answer.
+ *
+ * An empty list from MediaPlayer means "no songs" only when the device half is genuinely empty:
+ * before the grant, and right after it while the query is still loading, the same empty list means
+ * "could not ask". App-owned files are the evidence that separates the two — a library that holds
+ * imported tracks while Music.app reports nothing is the transient case, not a deleted library.
+ * Documents that cannot be enumerated at all are incomplete for the same reason.
+ */
+internal fun snapshotIsComplete(
+    documentsReadable: Boolean,
+    device: List<TrackDescriptor>,
+    deviceSourceEnabled: Boolean,
+    hasDocuments: Boolean,
+): Boolean {
+    if (!documentsReadable) return false
+    if (!deviceSourceEnabled) return true
+    return device.isNotEmpty() || !hasDocuments
 }
 
 /** Newline-safe storage for arbitrary relative paths and MediaPlayer IDs. */
