@@ -1,4 +1,8 @@
 /* Copyright (c) 2026 LatentJam Project; SPDX-License-Identifier: Apache-2.0 */
+// LjBatchDots against a portable reference on the host: exact bit parity over ragged dimensions, row
+// counts, an aliased query and non-finite inputs, then first/warm timings when given an argument. Built by
+// ../../main/cpp/CMakeLists.txt (-DLJQ4_TESTS=ON). Exit codes: 0 verified, 1 mismatch, 2 the kernel wrote
+// output while reporting unsupported, 77 no kernel on this CPU (nothing verified).
 #include "ljdots.h"
 #include <algorithm>
 #include <chrono>
@@ -20,6 +24,11 @@ static void Portable(const float* m, int dim, const float* q, const int32_t* row
 }
 static uint32_t Bits(float x) { uint32_t bits; memcpy(&bits, &x, 4); return bits; }
 static bool Same(float a, float b) { return Bits(a) == Bits(b) || (std::isnan(a) && std::isnan(b)); }
+
+// LjBatchDots has no portable fallback: on a CPU without its kernel it returns 0 and writes nothing, so
+// this test has verified nothing and must not look like a pass. 77 is the conventional "skipped" status
+// (nothing here registers with CTest, so the shell and the caller are the only readers).
+static constexpr int kSkipped = 77;
 
 int main(int argc, char**) {
   std::mt19937 random(71236);
@@ -46,9 +55,11 @@ int main(int argc, char**) {
         std::vector<float> expected(n, -1234.5f), actual = expected;
         Portable(testMatrix.data(), dim, q, rows.data(), count, expected.data());
         if (!LjBatchDots(testMatrix.data(), dim, q, rows.data(), count, actual.data())) {
+          // Reported unsupported: it must have written nothing, and nothing has been checked here.
           if (actual != std::vector<float>(n, -1234.5f)) return 2;
-          puts("LjBatchDots unsupported on this architecture; output preserved");
-          return 0;
+          fprintf(stderr, "LjBatchDots skipped: no kernel on this architecture, output preserved, "
+                          "nothing verified (exit %d)\n", kSkipped);
+          return kSkipped;
         }
         for (int i = 0; i < n; ++i) {
           if (!Same(expected[i], actual[i])) {
