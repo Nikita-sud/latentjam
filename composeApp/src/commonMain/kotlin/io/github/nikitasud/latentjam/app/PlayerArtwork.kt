@@ -144,6 +144,7 @@ internal fun PlayerArtworkCard(
     val currentOnHold by rememberUpdatedState(onHold)
     val currentOnSkip by rememberUpdatedState(onSkip)
     val currentSkipChangesTrack by rememberUpdatedState(skipChangesTrack)
+    val currentNeighbourTrack by rememberUpdatedState(neighbourTrack)
     val currentOnCollapseDrag by rememberUpdatedState(onCollapseDrag)
     val currentOnCollapseRelease by rememberUpdatedState(onCollapseRelease)
     val currentOnCollapseAbandon by rememberUpdatedState(onCollapseAbandon)
@@ -298,9 +299,18 @@ internal fun PlayerArtworkCard(
                                 val shown = dragTravel ?: 0f
                                 val forward = dx < 0f
                                 val changesTrack = armed && currentSkipChangesTrack(forward)
+                                // The park is a promise to hand the cover over to the track the
+                                // swipe reaches, so it needs that track's identity. At a SMART
+                                // tail the next recommendation is still being chosen (the
+                                // preview says as much by showing no neighbour), and
+                                // appendSmartNextIfNeeded may add nothing at all: parking then
+                                // would leave an empty player that ignores every gesture until
+                                // the settle timeout. Without a landing track the cover springs
+                                // back at once while the skip is still requested.
+                                val parksCover = changesTrack && currentNeighbourTrack(forward) != null
                                 if (armed) {
                                     haptics.play(PlayerHaptic.TAP)
-                                    if (changesTrack) pendingSkip = forward
+                                    if (parksCover) pendingSkip = forward
                                 } else if (rejected) {
                                     haptics.play(PlayerHaptic.REJECT)
                                 }
@@ -309,7 +319,7 @@ internal fun PlayerArtworkCard(
                                     tilt.snapTo(if (reduceMotion) 0f else shown / width * SWIPE_TILT_DEGREES)
                                     dragTravel = null
                                     launch { tilt.animateTo(0f, returnSpec) }
-                                    if (changesTrack) {
+                                    if (parksCover) {
                                         travel.animateTo(
                                             targetValue = if (forward) -(width + gap) else width + gap,
                                             animationSpec = tween(if (reduceMotion) 0 else SWIPE_OUT_MS),
