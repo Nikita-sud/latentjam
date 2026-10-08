@@ -8,6 +8,7 @@ SMART picks better, and the app gets smaller: smoother transitions and fewer jum
 - 🪶 **Smaller and faster.** The on-device models are half the size, and the audio model runs about a third faster on LatentJam's own 4-bit operator; the arm64 download shrinks from 57 to 38 MB. After the update the library is analysed once more — up to twice as fast as before.
 
 ### Fixed
+- Android: every song shows its own cover. Songs without an album tag, and same-named albums of different artists in one folder, no longer all show one song's cover; a song with no cover of its own still shows its album's ([#12](https://github.com/Nikita-sud/latentjam/issues/12)).
 - Dragging a queue entry, a playlist or a page in Settings → Pages to either edge scrolls the list while you hold it there, so it can be moved beyond the visible rows.
 - iPhone import preserves existing shorter or different files with the same name and safely gives the new copy another name.
 - After a large tag edit, the library and queue refresh again when Android finishes indexing the changed files.
