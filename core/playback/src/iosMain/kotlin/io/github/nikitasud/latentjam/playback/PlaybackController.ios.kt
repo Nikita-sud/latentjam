@@ -728,6 +728,9 @@ internal class IosPlaybackController(
             clear()
             putAll(restorePlan.smartPlanPositions)
         }
+        // A resume installs a new queue, so the removals booked against the old one go with it —
+        // exactly as Android's restoreQueue does. Restored rows were never removed from this queue.
+        smartRemovedIds.clear()
         queueIndex = restorePlan.currentIndex
         queueGeneration++
         val refillAfterPendingInvalidation = mode == ShuffleMode.SMART &&
