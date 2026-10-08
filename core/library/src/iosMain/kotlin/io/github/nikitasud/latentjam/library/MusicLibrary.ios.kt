@@ -425,7 +425,11 @@ internal class IosMusicLibrary : MusicLibrary {
                 val persistentId = item.persistentID.toString()
                 TrackDescriptor(
                     id = TrackId("$MEDIA_ID_PREFIX$persistentId"),
-                    title = item.title.knownOrNull() ?: "Unknown title",
+                    // An untitled Music.app item stays null rather than becoming an English literal
+                    // here: the library has no locale, so the UI draws its own localized fallback
+                    // (`track_untitled`), exactly as it already does for a null title from anywhere
+                    // else. The tag readers' own fallback for imported files is their file name.
+                    title = item.title.knownOrNull(),
                     artist = item.artist.knownOrNull(),
                     album = item.albumTitle.knownOrNull(),
                     genre = item.genre.knownOrNull()?.let(::cleanGenre),
