@@ -16,6 +16,7 @@ import androidx.media3.common.MediaLibraryInfo
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSourceBitmapLoader
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
 import androidx.media3.session.CommandButton
@@ -735,6 +736,8 @@ public class PlaybackService : MediaLibraryService() {
             .setMediaButtonPreferences(
                 mediaButtonPreferences(player, AndroidShuffleModeRegistry.mode.value),
             )
+            // Media3 still sizes and caches covers around this, as it does around its own loader.
+            .setBitmapLoader(TrackCoverBitmapLoader(DataSourceBitmapLoader.Builder(this).build()))
         appLaunchPendingIntent()?.let(sessionBuilder::setSessionActivity)
         mediaSession = sessionBuilder.build()
         player.addListener(playerListener)

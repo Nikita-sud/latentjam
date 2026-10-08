@@ -28,6 +28,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import io.github.nikitasud.latentjam.smart.EngineState
+import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -1543,7 +1544,7 @@ internal class AndroidPlaybackController(
 
     private suspend fun hasReadableArtwork(uri: String): Boolean = withContext(Dispatchers.IO) {
         runCatching {
-            context.contentResolver.openInputStream(Uri.parse(uri)).use { input ->
+            MediaStoreArtwork.open(context.contentResolver, Uri.parse(uri)).use { input ->
                 input != null && input.read() != -1
             }
         }.getOrDefault(false)

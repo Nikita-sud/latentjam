@@ -13,6 +13,7 @@ import io.github.nikitasud.latentjam.library.tags.CoverPicture
 import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
 import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TextRepair
+import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
@@ -187,9 +188,9 @@ internal class MediaStoreMusicLibrary(
                     audioUri = ContentUris
                         .withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
                         .toString(),
-                    artworkUri = albumId.takeIf { it > 0 }?.let { album ->
-                        ContentUris.withAppendedId(ALBUM_ART_URI, album).toString()
-                    },
+                    // The song's own cover; its album's, which grouping compares, is the fallback.
+                    artworkUri = albumId.takeIf { it > 0 }?.let { album -> MediaStoreArtwork.trackCover(id, album) },
+                    albumArtworkUri = albumId.takeIf { it > 0 }?.let(MediaStoreArtwork::albumCover),
                     // MediaStore stores DATE_ADDED in epoch seconds.
                     addedAtMs = cursor.getLong(addedColumn).takeIf { it > 0 }?.times(1000),
                     folderPath = mediaStoreFolderPath(
@@ -437,9 +438,6 @@ internal class MediaStoreMusicLibrary(
     private fun String?.knownTagOrNull(): String? = knownOrNull()?.let(TextRepair::repair)
 
     private companion object {
-        /** Base of the classic per-album artwork content URIs. */
-        val ALBUM_ART_URI: android.net.Uri = android.net.Uri.parse("content://media/external/audio/albumart")
-
         /** MediaStore.Audio.AudioColumns.ALBUM_ARTIST, whose constant is hidden below API 30. */
         const val ALBUM_ARTIST = "album_artist"
         const val HIDDEN_FILE_NAME = "hidden_tracks.txt"

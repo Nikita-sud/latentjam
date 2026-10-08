@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
@@ -47,5 +48,26 @@ internal class AlbumArtVersionsTest {
         val after = withAlbumArtVersions(listOf(track("1", "a-edited"), track("3", "c", other), track("4", "d", null)))
         assertEquals(before[1].artworkUri, after[1].artworkUri)
         assertNull(after[2].artworkUri)
+    }
+
+    @Test
+    fun aSongsOwnCoverCarriesItsAlbumsVersionAndFallsBackToTheVersionedAlbumCover() {
+        fun song(id: Long, revision: String) = TrackDescriptor(
+            TrackId(id.toString()),
+            artworkUri = MediaStoreArtwork.trackCover(id, albumId = 12),
+            albumArtworkUri = MediaStoreArtwork.albumCover(12),
+            sourceRevision = revision,
+        )
+        val versioned = withAlbumArtVersions(listOf(song(1, "a"), song(2, "b")))
+        val album = versioned.first().albumArtworkUri!!
+        assertTrue(album.startsWith("$art?v="))
+        assertEquals(listOf(album, album), versioned.map { it.albumArtworkUri })
+        assertEquals(2, versioned.map { it.artworkUri }.distinct().size)
+        versioned.forEach { track ->
+            assertTrue(track.artworkUri!!.endsWith("&v=" + album.substringAfter("?v=")))
+            assertEquals(album, MediaStoreArtwork.albumFallback(track.artworkUri!!))
+        }
+        val edited = withAlbumArtVersions(listOf(song(1, "a"), song(2, "b-edited")))
+        assertNotEquals(versioned.first().artworkUri, edited.first().artworkUri, "a sibling's edit can change the fallback")
     }
 }

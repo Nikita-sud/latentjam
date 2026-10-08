@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.library
 import io.github.nikitasud.latentjam.library.tags.CoverEdit
 import io.github.nikitasud.latentjam.library.tags.CoverPicture
 import io.github.nikitasud.latentjam.library.tags.Crc32
+import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import java.io.File
@@ -26,12 +27,12 @@ internal sealed interface FileCover {
 }
 
 /**
- * Covers of the songs whose cover LatentJam saved, on a platform that knows only album covers.
+ * Covers of the songs whose cover LatentJam saved, which MediaStore's own covers may not show.
  *
- * MediaStore gives every song its album's art, so a new cover saved into one song of an album
- * never shows. After such a save the new image is kept in [directory] as `<crc32>.<ext>`, and the
- * song's entry in a small index beside it names that file; a removed cover is an entry with no
- * file. Every scan swaps those songs' album art for their own cover (null for a removed one) and
+ * Below Android 10 MediaStore gives every song its album's art (see [MediaStoreArtwork]), so a new
+ * cover saved into one song of an album never shows. After such a save the new image is kept in
+ * [directory] as `<crc32>.<ext>`, and the song's entry in a small index beside it names that file;
+ * a removed cover is an entry with no file. Every scan swaps those songs' album art for their own cover (null for a removed one) and
  * keeps the album's in [TrackDescriptor.albumArtworkUri], which grouping compares. Every other
  * song is left exactly as the scan made it, so no other file is read.
  *
@@ -222,7 +223,7 @@ internal class TrackCoverOverrides(
             } else {
                 track.copy(
                     artworkUri = entry.fileName?.let { "file://" + File(directory, it).absolutePath },
-                    albumArtworkUri = track.artworkUri,
+                    albumArtworkUri = track.albumArtworkUri ?: track.artworkUri,
                 )
             }
         }

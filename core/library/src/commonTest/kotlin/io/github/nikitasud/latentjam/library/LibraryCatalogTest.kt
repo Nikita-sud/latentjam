@@ -116,6 +116,43 @@ internal class LibraryCatalogTest {
     }
 
     @Test
+    fun songsCarryingCoversOfTheirOwnGroupExactlyAsTheirAlbumsCoverDid() {
+        // Android's scan: every song's own MediaStore cover, its album's beside it (issue #12).
+        val albumShapes = listOf(
+            listOf("Queen" to "Hits", "Queen" to "Hits", "ABBA" to "Hits"),
+            listOf("Queen" to "Hits 1985", "ABBA" to "Hits 1985", "Sade" to "Hits 1985"),
+            listOf("Queen" to null, "ABBA" to null, "Sade" to null),
+        )
+        for (shape in albumShapes) {
+            val byAlbumCover = shape.mapIndexed { i, (artist, album) ->
+                track("${i + 1}", title = "t$i", artist = artist, album = album, artworkUri = "art://album-$album")
+            }
+            val byOwnCover = byAlbumCover.map { it.copy(artworkUri = "art://song-${it.id.value}", albumArtworkUri = it.artworkUri) }
+            val before = LibraryCatalog.build(byAlbumCover)
+            val after = LibraryCatalog.build(byOwnCover)
+            assertEquals(before.albums.map { it.key }, after.albums.map { it.key }, "$shape")
+            assertEquals(
+                before.albums.map { album -> album.tracks.map { it.id } },
+                after.albums.map { album -> album.tracks.map { it.id } },
+                "$shape",
+            )
+        }
+    }
+
+    @Test
+    fun anAlbumOfSongsWithOwnCoversShowsItsFirstTracksCover() {
+        val catalog = LibraryCatalog.build(
+            listOf(
+                track("1", title = "a", artist = "Queen", album = "Hits", artworkUri = "art://song-1")
+                    .copy(trackNumber = 2, albumArtworkUri = "art://album"),
+                track("2", title = "b", artist = "Queen", album = "Hits", artworkUri = "art://song-2")
+                    .copy(trackNumber = 1, albumArtworkUri = "art://album"),
+            ),
+        )
+        assertEquals("art://song-2", catalog.albums.single().artworkUri)
+    }
+
+    @Test
     fun anAlbumWhoseFirstSongHasItsOwnCoverShowsThatCover() {
         val catalog = LibraryCatalog.build(
             listOf(

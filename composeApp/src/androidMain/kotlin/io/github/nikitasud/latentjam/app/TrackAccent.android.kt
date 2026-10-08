@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.time.Duration.Companion.seconds
@@ -69,7 +70,7 @@ actual fun rememberArtworkColor(uri: String?): ArtworkColorState {
 private fun sampleArtwork(context: Context, uri: String): Color? = runCatching {
     val parsed = Uri.parse(uri)
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    context.contentResolver.openInputStream(parsed).use { stream ->
+    MediaStoreArtwork.open(context.contentResolver, parsed).use { stream ->
         BitmapFactory.decodeStream(stream, null, bounds)
     }
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
@@ -81,7 +82,7 @@ private fun sampleArtwork(context: Context, uri: String): Color? = runCatching {
         sample *= 2
     }
     val options = BitmapFactory.Options().apply { inSampleSize = sample }
-    val bitmap = context.contentResolver.openInputStream(Uri.parse(uri)).use { stream ->
+    val bitmap = MediaStoreArtwork.open(context.contentResolver, parsed).use { stream ->
         BitmapFactory.decodeStream(stream, null, options)
     } ?: return null
     val accent = dominantAccent(bitmap)

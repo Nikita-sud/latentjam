@@ -37,6 +37,7 @@ import io.github.nikitasud.latentjam.playback.PlaybackWidgetSnapshot
 import io.github.nikitasud.latentjam.playback.PlaybackWidgetStateStore
 import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.ShuffleMode
+import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import java.util.LinkedHashMap
 import java.util.concurrent.Executors
 import kotlinx.coroutines.launch
@@ -665,7 +666,7 @@ private fun widgetAction(
 private fun decodeBoundedArtwork(context: Context, value: String): Bitmap? = runCatching {
     val uri = Uri.parse(value)
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    context.contentResolver.openInputStream(uri)?.use { input ->
+    MediaStoreArtwork.open(context.contentResolver, uri)?.use { input ->
         BitmapFactory.decodeStream(input, null, bounds)
     }
     if (bounds.outWidth !in 1..100_000 || bounds.outHeight !in 1..100_000) return@runCatching null
@@ -679,7 +680,7 @@ private fun decodeBoundedArtwork(context: Context, value: String): Bitmap? = run
         inSampleSize = sample
         inPreferredConfig = Bitmap.Config.ARGB_8888
     }
-    val decoded = context.contentResolver.openInputStream(uri)?.use { input ->
+    val decoded = MediaStoreArtwork.open(context.contentResolver, uri)?.use { input ->
         BitmapFactory.decodeStream(input, null, options)
     } ?: return@runCatching null
     if (maxOf(decoded.width, decoded.height) > ARTWORK_SIZE_PX * 2) {

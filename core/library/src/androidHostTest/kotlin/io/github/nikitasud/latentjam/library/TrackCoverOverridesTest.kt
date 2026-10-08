@@ -92,6 +92,20 @@ internal class TrackCoverOverridesTest {
     }
 
     @Test
+    fun aSongsOwnMediaStoreCoverGivesWayToTheSavedOneAndTheAlbumKeepsItsArt() {
+        val own = "content://media/external/audio/media/2/albumart?album=12&v=1f"
+        overrides().record(listOf(TrackId("2")), CoverEdit.Replace(jpeg, "image/jpeg"))
+        val scanned = listOf(
+            track("1", artwork = "content://media/external/audio/media/1/albumart?album=12&v=1f").copy(albumArtworkUri = album),
+            track("2", artwork = own).copy(albumArtworkUri = album),
+        )
+        val applied = overrides().apply(scanned)
+        assertEquals(listOf(scanned[0].artworkUri, fileUri(jpeg, "jpg")), applied.map { it.artworkUri })
+        // The album's cover, never the song's own MediaStore cover, so grouping still sees one album.
+        assertEquals(listOf(album, album), applied.map { it.albumArtworkUri })
+    }
+
+    @Test
     fun theOverridesSurviveANewStoreOverTheSameFiles() {
         overrides().record(listOf(TrackId("1")), CoverEdit.Replace(png, "image/png"))
         overrides().record(listOf(TrackId("2")), CoverEdit.Remove)

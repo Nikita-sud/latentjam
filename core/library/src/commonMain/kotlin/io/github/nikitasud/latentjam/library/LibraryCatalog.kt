@@ -90,13 +90,16 @@ public data class LibraryCatalog(
             val albums = tracks
                 .albumGroups()
                 .map { (identity, grouped) ->
+                    val ordered = inAlbumOrder(grouped)
                     AlbumGroup(
                         key = identity.stableKey(),
                         title = grouped.firstNotNullOfOrNull { it.album },
                         artist = grouped.firstNotNullOfOrNull { it.albumArtist?.takeIf(String::isNotBlank) }
                             ?: grouped.firstNotNullOfOrNull { it.artist },
-                        artworkUri = grouped.firstNotNullOfOrNull { it.artworkUri },
-                        tracks = inAlbumOrder(grouped),
+                        // Songs can carry covers of their own (Android's MediaStoreArtwork): the
+                        // album shows its first track's.
+                        artworkUri = ordered.firstNotNullOfOrNull { it.artworkUri },
+                        tracks = ordered,
                     )
                 }
                 .map { Triple(it, it.tracks.size < 2, SongSorting.sortKey(it.title)) }
