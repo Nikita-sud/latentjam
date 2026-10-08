@@ -30,10 +30,12 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import java.io.BufferedReader
+import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,7 +64,12 @@ internal actual fun rememberLocalBackupFileExchange(
                 LocalBackupExchangeModel(
                     handle = createSavedStateHandle(),
                     writeDocument = { encoded, destination ->
-                        writeDocument(resolver, Uri.parse(destination), encoded)
+                        writeDocument(
+                            resolver,
+                            Uri.parse(destination),
+                            encoded,
+                            activity.applicationContext.cacheDir,
+                        )
                     },
                     readDocument = { source -> readDocument(resolver, Uri.parse(source)) },
                 )
@@ -257,11 +264,41 @@ internal class LocalBackupExchangeModel(
     }
 }
 
-private suspend fun writeDocument(resolver: ContentResolver, uri: Uri, encoded: String) =
-    withContext(Dispatchers.IO) {
-        val output = resolver.openOutputStream(uri, "wt")
-            ?: error("The selected document cannot be opened")
-        output.bufferedWriter(Charsets.UTF_8).use { writer ->
+/**
+ * Fills the picked document from a complete copy of the payload, never while it is still
+ * arriving.
+ *
+ * This job is cancelled when the Backup screen leaves (see [LocalBackupExchangeModel.abandon]),
+ * and the format carries neither a trailer nor a checksum, so a half-written `.ljbackup` still
+ * decodes and a later REPLACE restore silently drops the sections that never landed. The picked
+ * document is therefore opened only once the whole payload sits in a private scratch file, and
+ * only after the last cancellation point; iOS prepares the same complete temporary document in
+ * `prepareExport` before the system exports it.
+ */
+private suspend fun writeDocument(
+    resolver: ContentResolver,
+    uri: Uri,
+    encoded: String,
+    scratchDir: File,
+) = withContext(Dispatchers.IO) {
+    val staged = stageDocument(encoded, scratchDir)
+    try {
+        // An abandoned export stops here: the destination is still untouched, so there is
+        // nothing truncated to clean up and nothing misleading in the user's folder.
+        currentCoroutineContext().ensureActive()
+        // From here on the copy is one uninterrupted pass. Leaving the screen during it hands
+        // over a complete backup rather than a partial one; the result is discarded anyway.
+        withContext(NonCancellable) { copyToDocument(resolver, uri, staged) }
+    } finally {
+        staged.delete()
+    }
+}
+
+/** Writes the payload to a private scratch document on the caller's IO dispatcher. */
+private suspend fun stageDocument(encoded: String, scratchDir: File): File {
+    val staged = File.createTempFile("latentjam-backup", ".tmp", scratchDir)
+    try {
+        staged.outputStream().bufferedWriter(Charsets.UTF_8).use { writer ->
             var offset = 0
             while (offset < encoded.length) {
                 currentCoroutineContext().ensureActive()
@@ -270,7 +307,18 @@ private suspend fun writeDocument(resolver: ContentResolver, uri: Uri, encoded: 
                 offset += count
             }
         }
+    } catch (failure: Throwable) {
+        staged.delete()
+        throw failure
     }
+    return staged
+}
+
+private fun copyToDocument(resolver: ContentResolver, uri: Uri, staged: File) {
+    val output = resolver.openOutputStream(uri, "wt")
+        ?: error("The selected document cannot be opened")
+    staged.inputStream().use { input -> output.use { input.copyTo(it) } }
+}
 
 private suspend fun readDocument(resolver: ContentResolver, uri: Uri): String =
     withContext(Dispatchers.IO) {
