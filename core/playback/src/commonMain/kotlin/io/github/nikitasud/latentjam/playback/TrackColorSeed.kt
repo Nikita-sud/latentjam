@@ -20,6 +20,11 @@ public data class TrackColorSeed(
  *
  * Magnitudes are deliberately ignored: the audio vectors are L2-normalised. Signed sums of
  * three slices retain direction, so acoustically nearby tracks receive nearby hues.
+ *
+ * A vector that is not a direction — a NaN or an infinity anywhere in it — has no hue to map, so
+ * the same neutral seed is returned as for an embedding with no component per slice. Without that,
+ * the poison spreads through [atan2] and the saturation ratio into a seed that no renderer can draw;
+ * see [toArgb].
  */
 public fun latentTrackColorSeed(embedding: FloatArray): TrackColorSeed {
     if (embedding.size < 3) return TrackColorSeed(hueDegrees = 0f, saturation = 0f)
@@ -33,6 +38,10 @@ public fun latentTrackColorSeed(embedding: FloatArray): TrackColorSeed {
     val x = signedSum(0, slice)
     val y = signedSum(slice, slice * 2)
     val z = signedSum(slice * 2, embedding.size)
+    // A non-finite component always poisons the sum of its slice, so three checks cover the array.
+    if (!x.isFinite() || !y.isFinite() || !z.isFinite()) {
+        return TrackColorSeed(hueDegrees = 0f, saturation = 0f)
+    }
     val hue = ((atan2(y, x) / (2f * PI.toFloat()) + 1f) % 1f) * 360f
     val saturation = (0.45f + 0.3f * (abs(z) / (abs(x) + abs(y) + abs(z) + 1e-6f)))
         .coerceIn(0.35f, 0.8f)
@@ -47,11 +56,18 @@ public fun identityTrackColorSeed(id: String): TrackColorSeed {
     return TrackColorSeed(hueDegrees = hue.toFloat(), saturation = 0.42f)
 }
 
-/** Converts this HSL seed to an opaque Android-compatible ARGB integer. */
+/**
+ * Converts this HSL seed to an opaque Android-compatible ARGB integer.
+ *
+ * A seed assembled by hand — or by a platform colour source — may hold a value that is not a number,
+ * and [roundToInt] throws on NaN. Every non-finite part therefore falls back to the neutral seed
+ * instead of taking the caller down: this is a public helper on the drawing path, where a colour is
+ * never worth a crash.
+ */
 public fun TrackColorSeed.toArgb(lightness: Float = 0.5f): Int {
-    val hue = ((hueDegrees % 360f) + 360f) % 360f
-    val sat = saturation.coerceIn(0f, 1f)
-    val light = lightness.coerceIn(0f, 1f)
+    val hue = ((hueDegrees.takeIf(Float::isFinite) ?: 0f) % 360f + 360f) % 360f
+    val sat = (saturation.takeIf(Float::isFinite) ?: 0f).coerceIn(0f, 1f)
+    val light = (lightness.takeIf(Float::isFinite) ?: 0.5f).coerceIn(0f, 1f)
     val chroma = (1f - kotlin.math.abs(2f * light - 1f)) * sat
     val section = hue / 60f
     val secondary = chroma * (1f - kotlin.math.abs(section % 2f - 1f))
