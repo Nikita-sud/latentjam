@@ -159,9 +159,18 @@ public object SongSorting {
             .lowercase()
             .ifEmpty { LAST_SORT_KEY }
 
-    /** Index bucket: uppercase initial, "#" for digits, or "?" when no indexable name exists. */
+    /**
+     * Index bucket: uppercase initial, "#" for digits, or "?" when no indexable name exists.
+     *
+     * Taken from [sortKey], never from the raw name: the list is ordered by the case-folded key, so
+     * a character whose uppercase is not the uppercase of its folded form — Turkish "İ", whose
+     * lowercase is "i" followed by a combining dot — would otherwise put its section after the
+     * section it sorts before, and the A–Z rail would jump past it.
+     */
     public fun bucket(value: String?): String {
-        val first = shelvedName(value).firstOrNull() ?: return "?"
+        val key = sortKey(value)
+        if (key == LAST_SORT_KEY) return "?"
+        val first = key[0]
         return if (first.isLetter()) first.uppercaseChar().toString() else "#"
     }
 
