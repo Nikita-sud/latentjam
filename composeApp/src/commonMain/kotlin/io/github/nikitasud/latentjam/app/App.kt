@@ -1257,6 +1257,11 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         // already indexed or remembered as an unchanged decode failure, so a permanently bad file
         // cannot wake tens of MB of model state on every launch.
         var forYou by remember { mutableStateOf(ForYouPage()) }
+        // What For You has already had on screen today, one entry per (card, section, day) — the
+        // impression's own identity. The page rebuilds on every history change and the tab is left
+        // and re-entered, so without it the same visible card would be written again on each of
+        // those. The day in the key is what lets tomorrow's offer of the same card through.
+        var forYouCardsShown by remember { mutableStateOf(emptySet<ForYouImpression>()) }
         var worlds by remember { mutableStateOf<List<LibraryWorld>>(emptyList()) }
         var worldLibraryIds by remember { mutableStateOf<List<TrackId>>(emptyList()) }
         var builtWorldsKey by remember { mutableStateOf<LibraryWorldsKey?>(null) }
@@ -1404,17 +1409,10 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             // Commit the page and its input key together. If this effect is cancelled while the
             // background build runs, neither value advances and the next visit retries normally.
             forYou = rebuiltPage
-            if (rebuiltPage.discoveryOffers.isNotEmpty()) {
-                // Best-effort: the record only shapes FUTURE days' pages, and a lost write
-                // merely lets an offer repeat. The store's write is atomic.
-                runCatching {
-                    AppGraph.forYouImpressions.record(
-                        rebuiltPage.discoveryOffers.map { (id, section) ->
-                            ForYouImpression(trackId = id, section = section, epochDay = today)
-                        },
-                    )
-                }
-            }
+            // No impression is written here. Building a page offers nothing: the rows below compose
+            // only the couple of cards a phone fits, and the hero is not part of
+            // discoveryOffers at all. The tab reports what actually reached the viewport instead
+            // (see ForYouTab's onCardShown), which is the only honest unit of "shown".
             builtWorlds = requestedWorlds
             builtForYouJourneys = journeys
             builtForYouJourneyTitle = journeyTitlePattern
@@ -2859,6 +2857,28 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
                                             page = shownForYou,
                                             contentPadding = listPadding,
                                             isRefreshing = forYouRefreshing,
+                                            // An offer is recorded when its card is on screen, not
+                                            // when the page is assembled: LazyRow composes what
+                                            // fits, and the builder's own discoveryOffers — which
+                                            // the build effect used to write — never contained the
+                                            // hero at all. Best-effort by design: the record only
+                                            // shapes FUTURE days, and a lost write merely lets an
+                                            // offer repeat.
+                                            onCardShown = { impression ->
+                                                val fresh = unrecordedForYouCardsShown(
+                                                    listOf(impression),
+                                                    forYouCardsShown,
+                                                )
+                                                if (fresh.isNotEmpty()) {
+                                                    forYouCardsShown = forYouCardsShown + fresh
+                                                    scope.launch {
+                                                        runCatching {
+                                                            AppGraph.forYouImpressions.record(fresh)
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            epochDay = { localTimePoint(epochMillis()).epochDay },
                                             onRefresh = {
                                                 if (!forYouRefreshing) {
                                                     forYouRefreshing = true
@@ -5577,6 +5597,18 @@ private fun GroupSelectionMark(selectionState: Boolean?) {
 /** Stable, saveable Lazy item identity; null and an actual empty name never alias. */
 private fun stableGroupKey(kind: String, name: String?): String =
     if (name == null) "$kind:null" else "$kind:value:$name"
+
+/**
+ * Drops For You impressions already on record.
+ *
+ * An impression's identity already carries its local day, so a card offered again tomorrow is a
+ * different entry and passes through. The filter is what keeps a page rebuild, or a return to the
+ * tab, from rewriting the store for a card the listener has already been shown today.
+ */
+private fun unrecordedForYouCardsShown(
+    shown: List<ForYouImpression>,
+    recorded: Set<ForYouImpression>,
+): List<ForYouImpression> = shown.filterNot(recorded::contains)
 
 /**
  * Whether the Albums tab re-sorts [albumCount] albums on the main thread, in the frame of the tap.

@@ -23,8 +23,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
@@ -41,11 +43,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,7 +85,11 @@ import io.github.nikitasud.latentjam.app.generated.resources.foryou_world_open
 import io.github.nikitasud.latentjam.app.generated.resources.foryou_world_smart
 import io.github.nikitasud.latentjam.app.generated.resources.track_unknown_artist
 import io.github.nikitasud.latentjam.app.generated.resources.track_untitled
+import io.github.nikitasud.latentjam.history.ForYouImpression
+import io.github.nikitasud.latentjam.history.epochMillis
+import io.github.nikitasud.latentjam.history.localTimePoint
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -94,6 +104,11 @@ import org.jetbrains.compose.resources.stringResource
  * The page is built once per visit and does not re-rank underneath the reader. A surface that
  * reshuffles while being read is indistinguishable from a broken one, and repeated exposure is what
  * turns a suggestion into a play.
+ *
+ * An offer counts as an IMPRESSION only when its card is on screen. The page cannot tell: it is
+ * built all at once, while the rows below compose only what fits the viewport, so the builder's
+ * own list of offers is an upper bound rather than a record of what was seen. The caller therefore
+ * receives what actually scrolled into view — hero included — through [onCardShown].
  */
 @Composable
 fun ForYouTab(
@@ -109,8 +124,21 @@ fun ForYouTab(
     onOpenWorld: (ForYouCard) -> Unit = {},
     /** Current presentation only: changing artwork must not rebuild or reorder recommendations. */
     playlistArtworkUris: Map<String, String> = emptyMap(),
+    /**
+     * Called as cards reach the viewport, once per card per page visit. Defaults to doing nothing
+     * so a preview or a test can render the page without writing an impression.
+     */
+    onCardShown: (ForYouImpression) -> Unit = {},
+    /** The page's unit of change; injectable so a replay can pin a day the way a timezone is pinned. */
+    epochDay: () -> Long = { localTimePoint(epochMillis()).epochDay },
 ) {
     val reduceMotion = rememberReduceMotion()
+    val listState = rememberLazyListState()
+    val shown = rememberUpdatedState(onCardShown)
+    val day = rememberUpdatedState(epochDay)
+    // The store's record() deduplicates (track, day), and so does this: a page rebuild or a return
+    // to the tab must not rewrite the file for a card the listener has already been shown today.
+    val reported = remember { mutableSetOf<ForYouImpression>() }
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
@@ -128,9 +156,13 @@ fun ForYouTab(
                 )
             }
         } else {
-            FadingLazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
+            FadingLazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                state = listState,
+                contentPadding = contentPadding,
+            ) {
                 page.hero?.let { hero ->
-                    item(key = "hero") {
+                    item(key = HERO_ITEM_KEY) {
                         Box(
                             modifier = Modifier.animateItem(
                                 fadeInSpec = tween(
@@ -142,6 +174,11 @@ fun ForYouTab(
                                 ),
                             ),
                         ) {
+                            // The hero is an offer like any other, and the one most likely to be
+                            // seen: it is the only card on the opening screen that needs no scroll.
+                            // It is reported here rather than from the builder's offer list, which
+                            // never contained it, and only once the layout has actually placed it.
+                            ObserveHeroCard(hero, listState, reported, shown, day)
                             HeroCard(hero, accent = accent, onPlay = { onPlayHero(hero) })
                         }
                     }
@@ -158,79 +195,178 @@ fun ForYouTab(
                             ),
                         ),
                     ) {
-                    Text(
-                        text = section.title().uppercase(),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 0.4.sp,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(
-                            start = 20.dp,
-                            end = 20.dp,
-                            top = 18.dp,
-                            bottom = 8.dp,
-                        ),
-                    )
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(horizontal = 20.dp),
-                    ) {
-                        items(section.cards, key = { it.track.id.value }) { card ->
-                            Box(
-                                modifier = Modifier.animateItem(
-                                    fadeInSpec = tween(
-                                        if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                        Text(
+                            text = section.title().uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                letterSpacing = 0.4.sp,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(
+                                start = 20.dp,
+                                end = 20.dp,
+                                top = 18.dp,
+                                bottom = 8.dp,
+                            ),
+                        )
+                        val rowState = rememberLazyListState()
+                        // The section is recorded under the identifier the builder already uses for
+                        // its own offer list, not under the enum name: one spelling per section, or
+                        // the impression log ends up holding two names for the same row.
+                        val sectionKey = section.kind.impressionSection()
+                        // A row is not shown merely because it exists: the column composes what
+                        // fits around the viewport, and its rows then lay out every card they hold.
+                        // Reporting on a snapshot of the row's own layout is what separates the two
+                        // or three cards a phone actually shows from the eight in the list.
+                        ObserveShownCards(rowState, sectionKey, reported, shown, day)
+                        LazyRow(
+                            state = rowState,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(horizontal = 20.dp),
+                        ) {
+                            items(section.cards, key = { it.track.id.value }) { card ->
+                                Box(
+                                    modifier = Modifier.animateItem(
+                                        fadeInSpec = tween(
+                                            if (reduceMotion) {
+                                                Motion.REDUCED_MS
+                                            } else {
+                                                Motion.APPEAR_MS
+                                            },
+                                        ),
+                                        placementSpec = if (reduceMotion) {
+                                            null
+                                        } else {
+                                            tween(Motion.APPEAR_MS)
+                                        },
+                                        fadeOutSpec = tween(
+                                            if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                                        ),
                                     ),
-                                    placementSpec = if (reduceMotion) {
-                                        null
-                                    } else {
-                                        tween(Motion.APPEAR_MS)
-                                    },
-                                    fadeOutSpec = tween(
-                                        if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
-                                    ),
-                                ),
-                            ) {
-                            ForYouCardItem(
-                                card = card,
-                                artworkUri = card.collection?.playlistId?.let(playlistArtworkUris::get)
-                                    ?: card.track.artworkUri,
-                                onClick = {
-                                    when {
-                                        // A world is a hundred-odd tracks, and there are two
-                                        // reasonable things to do with one. Guessing which was the
-                                        // previous build's mistake: it played immediately, and the
-                                        // tap that meant "show me this" was indistinguishable from
-                                        // the tap that meant "play it".
-                                        section.kind == ForYouSectionKind.WORLDS -> onOpenWorld(card)
-                                        // Browsing a collection should not replace playback. Its
-                                        // detail page's play control is the commitment to a new queue.
-                                        card.collection != null -> onOpenCollection(card.collection)
-                                        else -> {
-                                            val tracks = section.cards
-                                                .filter { it.collection == null }
-                                                .map { it.track }
-                                            onPlay(
-                                                tracks,
-                                                tracks.indexOfFirst { it.id == card.track.id },
-                                            )
-                                        }
-                                    }
-                                },
-                                onLongClick = if (card.collection == null) {
-                                    { onTrackMenu(card.track) }
-                                } else {
-                                    null
-                                },
-                            )
+                                ) {
+                                    ForYouCardItem(
+                                        card = card,
+                                        artworkUri =
+                                            card.collection?.playlistId?.let(playlistArtworkUris::get)
+                                                ?: card.track.artworkUri,
+                                        onClick = {
+                                            when {
+                                                // A world is a hundred-odd tracks, and there are two
+                                                // reasonable things to do with one. Guessing which was the
+                                                // previous build's mistake: it played immediately, and the
+                                                // tap that meant "show me this" was indistinguishable from
+                                                // the tap that meant "play it".
+                                                section.kind == ForYouSectionKind.WORLDS -> onOpenWorld(card)
+                                                // Browsing a collection should not replace playback. Its
+                                                // detail page's play control is the commitment to a new queue.
+                                                card.collection != null -> onOpenCollection(card.collection)
+                                                else -> {
+                                                    val tracks = section.cards
+                                                        .filter { it.collection == null }
+                                                        .map { it.track }
+                                                    onPlay(
+                                                        tracks,
+                                                        tracks.indexOfFirst { it.id == card.track.id },
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        onLongClick = if (card.collection == null) {
+                                            { onTrackMenu(card.track) }
+                                        } else {
+                                            null
+                                        },
+                                    )
+                                }
                             }
                         }
-                    }
                     }
                 }
             }
         }
+    }
+}
+
+/** The hero is the column's first item; its presence in the layout is the whole visibility test. */
+private const val HERO_ITEM_KEY = "hero"
+
+/** Section identifier recorded for the hero card; the others come from the section's own kind. */
+private const val HERO_SECTION = "hero"
+
+/**
+ * The section identifier written to the impression log.
+ *
+ * The builder names the sections it collects discovery offers from ("daypart", "wildcard",
+ * "never-played"), so the tab reports the same words rather than the enum constant — the log is
+ * free-form by design, and two names for one row make it unreadable.
+ */
+private fun ForYouSectionKind.impressionSection(): String = when (this) {
+    ForYouSectionKind.DAYPART -> "daypart"
+    ForYouSectionKind.WILDCARD -> "wildcard"
+    ForYouSectionKind.NEVER_PLAYED -> "never-played"
+    ForYouSectionKind.CONTINUE -> "continue"
+    ForYouSectionKind.WORTH_REVISITING -> "worth-revisiting"
+    ForYouSectionKind.ON_A_ROLL -> "on-a-roll"
+    ForYouSectionKind.WORLDS -> "worlds"
+    ForYouSectionKind.JOURNEY -> "journey"
+}
+
+/**
+ * Reports the hero once the column has actually put it on screen.
+ *
+ * Read through a snapshot rather than once on entry: a page built before the first layout pass has
+ * no visible items yet, and an offer that is silently dropped is exactly the defect this records
+ * against.
+ */
+@Composable
+private fun ObserveHeroCard(
+    hero: ForYouHero,
+    listState: LazyListState,
+    reported: MutableSet<ForYouImpression>,
+    onShown: State<(ForYouImpression) -> Unit>,
+    epochDay: State<() -> Long>,
+) {
+    LaunchedEffect(hero.track.id, listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == HERO_ITEM_KEY } }
+            .collect { onScreen ->
+                if (!onScreen) return@collect
+                val impression = ForYouImpression(
+                    trackId = hero.track.id,
+                    section = HERO_SECTION,
+                    epochDay = epochDay.value(),
+                )
+                if (reported.add(impression)) onShown.value(impression)
+            }
+    }
+}
+
+/**
+ * Reports the cards of one row as they reach the viewport, each at most once per composition.
+ *
+ * [reported] is what makes "once" true across rows, rebuilds and returns to the tab; a `null` key
+ * belongs to a row that holds no model card (a world cover, a collection) and is not an offer.
+ */
+@Composable
+private fun ObserveShownCards(
+    rowState: LazyListState,
+    sectionKey: String,
+    reported: MutableSet<ForYouImpression>,
+    onShown: State<(ForYouImpression) -> Unit>,
+    epochDay: State<() -> Long>,
+) {
+    LaunchedEffect(rowState, sectionKey) {
+        snapshotFlow {
+            rowState.layoutInfo.visibleItemsInfo.map { it.key as? String }.filterNotNull()
+        }
+            .collect { visibleKeys ->
+                val day = epochDay.value()
+                val new = visibleKeys.mapNotNull { key ->
+                    val id = TrackId(key)
+                    val impression = ForYouImpression(id, sectionKey, day)
+                    if (reported.add(impression)) impression else null
+                }
+                new.forEach { onShown.value(it) }
+            }
     }
 }
 
