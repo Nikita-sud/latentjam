@@ -529,17 +529,6 @@ void Kernel::Blocks(const uint8_t* x, size_t m, size_t k, float xs, uint8_t xz, 
 
 OrtStatus* Fail(const char* message) { return api->CreateStatus(ORT_INVALID_ARGUMENT, message); }
 
-// Reads a scalar input of the given type.
-template <typename T>
-OrtStatus* Scalar(OrtKernelContext* context, size_t index, T* out) {
-  const OrtValue* value = nullptr;
-  if (OrtStatus* status = api->KernelContext_GetInput(context, index, &value)) return status;
-  void* data = nullptr;
-  if (OrtStatus* status = api->GetTensorMutableData(const_cast<OrtValue*>(value), &data)) return status;
-  *out = *static_cast<const T*>(data);
-  return nullptr;
-}
-
 OrtStatus* Count(const OrtValue* value, size_t* count, std::vector<int64_t>* shape) {
   OrtTensorTypeAndShapeInfo* info = nullptr;
   if (OrtStatus* status = api->GetTensorTypeAndShape(value, &info)) return status;
@@ -554,6 +543,21 @@ OrtStatus* Count(const OrtValue* value, size_t* count, std::vector<int64_t>* sha
   }
   api->ReleaseTensorTypeAndShapeInfo(info);
   return status;
+}
+
+// Reads a scalar input of the given type. The element count is checked first: a graph that hands over an
+// empty tensor would otherwise make this read the first element of a buffer that holds none.
+template <typename T>
+OrtStatus* Scalar(OrtKernelContext* context, size_t index, T* out) {
+  const OrtValue* value = nullptr;
+  if (OrtStatus* status = api->KernelContext_GetInput(context, index, &value)) return status;
+  size_t count = 0;
+  if (OrtStatus* status = Count(value, &count, nullptr)) return status;
+  if (count != 1) return Fail("Q4Conv1x1: a quantization parameter must hold exactly one element");
+  void* data = nullptr;
+  if (OrtStatus* status = api->GetTensorMutableData(const_cast<OrtValue*>(value), &data)) return status;
+  *out = *static_cast<const T*>(data);
+  return nullptr;
 }
 
 OrtStatus* ORT_API_CALL Compute(void* raw, OrtKernelContext* context) {
