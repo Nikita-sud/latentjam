@@ -821,13 +821,7 @@ internal class LocalBackupService(
                 }
                 val target = when (mode) {
                     LocalBackupRestoreMode.REPLACE -> imported
-                    LocalBackupRestoreMode.MERGE -> {
-                        val existing = history.recentEvents(MAX_CAPTURE_HISTORY + 1).asReversed()
-                        require(existing.size <= MAX_CAPTURE_HISTORY) { "Listening history is too large to merge" }
-                        (existing + imported).distinct().sortedBy(ListenEvent::startedAtMs).also {
-                            require(it.size <= MAX_CAPTURE_HISTORY) { "Merged listening history is too large" }
-                        }
-                    }
+                    LocalBackupRestoreMode.MERGE -> mergeListeningHistory(imported)
                 }
                 history.replace(target)
                 historyApplied = imported.size
@@ -1060,6 +1054,40 @@ internal class LocalBackupService(
         }
     }
 
+    /**
+     * Folds [imported] into the stored log without dropping a session the recorder wrote meanwhile.
+     *
+     * [ListeningHistory] locks [ListeningHistory.recentEvents] and [ListeningHistory.replace]
+     * separately, so a plain read-modify-write overwrites whatever the playback recorder appended
+     * between the two calls — a restore runs while music keeps playing behind the settings overlay,
+     * so that window is real. Every round re-reads the log and compares its newest session and
+     * length against the previous read: an unchanged log means the target built from that read is
+     * still the whole log, and the replace can follow it directly. A log that grew in between is
+     * folded in again from the newer read.
+     */
+    private suspend fun mergeListeningHistory(imported: List<ListenEvent>): List<ListenEvent> {
+        var target: List<ListenEvent>? = null
+        var observedSize = -1
+        var observedNewest: ListenEvent? = null
+        repeat(MAX_HISTORY_MERGE_ROUNDS) {
+            val existing = history.recentEvents(MAX_CAPTURE_HISTORY + 1).asReversed()
+            require(existing.size <= MAX_CAPTURE_HISTORY) { "Listening history is too large to merge" }
+            val previous = target
+            if (previous != null &&
+                existing.size == observedSize &&
+                existing.lastOrNull() == observedNewest
+            ) {
+                return previous
+            }
+            observedSize = existing.size
+            observedNewest = existing.lastOrNull()
+            target = (existing + imported).distinct().sortedBy(ListenEvent::startedAtMs).also {
+                require(it.size <= MAX_CAPTURE_HISTORY) { "Merged listening history is too large" }
+            }
+        }
+        return checkNotNull(target) { "Listening history merge did not read the log" }
+    }
+
     private fun mergePlaylists(existing: List<Playlist>, imported: List<Playlist>): List<Playlist> {
         val result = existing.toMutableList()
         imported.forEachIndexed { index, playlist ->
@@ -1116,6 +1144,13 @@ internal class LocalBackupService(
 
     private companion object {
         const val MAX_CAPTURE_HISTORY = 500_000
+
+        /**
+         * A merge normally stabilizes on its second read. The bound only stops a log that keeps
+         * growing from looping forever; the last round still writes a target built from the read
+         * that immediately preceded it.
+         */
+        const val MAX_HISTORY_MERGE_ROUNDS = 4
     }
 }
 
