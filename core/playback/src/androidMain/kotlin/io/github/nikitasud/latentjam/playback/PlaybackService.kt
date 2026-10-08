@@ -38,6 +38,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Background playback host: one ExoPlayer inside a Media3 [MediaSessionService].
@@ -405,7 +406,17 @@ public class PlaybackService : MediaLibraryService() {
         startIndex: Int? = null,
         startPositionMs: Long? = null,
     ): PlayableRequest<MediaItem> {
-        val catalog = MediaBrowseRegistry.catalog?.invoke()
+        // The catalog is what lets a row with no URI be resolved by id or search query, so only a
+        // request carrying such a row needs it at all: the in-app path sends complete items and
+        // stays untouched. Building it scans the whole library and its playlists, and the service
+        // callbacks run on Dispatchers.Main.immediate, so it is deferred until an unresolved row is
+        // actually seen and then built off the main thread — otherwise every set from the app waits
+        // for that scan before Media3 installs the queue.
+        val catalog = if (mediaItems.any { it.localConfiguration == null }) {
+            withContext(Dispatchers.IO) { MediaBrowseRegistry.catalog?.invoke() }
+        } else {
+            null
+        }
         val rows = mediaItems.map { item ->
             if (item.localConfiguration != null) {
                 item
