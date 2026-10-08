@@ -24,6 +24,12 @@ import kotlinx.coroutines.withContext
  * a temp file first and are atomically renamed, so a crash mid-save leaves
  * the previous snapshot intact. Any parse problem or version mismatch simply
  * yields `null` (the engine re-indexes).
+ *
+ * One envelope guards reads and writes alike (`maximumSnapshotBytes`, 64 MiB by default): a snapshot
+ * the next launch would refuse is never written, and its rejection leaves the previous file untouched.
+ * An index that outgrows the envelope therefore has no durable cache at all — the in-memory index stays
+ * complete, so a caller that checkpoints per batch must read the refusal as "not persistable", not as a
+ * failed analysis pass. ~17,000 audio rows reach the envelope at 960 dims.
  */
 internal class FileIndexStore private constructor(
     private val file: File,
@@ -112,6 +118,9 @@ internal class FileIndexStore private constructor(
                 vector.size == dim && vector.all(Float::isFinite)
             }) { "Index vectors must have one finite, consistent dimension" }
             val encodedSize = encodedV3SnapshotSize(modelVersion, snapshot, dim)
+            // The same envelope as load (see the class KDoc): a snapshot this store would refuse on the
+            // next launch is refused here, before the temp file is touched, and it is a size answer
+            // rather than an analysis failure.
             require(isLoadableAndroidIndexSnapshotSize(encodedSize, maximumSnapshotBytes)) {
                 "Index snapshot is too large: $encodedSize bytes (limit $maximumSnapshotBytes)"
             }
