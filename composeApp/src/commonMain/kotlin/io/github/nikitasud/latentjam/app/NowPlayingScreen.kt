@@ -1699,8 +1699,9 @@ private fun QueueSheetContent(
                 }
             }
         }
-        QueueReorderList(
+        ReorderableLazyList(
             identity = queueIdentity,
+            itemCount = queue.size,
             canReorder = canReorder,
             listState = listState,
             onMove = onMove,

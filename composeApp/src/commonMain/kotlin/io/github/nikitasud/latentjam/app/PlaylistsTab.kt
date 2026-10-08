@@ -34,7 +34,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -72,10 +71,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.zIndex
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -119,7 +114,6 @@ import io.github.nikitasud.latentjam.library.AutoPlaylist
 import io.github.nikitasud.latentjam.library.AutoPlaylistKind
 import io.github.nikitasud.latentjam.library.Playlist
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
-import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -161,7 +155,6 @@ internal fun PlaylistsTabContent(
     // page it was remembered in. rememberLazyListState saves it inside the page's
     // SaveableStateProvider and hands it back on return — the way the other tabs keep theirs.
     val listState = rememberLazyListState()
-    val haptics = LocalHapticFeedback.current
     val reduceMotion = rememberReduceMotion()
     val featuredPlaylists = remember(autoPlaylists) {
         val pinned = listOf(
@@ -180,81 +173,134 @@ internal fun PlaylistsTabContent(
             .mapNotNull { kind -> autoPlaylists.firstOrNull { it.kind == kind } }
         pinned + derived
     }
-    // Same float-and-drop contract as the player's queue: the pressed row floats, ONE move
-    // commits on release — mutating mid-drag would re-key the row under the finger.
-    var draggingIndex by remember { mutableStateOf<Int?>(null) }
-    var dragOffsetY by remember { mutableStateOf(0f) }
-    var dragTargetIndex by remember { mutableStateOf<Int?>(null) }
+    val orderIdentity = remember(playlists) { playlists.map { it.id } }
+    @Composable fun UserPlaylistRow(index: Int, preview: Boolean = false) {
+        val playlist = playlists[index]
+        PlaylistRow(
+            playlist = playlist,
+            artworkModifier = if (preview) Modifier else artworkModifier("playlist:${playlist.id}"),
+            tracks = tracksOf(playlist),
+            onClick = { onOpenPlaylist(playlist) },
+            onRename = { onRename(playlist) },
+            onChangeCover = { onChangeCover(playlist) },
+            onResetCover = { onResetCover(playlist) },
+            coverEditBusy = coverEditBusy,
+            onExport = { onExport(playlist) },
+            onToggleSmart = { onToggleSmart(playlist) },
+            onDelete = { onDelete(playlist) },
+            onMoveUp = if (index > 0) ({ onMove(index, index - 1) }) else null,
+            onMoveDown = if (index < playlists.lastIndex) ({ onMove(index, index + 1) }) else null,
+        )
+    }
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize().fadingListTop { listState.canScrollBackward },
-            contentPadding = contentPadding,
-        ) {
-            if (featuredPlaylists.isNotEmpty()) {
-                item(key = "auto") {
-                    Column(modifier = Modifier.padding(top = 6.dp)) {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 20.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            items(featuredPlaylists, key = { it.kind.name }) { auto ->
-                                AutoPlaylistCard(
-                                    auto = auto,
-                                    artworkModifier = artworkModifier("auto:${auto.kind.name}"),
-                                    onClick = { onOpenAuto(auto) },
-                                )
+        ReorderableLazyList(
+            identity = orderIdentity,
+            canReorder = playlists.size > 1,
+            listState = listState,
+            itemCount = playlists.size,
+            leadingItems = if (featuredPlaylists.isNotEmpty()) 3 else 2,
+            onMove = onMove,
+            draggedItem = { index, modifier ->
+                Box(modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                    UserPlaylistRow(index, preview = true)
+                }
+            },
+        ) { draggingIndex ->
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().fadingListTop { listState.canScrollBackward },
+                contentPadding = contentPadding,
+            ) {
+                if (featuredPlaylists.isNotEmpty()) {
+                    item(key = "auto") {
+                        Column(modifier = Modifier.padding(top = 6.dp)) {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 20.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                items(featuredPlaylists, key = { it.kind.name }) { auto ->
+                                    AutoPlaylistCard(
+                                        auto = auto,
+                                        artworkModifier = artworkModifier("auto:${auto.kind.name}"),
+                                        onClick = { onOpenAuto(auto) },
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            item(key = "your-playlists") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    PlaylistSectionLabel(
-                        text = stringResource(Res.string.playlists_yours),
-                        modifier = Modifier.weight(1f),
-                    )
-                    IconButton(onClick = onImport, modifier = Modifier.size(48.dp)) {
-                        Icon(
-                            Icons.Rounded.FileOpen,
-                            contentDescription = stringResource(Res.string.action_import_m3u),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
+                item(key = "your-playlists") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        PlaylistSectionLabel(
+                            text = stringResource(Res.string.playlists_yours),
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(onClick = onImport, modifier = Modifier.size(48.dp)) {
+                            Icon(
+                                Icons.Rounded.FileOpen,
+                                contentDescription = stringResource(Res.string.action_import_m3u),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                }
+                item(key = "new-playlist") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                            .clip(RoundedCornerShape(16.dp)).clickable(onClick = onCreate)
+                            .padding(start = 20.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier.size(48.dp)
+                                .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(22.dp))
+                        }
+                        Text(
+                            text = stringResource(Res.string.playlist_new),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = currentAccent ?: MaterialTheme.colorScheme.primary,
                         )
                     }
                 }
-            }
-            item(key = "new-playlist") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-                        .clip(RoundedCornerShape(16.dp)).clickable(onClick = onCreate)
-                        .padding(start = 20.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    Box(
-                        modifier = Modifier.size(48.dp)
-                            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(22.dp))
-                    }
-                    Text(
-                        text = stringResource(Res.string.playlist_new),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = currentAccent ?: MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
 
-            if (playlists.isEmpty()) {
-                item(key = "empty") {
-                    Column(
+                if (playlists.isEmpty()) {
+                    item(key = "empty") {
+                        Column(
+                            modifier = Modifier
+                                .animateItem(
+                                    fadeInSpec = tween(
+                                        if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
+                                    ),
+                                    placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
+                                    fadeOutSpec = tween(
+                                        if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
+                                    ),
+                                )
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            horizontalAlignment = Alignment.Start,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = stringResource(Res.string.playlists_empty_body),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+
+                itemsIndexed(playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
+                    Box(
                         modifier = Modifier
                             .animateItem(
                                 fadeInSpec = tween(
@@ -265,98 +311,10 @@ internal fun PlaylistsTabContent(
                                     if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
                                 ),
                             )
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                        horizontalAlignment = Alignment.Start,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                            .graphicsLayer { alpha = if (draggingIndex == index) 0f else 1f },
                     ) {
-                        Text(
-                            text = stringResource(Res.string.playlists_empty_body),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        UserPlaylistRow(index)
                     }
-                }
-            }
-
-            itemsIndexed(playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
-                Box(
-                    modifier = Modifier
-                        .animateItem(
-                            fadeInSpec = tween(
-                                if (reduceMotion) Motion.REDUCED_MS else Motion.APPEAR_MS,
-                            ),
-                            placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
-                            fadeOutSpec = tween(
-                                if (reduceMotion) Motion.REDUCED_MS else Motion.REPLACE_MS,
-                            ),
-                        )
-                        .then(
-                            if (draggingIndex == index) {
-                                Modifier
-                                    .zIndex(1f)
-                                    .graphicsLayer { translationY = dragOffsetY }
-                            } else {
-                                Modifier
-                            },
-                        )
-                        .pointerInput(index, playlists.size) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    draggingIndex = index
-                                    dragTargetIndex = index
-                                    dragOffsetY = 0f
-                                },
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    dragOffsetY += dragAmount.y
-                                    val rowHeight = listState.layoutInfo.visibleItemsInfo
-                                        .firstOrNull { it.key == playlist.id }
-                                        ?.size
-                                        ?.takeIf { it > 0 }
-                                    if (rowHeight != null) {
-                                        dragTargetIndex =
-                                            (index + (dragOffsetY / rowHeight).roundToInt())
-                                                .coerceIn(0, playlists.lastIndex)
-                                    }
-                                },
-                                onDragEnd = {
-                                    val from = draggingIndex
-                                    val to = dragTargetIndex
-                                    draggingIndex = null
-                                    dragTargetIndex = null
-                                    dragOffsetY = 0f
-                                    if (from != null && to != null && from != to) {
-                                        onMove(from, to)
-                                        // A completed move gets one quiet landing cue. Holding,
-                                        // cancelling, or returning to the same slot does not.
-                                        haptics.performHapticFeedback(HapticFeedbackType.GestureEnd)
-                                    }
-                                },
-                                onDragCancel = {
-                                    draggingIndex = null
-                                    dragTargetIndex = null
-                                    dragOffsetY = 0f
-                                },
-                            )
-                        },
-                ) {
-                    PlaylistRow(
-                        playlist = playlist,
-                        artworkModifier = artworkModifier("playlist:${playlist.id}"),
-                        tracks = tracksOf(playlist),
-                        onClick = { onOpenPlaylist(playlist) },
-                        onRename = { onRename(playlist) },
-                        onChangeCover = { onChangeCover(playlist) },
-                        onResetCover = { onResetCover(playlist) },
-                        coverEditBusy = coverEditBusy,
-                        onExport = { onExport(playlist) },
-                        onToggleSmart = { onToggleSmart(playlist) },
-                        onDelete = { onDelete(playlist) },
-                        onMoveUp = if (index > 0) ({ onMove(index, index - 1) }) else null,
-                        onMoveDown = if (index < playlists.lastIndex) ({ onMove(index, index + 1) }) else null,
-                    )
                 }
             }
         }

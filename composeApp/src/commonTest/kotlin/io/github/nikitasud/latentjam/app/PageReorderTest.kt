@@ -10,61 +10,30 @@ import kotlin.test.assertTrue
 
 class PageReorderTest {
     private val layout = PageLayout()
-    private val unevenRows = listOf(
-        PageReorderItem(StartPage.FOR_YOU, 0, 56),
-        PageReorderItem(StartPage.MAP, 56, 160),
-        PageReorderItem(StartPage.PLAYLISTS, 216, 56),
-    )
 
-    @Test
-    fun `a tall text row moves when its center reaches the next slot`() {
-        assertEquals(layout, layout.reorderPageAfterDrag(StartPage.MAP, layout.order, unevenRows, 50f))
-        val down = layout.reorderPageAfterDrag(StartPage.MAP, layout.order, unevenRows, 60f)
-        val up = layout.reorderPageAfterDrag(StartPage.MAP, layout.order, unevenRows, -60f)
-        assertEquals(listOf(StartPage.FOR_YOU, StartPage.PLAYLISTS, StartPage.MAP), down.order.take(3))
-        assertEquals(listOf(StartPage.MAP, StartPage.FOR_YOU, StartPage.PLAYLISTS), up.order.take(3))
+    @Test fun pageMovesToADestinationThatBecameVisibleAfterScrolling() {
+        val moved = layout.reorderPageAfterDrop(layout.order, 0, layout.order.lastIndex)
+        assertEquals(layout.order.first(), moved.order.last())
+        assertEquals(layout.order.drop(1), moved.order.dropLast(1))
+        assertEquals(layout, moved.reorderPageAfterDrop(moved.order, moved.order.lastIndex, 0))
     }
 
-    @Test
-    fun `equal distance to slots follows the drag direction symmetrically`() {
-        val down = layout.reorderPageAfterDrag(StartPage.MAP, layout.order, unevenRows, 54f)
-        val up = layout.reorderPageAfterDrag(StartPage.MAP, layout.order, unevenRows, -54f)
-        assertEquals(2, down.order.indexOf(StartPage.MAP))
-        assertEquals(0, up.order.indexOf(StartPage.MAP))
-    }
-
-    @Test
-    fun `dragging beyond the viewport only chooses a visible destination`() {
-        val visible = listOf(
-            PageReorderItem(StartPage.PLAYLISTS, -20, 56),
-            PageReorderItem(StartPage.TRACKS, 36, 56),
-            PageReorderItem(StartPage.ALBUMS, 92, 56),
-        )
-        val up = layout.reorderPageAfterDrag(StartPage.TRACKS, layout.order, visible, -10_000f)
-        val down = layout.reorderPageAfterDrag(StartPage.TRACKS, layout.order, visible, 10_000f)
-        assertEquals(2, up.order.indexOf(StartPage.TRACKS))
-        assertEquals(4, down.order.indexOf(StartPage.TRACKS))
-    }
-
-    @Test
-    fun `a changed order cancels an old drop without overwriting it`() {
+    @Test fun changedOrderCancelsAnOldDropWithoutOverwritingIt() {
         val newer = layout.movePage(StartPage.FOLDERS, Int.MIN_VALUE)
-        assertEquals(newer, newer.reorderPageAfterDrag(StartPage.MAP, layout.order, unevenRows, 60f))
+        assertEquals(newer, newer.reorderPageAfterDrop(layout.order, 1, 5))
     }
 
-    @Test
-    fun `a visibility change during the drag survives the move`() {
+    @Test fun visibilityChangesDuringTheDragSurviveTheMove() {
         val newer = layout.withPageEnabled(StartPage.MAP, true)
-        val moved = newer.reorderPageAfterDrag(StartPage.MAP, layout.order, unevenRows, 60f)
+        val moved = newer.reorderPageAfterDrop(layout.order, layout.order.indexOf(StartPage.MAP), 5)
         assertEquals(newer.hiddenPages, moved.hiddenPages)
         assertTrue(StartPage.MAP in moved.visiblePages)
-        assertEquals(2, moved.order.indexOf(StartPage.MAP))
+        assertEquals(5, moved.order.indexOf(StartPage.MAP))
     }
 
-    @Test
-    fun `unmeasured or invalid gestures do not move a page`() {
-        assertEquals(layout, layout.reorderPageAfterDrag(StartPage.MAP, layout.order, emptyList(), 60f))
-        assertEquals(layout, layout.reorderPageAfterDrag(StartPage.MAP, layout.order, unevenRows, Float.NaN))
-        assertEquals(layout, layout.reorderPageAfterDrag(StartPage.MAP, layout.order, unevenRows, Float.POSITIVE_INFINITY))
+    @Test fun invalidOrUnchangedDestinationsDoNotMoveAPage() {
+        assertEquals(layout, layout.reorderPageAfterDrop(layout.order, -1, 2))
+        assertEquals(layout, layout.reorderPageAfterDrop(layout.order, 2, layout.order.size))
+        assertEquals(layout, layout.reorderPageAfterDrop(layout.order, 2, 2))
     }
 }

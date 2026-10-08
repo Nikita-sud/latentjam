@@ -12,7 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -93,13 +92,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -838,7 +835,6 @@ private fun AppearanceSettings(
 
 @Composable
 private fun PagesSettings(settings: AppSettings) {
-    val haptics = LocalHapticFeedback.current
     val savedLayout by settings.pageLayout.collectAsState()
     val preferredStartPage by settings.startPage.collectAsState()
     val layout = remember(savedLayout) { savedLayout.normalized() }
@@ -848,157 +844,61 @@ private fun PagesSettings(settings: AppSettings) {
     val listState = rememberLazyListState()
     var choosingStartPage by rememberSaveable { mutableStateOf(false) }
 
-    FadingLazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
-    ) {
-        item(key = "page-introduction") {
-            SettingsBody(stringResource(Res.string.settings_pages_body))
-            SettingsCardSection(stringResource(Res.string.settings_start_page)) {
-                SettingsRow(
-                    title = stringResource(Res.string.settings_opens_on_launch),
-                    subtitle = null,
-                    value = stringResource(startPage.titleResource()),
-                    horizontalPadding = 16.dp,
-                    onClick = { choosingStartPage = true },
-                )
+    ReorderableLazyList(
+        identity = layout.order,
+        canReorder = layout.order.size > 1,
+        listState = listState,
+        itemCount = layout.order.size,
+        leadingItems = 1,
+        onMove = { from, to ->
+            val current = settings.pageLayout.value
+            val next = current.reorderPageAfterDrop(layout.order, from, to)
+            if (next != current) settings.setPageLayout(next)
+        },
+        draggedItem = { index, modifier ->
+            PageOrderRow(settings, layout, visiblePages, layout.order[index], index, modifier)
+        },
+    ) { draggingIndex ->
+        FadingLazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+        ) {
+            item(key = "page-introduction") {
+                SettingsBody(stringResource(Res.string.settings_pages_body))
+                SettingsCardSection(stringResource(Res.string.settings_start_page)) {
+                    SettingsRow(
+                        title = stringResource(Res.string.settings_opens_on_launch),
+                        subtitle = null,
+                        value = stringResource(startPage.titleResource()),
+                        horizontalPadding = 16.dp,
+                        onClick = { choosingStartPage = true },
+                    )
+                }
+                SettingsGroupTitle(stringResource(Res.string.settings_pages_order))
             }
-            SettingsGroupTitle(stringResource(Res.string.settings_pages_order))
-        }
-        itemsIndexed(layout.order, key = { _, page -> page.name }) { position, page ->
-            val enabled = page in visiblePages
-            val canDisable = !enabled || visiblePages.size > 1
-            val label = stringResource(page.titleResource())
-            val moveUpLabel = stringResource(Res.string.settings_page_move_up, label)
-            val moveDownLabel = stringResource(Res.string.settings_page_move_down, label)
-            var menuOpen by remember(page) { mutableStateOf(false) }
-            var dragging by remember(page) { mutableStateOf(false) }
-            var dragOffset by remember(page) { mutableFloatStateOf(0f) }
-            var dragRows by remember(page) { mutableStateOf(emptyList<PageReorderItem>()) }
-            var dragOrder by remember(page) { mutableStateOf(emptyList<StartPage>()) }
-            val shape = RoundedCornerShape(
-                topStart = if (position == 0) 16.dp else 0.dp,
-                topEnd = if (position == 0) 16.dp else 0.dp,
-                bottomStart = if (position == layout.order.lastIndex) 16.dp else 0.dp,
-                bottomEnd = if (position == layout.order.lastIndex) 16.dp else 0.dp,
-            )
-            Row(
-                modifier = Modifier
-                    .animateItem(
+            itemsIndexed(layout.order, key = { _, page -> page.name }) { position, page ->
+                PageOrderRow(
+                    settings, layout, visiblePages, page, position,
+                    modifier = Modifier.animateItem(
                         fadeInSpec = null,
                         placementSpec = if (reduceMotion) null else tween(Motion.APPEAR_MS),
                         fadeOutSpec = null,
-                    )
-                    .fillMaxWidth()
-                    .zIndex(if (dragging) 1f else 0f)
-                    .graphicsLayer { translationY = dragOffset }
-                    .padding(horizontal = 20.dp)
-                    .clip(shape)
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .pointerInput(page, layout.order) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = {
-                                haptics.play(PlayerHaptic.HOLD)
-                                dragging = true
-                                dragOffset = 0f
-                                dragOrder = layout.order
-                                dragRows = listState.layoutInfo.visibleItemsInfo.mapNotNull { item ->
-                                    layout.order.firstOrNull { it.name == item.key }?.let {
-                                        PageReorderItem(it, item.offset, item.size)
-                                    }
-                                }
-                            },
-                            onDrag = { change, amount -> change.consume(); dragOffset += amount.y },
-                            onDragEnd = {
-                                val current = settings.pageLayout.value
-                                val next = current.reorderPageAfterDrag(page, dragOrder, dragRows, dragOffset)
-                                dragging = false
-                                dragOffset = 0f
-                                if (next != current) {
-                                    settings.setPageLayout(next)
-                                    haptics.play(PlayerHaptic.RELEASE)
-                                }
-                            },
-                            onDragCancel = { dragging = false; dragOffset = 0f },
-                        )
-                    }
-                    .semantics {
-                        customActions = buildList {
-                            if (position > 0) add(CustomAccessibilityAction(moveUpLabel) {
-                                settings.setPageLayout(settings.pageLayout.value.movePage(page, -1)); true
-                            })
-                            if (position < layout.order.lastIndex) add(CustomAccessibilityAction(moveDownLabel) {
-                                settings.setPageLayout(settings.pageLayout.value.movePage(page, 1)); true
-                            })
-                        }
-                    }
-                    .toggleable(
-                        value = enabled,
-                        enabled = canDisable,
-                        role = Role.Switch,
-                        onValueChange = { show ->
-                            settings.setPageLayout(settings.pageLayout.value.withPageEnabled(page, show))
+                    ).graphicsLayer { alpha = if (draggingIndex == position) 0f else 1f },
+                )
+            }
+            item(key = "reset-pages") {
+                SettingsSection(title = null) {
+                    SettingsActionRow(
+                        title = stringResource(Res.string.settings_pages_reset),
+                        subtitle = stringResource(Res.string.settings_pages_reset_body),
+                        enabled = layout != PageLayout() || preferredStartPage != StartPage.TRACKS,
+                        onClick = {
+                            settings.setPageLayout(PageLayout())
+                            settings.setStartPage(StartPage.TRACKS)
                         },
                     )
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box {
-                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(48.dp)) {
-                        Icon(
-                            imageVector = Icons.Rounded.DragHandle,
-                            contentDescription = stringResource(Res.string.settings_reorder_page, label),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text(moveUpLabel) },
-                            enabled = position > 0,
-                            onClick = {
-                                menuOpen = false
-                                settings.setPageLayout(settings.pageLayout.value.movePage(page, -1))
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(moveDownLabel) },
-                            enabled = position < layout.order.lastIndex,
-                            onClick = {
-                                menuOpen = false
-                                settings.setPageLayout(settings.pageLayout.value.movePage(page, 1))
-                            },
-                        )
-                    }
                 }
-                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (!canDisable) {
-                        Text(
-                            text = stringResource(Res.string.settings_pages_last_visible),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                Switch(checked = enabled, enabled = canDisable, onCheckedChange = null)
-            }
-        }
-        item(key = "reset-pages") {
-            SettingsSection(title = null) {
-                SettingsActionRow(
-                    title = stringResource(Res.string.settings_pages_reset),
-                    subtitle = stringResource(Res.string.settings_pages_reset_body),
-                    enabled = layout != PageLayout() || preferredStartPage != StartPage.TRACKS,
-                    onClick = {
-                        settings.setPageLayout(PageLayout())
-                        settings.setStartPage(StartPage.TRACKS)
-                    },
-                )
             }
         }
     }
@@ -1027,6 +927,98 @@ private fun PagesSettings(settings: AppSettings) {
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun PageOrderRow(
+    settings: AppSettings,
+    layout: PageLayout,
+    visiblePages: List<StartPage>,
+    page: StartPage,
+    position: Int,
+    modifier: Modifier = Modifier,
+) {
+    val enabled = page in visiblePages
+    val canDisable = !enabled || visiblePages.size > 1
+    val label = stringResource(page.titleResource())
+    val moveUpLabel = stringResource(Res.string.settings_page_move_up, label)
+    val moveDownLabel = stringResource(Res.string.settings_page_move_down, label)
+    var menuOpen by remember(page) { mutableStateOf(false) }
+    val shape = RoundedCornerShape(
+        topStart = if (position == 0) 16.dp else 0.dp,
+        topEnd = if (position == 0) 16.dp else 0.dp,
+        bottomStart = if (position == layout.order.lastIndex) 16.dp else 0.dp,
+        bottomEnd = if (position == layout.order.lastIndex) 16.dp else 0.dp,
+    )
+    Row(
+        modifier = modifier.fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .semantics {
+                customActions = buildList {
+                    if (position > 0) add(CustomAccessibilityAction(moveUpLabel) {
+                        settings.setPageLayout(settings.pageLayout.value.movePage(page, -1)); true
+                    })
+                    if (position < layout.order.lastIndex) add(CustomAccessibilityAction(moveDownLabel) {
+                        settings.setPageLayout(settings.pageLayout.value.movePage(page, 1)); true
+                    })
+                }
+            }
+            .toggleable(
+                value = enabled,
+                enabled = canDisable,
+                role = Role.Switch,
+                onValueChange = { show ->
+                    settings.setPageLayout(settings.pageLayout.value.withPageEnabled(page, show))
+                },
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box {
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    imageVector = Icons.Rounded.DragHandle,
+                    contentDescription = stringResource(Res.string.settings_reorder_page, label),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(moveUpLabel) },
+                    enabled = position > 0,
+                    onClick = {
+                        menuOpen = false
+                        settings.setPageLayout(settings.pageLayout.value.movePage(page, -1))
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(moveDownLabel) },
+                    enabled = position < layout.order.lastIndex,
+                    onClick = {
+                        menuOpen = false
+                        settings.setPageLayout(settings.pageLayout.value.movePage(page, 1))
+                    },
+                )
+            }
+        }
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (!canDisable) {
+                Text(
+                    text = stringResource(Res.string.settings_pages_last_visible),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Switch(checked = enabled, enabled = canDisable, onCheckedChange = null)
     }
 }
 

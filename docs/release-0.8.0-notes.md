@@ -8,7 +8,7 @@ SMART picks better, and the app gets smaller: smoother transitions and fewer jum
 - 🪶 **Smaller and faster.** The on-device models are half the size, and the audio model runs about a third faster on LatentJam's own 4-bit operator; the arm64 download shrinks from 57 to 38 MB. After the update the library is analysed once more — up to twice as fast as before.
 
 ### Fixed
-- Dragging a queue entry to either edge scrolls the queue while you hold it there, so it can be moved beyond the visible rows.
+- Dragging a queue entry, a playlist or a page in Settings → Pages to either edge scrolls the list while you hold it there, so it can be moved beyond the visible rows.
 - iPhone import preserves existing shorter or different files with the same name and safely gives the new copy another name.
 - After a large tag edit, the library and queue refresh again when Android finishes indexing the changed files.
 - A remix, radio edit, remaster or live take of a song you just heard no longer comes up again in SMART as if it were another song (in 0.7.1 it happened in about one queue in twelve)
@@ -24,7 +24,7 @@ SMART picks better, and the app gets smaller: smoother transitions and fewer jum
 - This build also carries the fixes from an independent code audit; the traceable list — finding, commit, verification — is in `docs/audit-fixes-2026-10-08.md`.
 
 - Local backups carry sorting preferences. The equaliser and queue are not included; the backup screen lists what travels, and a damaged or foreign backup file is refused before anything is applied.
-- A backup file written by this version carries format 7: older builds refuse it whole instead of failing halfway, and a restore that is interrupted by leaving the screen now finishes instead of applying half of its sections.
+- A backup file written by this version carries format 8: older builds refuse it whole instead of failing halfway, and a restore that is interrupted by leaving the screen now finishes instead of applying half of its sections.
 - Editing the queue, seeking back or changing shuffle no longer stops playback while the sleep timer waits for the end of a track, and the quick-settings tile starts the queue again after it has finished.
 - The widget shows the right transport while a track is buffering, the restored repeat mode is actually applied to the player, and the "playing" state no longer survives the death of the process.
 - Search highlights "ph" the way the search index folds it, an empty song list no longer wipes the lyrics cache, and a search with a year reaches lyric matches again.
