@@ -167,15 +167,16 @@ data class ForYouHero(
     val resumeAtMs: Long? = null,
 )
 
-/** The page: one hero, then rows. */
+/**
+ * The page: one hero, then rows.
+ *
+ * The page carries no list of "offers" for the caller to record. Building a page offers nothing —
+ * the rows compose only what fits the viewport — so the unit of an impression is a card reaching
+ * the screen, and it is the surface that knows it (see ForYouTab's shown-card reporting).
+ */
 data class ForYouPage(
     val hero: ForYouHero? = null,
     val sections: List<ForYouSection> = emptyList(),
-    /**
-     * The unheard tracks this page actually offered, with the section that offered them —
-     * the caller records these as impressions so tomorrow's page can retire ignored offers.
-     */
-    val discoveryOffers: List<Pair<TrackId, String>> = emptyList(),
 ) {
     val isEmpty: Boolean get() = hero == null && sections.isEmpty()
 }
@@ -334,7 +335,9 @@ object ForYouBuilder {
         // local days, and a page whose rotation disagreed with them by a timezone offset either
         // re-offered what had just cooled or stood still after its own day had ended.
         val dayIndex = localDayOf(nowMs).toInt()
-        val hero = hero(byId, stats, recentEvents, nowMs, quietMs, excluded, dayIndex)
+        val hero = hero(
+            byId, stats, recentEvents, nowMs, quietMs, excluded, cooledDiscoveries, dayIndex,
+        )
         hero?.let { used.add(it.track.id) }
 
         val sections = mutableListOf<ForYouSection>()
@@ -367,20 +370,7 @@ object ForYouBuilder {
         wildcardSection(worlds, stats, nowMs, used, cooledDiscoveries, dayIndex)?.let(sections::add)
         neverPlayed(library, stats, used, cooledDiscoveries, dayIndex)?.let(sections::add)
 
-        // A DAYPART card without a caption is by construction an unheard fresh pick — proven
-        // cards always carry their in-phase play count.
-        val discoveryOffers = sections.flatMap { section ->
-            when (section.kind) {
-                ForYouSectionKind.DAYPART ->
-                    section.cards.filter { it.caption == null }.map { it.track.id to "daypart" }
-                ForYouSectionKind.WILDCARD ->
-                    section.cards.map { it.track.id to "wildcard" }
-                ForYouSectionKind.NEVER_PLAYED ->
-                    section.cards.map { it.track.id to "never-played" }
-                else -> emptyList()
-            }
-        }
-        return ForYouPage(hero, sections, discoveryOffers)
+        return ForYouPage(hero, sections)
     }
 
     /**
@@ -388,7 +378,13 @@ object ForYouBuilder {
      * something interrupted, then a proven favourite gone quiet, then something owned and unheard.
      *
      * Falling through rather than insisting on one signal is what lets the card exist on day one and
-     * still be the best available answer in month six.
+     * still be the best available answer in month six. The unheard fallback skips
+     * [cooledDiscoveries] — the hero's own card is written to the impression journal like any other
+     * (see ForYouTab's shown-card reporting), so it has to answer that journal too; a hero that
+     * ignored it cycled the same handful of tracks for as long as the library stayed quiet. When
+     * every unheard track is cooling the fallback yields no hero for that day and the rows below
+     * carry the page — a card the listener has already scrolled past three days running is the
+     * weaker offer of the two.
      */
     private fun hero(
         byId: Map<TrackId, TrackDescriptor>,
@@ -397,6 +393,7 @@ object ForYouBuilder {
         nowMs: Long,
         quietMs: Long,
         excluded: Set<TrackId>,
+        cooledDiscoveries: Set<TrackId>,
         dayIndex: Int,
     ): ForYouHero? {
         interrupted(byId, recentEvents, excluded)?.let { (track, at) ->
@@ -420,7 +417,7 @@ object ForYouBuilder {
         }
         val unheard = byId.values
             .filter { (stats[it.id]?.plays ?: 0) == 0 }
-            .filter { it.id !in excluded }
+            .filter { it.id !in excluded && it.id !in cooledDiscoveries }
             .sortedByDescending { it.addedAtMs ?: Long.MIN_VALUE }
             .take(HERO_ROTATION_POOL)
         if (unheard.isEmpty()) return null

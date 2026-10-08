@@ -649,7 +649,7 @@ class ForYouBuilderTest {
     }
 
     @Test
-    fun `the daily rotation turns over on the local day, not on the UTC day`() {
+    fun `the daily rotation turns over on the local day rather than the UTC day`() {
         val tracks = (1..30).map { track("$it", artist = "Artist$it", added = it.toLong()) }
         // A fixed UTC+13 zone — far enough east for its calendar day to disagree with UTC's for
         // eleven hours out of twenty-four. Local midnight there falls at 11:00 UTC.
@@ -911,5 +911,26 @@ class ForYouBuilderTest {
             cooled = setOf(cooled.id),
         )
         assertEquals(strangers.first().id, pick?.pick?.id)
+    }
+
+    @Test
+    fun `the hero yields to a stranger once its whole unheard pool has been offered`() {
+        val offered = (1..5).map { track("offered$it", artist = "Offered$it", added = 900L - it) }
+        val stranger = track("stranger", artist = "Stranger", added = 1)
+        val page = ForYouBuilder.build(
+            library = offered + stranger,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            cooledDiscoveries = offered.mapTo(HashSet()) { it.id },
+            localDayOf = utcDay,
+        )
+
+        // The hero is the page's one unheard card and its show is written to the impression
+        // journal like any other, so the newest-unheard pool is the wrong pool when all of it is
+        // cooling: the card used to be the same handful of tracks day after day, each show
+        // recorded as if it were a new offer.
+        assertEquals(stranger.id, page.hero?.track?.id)
+        assertEquals(ForYouKicker.NeverPlayed, page.hero?.kicker)
     }
 }
