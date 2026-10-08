@@ -633,6 +633,60 @@ internal class LocalBackupTest {
         assertEquals(0, report.unresolvedTrackReferences)
     }
 
+    @Test
+    fun idOnlyReferencesRestoreWhileTheDeviceStillConfirmsTheIds() = runTest {
+        // An export taken while the library was unavailable stores bare ids, and a track whose tags
+        // MediaStore could not read keeps its duration alone. Both must come back on the same device.
+        val snapshot = emptySnapshot().copy(
+            tracks = listOf(
+                LocalBackupTrackReference("bare", null, null, null, null),
+                LocalBackupTrackReference("untagged", null, null, null, 180_000),
+            ),
+            playlists = listOf(
+                LocalBackupPlaylist("mix", "Mix", 1, listOf("bare", "untagged")),
+            ),
+        )
+        val destination = fixture(
+            listOf(
+                track("bare", "Title", "Artist", "Album", 120_000),
+                TrackDescriptor(TrackId("untagged"), durationMs = 180_000),
+            ),
+        )
+
+        val report = destination.service.restore(
+            snapshot,
+            LocalBackupRestoreMode.REPLACE,
+            noSections().copy(playlists = true),
+        )
+
+        assertEquals(2, report.resolvedTrackReferences)
+        assertEquals(0, report.unresolvedTrackReferences)
+        assertContentEquals(listOf("bare", "untagged"), destination.playlists.all().single().trackIds)
+    }
+
+    @Test
+    fun anIdOnlyReferenceStaysUnresolvedWhenTheDeviceIdsWereReassigned() = runTest {
+        // A described reference no longer fits the track that holds its id, so the ids in this
+        // backup were reused; the bare id of a track the export could not describe must not claim one.
+        val snapshot = emptySnapshot().copy(
+            tracks = listOf(
+                LocalBackupTrackReference("moved", "Old title", "Artist", "Album", 100_000),
+                LocalBackupTrackReference("bare", null, null, null, null),
+            ),
+        )
+        val destination = fixture(
+            listOf(
+                track("moved", "New title", "Artist", "Album", 100_000),
+                track("bare", "Something else", "Other", "Other", 100_000),
+            ),
+        )
+
+        val report = destination.service.restore(snapshot, LocalBackupRestoreMode.REPLACE, noSections())
+
+        assertEquals(0, report.resolvedTrackReferences)
+        assertEquals(2, report.unresolvedTrackReferences)
+    }
+
     private fun emptySnapshot() = LocalBackupSnapshot(
         createdAtMs = 1,
         settings = LocalBackupSettings(

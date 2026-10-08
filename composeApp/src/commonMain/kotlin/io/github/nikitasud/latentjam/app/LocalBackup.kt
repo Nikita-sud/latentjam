@@ -58,8 +58,10 @@ internal data class LocalBackupSettings(
 /**
  * A portable identity hint, never an audio locator.
  *
- * The original id makes same-device restores exact. Metadata permits a conservative unique match
- * after MediaStore or imported-file ids change. Audio paths, artwork paths, and model embeddings are
+ * The original id makes same-device restores exact. A reference captured without a single field (the
+ * library was unavailable at export time) is that id alone, so it is matched while the device still
+ * confirms the references that do carry fields. Metadata permits a conservative unique match after
+ * MediaStore or imported-file ids change. Audio paths, artwork paths, and model embeddings are
  * deliberately absent from backups.
  */
 internal data class LocalBackupTrackReference(
@@ -894,6 +896,16 @@ internal class LocalBackupService(
         private val exactById = indexedTracks
             .filter { it.track.id.value in normalizedById }
             .associateBy { it.track.id.value }
+
+        /**
+         * True while every described reference still fits the track that holds its id. A single
+         * mismatch means the media database was rebuilt, an id was reused, or the track under it was
+         * replaced, and a reference captured without any field then has nothing left to confirm it.
+         */
+        private val idsPreserved: Boolean = normalizedById.all { (id, reference) ->
+            val candidate = exactById[id]
+            !reference.hasIdentity || candidate == null || reference.isCompatibleWith(candidate)
+        }
         private val metadataByKey: Map<MetadataKey, MetadataCandidates> = buildMap {
             val builders = mutableMapOf<MetadataKey, MutableList<IndexedTrack>>()
             indexedTracks.forEach { indexed ->
@@ -917,7 +929,16 @@ internal class LocalBackupService(
         fun resolve(reference: LocalBackupTrackReference): TrackId? {
             val normalized = normalizedById.getValue(reference.originalId)
             exactById[reference.originalId]?.let { exact ->
-                if (normalized.isCompatibleWith(exact)) return exact.track.id
+                // A described reference must fit the track that holds its id. A reference captured
+                // without a single field is that id alone, and the backup promises the original id
+                // for same-device restores, so it is accepted while the device still confirms the
+                // ids of the references that do carry fields.
+                val matches = if (normalized.hasIdentity) {
+                    normalized.isCompatibleWith(exact)
+                } else {
+                    idsPreserved
+                }
+                if (matches) return exact.track.id
             }
             val title = normalized.title ?: return null
             return metadataByKey[MetadataKey(title, normalized.artist, normalized.album)]
@@ -945,15 +966,19 @@ internal class LocalBackupService(
             durationMs = reference.durationMs,
         )
 
-        fun isCompatibleWith(track: IndexedTrack): Boolean {
-            val hasIdentity = title != null || (artist != null && album != null)
-            if (!hasIdentity) return false
-            return (title == null || title == track.title) &&
+        /**
+         * True when at least one field can be compared with a track. A track whose tags MediaStore
+         * could not read still has a duration, so only a reference captured without any field at all
+         * is the bare id that [TrackReferenceResolver.resolve] has to judge on its own.
+         */
+        val hasIdentity: Boolean = title != null || artist != null || album != null || durationMs != null
+
+        fun isCompatibleWith(track: IndexedTrack): Boolean =
+            (title == null || title == track.title) &&
                 (artist == null || artist == track.artist) &&
                 (album == null || album == track.album) &&
                 (durationMs == null ||
                     track.track.durationMs?.let { backupDurationsNear(durationMs, it) } == true)
-        }
     }
 
     private data class MetadataKey(
