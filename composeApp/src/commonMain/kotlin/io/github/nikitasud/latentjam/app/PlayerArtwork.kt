@@ -275,8 +275,12 @@ internal fun PlayerArtworkCard(
                         when (axis) {
                             ArtworkDragAxis.HORIZONTAL -> {
                                 // A new tap/hold must let an earlier rejected swipe finish
-                                // returning. Only another horizontal drag takes over its travel.
+                                // returning. Only another horizontal drag takes over its travel,
+                                // and it takes it over where it stands: the cover is still on its
+                                // way back, so measuring the new drag from the finger's own zero
+                                // would jump it by the travel the return had left (#79).
                                 skipJob?.cancel()
+                                val resumedTravel = travel.value
                                 swiping = true
                                 var armed = false
                                 var thresholdAnnounced = false
@@ -295,8 +299,11 @@ internal fun PlayerArtworkCard(
                                     armed = nowArmed
                                     if (blocked && abs(dx) > rejectTravel) rejected = true
                                     // Finger movement is read directly by the layer; no coroutine
-                                    // or animation is allocated for each pointer event.
-                                    dragTravel = swipeShown(dx, blocked)
+                                    // or animation is allocated for each pointer event. Whatever
+                                    // the interrupted return had left is carried on top, so the
+                                    // cover carries on from where it was instead of jumping to
+                                    // the new finger's zero.
+                                    dragTravel = resumedTravel + swipeShown(dx, blocked)
                                     change.consume()
                                     if (change.changedToUpIgnoreConsumed()) break
                                     change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
