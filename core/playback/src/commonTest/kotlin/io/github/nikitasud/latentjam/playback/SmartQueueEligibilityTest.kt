@@ -59,5 +59,58 @@ internal class SmartQueueEligibilityTest {
         )
     }
 
+    @Test
+    fun `a removal is booked in SMART only`() {
+        val removedIds = mutableSetOf<TrackId>()
+        recordSmartRemoval(removedIds, ShuffleMode.OFF, a.id)
+        recordSmartRemoval(removedIds, ShuffleMode.ON, b.id)
+        assertEquals(emptySet<TrackId>(), removedIds)
+
+        recordSmartRemoval(removedIds, ShuffleMode.SMART, c.id)
+        assertEquals(setOf(c.id), removedIds)
+    }
+
+    @Test
+    fun `a removed track stays out of the top-up candidates even though the universe holds it`() {
+        assertEquals(
+            listOf(c),
+            smartTopUpCandidates(
+                universe = listOf(a, b, c),
+                queuedIds = setOf(a.id),
+                removedIds = setOf(b.id),
+            ),
+        )
+    }
+
+    @Test
+    fun `repeated removals accumulate without duplicates and all of them stay out`() {
+        val removedIds = mutableSetOf<TrackId>()
+        recordSmartRemoval(removedIds, ShuffleMode.SMART, a.id)
+        recordSmartRemoval(removedIds, ShuffleMode.SMART, b.id)
+        recordSmartRemoval(removedIds, ShuffleMode.SMART, a.id)
+        assertEquals(setOf(a.id, b.id), removedIds)
+
+        assertEquals(
+            listOf(c),
+            smartTopUpCandidates(
+                universe = listOf(a, b, c),
+                queuedIds = emptySet(),
+                removedIds = removedIds,
+            ),
+        )
+    }
+
+    @Test
+    fun `an empty removal set only filters what is queued`() {
+        assertEquals(
+            listOf(b, c),
+            smartTopUpCandidates(
+                universe = listOf(a, b, c),
+                queuedIds = setOf(a.id),
+                removedIds = emptySet(),
+            ),
+        )
+    }
+
     private fun track(id: String) = TrackDescriptor(TrackId(id), title = id.uppercase())
 }
