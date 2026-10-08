@@ -208,6 +208,9 @@ internal class TagWriteCoordinator<C>(
     val prompt = mutablePrompt.asStateFlow()
     private val mutableCompleted = MutableStateFlow<TagWriteRequest?>(null)
     val completed = mutableCompleted.asStateFlow()
+    /** Late scanner completions invalidate library and queue descriptors, even after recreation. */
+    private val mutableRescanRevision = MutableStateFlow(0L)
+    val rescanRevision = mutableRescanRevision.asStateFlow()
     private val mutableProgress = MutableStateFlow<TagWriteProgress?>(null)
     val progress = mutableProgress.asStateFlow()
     private val mutablePending = MutableStateFlow<List<JournalRecord>>(emptyList())
@@ -827,7 +830,15 @@ internal class TagWriteCoordinator<C>(
         // already reads the new tags, which on Android only the scanner puts into the index. A scan
         // that does not finish by then goes on in the background: the report is published without it,
         // and this request's files were closed and journalled before any of this ran.
-        if (scan != null) withTimeoutOrNull(RESCAN_GRACE_MS) { scan.join() }
+        if (scan != null) {
+            val finished = withTimeoutOrNull(RESCAN_GRACE_MS) { scan.join(); true } == true
+            if (!finished) scope.launch {
+                scan.join()
+                // The report may already have refreshed from the old MediaStore rows. Keep a
+                // revision, not a one-shot callback: a recreated UI must see this completion too.
+                mutableRescanRevision.value += 1L
+            }
+        }
         update(requests.first().copy(stage = TagWriteStage.COMPLETE, batch = emptyList()))
         mutableProgress.value = null
         mutableCompleted.value = requests.first()

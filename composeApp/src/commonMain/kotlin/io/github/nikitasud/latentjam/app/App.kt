@@ -1007,6 +1007,25 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
         fun afterTagSave(saved: List<TrackDescriptor>, result: TagSaveResult) {
             followTagSaves(listOf(saved to result), listOf(result))
         }
+
+        LaunchedEffect(tagAccess?.coordinator) {
+            val coordinator = tagAccess?.coordinator ?: return@LaunchedEffect
+            coordinator.rescanRevision.collect { revision ->
+                if (revision == 0L) return@collect
+                try {
+                    // Large saves report before MediaScanner finishes. Refresh again from its
+                    // final rows, including the queue and the collection already open on screen.
+                    val fresh = scanLibrary()
+                    playback.refreshTracks(fresh)
+                    refreshOpenCollection()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // The files are safe; the next foreground scan retries an unavailable index.
+                    println("Library: could not refresh after tag indexing")
+                }
+            }
+        }
         var playlistMutationInProgress by remember { mutableStateOf(false) }
         var playlistMutationFailed by remember { mutableStateOf(false) }
         var trackMenuRequest by remember { mutableStateOf<TrackMenuRequest?>(null) }

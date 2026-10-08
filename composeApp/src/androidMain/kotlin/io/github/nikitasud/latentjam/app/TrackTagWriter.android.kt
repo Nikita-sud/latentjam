@@ -53,7 +53,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.DataInputStream
@@ -381,19 +380,18 @@ private class AndroidTagWriteBackend(private val context: Context) : TagWriteBac
      * One scan for the whole batch, issued before anything is waited for. The coordinator starts this
      * on the scope its owner keeps and gives it a short grace, so a batch is not held back by its
      * whole reindex (see [TagWriteBackend.rescan]): paths are resolved off the main thread, the scan
-     * is handed to the platform in one call, and the wait below only bounds this call — a scanner
+     * is handed to the platform in one call, and the wait below follows its callbacks — a scanner
      * that goes quiet leaves a coroutine waiting, not the report, the queue or the editor's sheet.
      */
     override suspend fun rescan(keys: List<String>) {
         val paths = withContext(Dispatchers.IO) { keys.mapNotNull { filePathOf(context, Uri.parse(it)) } }
         if (paths.isEmpty()) return
-        withTimeoutOrNull(maxOf(SCAN_TIMEOUT_MS, paths.size * 50L)) {
-            suspendCancellableCoroutine { continuation ->
-                // The callbacks arrive on the scanner's thread, not this one.
-                val remaining = AtomicInteger(paths.size)
-                MediaScannerConnection.scanFile(context, paths.toTypedArray(), null) { _, _ ->
-                    if (remaining.decrementAndGet() == 0 && continuation.isActive) continuation.resume(Unit)
-                }
+        // The coordinator bounds how long the report waits. This background job follows the
+        // actual last callback, so even a very slow scanner can trigger the final library refresh.
+        suspendCancellableCoroutine { continuation ->
+            val remaining = AtomicInteger(paths.size)
+            MediaScannerConnection.scanFile(context, paths.toTypedArray(), null) { _, _ ->
+                if (remaining.decrementAndGet() == 0 && continuation.isActive) continuation.resume(Unit)
             }
         }
     }
@@ -566,12 +564,3 @@ internal fun filePathOf(context: Context, uri: Uri): String? = runCatching {
         .query(uri, arrayOf(MediaStore.Audio.Media.DATA), null, null, null)
         ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
 }.getOrNull()
-
-/**
- * How long [AndroidTagWriteBackend.rescan] waits for a batch's scanner callbacks: at least this, and
- * about 50 ms per file for a bigger batch. The scan is already with the platform by then and the
- * report no longer waits for it (see the coordinator's grace), so this bounds one background
- * coroutine, not the user: a callback that never arrives is waited out here, and the index catches
- * up at the file's next scan.
- */
-private const val SCAN_TIMEOUT_MS = 10_000L
