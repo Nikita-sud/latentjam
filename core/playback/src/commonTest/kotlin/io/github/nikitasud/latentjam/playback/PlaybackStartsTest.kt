@@ -135,22 +135,28 @@ internal class PlaybackStartsTest {
     @Test
     fun `a track queued by hand loses the plan position an earlier SMART row left`() {
         val positions = mutableMapOf(a to 3, b to 4)
+        val removals = mutableSetOf(a, b)
         // SMART played A from slot 3 earlier; the listener now queues A again with Play next.
-        releaseSmartProvenance(positions, mutableSetOf(), a)
+        releaseSmartProvenance(positions, mutableSetOf(), removals, a)
 
         assertEquals(mapOf(b to 4), positions)
+        // The listener wants A now, so an earlier removal of it is withdrawn with the position.
+        assertEquals(setOf(b), removals)
     }
 
     @Test
     fun `a track queued by hand is no longer labelled as the filler SMART fell back to`() {
         val positions = mutableMapOf(b to 4)
         val continuations = mutableSetOf(a, b)
+        val removals = mutableSetOf(a)
         // SMART found nothing better and queued A as a labelled continuation; the listener now
         // queues A with Add to queue.
-        releaseSmartProvenance(positions, continuations, a)
+        releaseSmartProvenance(positions, continuations, removals, a)
 
         assertEquals(setOf(b), continuations)
         assertEquals(mapOf(b to 4), positions)
+        val noRemovals = emptySet<TrackId>()
+        assertEquals(noRemovals, removals)
     }
 
     @Test

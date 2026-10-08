@@ -597,7 +597,7 @@ internal class IosPlaybackController(
             track = track,
             insertion = SourceQueueInsertion.PLAY_NEXT,
         )
-        releaseSmartProvenance(smartPlanPositions, smartContinuationIds, track.id)
+        releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
         queueGeneration++
         cueIfNothingCurrent()
         pushState()
@@ -611,7 +611,7 @@ internal class IosPlaybackController(
             track = track,
             insertion = SourceQueueInsertion.APPEND,
         )
-        releaseSmartProvenance(smartPlanPositions, smartContinuationIds, track.id)
+        releaseSmartProvenance(smartPlanPositions, smartContinuationIds, smartRemovedIds, track.id)
         queueGeneration++
         cueIfNothingCurrent()
         pushState()
