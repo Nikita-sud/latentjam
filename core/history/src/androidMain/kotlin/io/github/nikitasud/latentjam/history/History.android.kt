@@ -5,6 +5,8 @@
 package io.github.nikitasud.latentjam.history
 
 import android.content.Context
+import android.system.Os
+import android.system.OsConstants
 import java.io.File
 import java.io.RandomAccessFile
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +18,10 @@ import org.koin.dsl.module
  * Append-only log file in the app's private files directory. Appends are one
  * line per event; a partially written trailing line (crash mid-write) is
  * simply skipped by the parser on the next load.
+ *
+ * Every change to the log's directory entry — the first append that creates the file, the atomic
+ * replacement, and clearing the log — is followed by a sync of that directory, so the newest state
+ * is on storage rather than in a cache when the device loses power.
  */
 internal class FileHistoryStore(context: Context) : HistoryStore {
 
@@ -40,12 +46,43 @@ internal class FileHistoryStore(context: Context) : HistoryStore {
         )
     }
 
+    /**
+     * Deletes the log and makes the deletion durable.
+     *
+     * Removing the bytes is only half of the change: the directory entry that named the file has to
+     * reach storage as well. Without that sync a power cut right after "clear history" could bring
+     * the deleted log back and show the user the listening history they just erased.
+     */
     override suspend fun clear(): Unit = withContext(Dispatchers.IO) {
-        check(!file.exists() || file.delete()) { "Could not clear listening history" }
+        if (!file.exists()) return@withContext
+        check(file.delete()) { "Could not clear listening history" }
+        syncDirectory(file.parentFile)
     }
 
     private companion object {
         const val FILE_NAME = "listening_history.log"
+    }
+}
+
+/**
+ * fsync of the directory itself, so the log's removal survives a power cut (API 21+).
+ *
+ * Mirrors the helper that guards the atomic replacement in AtomicFile.android.kt; that one is
+ * private to its file, so the few lines are repeated here. Best effort on purpose: the log is
+ * already gone, and a filesystem that refuses to open or sync a directory must not fail an
+ * otherwise successful clear.
+ */
+private fun syncDirectory(directory: File?) {
+    val target = directory ?: return
+    try {
+        val descriptor = Os.open(target.path, OsConstants.O_RDONLY, 0)
+        try {
+            Os.fsync(descriptor)
+        } finally {
+            Os.close(descriptor)
+        }
+    } catch (_: Exception) {
+        // Nothing left to do: the deletion itself already happened.
     }
 }
 
