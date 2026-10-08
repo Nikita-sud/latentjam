@@ -98,7 +98,10 @@ internal fun PlayerArtworkCard(
     onSkip: (forward: Boolean) -> Unit,
     canSkipForward: Boolean,
     canSkipBackward: Boolean,
-    /** Track a swipe in that direction would reach; a missing image still gets a cover face. */
+    /**
+     * Track a swipe in that direction would reach; a missing image still gets a cover face. It is
+     * revealed only while [skipChangesTrack] says the swipe really changes the track.
+     */
     neighbourTrack: (forward: Boolean) -> TrackDescriptor?,
     /** Each move of a downward pull, in screen px (positive down), one-to-one with the finger. */
     onCollapseDrag: (deltaPx: Float) -> Unit,
@@ -108,7 +111,10 @@ internal fun PlayerArtworkCard(
     onCollapseAbandon: () -> Unit,
     details: @Composable () -> Unit,
     queueIndex: Int = -1,
-    /** Restarts keep the current cover and return it immediately after the skip action. */
+    /**
+     * Whether the skip changes the track. A restart keeps the current cover, returns it right after
+     * the skip action, and reaches no other track — so no neighbour may peek in behind it either.
+     */
     skipChangesTrack: (forward: Boolean) -> Boolean = { true },
     modifier: Modifier = Modifier,
 ) {
@@ -424,12 +430,26 @@ internal fun PlayerArtworkCard(
                 },
         ) {
             val gapPx = with(density) { GHOST_GAP.toPx() }
+            // The peeking cover is a promise about the track the swipe lands on, so it appears on
+            // the same terms as the hand-over below: only while the skip would really change the
+            // track. A back-swipe past the restart threshold only starts the current song over —
+            // it keeps the cover already on screen, and the previous one peeking in there would
+            // preview a track the gesture never reaches (#77). Like the travel itself, the
+            // decision is read per frame, because playback can cross the restart threshold in the
+            // middle of a drag.
+            val ghostTravel: (Boolean) -> Float = { forward ->
+                if (ownsMotion && swiping && currentSkipChangesTrack(forward)) {
+                    dragTravel ?: travel.value
+                } else {
+                    0f
+                }
+            }
             neighbourTrack(false)?.let { neighbour ->
                 GhostCover(
                     uri = neighbour.artworkUri,
                     forward = false,
                     gapPx = gapPx,
-                    travel = { if (ownsMotion && swiping) dragTravel ?: travel.value else 0f },
+                    travel = { ghostTravel(false) },
                     reduceMotion = reduceMotion,
                 )
             }
@@ -438,7 +458,7 @@ internal fun PlayerArtworkCard(
                     uri = neighbour.artworkUri,
                     forward = true,
                     gapPx = gapPx,
-                    travel = { if (ownsMotion && swiping) dragTravel ?: travel.value else 0f },
+                    travel = { ghostTravel(true) },
                     reduceMotion = reduceMotion,
                 )
             }
