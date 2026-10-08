@@ -200,9 +200,11 @@ uploaded**. The constants around the scorer (chain weights, the learned correcti
 chosen by replaying recorded model outputs and simulated listeners through the full chain and by blind
 judges on public playlists, not by hand.
 
-**Cold start.** The audio index builds in small persisted batches spread over the whole library;
-until candidates are ready, SMART *abstains* rather than quietly falling back to random. A listener
-with no history gets a state trained for exactly that case, so the first queue is still meaningful.
+**Cold start.** The audio index builds in small persisted batches spread over the whole library.
+Until it covers enough of the library, SMART builds the queue from the trusted metadata vectors
+(genre, artist, year) rather than the audio ones — a real local ranking, never a random shuffle. It
+abstains only when there is no trustworthy metadata to rank at all. A listener with no history gets
+a state trained for exactly that case, so the first queue is still meaningful.
 
 **What ships.** Five ONNX graphs ship in-tree: the audio encoder runs once per track while indexing;
 the metadata encoder runs at indexing and for search queries; the state encoder and the scorer run
