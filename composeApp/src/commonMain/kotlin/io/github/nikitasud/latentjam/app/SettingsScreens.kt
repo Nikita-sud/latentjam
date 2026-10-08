@@ -2854,12 +2854,24 @@ private fun SmartExclusionsSettings(
     var allTracks by remember(visibleTracks) { mutableStateOf(visibleTracks) }
     var changingKey by remember { mutableStateOf<String?>(null) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
+    var loadFailed by remember { mutableStateOf(false) }
     val updateFailed = stringResource(Res.string.snack_smart_exclusion_failed)
 
-    LaunchedEffect(library, visibleTracks) {
-        exclusions.load()
-        allTracks = (visibleTracks + library.hiddenTracks()).distinctBy(TrackDescriptor::id)
+    suspend fun loadTracks() {
+        try {
+            exclusions.load()
+            allTracks = (visibleTracks + library.hiddenTracks()).distinctBy(TrackDescriptor::id)
+            loadFailed = false
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            // A corrupt exclusions file or a failing media query must offer a retry on this screen
+            // instead of escaping the effect: an uncaught throwable there kills the whole app.
+            loadFailed = true
+        }
     }
+
+    LaunchedEffect(library, visibleTracks) { loadTracks() }
     val byId = remember(allTracks) { allTracks.associateBy(TrackDescriptor::id) }
 
     fun update(key: String, action: suspend () -> Unit) {
@@ -2884,10 +2896,19 @@ private fun SmartExclusionsSettings(
         item {
             SettingsSection(stringResource(Res.string.intelligence_manage_exclusions)) {
                 SettingsBody(stringResource(Res.string.intelligence_manage_exclusions_body))
-                if (state.trackIds.isEmpty() && state.artists.isEmpty()) {
-                    SettingsBody(stringResource(Res.string.intelligence_exclusions_empty))
-                } else {
-                    SettingsActionRow(
+                when {
+                    loadFailed -> SettingsActionRow(
+                        title = stringResource(Res.string.action_retry),
+                        subtitle = updateFailed,
+                        onClick = {
+                            loadFailed = false
+                            scope.launch { loadTracks() }
+                        },
+                    )
+                    state.trackIds.isEmpty() && state.artists.isEmpty() -> SettingsBody(
+                        stringResource(Res.string.intelligence_exclusions_empty),
+                    )
+                    else -> SettingsActionRow(
                         title = stringResource(Res.string.intelligence_exclusions_clear),
                         subtitle = null,
                         enabled = changingKey == null,
