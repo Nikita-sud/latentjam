@@ -728,6 +728,38 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun `a clear cancelled after its deletion writes both snapshots back from memory`() = runTest {
+        // The audio store deletes its snapshot, then the caller's scope is cancelled on the way back.
+        val audioBacking = FakeIndexStore()
+        val audioStore = object : IndexStore by audioBacking {
+            override suspend fun clear() {
+                audioBacking.clear()
+                throw CancellationException("cancelled after deletion")
+            }
+        }
+        val textStore = FakeIndexStore()
+        val engine = engine(
+            backend = FakeEmbeddingBackend(mutableMapOf(seed.id to floatArrayOf(1f, 0f, 0f))),
+            store = audioStore,
+            textEncoder = FakeTextEncoder(),
+            textIndex = InMemoryVectorIndex(TextEncoder.TEXT_DIM),
+            textStore = textStore,
+        )
+        engine.initialize()
+        engine.indexLibrary(listOf(seed.copy(genre = "Rock")))
+
+        assertFailsWith<CancellationException> { engine.clearAnalysis() }
+        assertTrue(audioBacking.snapshots.isEmpty(), "the fixture must delete before cancelling")
+        assertNotNull(engine.embedding(seed.id))
+
+        // The next checkpoint repairs the deletion; the two snapshots stay one generation.
+        engine.persistPendingAnalysis()
+
+        assertEquals(setOf(seed.id), audioBacking.snapshots["test-model"]?.keys)
+        assertEquals(setOf(seed.id), textStore.snapshots[TEXT_INDEX_VERSION]?.keys)
+    }
+
+    @Test
     fun indexLibrarySkipsAlreadyIndexedTracks() = runTest {
         val harness = Harness()
         harness.registerTriangle()

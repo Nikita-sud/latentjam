@@ -895,7 +895,8 @@ internal class DefaultSimilarityEngine(
                 // every durable snapshot has been deleted, so a caller never observes a cleared
                 // engine while an old snapshot is still known to be recoverable on restart.
                 // Cancellation is not a failure: collectClearFailure rethrows it, so a cancelled
-                // clear surfaces as cancellation instead of as a repair the caller cannot run.
+                // clear surfaces as cancellation instead of as a repair the caller cannot run, and
+                // marks both indexes for rewriting, since a deletion may already have happened.
                 runCatching { store.clear() }.onFailure { collectClearFailure(failures, it) }
                 textStore?.let { target ->
                     runCatching { target.clear() }.onFailure { collectClearFailure(failures, it) }
@@ -1269,9 +1270,19 @@ internal class DefaultSimilarityEngine(
      * Collects a failed snapshot deletion or repair save. Cancellation is never collected: it is
      * rethrown so the caller sees the cancellation instead of an [IllegalStateException] raised
      * after repair attempts that an already cancelled context cannot complete.
+     *
+     * A cancellation can arrive after its store already deleted the snapshot — on the way back from
+     * the store's own IO dispatcher — while memory is still live and nothing is marked to write it
+     * again. Left so, the audio snapshot would stay deleted beside the text one, and the next launch
+     * would restore an empty audio index and re-embed the library against the surviving text index.
+     * Both indexes are marked dirty first, so the next save writes them back from memory together.
      */
     private fun collectClearFailure(failures: MutableList<Throwable>, failure: Throwable) {
-        if (failure is CancellationException) throw failure
+        if (failure is CancellationException) {
+            audioIndexDirty = true
+            textIndexDirty = true
+            throw failure
+        }
         failures += failure
     }
 
