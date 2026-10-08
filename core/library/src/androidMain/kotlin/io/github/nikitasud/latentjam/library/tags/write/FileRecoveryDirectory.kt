@@ -80,9 +80,19 @@ public class FileRecoveryDirectory(
         syncDirectory(root)
     }
 
+    /**
+     * Free space on the store's volume. `File.usableSpace` answers 0 both for a volume with nothing
+     * left and for a stat that failed — it swallows the error — and a failed stat read as "no space"
+     * refused every save on a disk that had room. `totalSpace` comes from the same stat, so a zero
+     * total means the answer is unknown, not zero: that is passed on as room to spare, and a volume
+     * that really is full still fails at the write, where an ENOSPC becomes a [StorageFullException]
+     * and the save is refused with the track left whole.
+     */
     override fun freeBytes(): Long {
         root.mkdirs()
-        return root.usableSpace
+        val usable = root.usableSpace
+        if (usable == 0L && root.totalSpace == 0L) return Long.MAX_VALUE
+        return usable
     }
 
     private companion object {
