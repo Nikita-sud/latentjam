@@ -759,6 +759,41 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun replaceRestoreIsRefusedWhenNothingMatchesANonEmptyLibrary() = runTest {
+        val song = track("song", "Song", "Artist", "Album", 120_000)
+        val source = fixture(listOf(song))
+        source.playlists.create("Mix", listOf(song.id))
+        source.history.record(event(song.id, 100))
+        source.library.hide(song.id)
+        source.exclusions.excludeTrack(song.id)
+        val encoded = source.service.exportEncoded()
+
+        // The library is not empty, but the media database was rebuilt under unrelated ids, so no
+        // reference can be confirmed: replacing the stored sets would still drop them.
+        val destination = fixture(
+            listOf(track("other", "Other", "Other artist", "Other album", 90_000)),
+        )
+        destination.playlists.create("Kept", listOf(TrackId("kept")))
+        destination.history.record(event(TrackId("kept"), 50))
+        destination.library.hide(TrackId("kept"))
+        destination.exclusions.excludeTrack(TrackId("kept"))
+
+        val failure = assertFailsWith<LocalBackupRestoreException> {
+            destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+        }
+
+        assertTrue(failure.completedSections.isEmpty())
+        assertTrue(failure.cause is LocalBackupLibraryUnavailableException)
+        assertEquals(listOf("Kept"), destination.playlists.all().map { it.name })
+        assertContentEquals(
+            listOf("kept"),
+            destination.history.recentEvents(Int.MAX_VALUE).map { it.trackId.value },
+        )
+        assertEquals(setOf(TrackId("kept")), destination.library.hiddenTrackIds())
+        assertEquals(setOf(TrackId("kept")), destination.exclusions.load().trackIds)
+    }
+
+    @Test
     fun mergeRestoreStillImportsFromAnEmptyDeviceLibrary() = runTest {
         val song = track("song", "Song", "Artist", "Album", 120_000)
         val source = fixture(listOf(song))

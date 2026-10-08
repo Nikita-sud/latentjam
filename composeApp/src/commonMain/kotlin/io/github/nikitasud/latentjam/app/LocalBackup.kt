@@ -141,8 +141,9 @@ internal class LocalBackupRestoreException(
 ) : IllegalStateException("Local backup restore stopped after ${completedSections.size} sections", cause)
 
 /**
- * The device library returned no tracks while the snapshot references some. An empty scan is not
- * proof that the tracks are gone, so a replace restore that would drop those references is refused.
+ * The device library matched none of the snapshot track references while the snapshot carries some.
+ * A scan without matches is not proof that the tracks are gone, so a replace restore that would drop
+ * those references is refused.
  */
 internal class LocalBackupLibraryUnavailableException(message: String) : IllegalStateException(message)
 
@@ -763,26 +764,28 @@ internal class LocalBackupService(
     ): LocalBackupRestoreReport {
         LocalBackupCodec.validate(snapshot)
         val currentTracks = library.allKnownTracks().distinctBy { it.id }
-        // An empty library is not evidence that the referenced tracks are gone: Android returns no
-        // tracks without the media permission or after a failed provider query, and iOS skips the
-        // device scan. Replacing stored sets with the references such a scan can match would drop
-        // playlists, history, hidden tracks, and SMART exclusions for good, so REPLACE is refused
-        // before any section is applied. MERGE still imports whatever the library can confirm.
+        val resolver = TrackReferenceResolver(currentTracks, snapshot.tracks)
+        val resolved = snapshot.tracks.associate { reference ->
+            reference.originalId to resolver.resolve(reference)
+        }
+        // Matching none of the references is not evidence that the tracks are gone: Android returns
+        // no tracks without the media permission or after a failed provider query, and iOS skips the
+        // device scan. Replacing stored sets with what such a scan can match would drop playlists,
+        // history, hidden tracks, and SMART exclusions for good, so REPLACE is refused before any
+        // section is applied. An empty library is the special case in which nothing can match.
+        // MERGE still imports whatever the library can confirm.
         val replacesTrackReferences = sections.playlists || sections.listeningHistory ||
             sections.hiddenTracks || sections.smartExclusions
-        if (mode == LocalBackupRestoreMode.REPLACE && currentTracks.isEmpty() &&
-            snapshot.tracks.isNotEmpty() && replacesTrackReferences
+        if (mode == LocalBackupRestoreMode.REPLACE && replacesTrackReferences &&
+            snapshot.tracks.isNotEmpty() && resolved.values.none { it != null }
         ) {
             throw LocalBackupRestoreException(
                 completedSections = emptySet(),
                 cause = LocalBackupLibraryUnavailableException(
-                    "The device library returned no tracks, so a replace restore was refused",
+                    "The device library matched none of the snapshot track references, " +
+                        "so a replace restore was refused",
                 ),
             )
-        }
-        val resolver = TrackReferenceResolver(currentTracks, snapshot.tracks)
-        val resolved = snapshot.tracks.associate { reference ->
-            reference.originalId to resolver.resolve(reference)
         }
         val completed = linkedSetOf<LocalBackupSection>()
         var playlistsApplied = 0
