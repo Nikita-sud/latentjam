@@ -209,13 +209,31 @@ public class MusicEntityIndex private constructor(
         private fun u32(bytes: ByteArray, offset: Int): Long =
             u24(bytes, offset).toLong() or ((bytes[offset + 3].toLong() and 0xff) shl 24)
 
+        /**
+         * A name reduced the way the pack builder reduces it (tools/research/pack_music_entities.py):
+         * lowercased, `ё` folded to `е`, every run of the other characters collapsed to one space and
+         * trimmed. Whether a character is a letter or a digit is Python's `str.isalnum()` there -- the
+         * categories L*, Nd, Nl and No -- so "Girls²" keeps its superscript and hashes to the key the
+         * pack was built from instead of to another artist's key. The lowercasing stays Kotlin's own and
+         * parts from Python's `str.lower()` on a few characters, whose names still hash differently.
+         */
         internal fun normalize(value: String): String = buildString(value.length) {
             var previousSpace = true
-            value.lowercase().forEach { original ->
-                val character = if (original == 'ё') 'е' else original
+            val lowered = value.lowercase().replace('ё', 'е')
+            var index = 0
+            while (index < lowered.length) {
+                // Kotlin common has no codePointAt, so a surrogate pair is decoded here. Python reads
+                // it as one character, and it stays one when appended.
+                val pair = lowered.hasSurrogatePairAt(index)
+                val width = if (pair) 2 else 1
+                val codePoint = if (pair) {
+                    ((lowered[index].code - 0xD800) shl 10) + (lowered[index + 1].code - 0xDC00) + 0x10000
+                } else {
+                    lowered[index].code
+                }
                 when {
-                    character.isLetterOrDigit() -> {
-                        append(character)
+                    isAlphanumeric(codePoint) -> {
+                        append(lowered, index, index + width)
                         previousSpace = false
                     }
                     !previousSpace -> {
@@ -223,6 +241,7 @@ public class MusicEntityIndex private constructor(
                         previousSpace = true
                     }
                 }
+                index += width
             }
         }.trim()
 
@@ -234,6 +253,43 @@ public class MusicEntityIndex private constructor(
             }
             return result
         }
+
+        /**
+         * Whether one code point is a letter or a digit the way `str.isalnum()` reads it in the pack
+         * builder. The BMP answers with its Unicode general category, the set
+         * [ALPHANUMERIC_CATEGORIES]; above the BMP Kotlin common has no category table, so an area
+         * decides there.
+         */
+        private fun isAlphanumeric(codePoint: Int): Boolean = when (codePoint) {
+            in 0..0xFFFF -> codePoint.toChar().category in ALPHANUMERIC_CATEGORIES
+            // Byzantine and musical notation, Tai Xuan Jing symbols: only the numerals inside those
+            // blocks (Kaktovik, Mayan, counting rods and tally marks) are letters or digits to Python.
+            in 0x1D000..0x1D3FF -> codePoint in 0x1D2C0..0x1D2D3 || codePoint in 0x1D2E0..0x1D2F3 ||
+                codePoint in 0x1D360..0x1D378
+            // Pictographs, emoji and the enclosed symbols are not letters or digits, save for the
+            // enclosed digits with a full stop or a comma.
+            in 0x1F100..0x1F10C -> true
+            in 0x1F000..0x1FAFF -> false
+            // Tags and variation selectors, then the two private use planes.
+            in 0xE0000..0xE01EF -> false
+            in 0xF0000..0x10FFFD -> false
+            // Every other area of the supplementary planes is letters and numbers (CJK extensions,
+            // historic scripts, mathematical alphanumerics). An unassigned code point and the few
+            // symbols inside letter blocks cannot be told apart here and are kept.
+            else -> true
+        }
+
+        /** The categories `str.isalnum()` covers: letters, then the numbers Nd, Nl and No. */
+        private val ALPHANUMERIC_CATEGORIES: Set<CharCategory> = setOf(
+            CharCategory.UPPERCASE_LETTER,
+            CharCategory.LOWERCASE_LETTER,
+            CharCategory.TITLECASE_LETTER,
+            CharCategory.MODIFIER_LETTER,
+            CharCategory.OTHER_LETTER,
+            CharCategory.DECIMAL_DIGIT_NUMBER,
+            CharCategory.LETTER_NUMBER,
+            CharCategory.OTHER_NUMBER,
+        )
     }
 }
 

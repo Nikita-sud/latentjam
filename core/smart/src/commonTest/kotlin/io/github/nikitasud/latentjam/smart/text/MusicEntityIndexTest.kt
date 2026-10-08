@@ -55,6 +55,28 @@ class MusicEntityIndexTest {
     }
 
     @Test
+    fun `normalization keeps the superscripts and the supplementary letters the pack builder keeps`() {
+        // The builder keeps every L*, Nd, Nl and No code point, as Python's str.isalnum() reads them.
+        assertEquals("girls²", MusicEntityIndex.normalize("Girls²"))
+        assertEquals("h₂o", MusicEntityIndex.normalize("H₂O"))
+        assertEquals("8½ souvenirs", MusicEntityIndex.normalize("8½ Souvenirs"))
+        assertEquals("聖飢魔ⅱ", MusicEntityIndex.normalize("聖飢魔Ⅱ"))
+        // A supplementary letter is one character to the builder rather than a space per surrogate.
+        assertEquals("𠮷野家", MusicEntityIndex.normalize("𠮷野家"))
+        assertEquals("a𝐛c", MusicEntityIndex.normalize("A𝐛C"))
+        assertEquals("a b", MusicEntityIndex.normalize("a\uD800b"))
+        // A pictograph is not a letter, so it separates words exactly as it does for the builder.
+        assertEquals("a b", MusicEntityIndex.normalize("a💧b"))
+    }
+
+    @Test
+    fun `a name with a superscript resolves to the key built from that name`() {
+        val index = assertNotNull(MusicEntityIndex.parse(EntityIndexBytes.of("girls²" to intArrayOf(7))))
+        assertContentEquals(intArrayOf(7), index.resolve("Girls²"))
+        assertEquals(0, index.resolve("Girls").size)
+    }
+
+    @Test
     fun `corrupt packs fail closed`() {
         val good = EntityIndexBytes.of("name" to intArrayOf(1))
         assertNotNull(MusicEntityIndex.parse(good))
