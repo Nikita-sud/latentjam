@@ -687,6 +687,86 @@ internal class LocalBackupTest {
         assertEquals(2, report.unresolvedTrackReferences)
     }
 
+    @Test
+    fun replaceRestoreIsRefusedWhileTheDeviceLibraryReportsNoTracks() = runTest {
+        val song = track("song", "Song", "Artist", "Album", 120_000)
+        val source = fixture(listOf(song))
+        source.playlists.create("Mix", listOf(song.id))
+        source.history.record(event(song.id, 100))
+        source.library.hide(song.id)
+        source.exclusions.excludeTrack(song.id)
+        val encoded = source.service.exportEncoded()
+
+        // A scan without the media permission returns nothing, which is not proof of deletion.
+        val destination = fixture(emptyList())
+        destination.playlists.create("Kept")
+        destination.history.record(event(TrackId("kept"), 50))
+        destination.library.hide(TrackId("kept"))
+        destination.exclusions.excludeTrack(TrackId("kept"))
+
+        val failure = assertFailsWith<LocalBackupRestoreException> {
+            destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+        }
+
+        assertTrue(failure.completedSections.isEmpty())
+        assertTrue(failure.cause is LocalBackupLibraryUnavailableException)
+        assertEquals(listOf("Kept"), destination.playlists.all().map { it.name })
+        assertContentEquals(
+            listOf("kept"),
+            destination.history.recentEvents(Int.MAX_VALUE).map { it.trackId.value },
+        )
+        assertEquals(setOf(TrackId("kept")), destination.library.hiddenTrackIds())
+        assertEquals(setOf(TrackId("kept")), destination.exclusions.load().trackIds)
+    }
+
+    @Test
+    fun mergeRestoreStillImportsFromAnEmptyDeviceLibrary() = runTest {
+        val song = track("song", "Song", "Artist", "Album", 120_000)
+        val source = fixture(listOf(song))
+        source.playlists.create("Mix", listOf(song.id))
+        source.history.record(event(song.id, 100))
+        val encoded = source.service.exportEncoded()
+
+        val destination = fixture(emptyList())
+        val kept = destination.playlists.create("Kept")
+        destination.playlists.addTracks(kept.id, listOf(TrackId("kept")))
+        destination.history.record(event(TrackId("kept"), 50))
+
+        val report = destination.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+
+        assertEquals(0, report.resolvedTrackReferences)
+        assertEquals(1, report.unresolvedTrackReferences)
+        assertEquals(2, destination.playlists.all().size)
+        assertContains(destination.playlists.all().map { it.name }, "Kept")
+        assertContains(destination.playlists.all().map { it.name }, "Mix")
+        assertContentEquals(
+            listOf("kept"),
+            destination.history.recentEvents(Int.MAX_VALUE).map { it.trackId.value },
+        )
+    }
+
+    @Test
+    fun replaceRestoreOfSectionsWithoutTrackReferencesWorksWithoutALibrary() = runTest {
+        val source = fixture(listOf(track("song", "Song", "Artist", "Album", 120_000)))
+        source.settings.setThemeMode(ThemeMode.DARK)
+        source.searches.record("Виктор Цой")
+        val encoded = source.service.exportEncoded()
+
+        val destination = fixture(emptyList())
+        val report = destination.service.importEncoded(
+            encoded,
+            LocalBackupRestoreMode.REPLACE,
+            noSections().copy(settings = true, recentSearches = true),
+        )
+
+        assertEquals(
+            setOf(LocalBackupSection.SETTINGS, LocalBackupSection.RECENT_SEARCHES),
+            report.completedSections,
+        )
+        assertEquals(ThemeMode.DARK, destination.settings.themeMode.value)
+        assertContentEquals(listOf("Виктор Цой"), destination.searches.recent(Int.MAX_VALUE))
+    }
+
     private fun emptySnapshot() = LocalBackupSnapshot(
         createdAtMs = 1,
         settings = LocalBackupSettings(
