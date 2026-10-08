@@ -780,7 +780,15 @@ public class PlaybackService : MediaLibraryService() {
                 title = metadata?.title?.toString().orEmpty(),
                 artist = metadata?.artist?.toString().orEmpty(),
                 artworkUri = metadata?.artworkUri?.toString(),
-                isPlaying = player.isPlaying,
+                // The transport the listener asked for, not the instantaneous player flag: a seek
+                // buffers for a moment, and reading isPlaying flipped the widget to Play and froze
+                // its clock while the music was merely on its way. Same rule as the in-app player,
+                // see [showPauseButton]; the service has no pending pause of its own.
+                isPlaying = showPauseButton(
+                    playWhenReady = player.playWhenReady,
+                    playbackState = player.playbackState,
+                    pausePending = false,
+                ),
                 positionMs = player.currentPosition.coerceAtLeast(0),
                 durationMs = player.duration
                     .takeUnless { it == C.TIME_UNSET }

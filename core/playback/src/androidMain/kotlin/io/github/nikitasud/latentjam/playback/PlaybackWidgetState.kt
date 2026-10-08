@@ -16,6 +16,11 @@ import android.provider.Settings
  * timing anchors rather than periodically persisted progress. A widget can project [positionMs]
  * while playback remains live in the same boot, then wait for the next player event to persist a
  * new anchor.
+ *
+ * @property isPlaying Transport intent, not the instantaneous player flag: a track briefly buffering
+ *   after a seek still counts as playing, exactly as the in-app player's `showPauseButton` treats it,
+ *   so the widget does not flip to Play and freeze its clock mid-seek. The projection anchors below
+ *   hang off this flag, so the same rule decides whether progress is live.
  */
 public data class PlaybackWidgetSnapshot(
     public val revision: Long = 0,
