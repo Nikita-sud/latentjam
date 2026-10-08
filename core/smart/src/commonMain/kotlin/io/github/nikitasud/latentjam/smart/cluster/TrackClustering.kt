@@ -113,6 +113,10 @@ public object TrackClustering {
      * meaningless region at the origin. On a library whose index is still filling, "fewer clusters"
      * is the honest answer and "one cluster of everything unindexed" is not.
      *
+     * [minSize] must be positive: it is a floor, not a switch. At zero or less a call whose ids are
+     * all unusable passes the `n < minSize` guard and reaches k-means seeding with no rows to draw
+     * from, which is a crash rather than the empty answer the caller asked for.
+     *
      * @param ids the tracks to consider, in a stable caller-defined order — ties break towards the
      *   front of this list, so the same library always yields the same grouping
      * @param vectors embeddings by id; entries of the wrong [dim] are ignored
@@ -127,6 +131,7 @@ public object TrackClustering {
         iterations: Int = DEFAULT_ITERATIONS,
     ): List<TrackCluster> {
         require(dim > 0) { "Embedding dimension must be positive, got $dim" }
+        require(minSize > 0) { "Minimum cluster size must be positive, got $minSize" }
         require(iterations > 0) { "Iteration count must be positive, got $iterations" }
         if (k <= 0 || ids.isEmpty()) return emptyList()
 
@@ -160,6 +165,9 @@ public object TrackClustering {
      * The matrix is private and already normalized, dimension-checked, and de-duplicated. Consuming
      * it here saves one complete 1,344-float row per track at the exact moment model snapshots and
      * k-means would otherwise put the most pressure on a low-memory phone.
+     *
+     * [minSize] must be positive, as in the map-based overload: an empty space with a zero floor
+     * would be handed to seeding with nothing to draw from.
      */
     internal fun cluster(
         space: LibraryVectorSpace,
@@ -167,6 +175,7 @@ public object TrackClustering {
         minSize: Int = MIN_CLUSTER_SIZE,
         iterations: Int = DEFAULT_ITERATIONS,
     ): List<TrackCluster> {
+        require(minSize > 0) { "Minimum cluster size must be positive, got $minSize" }
         require(iterations > 0) { "Iteration count must be positive, got $iterations" }
         if (k <= 0 || space.size < minSize) return emptyList()
         val rows = space.takeRows()
