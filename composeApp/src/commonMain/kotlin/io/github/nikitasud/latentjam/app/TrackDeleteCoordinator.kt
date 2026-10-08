@@ -55,7 +55,12 @@ internal class TrackDeleteCoordinator<C>(
     restored: List<String>? = null,
     private val save: (List<String>) -> Unit = {},
 ) {
-    private var requests = decodeDeleteRequests(restored)
+    // A per-file consent from the platform does not survive the process: the next run has to ask
+    // again. Carrying it over made the restored request report the file as denied without a
+    // prompt when the platform answered NeedsConsent a second time (Android 10 per-file consent).
+    private var requests = decodeDeleteRequests(restored).map { request ->
+        if (request.consented) request.copy(consented = false) else request
+    }
     private var nextId = (requests.maxOfOrNull { it.id } ?: 0L) + 1L
     private var worker: Job? = null
     private val mutablePrompt = MutableStateFlow<DeletePrompt<C>?>(null)

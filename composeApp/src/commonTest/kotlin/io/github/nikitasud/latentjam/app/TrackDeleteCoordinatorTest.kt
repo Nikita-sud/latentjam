@@ -55,6 +55,43 @@ class TrackDeleteCoordinatorTest {
         assertEquals(TrackDeleteReport(deleted = 2), restored.report())
     }
 
+    @Test fun `a file consent restored from storage asks again instead of reporting denied`() = runTest {
+        val backend = Backend(TrackDeleteStrategy.RECOVERABLE_CONSENT)
+        var attempts = 0
+        backend.attempt = {
+            attempts++
+            if (attempts == 1) DeleteAttempt.NeedsConsent("one")
+            else throw CancellationException("the old process died mid-delete")
+        }
+        val original = Harness(backend)
+        original.coordinator.enqueue(listOf("one"))
+        runCurrent()
+        original.launchPrompt()
+        original.coordinator.answer(DeleteAnswer.APPROVED)
+        runCurrent()
+        // The checkpoint the old process left behind: this file was approved and its deletion
+        // started, but the result never arrived.
+        assertTrue(decodeDeleteRequests(original.saved).single().consented)
+        assertEquals(DeleteStage.DELETING, decodeDeleteRequests(original.saved).single().stage)
+        // Android 10 forgets a per-file consent with the process and answers NeedsConsent again.
+        // The restored run must ask the listener again rather than count the file as denied.
+        var restoredAttempts = 0
+        backend.attempt = {
+            restoredAttempts++
+            // The first try after the restart has no valid grant; the retry, once the listener
+            // approves again, deletes the file.
+            if (restoredAttempts == 1) DeleteAttempt.NeedsConsent("one") else DeleteAttempt.Deleted
+        }
+        val restored = original.recreate()
+        runCurrent()
+        assertNotNull(restored.coordinator.prompt.value)
+        restored.launchPrompt()
+        restored.coordinator.answer(DeleteAnswer.APPROVED)
+        restored.coordinator.onHostResumed()
+        runCurrent()
+        assertEquals(TrackDeleteReport(deleted = 1), restored.report())
+    }
+
     @Test fun `restored system deletion consumes the result without deleting again`() = runTest {
         val backend = Backend(TrackDeleteStrategy.SYSTEM_DELETE_REQUEST)
         val original = Harness(backend)
