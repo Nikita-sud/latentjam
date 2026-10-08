@@ -70,6 +70,30 @@ class MusicEntityIndexTest {
     }
 
     @Test
+    fun `the supplementary planes follow the pack builder's categories exactly`() {
+        // U+10000 LINEAR B SYLLABLE B008 A is a letter above the BMP, so it stays one character
+        // rather than becoming a space per surrogate.
+        assertEquals("a\uD800\uDC00b", MusicEntityIndex.normalize("A\uD800\uDC00B"))
+        // U+1D400 MATHEMATICAL BOLD CAPITAL A is a letter too: it keeps one character and never a
+        // separator space, whether the platform folds it to U+1D41A or leaves it as Python's
+        // str.lower() does. The name reads "x", the letter, then "y".
+        val math = MusicEntityIndex.normalize("x\uD835\uDC00y")
+        assertEquals(4, math.length)
+        assertEquals('x', math[0])
+        assertEquals('y', math[3])
+        // The symbols and combining marks of those planes are not letters to str.isalnum(), so each
+        // separates the words of a name: the SignWriting sign U+1D800, the legacy computing block
+        // U+1FB00 and the Hanifi Rohingya mark U+10D24.
+        assertEquals("a b", MusicEntityIndex.normalize("a\uD836\uDC00b"))
+        assertEquals("a b", MusicEntityIndex.normalize("a\uD83E\uDF00b"))
+        assertEquals("a b", MusicEntityIndex.normalize("a\uD803\uDD24b"))
+        // An unassigned code point is no letter either: U+1D455 is the reserved hole in the
+        // mathematical alphanumerics (it would duplicate PLANCK CONSTANT) and U+10FFFF a noncharacter.
+        assertEquals("a b", MusicEntityIndex.normalize("a\uD835\uDC55b"))
+        assertEquals("a b", MusicEntityIndex.normalize("a\uDBFF\uDFFFb"))
+    }
+
+    @Test
     fun `a name with a superscript resolves to the key built from that name`() {
         val index = assertNotNull(MusicEntityIndex.parse(EntityIndexBytes.of("girls²" to intArrayOf(7))))
         assertContentEquals(intArrayOf(7), index.resolve("Girls²"))
