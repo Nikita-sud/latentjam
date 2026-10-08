@@ -1102,8 +1102,17 @@ fun App(engine: SimilarityEngine, library: MusicLibrary, playback: PlaybackContr
             }
         }
         LaunchedEffect(Unit) {
-            scanLibrary()
-            hasHiddenTracks = library.hasHiddenTracks()
+            try {
+                scanLibrary()
+                hasHiddenTracks = library.hasHiddenTracks()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                // A media-store or database failure must degrade to the loading/empty library with a
+                // retry, not escape the effect: an uncaught throwable here kills the whole process.
+                println("Library: could not scan at launch: $failure")
+                snackbar.showSnackbar(getString(Res.string.settings_library_manage_failed))
+            }
             favoriteIds = AppGraph.favorites.all()
             // Playlists load at launch, not first tab visit: the SMART companion groups and mix
             // names derive from them, and both must work in a session that never opens the tab.

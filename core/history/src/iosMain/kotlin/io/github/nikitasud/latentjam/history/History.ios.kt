@@ -33,9 +33,9 @@ import platform.Foundation.NSURL
 import platform.Foundation.NSURLIsExcludedFromBackupKey
 import platform.Foundation.dataWithBytes
 import platform.Foundation.fileHandleForWritingAtPath
-import platform.Foundation.stringWithContentsOfFile
 import platform.Foundation.timeIntervalSince1970
 import platform.Foundation.writeToFile
+import platform.posix.memcpy
 
 /**
  * Path to a file in Application Support, creating the directory on first use.
@@ -73,6 +73,16 @@ private fun ByteArray.toNSData(): NSData {
     return usePinned { pinned -> NSData.dataWithBytes(pinned.addressOf(0), size.toULong()) }
 }
 
+/** Copies an [NSData] payload into a Kotlin [ByteArray]. */
+@OptIn(ExperimentalForeignApi::class)
+private fun NSData.toByteArray(): ByteArray {
+    val size = length.toInt()
+    if (size == 0) return ByteArray(0)
+    val output = ByteArray(size)
+    output.usePinned { pinned -> memcpy(pinned.addressOf(0), bytes, length) }
+    return output
+}
+
 @OptIn(ExperimentalForeignApi::class)
 private fun readLines(path: String): List<String> {
     val text = readText(path)
@@ -83,11 +93,14 @@ private fun readLines(path: String): List<String> {
 @OptIn(ExperimentalForeignApi::class)
 private fun readText(path: String): String {
     if (!NSFileManager.defaultManager.fileExistsAtPath(path)) return ""
-    val text = memScoped {
-        val error = alloc<ObjCObjectVar<NSError?>>()
-        NSString.stringWithContentsOfFile(path, NSUTF8StringEncoding, error.ptr)
-    } ?: error("Could not read private history data")
-    return text
+    val bytes = NSFileManager.defaultManager.contentsAtPath(path)?.toByteArray()
+        ?: error("Could not read private history data")
+    // A file whose bytes are not UTF-8 is damaged, but that is no reason to refuse every later
+    // operation: decoding leniently (a malformed byte becomes U+FFFD) keeps every intact line —
+    // the app writes ASCII, so damaged bytes are a short foreign stretch — and leaves clear() and
+    // replace() able to repair the file. This is the iOS counterpart of Android's readLines(),
+    // which never failed on an undecodable file either.
+    return bytes.decodeToString()
 }
 
 private fun writeText(path: String, text: String) {
