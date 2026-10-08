@@ -81,6 +81,13 @@ internal class IosAudioEngine : EqualizerController {
                 stop()
                 return false
             }
+        // A file without frames can never yield a segment, and scheduleSegment forbids an empty
+        // one, so such a file is unplayable here: fail the load like an unreadable URL and let
+        // the controller walk on to the next candidate instead of cueing silence.
+        if (file.length <= 0L) {
+            stop()
+            return false
+        }
         completionGeneration++
         player.stop()
         currentFile = file
@@ -150,7 +157,11 @@ internal class IosAudioEngine : EqualizerController {
     fun seekTo(positionMs: Long) {
         val file = currentFile ?: return
         val wasPlaying = player.playing
-        val frame = millisToFrame(positionMs, file).coerceIn(0L, file.length)
+        // A segment must not start at file.length: it would contain no frames at all. Lyric taps
+        // and the seek bar can ask for a position at or past the end, so the target stays on the
+        // last frame and the item then ends through the scheduled segment's completion.
+        val lastFrame = (file.length - 1L).coerceAtLeast(0L)
+        val frame = millisToFrame(positionMs, file).coerceIn(0L, lastFrame)
         completionGeneration++
         player.stop()
         segmentStartFrame = frame
@@ -182,6 +193,17 @@ internal class IosAudioEngine : EqualizerController {
 
     private fun scheduleSegment(file: AVAudioFile, startFrame: Long) {
         val framesLeft = (file.length - startFrame).coerceAtLeast(0L)
+        // AVAudioPlayerNode.scheduleSegment asserts "numberFrames > 0" inside CoreAudio, so an
+        // empty range must never reach the node or the process dies. A playhead already at the end
+        // of the file is therefore the end of playback, not a segment: park the transport there
+        // and report the end so the queue can move on.
+        if (framesLeft == 0L) {
+            completionGeneration++
+            segmentStartFrame = file.length
+            pausedFrame = file.length
+            completion?.invoke()
+            return
+        }
         val token = ++completionGeneration
         player.scheduleSegment(
             file = file,
