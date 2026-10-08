@@ -187,6 +187,45 @@ class ForYouRhythmTest {
     }
 
     @Test
+    fun bingeDeepCutsPutStrangersAheadOfCooledRepeats() {
+        val played = track("played", artist = "Kanno")
+        // The cooled cut leads the fit order, so the row used to open on yesterday's repeat while
+        // the artist's unoffered cuts waited behind it.
+        val cooled = track("a-cooled", artist = "Kanno")
+        val strangers = (1..3).map { track("b-new$it", artist = "Kanno") }
+        val statsMap = mapOf(played.id to stats(plays = 12, lastPlayedAtMs = now - day))
+        val cuts = ForYouRhythm.bingeDeepCuts(
+            binge = ForYouRhythm.Binge("kanno", "Kanno", 12),
+            library = listOf(played, cooled) + strangers,
+            events = listOf(event("played", now - day)),
+            stats = statsMap,
+            worlds = emptyList(),
+            nowMs = now,
+            used = emptySet(),
+            cooled = setOf(cooled.id),
+            artistKeyOf = { it.lowercase() },
+        )
+        // Every card on this row is an unheard offer whose show is journalled, so a cut shown on
+        // a recent day and passed over is a repeat, not a discovery: it yields to the strangers.
+        assertEquals(strangers.map { it.id } + cooled.id, cuts.map { it.id })
+
+        // With nothing but repeats left the row still fills from the cooling tail: an empty slot
+        // helps nobody.
+        val allCooling = ForYouRhythm.bingeDeepCuts(
+            binge = ForYouRhythm.Binge("kanno", "Kanno", 12),
+            library = listOf(played, cooled) + strangers,
+            events = listOf(event("played", now - day)),
+            stats = statsMap,
+            worlds = emptyList(),
+            nowMs = now,
+            used = emptySet(),
+            cooled = (strangers.map { it.id } + cooled.id).toSet(),
+            artistKeyOf = { it.lowercase() },
+        )
+        assertEquals(listOf(cooled.id) + strangers.map { it.id }, allCooling.map { it.id })
+    }
+
+    @Test
     fun wildcardComesFromALovedDormantWorldAndRotates() {
         val lovedDormant = listOf(
             track("anchor"),

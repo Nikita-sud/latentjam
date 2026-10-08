@@ -933,4 +933,72 @@ class ForYouBuilderTest {
         assertEquals(stranger.id, page.hero?.track?.id)
         assertEquals(ForYouKicker.NeverPlayed, page.hero?.kicker)
     }
+
+    @Test
+    fun `the on a roll row walks its strangers before the cooling tail`() {
+        val played = track("played", artist = "Kanno")
+        // The cooled cut leads the fit order, so the row used to open on yesterday's repeat while
+        // the artist's unoffered cuts waited behind it.
+        val cooled = track("a-cooled", artist = "Kanno")
+        val strangers = (1..3).map { track("b-new$it", artist = "Kanno") }
+        // The hero claims the newest unheard track; it is not by the binged artist, so it cannot
+        // stand in for one of the cuts under test.
+        val bait = track("bait", artist = "Bait", added = 900)
+        val page = ForYouBuilder.build(
+            library = listOf(played, cooled) + strangers + bait,
+            stats = mapOf(played.id to stats(plays = 12, last = now - day)),
+            // Twelve plays in the phase window with no baseline: the strongest binge signal.
+            recentEvents = (1..12).map { n ->
+                ListenEvent(
+                    trackId = played.id,
+                    startedAtMs = now - (n % 6) * day - n * hour,
+                    playedMs = 60_000,
+                    trackDurationMs = 120_000,
+                    completed = true,
+                    skipped = false,
+                )
+            },
+            nowMs = now,
+            cooledDiscoveries = setOf(cooled.id),
+            localDayOf = { 0L },
+        )
+
+        val shown = page.sections
+            .single { it.kind == ForYouSectionKind.ON_A_ROLL }
+            .cards.map { it.track.id }
+        val newcomerCount = shown.count { it != cooled.id }
+        val firstCooled = shown.indexOfFirst { it == cooled.id }
+        assertTrue(newcomerCount > 0, "the row offered nobody new: ${shown.map { it.value }}")
+        assertTrue(
+            firstCooled == newcomerCount,
+            "a cooled repeat was shown ahead of a stranger: ${shown.map { it.value }}",
+        )
+    }
+
+    @Test
+    fun `the worlds cover prefers a stranger to a cooling repeat`() {
+        // The cooled member leads the world's ranking, so it used to front the card — and front it
+        // again the next day, each show written to the impression journal as a new offer.
+        val cooled = track("cooled-cover", artist = "Cooled")
+        val newcomer = track("fresh-cover", artist = "Fresh")
+        val rest = track("rest", artist = "Rest")
+        val members = listOf(cooled, newcomer, rest)
+        // The hero claims the newest unheard track; outside the world, so it cannot stand in for
+        // the cover under test.
+        val bait = track("bait", artist = "Bait", added = 900)
+        val page = ForYouBuilder.build(
+            library = members + bait,
+            stats = emptyMap(),
+            recentEvents = emptyList(),
+            nowMs = now,
+            worlds = listOf(LibraryWorld("Region", members)),
+            cooledDiscoveries = setOf(cooled.id),
+            localDayOf = { 0L },
+        )
+
+        val card = page.sections.single { it.kind == ForYouSectionKind.WORLDS }.cards.single()
+        assertEquals(newcomer.id, card.track.id)
+        // The cover and the mix's first track stay the same record.
+        assertEquals(newcomer.id, card.collection?.tracks?.first()?.id)
+    }
 }
