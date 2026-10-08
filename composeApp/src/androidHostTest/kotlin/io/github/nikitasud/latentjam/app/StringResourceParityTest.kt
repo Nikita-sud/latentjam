@@ -123,6 +123,28 @@ class StringResourceParityTest {
     }
 
     @Test
+    fun `Android res folders keep the legacy Indonesian and Hebrew codes`() {
+        // The widget, tile, Android Auto and Media3 strings are plain Android resources, which
+        // the checks above never read. Android's resource lookup rewrites "id" to "in" and "he"
+        // to "iw" before matching (ResourcesImpl.adjustLanguageTag), so a values-id without a
+        // values-in is English on every Indonesian device, at every API level.
+        val problems = mutableListOf<String>()
+        for ((name, root) in androidResourceRoots) {
+            assertTrue(root.isDirectory, "$name is gone; update androidResourceRoots")
+            for ((original, copy) in LEGACY_CODES) {
+                val hasOriginal = File(root, original).isDirectory
+                val hasCopy = File(root, copy).isDirectory
+                when {
+                    hasOriginal && !hasCopy -> problems += "$name has $original but no $copy"
+                    hasCopy && !hasOriginal -> problems += "$name has $copy but no $original"
+                    hasOriginal -> problems += duplicateProblems(root, original, copy).map { "$name/$it" }
+                }
+            }
+        }
+        assertNoProblems(problems, "Android res folders lost a legacy language code")
+    }
+
+    @Test
     fun `no translation is left in English`() {
         // A string copied from values/ and never translated passes every other check here: the
         // key exists, the placeholders match. Flag any value that equals the English source,
@@ -317,8 +339,24 @@ class StringResourceParityTest {
         fun Set<Int>.pretty(): String =
             if (isEmpty()) "no placeholders" else sorted().joinToString(", ") { "%$it\$" }
 
-        fun xmlFiles(bundle: String): List<File> =
-            File(resourcesDir, bundle).listFiles { f: File -> f.isFile && f.name.endsWith(".xml") }
+        /**
+         * Android res folders, by path from the repository root. Listed rather than discovered, so
+         * a moved folder fails loudly instead of quietly dropping out of the check.
+         */
+        val androidResourceRoots: Map<String, File> by lazy {
+            // resourcesDir is <repository>/composeApp/src/commonMain/composeResources.
+            val repository = resourcesDir.resolve("../../../..").normalize()
+            listOf("composeApp/src/androidMain/res", "core/playback/src/androidMain/res")
+                .associateWith { File(repository, it) }
+        }
+
+        /** Folders Android resolves only under the legacy language code, and that code's folder. */
+        val LEGACY_CODES = mapOf("values-id" to "values-in", "values-he" to "values-iw")
+
+        fun xmlFiles(bundle: String): List<File> = xmlFiles(File(resourcesDir, bundle))
+
+        fun xmlFiles(folder: File): List<File> =
+            folder.listFiles { f: File -> f.isFile && f.name.endsWith(".xml") }
                 .orEmpty()
                 .sortedBy { it.name }
 
@@ -344,6 +382,17 @@ class StringResourceParityTest {
                     "$copy/$name drifted from $original/$name",
                 )
             }
+        }
+
+        /** [assertFaithfulDuplicate] for two folders under any [root], reported as problems. */
+        fun duplicateProblems(root: File, original: String, copy: String): List<String> {
+            val originals = xmlFiles(File(root, original)).map { it.name }
+            if (originals != xmlFiles(File(root, copy)).map { it.name }) {
+                return listOf("$copy and $original hold different files")
+            }
+            return originals
+                .filter { body(File(root, "$original/$it")) != body(File(root, "$copy/$it")) }
+                .map { "$copy/$it drifted from $original/$it" }
         }
 
         fun parse(bundle: String): Bundle {
